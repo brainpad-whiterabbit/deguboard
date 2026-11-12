@@ -12,6 +12,7 @@ import { iterationAdd, iterationClose, iterationCreate, iterationStart } from ".
 import { metricsShow } from "./metrics.js";
 import { commit, init } from "./setup.js";
 import { ticketCreate } from "./ticket.js";
+import { workflowSet } from "./workflow.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -227,18 +228,21 @@ describe("metrics show", () => {
     expect(findCommand("metrics.show")).toBe(metricsShow);
   });
 
-  it("絞り込みに合う done のチケットのうち、実装の Run が 1 件もないものを示す（MT-3）", async () => {
+  it("絞り込みに合う done のチケットのうち、エージェントが claim して実装の Run が 1 件もないものを示す（MT-3）", async () => {
     const ctx = await scenario();
     await runCommand(ticketCreate, ctx, { title: "C" });
+    await runCommand(ticketCreate, ctx, { title: "D" });
     await runCommand(iterationCreate, ctx, { name: "I" });
     await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t3"] });
     await runCommand(iterationStart, ctx, { iteration: "s1" });
-    // 完了は dg の外の変更（ストアへの直接の書き込み）として記録する（scenario と同じ）
-    await ctx.store.update("ticket", "t3", { status: "done" });
+    // 完了は dg の外の変更（ストアへの直接の書き込み）として記録する（scenario と同じ）。
+    // t4 は人が claim した done。人の claim は Run を開かないので、Run がなくても示さない（RN-5）
+    await ctx.store.update("ticket", "t3", { status: "done", assignee: "eiki/agent" });
+    await ctx.store.update("ticket", "t4", { status: "done", assignee: "eiki" });
     await recordBaseline(ctx.repo);
     await runCommand(commit, ctx, {});
 
-    // t1 は実装の Run があり、t2 は done でないので示さない
+    // t1 は実装の Run があり、t2 は done でないので示さない。t4 は人の claim なので示さない
     expect((await runCommand(metricsShow, ctx, {})).data.no_runs).toEqual(["t3"]);
     expect((await runCommand(metricsShow, ctx, {})).warnings).toEqual([
       "Done tickets with no implement Run: t3",
@@ -257,5 +261,54 @@ describe("metrics show", () => {
     const closed = await runCommand(metricsShow, ctx, { iteration: "s1" });
     expect(closed.data).toMatchObject({ filter: { iteration: "s1" }, no_runs: ["t3"] });
     expect(closed.warnings).toEqual(["Done tickets with no implement Run: t3"]);
+  });
+
+  it("実装の Run の step は Workflow の claim が開く step の名前で探す（RN-5）", async () => {
+    const ctx = await scenario();
+    const projectWorkflow = [...ctx.store.projects.values()][0]?.data.workflow as string;
+    await runCommand(workflowSet, ctx, {
+      workflow: projectWorkflow,
+      definition: {
+        id: projectWorkflow,
+        name: "renamed",
+        transitions: [],
+        steps: [{ id: "build", opens_on: "claim" }],
+      },
+    });
+    await runCommand(ticketCreate, ctx, { title: "C" });
+    await runCommand(ticketCreate, ctx, { title: "D" });
+    // t3 は claim が開く build の Run があり、t4 は implement の Run しかない（build の Run がない）
+    await ctx.store.update("ticket", "t3", { status: "done", assignee: "eiki/agent" });
+    await ctx.store.update("ticket", "t4", { status: "done", assignee: "eiki/agent" });
+    await ctx.store.create("run", {
+      id: "r20261031-070000-0004",
+      ticket: "t3",
+      step: "build",
+      agent: "claude-code",
+      model: "opus",
+      started_at: "2026-10-31T07:00:00Z",
+      finished_at: "2026-10-31T07:10:00Z",
+      result: "success",
+      error: null,
+      retries: 0,
+      usage: emptyUsage(),
+    });
+    await ctx.store.create("run", {
+      id: "r20261031-080000-0005",
+      ticket: "t4",
+      step: "implement",
+      agent: "claude-code",
+      model: "opus",
+      started_at: "2026-10-31T08:00:00Z",
+      finished_at: "2026-10-31T08:10:00Z",
+      result: "success",
+      error: null,
+      retries: 0,
+      usage: emptyUsage(),
+    });
+    await recordBaseline(ctx.repo);
+    await runCommand(commit, ctx, {});
+
+    expect((await runCommand(metricsShow, ctx, {})).data.no_runs).toEqual(["t4"]);
   });
 });

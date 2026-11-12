@@ -15,6 +15,7 @@ import {
 import { runIdSchema } from "../model/run.js";
 import { defineCommand, ok } from "./define.js";
 import { epicRef, idShapeOf, iterationRef, ticketRef } from "./helpers.js";
+import { openedStepOf } from "./run.js";
 
 export interface MetricsView extends MetricsReport {
   filter: MetricFilter;
@@ -27,7 +28,7 @@ export const metricsShow = defineCommand({
   name: "metrics.show",
   group: "metrics",
   summary:
-    "Aggregate Runs. Filter by Run, ticket, Epic, Iteration, Project, Agent, Model, or Step (Epic, Iteration, and Project follow each ticket's current value). Values that could not be read are not added and are counted in missing; Runs with estimated values are counted in estimated_runs. Tool counts (tools) are also added up per kind, and Runs without them are counted in missing.tools. Reviews recorded with no Run from a hook (capture: none) are counted as reviews only, and are left out of usage, time, and tools. Done tickets that match the ticket-level filters (ticket, epic, iteration, project) and have no implement Run are listed in no_runs. Aggregates are not stored",
+    "Aggregate Runs. Filter by Run, ticket, Epic, Iteration, Project, Agent, Model, or Step (Epic, Iteration, and Project follow each ticket's current value). Values that could not be read are not added and are counted in missing; Runs with estimated values are counted in estimated_runs. Tool counts (tools) are also added up per kind, and Runs without them are counted in missing.tools. Reviews recorded with no Run from a hook (capture: none) are counted as reviews only, and are left out of usage, time, and tools. Done tickets claimed by an agent that match the ticket-level filters (ticket, epic, iteration, project) and have no implement Run are listed in no_runs. Aggregates are not stored",
   input: z.object({
     run: runIdSchema.optional().describe("Only this Run"),
     ticket: ticketRef.optional().describe("Only Runs of this ticket"),
@@ -79,10 +80,14 @@ export const metricsShow = defineCommand({
             `Tickets ${lost.join(", ")} not found, so the Epic, Iteration and Project of those Runs are unknown`,
           ]
         : [];
-    // done なのに実装の Run がないチケットは、Run の集計には現れないので別に示す（MT-3）
+    // done なのに実装の Run がないチケットは、Run の集計には現れないので別に示す（MT-3）。
+    // 実装の Run の step は Workflow の claim が開く step で決める（RN-5。lint の確かめと同じ）。
+    // フックが結ばなかった見直し（capture: none、t702）のチケットも示す。MT-3 は環境を問わず
+    // 「実装の Run が 1 件もない done」を示すと決めており、lint は環境のせいとして外すが、ここでは外さない
     const no_runs = doneTicketsWithoutImplementRun(
       [...ctx.store.tickets.values()].map((d) => d.data),
       [...ctx.store.runs.values()].map((d) => d.data),
+      (t) => openedStepOf(ctx, t, "claim"),
       filter,
     );
     if (no_runs.length > 0)

@@ -1,5 +1,6 @@
 // Run の集計（requirements.md 6.6 MT-3、ADR-029）。集計値は保存せず、表示のたびに Run から求める純粋関数
 
+import { isAgentActorId } from "./actor.js";
 import { idNumber } from "./id.js";
 import { TOOL_KINDS, type Run, type RunTools } from "./run.js";
 import type { Ticket } from "./ticket.js";
@@ -172,19 +173,32 @@ export function filterRuns<P extends { at: RunPlacement }>(
 }
 
 /**
- * 絞り込みに合う done のチケットのうち、実装の Run（step が implement）が 1 件もないもの（MT-3）。
+ * 絞り込みに合う done のチケットのうち、エージェントが claim して、実装の Run（implementStepOf が返す step）が
+ * 1 件もないもの（MT-3）。人の claim と --no-run は Run を開かない（RN-5）ので、欠けたものには数えない。
  * Run の条件（run・agent・model・step）があれば、Run のないチケットはどれにも合わないので示さない。
  * 絞り込みは チケットの今の値（ticket・Epic・Iteration・Project）で見る。欠けたのは Run なので、Run の数は足さない
  */
 export function doneTicketsWithoutImplementRun(
   tickets: readonly Ticket[],
   runs: readonly Run[],
+  implementStepOf: (ticket: Ticket) => string,
   filter: MetricFilter = {},
 ): string[] {
   if ((["run", "agent", "model", "step"] as const).some((u) => filter[u] !== undefined)) return [];
-  const withImplement = new Set(runs.filter((r) => r.step === "implement").map((r) => r.ticket));
+  const stepsOf = new Map<string, Set<string>>();
+  for (const r of runs) {
+    const steps = stepsOf.get(r.ticket);
+    if (steps) steps.add(r.step);
+    else stepsOf.set(r.ticket, new Set([r.step]));
+  }
   return tickets
-    .filter((t) => t.status === "done" && !withImplement.has(t.id))
+    .filter(
+      (t) =>
+        t.status === "done" &&
+        t.assignee !== undefined &&
+        isAgentActorId(t.assignee) &&
+        !stepsOf.get(t.id)?.has(implementStepOf(t)),
+    )
     .filter(
       (t) =>
         (filter.ticket === undefined || filter.ticket === t.id) &&
