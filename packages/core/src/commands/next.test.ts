@@ -4,7 +4,7 @@ import type { Run, RunReview } from "../model/run.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
 import { next, nextOf, stageOf, type NextStep, type StageFacts } from "./next.js";
-import { planCreate } from "./plan.js";
+import { planApprove, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
 import { init } from "./setup.js";
 import { ticketCreate, ticketShow, ticketUpdate, type TicketDetail } from "./ticket.js";
@@ -76,6 +76,16 @@ describe("作業の段階（stageOf。EX-3）", () => {
     ).toMatchObject({ name: "blocked", reason: expect.stringContaining("t2") });
     expect(stageOf(facts({ ticket: { status: "done" } })).name).toBe("merged");
     expect(stageOf(facts({ ticket: { status: "abandoned" } })).name).toBe("closed");
+  });
+
+  it("承認待ちの Plan に入った todo は、待ちがなくても awaiting_approval で、どの Plan かを理由に書く（PL-4）", () => {
+    expect(
+      stageOf(facts({ ticket: { status: "todo", pr: undefined }, pendingPlan: "p1" })),
+    ).toMatchObject({ name: "awaiting_approval", reason: expect.stringContaining("p1") });
+    // 承認済みの Plan（pendingPlan が null）と Plan の外は、今と同じく todo
+    expect(
+      stageOf(facts({ ticket: { status: "todo", pr: undefined }, pendingPlan: null })).name,
+    ).toBe("todo");
   });
 
   it("PR がなければ claimed、PR があって見直しがなければ implemented、最後の push より前の見直ししかなければ fixed", () => {
@@ -527,10 +537,12 @@ describe("dg next と ticket show の stage（EX-3）", () => {
   it("implement・fix の手の model は plan.tier を models.* に対応させ、tier を省いた段階は standard、対応が空なら null。review とほかの手は null", async () => {
     const ctx = await prepared();
     await runCommand(ticketCreate, ctx, { title: "C" });
-    await runCommand(planCreate, ctx, {
+    const created = await runCommand(planCreate, ctx, {
       tickets: ["t1", "t2"],
       tier: { t1: "heavy", t2: "light" },
     });
+    // 承認待ちの Plan のチケットは implement を返さない（PL-4）。以下は承認した後の手を確かめる
+    await runCommand(planApprove, ctx, { plan: created.data.id });
     const models = { light: "haiku", standard: "sonnet", heavy: "opus" };
     const withModels = { ...ctx, config: { ...ctx.config, models } };
     const kind = (f: StageFacts) => nextOf(withModels, f);
@@ -558,6 +570,31 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     // 既定の config（models.* は空）の dg next も model を返す
     const step = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
     expect(step).toMatchObject({ kind: "implement", model: null, plan: { tier: "heavy" } });
+  });
+
+  it("承認待ちの Plan に入った todo は、dg next が着手ではなく人の承認を待つ手（wait_human）と Plan を返し、ticket show も同じ段階を出す。承認すると implement に戻る（PL-4）", async () => {
+    const ctx = await prepared();
+    const created = await runCommand(planCreate, ctx, { tickets: ["t1"] });
+    const planId = created.data.id;
+    const waiting = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
+    expect(waiting).toMatchObject({
+      kind: "wait_human",
+      step: null,
+      stage: { name: "awaiting_approval" },
+      plan: { id: planId },
+      running_run: null,
+      commands: [],
+      brief: null,
+    });
+    expect(waiting.ask_human).toContain(planId);
+    const shown = (await runCommand(ticketShow, ctx, { ticket: "t1" })).data as TicketDetail;
+    expect(shown.stage).toEqual(waiting.stage);
+    // 承認すると、同じチケットは着手できる todo に戻る
+    await runCommand(planApprove, ctx, { plan: planId });
+    expect((await runCommand(next, ctx, { ticket: "t1" })).data).toMatchObject({
+      kind: "implement",
+      stage: { name: "todo" },
+    });
   });
 
   it("CLI・HTTP・MCP が写す一覧に next があり、読み取りだけ（write: false）", () => {
