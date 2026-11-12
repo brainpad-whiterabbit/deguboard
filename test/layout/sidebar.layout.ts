@@ -575,7 +575,8 @@ describe.each(SCHEMES)("実行計画のグラフの凡例（%s）", (scheme) => 
         const legend = document.querySelector(".plan-graph-legend")!;
         const graph = document.querySelector(".plan-graph")!;
         return {
-          text: legend.textContent,
+          // 凡例の並びは 待ち中・待ち終わり・after・depends_on（t729）
+          labels: [...legend.querySelectorAll(":scope > span")].map((s) => s.textContent),
           legendScroll: legend.scrollWidth,
           legendClient: legend.clientWidth,
           graphScroll: graph.scrollWidth,
@@ -584,7 +585,7 @@ describe.each(SCHEMES)("実行計画のグラフの凡例（%s）", (scheme) => 
           docClient: document.documentElement.clientWidth,
         };
       });
-      expect(m.text).toContain("depends_on 待ち中");
+      expect(m.labels).toEqual(["待ち中", "待ち終わり", "after", "depends_on"]);
       expect(m.legendScroll, "凡例の横の溢れ").toBeLessThanOrEqual(m.legendClient);
       expect(m.graphScroll, "グラフの横スクロールに凡例が入らない").toBeLessThanOrEqual(
         Math.max(m.graphClient, m.legendClient),
