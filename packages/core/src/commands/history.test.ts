@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
+import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
 import { readHistory, type HistoryLog } from "../git/history.js";
 import { createLocalClient } from "./local.js";
 import { openContext } from "./context.js";
@@ -30,17 +30,11 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
-async function initialized(f: Fixture): Promise<CommandContext> {
+/** t1・t2 を起票し、s1 を始めて s1 と e1 に入れて進め、s1 を閉じて t2 を持ち越し、t2 を claim して PR を記録する（雛形の準備。テストファイルで 1 度だけ走る） */
+async function scenarioRepo(f: Layout): Promise<void> {
   const actor = { kind: "human" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
-  return openContext({ cwd: f.cloneA, actor });
-}
-
-/** t1・t2 を起票し、s1 を始めて s1 と e1 に入れて進め、s1 を閉じて t2 を持ち越し、t2 を claim して PR を記録する */
-async function scenario(): Promise<CommandContext> {
-  const f = await createFixture();
-  cleanups.push(f.cleanup);
-  const ctx = await initialized(f);
+  const ctx = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, { title: "A" });
   await runCommand(ticketCreate, ctx, { title: "B" });
   await runCommand(epicCreate, ctx, { title: "E" });
@@ -59,7 +53,13 @@ async function scenario(): Promise<CommandContext> {
   await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "feat/b" });
   await runCommand(ticketUpdate, agent, { ticket: "t2", pr: 5 });
   await runCommand(commit, agent, {});
-  return agent;
+}
+
+/** scenarioRepo を済ませた雛形から写した、agent の文脈 */
+async function scenario(): Promise<CommandContext> {
+  const f = await createFixtureFrom("scenario", scenarioRepo);
+  cleanups.push(f.cleanup);
+  return openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
 }
 
 const changesOf = (events: { changes: { field: string; from: unknown; to: unknown }[] }[]) =>
