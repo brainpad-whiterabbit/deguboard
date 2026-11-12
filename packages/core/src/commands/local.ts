@@ -29,7 +29,7 @@ export interface LocalClientOptions {
   /** 主体の種別。既定は human（画面）。dg mcp は agent */
   actor?: ActorKind | undefined;
   commands?: readonly AnyCommand[] | undefined;
-  /** マージドライバとして登録する、dg を呼ぶ argv の前置（dg serve が渡す） */
+  /** マージドライバとして登録する、dg を呼ぶ argv の前置（dg serve・dg mcp・VS Code 拡張が渡す） */
   mergeDriver?: readonly string[] | undefined;
   /** Workflow の steps に書ける Action の名前（ContextOptions.actions） */
   actions?: readonly string[] | undefined;

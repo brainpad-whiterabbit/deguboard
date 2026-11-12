@@ -509,7 +509,12 @@ describe("チケットの流れ（照合と claim）", () => {
 
   it("PR の要らない作業は claim の without_branch で branch を持たず、照合で動かず警告も出ない。update の branch で付け外しできる", async () => {
     const f = await fixture();
-    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    // マージドライバの登録がないと sync が警告する（t759）ので、node を指す登録を渡す（このテストでは rebase がマージしない）
+    const ctx = await initialized(
+      f.cloneA,
+      { mergeDriver: [process.execPath, "merge-driver"] },
+      { template: "software-development" },
+    );
     await runCommand(ticketCreate, ctx, { title: "Data cleanup" });
     await expect(
       runCommand(ticketClaim, ctx, {

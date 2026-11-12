@@ -14,7 +14,12 @@ import { withLock } from "../git/lock.js";
 import { checkOutside, describeOutside, recordBaseline } from "../git/outside.js";
 import { settleRebase } from "../git/rebase.js";
 import { renumberCollisions, renumberProvisional, type Renumbered } from "../git/renumber.js";
-import { ensureGitattributes, ensureMergeDriver, type ResolvedField } from "../git/merge.js";
+import {
+  ensureGitattributes,
+  ensureMergeDriver,
+  mergeDriverProblem,
+  type ResolvedField,
+} from "../git/merge.js";
 import {
   commitAll,
   commitPaths,
@@ -501,6 +506,9 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
     let flushed = false;
     // 取り込みの前にマージドライバの登録を揃える（init より前に作ったリポジトリでも効くように。SY-4）
     await ensureMergeDriver(repo, ctx.mergeDriver);
+    // 登録がない・登録したコマンドが消えた（入口がドライバを渡さない・node を上げた）と、git は行単位のマージに落ちる（t759）
+    const driverProblem = await mergeDriverProblem(repo);
+    if (driverProblem) warnings.push(driverProblem);
     if (await ensureGitattributes(repo.dataDir))
       await commitPaths(repo, [".gitattributes"], "Add .gitattributes for the merge driver");
     const fetched = await fetchAll(repo);

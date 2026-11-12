@@ -2,7 +2,7 @@
 // git が rebase の中で `<dg> merge-driver %O %A %B %P` として呼ぶ。登録は ensureMergeDriver（init と sync）が行う
 
 import { isDeepStrictEqual } from "node:util";
-import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { joinFrontmatter, splitFrontmatter } from "../storage/frontmatter.js";
@@ -327,4 +327,68 @@ export async function ensureMergeDriver(
     ]);
   }
   return line;
+}
+
+/**
+ * シェルの語に分ける（mergeDriverCommandLine が書く形：素の語と '…'、'\'' のつなぎ）。
+ * 二重引用符・バックスラッシュ・$ などほかの書き方があれば読めないとして undefined（人が手で書いた行は判定しない）
+ */
+function splitShellWords(line: string): string[] | undefined {
+  const words: string[] = [];
+  let word: string | undefined;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    if (c === " " || c === "\t") {
+      if (word !== undefined) words.push(word);
+      word = undefined;
+    } else if (c === "'") {
+      const end = line.indexOf("'", i + 1);
+      if (end < 0) return undefined;
+      word = (word ?? "") + line.slice(i + 1, end);
+      i = end;
+    } else if (/["\\$`]/.test(c)) {
+      return undefined;
+    } else {
+      word = (word ?? "") + c;
+    }
+  }
+  if (word !== undefined) words.push(word);
+  return words;
+}
+
+/**
+ * 登録されたマージドライバが動かない理由（dg sync が警告に出す。SY-4）。動きそうなら undefined。
+ * 登録がない、または登録されたコマンド行の絶対パス（node・dg.js・起動ファイル）が見つからないと、git は行単位のマージに落ち、
+ * 同じチケットの近いフィールドを両側で変えただけで同期が止まる。拡張だけで使うと登録されず（t759）、node を上げると
+ * 前に登録したパスが消える。exists はテスト用
+ */
+export async function mergeDriverProblem(
+  repo: Pick<GitRepo, "dataDir">,
+  exists: (file: string) => Promise<boolean> = pathExists,
+): Promise<string | undefined> {
+  const key = `merge.${MERGE_DRIVER_NAME}.driver`;
+  const current = await runGit(repo.dataDir, ["config", "--get", key], { allowFailure: true });
+  const line = current.code === 0 ? current.stdout.trim() : "";
+  if (line === "") {
+    return `The merge driver is not registered in git config (${key}), so git merges deguboard files line by line, and changing nearby fields of the same ticket on both sides stops the sync. Run dg sync from the dg CLI or the deguboard VS Code extension to register it`;
+  }
+  const words = splitShellWords(line);
+  if (!words) return undefined;
+  for (const word of words) {
+    if (word.startsWith("%")) break;
+    if (!path.isAbsolute(word)) continue;
+    if (!(await exists(word))) {
+      return `The merge driver registered in git config (${key}) runs ${word}, which does not exist, so git merges deguboard files line by line, and changing nearby fields of the same ticket on both sides stops the sync. Run dg sync from the dg CLI or the deguboard VS Code extension to register it again`;
+    }
+  }
+  return undefined;
+}
+
+async function pathExists(file: string): Promise<boolean> {
+  try {
+    await access(file);
+    return true;
+  } catch {
+    return false;
+  }
 }
