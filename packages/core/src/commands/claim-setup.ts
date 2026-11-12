@@ -152,6 +152,7 @@ export async function prepareWorktreeForClaim(
   branch: string,
   requestedPath: string | undefined,
   warnings: string[],
+  start?: string | undefined,
 ): Promise<{ path: string; created: boolean } | null> {
   const repo = ctx.repo;
   // 作れなかったときの警告に場所を出すので、try の外で決める（依頼の path か既定の場所。t617）
@@ -160,7 +161,7 @@ export async function prepareWorktreeForClaim(
     requestedPath ?? defaultWorktreePath(repo, ctx.config.worktree.root, branch),
   );
   try {
-    return await ensureBranchWorktree(repo, { branch, base: repo.baseBranch, dir });
+    return await ensureBranchWorktree(repo, { branch, base: repo.baseBranch, dir, start });
   } catch (error) {
     const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
     warnings.push(

@@ -71,6 +71,43 @@ describe("branch_merged の判定", () => {
     });
   });
 
+  it("コミットのないまま push したブランチは、先端が記録した起点と同じなら main が進んでも merged にしない。起点がなければ祖先かだけで判定する（t764）", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    const start = (await git(f.cloneA, ["rev-parse", "origin/main"])).stdout.trim();
+    await git(f.cloneA, ["branch", "feat/t1-empty", start]);
+    await git(f.cloneA, ["push", "-q", "origin", "feat/t1-empty"]);
+    await advanceMain(f, a.repo.dataDir, "別の PR が main に入る");
+    const withStart = { needPr: false, status: "in_progress" as const, start };
+    expect((await collectBranchFacts(a.repo, "feat/t1-empty", withStart)).facts).toMatchObject({
+      branch_pushed: true,
+      branch_merged: false,
+    });
+    // 起点を記録していない前からのチケットは今までどおり（先端が base の真の祖先なら merged）
+    expect(
+      (await collectBranchFacts(a.repo, "feat/t1-empty", { needPr: false, status: "in_progress" }))
+        .facts,
+    ).toMatchObject({ branch_merged: true });
+  });
+
+  it("作業を積んで push し ff マージしたブランチは、起点を記録していても main が進めば merged（t764）", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    const start = (await git(f.cloneA, ["rev-parse", "origin/main"])).stdout.trim();
+    const opts = { needPr: false, status: "in_progress" as const, start };
+    await git(f.cloneA, ["checkout", "-qb", "feat/t1-work", start]);
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
+    await git(f.cloneA, ["push", "-q", "-u", "origin", "feat/t1-work"]);
+    await git(f.cloneA, ["checkout", "-q", "main"]);
+    await git(f.cloneA, ["merge", "-q", "--ff-only", "feat/t1-work"]);
+    await git(f.cloneA, ["push", "-q", "origin", "main"]);
+    await advanceMain(f, a.repo.dataDir, "次の作業");
+    expect((await collectBranchFacts(a.repo, "feat/t1-work", opts)).facts).toMatchObject({
+      branch_pushed: true,
+      branch_merged: true,
+    });
+  });
+
   it("review のブランチは push していなくても、先端が base の真の祖先なら merged（ローカルで ff マージした形）", async () => {
     const f = await fixture();
     const a = await openRepo(f.cloneA);

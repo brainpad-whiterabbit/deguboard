@@ -317,6 +317,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
         needPr: needsPr(wf),
         status: doc.data.status,
         since: doc.data.branch_at ?? doc.data.created_at,
+        start: doc.data.branch_base,
       },
     );
     facts.deps_done = ctx.store.depsDone(doc.data);

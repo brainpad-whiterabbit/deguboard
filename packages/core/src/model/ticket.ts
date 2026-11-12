@@ -72,6 +72,14 @@ const ticketFrontmatter = z.looseObject({
   branch: z.string().optional(),
   /** `branch` を記録した時刻。照合はこれより前にマージされた PR を根拠にしない（ST-6）。古いファイルにはない */
   branch_at: isoDateTime.optional(),
+  /**
+   * claim が作業ブランチを切った起点のコミットの SHA（TK-10）。照合は先端がこれと同じブランチをマージ済みにしない（ST-4）。
+   * claim が記録し、`branch` を変えるか消す操作が消す。古いファイルにはない
+   */
+  branch_base: z
+    .string()
+    .regex(/^[0-9a-f]{40}([0-9a-f]{24})?$/, "branch_base is a commit SHA")
+    .optional(),
   pr: z.number().int().positive().optional(),
   provisional: z.boolean().optional(),
   created_at: isoDateTime,

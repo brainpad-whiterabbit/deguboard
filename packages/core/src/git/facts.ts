@@ -18,6 +18,8 @@ export interface BranchFactsOptions {
    * 記録した番号で引くときは見ない
    */
   since?: string | undefined;
+  /** claim が記録した作業ブランチの起点の SHA（`branch_base`）。先端がこれと同じならマージ済みにしない（ST-4）。なければ見ない */
+  start?: string | undefined;
 }
 
 export interface BranchFacts {
@@ -72,6 +74,15 @@ async function baseRef(repo: GitRepo): Promise<string | undefined> {
   if (await refExists(repo, `refs/heads/${repo.baseBranch}`))
     return `refs/heads/${repo.baseBranch}`;
   return undefined;
+}
+
+/**
+ * 作業ブランチを切る起点の SHA（照合の base の先端）。claim が `branch_base` に記録し、同じ SHA からブランチを切る（ST-4）。
+ * ここでは fetch しない（claim は findMergedLeftover で base を取り込んだ後に呼ぶ）。base がなければ undefined
+ */
+export async function baseTip(repo: GitRepo): Promise<string | undefined> {
+  const base = await baseRef(repo);
+  return base ? await sha(repo, base) : undefined;
 }
 
 /**
@@ -141,17 +152,21 @@ export async function collectBranchFacts(
     // ff マージの直後も同じ形になるが、base が進めば真の祖先になり、PR があれば pr_merged で先に拾える。
     // 先端が base の真の祖先でも、commit のないブランチは base が進めば同じ形になる（グラフだけでは
     // ff マージと区別できない）。in_progress で push していないブランチはまだ作業がないとみなして merged にしない。
-    // claim の時刻や base の SHA より先端が進んだかで分けると、claim の後に base が進んでから切ったブランチで同じ誤りが残り、
-    // 先端のコミット日時と branch_at を比べると PC ごとの時計のずれで判定が変わるので採らない。push せずローカルで ff マージした形は拾えない
-    const same = (await sha(repo, tip)) === (await sha(repo, base));
+    // push した後は、claim が記録した起点（start）と先端が同じなら作業がないとみなして merged にしない（t764）。
+    // claim はブランチをその起点から切るので、claim の後に人が別の起点から切り直した形だけが拾えない（受け入れる）。
+    // 起点のない前からのチケットは祖先かだけで判定する。先端のコミット日時と branch_at を比べると
+    // PC ごとの時計のずれで判定が変わるので採らない。push せずローカルで ff マージした形は拾えない
+    const tipSha = await sha(repo, tip);
+    const same = tipSha === (await sha(repo, base));
+    const unworked = opts.start !== undefined && tipSha === opts.start;
     const fresh = opts.status === "in_progress" && facts.branch_pushed === false;
     const r =
-      same || fresh
+      same || fresh || unworked
         ? undefined
         : await runGit(repo.dataDir, ["merge-base", "--is-ancestor", tip, base], {
             allowFailure: true,
           });
-    if (same || fresh || r?.code === 1) facts.branch_merged = false;
+    if (same || fresh || unworked || r?.code === 1) facts.branch_merged = false;
     else if (r?.code === 0) facts.branch_merged = true;
   } else if (!tip && base) {
     // ブランチがないならマージ済みとは言えない（消えたブランチは警告の対象）
