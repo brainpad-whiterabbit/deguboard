@@ -1,6 +1,16 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { builtinModules } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -259,8 +269,18 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
   const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const normalBin = path.join(cliRoot, "bin", "dg.js");
 
-  /** dist を一時ディレクトリに写し、速い経路（dist/fast-hook.js）と任意のファイルを消す。node_modules は実物への張り */
-  async function copyDist(remove: string[]): Promise<string> {
+  /**
+   * dist を一時ディレクトリに写し、bin/dg.js の写しのパスを返す。
+   * remove は消すファイル、replace は書き換えるファイル（どちらも dist からの相対）。
+   * coreWithoutFastHook は、@deguboard/core を速い経路の dist/fast-hook.js を欠いた写しに替える（古いクローンの再現）
+   */
+  async function copyDist(
+    opts: {
+      remove?: string[];
+      replace?: Record<string, string>;
+      coreWithoutFastHook?: boolean;
+    } = {},
+  ): Promise<string> {
     if (!existsSync(path.join(cliRoot, "dist", "main.js")))
       throw new Error("dist がない。先に mise run build");
     const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "dg-dist-")));
@@ -269,9 +289,36 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
     await cp(normalBin, path.join(root, "bin", "dg.js"));
     await cp(path.join(cliRoot, "package.json"), path.join(root, "package.json"));
     await cp(path.join(cliRoot, "dist"), path.join(root, "dist"), { recursive: true });
-    await symlink(path.join(cliRoot, "node_modules"), path.join(root, "node_modules"), "dir");
-    for (const file of remove) await rm(path.join(root, "dist", file));
+    if (opts.coreWithoutFastHook) await linkNodeModulesWithCoreCopy(root);
+    else await symlink(path.join(cliRoot, "node_modules"), path.join(root, "node_modules"), "dir");
+    for (const file of opts.remove ?? []) await rm(path.join(root, "dist", file));
+    for (const [file, text] of Object.entries(opts.replace ?? {}))
+      await writeFile(path.join(root, "dist", file), text);
     return path.join(root, "bin", "dg.js");
+  }
+
+  /** node_modules の各項目は実物への張り。@deguboard/core だけは dist/fast-hook.js を欠く写しに替える（core の依存は実物を張る） */
+  async function linkNodeModulesWithCoreCopy(root: string): Promise<void> {
+    const real = path.join(cliRoot, "node_modules");
+    const out = path.join(root, "node_modules");
+    await mkdir(path.join(out, "@deguboard"), { recursive: true });
+    for (const entry of await readdir(real))
+      if (entry !== "@deguboard")
+        await symlink(path.join(real, entry), path.join(out, entry), "dir");
+    await symlink(
+      path.join(real, "@deguboard", "server"),
+      path.join(out, "@deguboard", "server"),
+      "dir",
+    );
+    const core = await realpath(path.join(real, "@deguboard", "core"));
+    const coreCopy = path.join(out, "@deguboard", "core");
+    await mkdir(coreCopy);
+    await cp(path.join(core, "package.json"), path.join(coreCopy, "package.json"));
+    await cp(path.join(core, "dist"), path.join(coreCopy, "dist"), {
+      recursive: true,
+      filter: (src) => path.basename(src) !== "fast-hook.js",
+    });
+    await symlink(path.join(core, "node_modules"), path.join(coreCopy, "node_modules"), "dir");
   }
 
   /** bin/dg.js を子プロセスで動かす。DEGUBOARD_ の環境変数は外して、結果を呼び出しの間で比べられるようにする */
@@ -292,7 +339,7 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
 
   it("速い経路のファイルを消した dist でも、PreToolUse は今の経路で同じ結果を返す", async () => {
     const cwd = await initialized();
-    const copied = await copyDist(["fast-hook.js"]);
+    const copied = await copyDist({ remove: ["fast-hook.js"] });
     const inputs = [
       payload(cwd, "Bash", { command: "gh pr merge 5 --squash" }),
       payload(cwd, "Bash", { command: "ls" }),
@@ -310,16 +357,61 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
 
   it("速い経路のファイルを消した dist でも、ほかのコマンドは今の経路で同じ結果を返す", async () => {
     const cwd = await initialized();
-    const copied = await copyDist(["fast-hook.js"]);
+    const copied = await copyDist({ remove: ["fast-hook.js"] });
     const expected = await dg(normalBin, ["ticket", "list"], cwd, "");
     const actual = await dg(copied, ["ticket", "list"], cwd, "");
     expect(actual).toEqual(expected);
     expect(actual.code).toBe(0);
   });
 
+  it("@deguboard/core の dist/fast-hook.js が無い古いクローンでも、PreToolUse は今の経路で同じ結果を返す", async () => {
+    const cwd = await initialized();
+    const copied = await copyDist({ coreWithoutFastHook: true });
+    const inputs = [
+      payload(cwd, "Bash", { command: "gh pr merge 5 --squash" }),
+      payload(cwd, "Bash", { command: "ls" }),
+    ];
+    for (const stdin of inputs) {
+      const expected = await dg(normalBin, ARGV, cwd, stdin);
+      const actual = await dg(copied, ARGV, cwd, stdin);
+      expect(actual).toEqual(expected);
+      expect(actual.code).toBe(0);
+    }
+    expect(JSON.parse((await dg(copied, ARGV, cwd, inputs[0]!)).stdout)).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny" },
+    });
+  });
+
+  it("古い dist で main が import 先の名前を持たない（SyntaxError）ときも、main に頼るコマンドは直し方を英語で出して 1 で終わる", async () => {
+    const cwd = await initialized();
+    // 速い経路の dist は今のまま。main だけが古く、fast-hook.js に無い名前を import する
+    const copied = await copyDist({
+      replace: {
+        "main.js":
+          'import { noSuchExport } from "./fast-hook.js";\nexport const main = async () => 0;\n',
+      },
+    });
+    // 速い経路が受け持つ入力は main を読まないので、そのまま動く
+    const merge = await dg(copied, ARGV, cwd, payload(cwd, "Bash", { command: "gh pr merge 5" }));
+    expect(merge.code).toBe(0);
+    expect(JSON.parse(merge.stdout)).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny" },
+    });
+    // 速い経路が受け持たないツールは main に回り、直し方を出して終わる
+    const hook = await dg(copied, ARGV, cwd, payload(cwd, "Read", { file_path: "/etc/hosts" }));
+    const list = await dg(copied, ["ticket", "list"], cwd, "");
+    for (const r of [hook, list]) {
+      expect(r.code).toBe(1);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toContain("missing or out of date");
+      expect(r.stderr).toContain("mise run build");
+      expect(r.stderr).not.toContain("SyntaxError");
+    }
+  });
+
   it("main も読めない dist では、止まらずに dist が無いか古いことと直し方を英語で出して 1 で終わる", async () => {
     const cwd = await initialized();
-    const copied = await copyDist(["fast-hook.js", "main.js"]);
+    const copied = await copyDist({ remove: ["fast-hook.js", "main.js"] });
     const hook = await dg(copied, ARGV, cwd, payload(cwd, "Bash", { command: "ls" }));
     const list = await dg(copied, ["ticket", "list"], cwd, "");
     for (const r of [hook, list]) {
