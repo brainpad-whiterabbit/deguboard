@@ -1,4 +1,5 @@
-// bin/dg.js の速い経路（t768）。dg hooks install が書く、ツールを使う前のフック（PreToolUse）の呼び出しを、
+// dg の 2 つの入口（bin/dg.js と、同梱の dg.mjs の入口 cli/src/bundle.ts。共通の流れは cli/bin/run-entry.mjs）の速い経路（t768・t769）。
+// 入口は cli の fast-hook.ts を通してここを呼ぶ。dg hooks install が書く、ツールを使う前のフック（PreToolUse）の呼び出しを、
 // CLI の全体（core の入口・zod・yaml・commander）を読まずに処理する。ツールのたびに呼ばれ、全体を読むと 1 回に 200 ms を超えるため。
 // 記録と判定は dg hook と同じ runToolRequested（commands/pre-tool-use.ts）を呼ぶので、出力と記録は今の経路と同じになる。
 // 受け持つのは、dg hook がストアを開かずに扱う入力（hook の storeless）のうち、git のリポジトリの中で初期化済みのものだけ。
@@ -10,8 +11,6 @@ import { DEFAULT_HOOK_AGENT, DEFAULT_TOOL_EVENT, defaultHookSupport } from "./ag
 import { hookArgv } from "./commands/hook-argv.js";
 import { runToolRequested, type ToolRequestedView } from "./commands/pre-tool-use.js";
 import { isInitialized, resolveRepoPaths } from "./git/repo.js";
-
-export type { ToolRequestedView } from "./commands/pre-tool-use.js";
 
 /** 速い経路が受け持つ argv（dg hooks install が既定のエージェントのそのイベントに書く形と同じ hookArgv から作る） */
 export function isFastHookArgv(argv: readonly string[]): boolean {

@@ -1,11 +1,11 @@
-// ツールを使う前（PreToolUse。t532・t545・t555・t546、AG-10）の判定と記録。dg hook の tool_requested と、bin/dg.js の速い経路
-// （fast-hook.ts）の両方がここを呼ぶ。ツールのたびに呼ばれるので、node の組み込みと依存のないファイルのほかを読まない
+// ツールを使う前（PreToolUse。t532・t545・t555・t546、AG-10）の判定と記録。dg hook の tool_requested と、2 つの入口（bin/dg.js と
+// 同梱の dg.mjs の入口 bundle.ts）の速い経路（fast-hook.ts）の両方がここを呼ぶ。ツールのたびに呼ばれるので、node の組み込みと依存のないファイルのほかを読まない
 // （zod・yaml・commander とコマンドの定義を読むと、起動だけで 200 ms を超える。t768。読むファイルは fast-hook.test.ts が確かめる）
 
 import path from "node:path";
 import type { HookEvent, HookSupport } from "../agents/define.js";
 import { toIsoDateTime } from "../model/time.js";
-import { recordHookInput, recordHookSession, recordHookWarnings } from "./hook-records.js";
+import { recordAroundHook } from "./hook-records.js";
 
 /** .git/deguboard の語（区切りは / と \。.git/deguboard-local も含む） */
 const DATA_DIR_WORD = /\.git[\\/]+deguboard/;
@@ -75,11 +75,11 @@ export const GH_PR_DENIED =
   "To write those words in a body, write it to a file with Write and pass it with gh pr create --body-file <file> or git commit -F <file>. If it stopped because you ran it together with other commands, run them separately";
 
 /** 書くツールが .git/deguboard/ の下に書くのを拒む文 */
-export const DATA_WRITE_DENIED =
+const DATA_WRITE_DENIED =
   "Do not write the deguboard data (.git/deguboard/) files directly; read and write them with dg commands";
 
 /** .git/deguboard の語を含む Bash を拒む文（t546） */
-export const DATA_BASH_DENIED =
+const DATA_BASH_DENIED =
   "Do not touch the deguboard data (.git/deguboard/) with Bash; read and write it with dg commands (read with dg ticket show, dg ticket list, dg plan show, and so on; write with dg ticket update and so on). " +
   "This hook stops on the word .git/deguboard anywhere, even in read-only commands, quotes, and comments. To search for the word in documents or code, use the Grep tool. " +
   "To write the word in a body, write it to a file with Write and pass it with --body-file or git commit -F. A change that gets through anyway is found the next time dg runs as a change made outside dg, and dg stops writing (dg adopt --help)";
@@ -92,7 +92,7 @@ type ToolRequested = Extract<HookEvent, { kind: "tool_requested" }>;
  * （advancesPrOutsideDg。字句を読まずに粗く止める）。取りこぼしは事後の検査（dg の外の変更。SY-7）が見つける。
  * ストアを開かずに、repo の場所（topLevel・dataDir）と入力だけで決める（t554）
  */
-export function toolDenyReason(
+function toolDenyReason(
   event: ToolRequested,
   repo: { topLevel: string; dataDir: string },
 ): string | undefined {
@@ -134,42 +134,24 @@ export async function runToolRequested(args: {
   repo: { topLevel: string; dataDir: string; localDir: string };
   now: () => Date;
 }): Promise<ToolRequestedView> {
-  const { hooks, eventName, payload, event, repo } = args;
+  const { hooks, eventName, payload, repo } = args;
   const view: ToolRequestedView = { done: [], warnings: [] };
-  const at = toIsoDateTime(args.now());
-  if (hooks.events.some((e) => e.event === eventName)) {
-    try {
-      await recordHookInput(
-        repo.localDir,
-        eventName,
-        at,
-        hooks.inputFields(eventName, payload),
-        payload,
-      );
-    } catch (e) {
-      view.warnings.push(`Could not write the hook input record (${messageOf(e)})`);
-    }
-  }
-  try {
-    await recordHookSession(repo.localDir, event.session, at, event.kind);
-  } catch (e) {
-    view.warnings.push(`Could not write the hook session record (${messageOf(e)})`);
-  }
-  try {
-    const reason = toolDenyReason(event, repo);
-    if (reason !== undefined) {
-      view.output = hooks.denyOutput(eventName, reason);
-      view.done.push(`Denied: ${reason}`);
-    }
-  } catch (e) {
-    view.warnings.push(`Could not finish the ${eventName} hook (${messageOf(e)})`);
-  }
-  try {
-    await recordHookWarnings(repo.localDir, event.session, eventName, at, view.warnings);
-  } catch (e) {
-    view.warnings.push(`Could not write the hook warnings record (${messageOf(e)})`);
-  }
+  view.warnings = await recordAroundHook({
+    localDir: repo.localDir,
+    eventName,
+    ...(hooks.events.some((e) => e.event === eventName)
+      ? { inputFields: () => hooks.inputFields(eventName, payload) }
+      : {}),
+    payload,
+    event: args.event,
+    at: toIsoDateTime(args.now()),
+    body: async (event) => {
+      const reason = toolDenyReason(event, repo);
+      if (reason !== undefined) {
+        view.output = hooks.denyOutput(eventName, reason);
+        view.done.push(`Denied: ${reason}`);
+      }
+    },
+  });
   return view;
 }
-
-const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));

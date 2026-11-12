@@ -17,22 +17,15 @@ const cliPkg = JSON.parse(
 const entryPath = "/cli/src/bundle.ts";
 
 // PreToolUse の速い経路（t769）が静的に読むファイル（packages/ からの相対）。入口の dg.mjs はこれだけを読み、本体の chunk を読まない。
-// 一覧の正本は fast-hook.test.ts の ALLOWED。足すときは両方に足す（bundle-cli.test.ts が、本体の chunk を読まずに判定することを確かめる）
-const FAST_PATH_FILES = [
-  "cli/src/fast-hook.ts",
-  "core/src/fast-hook.ts",
-  "core/src/agents/fast-hooks.ts",
-  "core/src/agents/adapters/claude-code-hooks.ts",
-  "core/src/agents/adapters/transcript.ts",
-  "core/src/commands/hook-argv.ts",
-  "core/src/commands/hook-records.ts",
-  "core/src/commands/pre-tool-use.ts",
-  "core/src/model/time.ts",
-  "core/src/git/repo.ts",
-  "core/src/git/run.ts",
-  "core/src/errors.ts",
-  "core/src/storage/exists.ts",
-].map((f) => `/packages/${f}`);
+// 一覧は fast-path-files.json の 1 か所に置き、fast-hook.test.ts が速い経路の静的な import とこの一覧の揃いを確かめる
+// （bundle-cli.test.ts が、本体の chunk を読まずに判定することを確かめる）
+const FAST_PATH_FILES = (
+  JSON.parse(
+    readFileSync(new URL("../cli/src/fast-path-files.json", import.meta.url), "utf8"),
+  ) as string[]
+).map((f) => `/packages/${f}`);
+// 2 つの入口に共通の流れ（packages/cli/bin/run-entry.mjs）。入口の dg.mjs に入れ、本体の chunk に入れない
+const ENTRY_FILES = [entryPath, "/cli/bin/run-entry.mjs"];
 
 export default defineConfig({
   ssr: { noExternal: true, resolve: { conditions: ["development", "node"] } },
@@ -48,12 +41,12 @@ export default defineConfig({
         format: "esm",
         entryFileNames: "dg.mjs",
         chunkFileNames: "dg-[name]-[hash].mjs",
-        // 入口のほかのモジュールをすべて 1 つの本体の chunk に集める（既定の分け方では依存ごとに chunk が散る）。
+        // 入口（と共通の流れ）のほかのモジュールをすべて 1 つの本体の chunk に集める（既定の分け方では依存ごとに chunk が散る）。
         // ただし速い経路のファイルは、本体より先の group に入れて小さな chunk（dg-fast-*.mjs）にする
         codeSplitting: {
           groups: [
             { name: "fast", test: (id: string) => FAST_PATH_FILES.some((f) => id.endsWith(f)) },
-            { name: "main", test: (id: string) => !id.endsWith(entryPath) },
+            { name: "main", test: (id: string) => !ENTRY_FILES.some((f) => id.endsWith(f)) },
           ],
         },
       },

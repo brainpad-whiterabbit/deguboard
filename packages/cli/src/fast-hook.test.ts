@@ -220,22 +220,12 @@ describe("PreToolUse の速い経路（bin/dg.js。t768）", () => {
 describe("速い経路が読むモジュール（t768）", () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const coreSrc = path.resolve(here, "../../core/src");
-  /** 速い経路から静的に読んでよいファイル（packages/ からの相対）。足すときは、そのファイルが重い依存を読まないことを確かめる */
-  const ALLOWED = [
-    "cli/src/fast-hook.ts",
-    "core/src/fast-hook.ts",
-    "core/src/agents/fast-hooks.ts",
-    "core/src/agents/adapters/claude-code-hooks.ts",
-    "core/src/agents/adapters/transcript.ts",
-    "core/src/commands/hook-argv.ts",
-    "core/src/commands/hook-records.ts",
-    "core/src/commands/pre-tool-use.ts",
-    "core/src/model/time.ts",
-    "core/src/git/repo.ts",
-    "core/src/git/run.ts",
-    "core/src/errors.ts",
-    "core/src/storage/exists.ts",
-  ];
+  /**
+   * 速い経路から静的に読んでよいファイル（packages/ からの相対）。同梱の dg の束ね方（vite.cli.config.ts）も同じ一覧で
+   * 速い経路の chunk を分けるので、一覧は fast-path-files.json の 1 か所に置く。足すときは、そのファイルが重い依存を読まないことを確かめる
+   */
+  const allowed = async () =>
+    JSON.parse(await readFile(path.join(here, "fast-path-files.json"), "utf8")) as string[];
   /** 型だけの import・export は実行時に読まないので除く */
   const IMPORT = /^\s*(?:import|export)\s+(type\s+)?(?:[^;]*?\s+from\s+)?["']([^"']+)["']/gm;
 
@@ -261,7 +251,7 @@ describe("速い経路が読むモジュール（t768）", () => {
         queue.push(path.resolve(path.dirname(file), spec.replace(/\.js$/, ".ts")));
       }
     }
-    expect([...seen].sort()).toEqual([...ALLOWED].sort());
+    expect([...seen].sort()).toEqual((await allowed()).sort());
   });
 });
 
@@ -287,11 +277,9 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
     cleanups.push(() => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
     await mkdir(path.join(root, "bin"));
     await cp(normalBin, path.join(root, "bin", "dg.js"));
-    // bin/dg.js は起動の最初に Node の版を確かめる判定を読む（t782）。写しにも置く
-    await cp(
-      path.join(cliRoot, "bin", "node-version.mjs"),
-      path.join(root, "bin", "node-version.mjs"),
-    );
+    // bin/dg.js は Node の版を確かめる判定（t782）と、入口に共通の流れ（t788）を読む。写しにも置く
+    for (const file of ["node-version.mjs", "run-entry.mjs"])
+      await cp(path.join(cliRoot, "bin", file), path.join(root, "bin", file));
     await cp(path.join(cliRoot, "package.json"), path.join(root, "package.json"));
     await cp(path.join(cliRoot, "dist"), path.join(root, "dist"), { recursive: true });
     if (opts.coreWithoutFastHook) await linkNodeModulesWithCoreCopy(root);

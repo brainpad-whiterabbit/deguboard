@@ -8,6 +8,7 @@ import {
   type WriteOutcome,
 } from "@deguboard/core";
 import type { ErrorView } from "./errors.js";
+import { printHookView, printWarnings } from "./hook-print.js";
 
 export interface Streams {
   out(text: string): void;
@@ -45,11 +46,7 @@ export function printHuman(
   const data = result.data;
   const group = commandName.split(".")[0] ?? "";
   if (commandName === "hook") {
-    // フックの標準出力は harness が会話に足しうる（SessionStart など）ので、何も出さず標準エラーにだけ書く
-    const view = data as { done?: string[]; output?: string } | undefined;
-    for (const line of view?.done ?? []) streams.err(`dg hook: ${line}`);
-    // ツールの使用を拒むときの文（製品の形）だけは標準出力に書き、harness が読む
-    if (view?.output) streams.out(view.output);
+    printHookView(streams, data as { done?: string[]; output?: string } | undefined);
   } else if (commandName === "ask" && isAskView(data)) {
     // 依頼文はそのまま貼れるよう標準出力に文だけを出し、候補は標準エラーに出す
     streams.out(data.text);
@@ -72,7 +69,7 @@ export function printHuman(
   } else if (data !== undefined) {
     streams.out(String(data));
   }
-  for (const w of result.warnings) streams.err(`Warning: ${w}`);
+  printWarnings(streams, result.warnings);
   if (result.write) streams.err(describeWrite(result.write));
 }
 

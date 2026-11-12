@@ -1,0 +1,16 @@
+[
+  "cli/src/fast-hook.ts",
+  "cli/src/hook-print.ts",
+  "core/src/fast-hook.ts",
+  "core/src/agents/fast-hooks.ts",
+  "core/src/agents/adapters/claude-code-hooks.ts",
+  "core/src/agents/adapters/transcript.ts",
+  "core/src/commands/hook-argv.ts",
+  "core/src/commands/hook-records.ts",
+  "core/src/commands/pre-tool-use.ts",
+  "core/src/model/time.ts",
+  "core/src/git/repo.ts",
+  "core/src/git/run.ts",
+  "core/src/errors.ts",
+  "core/src/storage/exists.ts"
+]

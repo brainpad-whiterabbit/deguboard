@@ -36,6 +36,7 @@ import type { WorkflowDefinition } from "../model/workflow.js";
 import type { ResolvedWorkflow } from "../workflow/resolve.js";
 import { validateWorkflow, type WorkflowValidationOptions } from "../workflow/validate.js";
 import { writeFileAtomic } from "./atomic.js";
+import { loadLocalConfig, loadTeamConfig, readYamlFile } from "./config-file.js";
 import { createDoc, readDoc, writeDoc, type Doc, type DocFormat } from "./documents.js";
 import { formatIssue, type Issue } from "./issue.js";
 import {
@@ -419,7 +420,7 @@ export class Store {
   async writeLocalConfig(key: string, leaf: unknown): Promise<Config> {
     if (!this.localConfigPath)
       throw new OperationError("VALIDATION_FAILED", "The location of personal settings is unknown");
-    const { doc } = await this.readLocalConfigDocument(this.localConfigPath);
+    const { doc } = await readYamlFile(this.localConfigPath);
     const current = (doc.toJS() ?? {}) as Record<string, unknown>;
     // 書く前から無視されていた項目はそのまま残し、この書き込みで増える無視だけを拒む
     const before = new Set(overlayLocalConfig(this.teamConfig, current).ignored.map((i) => i.key));
@@ -494,24 +495,9 @@ export class Store {
 
   // ---- 走査 ----
 
-  private async readConfigDocument() {
-    let text = "";
-    try {
-      text = await readFile(path.join(this.root, CONFIG_FILE), "utf8");
-    } catch {
-      // なければ既定値だけの config
-    }
-    return parseYamlDocument(text);
-  }
-
-  private async readLocalConfigDocument(file: string) {
-    let text = "";
-    try {
-      text = await readFile(file, "utf8");
-    } catch {
-      // なければ上書きなし
-    }
-    return parseYamlDocument(text);
+  // config.yaml の読み方は config-file.ts（ストアを開かずに読む remote-name.ts と同じ規則）
+  private readConfigDocument() {
+    return readYamlFile(path.join(this.root, CONFIG_FILE));
   }
 
   /**
@@ -522,82 +508,14 @@ export class Store {
     const localPath = this.localConfigPath;
     const none = { raw: undefined, issues: [] as Issue[] };
     const [team, local] = await Promise.all([
-      cached(CONFIG_FILE, () => this.loadConfig()),
+      cached(CONFIG_FILE, () => loadTeamConfig(path.join(this.root, CONFIG_FILE))),
       localPath && (await this.stampOf(localPath))
-        ? cached(localPath, () => this.loadLocalConfig(localPath))
+        ? cached(localPath, () => loadLocalConfig(localPath))
         : none,
     ]);
     this.teamConfig = team.config;
     this.localRaw = local.raw;
     return [...team.issues, ...local.issues, ...this.overlay()];
-  }
-
-  /** 個人の config.yaml を読む。YAML として読めなければ警告にして上書きなしで続ける（チームの値で動く） */
-  private async loadLocalConfig(file: string): Promise<{ raw: unknown; issues: Issue[] }> {
-    const { doc, errors } = await this.readLocalConfigDocument(file);
-    if (errors.length > 0) {
-      return {
-        raw: undefined,
-        issues: [
-          {
-            severity: "warning",
-            code: "yaml_error",
-            path: LOCAL_CONFIG_LABEL,
-            message: "Cannot parse YAML, so the personal settings were ignored",
-            detail: errors.join("\n"),
-          },
-        ],
-      };
-    }
-    const raw: unknown = doc.toJS() ?? {};
-    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-      return {
-        raw: undefined,
-        issues: [
-          {
-            severity: "warning",
-            code: "schema_error",
-            path: LOCAL_CONFIG_LABEL,
-            message: "Not a key-value map, so the personal settings were ignored",
-          },
-        ],
-      };
-    }
-    return { raw, issues: [] };
-  }
-
-  private async loadConfig(): Promise<{ config: Config; issues: Issue[] }> {
-    const { doc, errors } = await this.readConfigDocument();
-    if (errors.length > 0) {
-      return {
-        config: configSchema.parse({}),
-        issues: [
-          {
-            severity: "error",
-            code: "yaml_error",
-            path: CONFIG_FILE,
-            message: "Cannot parse YAML",
-            detail: errors.join("\n"),
-          },
-        ],
-      };
-    }
-    const parsed = configSchema.safeParse(doc.toJS() ?? {});
-    if (!parsed.success) {
-      return {
-        config: configSchema.parse({}),
-        issues: [
-          {
-            severity: "error",
-            code: "schema_error",
-            path: CONFIG_FILE,
-            message: "Does not match the schema",
-            detail: z.prettifyError(parsed.error),
-          },
-        ],
-      };
-    }
-    return { config: parsed.data, issues: [] };
   }
 
   private async listFiles(dir: string): Promise<string[]> {
