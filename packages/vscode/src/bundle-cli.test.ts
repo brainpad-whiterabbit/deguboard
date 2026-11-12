@@ -55,32 +55,52 @@ describe("同梱の dg の束ね方（vite.cli.config.ts）", () => {
     }
   });
 
-  it("2 回目からの起動で、本体の chunk をコンパイルキャッシュから読む", async () => {
-    const cacheDir = path.join(tmp, "compile-cache");
-    const env = {
-      ...process.env,
-      NODE_COMPILE_CACHE: cacheDir,
-      NODE_DEBUG_NATIVE: "COMPILE_CACHE",
-    };
+  // NODE_COMPILE_CACHE は環境に置かず、入口の呼び出しだけで既定の置き場所（TMPDIR の下）が使われることを確かめる（t780）。
+  // 置き場所は TMPDIR で一時ディレクトリに隔離する。入口の呼び出しを消すと、置き場所もキャッシュのファイルもできない
+  const envWithTmpDir = (dir: string): NodeJS.ProcessEnv => {
+    const env: NodeJS.ProcessEnv = { ...process.env, TMPDIR: dir };
+    delete env.NODE_COMPILE_CACHE;
+    return env;
+  };
+
+  it("入口は、コンパイルキャッシュを既定の置き場所に有効にして、本体の chunk のコンパイル結果を残す", async () => {
+    const tmpDir = path.join(tmp, "tmpdir-hit");
+    await mkdir(tmpDir);
     const dg = path.join(outDir, "dg.mjs");
-    const first = await run(process.execPath, [dg, "--version"], { env });
-    expect(first.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
+    const { stdout } = await run(process.execPath, [dg, "--version"], {
+      env: envWithTmpDir(tmpDir),
+    });
+    expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
+    const entries = await readdir(path.join(tmpDir, "node-compile-cache"), {
+      recursive: true,
+      withFileTypes: true,
+    });
+    expect(entries.some((e) => e.isFile())).toBe(true);
+  });
+
+  it("2 回目からの起動で、本体の chunk をコンパイルキャッシュから読む", async () => {
+    const tmpDir = path.join(tmp, "tmpdir-reuse");
+    await mkdir(tmpDir);
+    const env = { ...envWithTmpDir(tmpDir), NODE_DEBUG_NATIVE: "COMPILE_CACHE" };
+    const dg = path.join(outDir, "dg.mjs");
+    await run(process.execPath, [dg, "--version"], { env });
     const second = await run(process.execPath, [dg, "--version"], { env });
+    const main = (await readdir(outDir)).find((f) => /^dg-\S*main-[\w-]+\.mjs$/.test(f))!;
+    // 本体の chunk を読むときのデバッグ出力で確かめる。この文言は Node の内部のものなので、この 1 件だけが頼る
+    // （Node の版が変わって文言が変わったら、このテストだけが落ちる）
     const log = second.stdout + second.stderr;
-    expect(log).toMatch(/V8 code cache for ESM file:\/\/\S*dg-main-[\w-]+\.mjs was accepted/);
+    expect(log).toMatch(new RegExp(`reading cache from .*${main.replaceAll(".", "\\.")}.*success`));
   });
 
   it("キャッシュの置き場所に書けなくても、黙って飛ばして動く", async () => {
+    // 既定の置き場所（TMPDIR の下）がファイルの下になるので、ディレクトリを作れない。Node は投げずに「作れない」と返すだけで、
+    // 入口は続けて本体を動かす
     const blocker = path.join(tmp, "not-a-dir");
-    // ファイルの下にはディレクトリを作れない
     await writeFile(blocker, "");
-    const env = { ...process.env, NODE_COMPILE_CACHE: path.join(blocker, "cache") };
     const { stdout, stderr } = await run(
       process.execPath,
       [path.join(outDir, "dg.mjs"), "--version"],
-      {
-        env,
-      },
+      { env: envWithTmpDir(blocker) },
     );
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
     expect(stderr).toBe("");
