@@ -28,9 +28,6 @@
     "web"
   ],
   "type": "module",
-  "scripts": {
-    "prepack": "cp ../../LICENSE LICENSE"
-  },
   "dependencies": {
     "@deguboard/core": "workspace:*",
     "@deguboard/server": "workspace:*",

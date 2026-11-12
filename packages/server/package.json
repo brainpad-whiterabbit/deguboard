@@ -26,22 +26,6 @@
       "default": "./dist/defaults.js"
     }
   },
-  "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "./defaults": {
-        "types": "./dist/defaults.d.ts",
-        "default": "./dist/defaults.js"
-      }
-    },
-    "access": "public"
-  },
-  "scripts": {
-    "prepack": "cp ../../LICENSE LICENSE"
-  },
   "dependencies": {
     "@deguboard/core": "workspace:*",
     "zod": "4.6.7"

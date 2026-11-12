@@ -41,7 +41,7 @@ const COPIED = [
 ];
 // ADR 番号そのものを検査するテストなので、検査の入力と期待する指摘の文には ADR 番号を残す（テストの文字列から番号を外す規則の例外）
 const ADR = "docs/adr/ADR-008-tech-stack.md";
-const ANCHOR = "#getting-started-before-release";
+const ANCHOR = "#getting-started-as-a-developer";
 // 検査が本リポジトリのテストの文字列を要件 ID と読まないよう、存在しない ID は組み立てて書く
 const UNKNOWN_ID = ["TK", "999"].join("-");
 // 定義をすべて消す接頭辞（一覧には残す）の ID。組み立てて書くのは UNKNOWN_ID と同じ理由
@@ -390,11 +390,11 @@ describe("check-docs の拡張と Walkthrough が指す README の見出しア�
       file,
       `${await readFile(file, "utf8")}\n[README](https://github.com/brainpad-whiterabbit/deguboard${ANCHOR})\n`,
     );
-    await rewrite("README.md", /^### Getting started before release$/m, "### Setup");
+    await rewrite("README.md", /^### Getting started as a developer$/m, "### Setup");
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toMatch(
-      /init\.md:\d+: README\.md に見出しがない: #getting-started-before-release/,
+      /init\.md:\d+: README\.md に見出しがない: #getting-started-as-a-developer/,
     );
   });
 });
