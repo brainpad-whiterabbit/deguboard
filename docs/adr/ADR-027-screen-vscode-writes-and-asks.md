@@ -25,11 +25,13 @@
 - 画面の外への働きかけ（遷移・コピー・ウィンドウやエディタを開く・ターミナルへの送信）も `postMessage` に core が決めた形で通し、拡張ホストが行う
 - テーマは VS Code の CSS 変数を基準にする
 
-### `dg` は npm で配り、拡張は PATH の `dg` を使う
+### `dg` は拡張に同梱し、版の付かない起動ファイルで外にも出す
 
-- `dg` は npm で配る。cli が依存する `core` と `server` も同じ版で公開し、画面のビルド結果は cli のパッケージに同梱する
-- 拡張は `core` と `web` を同梱し、画面の閲覧と操作は `dg` なしで動く。`dg` は PATH から引き、ないときと版のメジャーが同梱の `core` と違うときは知らせる（UI-11）
-- 拡張は CLI も 1 つのファイル（`dist/cli/dg.mjs`）に束ねて VSIX に入れる（Web の画面と guide は拡張のものを共有する）。同梱した `dg.mjs` は拡張からも外からも呼ばず、PATH の `dg` を使う
+- 拡張は `core` と `web` と CLI（1 つのファイル `dist/cli/dg.mjs`）を同梱し、画面の閲覧と操作は `dg` なしで動く
+- 拡張は起動のたびに、版の付かない `~/.local/share/deguboard/` に中身の固定の起動ファイル `dg`（sh）と行き先 `current`（node と `dg.mjs` の場所、版）を書く。拡張の外（ターミナル・フック・エージェント）は起動ファイルを呼ぶ
+- node は VS Code のもの（拡張ホストの実行ファイル）を使い、利用者に Node.js を入れてもらわない
+- 拡張が複数あるとき（Insiders・Cursor など）は、版の新しい拡張が `current` を取る。行き先が消えていれば、版の古い拡張も書き直す
+- PATH の `dg` はないときと版のメジャーが同梱の `core` と違うときに知らせる（UI-11）
 
 ### 画面から直接書くのはチケット詳細と設定画面と同期だけにする
 
@@ -64,10 +66,10 @@
 
 画面の並び・文言・タブ・札・キーの割り当て、依頼文の文の組み立てと形式の既定、ターミナルへの送り方、設定画面の書き分けと保存前の確かめ、各項目の範囲（scope）は、次のコードとテストが正本で、「なぜ」はそのコメントとテスト名にある。
 
-- 入口と構成：`packages/vscode/src/extension.ts`・`webview.ts`・`dg.ts`・`packages/web/src/main.tsx`・`host.tsx`・`client/webview.ts`・`client/http.ts`・`styles.css`・`packages/core/src/commands/client.ts`・`local.ts`・`packages/cli/src/serve.ts`
+- 入口と構成：`packages/vscode/src/extension.ts`・`webview.ts`・`dg.ts`・`launcher.ts`（起動ファイルの中身と `current` の形・書き直す条件）・`packages/web/src/main.tsx`・`host.tsx`・`client/webview.ts`・`client/http.ts`・`styles.css`・`packages/core/src/commands/client.ts`・`local.ts`・`packages/cli/src/serve.ts`
 - 書き込みの範囲と設定：`packages/web/src/write-commands.test.ts`・`pages/ticket.tsx`・`components/ticket-props-panel.tsx`・`pages/config.tsx`・`packages/core/src/model/config.ts`・`packages/core/src/git/write.ts`
 - 依頼と入口：`packages/core/src/commands/ask.ts`（`ask`・`ask-menu`・`SKILL_SUMMARY`）・`packages/web/src/components/ask-menu.tsx`・`ask-composer.tsx`・`row-nav.tsx`・`packages/vscode/src/terminals.ts`・`context-menu.ts`
-- テスト：`packages/core/src/commands/ask.test.ts`・`client.test.ts`・`local.test.ts`・`packages/web/src/app.test.tsx`・`pages/config.test.tsx`・`components/ask-menu.test.tsx`・`ask-composer.test.tsx`・`packages/vscode/src/terminals.test.ts`・`context-menu.test.ts`・`dg.test.ts`・`test/layout/`
+- テスト：`packages/core/src/commands/ask.test.ts`・`client.test.ts`・`local.test.ts`・`packages/web/src/app.test.tsx`・`pages/config.test.tsx`・`components/ask-menu.test.tsx`・`ask-composer.test.tsx`・`packages/vscode/src/terminals.test.ts`・`context-menu.test.ts`・`dg.test.ts`・`launcher.test.ts`・`test/layout/`
 
 ## 理由
 
@@ -75,7 +77,10 @@
 - `dg serve` を開発用に残せば、配置の確認・録画・MCP での確認の経路を失わない。localhost に閉じれば、認証なしでも他のマシンから触れない
 - 画面を 1 つのアプリにして transport だけを `CommandClient` で差し替えれば、機能の追加と修正が 1 回で済み、Webview と HTTP の違いは画面に漏れない。拡張ホストは Core を直接呼べるので、サーバーを立てる理由がない
 - サイドバーはエディタで何を開いていても見え、幅が狭いので一覧に向く。詳細は本文と属性を並べるのでエディタ領域の幅が要る
-- `dg` の実体が 1 つなら版ずれが起きず、VS Code を使わないエージェントにも同じ `dg` が届く。拡張が `dg` に依存しなければ、エージェントを使わない利用者も拡張を入れるだけで閲覧とチケット詳細の編集ができる
+- 拡張に CLI を同梱すれば、拡張を入れるだけで画面とエージェントの両方が使え、拡張と CLI の版がいつも揃う。画面が `dg` に依存しなければ、エージェントを使わない利用者も閲覧とチケット詳細の編集ができる
+- 拡張のフォルダは版付きで更新のたびに変わる。外からは中身の固定の起動ファイルを呼び、更新で変わるのを `current` だけにすれば、フック・マージドライバ・PATH のリンクを書き直さずに済む。`current` は一時ファイルからの rename で書くので、複数のウィンドウが同時に書いても壊れない
+- 拡張ホストの node は拡張が動く VS Code の版で決まり、利用者の Node.js の有無や版に左右されない。デスクトップでは VS Code 本体が `ELECTRON_RUN_AS_NODE` で node になり、リモートでは拡張ホストが server の node で動くので、エージェントと同じ側に起動ファイルが置かれる
+- 版の新しい拡張が `current` を取れば、古い拡張のウィンドウを開いても CLI が古い版に戻らない
 - 起票・割り当て・計画・作業・片付けは Skill の手順に点検・承認・照合がある。画面から Iteration・Epic・Status を直接変えるとその外で状態が変わり、Plan の帯や照合と食い違う。書き込みの入口がチケット詳細とエージェントに絞られれば（設定と同期を除く）、変わった場所を追いやすい
 - チケット詳細の編集は、開いた 1 件を確かめながらの小さな直しで、手順を通すほどではない。設定はチームのデータではなく道具の設定。書き込みを Core に通せば、CLI と同じ保証が効く
 - VS Code の settings.json に置くと CLI とエージェントに届かず、同じ項目の値が入口で食い違う。上書きがないと、worktree の置き場所・使えるモデル・通知のように人ごとに違う値をチームのファイルで取り合う
@@ -94,7 +99,10 @@
 - **一覧の画面をパネルに出すコマンドを持つ**：一覧が 2 つ並んでも見るものが重なるだけ
 - **VS Code 拡張もローカルサーバー経由にする**：ポートの衝突と起動順の問題が増える
 - **拡張が `core` を同梱せず、`dg` を子プロセスで呼ぶ**：`dg` がないと画面が動かなくなる
-- **VSIX に `dg` を同梱して PATH に足す**：PATH の注入は統合ターミナルにしか効かず、Claude Code の拡張が起動する `claude` に届かない
+- **`dg` を npm に公開して入れてもらう**：利用者に Node.js と npm を求め、拡張と CLI の版が別々にずれる
+- **拡張が環境変数で PATH に同梱の `dg` を足す**：PATH の注入は統合ターミナルにしか効かず、Claude Code の拡張が起動する `claude` に届かない
+- **外から拡張のフォルダの `dg.mjs` を直接指す**：フォルダは版付きで、更新のたびにフックやリンクが切れる
+- **最後に起動した拡張が `current` を取る**：版の古い拡張のウィンドウを開くと CLI が古い版に戻る
 - **個人の設定を VS Code の settings.json に置く**：CLI とエージェントに届かず、入口で値が食い違う
 - **画面の操作ごとに即コミットする**：履歴が埋まり、push の衝突も増える
 - **画面から書き込めるまま、依頼文も足す**：手順の外の変更が残り、書き込みの入口が増える

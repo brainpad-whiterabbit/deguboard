@@ -5,7 +5,8 @@
 // データ worktree と実行中の Run の記録を見張り、CLI やエージェントの書き込みを画面に映す。
 // dg init 前は .git/deguboard/ ができるのを見張り（watchInit）、できたら見張りを張り直して画面を普段の画面に変える。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-027）。サーバーは起動しない。
-// dg は同梱せず、PATH の dg を案内する（UI-11）。VS Code の API に触れるのはこのファイルだけ
+// 同梱した dg は、起動のたびに版の付かない起動ファイルと行き先を書いて外に出す（launcher.ts）。PATH の dg は確かめて案内する（UI-11）。
+// VS Code の API に触れるのはこのファイルだけ
 
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -48,6 +49,7 @@ import {
   type IdSources,
 } from "./ids.js";
 import { setTranslator, t } from "./l10n.js";
+import { installLauncher } from "./launcher.js";
 import { describeTerminals, terminalInput } from "./terminals.js";
 import { commonDirOf, initWatchTarget, watchTargets } from "./watch.js";
 import {
@@ -212,6 +214,23 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   extensionContext = context;
   void refreshApprovals();
+  void writeLauncher(context);
+}
+
+/**
+ * 同梱した dg を外から呼べるよう、起動ファイルと current を書く（launcher.ts）。node は拡張ホストの実行ファイルで、
+ * デスクトップでは VS Code 本体、リモートでは server の node。書けなくても画面は動くので、知らせずに記録だけ残す
+ */
+async function writeLauncher(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    await installLauncher({
+      version: String((context.extension.packageJSON as { version?: unknown }).version ?? ""),
+      node: process.execPath,
+      dg: vscode.Uri.joinPath(context.extensionUri, "dist", "cli", "dg.mjs").fsPath,
+    });
+  } catch (error) {
+    console.warn("deguboard: could not write the dg launcher", error);
+  }
 }
 
 export function deactivate(): void {
