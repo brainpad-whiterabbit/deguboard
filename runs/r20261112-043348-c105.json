@@ -1,0 +1,32 @@
+{
+  "id": "r20261112-043348-c105",
+  "ticket": "t739",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T04:33:48Z",
+  "finished_at": "2026-11-12T04:37:21Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "閉じる effect のコメントが下書きは残ると書いたままで、開き直すと指示が空になる今の振る舞いと合わない"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 5797,
+    "cache_read": 613469,
+    "cache_write": 55939
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 1,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "78fc0778-daf5-433b-812f-829c38a9c22c",
+  "review": null
+}
