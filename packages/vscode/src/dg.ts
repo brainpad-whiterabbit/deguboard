@@ -12,18 +12,6 @@ export type DgLookup =
 /** テスト用に差し替えられる `dg --version` の実行 */
 export type RunVersion = () => Promise<string>;
 
-// 手順そのものは書かず、ルートの README の「Getting started before release」を指す
-const INSTALL_GUIDE_URL =
-  "https://github.com/brainpad-whiterabbit/deguboard#getting-started-before-release";
-
-/** 入れ方の案内。表示言語で変わるので、呼ぶたびに作る */
-function installHint(): string {
-  return t(
-    "dg is not on npm yet. For now, clone and build it as described in the “Getting started before release” section of the README ({0}), and put dg on your PATH. Once released, install it with npm i -g deguboard (with mise: mise use -g npm:deguboard).",
-    INSTALL_GUIDE_URL,
-  );
-}
-
 function runDgVersion(): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile("dg", ["--version"], { timeout: 5_000 }, (error, stdout) =>
@@ -63,8 +51,7 @@ export function dgAdvice(lookup: DgLookup, coreVersion: string): DgAdvice | unde
       return {
         level: "info",
         text: t(
-          "dg is not on your PATH. The views work without dg; install dg to use deguboard from agents and the CLI. {0}",
-          installHint(),
+          "dg is not on your PATH. The views work without dg. To use dg from agents and the terminal, run “deguboard: Install dg command” from the Command Palette.",
         ),
       };
     case "error":

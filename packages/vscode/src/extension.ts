@@ -5,11 +5,13 @@
 // データ worktree と実行中の Run の記録を見張り、CLI やエージェントの書き込みを画面に映す。
 // dg init 前は .git/deguboard/ ができるのを見張り（watchInit）、できたら見張りを張り直して画面を普段の画面に変える。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-027）。サーバーは起動しない。
-// 同梱した dg は、起動のたびに版の付かない起動ファイルと行き先を書いて外に出す（launcher.ts）。PATH の dg は確かめて案内する（UI-11）。
+// 同梱した dg は、起動のたびに版の付かない起動ファイルと行き先を書いて外に出す（launcher.ts）。コマンドで ~/.local/bin/dg に張り、外せる。
+// PATH の dg は確かめて、コマンドを勧める（UI-11）。
 // VS Code の API に触れるのはこのファイルだけ
 
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import {
   ACTION_NAMES,
   createLocalClient,
@@ -49,7 +51,7 @@ import {
   type IdSources,
 } from "./ids.js";
 import { setTranslator, t } from "./l10n.js";
-import { installLauncher } from "./launcher.js";
+import { type Current, installLauncher, linkDg, linkPathOf, onPath, unlinkDg } from "./launcher.js";
 import { describeTerminals, terminalInput } from "./terminals.js";
 import { commonDirOf, initWatchTarget, watchTargets } from "./watch.js";
 import {
@@ -152,6 +154,9 @@ export function activate(context: vscode.ExtensionContext): void {
         void vscode.window.setStatusBarMessage(`deguboard: ${t("Copied {0}", item.id)}`, 3000);
       }),
     ),
+    // コマンドパレットの「dg コマンドを入れる」「外す」。同梱の dg を ~/.local/bin/dg に張り、外す（launcher.ts）
+    vscode.commands.registerCommand("deguboard.installDg", () => void installDgCommand(context)),
+    vscode.commands.registerCommand("deguboard.uninstallDg", () => void uninstallDgCommand()),
     vscode.workspace.onDidChangeWorkspaceFolders((e) => {
       for (const folder of e.removed) forgetFolder(folder);
       void refreshApprovals();
@@ -223,13 +228,101 @@ export function activate(context: vscode.ExtensionContext): void {
  */
 async function writeLauncher(context: vscode.ExtensionContext): Promise<void> {
   try {
-    await installLauncher({
-      version: String((context.extension.packageJSON as { version?: unknown }).version ?? ""),
-      node: process.execPath,
-      dg: vscode.Uri.joinPath(context.extensionUri, "dist", "cli", "dg.mjs").fsPath,
-    });
+    await installLauncher(launcherCurrent(context));
   } catch (error) {
     console.warn("deguboard: could not write the dg launcher", error);
+  }
+}
+
+/** 起動ファイルの current に書く、この拡張の版・node・同梱の dg.mjs */
+function launcherCurrent(context: vscode.ExtensionContext): Current {
+  return {
+    version: String((context.extension.packageJSON as { version?: unknown }).version ?? ""),
+    node: process.execPath,
+    dg: vscode.Uri.joinPath(context.extensionUri, "dist", "cli", "dg.mjs").fsPath,
+  };
+}
+
+/**
+ * 「dg コマンドを入れる」。起動ファイルを書き（まだなければ）、~/.local/bin/dg をそこへ張る。
+ * ほかの dg（mise run dg:link のリンクや通常のファイル）は上書きせず、張り先を示して止まる
+ */
+async function installDgCommand(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    if ((await installLauncher(launcherCurrent(context))) === "unsupported") {
+      void vscode.window.showWarningMessage(
+        `deguboard: ${t("Installing the dg command is not supported on this platform.")}`,
+      );
+      return;
+    }
+    const outcome = await linkDg();
+    const link = linkPathOf();
+    if (outcome.kind === "occupied") {
+      const text =
+        outcome.target === undefined
+          ? t(
+              "{0} already exists and is not a symbolic link. It was not changed. Check it, remove it if you do not need it, then run this command again.",
+              link,
+            )
+          : t(
+              "{0} already exists and points to {1}. It was not changed. Remove it yourself, then run this command again.",
+              link,
+              outcome.target,
+            );
+      void vscode.window.showWarningMessage(`deguboard: ${text}`);
+      return;
+    }
+    const text =
+      outcome.kind === "linked"
+        ? t("dg is linked to {0}.", link)
+        : t("dg is already linked to {0}.", link);
+    void vscode.window.showInformationMessage(`deguboard: ${text}`);
+    if (!onPath(path.dirname(link))) {
+      void vscode.window.showInformationMessage(
+        `deguboard: ${t("~/.local/bin is not on your PATH. Add this line to your shell profile and open a new terminal: export PATH=$HOME/.local/bin:$PATH")}`,
+      );
+    }
+  } catch (error) {
+    void vscode.window.showErrorMessage(
+      `deguboard: ${t("The dg command could not be changed: {0}", error instanceof Error ? error.message : String(error))}`,
+    );
+  }
+}
+
+/** 「dg コマンドを外す」。~/.local/bin/dg が起動ファイルを指すリンクなら外す。起動ファイルは残す（フックが使う） */
+async function uninstallDgCommand(): Promise<void> {
+  try {
+    const outcome = await unlinkDg();
+    const link = linkPathOf();
+    switch (outcome.kind) {
+      case "removed":
+        void vscode.window.showInformationMessage(
+          `deguboard: ${t("Removed the dg link at {0}. The launcher that the hooks use was kept.", link)}`,
+        );
+        return;
+      case "absent":
+        void vscode.window.showInformationMessage(
+          `deguboard: ${t("There is no dg link at {0}.", link)}`,
+        );
+        return;
+      case "foreign":
+        void vscode.window.showWarningMessage(
+          `deguboard: ${
+            outcome.target === undefined
+              ? t("{0} is not a symbolic link, so it was not removed.", link)
+              : t(
+                  "{0} points to {1}, not to deguboard, so it was not removed.",
+                  link,
+                  outcome.target,
+                )
+          }`,
+        );
+        return;
+    }
+  } catch (error) {
+    void vscode.window.showErrorMessage(
+      `deguboard: ${t("The dg command could not be changed: {0}", error instanceof Error ? error.message : String(error))}`,
+    );
   }
 }
 

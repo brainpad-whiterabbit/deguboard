@@ -7,7 +7,17 @@
 
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  lstat,
+  mkdir,
+  readFile,
+  readlink,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -158,4 +168,102 @@ export async function installLauncher(
   const content = formatCurrent(mine);
   if (existingText !== content) await writeAtomic(currentFile, content, 0o644);
   return "written";
+}
+
+/** PATH に通す dg のリンク（~/.local/bin/dg）。「dg コマンドを入れる」が張り、「外す」と拡張の片付けが外す */
+export function linkPathOf(home: string = homedir()): string {
+  return path.join(home, ".local", "bin", "dg");
+}
+
+/** 張り先の起動ファイル。linkDg と unlinkDg はこれを指すリンクだけを自分のものとみなす */
+function launcherFileOf(home: string): string {
+  return path.join(launcherDir(home), "dg");
+}
+
+/** lstat で見る。張り先が消えた壊れたリンクも、リンクとして見つける（張り先の存在は見ない） */
+async function linkStateOf(
+  link: string,
+): Promise<{ kind: "none" } | { kind: "link"; target: string } | { kind: "other" }> {
+  try {
+    const stat = await lstat(link);
+    if (!stat.isSymbolicLink()) return { kind: "other" };
+    return { kind: "link", target: await readlink(link) };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "none" };
+    throw error;
+  }
+}
+
+export type LinkOutcome =
+  | { kind: "linked" }
+  | { kind: "already" }
+  /** 別の dg のリンク（target あり）か通常のファイルなど（target なし）。消さずに止める */
+  | { kind: "occupied"; target?: string };
+
+/**
+ * ~/.local/bin/dg を起動ファイルへ張る。既に起動ファイルを指していれば何もしない。
+ * ほかの dg（mise run dg:link が張ったリンクや通常のファイル）は上書きせず、張り先を返して止める（t668 の dg:link と同じ扱い）
+ */
+export async function linkDg(options: { home?: string } = {}): Promise<LinkOutcome> {
+  const home = options.home ?? homedir();
+  const launcher = launcherFileOf(home);
+  const link = linkPathOf(home);
+  const state = await linkStateOf(link);
+  if (state.kind === "link" && state.target === launcher) return { kind: "already" };
+  if (state.kind !== "none") {
+    return state.kind === "link"
+      ? { kind: "occupied", target: state.target }
+      : { kind: "occupied" };
+  }
+  await mkdir(path.dirname(link), { recursive: true });
+  await symlink(launcher, link);
+  return { kind: "linked" };
+}
+
+export type UnlinkOutcome =
+  | { kind: "removed" }
+  | { kind: "absent" }
+  /** 起動ファイルを指さないもの。消さない */
+  | { kind: "foreign"; target?: string };
+
+/** ~/.local/bin/dg が起動ファイルを指すリンクなら外す。起動ファイル本体は残す（フックが使う） */
+export async function unlinkDg(options: { home?: string } = {}): Promise<UnlinkOutcome> {
+  const home = options.home ?? homedir();
+  const link = linkPathOf(home);
+  const state = await linkStateOf(link);
+  if (state.kind === "none") return { kind: "absent" };
+  if (state.kind === "link" && state.target === launcherFileOf(home)) {
+    await rm(link);
+    return { kind: "removed" };
+  }
+  return state.kind === "link" ? { kind: "foreign", target: state.target } : { kind: "foreign" };
+}
+
+/**
+ * 拡張を消したときの片付け（vscode:uninstall の uninstall.ts が呼ぶ）。current がこの拡張の dg.mjs を指すときだけ、
+ * 起動ファイル・current・起動ファイルを指すリンクを消す。版の新しい拡張やほかのエディタの拡張が使っているものは消さない。
+ * 消したら true
+ */
+export async function removeLauncherOf(
+  dgFile: string,
+  options: { home?: string } = {},
+): Promise<boolean> {
+  const home = options.home ?? homedir();
+  const dir = launcherDir(home);
+  const currentFile = path.join(dir, "current");
+  const text = await readOrUndefined(currentFile);
+  if (text === undefined) return false;
+  const current = parseCurrent(text);
+  if (!current.dg || path.resolve(current.dg) !== path.resolve(dgFile)) return false;
+  await unlinkDg({ home });
+  await rm(launcherFileOf(home), { force: true });
+  await rm(currentFile, { force: true });
+  return true;
+}
+
+/** PATH（の文字列）に dir があるか。末尾の / などの違いはパスとして比べる */
+export function onPath(dir: string, pathEnv: string | undefined = process.env.PATH): boolean {
+  return (pathEnv ?? "")
+    .split(path.delimiter)
+    .some((entry) => entry !== "" && path.resolve(entry) === path.resolve(dir));
 }

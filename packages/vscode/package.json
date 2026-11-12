@@ -29,8 +29,9 @@
   "type": "module",
   "main": "./dist/extension.cjs",
   "scripts": {
-    "build": "vite build && vite build -c vite.cli.config.ts && rm -rf dist/web && cp -r ../web/dist dist/web && cp ../core/src/guide/guide-*.md dist/ && cp ../cli/src/skill.md dist/cli/",
-    "package": "node ../../scripts/vscode-readme.mjs && cp ../../LICENSE LICENSE && vsce package --no-dependencies --out deguboard-vscode.vsix"
+    "build": "vite build && vite build -c vite.cli.config.ts && vite build -c vite.uninstall.config.ts && rm -rf dist/web && cp -r ../web/dist dist/web && cp ../core/src/guide/guide-*.md dist/ && cp ../cli/src/skill.md dist/cli/",
+    "package": "node ../../scripts/vscode-readme.mjs && cp ../../LICENSE LICENSE && vsce package --no-dependencies --out deguboard-vscode.vsix",
+    "vscode:uninstall": "node ./dist/uninstall.mjs"
   },
   "dependencies": {
     "@deguboard/core": "workspace:*"
@@ -99,6 +100,16 @@
       {
         "command": "deguboard.copyId",
         "title": "%command.copyId.title%",
+        "category": "deguboard"
+      },
+      {
+        "command": "deguboard.installDg",
+        "title": "%command.installDg.title%",
+        "category": "deguboard"
+      },
+      {
+        "command": "deguboard.uninstallDg",
+        "title": "%command.uninstallDg.title%",
         "category": "deguboard"
       }
     ],

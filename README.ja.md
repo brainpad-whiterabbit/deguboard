@@ -124,7 +124,7 @@ dg config set notify.approvals false --local
 
 ### 公開前に使い始める
 
-[mise](https://mise.jdx.dev/) を入れて clone し、フックを入れます。端末からほかのリポジトリでも `dg` を呼ぶときは PATH にもリンクし、そのシェルの PATH に node 24 も通します（mise なら `mise use -g node@24`）。フックは PATH に頼りません。`dg hooks install` が node と `dg.js` の絶対パスを書きます。
+[mise](https://mise.jdx.dev/) を入れて clone し、フックを入れます。端末からほかのリポジトリでも `dg` を呼ぶときは PATH にもリンクし（VS Code なら「deguboard: dg コマンドを入れる」）、そのシェルの PATH に node 24 も通します（mise なら `mise use -g node@24`）。フックは PATH に頼りません。`dg hooks install` が node と `dg.js` の絶対パスを書きます。
 
 ```sh
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard

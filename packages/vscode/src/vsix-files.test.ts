@@ -18,6 +18,8 @@ const allowed: RegExp[] = [
   /^README\.md$/,
   /^LICENSE$/,
   /^dist\/extension\.cjs$/,
+  // 拡張を消したときに VS Code が走らせる片付け（vite.uninstall.config.ts が 1 つに束ねる）
+  /^dist\/uninstall\.mjs$/,
   // dg guide の本文。拡張は bundle の隣から読む（core の guide.ts）。本文は core の src/guide/ の guide-*.md を写したもの
   /^dist\/guide-[\w-]+\.md$/,
   /^dist\/THIRD_PARTY_LICENSES\.md$/,

@@ -124,7 +124,7 @@ dg config set notify.approvals false --local
 
 ### Getting started before release
 
-Install [mise](https://mise.jdx.dev/), clone the repository, and install the hooks. To run `dg` from your terminal in other repositories, also link it to your PATH; Node.js 24 must then be on that shell's PATH too (with mise, `mise use -g node@24`). The hooks do not depend on PATH: `dg hooks install` writes the absolute paths of node and `dg.js`.
+Install [mise](https://mise.jdx.dev/), clone the repository, and install the hooks. To run `dg` from your terminal in other repositories, also link it to your PATH (in VS Code, run `deguboard: Install dg command`); Node.js 24 must then be on that shell's PATH too (with mise, `mise use -g node@24`). The hooks do not depend on PATH: `dg hooks install` writes the absolute paths of node and `dg.js`.
 
 ```sh
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard

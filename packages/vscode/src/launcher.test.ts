@@ -1,11 +1,14 @@
 import { execFile } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readlinkSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -18,8 +21,13 @@ import {
   installLauncher,
   LAUNCHER_SCRIPT,
   launcherDir,
+  linkDg,
+  linkPathOf,
+  onPath,
   parseCurrent,
+  removeLauncherOf,
   shouldWriteCurrent,
+  unlinkDg,
   type Current,
 } from "./launcher.js";
 
@@ -227,5 +235,71 @@ describe("起動ファイル", () => {
     const result = await runLauncher([], { PATH: fakeNodeDir(24) });
     expect(result.code).toBe(1);
     expect(result.stderr).toMatch(/Open VS Code/);
+  });
+});
+
+describe("~/.local/bin/dg の張りと外し", () => {
+  it("起動ファイルへのリンクを張り、二度目は何もしない", async () => {
+    await installLauncher(mine(), { dir });
+    expect(linkPathOf(home)).toBe(path.join(home, ".local", "bin", "dg"));
+    expect(await linkDg({ home })).toEqual({ kind: "linked" });
+    expect(readlinkSync(linkPathOf(home))).toBe(path.join(dir, "dg"));
+    expect(await linkDg({ home })).toEqual({ kind: "already" });
+  });
+
+  it("ほかの dg は上書きせず、張り先を示して止まる（別の先へのリンクと通常のファイル）", async () => {
+    mkdirSync(path.join(home, ".local", "bin"), { recursive: true });
+    symlinkSync("/elsewhere/dg.js", linkPathOf(home));
+    expect(await linkDg({ home })).toEqual({ kind: "occupied", target: "/elsewhere/dg.js" });
+    expect(readlinkSync(linkPathOf(home))).toBe("/elsewhere/dg.js");
+    rmSync(linkPathOf(home));
+    writeFileSync(linkPathOf(home), "other");
+    expect(await linkDg({ home })).toEqual({ kind: "occupied" });
+    expect(await readFile(linkPathOf(home), "utf8")).toBe("other");
+  });
+
+  it("外すのは起動ファイルを指すリンクだけで、起動ファイルは残す", async () => {
+    await installLauncher(mine(), { dir });
+    expect(await unlinkDg({ home })).toEqual({ kind: "absent" });
+    await linkDg({ home });
+    expect(await unlinkDg({ home })).toEqual({ kind: "removed" });
+    expect(() => readlinkSync(linkPathOf(home))).toThrow();
+    expect(existsSync(path.join(dir, "dg"))).toBe(true);
+    symlinkSync("/elsewhere/dg.js", linkPathOf(home));
+    expect(await unlinkDg({ home })).toEqual({ kind: "foreign", target: "/elsewhere/dg.js" });
+    expect(readlinkSync(linkPathOf(home))).toBe("/elsewhere/dg.js");
+  });
+
+  it("拡張を消すとき、current がこの拡張の dg.mjs を指すときだけ起動ファイル・current・リンクを片付ける", async () => {
+    const current = mine();
+    await installLauncher(current, { dir });
+    await linkDg({ home });
+    expect(await removeLauncherOf(path.join(home, "other", "dg.mjs"), { home })).toBe(false);
+    expect(existsSync(path.join(dir, "current"))).toBe(true);
+    expect(readlinkSync(linkPathOf(home))).toBe(path.join(dir, "dg"));
+
+    expect(await removeLauncherOf(current.dg, { home })).toBe(true);
+    expect(existsSync(path.join(dir, "current"))).toBe(false);
+    expect(existsSync(path.join(dir, "dg"))).toBe(false);
+    expect(() => readlinkSync(linkPathOf(home))).toThrow();
+  });
+
+  it("拡張を消すとき、リンクがほかの dg を指していれば残す", async () => {
+    const current = mine();
+    await installLauncher(current, { dir });
+    mkdirSync(path.join(home, ".local", "bin"), { recursive: true });
+    symlinkSync("/elsewhere/dg.js", linkPathOf(home));
+    expect(await removeLauncherOf(current.dg, { home })).toBe(true);
+    expect(readlinkSync(linkPathOf(home))).toBe("/elsewhere/dg.js");
+  });
+
+  it("current がなければ、拡張を消しても何もしない", async () => {
+    expect(await removeLauncherOf(path.join(home, "dg.mjs"), { home })).toBe(false);
+  });
+
+  it("PATH の並びに dir があるかを、末尾の / の違いを除いて見る", () => {
+    expect(onPath("/a/bin", "/usr/bin:/a/bin/")).toBe(true);
+    expect(onPath("/a/bin", "/usr/bin:/a/binx")).toBe(false);
+    expect(onPath("/a/bin", undefined)).toBe(false);
   });
 });

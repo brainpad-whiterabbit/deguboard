@@ -121,7 +121,7 @@ for (const rel of docFiles) {
   }
 }
 
-// 拡張と Walkthrough が指す README の見出し：dg.ts と media/walkthrough は README の見出しを「このリポジトリの GitHub の URL の #アンカー」で指す（手順を二重に書かないため）。
+// Walkthrough が指す README の見出し：media/walkthrough は README の見出しを「このリポジトリの GitHub の URL の #アンカー」で指す（手順を二重に書かないため）。
 // 上のリンクの検査は外部 URL を見ないので、ここで見る。見出しを変えると黙って切れるので、README.md の見出しのアンカーに照らす
 const readmeUrl =
   /https:\/\/github\.com\/brainpad-whiterabbit\/deguboard(?:\/blob\/[^/\s"'`)]+\/README\.md)?#([^\s"'`)]+)/g;

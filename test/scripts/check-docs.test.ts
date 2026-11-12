@@ -37,7 +37,6 @@ const COPIED = [
   "docs",
   "packages/cli/src",
   "packages/core/src/guide",
-  "packages/vscode/src/dg.ts",
   "packages/vscode/media/walkthrough",
 ];
 // ADR 番号そのものを検査するテストなので、検査の入力と期待する指摘の文には ADR 番号を残す（テストの文字列から番号を外す規則の例外）
@@ -372,19 +371,6 @@ describe("check-docs の拡張と Walkthrough が指す README の見出しア�
     expect(stderr).not.toContain("README.md に見出しがない");
   });
 
-  it("dg.ts が指す見出しのアンカーを壊すと、場所と見出しを出して落ちる", async () => {
-    await rewrite(
-      "packages/vscode/src/dg.ts",
-      new RegExp(ANCHOR),
-      "#getting-started-before-relese",
-    );
-    const { code, stderr } = await run();
-    expect(code).toBe(1);
-    expect(stderr).toMatch(
-      /packages\/vscode\/src\/dg\.ts:\d+: README\.md に見出しがない: #getting-started-before-relese/,
-    );
-  });
-
   it("Walkthrough（英語と日本語）が指す見出しのアンカーを壊すと落ちる", async () => {
     await rewrite("packages/vscode/media/walkthrough/init.md", new RegExp(ANCHOR), "#nope");
     await rewrite("packages/vscode/media/walkthrough/init.ja.md", new RegExp(ANCHOR), "#nope");
@@ -394,12 +380,12 @@ describe("check-docs の拡張と Walkthrough が指す README の見出しア�
     expect(stderr).toMatch(/init\.ja\.md:\d+: README\.md に見出しがない: #nope/);
   });
 
-  it("README の見出しを変えると、そこを指す拡張の URL が切れて落ちる", async () => {
+  it("README の見出しを変えると、そこを指す Walkthrough の URL が切れて落ちる", async () => {
     await rewrite("README.md", /^### Getting started before release$/m, "### Setup");
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toMatch(
-      /dg\.ts:\d+: README\.md に見出しがない: #getting-started-before-release/,
+      /init\.md:\d+: README\.md に見出しがない: #getting-started-before-release/,
     );
   });
 });
