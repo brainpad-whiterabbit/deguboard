@@ -524,6 +524,47 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     });
   });
 
+  it("空か空白だけの body は create・import・update のどの入口でも INVALID_INPUT で拒み、書き込まない（理由と直し方を出す）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a"] });
+    const head = async () => (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    const before = await head();
+    const text = () => readFile(path.join(ctx.repo.dataDir, "tickets/t1.md"), "utf8");
+    const original = await text();
+
+    // update：空・空白だけは書かず、理由と直し方を示す。body を省けば現在の本文のまま
+    for (const body of ["", "   \n\t"]) {
+      const err = await runCommand(ticketUpdate, ctx, { ticket: "t1", body }).catch((e) => e);
+      expect(err).toMatchObject({ code: "INVALID_INPUT" });
+      expect(String(err.detail)).toContain("body is empty or only spaces");
+      expect(String(err.detail)).toContain("keeps the current body");
+    }
+    expect(await text()).toBe(original);
+    expect(await head()).toBe(before);
+    expect((await runCommand(ticketUpdate, ctx, { ticket: "t1", title: "A2" })).data.title).toBe(
+      "A2",
+    );
+
+    // create：summary があっても、body が空なら拒む（body を省けば雛形で作る）
+    await expect(
+      runCommand(ticketCreate, ctx, { title: "B", body: "  ", summary: "s" }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(runCommand(ticketCreate, ctx, { title: "B", body: "" })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+    });
+    expect((await runCommand(ticketCreate, ctx, { title: "C", summary: "s" })).data.id).toBe("t2");
+
+    // import：drafts でも source（YAML）でも、空か空白だけの body は 1 件も起票しない
+    await expect(
+      runCommand(ticketImport, ctx, { drafts: [{ title: "D" }, { title: "E", body: " " }] }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      runCommand(ticketImport, ctx, { source: '- title: F\n  body: ""\n' }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    expect((await runCommand(ticketList, ctx, {})).data.map((t) => t.id)).toEqual(["t1", "t2"]);
+  });
+
   it("check は番号で受け入れ条件に印を付け外しし、show が acceptance を出す", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

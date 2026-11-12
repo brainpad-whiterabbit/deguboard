@@ -139,6 +139,15 @@ const ticketAttributes = {
     .describe("Optional fields defined in the Workflow's fields"),
 };
 
+/**
+ * 本文の値。空か空白だけの本文は書けば黙って本文が消えるので、create・import・update のどの入口でも拒む
+ * （入口ごとに検査を足すと抜けるので、ここに 1 つだけ置く）。省く（undefined）のは別の扱い
+ */
+const bodyText = z.string().refine((s) => s.trim() !== "", {
+  message:
+    "body is empty or only spaces. Write the Markdown text, or leave body out (create and import then build it from summary and acceptance; update keeps the current body)",
+});
+
 /** 受け入れ条件の項目。1 項目 1 行の自由文（CLI はカンマで割らない） */
 const acceptanceItems = z
   .array(
@@ -160,10 +169,11 @@ const createInput = z.object({
     .describe(
       "Acceptance criteria. Each item goes into the body template's checklist, one per line. Not used when body is given",
     ),
-  body: z
-    .string()
+  body: bodyText
     .optional()
-    .describe("Full body (Markdown). Takes precedence over summary and acceptance"),
+    .describe(
+      "Full body (Markdown). Takes precedence over summary and acceptance. Empty or blank text is rejected",
+    ),
   created_by: actorRef
     .optional()
     .describe(
@@ -514,7 +524,7 @@ export const ticketUpdate = defineCommand({
   input: z.object({
     ticket: ticketRef,
     title: z.string().min(1).optional().describe("Title"),
-    body: z.string().optional().describe("Replace the whole body"),
+    body: bodyText.optional().describe("Replace the whole body. Empty or blank text is rejected"),
     acceptance: acceptanceItems
       .optional()
       .describe(
