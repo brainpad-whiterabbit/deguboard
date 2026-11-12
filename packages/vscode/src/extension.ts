@@ -54,6 +54,7 @@ import { setTranslator, t } from "./l10n.js";
 import {
   type Current,
   installLauncher,
+  type LauncherResult,
   launcherFileOf,
   linkDg,
   linkPathOf,
@@ -112,6 +113,8 @@ let syncing = false;
 let advised = false;
 /** 通知から詳細を開くために覚える、拡張のコンテキスト */
 let extensionContext: vscode.ExtensionContext | undefined;
+/** 起動ファイルを書いた結果。書き終える前と書けなかったときは、マージドライバが起動ファイルを指さない（mergeDriverOf） */
+let launcherResult: LauncherResult | undefined;
 /** フォルダごとの、前に見た承認待ち（承認待ちの Plan と review のチケット）の ID。ないうちは基準がなく、通知しない */
 const approvalSeen = new Map<string, Set<string>>();
 /** refreshApprovals の世代番号。最新の呼び出しの結果だけを反映する */
@@ -253,7 +256,7 @@ export function activate(context: vscode.ExtensionContext): void {
  */
 async function writeLauncher(context: vscode.ExtensionContext): Promise<void> {
   try {
-    await installLauncher(launcherCurrent(context));
+    launcherResult = await installLauncher(launcherCurrent(context));
   } catch (error) {
     console.warn("deguboard: could not write the dg launcher", error);
   }
@@ -778,7 +781,8 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
       cwd: folder.uri.fsPath,
       ...pickUser(undefined, process.env["DEGUBOARD_USER"]),
       actions: ACTION_NAMES,
-      mergeDriver: extensionContext && mergeDriverOf(launcherCurrent(extensionContext)),
+      mergeDriver:
+        extensionContext && mergeDriverOf(launcherCurrent(extensionContext), launcherResult),
     });
     clients.set(key, client);
     void watchData(folder, client);
