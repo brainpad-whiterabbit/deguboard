@@ -8,7 +8,7 @@
     "customConditions": []
   },
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/bundle.ts"],
+  "exclude": ["src/**/*.test.ts", "src/bundle.ts", "src/bundle-main.ts"],
   "references": [
     {
       "path": "../core/tsconfig.build.json"
