@@ -1,0 +1,32 @@
+id: p107
+project: default
+tickets: [t745, t747, t746, t744, t742, t743]
+after:
+  t746:
+    - t745
+pending_approval: true
+details:
+  t745:
+    scope: dg serve で Host の名前・Origin・Content-Type を見て、別オリジンとほかのホスト名からの要求と JSON でない POST を断る
+    approach: createApp の前段に検査を置き、app.test.ts で断る場合と転送・同一オリジンで通る場合を示し、UI-8・ADR-027・serve のヘルプを直す
+    tier: heavy
+  t747:
+    scope: ブランチで PR を探すとき、開いていない PR のうちブランチの記録より前に作られたものを前の作業として除外する
+    approach: facts.ts の除外の条件をマージ済みから開いていない PR に広げ、bare リモートのテストで閉じた古い PR と開いた古い PR の両方を確かめる
+    tier: standard
+  t746:
+    scope: 読めないファイルの番号も採番の最大に入れ、作る先にファイルがあれば ALREADY_EXISTS で断る
+    approach: store に読めないファイルの ID を持たせて nextId と create で使い、createDoc は書く前に stat で確かめる。4 種の文書を並べたテストと DT-4 を直す
+    tier: standard
+  t744:
+    scope: Walkthrough の「上のボタン」をサイドバーの Start with this repository に直し、README の MCP の例を macOS でも合う書き方にする
+    approach: init.md・init.ja.md と README.md・README.ja.md の該当の節だけを直す
+    tier: light
+  t742:
+    scope: 起動ファイルも current もないときは、dg hooks check がフックを入れ直すか外す案内を出す
+    approach: hooks.ts の案内を拡張が残っているかで分け、両方をテストで示す
+    tier: standard
+  t743:
+    scope: 始め方のボタンで、前の実行が終わっていればコマンドを送り直し、実行中は二重に走らせない
+    approach: terminals.ts の再利用の条件を実行中かどうかに変え、コメントとテストを合わせる
+    tier: standard
