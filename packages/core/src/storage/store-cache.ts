@@ -34,7 +34,8 @@ let codeStampPromise: Promise<string> | undefined;
 
 /**
  * 読みのコード（core の model・storage・workflow）の印。開発中は版が同じままスキーマを変えるので、作り直したら別の鍵にする。
- * 束ねた拡張（VS Code）と束ねた CLI（dg.mjs）にはこの配置がないので、束ねたファイルそのものの印を使う。プロセスで 1 回だけ取る
+ * 束ねた拡張（VS Code）と束ねた CLI（dg.mjs）にはこの配置がないので、束ねたファイルそのものの印を使う。束ねた CLI は入口の dg.mjs の印で、
+ * 入口は本体の chunk の名前（中身のハッシュ付き）を持ち、ビルドと拡張の入れ替えのたびに書き直される。プロセスで 1 回だけ取る
  */
 function codeStamp(): Promise<string> {
   codeStampPromise ??= (async () => {

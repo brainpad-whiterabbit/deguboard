@@ -24,9 +24,11 @@ const allowed: RegExp[] = [
   /^dist\/guide-[\w-]+\.md$/,
   /^dist\/THIRD_PARTY_LICENSES\.md$/,
   /^dist\/assets\/[\w.-]+\.cjs$/,
-  // 同梱した dg（vite.cli.config.ts が 1 つに束ねる）と、dg skill install が読む雛形と、束ねた依存のライセンス表示。
+  // 同梱した dg（vite.cli.config.ts が入口の dg.mjs と、本体の chunk と動的な import の先の dg-*.mjs に束ねる）と、
+  // dg skill install が読む雛形と、束ねた依存のライセンス表示。
   // Web の画面と guide は拡張の本体の dist/web・dist/guide-*.md を共有するので、dist/cli/ の下には入れない
   /^dist\/cli\/dg\.mjs$/,
+  /^dist\/cli\/dg-[\w-]+\.mjs$/,
   /^dist\/cli\/skill\.md$/,
   /^dist\/cli\/THIRD_PARTY_LICENSES\.md$/,
   /^dist\/web\/THIRD_PARTY_LICENSES\.md$/,
@@ -71,6 +73,8 @@ describe("VSIX に入るファイル", () => {
       expect(files).toEqual(
         expect.arrayContaining(["dist/cli/dg.mjs", "dist/cli/skill.md", "dist/guide-overview.md"]),
       );
+      // 入口の dg.mjs が読む本体の chunk も入っている（t767）
+      expect(files.some((f) => /^dist\/cli\/dg-main-[\w-]+\.mjs$/.test(f))).toBe(true);
     }
   });
 
