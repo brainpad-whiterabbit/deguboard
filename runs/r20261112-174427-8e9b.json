@@ -1,0 +1,33 @@
+{
+  "id": "r20261112-174427-8e9b",
+  "ticket": "t784",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T17:44:27Z",
+  "finished_at": "2026-11-12T17:46:59Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "ADR-008 の要約と本文の『VS Code 拡張は 1 つの CommonJS』『1 ファイルに束ねる』が、拡張の chunk 分割と合わない",
+    "guide overview の自動解決の警告の説明が、sync 以外の書き込みでも data.resolved が出るように読め、競合の注記が一部の文に掛かっていない"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 7877,
+    "cache_read": 625878,
+    "cache_write": 39754
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 5,
+    "bash": 9,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "fea6012d-49ee-40c1-9fac-4ee22cef2bef",
+  "review": null
+}
