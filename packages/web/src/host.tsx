@@ -120,11 +120,16 @@ export interface AskRequest {
 
 /** 見た目の状態の鍵。拡張ホストが HTML の data-ask で渡した対象は、main.tsx が描く前にここへ書く */
 export const ASK_OPEN_KEY = "ask.open";
+/**
+ * 指示の欄の文の鍵。開くたびに空にする（AskProvider.open と、main.tsx が data-ask で開くとき）。閉じるだけでは消さず、
+ * 再読み込みで開いていた小窓を戻すときは残す（形式は ASK_FORMAT_KEY で、開き直しても残す）
+ */
+export const ASK_NOTE_KEY = "ask.note";
 
 export interface Ask {
   /** 開いている入力欄の対象。閉じていれば null */
   request: AskRequest | null;
-  /** 入力欄を開く。開いていれば対象を入れ替える（頼むことは action か、なければおすすめ。指示の下書きは残す） */
+  /** 入力欄を開く。開いていれば対象を入れ替える（頼むことは action か、なければおすすめ）。指示は空にする */
   open(targets: readonly string[], action?: AskAction, within?: string, place?: string): void;
   close(): void;
   /** 開いた回数。開き直したら入力欄の中の状態（外した対象・選んだ頼むこと）を捨てるための key に使う。0 なら見た目の状態からの復元で、頼むことを選んで開いたときのコピーはしない（判別にも使う） */
@@ -145,10 +150,13 @@ const AskContext = createContext<Ask>({
 });
 
 function AskProvider({ children }: { children: ReactNode }) {
+  const host = useHost();
   const [request, setRequest] = useUiState<AskRequest | null>(ASK_OPEN_KEY, null);
   const [serial, setSerial] = useState(0);
   const open = useCallback(
     (targets: readonly string[], action?: AskAction, within?: string, place?: string) => {
+      // 開くたびに指示は空で始める（閉じるときの下書きは残すが、開き直したら消す）。形式は人が選んだものを残す
+      host.state.set(ASK_NOTE_KEY, "");
       setRequest({
         targets: [...targets],
         ...(action ? { action } : {}),
@@ -157,7 +165,7 @@ function AskProvider({ children }: { children: ReactNode }) {
       });
       setSerial((n) => n + 1);
     },
-    [setRequest],
+    [host, setRequest],
   );
   const close = useCallback(() => setRequest(null), [setRequest]);
   // 今の対象は描画に使わないので state にしない（変わるたびに描き直さない）
@@ -218,12 +226,13 @@ export function useUiState<T>(key: string, initial: T): [T, (value: T) => void] 
 /**
  * 拡張ホストからの通知を受ける。navigate はハッシュを書き換え、toggle はその画面と来る前の画面を切り替え（歯車の設定画面）、
  * reload は store を読み直す（同期は拡張ホストが済ませてから送ってくる）、ask はエージェントに頼む入力欄を開く
- * （current つきはタイトル行の吹き出しで、画面の今の対象を対象にする）。
+ * （current つきはタイトル行の吹き出しで、画面の今の対象を対象にする。toggle つきは左パネルのタイトル行の Ask ボタンで、
+ * 開いていれば閉じ、閉じていれば開く）。
  * StoreProvider と HostProvider の中に置く
  */
 export function HostBridge({ client }: { client: WebviewClient }) {
   const store = useStore();
-  const { open: openAsk, current } = useAsk();
+  const { request, open: openAsk, close: closeAsk, current } = useAsk();
   const reloadRef = useRef(store.reload);
   // 最新の reload を通知の受け手から呼ぶ。描画中に ref を書かない（react/refs）ので、描いた後に写す
   useEffect(() => {
@@ -235,9 +244,12 @@ export function HostBridge({ client }: { client: WebviewClient }) {
         if (event.name === "navigate") window.location.hash = event.hash;
         else if (event.name === "toggle") toggleRoute(event.hash);
         else if (event.name === "reload") void reloadRef.current();
-        else if (event.name === "ask") openAsk(event.current ? current() : event.targets);
+        else if (event.name === "ask") {
+          if (event.toggle && request) closeAsk();
+          else openAsk(event.current ? current() : event.targets);
+        }
       }),
-    [client, openAsk, current],
+    [client, openAsk, closeAsk, request, current],
   );
   return null;
 }

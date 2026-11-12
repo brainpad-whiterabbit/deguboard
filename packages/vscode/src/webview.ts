@@ -116,15 +116,15 @@ export function askEvent(targets: readonly string[]): WebviewEvent {
 }
 
 /**
- * タイトル行の吹き出しの届け方（UI-15）。描かれた Webview には current つきの ask の event を送り、画面が今の対象
- * （カンバンで選んでいる Iteration、履歴で開いている行）を対象にして開く。対象がなければ画面が対象なしで開く。
- * まだ描かれていなければ画面に対象はないので、対象なしを覚えさせる
+ * 左パネルのタイトル行の Ask ボタンの届け方（UI-15）。描かれた Webview には current と toggle つきの ask の event を送り、
+ * 開いていれば閉じ、閉じていれば画面が今の対象（カンバンで選んでいる Iteration、履歴で開いている行）を対象にして開く。
+ * 対象がなければ画面が対象なしで開く。まだ描かれていなければ開くだけなので、対象なしを覚えさせる
  */
 export function currentAskDelivery(
   rendered: boolean,
 ): { post: WebviewEvent } | { pending: string[] } {
   return rendered
-    ? { post: { kind: "event", name: "ask", targets: [], current: true } }
+    ? { post: { kind: "event", name: "ask", targets: [], current: true, toggle: true } }
     : { pending: [] };
 }
 

@@ -54,7 +54,8 @@ export interface TerminalChoice {
  * toggle はその画面と来る前の画面を切り替える（ビューのタイトル行の歯車で設定画面を開け閉めする）。
  * ask はエージェントへの依頼文を作る入力欄を、targets（ID。空なら対象なし）を対象にして開く（UI-15。タイトル行の吹き出しとコマンドパレット）。
  * terminals は開いているターミナルの一覧が変わった（開いた・閉じた）ことを知らせる（UI-15）。
- * current を付ければ、targets の代わりに画面の今の対象（カンバンで選んでいる Iteration、履歴で開いている行）にする。なければ対象なし（タイトル行の吹き出し）
+ * current を付ければ、targets の代わりに画面の今の対象（カンバンで選んでいる Iteration、履歴で開いている行）にする。なければ対象なし（タイトル行の吹き出し）。
+ * toggle を付ければ、入力欄が開いていれば閉じる（左パネルのタイトル行の Ask ボタン。開閉は Webview が今の状態で決める）
  */
 export type WebviewEvent =
   | { kind: "event"; name: "reload" }
@@ -65,6 +66,7 @@ export type WebviewEvent =
       name: "ask";
       targets: string[];
       current?: boolean | undefined;
+      toggle?: boolean | undefined;
     }
   | { kind: "event"; name: "terminals"; terminals: TerminalChoice[] };
 

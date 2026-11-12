@@ -3,14 +3,15 @@
 // 頼むことの候補・おすすめ・依頼文は core の ask コマンド（読み取りだけ）が決め、ここでは組み立て直さない。定型の文の言語は画面の表示言語を ask に渡して決める。データには書き込まない。
 // 上の 1 行が頼むことの候補（★ がおすすめ）、欄の頭が Skill と対象の札（札とボタンのツールチップが Skill の 1 文）、札の下が頼むことの 1 文（依頼文には入らない）、本体が指示、下が全文・形式・クリア・コピー。
 // 開いているターミナルがあれば（Webview だけ）、送り先を選んで「送る」でその入力に入れられる。Enter は押さず、ターミナルは起動しない。なければコピーだけ。
-// 指示の下書きと形式は見た目の状態に残し、閉じて開き直しても消えない。形式は人が切り替えるまで残さず、既定は ask が dg の Skill の有無から決める。
+// 指示は開くたびに空で始まる（閉じるときの下書きは見た目の状態に残るが、開き直すと消す。再読み込みで開いていた小窓だけ残す）。
+// 形式は見た目の状態に残し、閉じて開き直しても消えない。形式は人が切り替えるまで残さず、既定は ask が dg の Skill の有無から決める。
 // 閉じるのは Esc・× と、小窓の外を押し始めたとき（下の effect）
 
 import type { TerminalChoice } from "@deguboard/core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { askKey, parseAskKey } from "../ask-key.js";
 import { candidateTitle } from "../ask-candidate.js";
-import { useHost, useUiState } from "../host.js";
+import { ASK_NOTE_KEY, useHost, useUiState } from "../host.js";
 import { canSend, resolveSendTarget, sentMessage, switchedMessage } from "../send-target.js";
 import { useStore } from "../store.js";
 import type { AskAction, AskFormat, AskView } from "../types.js";
@@ -25,8 +26,7 @@ export function chosenAskFormat(value: unknown): AskFormat | undefined {
   return value === "skill" || value === "text" ? value : undefined;
 }
 
-/** 見た目の状態の鍵 */
-export const ASK_NOTE_KEY = "ask.note";
+/** 見た目の状態の鍵（ASK_NOTE_KEY は host.tsx） */
 export const ASK_FORMAT_KEY = "ask.format";
 
 const COPIED = msg("✓ コピーしました。エージェントの入力欄に貼ってください");

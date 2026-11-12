@@ -4,13 +4,13 @@ import { skillSummary, type TerminalChoice, type WebviewEvent } from "@deguboard
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../app.js";
 import type { WebviewClient } from "../client/webview.js";
-import { ASK_OPEN_KEY, HostBridge, HostProvider, type Host } from "../host.js";
+import { ASK_NOTE_KEY, ASK_OPEN_KEY, HostBridge, HostProvider, type Host } from "../host.js";
 import type { Route } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { fixture, iteration, mockClient, ticket, type MockClient } from "../test-helpers.js";
 import { setLanguage } from "../l10n.js";
 import { createUiState, memoryBackend, type UiState } from "../ui-state.js";
-import { ASK_FORMAT_KEY, ASK_NOTE_KEY } from "./ask-composer.js";
+import { ASK_FORMAT_KEY } from "./ask-composer.js";
 
 afterEach(() => {
   cleanup();
@@ -119,6 +119,9 @@ function mountWebview(
     ask: (targets: string[]) => act(() => send({ kind: "event", name: "ask", targets })),
     /** タイトル行の吹き出し：画面の今の対象で開く */
     askCurrent: () => act(() => send({ kind: "event", name: "ask", targets: [], current: true })),
+    /** 左パネルのタイトル行の Ask ボタン：開いていれば閉じ、閉じていれば画面の今の対象で開く */
+    askToggle: () =>
+      act(() => send({ kind: "event", name: "ask", targets: [], current: true, toggle: true })),
   };
 }
 
@@ -447,7 +450,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     },
   );
 
-  it("Esc と × で閉じ、指示の下書きは見た目の状態に残って、開き直すと戻る", async () => {
+  it("Esc で閉じると指示の下書きは見た目の状態に残るが、開き直すと指示は空で始まり、× でも閉じる", async () => {
     const view = mountWebview(askClient());
     await screen.findByText("見直す");
     view.ask([]);
@@ -466,14 +469,14 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
     expect(
       (within(composer()).getByRole("textbox", { name: "指示" }) as HTMLTextAreaElement).value,
-    ).toBe("下書き");
+    ).toBe("");
+    expect(view.state.get(ASK_NOTE_KEY)).toBe("");
     // 対象なしでは「閉じる」の頼むことの札と名前が同じなので、札の group の外の閉じるボタンを押す
     const closeButton = within(composer())
       .getAllByRole("button", { name: "閉じる" })
       .find((b) => !b.closest('[role="group"]'))!;
     fireEvent.click(closeButton);
     expect(screen.queryByRole("region", { name: "エージェントに頼む" })).toBeNull();
-    expect(view.state.get(ASK_NOTE_KEY)).toBe("下書き");
   });
 
   it("クリアは指示の欄が空のとき押せず、文があると押せて、欄と下書きを空にし、依頼文は指示なしで引き直す（t684）", async () => {
@@ -516,13 +519,14 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
 
   it("クリアの読み上げの名前とツールチップは表示言語に合わせて出る（英語では Clear）", async () => {
     setLanguage("en");
-    const state = createUiState(memoryBackend());
-    state.set(ASK_NOTE_KEY, "draft");
-    const view = mountWebview(askClient(), { state });
+    // 再読み込みで開いていた小窓を戻した形（指示の下書きが残っている）
+    const state = createUiState(
+      memoryBackend({ [ASK_OPEN_KEY]: { targets: ["t5"] }, [ASK_NOTE_KEY]: "draft" }),
+    );
+    mountWebview(askClient(), { state });
     await screen.findByText("見直す");
-    view.ask(["t5"]);
+    await screen.findByRole("textbox", { name: "Instructions" });
     const box = within(document.querySelector<HTMLElement>(".ask-composer")!);
-    await box.findByRole("textbox", { name: "Instructions" });
     const clear = box.getByRole("button", { name: "Clear" });
     expect(clear.getAttribute("title")).toBe("Empty the instructions (the draft is cleared too)");
     expect((clear as HTMLButtonElement).disabled).toBe(false);
@@ -578,7 +582,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       expect(isOpen()).toBe(false);
     });
 
-    it("外のクリックで閉じても、指示の下書きは残り、開き直すと戻る", async () => {
+    it("外のクリックで閉じても、指示の下書きは残るが、開き直すと指示は空で始まる", async () => {
       const view = mountWebview(askClient());
       await screen.findByText("見直す");
       view.ask([]);
@@ -594,7 +598,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
       expect(
         (within(composer()).getByRole("textbox", { name: "指示" }) as HTMLTextAreaElement).value,
-      ).toBe("下書き");
+      ).toBe("");
     });
 
     it("吹き出しや頼むことの一覧から開き直すと、閉じたままにならず新しい対象で開く", async () => {
@@ -661,6 +665,68 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     mountWebview(askClient(), { state });
     await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★確かめて片付ける"));
     expect(within(composer()).getByRole("button", { name: "t5 を外す" })).toBeTruthy();
+  });
+
+  it("左パネルのタイトル行の Ask ボタン（toggle）は、開いていれば閉じ、閉じていれば今の対象で開く。閉じるときの下書きは残る", async () => {
+    const view = mountWebview(askClient());
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+    fireEvent.change(within(composer()).getByRole("textbox", { name: "指示" }), {
+      target: { value: "下書き" },
+    });
+
+    view.askToggle();
+    expect(screen.queryByRole("region", { name: "エージェントに頼む" })).toBeNull();
+    expect(view.state.get(ASK_NOTE_KEY)).toBe("下書き");
+
+    view.askToggle();
+    await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+    expect(
+      (within(composer()).getByRole("textbox", { name: "指示" }) as HTMLTextAreaElement).value,
+    ).toBe("");
+  });
+
+  it("開くたびに指示は空で始まる（開いたまま ask で開く・行の吹き出しで対象を替える）。再読み込みで開いていた小窓を戻すときは指示を残す", async () => {
+    const state = createUiState(memoryBackend());
+    const view = mountWebview(askClient(), { state });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+    const note = () =>
+      (within(composer()).getByRole("textbox", { name: "指示" }) as HTMLTextAreaElement).value;
+
+    // 開いたまま、ほかの ask で開き直す：対象は替わり、指示は空になる
+    fireEvent.change(within(composer()).getByRole("textbox", { name: "指示" }), {
+      target: { value: "一つ目" },
+    });
+    view.ask(["s1"]);
+    await waitFor(() =>
+      expect(within(composer()).getByRole("button", { name: "s1 を外す" })).toBeTruthy(),
+    );
+    expect(note()).toBe("");
+    expect(state.get(ASK_NOTE_KEY)).toBe("");
+
+    // 外を押して閉じ、行の吹き出しから開き直す：指示は空のまま
+    fireEvent.change(within(composer()).getByRole("textbox", { name: "指示" }), {
+      target: { value: "二つ目" },
+    });
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("region", { name: "エージェントに頼む" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "エージェントに頼む（行 t5）" }));
+    fireEvent.click((await screen.findAllByRole("menuitem"))[0]!);
+    await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+    expect(note()).toBe("");
+
+    // 再読み込み（描き直し）では、開いていた小窓と指示の下書きを戻す
+    fireEvent.change(within(composer()).getByRole("textbox", { name: "指示" }), {
+      target: { value: "残す" },
+    });
+    cleanup();
+    mountWebview(askClient(), { state });
+    await screen.findByText("見直す");
+    await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+    expect(note()).toBe("残す");
   });
 
   it("入力欄は依頼文を作るだけで、読み取りのコマンド（ask など）しか呼ばない", async () => {

@@ -386,9 +386,9 @@ describe("エージェントに頼む入力欄の届け方（UI-15）", () => {
     expect(askDelivery(false, [])).toEqual({ pending: [] });
   });
 
-  it("タイトル行の吹き出しは current つきの ask の event を送り、画面に今の対象を問う。描かれていなければ対象なしを覚える", () => {
+  it("左パネルのタイトル行の Ask ボタンは current と toggle つきの ask の event を送り、開いていれば閉じ、閉じていれば今の対象で開く。描かれていなければ対象なしを覚える", () => {
     expect(currentAskDelivery(true)).toEqual({
-      post: { kind: "event", name: "ask", targets: [], current: true },
+      post: { kind: "event", name: "ask", targets: [], current: true, toggle: true },
     });
     expect(currentAskDelivery(false)).toEqual({ pending: [] });
   });
