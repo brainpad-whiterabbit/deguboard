@@ -630,7 +630,10 @@ describe("run", () => {
     await ctx.store.writeWorkflow({
       id: "general",
       name: "General",
-      steps: [{ id: "implement", label: "Implement" }],
+      steps: [
+        { id: "implement", label: "Implement" },
+        { id: "review", label: "Review" },
+      ],
     });
     await recordBaseline(ctx.repo);
     const validated = await runCommand(workflowValidate, ctx, { workflow: "general" });
@@ -668,7 +671,10 @@ describe("run", () => {
       ]);
 
     // 未知の Action は警告で、Workflow は索引に残る（新しい版の dg で足した Action を古い版で読んでも止めない）
-    await writeGeneral(["  - { id: implement, actions: [create_branch, deploy] }"]);
+    await writeGeneral([
+      "  - { id: implement, actions: [create_branch, deploy] }",
+      "  - { id: review }",
+    ]);
     const lenient = await reopen();
     expect(lenient.store.workflows.has("general")).toBe(true);
     const warned = await runCommand(workflowValidate, lenient, { workflow: "general" });
@@ -677,7 +683,7 @@ describe("run", () => {
     await expect(start(lenient, "t1")).resolves.toMatchObject({ step: "implement" });
 
     // 同じ step の重複はエラーで、索引から外れる
-    await writeGeneral(["  - { id: implement }", "  - { id: implement }"]);
+    await writeGeneral(["  - { id: implement }", "  - { id: implement }", "  - { id: review }"]);
     const strict = await reopen();
     expect(strict.store.workflows.has("general")).toBe(false);
     const failed = await runCommand(workflowValidate, strict, { workflow: "general" });

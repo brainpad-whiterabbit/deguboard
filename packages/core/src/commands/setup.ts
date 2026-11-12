@@ -54,7 +54,7 @@ import {
   type ConfigField,
 } from "../model/config.js";
 import type { Iteration } from "../model/iteration.js";
-import type { Run, RunId, RunResult } from "../model/run.js";
+import { REVIEW_STEP, type Run, type RunId, type RunResult } from "../model/run.js";
 import type { StepOpener } from "../model/workflow.js";
 import { hasBodySection, parseAcceptance, type Ticket } from "../model/ticket.js";
 import { dropRunning, peekRunningRuns, readRunningRuns } from "../run/record.js";
@@ -86,8 +86,6 @@ import {
 } from "./run.js";
 
 const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]];
-/** 見直し役の Run の step（RN-1。同梱の software-development と general の steps の id） */
-const REVIEW_STEP = "review";
 
 export const init = defineCommand({
   name: "init",
