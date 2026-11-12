@@ -1,0 +1,34 @@
+{
+  "id": "r20261112-215950-f38f",
+  "ticket": "t782",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T21:59:50Z",
+  "finished_at": "2026-11-12T22:02:52Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "The requirements AG-9 and CL-1 did not state the exit code 2 behavior of the PreToolUse hook on an old Node",
+    "The hook argv test was hard-coded and did not check against the shape the hook installer writes, nor the non-default agent form",
+    "The old Node messages hard-coded the required major instead of using the constant"
+  ],
+  "usage": {
+    "input": 42,
+    "output": 14799,
+    "cache_read": 1141788,
+    "cache_write": 54872
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 9,
+    "bash": 16,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "fea6012d-49ee-40c1-9fac-4ee22cef2bef",
+  "review": null
+}

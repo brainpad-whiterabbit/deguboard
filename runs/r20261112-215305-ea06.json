@@ -1,0 +1,35 @@
+{
+  "id": "r20261112-215305-ea06",
+  "ticket": "t782",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T21:53:05Z",
+  "finished_at": "2026-11-12T21:56:26Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "hook PreToolUse は Node 24 未満で終了コード 1 になり、フックの守りが黙って外れる。終了コード 2 で止めるよう直す",
+    "dg の入口の注釈が、古い Node で途中で壊れるという推測を書いている。対応範囲（Node 24 以上）の事実に直す",
+    "bundle の注釈が起動の入口に任せる理由を書いておらず、Node 22.1 の記述が入口の注釈と合っていない",
+    "Node を切り替える案内が、絶対パスで書かれたフックの再インストールに触れていない"
+  ],
+  "usage": {
+    "input": 42,
+    "output": 19964,
+    "cache_read": 1141923,
+    "cache_write": 69056
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 9,
+    "bash": 9,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "fea6012d-49ee-40c1-9fac-4ee22cef2bef",
+  "review": null
+}
