@@ -26,7 +26,8 @@ export interface StatusView extends SyncStatus {
  * open は詳細のルート（#/tickets/t12、#/iterations/s3、#/epics/e2）をエディタ領域のパネルに開く。
  * show は一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す（パネルは詳細だけを出すので。UI-12）。
  * copy は text をクリップボードに入れる（Webview の画面はコピーをすべて拡張ホストに頼み、vscode.env.clipboard で書く）。
- * terminals は開いているターミナルの一覧を返す（応答の data は TerminalChoice[]）。sendToTerminal は text を terminal の入力に入れる（Enter は押さない。UI-15）
+ * terminals は開いているターミナルの一覧を返す（応答の data は TerminalChoice[]）。sendToTerminal は text を terminal の入力に入れる（Enter は押さない。UI-15）。
+ * startRepository は dg init 前の始め方の画面のボタン。専用の新しいターミナルで dg init・dg skill install・dg hooks install を実行する（UI-12）
  */
 export type WebviewRequest =
   | { id: number; kind: "run"; name: string; input: unknown }
@@ -34,7 +35,8 @@ export type WebviewRequest =
   | { id: number; kind: "action"; name: "open" | "show"; route: string }
   | { id: number; kind: "action"; name: "copy"; text: string }
   | { id: number; kind: "action"; name: "terminals" }
-  | { id: number; kind: "action"; name: "sendToTerminal"; terminal: number; text: string };
+  | { id: number; kind: "action"; name: "sendToTerminal"; terminal: number; text: string }
+  | { id: number; kind: "action"; name: "startRepository" };
 
 /** sendToTerminal の応答の data。clipboardKept は、貼り付けのために書いたクリップボードを元に戻せず、依頼文が残っていること */
 export interface TerminalSendResult {

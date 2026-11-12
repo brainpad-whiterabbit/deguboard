@@ -111,6 +111,7 @@ function mountWithBridge(
     copy: async () => {},
     terminals: async () => [],
     sendToTerminal: async () => null,
+    startRepository: async () => {},
     onEvent: (listener) => {
       send = listener;
       return () => (send = undefined);

@@ -216,11 +216,11 @@ updated_at: 2026-10-31T05:10:00Z
 - UI-4 チケット詳細：本文・属性・依存・作業ブランチと worktree・PR・Run・経過（CL-7）を出す。属性と本文を編集でき、受け入れ条件の印を本文のチェックボックスで付け外しできる。細部は `dg ticket show --help`
 - UI-5 Iteration：詳細の画面で実績の期間（`started_at`〜`closed_at`。記録のない開始は不明と出す）・目標・進捗（EP-3）と中のチケット、状態に応じた次の操作（IT-3 の `next`）、中のチケットを含む Plan を出す。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る
 - UI-6 未 push のコミットと未取り込みのリモートの更新を印で知らせ、同期のボタンで `dg sync` と同じ同期をして読み直す
-- UI-7 画面から書き込むのはチケット詳細と設定画面と同期だけで、ほかの変更は UI-15 で頼む。書き込みは Core の同じコマンドと検査を通り、拒否されたら理由を出して戻す（コミットは CL-3）
+- UI-7 画面から書き込むのはチケット詳細と設定画面と同期だけで（`dg init` 前の始め方のボタン（UI-12）だけは例外）、ほかの変更は UI-15 で頼む。書き込みは Core の同じコマンドと検査を通り、拒否されたら理由を出して戻す（コミットは CL-3）
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
 - UI-10 Epic：open の Epic を番号の札で出し、題と進み（EP-3）はツールチップで読める。Epic で絞れる。詳細の画面で中のチケットを出す
 - UI-11 VS Code 拡張は `core` と CLI を同梱して `dg` なしで動き、起動ファイルで外に出す。コマンドで `~/.local/bin/dg` に張り、外せる。PATH の `dg` がないか版のメジャーが違えば知らせる。文言は表示言語で出す（core の英語の文も訳し、チケットの中身と指示は書いたまま）。細部は `vscode/src/launcher.ts`・`vscode/src/l10n.ts`・`web/src/l10n.ts` とそのテスト
-- UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。コード中の ID から要約と詳細を開け、コマンドで ID か題からも探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせ（設定で切れる）、`dg init` 前は始め方を出す。細部は `packages/vscode/package.json`・`src/extension.ts`
+- UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。コード中の ID から要約と詳細を開け、コマンドで ID か題からも探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせ（設定で切れる）、`dg init` 前は始め方を出し、VS Code ではボタンで初期化を実行できる。細部は `packages/vscode/package.json`・`src/extension.ts`
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
 - UI-14 設定画面：チームの `config.yaml` の全項目（5.10）と、個人で上書きできる項目を分けて出して直せ、個人の上書きは外せる。影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない（細部は `packages/web/src/pages/config.tsx` とそのテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 - UI-15 エージェントに頼む：行・見出しから `dg ask` の依頼文を作って頼め、データには書き込まない。VS Code では開いているターミナルにも送れる。細部は `packages/web/src/components/ask-menu.tsx`・`packages/vscode/src/terminals.ts` のテスト

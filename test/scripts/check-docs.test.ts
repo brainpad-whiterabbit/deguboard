@@ -372,8 +372,12 @@ describe("check-docs の拡張と Walkthrough が指す README の見出しア�
   });
 
   it("Walkthrough（英語と日本語）が指す見出しのアンカーを壊すと落ちる", async () => {
-    await rewrite("packages/vscode/media/walkthrough/init.md", new RegExp(ANCHOR), "#nope");
-    await rewrite("packages/vscode/media/walkthrough/init.ja.md", new RegExp(ANCHOR), "#nope");
+    // 本物の Walkthrough は README の見出しを指していないので、指す行を足して確かめる
+    const link = `\n[README](https://github.com/brainpad-whiterabbit/deguboard#nope)\n`;
+    for (const name of ["init.md", "init.ja.md"]) {
+      const file = join(dir, "packages/vscode/media/walkthrough", name);
+      await writeFile(file, `${await readFile(file, "utf8")}${link}`);
+    }
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toMatch(/init\.md:\d+: README\.md に見出しがない: #nope/);
@@ -381,6 +385,11 @@ describe("check-docs の拡張と Walkthrough が指す README の見出しア�
   });
 
   it("README の見出しを変えると、そこを指す Walkthrough の URL が切れて落ちる", async () => {
+    const file = join(dir, "packages/vscode/media/walkthrough/init.md");
+    await writeFile(
+      file,
+      `${await readFile(file, "utf8")}\n[README](https://github.com/brainpad-whiterabbit/deguboard${ANCHOR})\n`,
+    );
     await rewrite("README.md", /^### Getting started before release$/m, "### Setup");
     const { code, stderr } = await run();
     expect(code).toBe(1);

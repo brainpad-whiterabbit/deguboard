@@ -50,4 +50,42 @@ describe("始め方の案内", () => {
     await waitFor(() => expect(copy).toHaveBeenCalledWith("dg init"));
     expect(copy).toHaveBeenCalledTimes(1);
   });
+
+  it("拡張ホスト（VS Code）では「このリポジトリで始める」を出し、押すと拡張に頼む。コマンドのコピーも残す", () => {
+    const startRepository = vi.fn(async () => {});
+    const host: Host = {
+      surface: "sidebar",
+      open: () => {},
+      show: () => {},
+      copy: async () => {},
+      state: createUiState(memoryBackend()),
+      startRepository,
+    };
+    render(
+      <HostProvider host={host}>
+        <Onboarding />
+      </HostProvider>,
+    );
+    expect(screen.queryByText(/PATH にあれば/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "このリポジトリで始める" }));
+    expect(startRepository).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "dg init をコピー" })).toBeTruthy();
+  });
+
+  it("dg serve のブラウザには始めるボタンがなく、PATH の dg を案内する文を出す", () => {
+    const host: Host = {
+      surface: "sidebar",
+      open: () => {},
+      show: () => {},
+      copy: async () => {},
+      state: createUiState(memoryBackend()),
+    };
+    render(
+      <HostProvider host={host}>
+        <Onboarding />
+      </HostProvider>,
+    );
+    expect(screen.queryByRole("button", { name: "このリポジトリで始める" })).toBeNull();
+    expect(screen.getByText(/が PATH にあれば、次の順で始められます/)).toBeTruthy();
+  });
 });

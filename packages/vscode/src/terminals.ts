@@ -41,3 +41,27 @@ export function terminalInput(text: string): TerminalInput {
     .replace(/\t/g, " ");
   return clean.includes("\n") ? { kind: "paste", text: clean } : { kind: "line", text: clean };
 }
+
+/**
+ * 始め方の画面のボタンが新しいターミナルに入れる 1 行（Enter まで送る）。起動ファイル（launcher.ts）の絶対パスで
+ * dg init・dg skill install・dg hooks install を &&（途中で失敗したら続けない）でつなぐ。PATH の dg は使わない。
+ * パスはシングルクォートで囲む（空白や ' を含んでも 1 つの引数のまま。sh・bash・zsh・fish で同じに読める）
+ */
+export function startCommandLine(launcher: string): string {
+  const quoted = `'${launcher.replace(/'/g, `'\\''`)}'`;
+  return ["init", "skill install", "hooks install"].map((c) => `${quoted} ${c}`).join(" && ");
+}
+
+/** 始め方のボタンが開くターミナルの名前（ほかの処理は同じ名前のターミナルを開かない） */
+export const START_TERMINAL_NAME = "deguboard";
+
+/**
+ * 始め方のボタンで開いたターミナルのうち、まだ閉じていないもの（exitStatus がない）。押すたびに新しく開くと、
+ * 1 回目の init が終わる前の 2 回目で init・skill install・hooks install が二重に走り、同時に競うため。
+ * 見つかったら新しく開かず、そのターミナルを見せるだけにする
+ */
+export function runningStartTerminal<T extends { name: string; exitStatus?: unknown }>(
+  terminals: readonly T[],
+): T | undefined {
+  return terminals.find((t) => t.name === START_TERMINAL_NAME && t.exitStatus === undefined);
+}

@@ -1,7 +1,15 @@
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { bundleTranslator, setTranslator } from "./l10n.js";
-import { describe, expect, it } from "vitest";
-import { describeTerminals, terminalInput } from "./terminals.js";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  describeTerminals,
+  runningStartTerminal,
+  startCommandLine,
+  terminalInput,
+} from "./terminals.js";
 
 // 文言は日本語の訳で確かめる（表示言語が日本語のときに今までと同じ文言が出ること）。英語は l10n.test.ts で確かめる
 setTranslator(
@@ -69,5 +77,54 @@ describe("terminalInput", () => {
 
   it("1 行のタブは空白にする", () => {
     expect(terminalInput("a\tb")).toEqual({ kind: "line", text: "a b" });
+  });
+});
+
+describe("startCommandLine（始め方のボタンが入れる 1 行）", () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("起動ファイルの絶対パスで init・skill install・hooks install を && でつなぎ、PATH の dg は使わない", () => {
+    expect(startCommandLine("/home/u/.local/share/deguboard/dg")).toBe(
+      "'/home/u/.local/share/deguboard/dg' init && '/home/u/.local/share/deguboard/dg' skill install && '/home/u/.local/share/deguboard/dg' hooks install",
+    );
+  });
+
+  it("パスに空白と ' があっても 1 つの引数のまま、sh で 3 つを順に実行し、途中で失敗したら止まる", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "deguboard-start-"));
+    dirs.push(root);
+    // 起動ファイルの代わりに、引数を log に書き、FAIL と同じ引数なら失敗するスクリプトを置く
+    const dir = path.join(root, "it's here");
+    mkdirSync(dir);
+    const launcher = path.join(dir, "dg");
+    writeFileSync(
+      launcher,
+      '#!/bin/sh\necho "$*" >> "$LOG"\n[ "$1" = "$FAIL" ] && exit 1\nexit 0\n',
+      { mode: 0o755 },
+    );
+    const log = path.join(root, "log");
+    const run = (fail: string) =>
+      spawnSync("sh", ["-c", startCommandLine(launcher)], {
+        env: { ...process.env, LOG: log, FAIL: fail },
+        encoding: "utf8",
+      });
+    expect(run("none").status).toBe(0);
+    expect(readFileSync(log, "utf8")).toBe("init\nskill install\nhooks install\n");
+    rmSync(log);
+    expect(run("skill").status).not.toBe(0);
+    expect(readFileSync(log, "utf8")).toBe("init\nskill install\n");
+  });
+});
+
+describe("runningStartTerminal（始め方のボタンの二重押し）", () => {
+  it("閉じていない deguboard のターミナルを返し、別の名前や閉じたものは返さない", () => {
+    const other = { name: "zsh" };
+    const exited = { name: "deguboard", exitStatus: { code: 0 } };
+    const running = { name: "deguboard" };
+    expect(runningStartTerminal([other, exited])).toBeUndefined();
+    expect(runningStartTerminal([other, exited, running])).toBe(running);
+    expect(runningStartTerminal([])).toBeUndefined();
   });
 });

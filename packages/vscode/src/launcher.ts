@@ -179,8 +179,8 @@ export function linkPathOf(home: string = homedir()): string {
   return path.join(home, ".local", "bin", "dg");
 }
 
-/** 張り先の起動ファイル。linkDg と unlinkDg はこれを指すリンクだけを自分のものとみなす */
-function launcherFileOf(home: string): string {
+/** 起動ファイル本体のパス。linkDg と unlinkDg はこれを指すリンクだけを自分のものとみなし、始め方のボタンは絶対パスで呼ぶ */
+export function launcherFileOf(home: string = homedir()): string {
   return path.join(launcherDir(home), "dg");
 }
 

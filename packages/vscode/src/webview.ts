@@ -165,6 +165,8 @@ export interface WebviewActions {
     terminal: number,
     text: string,
   ): TerminalSendResult | void | Promise<TerminalSendResult | void>;
+  /** 始め方の画面のボタン（UI-12）。専用の新しいターミナルで dg init・skill install・hooks install を実行する。失敗は拡張が通知する */
+  startRepository(): void | Promise<void>;
 }
 
 /** Webview からの要求を CommandClient（か actions）に通し、同じ id の応答にする。失敗は ok: false で返す */
@@ -197,6 +199,7 @@ export async function handleRequest(
       } else if (request.name === "copy") await actions.copy(request.text);
       else if (request.name === "show") await actions.show(request.route);
       else if (request.name === "open") await actions.open(request.route);
+      else if (request.name === "startRepository") await actions.startRepository();
       return { id: request.id, ok: true, data: null, warnings: [], write: null };
     }
     const result = await client.run(request.name, request.input);
@@ -223,7 +226,7 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
       return typeof v.name === "string";
     case "action":
       if (v.name === "copy") return typeof (v as { text?: unknown }).text === "string";
-      if (v.name === "terminals") return true;
+      if (v.name === "terminals" || v.name === "startRepository") return true;
       if (v.name === "sendToTerminal") {
         const m = v as { terminal?: unknown; text?: unknown };
         return typeof m.terminal === "number" && typeof m.text === "string";
