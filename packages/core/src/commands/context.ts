@@ -12,6 +12,7 @@ import {
 import { ensureDeguboardWorktree, type WorktreeOrigin } from "../git/worktree.js";
 import { actorIdOf } from "../model/actor.js";
 import { STORE_CACHE_DIR } from "../storage/paths.js";
+import { readRemoteName } from "../storage/remote-name.js";
 import { Store } from "../storage/store.js";
 import type { ActorInfo, AnyCommand, CommandContext } from "./define.js";
 
@@ -45,8 +46,9 @@ export async function openContextFor(
 ): Promise<CommandContext> {
   if (def.storeless) {
     const parsed = def.input.safeParse(rawInput);
-    if (parsed.success && def.storeless(parsed.data, opts.env ?? process.env))
-      return storelessContext(opts);
+    const env = opts.env ?? process.env;
+    if (parsed.success && def.storeless(parsed.data, env))
+      return storelessContext(opts, def.storelessRemote?.(parsed.data, env) === true);
   }
   return openContext(opts);
 }
@@ -54,9 +56,13 @@ export async function openContextFor(
 /**
  * ストアを開かない文脈（CommandContext の storeless）。git で場所だけを解決し、チケット・Plan・Epic・Iteration・config の
  * ファイルを読まない。初期化の有無は openContext と同じく確かめ（データのリポジトリの .git の有無だけを見る）、初期化していなければ
- * NOT_INITIALIZED（deguboard を使っていないリポジトリでフックが何かを拒まないように）。読めない項目は読んだときに例外を投げる（使う側の誤りを隠さない）
+ * NOT_INITIALIZED（deguboard を使っていないリポジトリでフックが何かを拒まないように）。読めない項目は読んだときに例外を投げる（使う側の誤りを隠さない）。
+ * withRemote のときは config のリモートの名前だけを読み、repo.remote を解決する（t770。残りの config は読めない）
  */
-async function storelessContext(opts: ContextOptions): Promise<CommandContext> {
+async function storelessContext(
+  opts: ContextOptions,
+  withRemote: boolean,
+): Promise<CommandContext> {
   const paths = await resolveRepoPaths(opts.cwd);
   if (!(await isInitialized(paths)))
     throw new OperationError("NOT_INITIALIZED", "deguboard is not initialized. Run dg init");
@@ -65,9 +71,15 @@ async function storelessContext(opts: ContextOptions): Promise<CommandContext> {
       throw new Error(`${name} was read in a context without an open store (storeless)`);
     },
   });
+  const remote = withRemote
+    ? {
+        value: await resolveRemote(paths, await readRemoteName(paths.dataDir, paths.localDir)),
+        enumerable: true,
+      }
+    : unread("repo.remote");
   const repo = Object.defineProperties(
     { ...paths },
-    { remote: unread("repo.remote"), baseBranch: unread("repo.baseBranch") },
+    { remote, baseBranch: unread("repo.baseBranch") },
   ) as GitRepo;
   const ctx = {
     repo,

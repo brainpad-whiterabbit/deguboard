@@ -37,7 +37,7 @@ export interface CommandContext extends WriteContext {
   env?: Readonly<Record<string, string | undefined>> | undefined;
   /**
    * ストアを開いていない文脈（コマンドの storeless が真のとき openContextFor が作る）。repo の場所（topLevel・commonDir・dataDir・localDir）と
-   * now・env だけを持ち、store・config・actor・repo.remote・repo.baseBranch を読むと例外になる
+   * now・env だけを持ち、store・config・actor・repo.baseBranch を読むと例外になる。repo.remote は storelessRemote が真のときだけ読める
    */
   storeless?: boolean | undefined;
   /** 経過の読み手。プロセス内の CommandClient が HEAD で使い回す読み手を入れる（local.ts）。省けば毎回 git log を読む readHistory */
@@ -67,6 +67,11 @@ export interface CommandDef<I extends z.ZodType, O> {
    * 何度も呼ばれて待ちが効く操作のためにある（dg hook の PreToolUse。t554）。config を読まないので actor.human_only も検査しない
    */
   storeless?(input: z.output<I>, env: Readonly<Record<string, string | undefined>>): boolean;
+  /**
+   * storeless が真の入力のうち、config のリモートの名前（git.remote）だけを読む文脈で動かすもの（t770）。真なら repo.remote を読める。
+   * dg の外の変更を Stop で確かめる（checkOutside が repo.remote を使う）ために、ストアを開かずに済ませる。ほかの config の項目は読めない
+   */
+  storelessRemote?(input: z.output<I>, env: Readonly<Record<string, string | undefined>>): boolean;
   /**
    * dg の外の変更の検査（SY-7）を runCommand で行わない。自分で扱うコマンドだけが付ける（取り込む dg adopt と、
    * Stop で確かめてエージェントに返し、ほかのイベントで作業を止めない dg hook、書くときだけ止めて読むだけのときは警告にする dg pr ready）

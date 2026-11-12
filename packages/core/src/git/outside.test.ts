@@ -1,13 +1,15 @@
 import { readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
-import { openContext } from "../commands/context.js";
+import { openContext, openContextFor } from "../commands/context.js";
 import { runCommand, type CommandContext } from "../commands/define.js";
 import { hook, type HookView } from "../commands/hook.js";
 import { adopt, commit, init, sync } from "../commands/setup.js";
 import { ticketCreate, ticketList, ticketShow, ticketUpdate } from "../commands/ticket.js";
+import { readRemoteName } from "../storage/remote-name.js";
+import { Store } from "../storage/store.js";
 import { checkOutside, DG_COMMIT_TRAILER } from "./outside.js";
 import { markRebase, rebaseInProgress } from "./rebase.js";
 import { runGit } from "./run.js";
@@ -226,6 +228,50 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
       payload: { session_id: "s" },
     });
     expect(started.warnings.filter((w) => w.includes("dg の外"))).toEqual([]);
+  });
+
+  it("Stop はストアを開かず、config のリモートの名前だけを読んで dg の外の変更を返す（t770）", async () => {
+    const { ctx } = await prepared();
+    const opts = { cwd: ctx.repo.topLevel, actor };
+    const stopInput = (active: boolean) => ({
+      event: "Stop",
+      payload: { session_id: "s", stop_hook_active: active },
+    });
+    const openSpy = vi.spyOn(Store, "open");
+    try {
+      const light = await openContextFor(hook, stopInput(false), opts);
+      expect(light.storeless).toBe(true);
+      expect(light.repo.remote).toBe("origin");
+      expect(() => light.store).toThrow("storeless");
+      expect(() => light.config).toThrow("storeless");
+      expect(() => light.repo.baseBranch).toThrow("storeless");
+      expect(((await runCommand(hook, light, stopInput(false))).data as HookView).output).toBe(
+        undefined,
+      );
+      await editOutside(ctx);
+      const found = await runCommand(hook, light, stopInput(false));
+      const out = JSON.parse((found.data as HookView).output!) as {
+        decision: string;
+        reason: string;
+      };
+      expect(out.decision).toBe("block");
+      expect(out.reason).toContain("tickets/t1.md");
+      const continued = await openContextFor(hook, stopInput(true), opts);
+      const again = await runCommand(hook, continued, stopInput(true));
+      expect((again.data as HookView).output).toBeUndefined();
+      expect(openSpy).not.toHaveBeenCalled();
+    } finally {
+      openSpy.mockRestore();
+    }
+  });
+
+  it("config のリモートの名前は、個人の設定を重ね、スキーマに合わない個人の値は無視する（t770）", async () => {
+    const { ctx } = await prepared();
+    expect(await readRemoteName(ctx.repo.dataDir, ctx.repo.localDir)).toBe("origin");
+    await writeFile(path.join(ctx.repo.localDir, "config.yaml"), "git:\n  remote: [不正]\n");
+    expect(await readRemoteName(ctx.repo.dataDir, ctx.repo.localDir)).toBe("origin");
+    await writeFile(path.join(ctx.repo.localDir, "config.yaml"), "git:\n  remote: upstream\n");
+    expect(await readRemoteName(ctx.repo.dataDir, ctx.repo.localDir)).toBe("upstream");
   });
 
   it("dg が残した rebase の途中は、読むコマンドは外の変更でなく途中と警告し、書くコマンドは取り消してから書く（t753）", async () => {

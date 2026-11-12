@@ -18,6 +18,7 @@
 //   - tool_requested：.git/deguboard/ への書き込みと、dg を経由しない gh pr ready・merge を粗く拒む（ストアを開かない。t554）。
 //     記録と判定は pre-tool-use.ts にあり、bin/dg.js の速い経路（fast-hook.ts）も同じものを呼ぶ（t768）
 //   - turn_stopped：データのリポジトリの dg の外の変更（SY-7）を確かめ、見つけたら止まらずに続けさせて伝える（続けさせた後の Stop では伝えない）。
+//     ストアを開かず（t770）、config のリモートの名前だけを読む文脈で確かめる（storelessRemote）。Stop は応答のたびに呼ばれ、ストアを開くと遅いため。
 //     dg の外の変更の検査は、ほかのイベントでは runCommand でも行わない（フックで作業を止めない。ownsOutsideCheck）
 //   どのイベントでも、扱うイベントなら読む項目の有無と時刻を deguboard-local/hook-inputs/ に残す（t542。dg hooks check が読む）。
 //   届いた出来事の種類と、フックの中で出た警告は deguboard-local/hook-sessions/ にセッションごとに残し、next・brief・hooks check が後で知らせる（t756）
@@ -97,6 +98,18 @@ function hookAgentOf(agent: string | undefined): string {
   return agent ?? (names.length === 1 ? names[0]! : "");
 }
 
+/** 入力の出来事の種類（扱わない入力・フックを持たない Adapter は undefined）。storeless の判定に使う */
+function eventKindOf(
+  input: {
+    agent?: string | undefined;
+    event: string;
+    payload?: Record<string, unknown> | undefined;
+  },
+  env: Readonly<Record<string, string | undefined>>,
+): HookEvent["kind"] | undefined {
+  return hooksOf(hookAgentOf(input.agent))?.parse(input.event, input.payload ?? {}, env)?.kind;
+}
+
 export const hook = defineCommand({
   name: "hook",
   positionals: ["event"],
@@ -110,7 +123,7 @@ export const hook = defineCommand({
     "(it does not read the PR argument. Without parsing the tokens, it stops if the rest, after removing dg pr ready, dg pr merge, and gh pr ready --undo, contains the words gh, pr, merge, or ready. " +
     "It does not hide text inside quotes, here-documents, or comments; it advises writing the body to a file and passing it with --body-file or git commit -F). " +
     "PreToolUse is called for every tool, so it decides only from the path and command string, without opening the store (tickets, Plans, Epics, Iterations, config), and does not check for changes outside dg. " +
-    "When an agent finishes its response (Stop), it checks the data repository for changes outside dg (uncommitted changes, and commits with no dg mark); if it finds any, it keeps the agent going instead of stopping, and reports which files and how to restore or adopt them (dg adopt). A Stop after the agent was already kept going does not report them again. Other events do not stop work even when there are changes outside dg. " +
+    "When an agent finishes its response (Stop), it checks the data repository for changes outside dg (uncommitted changes, and commits with no dg mark) without opening the store, reading only the remote name from config; if it finds any, it keeps the agent going instead of stopping, and reports which files and how to restore or adopt them (dg adopt). A Stop after the agent was already kept going does not report them again. Other events do not stop work even when there are changes outside dg. " +
     "For each event it keeps, in deguboard-local/hook-inputs/, the presence of the input fields it reads and the time, as the latest one entry per event (no values are kept; dg hooks check reads it), and, in deguboard-local/hook-sessions/, the time a hook last reached each session and each kind of event that reached it (kept for 30 days; dg next, dg brief, and dg ticket claim --no-run warn when no hook has reached the calling session). " +
     "Other failures are turned into warnings and return success, so they do not stop work. The warnings are also kept per session in deguboard-local/hook-sessions/, and dg next, dg brief, and dg hooks check report the ones not reported yet (from any session on this machine). " +
     "When a Run was opened from the marker but no SubagentStop has reached the session (seen at a foreground launch or at the end of the session; background launches alone may still be running, so they are not judged), it adds a warning once per session",
@@ -136,11 +149,13 @@ export const hook = defineCommand({
   needs: "store",
   // dg の外の変更は Stop でだけ確かめて伝える。ほかのイベントでフックが止まらないよう、runCommand では確かめない
   ownsOutsideCheck: true,
-  // PreToolUse（tool_requested）はツールのたびに呼ばれるので、ストアを開かない文脈で動く（t554）。ストアを開かないので、
-  // dg の外の変更の検査（t546）もここでは走らない。判定に使うのは repo の場所と入力だけ
-  storeless: (input, env) =>
-    hooksOf(hookAgentOf(input.agent))?.parse(input.event, input.payload ?? {}, env)?.kind ===
-    "tool_requested",
+  // PreToolUse（tool_requested）はツールのたびに呼ばれるので、ストアを開かない文脈で動く（t554）。判定に使うのは repo の場所と入力だけ。
+  // Stop（turn_stopped）も応答のたびに呼ばれるので、ストアを開かずに dg の外の変更を確かめる（t770）。読むのは config のリモートの名前だけ
+  storeless: (input, env) => {
+    const kind = eventKindOf(input, env);
+    return kind === "tool_requested" || kind === "turn_stopped";
+  },
+  storelessRemote: (input, env) => eventKindOf(input, env) === "turn_stopped",
   async run(ctx, input) {
     const view: HookView = { event: input.event, done: [] };
     const warnings: string[] = [];
