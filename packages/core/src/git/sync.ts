@@ -1,6 +1,12 @@
 // 取り込み・push・同期状態（SY-2、SY-4、UI-6）
 
-import { attributesFile, MERGE_LOG_ENV, MERGE_PREFER_ENV } from "./merge.js";
+import {
+  attributesFile,
+  isMergeDriverPath,
+  MERGE_LOG_ENV,
+  MERGE_PREFER_ENV,
+  mergeDocuments,
+} from "./merge.js";
 import { DG_COMMIT_TRAILER } from "./outside.js";
 import { abortRebase, markRebase, unmarkRebase } from "./rebase.js";
 import type { GitRepo } from "./repo.js";
@@ -121,6 +127,78 @@ export async function integrate(
   } finally {
     await unmarkRebase(repo);
   }
+}
+
+/** 競合したフィールド 1 件（dg sync の data.conflict_fields）。値がない（その側が消した）ときは null */
+export interface ConflictField {
+  file: string;
+  field: string;
+  base: unknown;
+  local: unknown;
+  remote: unknown;
+}
+
+/**
+ * 競合したフィールドと両側の値（SY-4）。分岐点・ローカルの先頭（HEAD）・リモートの先頭の 3 つで、マージドライバと同じ判定
+ * （mergeDocuments）を、採る側を渡さずに回して集める。rebase は止まったコミットで中止するので、git の報告する競合のファイルからは、
+ * 後のコミットでぶつかる分が分からない。先頭どうしで比べれば、--resolve が積み直しの中で解く競合をまとめて示せる。
+ * 中止した後（HEAD がローカルの先頭に戻った後）に呼ぶ。ドライバの対象でないファイル（config.yaml・workflows）と、
+ * 片側にないファイル（add/add・削除）は行単位のマージなので入れない。
+ * ローカルの途中のコミットで変えて先頭で分岐点の値に戻したフィールドは、先頭どうしではぶつからないので入らない。
+ * manual でコミットしていない変更も HEAD にないので入らない
+ */
+export async function conflictFields(repo: GitRepo): Promise<ConflictField[]> {
+  if (!repo.remote) return [];
+  const remote = remoteRef(repo);
+  const mb = await git(repo, ["merge-base", "HEAD", remote], { allowFailure: true });
+  if (mb.code !== 0) return [];
+  const base = mb.stdout.trim();
+  const changed = async (to: string) =>
+    (await git(repo, ["diff", "--name-only", "--no-renames", base, to])).stdout
+      .split("\n")
+      .filter(Boolean);
+  const [local, upstream] = await Promise.all([changed("HEAD"), changed(remote)]);
+  const both = local.filter((f) => upstream.includes(f) && isMergeDriverPath(f));
+  const show = async (rev: string, file: string) => {
+    const r = await git(repo, ["show", `${rev}:${file}`], { allowFailure: true });
+    return r.code === 0 ? r.stdout : undefined;
+  };
+  const fields: ConflictField[] = [];
+  for (const file of both) {
+    const [o, l, r] = await Promise.all([base, "HEAD", remote].map((rev) => show(rev, file)));
+    if (o === undefined || l === undefined || r === undefined) continue;
+    // rebase と同じ向き：ours（%A）がリモート、theirs（%B）がローカル
+    const outcome = await mergeDocuments(o, r, l);
+    if (!outcome || outcome.ok) continue;
+    for (const d of outcome.details) {
+      fields.push({
+        file,
+        field: d.field,
+        base: d.base ?? null,
+        local: d.theirs ?? null,
+        remote: d.ours ?? null,
+      });
+    }
+  }
+  return fields;
+}
+
+/** 警告に載せる値の上限の字数。全体は data.conflict_fields にある */
+const VALUE_LIMIT = 80;
+
+function showValue(value: unknown): string {
+  const text = JSON.stringify(value) ?? "null";
+  return text.length > VALUE_LIMIT ? `${text.slice(0, VALUE_LIMIT)}…` : text;
+}
+
+/** sync の警告に足す、競合したフィールドと両側の値の文（先頭に空白を付ける）。1 件もなければ空 */
+export function describeConflictFields(fields: readonly ConflictField[]): string {
+  if (fields.length === 0) return "";
+  const items = fields.map(
+    (f) =>
+      `${f.file} ${f.field === "本文" ? "body lines" : f.field} (local ${showValue(f.local)}, remote ${showValue(f.remote)}, base ${showValue(f.base)})`,
+  );
+  return ` Conflicting fields (full values in data.conflict_fields): ${items.join("; ")}.`;
 }
 
 /** 時間切れは、リモートに届かないときと同じ失敗にする（投げると CAS が自分のコミットを捨てずに抜ける。t753） */

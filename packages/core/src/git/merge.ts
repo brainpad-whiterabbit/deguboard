@@ -32,6 +32,17 @@ const ATTRIBUTE_LINES = [
   `projects/*.yaml merge=${MERGE_DRIVER_NAME}`,
 ];
 
+/** ATTRIBUTE_LINES のパターン（`*` は / を含まない）に当たるか。マージドライバと同じ判定を git の外で回すファイルを選ぶ */
+const DRIVER_PATHS = ATTRIBUTE_LINES.map((line) => {
+  const pattern = line.split(" ")[0]!;
+  const re = pattern.replace(/[.]/g, "\\.").replace(/\*/g, "[^/]+");
+  return new RegExp(`^${re}$`);
+});
+
+export function isMergeDriverPath(file: string): boolean {
+  return DRIVER_PATHS.some((re) => re.test(file));
+}
+
 const GITATTRIBUTES_HEADER =
   "# dg のマージドライバ（frontmatter と YAML をフィールド単位でマージする）";
 
@@ -56,9 +67,20 @@ export interface ResolvedField {
   discarded: unknown;
 }
 
+/**
+ * 解けなかった 1 件（dg sync の data.conflict_fields の元）。値は git の側で言う（ours が %A、theirs が %B）。
+ * 本文は field が "本文" で、ぶつかった行の塊ごとに 1 件、値はその塊の行（base は分岐点の行）
+ */
+export interface ConflictedField {
+  field: string;
+  base: unknown;
+  ours: unknown;
+  theirs: unknown;
+}
+
 export type MergeOutcome =
   | { ok: true; text: string; resolved: ResolvedField[] }
-  | { ok: false; conflicts: string[] };
+  | { ok: false; conflicts: string[]; details: ConflictedField[] };
 
 interface Parsed {
   text: string;
@@ -125,6 +147,55 @@ async function mergeText(
   }
 }
 
+/** 競合マーカーの印。git merge-file の既定の長さ（7）で、ラベルを付けない */
+const MARKER = { ours: "<<<<<<<", base: "|||||||", split: "=======", theirs: ">>>>>>>" };
+
+/**
+ * 行単位でぶつかった塊を、diff3 の競合マーカーから取り出す（ぶつからなかった行は返さない）。
+ * 本文の行が偶然マーカーと同じ形で始まると読み違えるが、値を人に見せるだけで、解き方（--resolve）には使わない
+ */
+async function conflictHunks(
+  base: string,
+  ours: string,
+  theirs: string,
+): Promise<Array<{ base: string; ours: string; theirs: string }>> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "deguboard-merge-"));
+  try {
+    const [o, a, b] = ["base", "ours", "theirs"].map((n) => path.join(dir, n)) as [
+      string,
+      string,
+      string,
+    ];
+    await Promise.all([writeFile(o, base), writeFile(a, ours), writeFile(b, theirs)]);
+    const r = await runGit(dir, ["merge-file", "-p", "--quiet", "--diff3", a, o, b], {
+      allowFailure: true,
+    });
+    const hunks: Array<{ base: string; ours: string; theirs: string }> = [];
+    let part: "ours" | "base" | "theirs" | undefined;
+    let hunk = { ours: [] as string[], base: [] as string[], theirs: [] as string[] };
+    for (const line of r.stdout.split("\n")) {
+      if (part === undefined) {
+        if (line.startsWith(MARKER.ours)) {
+          part = "ours";
+          hunk = { ours: [], base: [], theirs: [] };
+        }
+      } else if (part === "ours" && line.startsWith(MARKER.base)) part = "base";
+      else if (part !== "theirs" && line.startsWith(MARKER.split)) part = "theirs";
+      else if (part === "theirs" && line.startsWith(MARKER.theirs)) {
+        hunks.push({
+          base: hunk.base.join("\n"),
+          ours: hunk.ours.join("\n"),
+          theirs: hunk.theirs.join("\n"),
+        });
+        part = undefined;
+      } else hunk[part].push(line);
+    }
+    return hunks;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 /**
  * frontmatter つき Markdown と素の YAML（最上位がマッピング）の 3-way マージ。
  * - フィールド（最上位のキー）ごとに、片側だけ変えた値を採る。両側が違う値に変えたら競合（updated_at だけは新しい方を採る）
@@ -148,6 +219,7 @@ export async function mergeDocuments(
   if ((o.body === undefined) !== plain || (b.body === undefined) !== plain) return undefined;
 
   const conflicts: string[] = [];
+  const details: ConflictedField[] = [];
   const resolved: ResolvedField[] = [];
   /** 競合を prefer の側で解く。prefer がなければ undefined */
   const settle = (field: string, ourValue: unknown, theirValue: unknown) => {
@@ -170,6 +242,7 @@ export async function mergeDocuments(
       const settled = settle(key, a.data[key], b.data[key]);
       if (!settled) {
         conflicts.push(key);
+        details.push({ field: key, base: o.data[key], ours: a.data[key], theirs: b.data[key] });
         continue;
       }
       picked = settled;
@@ -189,11 +262,14 @@ export async function mergeDocuments(
       merged = await mergeText(o.body ?? "", a.body ?? "", b.body ?? "", prefer);
       if (merged !== undefined) settle("本文", a.body, b.body);
     }
-    if (merged === undefined) conflicts.push("本文");
-    else body = merged;
+    if (merged === undefined) {
+      conflicts.push("本文");
+      const hunks = await conflictHunks(o.body ?? "", a.body ?? "", b.body ?? "");
+      for (const h of hunks) details.push({ field: "本文", ...h });
+    } else body = merged;
   }
 
-  if (conflicts.length > 0) return { ok: false, conflicts };
+  if (conflicts.length > 0) return { ok: false, conflicts, details };
   if (Object.keys(patch).length === 0) {
     // YAML は ours のまま。書式とコメントを 1 バイトも変えない
     return {

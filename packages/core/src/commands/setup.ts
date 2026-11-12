@@ -24,7 +24,10 @@ import {
 } from "../git/merge.js";
 import {
   commitPaths,
+  conflictFields,
+  describeConflictFields,
   fetchAll,
+  type ConflictField,
   integrate,
   isDirty,
   push,
@@ -545,6 +548,7 @@ export const sync = defineCommand({
     "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
     "A review result held with no Run (run review-result with no review Run, left by an environment the hook does not reach) that dg next and dg gate count as a review is written as a closed review Run marked capture: none (started and finished at the time the result was written, usage null), and the held result is linked to it (data.reviews_recorded). " +
     "A sub-agent Run left open because its record was not finished being written (one with a settling_since mark) is also closed once it has finished writing. Review Runs from a session other than the sync's are not closed; the next review start closes them. " +
+    "When the import stops on a conflict, data.conflicts lists the files and data.conflict_fields lists each conflicting field as { file, field, base, local, remote }, found by running the merge driver's rule on the fork point, the local head, and the remote head (so it includes conflicts in commits after the one the rebase stopped at). For a body, field is 本文 and each colliding block of lines is one entry. Files outside the merge driver (config.yaml and workflows) appear only in data.conflicts. " +
     "--resolve remote|local resolves a sync conflict in favor of the side a person chooses (SY-4): it renumbers colliding provisional numbers, commits pending changes (even in manual mode) before importing, and takes the chosen side's value only for conflicting fields (for a body, only where the same line collided). Non-conflicting fields and commits are kept; history is not discarded and nothing is force-pushed. The values taken and discarded appear in data.resolved. Conflicts in files the merge driver does not handle (config.yaml and workflows) are not resolved and stay in data.conflicts",
   input: z.object({
     resolve: z
@@ -658,11 +662,14 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
       } else conflicts = r.conflicts;
     }
   }
+  // 競合したフィールドと両側の値。rebase を中止して HEAD がローカルの先頭に戻った後に、先頭どうしで求める（git/sync.ts）
+  let fields: ConflictField[] = [];
   if (conflicts.length > 0) {
+    fields = await conflictFields(repo);
     warnings.push(
       resolve
         ? `Conflicts that --resolve cannot resolve remain (files outside the merge driver, or files that cannot be read): ${conflicts.join(", ")}. ${UNRESOLVABLE_REMEDY}`
-        : `Conflicts with remote changes: ${conflicts.join(", ")}. ${CONFLICT_REMEDY}`,
+        : `Conflicts with remote changes: ${conflicts.join(", ")}.${describeConflictFields(fields)} ${CONFLICT_REMEDY}`,
     );
   }
   if (integrated) await ctx.store.rescan();
@@ -680,7 +687,17 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
     repo.remote && (pushed || before.ahead === 0)
       ? [...ctx.store.tickets.values()].filter((t) => t.data.provisional).map((t) => t.data.id)
       : [];
-  return { warnings, fetched, integrated, pushed, conflicts, renumbered, resolved, confirmable };
+  return {
+    warnings,
+    fetched,
+    integrated,
+    pushed,
+    conflicts,
+    conflictFields: fields,
+    renumbered,
+    resolved,
+    confirmable,
+  };
 }
 
 /**
@@ -785,13 +802,14 @@ async function syncResult(
     confirmed?: string[];
   },
 ) {
-  const { fetched, integrated, conflicts, renumbered, resolved } = pulled;
+  const { fetched, integrated, conflicts, conflictFields, renumbered, resolved } = pulled;
   return ok(
     {
       fetched: fetched.ok,
       integrated,
       pushed: r.pushed ?? pulled.pushed,
       conflicts,
+      conflict_fields: conflictFields,
       renumbered,
       resolved,
       reconciled: r.reconciled ?? [],

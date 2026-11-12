@@ -26,7 +26,7 @@ import {
  * 人に remote か local を選んでもらい dg sync --resolve を 1 回呼ぶ手順を案内する
  */
 export const CONFLICT_REMEDY =
-  'Do not choose yourself. Show the conflicted files and ask the human, as a choice, whether to take remote (the remote values) or local (the local values), then call dg sync --resolve <remote|local> once with the chosen side (only the conflicted fields take that side\'s value, and the taken and discarded values are returned in data.resolved. It is not chosen automatically even with --auto. See "When sync stops" in dg guide overview)';
+  'Do not choose yourself. Show each conflicted field with its local and remote values (data.conflict_fields of dg sync) and ask the human, as a choice, whether to take remote (the remote values) or local (the local values), then call dg sync --resolve <remote|local> once with the chosen side (only the conflicted fields take that side\'s value, and the taken and discarded values are returned in data.resolved. It is not chosen automatically even with --auto. See "When sync stops" in dg guide overview)';
 
 /** dg sync --resolve でも解けない競合（マージドライバの対象でないファイル）の戻し方。行単位の競合なので人が解く */
 export const UNRESOLVABLE_REMEDY =
