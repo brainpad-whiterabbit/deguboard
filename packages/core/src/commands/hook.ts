@@ -173,7 +173,7 @@ export const hook = defineCommand({
     "When an agent finishes its response (Stop), it checks the data repository for changes outside dg (uncommitted changes, and commits with no dg mark); if it finds any, it keeps the agent going instead of stopping, and reports which files and how to restore or adopt them (dg adopt). A Stop after the agent was already kept going does not report them again. Other events do not stop work even when there are changes outside dg. " +
     "For each event it keeps, in deguboard-local/hook-inputs/, the presence of the input fields it reads and the time, as the latest one entry per event (no values are kept; dg hooks check reads it), and, in deguboard-local/hook-sessions/, the time a hook last reached each session and each kind of event that reached it (kept for 30 days; dg next, dg brief, and dg ticket claim --no-run warn when no hook has reached the calling session). " +
     "Other failures are turned into warnings and return success, so they do not stop work. The warnings are also kept per session in deguboard-local/hook-sessions/, and dg next, dg brief, and dg hooks check report the ones not reported yet (from any session on this machine). " +
-    "When a Run was opened from the marker but no SubagentStop has reached the session (seen at a foreground launch, at the second marked launch, or at the end of the session), it adds a warning once per session",
+    "When a Run was opened from the marker but no SubagentStop has reached the session (seen at a foreground launch or at the end of the session; background launches alone may still be running, so they are not judged), it adds a warning once per session",
   input: z.object({
     event: z
       .string()

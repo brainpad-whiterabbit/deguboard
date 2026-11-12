@@ -10,8 +10,9 @@
 // セッションごとに残し、印で Run を開いたのに SubagentStop が届かないセッションを警告にする（Run が閉じないまま誰も気づかないため）。
 // ファイルは種類ごと・警告ごとに分け、同時に動くフック（並べたツールの PreToolUse など）が読んで書き直す競合で記録を落とさない：
 //   <session>.json（届いた時刻）・<session>.kind-<種類>.json（その種類が届いた時刻）・<session>.marked.jsonl（印で開いた起動。1 件 1 行）・
-//   <session>.stop-warned（SubagentStop の警告を書いた印）・<session>.warnings.jsonl（警告。1 件 1 行）・<session>.reported（知らせた警告の終わりの位置）
+//   <session>.stop-warned（SubagentStop の警告を書いた印）・<session>.warnings.jsonl（警告。1 件 1 行）・<session>.reported（知らせた警告の終わりの位置と、そこまでの中身のハッシュ）
 
+import { createHash } from "node:crypto";
 import { appendFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { detectAgent, hooksOf, sessionFromEnv, type AgentEnv } from "../agents/index.js";
@@ -81,6 +82,10 @@ export async function recordHookWarnings(
   );
 }
 
+/** 警告のファイルの初めから end バイトまでのハッシュ（知らせた位置が同じファイルのものかを見分ける） */
+const prefixHash = (bytes: Buffer, end: number) =>
+  createHash("sha256").update(bytes.subarray(0, end)).digest("hex").slice(0, 16);
+
 /**
  * まだ知らせていないフックの警告を、すべてのセッションから古い順に取り出し、知らせたことにする（t756）。
  * 呼んだセッションに限らないのは、セッションの終わりに書いた警告を次のセッションで知らせるため（同じマシンの deguboard-local だけを読む）。
@@ -98,12 +103,18 @@ export async function takeHookWarnings(localDir: string): Promise<string[]> {
     );
     if (text === undefined) continue;
     const reportedFile = fileOf(localDir, session, ".reported");
-    const from = Number.parseInt(
-      (await readFile(reportedFile, "utf8").catch(() => "0")).trim(),
-      10,
-    );
+    // 位置は「<バイト数> <そこまでの中身のハッシュ>」。警告のファイルは書き足すだけなので、そこまでの中身が変われば
+    // 消えて作り直された（同じセッション ID の再開など）ファイルで、前の位置は使わずに初めから読む（古い位置で新しい行を飛ばさない）。
+    // inode や時刻は作り直しても同じ値になりうるので使わない
+    const [offset, hash] = (await readFile(reportedFile, "utf8").catch(() => "0"))
+      .trim()
+      .split(/\s+/);
+    const from = Number.parseInt(offset ?? "0", 10);
     const bytes = Buffer.from(text, "utf8");
-    const start = Number.isFinite(from) && from >= 0 && from <= bytes.length ? from : 0;
+    const start =
+      Number.isFinite(from) && from >= 0 && from <= bytes.length && hash === prefixHash(bytes, from)
+        ? from
+        : 0;
     const end = bytes.lastIndexOf(0x0a) + 1;
     if (end <= start) continue;
     for (const raw of bytes.subarray(start, end).toString("utf8").split("\n")) {
@@ -118,7 +129,7 @@ export async function takeHookWarnings(localDir: string): Promise<string[]> {
         // 読めない行は飛ばす
       }
     }
-    await writeFile(reportedFile, `${end}\n`).catch(() => undefined);
+    await writeFile(reportedFile, `${end} ${prefixHash(bytes, end)}\n`).catch(() => undefined);
   }
   found.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
   if (found.length <= REPORT_LIMIT) return found.map((f) => f.line);
@@ -148,9 +159,9 @@ export async function recordMarkedLaunch(
  * 印で Run を開いたのに、このセッションに SubagentStop が 1 つも届いていなければ警告を返す（セッションごとに 1 回。t756）。
  * SubagentStop は印のないサブエージェントでも届くので、1 つでも届いていれば警告しない。届かないと言えるのは、
  *   - 前景の起動を開いたとき（SubagentStop は前景の起動の結果より先に来る）
- *   - 印で開いた起動が 2 つ目になったとき（前の起動が止まっていても届いていない見込みが高い）
  *   - セッションが終わるとき（ending）
- * のどれか。バックグラウンドの起動 1 つだけでは、まだ動いているのと見分けられないので待つ
+ * のどちらか。バックグラウンドの起動は、いくつあってもまだ動いているのと見分けられないので待つ
+ * （並べて頼んだ 2 つ目の起動は、1 つ目が動いている間に来るので、届いていなくても正常）
  */
 export async function subagentStopMissingWarning(
   localDir: string,
@@ -165,7 +176,7 @@ export async function subagentStopMissingWarning(
     .split("\n")
     .filter((l) => l.trim() !== "").length;
   if (launches === 0) return undefined;
-  if (!opts.ending && !opts.foreground && launches < 2) return undefined;
+  if (!opts.ending && !opts.foreground) return undefined;
   // 一度だけ書く。印のファイルがもうあれば書かない（同時に来たフックでも 1 回）
   const wrote = await writeFile(fileOf(localDir, session, ".stop-warned"), "", { flag: "wx" }).then(
     () => true,
@@ -175,17 +186,33 @@ export async function subagentStopMissingWarning(
   return `No SubagentStop hook has reached this session (${session}), although ${launches} sub-agent(s) were started with the marker. A Run that the marker opened for a background sub-agent is not closed when the sub-agent stops (it stays open until the session ends, and its usage and time may not be counted). The SubagentStop hook may be missing from the settings, or its command may not run in the agent's environment. Check with dg hooks check`;
 }
 
-/** KEEP_DAYS より前に書いた記録（どのファイルも）を消す。消せないものは残す（次の機会に消す） */
+/**
+ * KEEP_DAYS より前に書いた記録（どのファイルも）を消す。消せないものは残す（次の機会に消す）。
+ * 知らせた位置（.reported）は知らせるたびに書き直すので警告のファイルより長く残りうる。警告のファイルがないものも一緒に消す
+ */
 export async function pruneHookSessions(localDir: string, now: Date): Promise<void> {
   const dir = dirOf(localDir);
   const names = await readdir(dir).catch(() => [] as string[]);
   const before = now.getTime() - KEEP_DAYS * 24 * 60 * 60 * 1000;
+  const removed = new Set<string>();
   await Promise.all(
     names.map(async (name) => {
       const file = path.join(dir, name);
       const s = await stat(file).catch(() => undefined);
-      if (s && s.mtimeMs < before) await rm(file, { force: true }).catch(() => undefined);
+      if (s && s.mtimeMs < before) {
+        await rm(file, { force: true }).then(
+          () => removed.add(name),
+          () => undefined,
+        );
+      }
     }),
+  );
+  const present = new Set(names.filter((n) => !removed.has(n)));
+  await Promise.all(
+    [...present]
+      .filter((n) => n.endsWith(".reported"))
+      .filter((n) => !present.has(`${n.slice(0, -".reported".length)}${WARNINGS_SUFFIX}`))
+      .map((n) => rm(path.join(dir, n), { force: true }).catch(() => undefined)),
   );
 }
 
