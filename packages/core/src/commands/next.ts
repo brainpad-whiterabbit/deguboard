@@ -2,7 +2,7 @@
 // 段階を返すだけで、エージェントを起動も監視もしない（EX-1）。親は dg next の 1 手を行い、終えたらもう一度 dg next を呼ぶ
 
 import { z } from "zod";
-import { lastPushedAt } from "../git/facts.js";
+import { remoteTip } from "../git/facts.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
 import { gateLevelOf, gateScopeOf, type Ticket } from "../model/ticket.js";
 import type { Config } from "../model/config.js";
@@ -10,7 +10,7 @@ import type { PlanTier } from "../model/plan.js";
 import { readRunningRuns } from "../run/record.js";
 import { briefOf, type BriefRole } from "./brief.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
-import { FIX_ROUNDS_LIMIT, heavyReviewRounds } from "./gate.js";
+import { FIX_ROUNDS_LIMIT, heavyReviewRounds, reviewedTip } from "./gate.js";
 import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";
 import { planReadiness } from "./plan.js";
 import { hooksReachSession, takeHookWarnings, unlinkedReviewWarning } from "./hook-sessions.js";
@@ -41,7 +41,7 @@ export interface Stage {
   /** 重い指摘が出た見直しの回数（fixed(n) の n。修正ループの回数。dg gate の fix_rounds と同じ数え方） */
   fixes: number;
   /**
-   * 最後の push より後の見直しが通っているか（reviewed で ready と fix を分ける）。
+   * 最後の push を見直した見直しが通っているか（reviewed で ready と fix を分ける。新しさの判定は gate.ts の reviewedTip）。
    * low・free の段は見直しを判定しないので、見直しは通ったものとして扱い、常に true（手は ready に進む）
    */
   review_passed: boolean;
@@ -128,6 +128,8 @@ export interface StageFacts {
   fixStep: string;
   /** 作業ブランチのリモートの先端のコミットの時刻。分からなければ undefined */
   pushedAt: string | undefined;
+  /** 作業ブランチのリモートの先端の SHA。見直した SHA を持つ見直しの新しさをこれと比べる（t763）。分からなければ undefined */
+  pushedSha?: string | undefined;
 }
 
 const stage = (
@@ -227,10 +229,17 @@ export function stageOf(facts: StageFacts): Stage {
   if (latest && latest.finished_at === null)
     return stage("reviewing", n, fixes, `The review Run ${latest.id} is running`);
   // 最後の push を読めない（追跡 ref がない・fetch しない ticket show）ときは、最後の見直しを今の見直しとみなす。
-  // dg gate は読めない条件を満たさないとするので、ここで ready でも gate が止めることがある
+  // dg gate は読めない条件を満たさないとするので、ここで ready でも gate が止めることがある。
+  // 読めれば dg gate と同じく、見直した SHA があれば先端の SHA と、なければ先端のコミットの時刻と比べる（reviewedTip。t763）
   const pushedAt = facts.pushedAt;
   const current =
-    latest && (pushedAt === undefined || latest.started_at >= pushedAt) ? latest : undefined;
+    latest &&
+    (pushedAt === undefined ||
+      (facts.pushedSha === undefined
+        ? latest.started_at >= pushedAt
+        : reviewedTip(latest, { sha: facts.pushedSha, at: pushedAt })))
+      ? latest
+      : undefined;
   if (!current)
     return n === 0
       ? stage("implemented", n, fixes, `PR #${ticket.pr} exists and has no review yet`)
@@ -271,9 +280,9 @@ export async function stageFactsOf(
         ticket.id
       ] ?? [])
     : [];
-  const pushedAt =
+  const tip =
     ticket.branch && ticket.pr !== undefined
-      ? await lastPushedAt(ctx.repo, ticket.branch, { fetch: opts.fetch ?? false }).catch(
+      ? await remoteTip(ctx.repo, ticket.branch, { fetch: opts.fetch ?? false }).catch(
           () => undefined,
         )
       : undefined;
@@ -287,7 +296,8 @@ export async function stageFactsOf(
     runs,
     implementStep: openedStepOf(ctx, ticket, "claim"),
     fixStep: openedStepOf(ctx, ticket, "reclaim"),
-    pushedAt,
+    pushedAt: tip?.at,
+    pushedSha: tip?.sha,
   };
 }
 
@@ -483,7 +493,7 @@ export const next = defineCommand({
   summary:
     "Return the next step for a ticket (EX-3, EX-5). The stage (same as ticket show) is one of: todo (can be started), blocked (waiting on a Plan or on unfinished dependencies), " +
     "awaiting_approval (a todo ticket in a Plan awaiting approval; the step is wait_human and plan gives the Plan), " +
-    "claimed (no PR), implemented (PR exists, no review), reviewing (a review is running), reviewed (the review after the last push has closed; review_passed says whether it passed), " +
+    "claimed (no PR), implemented (PR exists, no review), reviewing (a review is running), reviewed (the review of the last push has closed, judged the same way as review of dg gate; review_passed says whether it passed), " +
     "fixed (a push after the last review, or the last review has no result), ready (the review passed and a PR was opened), merged (done), closed (abandoned), " +
     `waiting_human (a Run is waiting for a person, the fix after the last review closed with failure or interrupted, or reviews that raised heavy findings went past ${FIX_ROUNDS_LIMIT} times). Whether the PR is a draft is seen in status (a PR with in_progress is a draft). ` +
     "For a ticket whose gate level is low or free (TK-9), a PR skips the review: a draft is reviewed with review_passed (the ready step), otherwise ready (wait_merge). " +

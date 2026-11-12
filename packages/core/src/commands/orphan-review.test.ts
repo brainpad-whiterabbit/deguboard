@@ -266,13 +266,22 @@ describe("dg next と dg gate が持ち主のない保留を見直しとして�
     expect(condition(view, "fix_rounds").detail).toContain("1 review rounds");
   });
 
-  it("結果を書いた時刻が作業ブランチの先頭の push より前の保留は、今の見直しに数えない", async () => {
-    const { ctx } = await prepared();
-    await hold(ctx, later(-60), false);
+  it("保留は結果を書いたときのローカルの先端を記録し、その後に push したコミットがあれば今の見直しに数えない（コミットの時刻が前でも。t763）", async () => {
+    const { ctx, f, pushAt } = await prepared();
+    const reviewed = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
+    await hold(ctx, later(1), false);
+    const rounds = (await readReviewFindings(ctx.repo, "t1"))!.rounds;
+    expect(rounds.at(-1)).toMatchObject({ run: null, head: reviewed });
+    // 書いた記録の head にも写す
+    expect(
+      (await orphanReviewRuns(ctx, ctx.store.require("ticket", "t1").data, []))[0],
+    ).toMatchObject({ head: reviewed });
+    // 結果を書いた時刻より前のコミッタの時刻で、結果を書いた後に push する（時刻で比べると数えてしまう）
+    await pushAt(later(-30));
     expect(await stepOf(ctx)).toMatchObject({ kind: "review", stage: { name: "fixed" } });
     expect(condition(await judge(ctx), "review")).toMatchObject({
       ok: false,
-      detail: expect.stringContaining("No review after the last push"),
+      detail: expect.stringContaining("No review of the last push"),
     });
   });
 

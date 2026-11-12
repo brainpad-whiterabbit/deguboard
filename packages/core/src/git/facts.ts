@@ -372,6 +372,24 @@ export async function lastPushedAt(
   branch: string,
   opts: { fetch?: boolean } = {},
 ): Promise<string | undefined> {
+  return (await remoteTip(repo, branch, opts))?.at;
+}
+
+/** 作業ブランチのリモートの先端（追跡ブランチ）の SHA と、そのコミットの時刻（ISO、UTC） */
+export interface BranchTip {
+  sha: string;
+  at: string;
+}
+
+/**
+ * 作業ブランチのリモートの先端の SHA とコミットの時刻。lastPushedAt と同じ読み方（fetch・読めないときは undefined）。
+ * 見直しの新しさ（dg gate の review・dg next の段階）は、見直しに記録した SHA があればこの SHA と比べ、なければ時刻と比べる（t763）
+ */
+export async function remoteTip(
+  repo: GitRepo,
+  branch: string,
+  opts: { fetch?: boolean } = {},
+): Promise<BranchTip | undefined> {
   if (!repo.remote) return undefined;
   const ref = `refs/remotes/${repo.remote}/${branch}`;
   if (opts.fetch) {
@@ -384,7 +402,24 @@ export async function lastPushedAt(
     if (fetched.code !== 0 && /couldn't find remote ref/i.test(fetched.stderr)) return undefined;
   }
   if (!(await refExists(repo, ref))) return undefined;
-  const r = await runGit(repo.dataDir, ["log", "-1", "--format=%cI", ref], { allowFailure: true });
-  const at = isoOrUndefined(r.stdout.trim());
-  return at === undefined ? undefined : toIsoDateTime(new Date(at));
+  const r = await runGit(repo.dataDir, ["log", "-1", "--format=%H %cI", ref], {
+    allowFailure: true,
+  });
+  const [tip, raw] = r.stdout.trim().split(" ");
+  const at = isoOrUndefined(raw);
+  return tip && at !== undefined ? { sha: tip, at: toIsoDateTime(new Date(at)) } : undefined;
+}
+
+/**
+ * 作業ブランチのローカルの先端（refs/heads/<branch>）の SHA。見直しの Run と保留の見直しの結果が、見直した状態として記録する（t763）。
+ * fetch はしない。ブランチがない・読めないときは undefined
+ */
+export async function localTip(repo: GitRepo, branch: string): Promise<string | undefined> {
+  const r = await runGit(
+    repo.dataDir,
+    ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}^{commit}`],
+    { allowFailure: true },
+  );
+  const out = r.stdout.trim();
+  return r.code === 0 && out ? out : undefined;
 }

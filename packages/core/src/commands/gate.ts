@@ -2,7 +2,7 @@
 // 判定は保存せず、呼ぶたびに事実から求める。dg pr ready・dg pr merge が gh を呼ぶ前に呼ぶ（pr.ts。EX-6）
 
 import { z } from "zod";
-import { fetchPrGateFacts, lastPushedAt } from "../git/facts.js";
+import { fetchPrGateFacts, remoteTip, type BranchTip } from "../git/facts.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
 import {
   gateLevelOf,
@@ -62,6 +62,16 @@ function reviewRuns(ctx: CommandContext, ticket: Ticket, extra: readonly Run[]):
   return [...[...ctx.store.runs.values()].map((d) => d.data), ...extra]
     .filter((r) => r.ticket === ticket.id && r.step === REVIEW_STEP)
     .sort((a, b) => a.started_at.localeCompare(b.started_at) || a.id.localeCompare(b.id));
+}
+
+/**
+ * 見直しが作業ブランチのリモートの先端（tip）を見直したか（t763）。見直した SHA（Run の head）があれば先端の SHA と同じか、
+ * なければ（この項目より前の Run・読めなかった Run）見直しの開始が先端のコミットの時刻より後か（push した時刻は Git に残らないので近似）。
+ * SHA で比べるのは、見直しの前に作って後で push したコミット・時計のずれ・古いコミットへの force-push を時刻では見分けられないため。
+ * dg gate の review と dg next の段階が同じ関数で判定する
+ */
+export function reviewedTip(run: Pick<Run, "head" | "started_at">, tip: BranchTip): boolean {
+  return run.head !== undefined ? run.head === tip.sha : run.started_at >= tip.at;
 }
 
 /**
@@ -198,10 +208,10 @@ async function judgeReview(
   add: (id: GateConditionId, ok: boolean, detail: string) => void,
   warnings: string[],
 ): Promise<void> {
-  // 見直し：最後の push より後に始めた見直しが、閉じていて通っている
+  // 見直し：リモートの先端を見直した最後の見直しが、閉じていて通っている
   const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
-  const pushedAt = ticket.branch
-    ? await lastPushedAt(ctx.repo, ticket.branch, { fetch: true }).catch(() => undefined)
+  const tip = ticket.branch
+    ? await remoteTip(ctx.repo, ticket.branch, { fetch: true }).catch(() => undefined)
     : undefined;
   // フックが記録しなかった見直し（持ち主のない保留）も数える（dg next と同じ関数。orphan-review.ts）。コミットの時刻を読むので fetch の後
   const reviews = reviewRuns(ctx, ticket, [
@@ -215,17 +225,22 @@ async function judgeReview(
     ticket.branch_at,
   );
   if (unlinked) warnings.push(unlinked);
-  // 比べるのはリモートの先端のコミットの時刻（push した時刻ではない。facts.ts の lastPushedAt）
-  if (pushedAt === undefined)
-    add("review", false, "Cannot read the time of the last push of the work branch");
+  // リモートの先端と比べる（見直した SHA があれば SHA、なければ先端のコミットの時刻。reviewedTip）
+  if (tip === undefined)
+    add("review", false, "Cannot read the remote tip of the work branch (the last push)");
   else {
-    const after = reviews.filter((r) => r.started_at >= pushedAt);
+    const after = reviews.filter((r) => reviewedTip(r, tip));
     const latest = after.at(-1);
-    if (!latest) add("review", false, `No review after the last push (${pushedAt})`);
+    if (!latest)
+      add(
+        "review",
+        false,
+        `No review of the last push (remote tip ${short(tip.sha)}, committed at ${tip.at})`,
+      );
     else if (latest.finished_at === null)
-      add("review", false, `Review ${latest.id} after the last push has not finished`);
+      add("review", false, `Review ${latest.id} of the last push has not finished`);
     else if (latest.result !== "success")
-      add("review", false, `Review ${latest.id} after the last push closed as ${latest.result}`);
+      add("review", false, `Review ${latest.id} of the last push closed as ${latest.result}`);
     else if (latest.review === null)
       add(
         "review",
@@ -238,7 +253,7 @@ async function judgeReview(
         false,
         `Review ${latest.id} did not pass (${latest.review.heavy} heavy findings)`,
       );
-    else add("review", true, `Review ${latest.id} after the last push passed`);
+    else add("review", true, `Review ${latest.id} of the last push passed`);
   }
 
   const rounds = heavyReviewRounds(reviews, ticket.branch_at);
@@ -258,7 +273,7 @@ export const gate = defineCommand({
   summary:
     "Judge the quality gate from records and the Git and PR facts, and return the result of each condition (conditions) and the reasons for any unmet one (EX-3). The conditions are " +
     "pr (the PR is open; with --for merge, not a draft) · acceptance (with --for merge, every acceptance criterion is checked) · " +
-    "review (a review Run that started after the time of the latest commit on the work branch's remote tip has closed with success, and the run review-result result passed) · " +
+    "review (the latest review of the work branch's remote tip has closed with success, and the run review-result result passed. A review counts for the tip when the SHA it recorded (the local tip of the work branch when the review Run started, or when a held result was written) is the remote tip's SHA. A review with no recorded SHA (an earlier version's Run) counts when it started after the time of the remote tip's commit) · " +
     "(a review result held with no review Run, while the ticket has no open review Run and no running sub-agent, counts as a review closed when the result was written; when several are held after the same push, only the latest counts) · " +
     `fix_rounds (reviews that raised heavy findings on this branch are at most ${FIX_ROUNDS_LIMIT} times) · mergeable (with --for merge, gh's mergeable is MERGEABLE) · ` +
     "head (with --for merge at high and low, the PR's head commit (sha in the output, which dg pr merge pins with --match-head-commit) is the latest commit of the work branch, the commit that review and check judge) · " +

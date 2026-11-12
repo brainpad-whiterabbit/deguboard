@@ -119,6 +119,11 @@ export interface ReviewRound {
    */
   session?: string;
   /**
+   * 保留の回を書いたときの作業ブランチのローカルの先端の SHA（t763）。保留から書く見直しの記録の head に写す。
+   * Run に書いた回・読めなかった回・この項目より前の回にはない
+   */
+  head?: string;
+  /**
    * 親が手直しに渡した指摘（run handoff）。直さなかった軽い指摘の節から外し、手直しの文の直す指摘に入れる。
    * 呼び直すと置き換える。渡さなかった回は省く（読む側は空として扱う）
    */
@@ -444,6 +449,8 @@ export interface StartRunInput {
   session?: string | undefined;
   /** 会話記録のファイルのパス。Run に書かず deguboard-local/transcripts/ に置く */
   transcript?: string | undefined;
+  /** 見直した状態の SHA（見直しの Run だけ。Run の head）。省けば書かない */
+  head?: string | undefined;
   now: Date;
 }
 
@@ -660,6 +667,7 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       tools: null,
       session: input.session ?? null,
       review: null,
+      ...(input.head ? { head: input.head } : {}),
       waiting_since: null,
       settling_since: null,
     };

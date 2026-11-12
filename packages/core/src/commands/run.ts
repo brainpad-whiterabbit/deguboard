@@ -28,7 +28,7 @@ import {
   type RunUsage,
 } from "../model/run.js";
 import { AbortWrite, withWrite } from "../git/write.js";
-import { lastPushedAt } from "../git/facts.js";
+import { lastPushedAt, localTip } from "../git/facts.js";
 import { selfRunWarning } from "./hook-sessions.js";
 import { findingText, isHeavyFinding, latestRoundSince, matchFindings } from "../run/findings.js";
 import {
@@ -197,9 +197,22 @@ export async function openRun(
     retryReasons: input.retryReasons,
     session,
     transcript,
+    head: step === REVIEW_STEP ? await reviewedHead(ctx, ticket) : undefined,
     now: startedAt,
   });
   return { run, warnings };
+}
+
+/**
+ * 見直した状態の SHA：作業ブランチのローカルの先端（t763）。見直しの Run を開くときと、Run のない見直しの結果を保留にするときに記録し、
+ * dg gate と dg next がリモートの先端と比べる。コミットの時刻と比べると、見直しの前に作って後で push したコミット・時計のずれ・
+ * 古いコミットへの force-push で、見直していないコミットが通る。ブランチがない・読めないときは記録しない（時刻で比べる）
+ */
+export async function reviewedHead(
+  ctx: CommandContext,
+  ticket: Pick<Ticket, "branch">,
+): Promise<string | undefined> {
+  return ticket.branch ? await localTip(ctx.repo, ticket.branch).catch(() => undefined) : undefined;
 }
 
 /** closePreviousFixRun を呼び、失敗しても Run を開くのは止めずに警告にする（フックが見直しの記録を引き取るときも呼ぶ。t701） */
@@ -873,12 +886,15 @@ export const runReviewResult = defineCommand({
     const keep = async (run: Run | null) => {
       // 保留の回にはセッションを書く。持ち主のない保留から書く記録がそれを写し、起動のフックが同じセッションの記録を引き取る（t701）
       const session = run ? undefined : sessionOf(ctx, undefined);
+      // 保留の回には見直した状態（結果を書いたときのローカルの先端）を書く。持ち主のない保留から書く記録がそれを写す（t763）
+      const head = run ? undefined : await reviewedHead(ctx, ticket);
       await putReviewRound(ctx.repo, ticket.id, {
         run: run?.id ?? null,
         at: toIsoDateTime(ctx.now()),
         review,
         findings: input.findings ?? null,
         ...(session ? { session } : {}),
+        ...(head ? { head } : {}),
       });
       if (!run) return;
       // この Run の間に保留にした結果（Run を先に閉じられて書く先を失った回など）は、今書いた結果に置き換わる。

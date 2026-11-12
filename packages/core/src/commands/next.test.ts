@@ -114,6 +114,22 @@ describe("作業の段階（stageOf。EX-3）", () => {
     expect(stageOf(facts({ runs: [review(6, null)] })).name).toBe("fixed");
   });
 
+  it("見直した SHA があればリモートの先端の SHA と比べ、なければ今までどおり開始と先端のコミットの時刻で比べる（t763）", () => {
+    const tip = "a".repeat(40);
+    const other = "b".repeat(40);
+    // 先端のコミットの時刻より後に始めた見直しでも、別の SHA を見直したなら今の見直しでない（見直しの前に作って後で push したコミット）
+    expect(
+      stageOf(facts({ pushedSha: tip, runs: [review(6, passed, { head: other })] })).name,
+    ).toBe("fixed");
+    // 先端のコミットの時刻より前に始めた見直しでも、先端の SHA を見直したなら今の見直し（push の前に見直して後で push した）
+    expect(stageOf(facts({ pushedSha: tip, runs: [review(1, passed, { head: tip })] })).name).toBe(
+      "reviewed",
+    );
+    // SHA のない見直しは時刻で比べる
+    expect(stageOf(facts({ pushedSha: tip, runs: [review(1, passed)] })).name).toBe("fixed");
+    expect(stageOf(facts({ pushedSha: tip, runs: [review(6, passed)] })).name).toBe("reviewed");
+  });
+
   it("重い指摘が出た見直しが上限（2 回）を超えたら waiting_human", () => {
     const runs = [review(1, heavy), review(2, heavy), review(6, heavy)];
     expect(stageOf(facts({ runs }))).toMatchObject({ name: "waiting_human", fixes: 3 });
