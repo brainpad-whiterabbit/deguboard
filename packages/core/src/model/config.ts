@@ -286,7 +286,11 @@ export type ConfigFieldType = "enum" | "boolean" | "number" | "string" | "list";
  */
 export type ConfigScope = "team" | "local";
 
-/** 個人で上書きできる項目。マシンの配置・作業の好み・使えるモデル・自分のマシンで許すことのように、人ごとに違ってよいもの */
+/**
+ * 個人で上書きできる項目。マシンの配置・作業の好み・使えるモデル・自分のマシンで許すことのように、人ごとに違ってよいもの。
+ * 逆に、PR のマージ・エージェントに自動で選ばせる判断（auto.*）・記録に関わる項目はここに入れず、チーム専用にする。
+ * 個人で外せると、同じチームでも PR の流れと検査の判定が人ごとに変わり、チームの記録と PR の形が揃わなくなるため
+ */
 const LOCAL_KEYS: ReadonlySet<string> = new Set([
   "default_project",
   "git.remote",
