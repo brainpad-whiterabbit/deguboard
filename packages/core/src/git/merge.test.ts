@@ -444,6 +444,39 @@ describe("同期のマージドライバ", () => {
     expect(await t1(a)).toBe(await t1(b));
   });
 
+  it("書き込み（作成）の取り込みで同じ status の時刻が自動で解けたら、書き込みの警告に採った値と捨てた値を出す（SY-4）", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    // a が先に完了にして push する。b は未コミットで完了にしたまま、書き込み（作成）を行う
+    await withWrite(
+      a,
+      () => a.store.update("ticket", "t1", { status: "done", closed_at: "2026-11-01T00:00:09Z" }),
+      {
+        message: "t1 を完了にする",
+      },
+    );
+    await runCommand(sync, a, {});
+    // b は未コミットのまま完了にする（manual）。作成は取り込みの前にまとめ待ちを 1 コミットにし、そのあと取り込む。
+    // closed_at だけがぶつかり、b の時刻（早い方）を採る
+    await runCommand(configSet, b, { key: "commit.mode", value: "manual", local: true });
+    await withWrite(
+      b,
+      () => b.store.update("ticket", "t1", { status: "done", closed_at: "2026-11-01T00:00:05Z" }),
+      {
+        message: "t1 を完了にする",
+      },
+    );
+    const created = await runCommand(ticketCreate, b, { title: "別の題" });
+    expect(created.warnings.join("\n")).toContain(
+      'Resolved automatically, not a conflict (both sides have the same status and differ only in the time that goes with it, so the earlier time is taken): tickets/t1.md closed_at (taken "2026-11-01T00:00:05Z", discarded "2026-11-01T00:00:09Z")',
+    );
+    expect(created.warnings.join("\n")).not.toContain("Conflicts with remote changes");
+    expect(b.store.tickets.get("t1")?.data).toMatchObject({
+      status: "done",
+      closed_at: "2026-11-01T00:00:05Z",
+    });
+  });
+
   it("同じフィールドを双方で変えた競合は、rebase を中止してローカルのコミットを残し報告する", async () => {
     const f = await fixture();
     const { a, b } = await twoClones(f);

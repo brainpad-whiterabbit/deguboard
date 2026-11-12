@@ -35,7 +35,7 @@
 ### 同期の競合：フィールド単位でマージする
 
 - 取り込みは rebase で行い、git のマージドライバを、チケット・墓標・Epic の Markdown と、`plans/`・`iterations/`・`projects/` の YAML に当てる。規則の正本は core の `git/merge.ts`
-- frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。素の YAML は全体を frontmatter と同じに扱い、最上位のフィールドごとに決める。両側が違う値に変えたフィールドと本文の同じ行のぶつかりを競合にする。ただし両側の status が同じで時刻（`closed_at`・`started_at`・`approved_at`）だけがずれたときは早い方を採る（SY-4）
+- frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。素の YAML は全体を frontmatter と同じに扱い、最上位のフィールドごとに決める。両側が違う値に変えたフィールドと本文の同じ行のぶつかりを競合にする。ただし両側の status が同じで、状態と一緒に書く時刻だけがずれたときは早い方を採る（SY-4）
 - `config.yaml` と `workflows/` は当てず、行単位のマージのままにする
 - 登録は `dg init` と `dg sync` が行い、ドライバは絶対パスで指す。`.gitattributes` はデータのブランチにコミットし、既にあるものには足りない行を足す
 - VS Code 拡張の同期も、同梱の `dg` を呼ぶドライバを登録する

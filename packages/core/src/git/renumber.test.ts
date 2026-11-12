@@ -132,7 +132,7 @@ describe("仮番号の振り直し（renumberProvisional、--resolve なしの s
     const head = (await git(dir, ["rev-parse", "HEAD"])).stdout.trim();
 
     const r = await renumberProvisional(b.repo, ["tickets/t2.md"]);
-    expect(r).toEqual({ renumbered: [], conflicts: ["tickets/t1.md"] });
+    expect(r).toEqual({ renumbered: [], conflicts: ["tickets/t1.md"], resolved: [] });
     expect((await git(dir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
     expect((await git(dir, ["status", "--porcelain"])).stdout).toBe("");
   });

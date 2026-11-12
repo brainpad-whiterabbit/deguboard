@@ -1,5 +1,7 @@
 // 取り込み・push・同期状態（SY-2、SY-4、UI-6）
 
+import { readFile, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
 import {
   attributesFile,
   isMergeDriverPath,
@@ -29,6 +31,8 @@ export type ResolveSide = "remote" | "local";
 
 export type FetchResult = { ok: true; remoteBranch: boolean } | { ok: false; detail: string };
 export type IntegrateResult = { ok: true; changed: boolean } | { ok: false; conflicts: string[] };
+/** 取り込みでドライバが解いた 1 件と、そのファイル（integrateLogged の結果） */
+export type ResolvedFile = ResolvedField & { file: string };
 export type PushResult =
   | { ok: true }
   | { ok: false; reason: "rejected" | "unreachable"; detail: string };
@@ -133,6 +137,36 @@ export async function integrate(
   }
 }
 
+/** 取り込みの途中でドライバが書き足すログ（localDir に置く。書き込みのロックの中でだけ使うので名前は 1 つ） */
+const RESOLVE_LOG = "resolve-log.jsonl";
+
+/**
+ * integrate に、ドライバが自動で解いたフィールドのログを付けて呼ぶ。全ての書き込みと sync の取り込みはこれを使い、
+ * 自動で解いた時刻を警告に出せるようにする（SY-4）。取り込みを中止したときは解いた分も捨てられたので、resolved は空にする
+ */
+export async function integrateLogged(
+  repo: GitRepo,
+  opts: { autostash?: boolean; resolve?: ResolveSide } = {},
+): Promise<{ result: IntegrateResult; resolved: ResolvedFile[] }> {
+  const log = path.join(repo.localDir, RESOLVE_LOG);
+  await writeFile(log, "");
+  try {
+    const result = await integrate(repo, { ...opts, log });
+    return { result, resolved: result.ok ? await readResolveLog(log) : [] };
+  } finally {
+    await rm(log, { force: true });
+  }
+}
+
+/** ドライバが書き足した 1 行 1 件の JSON を読む */
+async function readResolveLog(file: string): Promise<ResolvedFile[]> {
+  const text = await readFile(file, "utf8").catch(() => "");
+  return text
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as ResolvedFile);
+}
+
 /** 競合したフィールド 1 件（dg sync の data.conflict_fields）。値がない（その側が消した）ときは null */
 export interface ConflictField {
   file: string;
@@ -206,19 +240,19 @@ export function describeConflictFields(fields: readonly ConflictField[]): string
 }
 
 /**
- * sync の警告に足す、自動で解いたフィールドの文（SAME_STATUS_TIMES の規則。ファイル・フィールド・採った値・捨てた値）。1 件もなければ空。
- * 自動で解いたのは人が確かめていないので、どの値を捨てたかを残す（--resolve と違い、取り消すのは人が値を直す）
+ * 警告に足す、自動で解いたフィールドの文（SAME_STATUS_TIMES の規則。ファイル・フィールド・採った値・捨てた値）。1 件もなければ空。
+ * 自動で解いたのは人が確かめていないので、どの値を捨てたかを残す（--resolve と違い、取り消すのは人が値を直す）。
+ * sync は data.resolved に全体の値を返すので inResult を true にする。書き込みの結果には data.resolved がないので false にする
  */
-export function describeAutoResolved(
-  fields: ReadonlyArray<ResolvedField & { file: string }>,
-): string {
+export function describeAutoResolved(fields: readonly ResolvedFile[], inResult: boolean): string {
   const auto = fields.filter((f) => f.auto);
   if (auto.length === 0) return "";
   const items = auto.map(
     (f) =>
       `${f.file} ${f.field} (taken ${showValue(f.taken)}, discarded ${showValue(f.discarded)})`,
   );
-  return `Resolved automatically, not a conflict (both sides have the same status and differ only in the time that goes with it, so the earlier time is taken; full values in data.resolved): ${items.join("; ")}.`;
+  const full = inResult ? "; full values in data.resolved" : "";
+  return `Resolved automatically, not a conflict (both sides have the same status and differ only in the time that goes with it, so the earlier time is taken${full}): ${items.join("; ")}.`;
 }
 
 /** 時間切れは、リモートに届かないときと同じ失敗にする（投げると CAS が自分のコミットを捨てずに抜ける。t753） */

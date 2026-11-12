@@ -7,7 +7,7 @@ import path from "node:path";
 import { idNumber, nextNumber } from "../model/id.js";
 import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
-import { commitAll, integrate, remoteRef, resetHard } from "./sync.js";
+import { commitAll, integrateLogged, remoteRef, type ResolvedFile, resetHard } from "./sync.js";
 
 export interface Renumbered {
   from: string;
@@ -50,10 +50,14 @@ function rewriteIds(text: string, mapping: ReadonlyMap<string, string>): string 
   return text.replace(/\bt[1-9]\d*\b/g, (id) => mapping.get(id) ?? id);
 }
 
-/** renumberProvisional の結果。取り込めなければ conflicts に残った競合が入り、振り直しは捨てて元の先端に戻っている */
+/**
+ * renumberProvisional の結果。取り込めなければ conflicts に残った競合が入り、振り直しは捨てて元の先端に戻っている。
+ * resolved は振り直した後の取り込みでドライバが自動で解いたフィールド（呼び手が警告に出す）
+ */
 export interface RenumberedSync {
   renumbered: Renumbered[];
   conflicts: string[];
+  resolved: ResolvedFile[];
 }
 
 /**
@@ -84,18 +88,22 @@ export async function renumberProvisional(
     await clearWorkTree(repo, head);
     await restorePending(repo, pending, new Map());
   };
-  let r: Awaited<ReturnType<typeof integrate>>;
+  let r: Awaited<ReturnType<typeof integrateLogged>>;
   try {
-    r = await integrate(repo, { autostash: pending.size > 0 });
+    r = await integrateLogged(repo, { autostash: pending.size > 0 });
   } catch (e) {
     await restore();
     throw e;
   }
-  if (r.ok) return { renumbered, conflicts: [] };
+  if (r.result.ok) return { renumbered, conflicts: [], resolved: r.resolved };
   // 振り直した番号のパスは、戻した後の番号に読み替えて返す
   const back = new Map(renumbered.map(({ from, to }) => [to, from]));
   await restore();
-  return { renumbered: [], conflicts: r.conflicts.map((file) => rewriteIds(file, back)) };
+  return {
+    renumbered: [],
+    conflicts: r.result.conflicts.map((file) => rewriteIds(file, back)),
+    resolved: [],
+  };
 }
 
 /**
