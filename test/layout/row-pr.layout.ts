@@ -59,6 +59,28 @@ async function stripPoint(row: Locator): Promise<{ x: number; y: number }> {
 
 const boxOf = async (locator: Locator) => (await locator.boundingBox())!;
 
+/**
+ * タイトルの左端を、PR のない行と比べて確かめる（t727 の案 B）。
+ * 番号の列は番号と PR のリンクのうち広いほうに広がり（styles.css の .row-pr の注釈）、タイトルはその列の右に、
+ * PR のない行と同じ間隔（番号とタイトルのあいだ）で並ぶ。PR の文字が番号より狭ければ、タイトルは PR のない行と同じ位置になる。
+ * 番号の左端と PR のリンクの左端は揃っている前提（揃いは別の確かめで見る）
+ */
+async function expectTitleAfterNumberColumn(pr: Locator, plain: Locator): Promise<void> {
+  const [codeP, codeN, titleP, titleN, link] = await Promise.all([
+    boxOf(pr.locator("code")),
+    boxOf(plain.locator("code")),
+    boxOf(pr.locator(".row-title")),
+    boxOf(plain.locator(".row-title")),
+    boxOf(pr.locator(".row-pr-link")),
+  ]);
+  const gap = titleN.x - codeN.x - codeN.width;
+  const column = Math.max(codeP.width, link.width);
+  expect(
+    Math.abs(titleP.x - (codeP.x + column + gap)),
+    "タイトルの左端は番号の列（番号と PR のリンクのうち広いほう）の右",
+  ).toBeLessThan(0.5);
+}
+
 beforeAll(async () => {
   await access(path.join(WEB_DIST, "index.html")).catch(() => {
     throw new Error("packages/web/dist がない。先に mise run build を実行する");
@@ -131,26 +153,26 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
     expect(await plain.locator(".row-pr").count(), "PR のない行に PR の欄はない").toBe(0);
     expect(await plain.getAttribute("class"), "PR のない行の包み").not.toContain("pr-row");
 
-    // 番号の列は PR の文字の幅に広がらない：番号の位置・タイトルの位置は PR のない行と同じ
-    const [codeP, codeN, titleP, titleN] = await Promise.all([
+    // 番号の左端は PR のない行と同じ。タイトルは番号の列の右（列の幅は PR の文字の幅しだいで広がる）
+    const [codeP, codeN] = await Promise.all([
       boxOf(pr.locator("code")),
       boxOf(plain.locator("code")),
-      boxOf(pr.locator(".row-title")),
-      boxOf(plain.locator(".row-title")),
     ]);
-    expect(Math.abs(titleP.x - titleN.x), "タイトルの左端（列の幅）").toBeLessThan(0.5);
     expect(Math.abs(codeP.x - codeN.x), "番号の左端").toBeLessThan(0.5);
+    await expectTitleAfterNumberColumn(pr, plain);
 
     // PR の印とリンクは番号の左端に揃う（番号の下の 2 段目）
     const link = await boxOf(pr.locator(".row-pr-link"));
     expect(Math.abs(link.x - codeP.x), "PR の欄の左端は番号の左端").toBeLessThan(0.5);
     expect(link.y, "PR の欄は番号の下").toBeGreaterThanOrEqual(codeP.y + codeP.height - 1);
 
-    // 行の高さ：PR のない行は今と同じ。PR のある行の 1 段目（行のリンク）も同じ高さで、全体は 2 行になってよい
-    const anchorP = await boxOf(pr.locator("a.ticket-row"));
+    // 行の高さ：PR のない行は今と同じ。1 段目（番号の行）の高さも同じ。行のリンク（.ticket-row）は 2 段にまたがるので（styles.css）、
+    // その箱は行の全体と同じ高さになり、PR のある行の全体は 2 段の分だけ高い
+    expect(Math.abs(codeP.height - codeN.height), "1 段目の高さ（番号）").toBeLessThan(0.5);
     const anchorN = await boxOf(plain.locator("a.ticket-row"));
-    expect(Math.abs(anchorP.height - anchorN.height), "1 段目の高さ").toBeLessThan(0.5);
-    expect((await boxOf(pr)).height, "PR のある行の全体").toBeGreaterThan(anchorP.height + 8);
+    expect((await boxOf(pr)).height, "PR のある行の全体").toBeGreaterThan(
+      (await boxOf(plain)).height + 8,
+    );
     expect(
       Math.abs((await boxOf(plain)).height - anchorN.height),
       "PR のない行の全体",
@@ -164,15 +186,13 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
     const pr = rowOf(page, "t4");
     await pr.waitFor();
     expect((await pr.locator(".row-pr").textContent())?.trim()).toBe(`#${PR_TODO}`);
-    const [codeP, codeN, titleP, titleN, link] = [
+    const [codeP, codeN, link] = [
       await boxOf(pr.locator("code")),
       await boxOf(plain.locator("code")),
-      await boxOf(pr.locator(".row-title")),
-      await boxOf(plain.locator(".row-title")),
       await boxOf(pr.locator(".row-pr-link")),
     ];
     expect(Math.abs(codeP.x - codeN.x), "番号の左端").toBeLessThan(0.5);
-    expect(Math.abs(titleP.x - titleN.x), "タイトルの左端（列の幅）").toBeLessThan(0.5);
+    await expectTitleAfterNumberColumn(pr, plain);
     expect(Math.abs(link.x - codeP.x), "PR の欄の左端は番号の左端").toBeLessThan(0.5);
     await context.close();
   });
@@ -184,11 +204,9 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
     expect((await pr.locator(".row-pr").textContent())?.trim()).toBe(`#${PR}`);
     expect(await rowOf(page, "t1").locator(".row-pr").count()).toBe(0);
     const codeP = await boxOf(pr.locator("code"));
-    const titleP = await boxOf(pr.locator(".row-title"));
-    const titleN = await boxOf(rowOf(page, "t1").locator(".row-title"));
     const link = await boxOf(pr.locator(".row-pr-link"));
     expect(Math.abs(link.x - codeP.x), "PR の欄の左端は番号の左端").toBeLessThan(0.5);
-    expect(Math.abs(titleP.x - titleN.x), "タイトルの左端（列の幅）").toBeLessThan(0.5);
+    await expectTitleAfterNumberColumn(pr, rowOf(page, "t1"));
     await context.close();
   });
 

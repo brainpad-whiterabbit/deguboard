@@ -90,8 +90,8 @@ describe("VS Code の実機の左パネル", () => {
   it("行を押すとエディタ領域のパネルに詳細が開く", async () => {
     await sidebar.locator(".ticket-row", { hasText: TITLES[0] }).click();
     await host.panelFrame().locator("h1", { hasText: TITLES[0] }).waitFor({ timeout: 60_000 });
-    // パネルの題はチケットの番号と名前（UI-12）
-    await host.page.locator(".part.editor .tab", { hasText: `t1 ${TITLES[0]}` }).waitFor();
+    // パネルの題はチケットの ID だけ（t1。t726）。ID の完全一致で待ち、ほかのタブの文字に当たらないようにする
+    await host.page.locator(".part.editor .tab", { hasText: /^t1$/ }).waitFor();
   });
 
   it("ライトとダークのテーマのスクリーンショットを出す", async () => {

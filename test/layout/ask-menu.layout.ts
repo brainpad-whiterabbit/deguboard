@@ -223,8 +223,10 @@ describe("吹き出しの一覧（UI-15）", () => {
         await chips.nth(i).click();
         expect(await chips.nth(i).getAttribute("aria-pressed"), `札 ${i} を選ぶ`).toBe("true");
       }
+      // 閉じるボタンの右端は小数の丸めで幅を 0.5px 超えることがある（幅 200px で 200.27px を実測）。
+      // 札と違って溢れは見た目に出ない差なので、0.5px までの超えは許す
       const close = (await composer.getByRole("button", { name: "閉じる" }).boundingBox())!;
-      expect(close.x + close.width, "閉じるボタンの右端").toBeLessThanOrEqual(width);
+      expect(close.x + close.width, "閉じるボタンの右端").toBeLessThanOrEqual(width + 0.5);
       await composer.getByRole("button", { name: "閉じる" }).click();
       expect(await composer.count()).toBe(0);
       await page.close();
