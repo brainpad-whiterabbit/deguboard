@@ -159,6 +159,7 @@ updated_at: 2026-10-31T05:10:00Z
 - RN-7 印 `deguboard: ticket=<id> step=<step>` で頼んだサブエージェントの Run は、フック（AG-9）が起動で開き、step を終えた事実で閉じ、なければ止まって待っている印を付け、セッションの終わりに残りを閉じる。動く間は `run finish` が中断でしか閉じない。`dg next` は落ちた残りを待たない。細部は `dg hook --help`、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
 - RN-8 `dg run retry-reason` は、実行中の手直しの Run の `retry_reasons` に直した指摘を書き足し、回数を理由の数にする。書く先がなければ保留し、フックが手直しの Run を閉じるときに結び付ける（細部は `dg run retry-reason --help`）
 - RN-9 `dg run review-result` は指摘の一覧をスキーマで検証し、重い・軽い指摘の数と通ったかを dg が求めて見直しの Run に書く（形と重さの決め方は `dg run review-result --help`）。フックが結び付けない保留の結果は `dg next`・`dg gate` が見直しに数え、`dg sync`・`dg pr ready` が見直しの Run として書く（[ADR-025](adr/ADR-025-runs-by-hooks.md)）
+- RN-10 見直しの Run と保留の見直しの結果は、見直した作業ブランチのローカルの先端の SHA を記録し、`dg next`・`dg gate` はそれがリモートの先端と同じかで見直しの新しさを判定する（SHA のない前の Run は時刻で比べる。細部は `dg gate --help`）
 
 ### 5.10 設定（`config.yaml`）
 

@@ -139,6 +139,15 @@ export const runSchema = z.looseObject({
   /** 見直しの結果。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる */
   review: runReviewSchema.nullable().default(null),
   /**
+   * 見直した状態：見直しの Run を開いたとき（保留から書いた記録は結果を書いたとき）の作業ブランチのローカルの先端の SHA（RN-10。t763）。
+   * dg gate の review と dg next の段階は、この SHA がリモートの先端と同じかで見直しの新しさを判定する。
+   * 見直し以外の Run・読めなかった Run・この項目より前の Run にはキーを書かない（省けば、見直しの開始とリモートの先端のコミットの時刻を比べる）
+   */
+  head: z
+    .string()
+    .regex(/^[0-9a-f]{40,64}$/)
+    .optional(),
+  /**
    * 会話記録を取らずに作った記録の印（RN-1）。none は、フックが届かず持ち主のないまま残った見直しの結果（保留）から
    * dg sync・dg pr ready が書いた見直しの記録（commands/orphan-review.ts）。ほかの Run にはキーを書かない（省けば会話記録を取る Run）。
    * 前景の見直し役が動いている間に書いた記録は、返ったときに起動のフックが会話記録を結び付けてキーを外す（t701）

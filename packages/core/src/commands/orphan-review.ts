@@ -7,7 +7,7 @@
 //   - チケットに開いた見直しの Run があるか、動いているサブエージェントの印（bindTranscript の live）があれば、これから結び付く
 //     保留かもしれないので数えない
 //   - 見直しは結果を書いた時刻（保留の at）に閉じたものとして数える。今の時刻にすると、最後のコミットより前の結果が
-//     「最後の push より後の見直し」を満たしてしまう
+//     「最後の push より後の見直し」を満たしてしまう（見直した SHA を持たない前の回のとき。SHA を持つ回は SHA で比べる。t763）
 //   - 同じ push の後の保留が複数あれば最新の 1 件だけを数える（同じ状態の見直しの呼び直し）。push をまたぐ保留は別の回にする。
 //     push の区切りは作業ブランチのコミットの時刻で近似する（lastPushedAt と同じく push した時刻は Git に残らない）
 //   - 前景の見直し役が動いている間に書いた記録は、見直し役が返ったときに起動のフックが引き取り、capture: none を外す
@@ -35,14 +35,14 @@ const orphanId = (at: string) => `held review result written at ${at}` as RunId;
  */
 export function orphanReviewsOf(
   ticket: TicketId,
-  rounds: readonly Pick<ReviewRound, "run" | "at" | "review" | "session">[],
+  rounds: readonly Pick<ReviewRound, "run" | "at" | "review" | "session" | "head">[],
   since: string | undefined,
   commits: readonly string[],
 ): Run[] {
   const boundaries = [...commits].sort();
   // 結果を書いた時刻の直前のコミットの時刻（なければ空）。同じ値の回は同じ push の後の回
   const pushOf = (at: string) => boundaries.filter((c) => c <= at).at(-1) ?? "";
-  const latest = new Map<string, Pick<ReviewRound, "at" | "review" | "session">>();
+  const latest = new Map<string, Pick<ReviewRound, "at" | "review" | "session" | "head">>();
   const held = rounds
     .filter((r) => r.run === null && r.at >= (since ?? ""))
     .sort((a, b) => a.at.localeCompare(b.at));
@@ -64,6 +64,8 @@ export function orphanReviewsOf(
     // 結果を書いたセッション。起動のフックが同じセッションの記録だけを引き取る（adoptableReviewRecord）
     session: r.session ?? null,
     review: r.review,
+    // 結果を書いたときのローカルの先端。新しさは dg gate・dg next がこれをリモートの先端と比べる（t763。ない回は時刻で比べる）
+    ...(r.head ? { head: r.head } : {}),
     // 会話記録を取らずに作った記録の印。書いた記録（recordOrphanReviews）にもそのまま入る
     capture: "none",
     waiting_since: null,
@@ -89,7 +91,7 @@ export async function orphanReviewRuns(
   }
   const rounds = (await readReviewFindings(ctx.repo, ticket.id))?.rounds ?? [];
   if (!rounds.some((r) => r.run === null)) return [];
-  // fetch はしない（next と gate は先に lastPushedAt で取り込む）。読めなければ区切りなし（最新の 1 件だけ）
+  // fetch はしない（next と gate は先に remoteTip で取り込む）。読めなければ区切りなし（最新の 1 件だけ）
   const commits = ticket.branch
     ? ((await branchCommitTimes(ctx.repo, ticket.branch).catch(() => undefined)) ?? [])
     : [];

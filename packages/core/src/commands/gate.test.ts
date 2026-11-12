@@ -10,7 +10,8 @@ import { gate, type GateView } from "./gate.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
 import { ticketCheck, ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
-import type { Run } from "../model/run.js";
+import { toIsoDateTime } from "../model/common.js";
+import { emptyUsage, newRunId, type Run } from "../model/run.js";
 
 const cleanups: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
@@ -174,18 +175,80 @@ describe("dg gate（品質ゲート。t532）", () => {
     expect(failed(await judge(ctx))).toEqual([]);
   });
 
-  it("見直しが最後の push より前・通っていない・結果がないなら review を満たさない", async () => {
-    const { ctx } = await prepared();
+  it("見直しが最後の push を見ていない・通っていない・結果がないなら review を満たさない", async () => {
+    const { ctx, f } = await prepared();
     expect(failed(await judge(ctx, "ready"))).toEqual(["review"]);
-    await review(ctx, later(-60), 0);
+    await review(ctx, later(1), 0);
+    // 見直しの後に新しいコミットを push すると、見直した SHA がリモートの先端と違う
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "見直しの後"]);
+    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
     const before = await judge(ctx, "ready");
     expect(before.conditions.find((c) => c.id === "review")!.detail).toContain(
-      "No review after the last push",
+      "No review of the last push",
     );
-    await review(ctx, later(1), 2);
+    await review(ctx, later(2), 2);
     const heavy = await judge(ctx, "ready");
     expect(heavy.conditions.find((c) => c.id === "review")).toMatchObject({ ok: false });
     expect(heavy.conditions.find((c) => c.id === "review")!.detail).toContain("2 heavy findings");
+  });
+
+  it("見直しは開いたときのローカルの先端の SHA を記録し、見直しの前に別の clone で作ったコミットを後で push すると review を満たさない（t763）", async () => {
+    const { ctx, f } = await prepared();
+    // 別の clone で、見直しより前の時刻のコミットを作っておく（push は見直しの後）
+    await git(f.cloneB, ["fetch", "-q", "origin", "feat/t1"]);
+    await git(f.cloneB, ["checkout", "-qb", "feat/t1", "FETCH_HEAD"]);
+    await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "見直しの前に作った"]);
+    const reviewed = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
+    await review(ctx, later(1), 0);
+    const run = [...ctx.store.runs.values()].find((d) => d.data.step === "review")!.data;
+    expect(run.head).toBe(reviewed);
+    expect(failed(await judge(ctx, "ready"))).toEqual([]);
+    await git(f.cloneB, ["push", "-q", "origin", "feat/t1"]);
+    // コミットの時刻は見直しの開始より前なので、時刻で比べると通ってしまう。SHA で比べるので落ちる
+    const view = await judge(ctx, "ready");
+    expect(failed(view)).toEqual(["review"]);
+    expect(view.conditions.find((c) => c.id === "review")!.detail).toContain(
+      "No review of the last push",
+    );
+  });
+
+  it("push の前に見直したコミットを後で push すれば review を満たす（t763）", async () => {
+    const { ctx, f } = await prepared();
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "まだ push しない"]);
+    await review(ctx, later(1), 0);
+    // push の前は、見直した SHA がリモートの先端と違うので満たさない
+    expect(failed(await judge(ctx, "ready"))).toEqual(["review"]);
+    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    expect(failed(await judge(ctx, "ready"))).toEqual([]);
+  });
+
+  it("SHA を持たない見直し（前の版の Run）は、今までどおり開始とリモートの先端のコミットの時刻で判定する（t763）", async () => {
+    const { ctx } = await prepared();
+    // 前の版が書いた閉じた見直しの Run（head のキーがない）
+    const closedReview = async (at: Date) => {
+      const started = toIsoDateTime(at);
+      await ctx.store.create("run", {
+        id: newRunId(at),
+        ticket: "t1",
+        step: "review",
+        agent: "claude-code",
+        model: null,
+        started_at: started,
+        finished_at: started,
+        result: "success",
+        error: null,
+        retries: 0,
+        retry_reasons: [],
+        usage: emptyUsage(),
+        tools: null,
+        session: null,
+        review: { heavy: 0, light: 0, passed: true },
+      });
+    };
+    await closedReview(later(-60));
+    expect(failed(await judge(ctx, "ready"))).toEqual(["review"]);
+    await closedReview(later(1));
+    expect(failed(await judge(ctx, "ready"))).toEqual([]);
   });
 
   it("重い指摘が出た見直しが上限（2 回）を超えたら fix_rounds を満たさない", async () => {
