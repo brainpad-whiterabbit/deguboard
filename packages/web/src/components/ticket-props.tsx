@@ -13,14 +13,18 @@ import { prHref, PriorityMark, StatusDot, Tags, TicketLink } from "./parts.js";
 import { WorktreeRow } from "./worktree-row.js";
 import { tr } from "../l10n.js";
 
-/** 編集のボタンで直している間の値（タイトルと本文。属性は右の列でその場で直す） */
+/**
+ * 編集のボタンで直している間の値（タイトルと本文。属性は右の列でその場で直す）。
+ * base は編集を始めたときに読んだ本文で、保存のときに ticket.update に渡し、読んだ後に本文が変わっていれば拒否させる
+ */
 export interface Draft {
   title: string;
   body: string;
+  base: string;
 }
 
 export function draftOf(t: TicketDetail): Draft {
-  return { title: t.title, body: t.body };
+  return { title: t.title, body: t.body, base: t.body };
 }
 
 /** 詳細の優先度の選択の記号（option には SVG を置けないので文字で添える。印の矢印・= に合わせる） */

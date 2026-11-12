@@ -801,9 +801,38 @@ describe("画面", () => {
       fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "新しい題" } });
       fireEvent.change(screen.getByLabelText("本文"), { target: { value: "新しい本文" } });
       fireEvent.click(screen.getByRole("button", { name: "保存" }));
+      // 編集を始めたときに読んだ本文を base に渡す
       await waitFor(() =>
-        expect(updates()).toEqual([{ ticket: "t3", title: "新しい題", body: "新しい本文" }]),
+        expect(updates()).toEqual([
+          {
+            ticket: "t3",
+            title: "新しい題",
+            body: "新しい本文",
+            base: "## 概要\n\n本文\n\n## 受け入れ条件\n\n- [ ] a\n",
+          },
+        ]),
       );
+    });
+
+    it("編集の途中に本文が書き換わったら保存は拒否し、入力を残して知らせ、書き換えた変更を消さない", async () => {
+      const { client, updates } = await open();
+      fireEvent.click(screen.getByRole("button", { name: "編集" }));
+      fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "新しい題" } });
+      fireEvent.change(screen.getByLabelText("本文"), { target: { value: "新しい本文" } });
+      // 編集の途中に、ほかの書き込み（エージェントの印）が本文を変えた
+      await client.run("ticket.check", { ticket: "t3", items: [1] });
+      fireEvent.click(screen.getByRole("button", { name: "保存" }));
+      expect((await screen.findByRole("alert")).textContent).toContain("読んだ後に変わっている");
+      // 拒否されたので、編集は続いたまま入力も残る
+      expect((screen.getByLabelText("本文") as HTMLTextAreaElement).value).toBe("新しい本文");
+      expect((screen.getByLabelText("タイトル") as HTMLInputElement).value).toBe("新しい題");
+      // 渡したのは編集を始めたときの本文で、拒否されて書き込みは起きない
+      expect(updates().at(-1)).toMatchObject({
+        base: "## 概要\n\n本文\n\n## 受け入れ条件\n\n- [ ] a\n",
+      });
+      const shown = (await client.run<{ body: string }>("ticket.show", { ticket: "t3" })).data;
+      expect(shown.body).toContain("- [x] a");
+      expect(shown.body).not.toContain("新しい本文");
     });
 
     it("「なし」の行の「＋足す」から値のない属性を選んで値を入れ、その属性だけを渡す", async () => {

@@ -224,6 +224,11 @@ export const CORE_MESSAGES: CoreTextTable = {
   },
   "The config update does not match the schema": { ja: "config の更新がスキーマに合わない" },
   "Items that cannot be set in personal settings": { ja: "個人の設定に書けない項目" },
+  // 本文の保存の拒否（ticket.update の base）
+  "The body of {0} changed after it was read. Nothing was written. Read it again, then apply the change again":
+    {
+      ja: "{0} の本文は読んだ後に変わった。何も書いていない。読み直してから、変更をもう一度入れる",
+    },
   // Plan の警告（plan.show）
   "{0} not found (deleted)": { ja: "{0} が見つからない（削除された）" },
   // Run の警告（run.list・metrics.show）

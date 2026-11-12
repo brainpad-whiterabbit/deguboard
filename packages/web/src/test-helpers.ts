@@ -296,12 +296,23 @@ export function mockClient(data = fixture()): MockClient {
     // 本物と違い data.tickets の中のオブジェクトをその場で書き換え、ticket.list は同じ配列を返すので、
     // 保存の後に読み直しても store.tickets は変わらず、一覧の読み直しによる ticket.show も走らない。
     // それを確かめるテストでは ticket.list を毎回別の配列で返すよう差し替える
+    // core の ticket.update と同じく、base が今の本文と違えば REJECTED で何も書かない（本文は bodies に残す）
     "ticket.update": (input) => {
       const {
         ticket: id,
         fields,
+        base,
         ...patch
-      } = input as { ticket: string; fields?: Record<string, unknown> } & Record<string, unknown>;
+      } = input as { ticket: string; fields?: Record<string, unknown>; base?: string } & Record<
+        string,
+        unknown
+      >;
+      const body = bodies[id] ?? TICKET_BODY;
+      if (base !== undefined && base !== body)
+        throw new ClientError({
+          code: "REJECTED",
+          message: `${id} の本文は読んだ後に変わっている`,
+        });
       const t = data.tickets.find((x) => x.id === id)! as unknown as Record<string, unknown>;
       for (const [key, value] of Object.entries({ ...patch, ...fields })) {
         // body と acceptance は本文（の節）を置き換える入力で、属性ではない
@@ -309,7 +320,8 @@ export function mockClient(data = fixture()): MockClient {
         if (value === null) delete t[key];
         else t[key] = value;
       }
-      return { ...t, body: (patch["body"] as string | undefined) ?? TICKET_BODY };
+      if (typeof patch["body"] === "string") bodies[id] = patch["body"];
+      return { ...t, body: bodies[id] ?? TICKET_BODY };
     },
     // core の ticket.check と同じく、base が今の本文と違えば REJECTED、同じなら番号の項目の印だけを書き換える
     "ticket.check": (input) => {
