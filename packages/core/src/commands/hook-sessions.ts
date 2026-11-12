@@ -11,49 +11,21 @@
 // ファイルは種類ごと・警告ごとに分け、同時に動くフック（並べたツールの PreToolUse など）が読んで書き直す競合で記録を落とさない：
 //   <session>.json（届いた時刻）・<session>.kind-<種類>.json（その種類が届いた時刻）・<session>.marked.jsonl（印で開いた起動。1 件 1 行）・
 //   <session>.stop-warned（SubagentStop の警告を書いた印）・<session>.warnings.jsonl（警告。1 件 1 行）・<session>.reported（知らせた警告の終わりの位置と、そこまでの中身のハッシュ）
+// 届いた時刻・種類・警告を書く部分は、PreToolUse の速い経路も使うので依存のない hook-records.ts に置く（t768）
 
 import { createHash } from "node:crypto";
 import { appendFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { detectAgent, hooksOf, sessionFromEnv, type AgentEnv } from "../agents/index.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
+import { dirOf, fileOf, KIND_PREFIX, SESSION_ID, WARNINGS_SUFFIX } from "./hook-records.js";
 
-const HOOK_SESSIONS_DIR = "hook-sessions";
 /** 残す日数。SessionStart のたびに、これより古い記録を消す */
 const KEEP_DAYS = 30;
-/** ファイル名に使えるセッション ID。ほかの形はパスを組み立てずに記録しない */
-const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
 /** 一度に知らせる警告の数。これより多ければ新しいものだけを出し、残りの数を添える */
 const REPORT_LIMIT = 10;
-const WARNINGS_SUFFIX = ".warnings.jsonl";
-const KIND_PREFIX = ".kind-";
 /** SubagentStop にあたる出来事の種類（HookEvent の kind） */
 const SUBAGENT_STOPPED = "subagent_stopped";
-
-const dirOf = (localDir: string) => path.join(localDir, HOOK_SESSIONS_DIR);
-const fileOf = (localDir: string, session: string, suffix = ".json") =>
-  path.join(dirOf(localDir), `${session}${suffix}`);
-
-/**
- * このセッションにフックが届いたことと、届いた出来事の種類（HookEvent の kind）を記録する。
- * 中身は時刻だけで、入力の値は残さない（MT-4）
- */
-export async function recordHookSession(
-  localDir: string,
-  session: string,
-  receivedAt: string,
-  kind?: string,
-): Promise<void> {
-  if (!SESSION_ID.test(session)) return;
-  await mkdir(dirOf(localDir), { recursive: true });
-  const body = `${JSON.stringify({ received_at: receivedAt })}\n`;
-  await Promise.all([
-    writeFile(fileOf(localDir, session), body),
-    ...(kind && /^[a-z_]+$/.test(kind)
-      ? [writeFile(fileOf(localDir, session, `${KIND_PREFIX}${kind}.json`), body)]
-      : []),
-  ]);
-}
 
 /** このセッションに届いた出来事の種類（HookEvent の kind）。記録がなければ空 */
 export async function hookKindsOf(localDir: string, session: string): Promise<string[]> {
@@ -64,22 +36,6 @@ export async function hookKindsOf(localDir: string, session: string): Promise<st
     .filter((n) => n.startsWith(prefix) && n.endsWith(".json"))
     .map((n) => n.slice(prefix.length, -".json".length))
     .sort();
-}
-
-/** フックの中で出た警告を、このセッションの警告に書き足す（1 件 1 行。追記なので同時に動くフックの記録を落とさない） */
-export async function recordHookWarnings(
-  localDir: string,
-  session: string,
-  event: string,
-  at: string,
-  warnings: readonly string[],
-): Promise<void> {
-  if (!SESSION_ID.test(session) || warnings.length === 0) return;
-  await mkdir(dirOf(localDir), { recursive: true });
-  await appendFile(
-    fileOf(localDir, session, WARNINGS_SUFFIX),
-    warnings.map((text) => `${JSON.stringify({ at, event, text })}\n`).join(""),
-  );
 }
 
 /** 警告のファイルの初めから end バイトまでのハッシュ（知らせた位置が同じファイルのものかを見分ける） */

@@ -46,7 +46,5 @@ export const slugSchema = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]*$/, "A slug of lowercase letters, digits and hyphens");
 
-/** 現在時刻を ISO 8601（UTC、ミリ秒なし）で返す */
-export function toIsoDateTime(date: Date): string {
-  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
-}
+// 依存のない time.ts に置き、PreToolUse の速い経路（zod を読まない）からも使う
+export { toIsoDateTime } from "./time.js";

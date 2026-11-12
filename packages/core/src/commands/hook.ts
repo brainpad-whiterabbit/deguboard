@@ -15,14 +15,15 @@
 //     印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る。run start で開いたものなど）に記録の場所を結び付け、
 //     事実がなければ止まって待っている印を付ける（bindSelfOpened。消してよい条件はその関数のコメント）
 //   - session_end：このセッションのサブエージェントの Run のうち開いたままのものをすべて閉じる。親が自分で開いた Run は残す
-//   - tool_requested：.git/deguboard/ への書き込みと、dg を経由しない gh pr ready・merge を粗く拒む（ストアを開かない。t554）
+//   - tool_requested：.git/deguboard/ への書き込みと、dg を経由しない gh pr ready・merge を粗く拒む（ストアを開かない。t554）。
+//     記録と判定は pre-tool-use.ts にあり、bin/dg.js の速い経路（fast-hook.ts）も同じものを呼ぶ（t768）
 //   - turn_stopped：データのリポジトリの dg の外の変更（SY-7）を確かめ、見つけたら止まらずに続けさせて伝える（続けさせた後の Stop では伝えない）。
 //     dg の外の変更の検査は、ほかのイベントでは runCommand でも行わない（フックで作業を止めない。ownsOutsideCheck）
 //   どのイベントでも、扱うイベントなら読む項目の有無と時刻を deguboard-local/hook-inputs/ に残す（t542。dg hooks check が読む）。
 //   届いた出来事の種類と、フックの中で出た警告は deguboard-local/hook-sessions/ にセッションごとに残し、next・brief・hooks check が後で知らせる（t756）
 //   どのフックの後も、前のフックで書き終わりを待ちきれずに残した Run を閉じる（dg sync も同じ）
 
-import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { appendFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { collectRunUsage, hookAgentNames, hooksOf, type HookEvent } from "../agents/index.js";
@@ -48,13 +49,13 @@ import {
   takePendingRetryReasons,
 } from "../run/record.js";
 import { defineCommand, ok, runCommand, type CommandContext } from "./define.js";
+import { recordHookInput, recordHookSession, recordHookWarnings } from "./hook-records.js";
 import {
   pruneHookSessions,
-  recordHookSession,
-  recordHookWarnings,
   recordMarkedLaunch,
   subagentStopMissingWarning,
 } from "./hook-sessions.js";
+import { runToolRequested } from "./pre-tool-use.js";
 import { adoptableReviewRecord } from "./orphan-review.js";
 import {
   closePreviousFixRunOrWarn,
@@ -77,70 +78,6 @@ export function parseMarker(prompt: string): { ticket: TicketId; step: string } 
   if (!m) return undefined;
   const ticket = ticketIdSchema.safeParse(m[1]);
   return ticket.success ? { ticket: ticket.data, step: m[2]! } : undefined;
-}
-
-/**
- * dg hook が受け取った入力の記録（deguboard-local/hook-inputs/<イベント>.json。イベントごとに最新の 1 件を上書きする。t542）。
- * 項目の有無と時刻だけを持ち、値は残さない（MT-4）。dg hooks check が読み、受け取らなかった項目があれば警告する
- */
-export interface HookInputRecord {
-  event: string;
-  /** 受け取った時刻 */
-  received_at: string;
-  /** Adapter が読むとした項目（ドット区切りのパス）ごとに、入力にあったか */
-  fields: Record<string, boolean>;
-}
-
-const HOOK_INPUTS_DIR = "hook-inputs";
-
-/** ドット区切りのパスの値がある（null と未定義でない） */
-function hasField(input: Record<string, unknown>, dotted: string): boolean {
-  let cur: unknown = input;
-  for (const key of dotted.split(".")) {
-    if (typeof cur !== "object" || cur === null) return false;
-    cur = (cur as Record<string, unknown>)[key];
-  }
-  return cur !== undefined && cur !== null;
-}
-
-/** 受け取った入力の項目の有無を記録する。一時ファイルに書いてから置き換え、読む側が途中の内容を見ないようにする */
-async function recordHookInput(
-  localDir: string,
-  event: string,
-  receivedAt: string,
-  fields: readonly string[],
-  payload: Record<string, unknown>,
-): Promise<void> {
-  const dir = path.join(localDir, HOOK_INPUTS_DIR);
-  await mkdir(dir, { recursive: true });
-  const record: HookInputRecord = {
-    event,
-    received_at: receivedAt,
-    fields: Object.fromEntries(fields.map((f) => [f, hasField(payload, f)])),
-  };
-  const file = path.join(dir, `${event}.json`);
-  const tmp = `${file}.${process.pid}.tmp`;
-  await writeFile(tmp, `${JSON.stringify(record)}\n`, "utf8");
-  await rename(tmp, file);
-}
-
-/** イベントの直近の入力の記録。なければ、読めなければ undefined */
-export async function readHookInput(
-  localDir: string,
-  event: string,
-): Promise<HookInputRecord | undefined> {
-  const text = await readFile(path.join(localDir, HOOK_INPUTS_DIR, `${event}.json`), "utf8").catch(
-    () => undefined,
-  );
-  if (text === undefined) return undefined;
-  try {
-    const d = JSON.parse(text) as Partial<HookInputRecord>;
-    if (typeof d.received_at !== "string" || typeof d.fields !== "object" || d.fields === null)
-      return undefined;
-    return { event, received_at: d.received_at, fields: d.fields };
-  } catch {
-    return undefined;
-  }
 }
 
 /** シェルの単一引用符で囲む */
@@ -210,10 +147,28 @@ export const hook = defineCommand({
     const agent = hookAgentOf(input.agent);
     const hooks = hooksOf(agent);
     if (!hooks) return ok(view, undefined, [`agent ${agent} has no hooks`]);
+    const env = ctx.env ?? process.env;
+    const payload = input.payload ?? {};
+    const event = hooks.parse(input.event, payload, env);
+    // PreToolUse は記録から判定までを、bin/dg.js の速い経路と同じ関数で行う（t768。同じ出力と記録になる）
+    if (event?.kind === "tool_requested") {
+      const r = await runToolRequested({
+        hooks,
+        eventName: input.event,
+        payload,
+        event,
+        repo: ctx.repo,
+        now: () => ctx.now(),
+      });
+      return ok(
+        { ...view, done: r.done, ...(r.output !== undefined ? { output: r.output } : {}) },
+        undefined,
+        r.warnings,
+      );
+    }
     // フックの入力の項目の有無を、イベントごとの最新の 1 件に残す（dg hooks check が読む）。扱うイベントの名前だけを使う
     if (hooks.events.some((e) => e.event === input.event)) {
       try {
-        const payload = input.payload ?? {};
         await recordHookInput(
           ctx.repo.localDir,
           input.event,
@@ -227,8 +182,6 @@ export const hook = defineCommand({
         );
       }
     }
-    const env = ctx.env ?? process.env;
-    const event = hooks.parse(input.event, input.payload ?? {}, env);
     if (!event) return ok(view, undefined, warnings);
     // このセッションにフックが届いたことと、届いた種類を残す（next・brief・claim --no-run が、届いていないセッションを警告する。t697・t756）
     try {
@@ -293,8 +246,7 @@ async function handle(
     case "session_end":
       return sessionEnd(ctx, event, view, warnings);
     case "tool_requested":
-      // ツールのたびに呼ばれるので、止まった Run の掃除はしない
-      toolRequested(ctx, agent, event, view);
+      // run が runToolRequested（pre-tool-use.ts）で扱い、ここには来ない。ツールのたびに呼ばれるので、止まった Run の掃除はしない
       return;
     case "turn_stopped":
       // 応答のたびに呼ばれるので、止まった Run の掃除はしない
@@ -992,119 +944,6 @@ async function sessionEnd(
       );
     }
   }
-}
-
-/** .git/deguboard の語（区切りは / と \。.git/deguboard-local も含む） */
-const DATA_DIR_WORD = /\.git[\\/]+deguboard/;
-
-/**
- * Bash のコマンドがデータ（.git/deguboard/）に触れるか（t546、AG-10）。字句を読まず、生のコマンドに .git/deguboard の語が
- * どこかにあれば（読むだけのものも、引用符・コメントの中も）触れるとみなし、dg の読み書きのコマンドへ案内する。
- * 語として現れない形（cd .git && rm deguboard/x・変数・ファイルに書いたスクリプト・任意の言語のコード）は通る。
- * 取りこぼした書き込みは、dg が次にコマンドを実行するときと Stop のフックで、dg の外の変更として見つける（git/outside.ts）
- */
-export function touchesDataDir(command: string): boolean {
-  return DATA_DIR_WORD.test(command);
-}
-
-/** gh api で PR をマージ・ready にする手がかり（REST の pulls/<n>/merge と GraphQL の mutation 名） */
-const GH_API_ADVANCE =
-  /pulls\/[^/\s]+\/merge\b|mergePullRequest|markPullRequestReadyForReview|enablePullRequestAutoMerge/;
-/**
- * 正しい道の dg pr ready・dg pr merge（mise run dg -- pr merge・dg.js も）。区切り（; & | 改行）と gh の語を越えない。
- * 同じ区切りの中で前に gh の語があるもの（gh -R o/dg pr merge）は、gh の引数の dg なので除かない（advancesPrOutsideDg）
- */
-const DG_PR = /\bdg(?:\.js)?\b(?:(?!\bgh\b)[^;&|\n])*?\bpr\s+(?:ready|merge)\b/g;
-/** 取り消しの gh pr ready --undo（-- の後の --undo はフラグでなく引数なので、-- を越えない。--undo=false も除かない） */
-const GH_READY_UNDO = /\bgh\s+pr\s+ready\b(?:(?!\s--(?:\s|$))[^;&|\n])*\s--undo(?=\s|$)/g;
-/** 語に分ける区切り（英数字・_・.・/・- のほかすべて。引用符・\・=・括弧・任意の言語の配列の記号も区切る） */
-const WORD_SPLIT = /[^\w./-]+/;
-/** gh の語（/usr/bin/gh・フラグに接した -Ogh も） */
-const isGh = (w: string) => /(^|\/|^-[A-Za-z]*)gh$/.test(w);
-
-/**
- * Bash のコマンドが、dg を経由せずに PR を ready にするかマージするか（gh pr ready・gh pr merge・gh api の同じ操作。t545・t555、AG-10）。
- * 字句を読まず、生のコマンドで粗く見る：正しい道の dg pr ready・dg pr merge と gh pr ready --undo を除いた残りに、
- * gh の語があり、pr の語と merge・ready の語がどこかにあれば（語は隣り合わなくてよい。2>&1・$PR・python -c の中・1 要素ずつ改行した配列も）、
- * gh api の同じ操作（GH_API_ADVANCE）があれば止める。引用符・ヒアドキュメント・コメントの中も伏せない（本文の語も止める。
- * そのときは拒む文が、ファイルに書いて --body-file・git commit -F で渡す道を案内する）。
- * わざと隠した形は個々に見ない。$(which gh)・GH=gh; $GH pr merge のように語が現れれば止まるが、
- * 語として現れない形（g\h・"mer""ge"・gh pr $OP・gh のエイリアス・ファイルに書いたスクリプトなど）は通る。
- * 見分けは書き間違いを防ぐ手がかりで、すり抜けは事後の検査（t546）で補う
- */
-export function advancesPrOutsideDg(command: string): boolean {
-  const text = command.replace(/\\\n/g, " ");
-  const words = (t: string) => t.split(WORD_SPLIT).filter((w) => w !== "");
-  const rest = text
-    .replace(DG_PR, (m: string, at: number) =>
-      words(
-        text
-          .slice(0, at)
-          .split(/[;&|\n]/)
-          .pop()!,
-      ).some(isGh)
-        ? m
-        : " ",
-    )
-    .replace(GH_READY_UNDO, " ");
-  const all = words(rest);
-  if (!all.some(isGh)) return false;
-  // GraphQL の mutation は括弧を含むので、語に分けずに全体で見る
-  if (GH_API_ADVANCE.test(rest)) return true;
-  return all.includes("pr") && all.some((w) => w === "merge" || w === "ready");
-}
-
-/** dg を経由しない gh pr ready・merge を拒む文（t545・t555） */
-export const GH_PR_DENIED =
-  "Mark a PR ready and merge it with dg commands: dg pr ready <ticket> and dg pr merge <ticket> (they call gh only when the quality gate dg gate is met, and otherwise return the conditions and reasons). " +
-  "Going ahead without meeting the gate (a reviewer cannot be launched, the fix loop went over its limit, or a person set the count) is a human decision, so ask a person to run gh pr ready or gh pr merge (dg guide review). If the level of the ticket does not fit the change, change it with dg ticket update <id> --gate <level> (lowering it is a person's instruction), then run dg pr ready or dg pr merge again. " +
-  "This hook does not mask quotes, heredocs, or comments, and stops when the words gh, pr, and merge or ready appear anywhere. " +
-  "To write those words in a body, write it to a file with Write and pass it with gh pr create --body-file <file> or git commit -F <file>. If it stopped because you ran it together with other commands, run them separately";
-
-/** 書くツールが .git/deguboard/ の下に書くのを拒む文 */
-export const DATA_WRITE_DENIED =
-  "Do not write the deguboard data (.git/deguboard/) files directly; read and write them with dg commands";
-
-/** .git/deguboard の語を含む Bash を拒む文（t546） */
-export const DATA_BASH_DENIED =
-  "Do not touch the deguboard data (.git/deguboard/) with Bash; read and write it with dg commands (read with dg ticket show, dg ticket list, dg plan show, and so on; write with dg ticket update and so on). " +
-  "This hook stops on the word .git/deguboard anywhere, even in read-only commands, quotes, and comments. To search for the word in documents or code, use the Grep tool. " +
-  "To write the word in a body, write it to a file with Write and pass it with --body-file or git commit -F. A change that gets through anyway is found the next time dg runs as a change made outside dg, and dg stops writing (dg adopt --help)";
-
-/**
- * ツールを使う前（PreToolUse。t532・t545・t555・t546）。書くツールの .git/deguboard/ の下への書き込みと、.git/deguboard の語を含む Bash
- * （touchesDataDir。読むだけのものも粗く止める）を拒み、dg を経由しない gh pr ready・gh pr merge を拒んで dg pr ready・dg pr merge へ案内する
- * （advancesPrOutsideDg。字句を読まずに粗く止める）。取りこぼしは事後の検査（dg の外の変更。SY-7）が見つける。
- * ストアを開かない文脈（hook の storeless。t554）で呼ばれるので、ctx は repo の場所（topLevel・dataDir）だけを使い、事後の検査もここでは走らない
- */
-function toolRequested(
-  ctx: CommandContext,
-  agent: string,
-  event: Extract<HookEvent, { kind: "tool_requested" }>,
-  view: HookView,
-): void {
-  const deny = (reason: string) => {
-    // イベント名は製品のもの（入力のまま返す。AG-5）
-    view.output = hooksOf(agent)!.denyOutput(view.event, reason);
-    view.done.push(`Denied: ${reason}`);
-  };
-  if (event.tool === "write") {
-    if (!event.path) return;
-    const target = path.resolve(event.cwd ?? ctx.repo.topLevel, event.path);
-    const inside = (dir: string) => {
-      const rel = path.relative(dir, target);
-      return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
-    };
-    if (inside(ctx.repo.dataDir) || /(^|[\\/])\.git[\\/]deguboard([\\/]|$)/.test(target))
-      deny(DATA_WRITE_DENIED);
-    return;
-  }
-  const command = event.command ?? "";
-  if (touchesDataDir(command)) {
-    deny(DATA_BASH_DENIED);
-    return;
-  }
-  if (advancesPrOutsideDg(command)) deny(GH_PR_DENIED);
 }
 
 /**

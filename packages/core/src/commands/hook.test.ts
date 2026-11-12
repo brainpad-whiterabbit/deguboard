@@ -28,16 +28,9 @@ import { runPath } from "../storage/paths.js";
 import { hooksOf } from "../agents/index.js";
 import { openContext, openContextFor } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import {
-  advancesPrOutsideDg,
-  GH_PR_DENIED,
-  hook,
-  hookTiming,
-  parseMarker,
-  readHookInput,
-  touchesDataDir,
-  type HookView,
-} from "./hook.js";
+import { hook, hookTiming, parseMarker, type HookView } from "./hook.js";
+import { readHookInput, recordHookWarnings } from "./hook-records.js";
+import { advancesPrOutsideDg, GH_PR_DENIED, touchesDataDir } from "./pre-tool-use.js";
 import {
   crashedSubagentRunAt,
   runFinish,
@@ -49,12 +42,7 @@ import {
   type RunView,
 } from "./run.js";
 import { brief } from "./brief.js";
-import {
-  hookKindsOf,
-  pruneHookSessions,
-  recordHookWarnings,
-  takeHookWarnings,
-} from "./hook-sessions.js";
+import { hookKindsOf, pruneHookSessions, takeHookWarnings } from "./hook-sessions.js";
 import { next, type NextStep } from "./next.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";

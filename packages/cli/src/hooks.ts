@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual, promisify } from "node:util";
 import {
   bundleLayout,
+  hookArgv,
   hooksOf,
   hooksSilentWarning,
   readHookInput,
@@ -94,9 +95,12 @@ export interface HooksCheckResult {
 type Settings = Record<string, unknown> & { hooks?: Record<string, unknown> };
 type Group = { matcher?: string; hooks?: Array<Record<string, unknown>> } & Record<string, unknown>;
 
-/** dg のフックのコマンド。base は dg を呼ぶコマンド（既定は dg） */
+/**
+ * dg のフックのコマンド。base は dg を呼ぶコマンド（既定は dg）。後ろの引数は bin/dg.js の速い経路が受け持つ argv と
+ * 同じ hookArgv から作る（t768）
+ */
 const commandFor = (base: string, agent: string, event: string) =>
-  `${base} --actor agent hook ${event}${agent === "claude-code" ? "" : ` --agent ${agent}`} --payload -`;
+  `${base} ${hookArgv(agent, event).join(" ")}`;
 
 /** 設定から dg のフックを除く。空になった群とイベントも除く */
 function withoutOurs(hooks: Record<string, unknown>): Record<string, unknown> {
