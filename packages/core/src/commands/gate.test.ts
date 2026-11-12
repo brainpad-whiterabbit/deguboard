@@ -375,7 +375,42 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(await runs()).toBe(0);
   });
 
+  it("dg gate --only check は push の前の worktree の HEAD を検査して覚え、push した後の ready は回し直さない（t741）", async () => {
+    const { f, ctx, runs } = await withCheck();
+    // push していないコミット（--only check は push の前のコミットも検査する）
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "まだ push していない"]);
+    const only = async () =>
+      (await runCommand(gate, ctx, { ticket: "t1", only: "check" })).data as GateView;
+    const view = await only();
+    expect(view.conditions.map((c) => c.id)).toEqual(["check"]);
+    expect(view.passed).toBe(true);
+    expect(check(view).detail).toContain("passed on the latest commit");
+    expect(await runs()).toBe(1);
+    // 同じコミットで呼び直すと、覚えた結果を返して回さない
+    expect((await only()).passed).toBe(true);
+    expect(check(await only()).detail).toContain("reused the remembered result");
+    expect(await runs()).toBe(1);
+    // push した後の ready は、同じコミットの覚えた結果を使う
+    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    await review(ctx, later(1), 0);
+    expect(failed(await judge(ctx, "ready"))).toEqual([]);
+    expect(await runs()).toBe(1);
+    // 未コミットの変更があれば回さずに拒む
+    await writeFile(path.join(f.cloneA, "dirty.txt"), "x");
+    expect(check(await only()).detail).toContain("has uncommitted changes");
+    expect(await runs()).toBe(1);
+  });
+
   describe("軽い検査（actions.light_test・actions.light_paths。t632）", () => {
+    /** 差分のない今のコミットで全体の検査を 1 回通し（actions.test を回す）、そのコミットの短い SHA を返す（t741） */
+    const passFull = async (ctx: CommandContext, cloneA: string, at: number) => {
+      await review(ctx, later(at), 0);
+      expect(check(await judge(ctx, "ready")).detail).toContain(
+        "Ran actions.test because there are no files changed from base",
+      );
+      return (await git(cloneA, ["rev-parse", "HEAD"])).stdout.trim().slice(0, 8);
+    };
+
     /**
      * withCheck に、軽い検査の台本と対象のパス（docs/** と最上位の *.md）を足した文脈。
      * 台本は回数のファイルに、actions.test は run、軽い検査は light を 1 行足す
@@ -448,6 +483,154 @@ describe("dg gate の検査（actions.test。t601）", () => {
         "Ran actions.test because there are no files changed from base",
       );
       expect(await lines()).toEqual(["run"]);
+    });
+
+    it("全体の検査が通ったコミットの後に light_paths だけを足すと、そのコミットからの差分で軽い検査を選び、全体の記録は残る（t741）", async () => {
+      const { ctx, f, lines, commit } = await withLight();
+      const base = await passFull(ctx, f.cloneA, 1);
+      await commit("docs/a.md");
+      await review(ctx, later(2), 0);
+      const view = await judge(ctx, "ready");
+      expect(view.passed).toBe(true);
+      expect(check(view).detail).toContain(
+        `Ran the light check because all 1 changed files since commit ${base}, the last commit whose actions.test passed, are in actions.light_paths`,
+      );
+      expect(await lines()).toEqual(["run", "light"]);
+      // 軽い検査が通っても、全体の記録（基準のコミット）は消えない。次の light_paths だけの差分も同じ基準から選ぶ
+      await commit("NOTE.md");
+      await review(ctx, later(3), 0);
+      expect(check(await judge(ctx, "ready")).detail).toContain(`since commit ${base}`);
+      expect(await lines()).toEqual(["run", "light", "light"]);
+    });
+
+    it("全体の検査が通ったコミットの後にコードを変えたら、全体を回す（t741）", async () => {
+      const { ctx, f, lines, commit } = await withLight();
+      await passFull(ctx, f.cloneA, 1);
+      await commit("docs/a.md");
+      await review(ctx, later(2), 0);
+      expect(check(await judge(ctx, "ready")).detail).toContain("Ran the light check");
+      await commit("src/a.ts");
+      await review(ctx, later(3), 0);
+      const view = await judge(ctx, "ready");
+      expect(view.passed).toBe(true);
+      expect(check(view).detail).toContain("Ran actions.test because the changes since commit");
+      expect(check(view).detail).toContain(
+        "include files outside actions.light_paths (src/a.ts; 1 files)",
+      );
+      expect(await lines()).toEqual(["run", "light", "run"]);
+    });
+
+    it("全体の検査が通ったコミットが HEAD の祖先でなければ（rebase・force push）、差分が軽くても全体を回す（t741）", async () => {
+      const { ctx, f, lines } = await withLight();
+      await passFull(ctx, f.cloneA, 1);
+      // 1 つ前のコミットから書き直し、force push する（前のコミットは祖先に残らない）
+      await git(f.cloneA, ["reset", "-q", "--hard", "HEAD~1"]);
+      await mkdir(path.join(f.cloneA, "docs"), { recursive: true });
+      await writeFile(path.join(f.cloneA, "docs", "b.md"), "x\n");
+      await git(f.cloneA, ["add", "--", "docs/b.md"]);
+      await git(f.cloneA, ["commit", "-q", "-m", "書き直し"]);
+      await git(f.cloneA, ["push", "-q", "-f", "origin", "feat/t1"]);
+      await review(ctx, later(2), 0);
+      const view = await judge(ctx, "ready");
+      expect(check(view).detail).toContain(
+        "is not an ancestor of the latest commit (rebased or force-pushed)",
+      );
+      expect(await lines()).toEqual(["run", "run"]);
+    });
+
+    it("全体の検査が通ったあとに main を merge で取り込んだら、差分が軽くても全体を回す（t741）", async () => {
+      const { ctx, f, lines } = await withLight();
+      await passFull(ctx, f.cloneA, 1);
+      // main 側で docs だけを変えたコミットを作り、merge で取り込む
+      await git(f.cloneA, ["checkout", "-q", "-b", "main-side", "HEAD~1"]);
+      await mkdir(path.join(f.cloneA, "docs"), { recursive: true });
+      await writeFile(path.join(f.cloneA, "docs", "m.md"), "x\n");
+      await git(f.cloneA, ["add", "--", "docs/m.md"]);
+      await git(f.cloneA, ["commit", "-q", "-m", "main の変更"]);
+      await git(f.cloneA, ["checkout", "-q", "feat/t1"]);
+      await git(f.cloneA, ["merge", "-q", "--no-ff", "-m", "main を取り込む", "main-side"]);
+      await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+      await review(ctx, later(2), 0);
+      const view = await judge(ctx, "ready");
+      expect(check(view).detail).toContain("because a merge commit came after commit");
+      expect(await lines()).toEqual(["run", "run"]);
+    });
+
+    it("全体の検査が通ったあとに actions.test を変えたら、差分が軽くても全体を回す（t741）", async () => {
+      const { ctx, f, lines, commit } = await withLight();
+      await passFull(ctx, f.cloneA, 1);
+      await commit("docs/a.md");
+      await review(ctx, later(2), 0);
+      expect(check(await judge(ctx, "ready")).detail).toContain("Ran the light check");
+      const other = path.join(f.root, "check-other-t741.sh");
+      await writeFile(
+        other,
+        `#!/bin/sh\necho run >> '${path.join(f.root, "check-count")}'\necho 別の検査\nexit 0\n`,
+        { mode: 0o755 },
+      );
+      await runCommand(configSet, ctx, { key: "actions.test", value: `sh, ${other}` });
+      const changed = await openContext({ cwd: f.cloneA, actor: ctx.actor });
+      await review(changed, later(3), 0);
+      expect(check(await judge(changed, "ready")).detail).toContain(
+        "Ran actions.test because actions.test changed since commit",
+      );
+      expect(await lines()).toEqual(["run", "light", "run"]);
+    });
+
+    it("覚える結果は直近 5 件と全体の検査の基準のコミットの結果だけを残し、古い結果は消す（t741）", async () => {
+      const { ctx, f, commit, lines } = await withLight();
+      await passFull(ctx, f.cloneA, 1);
+      const fullSha = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
+      const shas: string[] = [];
+      // 軽い検査で 6 件の通った結果を積む（基準のコミットは動かない）
+      for (let i = 0; i < 6; i++) {
+        await commit(`docs/n${i}.md`);
+        await review(ctx, later(2 + i), 0);
+        expect(check(await judge(ctx, "ready")).ok).toBe(true);
+        shas.push((await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim());
+      }
+      const record = JSON.parse(
+        await readFile(path.join(ctx.repo.localDir, "checks", "t1.json"), "utf8"),
+      ) as { results: Array<{ sha: string }>; full: { sha: string } };
+      const kept = record.results.map((r) => r.sha);
+      // 基準のコミット（古い）と直近 5 件（n1〜n5）は残り、最初の n0 だけが消える
+      expect(kept).toHaveLength(6);
+      expect(kept).toContain(fullSha);
+      expect(kept).not.toContain(shas[0]);
+      expect(kept).toEqual(expect.arrayContaining(shas.slice(1)));
+      expect(record.full.sha).toBe(fullSha);
+      // 基準のコミットに戻して呼ぶと、回さずに覚えた結果を返す
+      const before = (await lines()).length;
+      await git(f.cloneA, ["reset", "-q", "--hard", fullSha]);
+      const only = (await runCommand(gate, ctx, { ticket: "t1", only: "check" })).data as GateView;
+      expect(only.passed).toBe(true);
+      expect(check(only).detail).toContain("reused the remembered result");
+      expect((await lines()).length).toBe(before);
+    });
+
+    it("旧形式（1 チケット 1 件のオブジェクト）の記録は読めないものとして、検査を回して新しい形式で書き直す（t741）", async () => {
+      const { ctx, f, lines } = await withLight();
+      await review(ctx, later(1), 0);
+      const dir = path.join(ctx.repo.localDir, "checks");
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        path.join(dir, "t1.json"),
+        JSON.stringify({
+          sha: "0".repeat(40),
+          command: ctx.config.actions.test,
+          code: 0,
+          tail: "",
+          at: new Date().toISOString(),
+        }),
+      );
+      expect(check(await judge(ctx, "ready")).ok).toBe(true);
+      expect(await lines()).toEqual(["run"]);
+      const record = JSON.parse(await readFile(path.join(dir, "t1.json"), "utf8")) as {
+        results: Array<{ sha: string }>;
+      };
+      expect(record.results.map((r) => r.sha)).toEqual([
+        (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim(),
+      ]);
     });
   });
 });

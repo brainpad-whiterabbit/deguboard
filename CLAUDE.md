@@ -17,8 +17,8 @@ Agentic-Agile を実践するための、Git リポジトリの中で動くカ�
 
 ツールとコマンドは mise に統一する（[mise.toml](mise.toml)、[ADR-008](docs/adr/ADR-008-tech-stack.md)）。始め方は [development.md の「開発の始め方」](docs/development.md#開発の始め方)。
 
-- コードや文書を変更したら、コミットの前に `mise run format` で整え、`mise run check` が通ることを確かめる。`main` との差分のファイルがすべて config の `actions.light_paths`（`dg config show` で見る）に入るときは、`mise run check` の代わりに軽い検査 `mise run check:light` でよい（書式・文書の検査と文書を読むテストを回す。品質ゲートの検査と同じ扱い）。段（`gate`）が free のチケットは、品質ゲートが検査を判定しないので `mise run check` は要らない（`mise run format` はする）
-- 作業の途中は `mise run test:related` で変えたファイルに関わるテストだけを回す。全体は、コミットの前の `mise run check` でだけ回す
+- コードや文書を変更したら、コミットの前に `mise run format` で整える。チケットの作業は、push の前に `dg --json --actor agent gate <id> --only check` が通ることを確かめる（全体の検査 `mise run check` か config の軽い検査を、前回通ったコミットからの差分で選び、同じコミットの結果を覚える。選び方は `dg gate --help`）。段（`gate`）が free のチケットは、品質ゲートが検査を判定しないので検査は要らない（`mise run format` はする）。チケットの外の作業は、コミットの前に `mise run check` が通ることを確かめる（`main` との差分のファイルがすべて config の `actions.light_paths`（`dg config show` で見る）に入るときは、`mise run check` の代わりに軽い検査 `mise run check:light` でよい）
+- 作業の途中は `mise run test:related` で変えたファイルに関わるテストだけを回す。全体の検査は、チケットの作業では push の前の `dg --json --actor agent gate <id> --only check`（前回通ったコミットからの差分で軽い検査に替わることがある）で、チケットの外の作業ではコミットの前の `mise run check` でだけ回す
 - 新しいタスクは mise.toml に足し、pnpm scripts を呼ぶだけにする。`pnpm run`・`npx` を直接案内しない
 
 ## コードの規約
@@ -44,8 +44,8 @@ Agentic-Agile を実践するための、Git リポジトリの中で動くカ�
 - 変更は `main` から切った作業ブランチを git worktree に checkout して行う。`main` に直接コミットせず、`main` の worktree で作業しない
 - コミットメッセージと PR のタイトルは日本語で、要約を 1 行目に書く
 - 画面の見た目を変える PR は、変えた画面のスクリーンショットを本文に載せる。画像は orphan ブランチ `pr-screenshots` に置き、作業ブランチに入れない
-- PR は `main` に向ける。ローカルの `mise run check`（軽い検査で済む変更は `mise run check:light`）の通過と承認をマージの条件にする（段（`gate`）が free のチケットは、この条件を外す）。CI は使わない（[ADR-008](docs/adr/ADR-008-tech-stack.md)）
+- PR は `main` に向ける。ローカルの検査の通過と承認をマージの条件にする。検査は、チケットの作業では品質ゲートの検査（`dg gate <id> --only check`）、チケットの外の作業では `mise run check`（軽い検査で済む変更は `mise run check:light`）（段（`gate`）が free のチケットは、この条件を外す）。CI は使わない（[ADR-008](docs/adr/ADR-008-tech-stack.md)）
 - マージは squash で行い、リモートとローカルのブランチと worktree を消す
 - PR の見直しで疑いを確かめるために動かすのは 1 回までにし、引数や回数を変えて回し直さない
 - 競合のように確率でしか起きない不具合は、再現を試さずにコードの根拠（どの順序で何が起きるか）で重い指摘にし、再現するテストは手直しに任せる
-- 決まった検査（`mise run check`・`mise run check:light`）は、上の 1 回の上限に含めない
+- 決まった検査（`mise run check`・`mise run check:light`・`dg gate <id> --only check`）は、上の 1 回の上限に含めない

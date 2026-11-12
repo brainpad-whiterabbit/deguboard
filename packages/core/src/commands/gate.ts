@@ -232,13 +232,14 @@ export const gate = defineCommand({
     "review (a review Run that started after the time of the latest commit on the work branch's remote tip has closed with success, and the run review-result result passed) · " +
     "(a review result held with no review Run, while the ticket has no open review Run and no running sub-agent, counts as a review closed when the result was written; when several are held after the same push, only the latest counts) · " +
     `fix_rounds (reviews that raised heavy findings on this branch are at most ${FIX_ROUNDS_LIMIT} times) · mergeable (with --for merge, gh's mergeable is MERGEABLE) · ` +
-    "check (config's actions.test passes when run in a worktree with no uncommitted changes, checked out at the latest commit of the work branch (remote tip). When every file in the diff against base falls under actions.light_paths, the lighter check actions.light_test runs instead, and detail gives which one ran and why. When actions.test is empty, it passes without judging and detail says so. When it fails, detail gives the exit code and the tail of the output. A passing result is remembered per commit and per command in deguboard-local and is not rerun for the same commit (it still counts after the worktree is removed, e.g. after a merge. A failing result is not remembered; the next check reruns it). It takes time, so it runs only when all the other conditions are met). " +
+    "check (config's actions.test passes when run in a worktree with no uncommitted changes, checked out at the latest commit of the work branch (remote tip). When the last commit whose actions.test passed is an ancestor of the latest commit, no merge commit came after it, actions.test is unchanged, and every file changed since then falls under actions.light_paths, the lighter check actions.light_test runs instead (with no such record yet, the diff against base decides the same way). Otherwise actions.test runs. detail gives which one ran and why. When actions.test is empty, it passes without judging and detail says so. When it fails, detail gives the exit code and the tail of the output. A passing result is remembered per commit and per command in deguboard-local and is not rerun for the same commit (it still counts after the worktree is removed, e.g. after a merge. A failing result is not remembered; the next check reruns it). It takes time, so it runs only when all the other conditions are met). " +
     "A condition that gh or Git cannot read is treated as unmet. " +
     "Which conditions are judged depends on the ticket's gate level (TK-9; gate in the output; a ticket with no gate is high). " +
     "high judges all of them (--for merge: pr · acceptance · review · fix_rounds · mergeable · check; --for ready: pr · review · fix_rounds · check). " +
     "low leaves out review and fix_rounds (merge: pr · acceptance · mergeable · check; ready: pr · check). " +
     "free judges only pr and, with --for merge, mergeable (merge: pr · mergeable; ready: pr). Conditions that are not judged do not appear in conditions, and their inputs (review Runs, the push time and its fetch, the check) are not read. " +
     "Set the level with dg ticket create/import/update --gate; lowering it follows a person's instruction. " +
+    "--only check judges only check, with the same judgment, on the HEAD of the work branch's worktree (a commit not pushed yet is fine; uncommitted changes refuse it), whatever the level. Run it before the push. With --only, --for is not judged (the view only echoes it). The result is remembered per commit and command, so dg pr ready and dg pr merge after the push reuse it for the same commit. " +
     "dg pr ready and dg pr merge make the same judgment before they call gh. Proceeding outside the conditions of the level is left to a person (a person runs gh). They do not write ticket data (they only record the results of passed checks in deguboard-local)",
   input: z.object({
     ticket: ticketRef,
@@ -248,11 +249,30 @@ export const gate = defineCommand({
       .describe(
         "ready is before opening the PR (gh pr ready), merge is before merging (gh pr merge). Defaults to merge when omitted",
       ),
+    only: z
+      .enum(["check"])
+      .optional()
+      .describe(
+        "check: run only the check condition on the work branch's worktree HEAD (before the push). See the summary. With it, for is not judged: the view only echoes it, and no merge conditions are judged",
+      ),
   }),
   write: false,
   needs: "store",
   async run(ctx, input) {
     const ticket = ctx.store.require("ticket", input.ticket).data;
+    if (input.only === "check") {
+      const check = await judgeCheck(ctx, ticket, { local: true });
+      // --only check は検査の条件だけを返す（段に関係なく判定する）
+      const view: GateView = {
+        ticket: ticket.id,
+        for: input.for ?? "merge",
+        gate: gateLevelOf(ticket),
+        pr: ticket.pr ?? null,
+        passed: check.ok,
+        conditions: [{ id: "check", ok: check.ok, detail: check.detail }],
+      };
+      return ok(view);
+    }
     const warnings: string[] = [];
     const view = await judgeGate(ctx, ticket, input.for ?? "merge", warnings);
     return ok(view, undefined, warnings);

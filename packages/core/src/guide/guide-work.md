@@ -53,7 +53,7 @@ For `wait_merge`, `wait_human`, and `wait_deps` with no Plan, there is no other 
 
 The implementer works within the scope and approach of `plan` in `next`, and does the following.
 
-1. Pass the checks of the repository (format, lint, tests). A ticket whose `gate` is free does not need them
+1. Before you push, run `dg --json --actor agent gate <id> --only check` and confirm it passes (the check of the quality gate, on the latest commit; it also remembers the result, so the gate after the push does not rerun it). Use `mise run test:related` while you work. A ticket whose `gate` is free does not need the check (run `mise run format`)
 2. Read again the sources of truth for the sections touched (requirements, README, code comments). In the same PR, fix the documents of promises, procedures, and conventions that this PR changed. Report stale documents from before that this PR did not change, without fixing them. If the PR changed a decision, also rewrite the body of that decision's ADR (if there is one) directly in the same PR (keep the number). Delete the details of an ADR that this PR made wrong. Requirements state only promises, so do not add details to them (the sources of details are help, code, and tests)
 3. Make a PR with `gh pr create --draft`. In the body, write the ticket ID (`t12`), the acceptance criteria that could not be met and why, and the sources you read again and the places you fixed
 4. Report only the acceptance criteria that you confirmed as met by the deliverable or tests (the parent attaches the marks)
