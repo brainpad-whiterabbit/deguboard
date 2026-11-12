@@ -41,3 +41,13 @@ export function terminalInput(text: string): TerminalInput {
     .replace(/\t/g, " ");
   return clean.includes("\n") ? { kind: "paste", text: clean } : { kind: "line", text: clean };
 }
+
+/**
+ * 始め方の画面のボタンが新しいターミナルに入れる 1 行（Enter まで送る）。起動ファイル（launcher.ts）の絶対パスで
+ * dg init・dg skill install・dg hooks install を &&（途中で失敗したら続けない）でつなぐ。PATH の dg は使わない。
+ * パスはシングルクォートで囲む（空白や ' を含んでも 1 つの引数のまま。sh・bash・zsh・fish で同じに読める）
+ */
+export function startCommandLine(launcher: string): string {
+  const quoted = `'${launcher.replace(/'/g, `'\\''`)}'`;
+  return ["init", "skill install", "hooks install"].map((c) => `${quoted} ${c}`).join(" && ");
+}

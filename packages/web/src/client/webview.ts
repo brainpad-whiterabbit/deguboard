@@ -31,6 +31,8 @@ export interface WebviewClient extends CommandClient {
   terminals(): Promise<TerminalChoice[]>;
   /** 開いているターミナル terminal の入力に text を入れてもらう。Enter は押さず、ターミナルは起動しない（EX-1） */
   sendToTerminal(terminal: number, text: string): Promise<TerminalSendResult | null>;
+  /** 始め方のボタン。専用の新しいターミナルで dg init・skill install・hooks install を実行してもらう（UI-12） */
+  startRepository(): Promise<void>;
   /** 拡張ホストからの通知を受ける。戻り値で購読を外す */
   onEvent(listener: (event: WebviewEvent) => void): () => void;
 }
@@ -94,6 +96,9 @@ export function createWebviewClient(
     async sendToTerminal(terminal: number, text: string): Promise<TerminalSendResult | null> {
       return (await send({ kind: "action", name: "sendToTerminal", terminal, text }))
         .data as TerminalSendResult | null;
+    },
+    async startRepository(): Promise<void> {
+      await send({ kind: "action", name: "startRepository" });
     },
     onEvent(listener) {
       listeners.add(listener);

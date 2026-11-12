@@ -175,6 +175,7 @@ describe("Webview の要求", () => {
         copy: () => {},
         terminals: () => [],
         sendToTerminal: () => {},
+        startRepository: () => {},
       },
     );
     expect(ok).toEqual({ id: 4, ok: true, data: null, warnings: [], write: null });
@@ -209,6 +210,7 @@ describe("Webview の要求", () => {
           copy: () => {},
           terminals: () => [],
           sendToTerminal: () => {},
+          startRepository: () => {},
         },
       );
       expect(ok).toEqual({ id, ok: true, data: null, warnings: [], write: null });
@@ -228,6 +230,7 @@ describe("Webview の要求", () => {
         copy: (text) => void copied.push(text),
         terminals: () => [],
         sendToTerminal: () => {},
+        startRepository: () => {},
       },
     );
     expect(ok).toEqual({ id: 7, ok: true, data: null, warnings: [], write: null });
@@ -242,6 +245,7 @@ describe("Webview の要求", () => {
       copy: () => {},
       terminals: () => [{ id: 3, label: "zsh" }],
       sendToTerminal: (id: number, text: string) => void sent.push([id, text]),
+      startRepository: () => {},
     };
     const list = await handleRequest(
       fakeClient(),
@@ -276,9 +280,35 @@ describe("Webview の要求", () => {
         sendToTerminal: () => {
           throw new Error("送り先のターミナルが閉じている");
         },
+        startRepository: () => {},
       },
     );
     expect(res).toMatchObject({ id: 11, ok: false });
+  });
+
+  it("action の startRepository は actions.startRepository を呼んで data: null で答え、actions のない画面からは拒否する", async () => {
+    let started = 0;
+    const ok = await handleRequest(
+      fakeClient(),
+      { id: 12, kind: "action", name: "startRepository" },
+      {
+        open: () => {},
+        show: () => {},
+        copy: () => {},
+        terminals: () => [],
+        sendToTerminal: () => {},
+        startRepository: () => void started++,
+      },
+    );
+    expect(ok).toEqual({ id: 12, ok: true, data: null, warnings: [], write: null });
+    expect(started).toBe(1);
+    const refused = await handleRequest(fakeClient(), {
+      id: 13,
+      kind: "action",
+      name: "startRepository",
+    });
+    expect(refused).toMatchObject({ id: 13, ok: false, error: { code: "UNSUPPORTED_ACTION" } });
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "startRepository" })).toBe(true);
   });
 
   it("要求の形を確かめる", () => {

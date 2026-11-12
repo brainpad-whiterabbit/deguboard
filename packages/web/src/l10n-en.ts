@@ -128,6 +128,11 @@ export const EN: Readonly<Record<string, string>> = {
   "deguboard を始める": "Get Started with deguboard",
   "このリポジトリはまだ deguboard を使っていません。{0} が PATH にあれば、次の順で始められます。コピーしてターミナルで実行してください。":
     "This repository does not use deguboard yet. If {0} is on your PATH, start with the steps below. Copy each command and run it in a terminal.",
+  "このリポジトリはまだ deguboard を使っていません。下のボタンを押すと、専用のターミナルで dg init・dg skill install・dg hooks install を順に実行します。dg が PATH になくても動きます。":
+    "This repository does not use deguboard yet. Press the button below to run dg init, dg skill install, and dg hooks install in order in a new terminal. It works even when dg is not on your PATH.",
+  このリポジトリで始める: "Start with this repository",
+  "手で進めるなら、次のコマンドをコピーしてターミナルで実行してください。":
+    "To do it by hand, copy the commands below and run them in a terminal.",
   "{0} をコピー": "Copy {0}",
   "1 を済ませると、開き直さなくてもいつもの画面に変わります。":
     "After step 1, the usual view appears without reopening.",

@@ -60,6 +60,15 @@ describe("postMessage の CommandClient", () => {
     expect((await second).ahead).toBe(1);
   });
 
+  it("始め方のボタン（startRepository）は action の要求を送り、拡張の応答を待つ", async () => {
+    const h = host();
+    const client = createWebviewClient(h);
+    const started = client.startRepository();
+    expect(h.requests).toEqual([{ id: 1, kind: "action", name: "startRepository" }]);
+    h.reply({ id: 1, ok: true, data: null, warnings: [], write: null });
+    await expect(started).resolves.toBeUndefined();
+  });
+
   it("ok: false の応答は ClientError（code と message）になり、知らない id の応答は無視する", async () => {
     const h = host();
     const client = createWebviewClient(h);

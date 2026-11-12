@@ -35,6 +35,8 @@
   "{0} already exists and points to {1}. It was not changed. Remove it yourself, then run this command again.": "{0} already exists and points to {1}. It was not changed. Remove it yourself, then run this command again.",
   "~/.local/bin is not on your PATH. Add this line to your shell profile and open a new terminal: export PATH=$HOME/.local/bin:$PATH": "~/.local/bin is not on your PATH. Add this line to your shell profile and open a new terminal: export PATH=$HOME/.local/bin:$PATH",
   "The dg command could not be changed: {0}": "The dg command could not be changed: {0}",
+  "Starting from this view is not supported on this platform.": "Starting from this view is not supported on this platform.",
+  "Could not start this repository: {0}": "Could not start this repository: {0}",
   "Removed the dg link at {0}. The launcher that the hooks use was kept.": "Removed the dg link at {0}. The launcher that the hooks use was kept.",
   "There is no dg link at {0}.": "There is no dg link at {0}.",
   "{0} is not a symbolic link, so it was not removed.": "{0} is not a symbolic link, so it was not removed.",

@@ -51,8 +51,16 @@ import {
   type IdSources,
 } from "./ids.js";
 import { setTranslator, t } from "./l10n.js";
-import { type Current, installLauncher, linkDg, linkPathOf, onPath, unlinkDg } from "./launcher.js";
-import { describeTerminals, terminalInput } from "./terminals.js";
+import {
+  type Current,
+  installLauncher,
+  launcherFileOf,
+  linkDg,
+  linkPathOf,
+  onPath,
+  unlinkDg,
+} from "./launcher.js";
+import { describeTerminals, startCommandLine, terminalInput } from "./terminals.js";
 import { commonDirOf, initWatchTarget, watchTargets } from "./watch.js";
 import {
   askDelivery,
@@ -385,8 +393,35 @@ async function resolveSidebar(
       copy: copyToClipboard,
       terminals: listTerminals,
       sendToTerminal,
+      startRepository: () => startRepository(context, folder),
     },
   });
+}
+
+/**
+ * 始め方の画面の「このリポジトリで始める」（UI-12）。同梱の dg の起動ファイルを書き（まだなければ）、リポジトリを開いた
+ * 新しいターミナルに、起動ファイルの絶対パスで dg init・skill install・hooks install を続けて入れ、Enter で実行する。
+ * PATH の dg は使わない。エージェントは起動せず、ターミナルは人が押したときだけ開く。終わると見張り（watchInit）が画面を普段の画面に変える
+ */
+async function startRepository(
+  context: vscode.ExtensionContext,
+  folder: vscode.WorkspaceFolder,
+): Promise<void> {
+  try {
+    if ((await installLauncher(launcherCurrent(context))) === "unsupported") {
+      void vscode.window.showWarningMessage(
+        `deguboard: ${t("Starting from this view is not supported on this platform.")}`,
+      );
+      return;
+    }
+    const terminal = vscode.window.createTerminal({ name: "deguboard", cwd: folder.uri.fsPath });
+    terminal.show();
+    terminal.sendText(startCommandLine(launcherFileOf()), true);
+  } catch (error) {
+    void vscode.window.showErrorMessage(
+      `deguboard: ${t("Could not start this repository: {0}", error instanceof Error ? error.message : String(error))}`,
+    );
+  }
 }
 
 /**
@@ -628,6 +663,7 @@ async function openPanel(
       copy: copyToClipboard,
       terminals: listTerminals,
       sendToTerminal,
+      startRepository: () => startRepository(context, folder),
     },
   });
 }

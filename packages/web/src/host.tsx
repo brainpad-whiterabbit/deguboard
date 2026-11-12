@@ -39,6 +39,8 @@ export interface Host {
   state: UiState;
   /** 開いているターミナルへ依頼文を送る口（UI-15）。Webview だけにあり、dg serve にはない（コピーだけになる） */
   terminals?: TerminalsHost | undefined;
+  /** 始め方の画面の「このリポジトリで始める」。拡張ホストに頼み、専用の新しいターミナルで実行してもらう。Webview だけにあり、dg serve にはない（コピーだけになる） */
+  startRepository?: (() => Promise<void>) | undefined;
 }
 
 export interface TerminalsHost {
@@ -70,6 +72,7 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
       // Webview の navigator.clipboard は VS Code の版や設定で使えないことがあるので、試さずに拡張ホストに頼む
       copy: (text) => client.copy(text),
       state: state ?? standalone.state,
+      startRepository: () => client.startRepository(),
       terminals: {
         list: () => client.terminals(),
         send: (terminal, text) => client.sendToTerminal(terminal, text),
