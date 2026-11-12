@@ -10,6 +10,9 @@ import {
 } from "../../test/helpers/git-fixture.js";
 import { OperationError } from "../errors.js";
 import { collectBranchFacts } from "./facts.js";
+import { checkOutside } from "./outside.js";
+import { markRebase, rebaseInProgress, rebaseLeftByDg } from "./rebase.js";
+import { GitError, runGit } from "./run.js";
 import { fetchData, integrate, push, syncStatus } from "./sync.js";
 import { DATA_BRANCH, ensureDeguboardWorktree } from "./worktree.js";
 import { resolveRepoPaths } from "./repo.js";
@@ -274,6 +277,110 @@ describe("書き込みの 1 単位", () => {
         immediate: true,
       }),
     ).rejects.toMatchObject({ code: "IDENTITY_MISSING" });
+  });
+});
+
+// 時間切れは execFile が SIGTERM で git を止めたこと（run.ts）。テストでは git の子（マージドライバ・upload-pack・receive-pack）が
+// 親の git に SIGTERM を送って、時間切れと同じ止まり方を起こす（sh -c で動くので $PPID が親の git）
+const KILL_PARENT = "kill -TERM $PPID";
+
+/** x.yaml をリモートとローカルの両方で変え、取り込むと x.yaml を 3-way マージする状態にする */
+async function divergeOnX(f: Fixture) {
+  const a = await openRepo(f.cloneA);
+  await writeFile(path.join(a.repo.dataDir, "x.yaml"), "a: 1\n");
+  await git(a.repo.dataDir, ["add", "-A"]);
+  await git(a.repo.dataDir, ["commit", "-qm", "a1"]);
+  await push(a.repo);
+  const b = await openRepo(f.cloneB);
+  await writeFile(path.join(b.repo.dataDir, "x.yaml"), "a: 2\n");
+  await git(b.repo.dataDir, ["commit", "-qam", "b1"]);
+  await push(b.repo);
+  await writeFile(path.join(a.repo.dataDir, "x.yaml"), "a: 3\n");
+  await git(a.repo.dataDir, ["commit", "-qam", "a2"]);
+  expect((await fetchData(a.repo)).ok).toBe(true);
+  return a;
+}
+
+/** 競合で止まった rebase を残す（落ちた dg の残りか、人が始めた rebase） */
+async function leaveRebase(f: Fixture, opts: { byDg: boolean }) {
+  const a = await divergeOnX(f);
+  const r = await runGit(a.repo.dataDir, ["rebase", "origin/deguboard"], { allowFailure: true });
+  expect(r.code).not.toBe(0);
+  expect(await rebaseInProgress(a.repo)).toBe(true);
+  if (opts.byDg) await markRebase(a.repo);
+  return a;
+}
+
+describe("rebase の途中と時間切れ", () => {
+  it("rebase が時間切れで止まっても、rebase --abort してから失敗を返し、途中の状態と印を残さない", async () => {
+    const f = await fixture();
+    const a = await divergeOnX(f);
+    const before = (await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    await writeFile(path.join(f.cloneA, ".git", "info", "attributes"), "x.yaml merge=killer\n");
+    await git(f.cloneA, ["config", "merge.killer.driver", KILL_PARENT]);
+    await expect(integrate(a.repo)).rejects.toMatchObject({
+      kind: "timeout",
+    } satisfies Partial<GitError>);
+    expect(await rebaseInProgress(a.repo)).toBe(false);
+    expect(await rebaseLeftByDg(a.repo)).toBe(false);
+    expect((await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(before);
+    expect((await git(a.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+  });
+
+  it("dg の残した rebase の途中は外の変更と報告せず、次の書き込みが取り消してから書く", async () => {
+    const f = await fixture();
+    const a = await leaveRebase(f, { byDg: true });
+    expect(await checkOutside(a.repo)).toEqual({ kind: "rebasing", byDg: true });
+    const { write } = await withWrite(ctxOf(a), () => a.store.create("ticket", ticketData("t1")), {
+      message: "t1 を作成",
+      immediate: true,
+    });
+    expect(write).toMatchObject({ committed: true });
+    expect(await rebaseInProgress(a.repo)).toBe(false);
+    expect(await rebaseLeftByDg(a.repo)).toBe(false);
+    // 取り消した後の取り込みは x.yaml が競合するので、ローカルのコミットの上に書く
+    const log = (await git(a.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
+    expect(log.slice(0, 2)).toEqual(["t1 を作成", "a2"]);
+    expect(await checkOutside(a.repo)).toEqual({ kind: "clean", initial: false });
+  });
+
+  it("人が始めた rebase の途中は外の変更と報告せず、書き込みは取り消さずに直し方を示して止まる", async () => {
+    const f = await fixture();
+    const a = await leaveRebase(f, { byDg: false });
+    expect(await checkOutside(a.repo)).toEqual({ kind: "rebasing", byDg: false });
+    await expect(
+      withWrite(ctxOf(a), () => a.store.create("ticket", ticketData("t1")), {
+        message: "t1 を作成",
+        immediate: true,
+      }),
+    ).rejects.toMatchObject({
+      code: "SYNC_CONFLICT",
+      message: expect.stringContaining("git rebase --continue"),
+    });
+    expect(await rebaseInProgress(a.repo)).toBe(true);
+  });
+
+  it("fetch と push の時間切れは届かないときと同じ扱いで、CAS は自分のコミットを捨てて PUSH_FAILED になる", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    await withWrite(ctxOf(a), () => a.store.create("ticket", ticketData("t1")), {
+      message: "t1 を作成",
+      immediate: true,
+    });
+    const before = (await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    await git(f.cloneA, ["config", "remote.origin.uploadpack", KILL_PARENT]);
+    await git(f.cloneA, ["config", "remote.origin.receivepack", KILL_PARENT]);
+    expect(await fetchData(a.repo)).toMatchObject({ ok: false });
+    expect(await push(a.repo)).toMatchObject({ ok: false, reason: "unreachable" });
+    await expect(
+      withWrite(ctxOf(a), () => a.store.create("ticket", ticketData("t2")), {
+        message: "t2 を作成",
+        immediate: true,
+        cas: true,
+      }),
+    ).rejects.toMatchObject({ code: "PUSH_FAILED" } satisfies Partial<OperationError>);
+    expect((await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(before);
+    expect(await syncStatus(a.repo)).toMatchObject({ dirty: false });
   });
 });
 

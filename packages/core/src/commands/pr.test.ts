@@ -245,6 +245,20 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     ]);
   });
 
+  it("書く保留がないときに rebase の途中を見つけたら、外の変更と報告せず rebase の警告を出して ready にする（t753）", async () => {
+    const { ctx, calls } = await prepared();
+    await passedReview(ctx);
+    // 人が始めた rebase の途中を写す（印のない rebase-merge）
+    const dir = (
+      await git(ctx.repo.dataDir, ["rev-parse", "--git-path", "rebase-merge"])
+    ).stdout.trim();
+    await mkdir(path.resolve(ctx.repo.dataDir, dir), { recursive: true });
+    const ready = await runCommand(prReady, ctx, { ticket: "t1" });
+    expect(ready.warnings.join("\n")).toContain("A rebase started outside dg is in progress");
+    expect(ready.warnings.join("\n")).not.toContain("changes made outside dg");
+    expect(await calls()).toEqual(["pr ready 7"]);
+  });
+
   it("--method・--delete-branch を省けば config の merge.method・merge.delete_branch に従い、渡せばそちらを使う（t601）", async () => {
     const { ctx: first, tip, calls, undraft } = await prepared();
     await runCommand(configSet, first, { key: "merge.method", value: "rebase" });

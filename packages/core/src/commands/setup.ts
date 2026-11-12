@@ -12,6 +12,7 @@ import {
 } from "../git/facts.js";
 import { withLock } from "../git/lock.js";
 import { checkOutside, describeOutside, recordBaseline } from "../git/outside.js";
+import { settleRebase } from "../git/rebase.js";
 import { renumberCollisions, renumberProvisional, type Renumbered } from "../git/renumber.js";
 import { ensureGitattributes, ensureMergeDriver, type ResolvedField } from "../git/merge.js";
 import {
@@ -703,8 +704,10 @@ export const adopt = defineCommand({
   ownsOutsideCheck: true,
   async run(ctx) {
     return withLock(ctx.repo.localDir, "write", async () => {
+      // rebase の途中は取り込まない（dg の残りは取り消してから比べ、人が始めたものは止める。t753）
+      await settleRebase(ctx.repo);
       const check = await checkOutside(ctx.repo, { underLock: true });
-      if (check.kind === "clean") return ok({ adopted: false, commits: [], files: [] });
+      if (check.kind !== "found") return ok({ adopted: false, commits: [], files: [] });
       await ctx.store.rescan();
       const issues = [...ctx.store.issues, ...checkReferences(ctx.store)];
       const errors = issues.filter((i) => i.severity === "error");
