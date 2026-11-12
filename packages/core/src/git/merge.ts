@@ -50,6 +50,14 @@ const GITATTRIBUTES_HEADER =
 const NEWER_WINS = new Set(["updated_at"]);
 
 /**
+ * 同じ status のまま両側で違っていてよい、状態と一緒に書く時刻（閉じた・始めた・承認した時刻）。
+ * 両側が同じ状態に着いたのなら、どちらの時刻も同じ遷移の記録なので、早い方（最初に着いた側）を採る。
+ * どちらを採っても状態は変わらず、人が選ぶほどの違いがないので競合にしない。status が違う、またはほかのフィールドや本文もぶつかるときは、
+ * 状態の判断に関わるので競合のまま返す（earlierTimes）
+ */
+const SAME_STATUS_TIMES = new Set(["closed_at", "started_at", "approved_at"]);
+
+/**
  * 競合したフィールドで採る側（dg sync --resolve）。git の %A（ours）か %B（theirs）で言う。
  * rebase の中では ours が upstream（リモート）、theirs が積み直すローカルのコミットなので、remote → ours・local → theirs に読み替えるのは呼び手（sync.ts）
  */
@@ -60,11 +68,15 @@ export const MERGE_PREFER_ENV = "DEGUBOARD_MERGE_PREFER";
 /** 採る側で解いたフィールドを 1 行 1 件の JSON で書き足すファイル（呼び手が読んで結果に返す） */
 export const MERGE_LOG_ENV = "DEGUBOARD_MERGE_LOG";
 
-/** 採る側で解いた 1 件。本文は field が "本文" で、値は両側の本文全体 */
+/**
+ * 採る側で解いた 1 件。本文は field が "本文" で、値は両側の本文全体。
+ * auto は人が選ばずに解いたもの（同じ status の時刻の早い方。SAME_STATUS_TIMES）
+ */
 export interface ResolvedField {
   field: string;
   taken: unknown;
   discarded: unknown;
+  auto?: true;
 }
 
 /**
@@ -109,6 +121,31 @@ function newer(a: unknown, b: unknown): unknown {
   const tb = Date.parse(b);
   if (Number.isNaN(ta) || Number.isNaN(tb)) return undefined;
   return tb > ta ? b : a;
+}
+
+/**
+ * SAME_STATUS_TIMES の規則で解く。両側の status が同じで、ぶつかったフィールドがすべて時刻（両側とも読める ISO 8601）のときだけ、
+ * 早い方を採った 1 件ずつを返す。どれか外れれば undefined（競合のまま）
+ */
+function earlierTimes(
+  ours: Record<string, unknown>,
+  theirs: Record<string, unknown>,
+  clashes: readonly string[],
+): ResolvedField[] | undefined {
+  if (ours.status === undefined || !isDeepStrictEqual(ours.status, theirs.status)) return undefined;
+  const fixes: ResolvedField[] = [];
+  for (const key of clashes) {
+    if (!SAME_STATUS_TIMES.has(key)) return undefined;
+    const a = ours[key];
+    const b = theirs[key];
+    if (typeof a !== "string" || typeof b !== "string") return undefined;
+    const ta = Date.parse(a);
+    const tb = Date.parse(b);
+    if (Number.isNaN(ta) || Number.isNaN(tb)) return undefined;
+    const [taken, discarded] = ta <= tb ? [a, b] : [b, a];
+    fixes.push({ field: key, taken, discarded, auto: true });
+  }
+  return fixes;
 }
 
 /** 1 つの値の 3-way。片側だけ変えたらその値、両側が同じ値に変えたらその値。決まらなければ conflict。配列も要素ごとにマージせず 1 つの値として比べる */
@@ -200,6 +237,7 @@ async function conflictHunks(
  * frontmatter つき Markdown と素の YAML（最上位がマッピング）の 3-way マージ。
  * - フィールド（最上位のキー）ごとに、片側だけ変えた値を採る。両側が違う値に変えたら競合（updated_at だけは新しい方を採る）
  * - 本文は片側だけ変えたらその本文、両側が変えたら行単位でマージし、同じ行がぶつかれば競合
+ * - 両側の status が同じで、ぶつかったのが状態と一緒に書く時刻（SAME_STATUS_TIMES）だけなら、早い方を採り auto: true で resolved に返す（競合にしない）
  * - 読めない・base にない（add/add）・3 つの形（frontmatter の有無）が揃わないときは ok: false の代わりに undefined を返し、
  *   呼び手が行単位のマージに任せる（仮番号の add/add を行単位の競合のまま残し、振り直し DT-5 の検出を変えないため）
  * - prefer を渡すと（dg sync --resolve）、競合したフィールドだけその側の値を採り、本文は同じ行がぶつかった箇所だけその側を採る。
@@ -218,8 +256,6 @@ export async function mergeDocuments(
   const plain = a.body === undefined;
   if ((o.body === undefined) !== plain || (b.body === undefined) !== plain) return undefined;
 
-  const conflicts: string[] = [];
-  const details: ConflictedField[] = [];
   const resolved: ResolvedField[] = [];
   /** 競合を prefer の側で解く。prefer がなければ undefined */
   const settle = (field: string, ourValue: unknown, theirValue: unknown) => {
@@ -229,6 +265,8 @@ export async function mergeDocuments(
     return { value: taken };
   };
   const patch: Record<string, unknown> = {};
+  /** prefer なしで競合したフィールド（時刻の規則で解けるかを後で見る） */
+  const clashes: string[] = [];
   const keys = [
     ...new Set([...Object.keys(a.data), ...Object.keys(b.data), ...Object.keys(o.data)]),
   ];
@@ -241,8 +279,7 @@ export async function mergeDocuments(
     if (picked === "conflict") {
       const settled = settle(key, a.data[key], b.data[key]);
       if (!settled) {
-        conflicts.push(key);
-        details.push({ field: key, base: o.data[key], ours: a.data[key], theirs: b.data[key] });
+        clashes.push(key);
         continue;
       }
       picked = settled;
@@ -252,6 +289,7 @@ export async function mergeDocuments(
   }
 
   let body = "";
+  let bodyHunks: Array<{ base: string; ours: string; theirs: string }> | undefined;
   if (!plain) {
     const pickedBody = pick(o.body, a.body, b.body);
     let merged =
@@ -262,13 +300,34 @@ export async function mergeDocuments(
       merged = await mergeText(o.body ?? "", a.body ?? "", b.body ?? "", prefer);
       if (merged !== undefined) settle("本文", a.body, b.body);
     }
-    if (merged === undefined) {
-      conflicts.push("本文");
-      const hunks = await conflictHunks(o.body ?? "", a.body ?? "", b.body ?? "");
-      for (const h of hunks) details.push({ field: "本文", ...h });
-    } else body = merged;
+    if (merged === undefined)
+      bodyHunks = await conflictHunks(o.body ?? "", a.body ?? "", b.body ?? "");
+    else body = merged;
   }
 
+  // 同じ status の分岐で、ずれたのが状態と一緒に書く時刻だけなら早い方を採る（SAME_STATUS_TIMES）。
+  // prefer があれば人が選んだ側で解くので使わない。本文やほかのフィールドがぶつかれば、全体を競合のまま返す
+  if (!prefer && bodyHunks === undefined && clashes.length > 0) {
+    const fixes = earlierTimes(a.data, b.data, clashes);
+    if (fixes) {
+      for (const f of fixes) {
+        resolved.push(f);
+        if (!isDeepStrictEqual(f.taken, a.data[f.field])) patch[f.field] = f.taken;
+      }
+      clashes.length = 0;
+    }
+  }
+
+  const conflicts = [...clashes, ...(bodyHunks === undefined ? [] : ["本文"])];
+  const details: ConflictedField[] = [
+    ...clashes.map((key) => ({
+      field: key,
+      base: o.data[key],
+      ours: a.data[key],
+      theirs: b.data[key],
+    })),
+    ...(bodyHunks ?? []).map((h) => ({ field: "本文", ...h })),
+  ];
   if (conflicts.length > 0) return { ok: false, conflicts, details };
   if (Object.keys(patch).length === 0) {
     // YAML は ours のまま。書式とコメントを 1 バイトも変えない

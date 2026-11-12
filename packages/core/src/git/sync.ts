@@ -6,6 +6,7 @@ import {
   MERGE_LOG_ENV,
   MERGE_PREFER_ENV,
   mergeDocuments,
+  type ResolvedField,
 } from "./merge.js";
 import { DG_COMMIT_TRAILER } from "./outside.js";
 import { abortRebase, markRebase, unmarkRebase } from "./rebase.js";
@@ -80,7 +81,7 @@ export async function isDirty(repo: GitRepo): Promise<boolean> {
  */
 export async function integrate(
   repo: GitRepo,
-  opts: { autostash?: boolean; resolve?: { side: ResolveSide; log: string } } = {},
+  opts: { autostash?: boolean; resolve?: ResolveSide; log?: string } = {},
 ): Promise<IntegrateResult> {
   if (!repo.remote) return { ok: true, changed: false };
   const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
@@ -96,11 +97,14 @@ export async function integrate(
     ...(opts.autostash ? ["--autostash"] : []),
     remoteRef(repo),
   ];
-  // rebase はリモートの先端にローカルのコミットを積み直すので、ドライバの ours（%A）がリモート、theirs（%B）がローカルになる
-  const env = opts.resolve
+  // rebase はリモートの先端にローカルのコミットを積み直すので、ドライバの ours（%A）がリモート、theirs（%B）がローカルになる。
+  // 自動で解いたフィールド（同じ status の時刻）も log に書くので、--resolve でなくても log を渡す
+  const env: Record<string, string> | undefined = opts.log
     ? {
-        [MERGE_PREFER_ENV]: opts.resolve.side === "remote" ? "ours" : "theirs",
-        [MERGE_LOG_ENV]: opts.resolve.log,
+        ...(opts.resolve
+          ? { [MERGE_PREFER_ENV]: opts.resolve === "remote" ? "ours" : "theirs" }
+          : {}),
+        [MERGE_LOG_ENV]: opts.log,
       }
     : undefined;
   // 時間切れや例外でも中止してから失敗を返す（途中の HEAD を基準に記録したり、その上でコミットしたりしない）。
@@ -199,6 +203,22 @@ export function describeConflictFields(fields: readonly ConflictField[]): string
       `${f.file} ${f.field === "本文" ? "body lines" : f.field} (local ${showValue(f.local)}, remote ${showValue(f.remote)}, base ${showValue(f.base)})`,
   );
   return ` Conflicting fields (full values in data.conflict_fields): ${items.join("; ")}.`;
+}
+
+/**
+ * sync の警告に足す、自動で解いたフィールドの文（SAME_STATUS_TIMES の規則。ファイル・フィールド・採った値・捨てた値）。1 件もなければ空。
+ * 自動で解いたのは人が確かめていないので、どの値を捨てたかを残す（--resolve と違い、取り消すのは人が値を直す）
+ */
+export function describeAutoResolved(
+  fields: ReadonlyArray<ResolvedField & { file: string }>,
+): string {
+  const auto = fields.filter((f) => f.auto);
+  if (auto.length === 0) return "";
+  const items = auto.map(
+    (f) =>
+      `${f.file} ${f.field} (taken ${showValue(f.taken)}, discarded ${showValue(f.discarded)})`,
+  );
+  return `Resolved automatically, not a conflict (both sides have the same status and differ only in the time that goes with it, so the earlier time is taken; full values in data.resolved): ${items.join("; ")}.`;
 }
 
 /** 時間切れは、リモートに届かないときと同じ失敗にする（投げると CAS が自分のコミットを捨てずに抜ける。t753） */

@@ -25,6 +25,7 @@ import {
 import {
   commitPaths,
   conflictFields,
+  describeAutoResolved,
   describeConflictFields,
   fetchAll,
   type ConflictField,
@@ -549,7 +550,7 @@ export const sync = defineCommand({
     "A review result held with no Run (run review-result with no review Run, left by an environment the hook does not reach) that dg next and dg gate count as a review is written as a closed review Run marked capture: none (started and finished at the time the result was written, usage null), and the held result is linked to it (data.reviews_recorded). " +
     "A sub-agent Run left open because its record was not finished being written (one with a settling_since mark) is also closed once it has finished writing. Review Runs from a session other than the sync's are not closed; the next review start closes them. " +
     "When the import stops on a conflict, data.conflicts lists the files and data.conflict_fields lists each conflicting field as { file, field, base, local, remote }, found by running the merge driver's rule on the fork point, the local head, and the remote head (so it includes conflicts in commits after the one the rebase stopped at). For a body, field is 本文 and each colliding block of lines is one entry. Files outside the merge driver (config.yaml and workflows) appear only in data.conflicts. " +
-    "--resolve remote|local resolves a sync conflict in favor of the side a person chooses (SY-4): it renumbers colliding provisional numbers, commits pending changes (even in manual mode) before importing, and takes the chosen side's value only for conflicting fields (for a body, only where the same line collided). Non-conflicting fields and commits are kept; history is not discarded and nothing is force-pushed. The values taken and discarded appear in data.resolved. Conflicts in files the merge driver does not handle (config.yaml and workflows) are not resolved and stay in data.conflicts",
+    "--resolve remote|local resolves a sync conflict in favor of the side a person chooses (SY-4): it renumbers colliding provisional numbers, commits pending changes (even in manual mode) before importing, and takes the chosen side's value only for conflicting fields (for a body, only where the same line collided). Non-conflicting fields and commits are kept; history is not discarded and nothing is force-pushed. The values taken and discarded appear in data.resolved. Without --resolve, a sync also resolves a field itself when both sides have the same status and differ only in closed_at, started_at, or approved_at: it takes the earlier time, reports it in a warning, and lists it in data.resolved with auto: true. Conflicts in files the merge driver does not handle (config.yaml and workflows) are not resolved and stay in data.conflicts",
   input: z.object({
     resolve: z
       .enum(["remote", "local"])
@@ -639,16 +640,15 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
     warnings.push(`Cannot fetch from the remote: ${fetched.detail}`);
   } else if (fetched.remoteBranch) {
     const log = path.join(repo.localDir, RESOLVE_LOG);
-    if (resolve) await writeFile(log, "");
+    await writeFile(log, "");
     const r = await integrate(repo, {
       autostash: dirty && !flushed,
-      ...(resolve ? { resolve: { side: resolve, log } } : {}),
+      log,
+      ...(resolve ? { resolve } : {}),
     });
-    if (resolve) {
-      // 取り込みを中止したときは、積み直しの途中で解いた分も捨てられたので返さない
-      if (r.ok) resolved = await readResolveLog(log);
-      await rm(log, { force: true });
-    }
+    // 取り込みを中止したときは、積み直しの途中で解いた分も捨てられたので返さない。自動で解いた分（auto）はここで警告に出す
+    if (r.ok) resolved = await readResolveLog(log);
+    await rm(log, { force: true });
     if (r.ok) integrated ||= r.changed;
     else {
       // 仮番号の衝突（オフラインで起票した番号がリモートで使われた）なら振り直して取り込み直す（DT-5）。
@@ -672,6 +672,8 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
         : `Conflicts with remote changes: ${conflicts.join(", ")}.${describeConflictFields(fields)} ${CONFLICT_REMEDY}`,
     );
   }
+  const autoResolved = describeAutoResolved(resolved);
+  if (autoResolved) warnings.push(autoResolved);
   if (integrated) await ctx.store.rescan();
 
   let pushed = false;
