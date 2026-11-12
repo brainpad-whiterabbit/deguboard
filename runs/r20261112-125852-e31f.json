@@ -1,0 +1,32 @@
+{
+  "id": "r20261112-125852-e31f",
+  "ticket": "t766",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T12:58:52Z",
+  "finished_at": "2026-11-12T13:00:01Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "PR本文の hook.test.ts 表に負荷平均（1/5/15分）の列がない"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 4125,
+    "cache_read": 187277,
+    "cache_write": 28967
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 1,
+    "bash": 4,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "cee49c7c-f416-402b-b44a-63e49bdc9bc5",
+  "review": null
+}
