@@ -1,7 +1,17 @@
 // Git のテスト用：一時ディレクトリに bare リモートと 2 つの clone を作る（CLAUDE.md の規約）
 
 import { afterAll } from "vitest";
-import { cp, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdtemp,
+  readdir,
+  readFile,
+  readlink,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { resolveRepoPaths, resolveRemote, type GitRepo } from "../../src/git/repo.js";
@@ -142,6 +152,13 @@ async function replacePathIn(dir: string, from: string, to: string): Promise<voi
       const p = path.join(d, entry.name);
       if (entry.isDirectory()) {
         await walk(p);
+      } else if (entry.isSymbolicLink()) {
+        // verbatimSymlinks で写したリンクの絶対パスは雛形を指したまま残るので、雛形を指すものは張り直す
+        const target = await readlink(p);
+        if (target.includes(from)) {
+          await rm(p);
+          await symlink(target.replaceAll(from, to), p);
+        }
       } else if (entry.isFile()) {
         const bytes = await readFile(p);
         if (bytes.includes(fromBytes)) await writeFile(p, replaceBytes(bytes, fromBytes, toBytes));

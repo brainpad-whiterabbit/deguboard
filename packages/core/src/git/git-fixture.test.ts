@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, readlink, symlink } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import {
@@ -87,8 +87,10 @@ describe("createFixture（雛形から写す）", () => {
     const f2 = await createFixture();
     await git(f1.cloneA, ["commit", "--quiet", "--allow-empty", "-m", "f1 の変更"]);
     await git(f1.cloneA, ["push", "--quiet", "origin", "main"]);
-    const seenInF1 = (await git(f1.cloneB, ["fetch", "--quiet", "origin"])).stdout;
-    expect(seenInF1).toBe("");
+    await git(f1.cloneB, ["fetch", "--quiet", "origin"]);
+    const pushedInF1 = (await git(f1.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
+    const seenInF1 = (await git(f1.cloneB, ["rev-parse", "origin/main"])).stdout.trim();
+    expect(seenInF1).toBe(pushedInF1);
     const logF1 = (await git(f1.cloneB, ["log", "--format=%s", "origin/main"])).stdout;
     expect(logF1).toContain("f1 の変更");
     const logF2 = (await git(f2.cloneB, ["log", "--format=%s", "origin/main"])).stdout;
@@ -186,5 +188,20 @@ describe("createFixtureFrom（setup を済ませた雛形から写す）", () =>
     const copy2 = await createFixtureFrom("worktree", worktreeSetup);
     expect(await worktreeShape(copy2)).toContain(`worktree <ROOT>/a/.git/deguboard`);
     await copy2.cleanup();
+  });
+
+  it("雛形を指す絶対パスのシンボリックリンクは、写した先を指すように張り直される", async () => {
+    // 雛形の中に、雛形の remote.git を指す絶対パスのリンクを作る（cp は verbatimSymlinks で写す）
+    const setup = async (f: Layout): Promise<void> => {
+      await symlink(path.join(f.root, "remote.git"), path.join(f.root, "linked"));
+    };
+    const copy = await createFixtureFrom("symlink", setup);
+    const template = await fixtureTemplateDir("symlink");
+    expect(template).toBeDefined();
+    expect(await readlink(path.join(copy.root, "linked"))).toBe(copy.remoteDir);
+    expect(await readlink(path.join(template ?? "", "linked"))).toBe(
+      path.join(template ?? "", "remote.git"),
+    );
+    await copy.cleanup();
   });
 });
