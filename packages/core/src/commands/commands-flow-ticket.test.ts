@@ -34,9 +34,9 @@ import {
   ticketUpdate,
 } from "./ticket.js";
 import {
-  fixture,
+  initializedFixture,
+  reopenInitialized,
   writeStrictWorkflow,
-  initialized,
   runCleanups,
 } from "../../test/helpers/commands-context.js";
 
@@ -44,8 +44,8 @@ afterEach(runCleanups);
 
 describe("チケットの流れ（遷移・担当・編集）", () => {
   it("既定ではどの遷移も通り、制約を書いた Workflow では by: []・by: [human]・requires: [deps_done] で拒否される", async () => {
-    const f = await fixture();
-    const human = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const human = await reopenInitialized(f);
     // 既定（general）：todo → done も、依存が終わっていない claim も、agent の abandoned も通る
     await runCommand(ticketCreate, human, { title: "A" });
     await runCommand(ticketCreate, human, { title: "B", depends_on: ["t1"] });
@@ -100,8 +100,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("list は各行に deps_done を載せ、show と同じく別の Project の依存先も見る", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(projectCreate, ctx, { id: "other" });
     await runCommand(ticketCreate, ctx, { title: "別の Project", project: "other" });
     await runCommand(ticketCreate, ctx, { title: "B", depends_on: ["t1"] });
@@ -127,8 +127,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("show は終わっていない依存先を ID と Status で出し、別の Project の終わった依存先は出さず、見つからない依存先は Status を null で出す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(projectCreate, ctx, { id: "other" });
     await runCommand(ticketCreate, ctx, { title: "別の Project・済み", project: "other" });
     await runCommand(ticketCreate, ctx, { title: "別の Project・途中", project: "other" });
@@ -149,8 +149,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("unclaim は自分（同じユーザの人と AI）の claim だけ外し、他人のものは force が要る", async () => {
-    const f = await fixture();
-    const eiki = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const eiki = await reopenInitialized(f);
     await runCommand(ticketCreate, eiki, { title: "A" });
     await runCommand(ticketClaim, eiki, { no_worktree: true, ticket: "t1", branch: "feature/a" });
     const other = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "other" } });
@@ -173,8 +173,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("todo に残った前の作業の PR（unclaim 前の記録）は、新しい claim で外れ、もう一度の claim の判定にならない（ST-3・ST-7・ST-9）", async () => {
-    const f = await fixture();
-    const eiki = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const eiki = await reopenInitialized(f);
     await runCommand(ticketCreate, eiki, { title: "A" });
     // 前の作業の PR を記録したまま todo に残ったチケット（pr を外す前の unclaim で残ったもの）
     await runCommand(ticketUpdate, eiki, { ticket: "t1", pr: 7 });
@@ -189,8 +189,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("whoami は操作している主体の ID・ユーザ名・種別と、本人とみなす ID（人とその AI）を返す", async () => {
-    const f = await fixture();
-    const human = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const human = await reopenInitialized(f);
     expect((await runCommand(whoami, human, {})).data).toEqual({
       id: "eiki",
       user: "eiki",
@@ -209,8 +209,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("主体のユーザ名は --user > DEGUBOARD_USER > git config の deguboard.user > git の user.name > OS のユーザ名の順で決まり、whoami が出どころを返す（t217）", async () => {
-    const f = await fixture();
-    await initialized(f.cloneA);
+    const f = await initializedFixture();
     const who = async (actor: Parameters<typeof openContext>[0]["actor"]) => {
       const ctx = await openContext({ cwd: f.cloneA, ...(actor ? { actor } : {}) });
       const { user, user_source } = (await runCommand(whoami, ctx, {})).data;
@@ -234,8 +233,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("起票者は既定で操作した主体、created_by: human でユーザ本人になり、担当者は create / update / claim で付く", async () => {
-    const f = await fixture();
-    const human = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const human = await reopenInitialized(f);
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
     const byAgent = await runCommand(ticketCreate, agent, { title: "A" });
     expect(byAgent.data.created_by).toBe("eiki/agent");
@@ -272,8 +271,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("旧名の claimed_by は assignee として読め、担当者を書く操作で消える", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A" });
     const file = path.join(ctx.repo.dataDir, "tickets/t1.md");
     const text = await readFile(file, "utf8");
@@ -294,8 +293,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("同じチケットを 2 つの clone が claim すると、負けた側は CLAIM_LOST で assignee を書き換えない", async () => {
-    const f = await fixture();
-    const a = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const a = await reopenInitialized(f);
     await runCommand(ticketCreate, a, { title: "A" });
     const b = await openContext({
       cwd: f.cloneB,
@@ -319,8 +318,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("ticket list の query は前後の空白を除き大文字小文字を区別せず、番号・タイトル・ラベルの部分一致で当たり、空白だけならすべてに当たる", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketImport, ctx, {
       drafts: Array.from({ length: 12 }, (_, i) => ({
         title: `チケット ${i + 1}`,
@@ -338,8 +337,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("import は仮キーを depends_on から参照でき、1 コミットで採番する", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const r = await runCommand(ticketImport, ctx, {
       drafts: [
         { key: "schema", title: "スキーマ", acceptance: ["表が決まる"] },
@@ -369,8 +368,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("import の本文は、本文の項目の引用しない値に行末コメントがあると INVALID_INPUT で起票しない（drafts と一緒の指定も拒む）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const head = async () => (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
     const before = await head();
     const cases: Array<[string, string]> = [
@@ -399,8 +398,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("import の本文は、ほかの項目の行末コメント・行だけのコメント・引用した値・body の | の中の # を本文として残す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const source = [
       "# 行だけのコメント",
       "- key: a # 仮キー",
@@ -431,8 +430,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("import の本文は、引用しない値の次の行の深く字下げした行だけのコメントを拒まない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const source of [
       "- title: A\n  body: x\n    # c\n",
       "- title: A\n      # c\n  body: y\n",
@@ -443,8 +442,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("update は属性と本文を直し、循環する依存と未定義のフィールドを拒否する", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A", workflow: "software-development" });
     await runCommand(ticketCreate, ctx, { title: "B", depends_on: ["t1"] });
     const r = await runCommand(ticketUpdate, ctx, {
@@ -492,8 +491,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("ゲートの段（gate。TK-9）は create・import・update で付き、update の null で外れ、段にない値は拒む", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const created = await runCommand(ticketCreate, ctx, { title: "A", gate: "low" });
     expect(created.data).toMatchObject({ gate: "low" });
     // 付けなければ gate を書かない（判定では high として扱う）
@@ -525,8 +524,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("空か空白だけの body は create・import・update のどの入口でも INVALID_INPUT で拒み、書き込まない（理由と直し方を出す）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a"] });
     const head = async () => (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
     const before = await head();
@@ -566,8 +565,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("check は番号で受け入れ条件に印を付け外しし、show が acceptance を出す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a", "b", "c"] });
     const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
     expect(shown.data.acceptance).toEqual([
@@ -602,8 +601,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("check は all と番号の同時指定・無指定を INVALID_INPUT、節や項目がない・範囲外を NOT_FOUND で拒否する", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A", acceptance: ["a", "b", "c"] });
     await runCommand(ticketCreate, ctx, { title: "B", body: "本文だけ\n" });
     await runCommand(ticketCreate, ctx, { title: "C", summary: "雛形のまま" });
@@ -625,8 +624,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("check は base が今の本文と同じなら書き、読んだ後に本文が変わっていれば REJECTED で書かない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a", "b"] });
     const read = (await runCommand(ticketShow, ctx, { ticket: "t1" })).data.body;
     const checked = await runCommand(ticketCheck, ctx, { ticket: "t1", items: [2], base: read });
@@ -653,8 +652,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   });
 
   it("update は base が今の本文と違えば REJECTED で書かず、読んだ本文と同じなら書き、base を渡さなければ今までどおり書く", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a", "b"] });
     const read = (await runCommand(ticketShow, ctx, { ticket: "t1" })).data.body;
     // 画面が読んだ後に、別の書き込み（エージェントの印）が本文を変えた
@@ -691,8 +690,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
 
 describe("Epic と Iteration", () => {
   it("Epic の雛形は ## Summary を書き、lint は英語と日本語のどちらの名前の節も読む", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const created = await runCommand(epicCreate, ctx, { title: "E", summary: "目的" });
     expect((await runCommand(epicShow, ctx, { epic: created.data.id })).data.body).toBe(
       "## Summary\n\n目的\n",
@@ -706,8 +705,8 @@ describe("Epic と Iteration", () => {
   });
 
   it("Epic は進捗を都度求め、終わっていないチケットが残ると force なしでは閉じられない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const epic = await runCommand(epicCreate, ctx, { title: "ログインの刷新", summary: "目的" });
     expect(epic.data).toMatchObject({ id: "e1", status: "open" });
     await runCommand(ticketCreate, ctx, { title: "A", epic: "e1" });
@@ -736,8 +735,8 @@ describe("Epic と Iteration", () => {
   });
 
   it("actor.human_only に入れたコマンドだけが agent から拒否され、人は通る", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(epicCreate, ctx, { title: "E", summary: "目的" });
     await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
     // カンマ区切りで配列に入り、エイリアスは正式名に直る
@@ -771,8 +770,8 @@ describe("Epic と Iteration", () => {
   });
 
   it("Iteration は開始・終了でき、閉じるときに完了と持ち越しを数える", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const it1 = await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
     expect(it1.data).toMatchObject({ id: "s1", status: "planned" });
     expect(it1.data).not.toHaveProperty("tickets");
@@ -801,8 +800,8 @@ describe("Epic と Iteration", () => {
   });
 
   it("update は指定した属性だけを直し、閉じた Iteration も直せる", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(iterationCreate, ctx, { name: "Sprint 1", goal: "読む" });
     const updated = await runCommand(iterationUpdate, ctx, { iteration: "1", goal: "履歴を読む" });
     expect(updated.data).toMatchObject({
@@ -820,8 +819,8 @@ describe("Epic と Iteration", () => {
   });
 
   it("予定の期間（start・end）は持たない。古いファイルの start・end は読んだ値に出ず、Iteration を書くと（引数なしの update でも）ファイルから消える", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const name of ["Sprint 1", "Sprint 2", "Sprint 3"])
       await runCommand(iterationCreate, ctx, { name });
     const fileOf = (id: string) => path.join(ctx.repo.dataDir, `iterations/${id}.yaml`);
@@ -851,9 +850,9 @@ describe("Epic と Iteration", () => {
   });
 
   it("古い start・end は形を問わず（null・数・配列でも）書き直すと消え、goal・started_at とスキーマにない項目は残る", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     const clock = new Date("2026-11-03T01:02:03Z");
-    const ctx = await initialized(f.cloneA, { now: () => clock });
+    const ctx = await reopenInitialized(f, { now: () => clock });
     await runCommand(iterationCreate, ctx, { name: "Sprint 1", goal: "読む" });
     await runCommand(iterationStart, ctx, { iteration: "s1" });
     const fileOf = (id: string) => path.join(ctx.repo.dataDir, `iterations/${id}.yaml`);
@@ -880,9 +879,9 @@ describe("Epic と Iteration", () => {
   });
 
   it("start は実績の開始の日時 started_at を書き、close は closed_at を足し、reopen は started_at を変えずに closed_at を消す（IT-1）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-03T01:02:03Z");
-    const ctx = await initialized(f.cloneA, { now: () => clock });
+    const ctx = await reopenInitialized(f, { now: () => clock });
     await runCommand(iterationCreate, ctx, { name: "Sprint" });
     expect((await runCommand(iterationShow, ctx, { iteration: "s1" })).data.started_at).toBe(
       undefined,
@@ -902,8 +901,8 @@ describe("Epic と Iteration", () => {
   });
 
   it("閉じた Iteration は reopen で active に戻り、件数が消えてチケットを入れ直せる", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
@@ -941,8 +940,8 @@ describe("Epic と Iteration", () => {
   });
 
   it("active の Iteration は Project に 1 つで、ほかに active があれば start と reopen を拒否する（IT-1）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(projectCreate, ctx, { id: "other" });
     for (const name of ["Sprint 1", "Sprint 2", "Sprint 3"])
       await runCommand(iterationCreate, ctx, { name });
@@ -971,8 +970,8 @@ describe("Epic と Iteration", () => {
   });
 
   it("2 つの clone が同時に別の Iteration を start すると、push で負けた側は検査からやり直して拒否される", async () => {
-    const f = await fixture();
-    const a = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const a = await reopenInitialized(f);
     for (const name of ["Sprint 1", "Sprint 2"]) await runCommand(iterationCreate, a, { name });
     const b = await openContext({
       cwd: f.cloneB,
@@ -996,8 +995,8 @@ describe("Epic と Iteration", () => {
   });
 
   it("reopen で push に負けても、相手が別の変更なら検査からやり直して成功し、警告を重ねない", async () => {
-    const f = await fixture();
-    const a = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const a = await reopenInitialized(f);
     await runCommand(iterationCreate, a, { name: "Sprint 1" });
     await runCommand(ticketCreate, a, { title: "A" });
     await runCommand(iterationAdd, a, { iteration: "s1", tickets: ["t1"] });
@@ -1026,8 +1025,8 @@ describe("Epic と Iteration", () => {
   });
 
   it("reopen で push に負け、相手が別の Iteration を start していれば、検査からやり直して拒否される", async () => {
-    const f = await fixture();
-    const a = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const a = await reopenInitialized(f);
     for (const name of ["Sprint 1", "Sprint 2"]) await runCommand(iterationCreate, a, { name });
     await runCommand(iterationClose, a, { iteration: "s1" });
     await runCommand(sync, a, {});
@@ -1053,8 +1052,8 @@ describe("Epic と Iteration", () => {
   });
 
   it("lint は同じ Project に 2 つ以上ある active の Iteration を指摘し、別の Project の active は数えない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(projectCreate, ctx, { id: "other" });
     for (const name of ["Sprint 1", "Sprint 2", "Sprint 3"])
       await runCommand(iterationCreate, ctx, { name });

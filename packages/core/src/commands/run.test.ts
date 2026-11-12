@@ -11,7 +11,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createFixture, git } from "../../test/helpers/git-fixture.js";
+import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
 import { slowLock } from "../../test/helpers/slow-lock.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -54,16 +54,20 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
-/** init してチケット t1・t2 を起票した文脈 */
-async function prepared(): Promise<CommandContext> {
-  const f = await createFixture();
-  cleanups.push(f.cleanup);
+/** init してチケット t1・t2 を起票した雛形の準備（テストファイルで 1 度だけ走る） */
+async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
   const ctx = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, { title: "A" });
   await runCommand(ticketCreate, ctx, { title: "B" });
-  return ctx;
+}
+
+/** prepareRepo を済ませた雛形から写した文脈（チケット t1・t2 がある） */
+async function prepared(): Promise<CommandContext> {
+  const f = await createFixtureFrom("prepared", prepareRepo);
+  cleanups.push(f.cleanup);
+  return openContext({ cwd: f.cloneA, actor: { kind: "agent" as const, user: "eiki" } });
 }
 
 const exists = (p: string) =>

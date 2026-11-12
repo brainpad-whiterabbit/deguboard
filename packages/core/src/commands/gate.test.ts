@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createFixture, git } from "../../test/helpers/git-fixture.js";
+import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -62,10 +62,8 @@ const pr = (
     ...over,
   });
 
-/** t1 を feat/t1 で claim して 1 コミット push し、PR #7（偽の gh）がある文脈 */
-async function prepared() {
-  const f = await createFixture();
-  cleanups.push(f.cleanup);
+/** 雛形の準備（テストファイルで 1 度だけ走る）：init（software-development）・t1 を feat/t1 で claim して 1 コミット push */
+async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {
     template: "software-development",
@@ -84,6 +82,14 @@ async function prepared() {
   await git(f.cloneA, ["checkout", "-qb", "feat/t1"]);
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
   await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+}
+
+/** prepareRepo を済ませた雛形から写し、PR #7（偽の gh）がある文脈 */
+async function prepared() {
+  const f = await createFixtureFrom("prepared", prepareRepo);
+  cleanups.push(f.cleanup);
+  const actor = { kind: "agent" as const, user: "eiki" };
+  const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   let state = { pr: pr() };
   const rewrite = await fakeGh(f.root, () => ({ "feat/t1": state.pr, "7": state.pr }));
   const setPr = async (json: string) => {

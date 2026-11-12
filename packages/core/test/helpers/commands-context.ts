@@ -8,7 +8,7 @@ import { runCommand, type CommandContext } from "../../src/commands/define.js";
 import { init } from "../../src/commands/setup.js";
 import { resetGhCache } from "../../src/git/facts.js";
 import { recordBaseline } from "../../src/git/outside.js";
-import { createFixture, git, type Fixture } from "./git-fixture.js";
+import { createFixture, createFixtureFrom, git, type Fixture } from "./git-fixture.js";
 
 export const cleanups: Array<() => Promise<void>> = [];
 
@@ -21,6 +21,26 @@ export async function fixture(): Promise<Fixture> {
   const f = await createFixture();
   cleanups.push(f.cleanup);
   return f;
+}
+
+/**
+ * init 済み（既定の Workflow）の雛形から写す。init を毎テストで走らせないため、テストファイルごとに 1 度だけ init する。
+ * 写した先の文脈は reopenInitialized で開く（initialized と同じく、init の後の文脈）
+ */
+export async function initializedFixture(): Promise<Fixture> {
+  const f = await createFixtureFrom("initialized", async (layout) => {
+    await initialized(layout.cloneA);
+  });
+  cleanups.push(f.cleanup);
+  return f;
+}
+
+/** initializedFixture から写した先の文脈を開く。opts は initialized と同じ */
+export function reopenInitialized(
+  f: Fixture,
+  opts: Partial<ContextOptions> = {},
+): Promise<CommandContext> {
+  return openContext({ cwd: f.cloneA, actor: { kind: "human", user: "eiki" }, ...opts });
 }
 
 /** 制約を書いた Workflow（strict）をデータディレクトリに置いて索引を作り直す */

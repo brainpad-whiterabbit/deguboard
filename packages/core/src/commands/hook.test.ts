@@ -11,7 +11,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createFixture } from "../../test/helpers/git-fixture.js";
+import { createFixtureFrom, type Layout } from "../../test/helpers/git-fixture.js";
 import type { Run } from "../model/run.js";
 import { toIsoDateTime } from "../model/common.js";
 import { unfixedLightLines } from "../run/findings.js";
@@ -71,10 +71,8 @@ afterEach(async () => {
 
 const SESSION = "s-parent";
 
-/** init してチケット t1・t2 を起票し、会話記録を読む文脈。HOME は一時ディレクトリ */
-async function prepared() {
-  const f = await createFixture();
-  cleanups.push(f.cleanup);
+/** init・チケット 2 つ・設定・commit まで済ませた雛形の準備（テストファイルで 1 度だけ走る） */
+async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
@@ -83,6 +81,14 @@ async function prepared() {
   await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
   await runCommand(configSet, ctx, { key: "metrics.read_transcripts", value: "true" });
   await runCommand(commit, ctx, {});
+}
+
+/** prepareRepo を済ませた雛形から写した、チケット t1・t2 があるリポジトリの文脈。HOME は一時ディレクトリ */
+async function prepared() {
+  const f = await createFixtureFrom("prepared", prepareRepo);
+  cleanups.push(f.cleanup);
+  const actor = { kind: "agent" as const, user: "eiki" };
+  const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   ctx.config = ctx.store.config;
   const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
   cleanups.push(() => rm(home, { recursive: true, force: true }));
