@@ -19,7 +19,7 @@ mise run dg -- hooks check     # 新しいセッションで、フックが入�
 
 フックは追跡しない `.claude/settings.local.json` に書く。命令は node と `dg.js` の絶対パスなので、Claude Code の環境の PATH に node や `dg` がなくても動く。mise.toml の node の版を上げたら、`mise run dg -- hooks install` をやり直す（古い node のパスは `dg hooks check` が gone と警告する）。clone を移したときもやり直す。
 
-端末からほかのリポジトリでも `dg` を呼びたいときは、`mise run dg:link` で `~/.local/bin/dg` にリンクする（~/.local/bin が PATH になければ足す）。リンク先はこのリポジトリの `packages/cli/bin/dg.js` の絶対パスで、一度張れば `git pull` のあとの `mise run install` で更新される。clone を移したら張り直す。既存の `~/.local/bin/dg` が通常のファイルなら消さずに止まる。
+端末からほかのリポジトリでも `dg` を呼びたいときは、`mise run dg:link` で `~/.local/bin/dg` にリンクする（~/.local/bin が PATH になければ足す）。リンク先はこのリポジトリの `packages/cli/bin/dg.js` の絶対パスで、一度張れば `git pull` のあとの `mise run install` で更新される。clone を移したら張り直す。既存の `~/.local/bin/dg` が通常のファイルなら消さずに止まる。リンクした dg は PATH の node で動くので、node 24 以上が要る（古いと英語で止まる。このリポジトリの node を使うなら `mise run dg -- <引数>`）。
 
 3. タスクの一覧は `mise tasks` で見られる。タスクは pnpm scripts を呼ぶだけで、定義は [mise.toml](../mise.toml) と [package.json](../package.json)
 

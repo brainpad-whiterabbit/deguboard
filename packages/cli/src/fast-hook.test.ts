@@ -287,6 +287,11 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
     cleanups.push(() => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
     await mkdir(path.join(root, "bin"));
     await cp(normalBin, path.join(root, "bin", "dg.js"));
+    // bin/dg.js は起動の最初に Node の版を確かめる判定を読む（t782）。写しにも置く
+    await cp(
+      path.join(cliRoot, "bin", "node-version.mjs"),
+      path.join(root, "bin", "node-version.mjs"),
+    );
     await cp(path.join(cliRoot, "package.json"), path.join(root, "package.json"));
     await cp(path.join(cliRoot, "dist"), path.join(root, "dist"), { recursive: true });
     if (opts.coreWithoutFastHook) await linkNodeModulesWithCoreCopy(root);
