@@ -73,7 +73,7 @@ runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開�
 
 - DT-3 ID は接頭辞＋連番（`t12`・`e3`・`s3`・`p7`）。ファイル名は ID そのままでゼロ埋めしない。番号はリポジトリ全体で一意で、CLI と UI は番号で並べる
 - DT-4 採番は「既存（読めないファイルを含む）と墓標の最大 + 1。あるファイルは上書きしない」。作成は fetch → 採番 → commit → push を 1 単位とし、push が拒否されたら採番し直す
-- DT-5 push できないときは `provisional: true`（仮番号）を付けてローカルに commit し、push が済んだ `dg sync` で外す。仮番号がリモートの番号と衝突したら、`dg sync` が次の空き番号に振り直して push する（範囲は `packages/core/src/git/renumber.ts`）。ほかの競合は報告する（SY-4）
+- DT-5 チケットの起票は、push 先に届かないときに `provisional: true`（仮番号）を付けてローカルに commit し、push が済んだ `dg sync` で外す（ほかの作成は SY-3）。仮番号のチケットは claim できない。仮番号がリモートの番号と衝突したら、`dg sync` が次の空き番号に振り直して push する（範囲は `packages/core/src/git/renumber.ts`）。ほかの競合は報告する（SY-4）
 - DT-6 CLI と UI は `t12` でも `12` でも受け付ける
 
 ### 5.3 Project（`projects/<slug>.yaml`）
@@ -199,7 +199,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
-- SY-3 claim・作成・`iteration start / reopen` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す
+- SY-3 claim・作成・`iteration start / reopen` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す。届かなければコミットを捨てて失敗する（チケットの起票だけは DT-5 の仮番号で残す）
 - SY-4 同期は rebase で取り込み、チケット・Epic・Plan などの属性はマージドライバがフィールド単位で 3-way マージする（対象と規則は `git/merge.ts`）。解けない競合は rebase を中止してコミットを残して報告し、解くまで push・照合と即時の操作（CL-3）を止める。人が remote か local を選べば `dg sync --resolve` が競合したフィールドだけその側の値で揃える（戻し方は `dg guide overview`）
 - SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、同じチケットと step の Run の二重起動も防ぐ。チーム間の排他には使わない
 - SY-6 リモートがなくても、同期を除くすべての操作が動く

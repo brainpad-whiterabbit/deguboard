@@ -1156,6 +1156,13 @@ export const ticketClaim = defineCommand({
         iterationWarnings = [];
         const doc = ctx.store.require("ticket", input.ticket);
         if (isReclaim(ctx, doc.data)) throw new ReclaimRequested(doc);
+        // 仮番号は dg sync で振り直されることがある。claim するとブランチ名に仮番号が残り、振り直しで branch だけが書き換わる（DT-5）
+        if (doc.data.provisional) {
+          throw new OperationError(
+            "REJECTED",
+            `${doc.id} has a provisional number that is not pushed yet, and the number may change. Run dg sync when the remote is reachable to fix the number, then claim the ticket by its fixed ID`,
+          );
+        }
         if (doc.data.status !== "todo") {
           const owner = doc.data.assignee;
           const own = owner !== undefined && sameUser(owner, ctx.actor.id);
