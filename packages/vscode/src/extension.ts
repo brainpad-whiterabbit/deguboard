@@ -62,9 +62,9 @@ import {
 } from "./launcher.js";
 import {
   describeTerminals,
-  runningStartTerminal,
   START_TERMINAL_NAME,
   startCommandLine,
+  startTerminalPlan,
   terminalInput,
 } from "./terminals.js";
 import { commonDirOf, initWatchTarget, watchTargets } from "./watch.js";
@@ -127,6 +127,12 @@ const ID_INDEX_RETRY_MS = 30_000;
 /** 読み込み中の索引（同じフォルダで重ねて読まない）と、読み込み中に変化が来て読み直しが要るフォルダ */
 const idIndexLoading = new Map<string, Promise<IdIndex | undefined>>();
 const idIndexDirty = new Set<string>();
+/**
+ * 始め方の 1 行をまだ実行中のターミナル（UI-12）。送ったら入り、そのターミナルで最初に実行が終わったら外す。
+ * シェルは 1 つずつ実行するので、送った後に最初に終わる実行は始めの 1 行に当たる。実行の始まり・終わりは
+ * シェル統合（shell integration）が知らせる。統合がないターミナルでは終わりが来ないので、閉じるまで実行中のままになる
+ */
+const startRuns = new Set<vscode.Terminal>();
 
 export function activate(context: vscode.ExtensionContext): void {
   // 拡張ホストの文言を表示言語で出す（l10n.ts）。ほかの処理より先に差し込む
@@ -134,7 +140,11 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     // ターミナルが開いた・閉じたら、頼む小窓の送り先を更新させる（UI-15）。ターミナルを開くのは人で、拡張は開かない
     vscode.window.onDidOpenTerminal(() => broadcastTerminals()),
-    vscode.window.onDidCloseTerminal((closed) => broadcastTerminals(closed)),
+    vscode.window.onDidCloseTerminal((closed) => {
+      startRuns.delete(closed);
+      broadcastTerminals(closed);
+    }),
+    vscode.window.onDidEndTerminalShellExecution((event) => startRuns.delete(event.terminal)),
     // アクティブなターミナル（送り先の既定）と名前の変化も送り先に反映する
     vscode.window.onDidChangeActiveTerminal(() => broadcastTerminals()),
     vscode.window.onDidChangeTerminalState(() => broadcastTerminals()),
@@ -406,7 +416,8 @@ async function resolveSidebar(
 
 /**
  * 始め方の画面の「このリポジトリで始める」（UI-12）。同梱の dg の起動ファイルを書き（まだなければ）、リポジトリを開いた
- * 新しいターミナルに、起動ファイルの絶対パスで dg init・skill install・hooks install を続けて入れ、Enter で実行する。
+ * deguboard のターミナルに、起動ファイルの絶対パスで dg init・skill install・hooks install を続けて入れ、Enter で実行する。
+ * 開いたターミナルが残っていても、前の実行が終わっていれば同じ 1 行を送り直す（失敗した後のやり直し）。実行中は送らずに見せるだけにする。
  * PATH の dg は使わない。エージェントは起動せず、ターミナルは人が押したときだけ開く。終わると見張り（watchInit）が画面を普段の画面に変える
  */
 async function startRepository(
@@ -414,23 +425,26 @@ async function startRepository(
   folder: vscode.WorkspaceFolder,
 ): Promise<void> {
   try {
-    // 1 回目の init が終わる前に押されたら、新しく開かずに開いているターミナルを見せる（二重に走らせない）
-    const running = runningStartTerminal(vscode.window.terminals);
-    if (running) {
-      running.show();
-      return;
-    }
     if ((await installLauncher(launcherCurrent(context))) === "unsupported") {
       void vscode.window.showWarningMessage(
         `deguboard: ${t("Starting from this view is not supported on this platform.")}`,
       );
       return;
     }
-    const terminal = vscode.window.createTerminal({
-      name: START_TERMINAL_NAME,
-      cwd: folder.uri.fsPath,
-    });
+    // 判定から送るまでは await を挟まない。押されるたびに判定し直すので、二重押しで同じ 1 行が 2 回送られない
+    const plan = startTerminalPlan(vscode.window.terminals, startRuns);
+    if (plan.kind === "show") {
+      plan.terminal.show();
+      return;
+    }
+    const terminal =
+      plan.terminal ??
+      vscode.window.createTerminal({
+        name: START_TERMINAL_NAME,
+        cwd: folder.uri.fsPath,
+      });
     terminal.show();
+    startRuns.add(terminal);
     terminal.sendText(startCommandLine(launcherFileOf()), true);
   } catch (error) {
     void vscode.window.showErrorMessage(

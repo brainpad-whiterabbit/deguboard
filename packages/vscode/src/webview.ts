@@ -165,7 +165,7 @@ export interface WebviewActions {
     terminal: number,
     text: string,
   ): TerminalSendResult | void | Promise<TerminalSendResult | void>;
-  /** 始め方の画面のボタン（UI-12）。専用の新しいターミナルで dg init・skill install・hooks install を実行する。失敗は拡張が通知する */
+  /** 始め方の画面のボタン（UI-12）。専用のターミナルで dg init・skill install・hooks install を実行する。失敗は拡張が通知する */
   startRepository(): void | Promise<void>;
 }
 

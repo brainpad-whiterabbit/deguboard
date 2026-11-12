@@ -43,7 +43,7 @@ export function terminalInput(text: string): TerminalInput {
 }
 
 /**
- * 始め方の画面のボタンが新しいターミナルに入れる 1 行（Enter まで送る）。起動ファイル（launcher.ts）の絶対パスで
+ * 始め方の画面のボタンがターミナルに入れる 1 行（Enter まで送る）。起動ファイル（launcher.ts）の絶対パスで
  * dg init・dg skill install・dg hooks install を &&（途中で失敗したら続けない）でつなぐ。PATH の dg は使わない。
  * パスはシングルクォートで囲む（空白や ' を含んでも 1 つの引数のまま。sh・bash・zsh・fish で同じに読める）
  */
@@ -56,12 +56,21 @@ export function startCommandLine(launcher: string): string {
 export const START_TERMINAL_NAME = "deguboard";
 
 /**
- * 始め方のボタンで開いたターミナルのうち、まだ閉じていないもの（exitStatus がない）。押すたびに新しく開くと、
- * 1 回目の init が終わる前の 2 回目で init・skill install・hooks install が二重に走り、同時に競うため。
- * 見つかったら新しく開かず、そのターミナルを見せるだけにする
+ * 始め方のボタンが次に何をするかを決める。閉じていない deguboard のターミナル（exitStatus がない）を再利用し、新しく開かない。
+ * - running（始めの 1 行を送り、まだ終わっていないと分かっているターミナル）があれば、送らずに見せるだけにする。
+ *   1 回目の init が終わる前の 2 回目で init・skill install・hooks install が二重に走り、同時に競うため
+ * - running でなければ、開いているもの（前の実行が終わった、または失敗したターミナル）に同じ 1 行を送り直す。
+ *   開いたままのターミナルを見せるだけだと、dg init などが失敗した後のやり直しができないため
+ * - 開いているものがなければ、terminal は undefined（新しく開く）
  */
-export function runningStartTerminal<T extends { name: string; exitStatus?: unknown }>(
+export function startTerminalPlan<T extends { name: string; exitStatus?: unknown }>(
   terminals: readonly T[],
-): T | undefined {
-  return terminals.find((t) => t.name === START_TERMINAL_NAME && t.exitStatus === undefined);
+  running: ReadonlySet<T>,
+): { kind: "show"; terminal: T } | { kind: "send"; terminal: T | undefined } {
+  const open = terminals.filter(
+    (t) => t.name === START_TERMINAL_NAME && t.exitStatus === undefined,
+  );
+  const busy = open.find((t) => running.has(t));
+  if (busy) return { kind: "show", terminal: busy };
+  return { kind: "send", terminal: open[0] };
 }

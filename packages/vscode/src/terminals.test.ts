@@ -6,8 +6,8 @@ import { bundleTranslator, setTranslator } from "./l10n.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   describeTerminals,
-  runningStartTerminal,
   startCommandLine,
+  startTerminalPlan,
   terminalInput,
 } from "./terminals.js";
 
@@ -118,13 +118,37 @@ describe("startCommandLine（始め方のボタンが入れる 1 行）", () => 
   });
 });
 
-describe("runningStartTerminal（始め方のボタンの二重押し）", () => {
-  it("閉じていない deguboard のターミナルを返し、別の名前や閉じたものは返さない", () => {
+describe("startTerminalPlan（始め方のボタンの再利用・二重押し・やり直し）", () => {
+  const none = new Set<{ name: string; exitStatus?: unknown }>();
+
+  it("始めの 1 行が実行中の deguboard のターミナルは送らず、見せるだけにする（二重に走らせない）", () => {
+    const other = { name: "zsh" };
+    const busy = { name: "deguboard" };
+    const idle = { name: "deguboard" };
+    expect(startTerminalPlan([other, idle, busy], new Set([busy]))).toEqual({
+      kind: "show",
+      terminal: busy,
+    });
+  });
+
+  it("前の実行が終わった（または失敗した）開いたままの deguboard のターミナルに、同じ 1 行を送り直す", () => {
+    const idle = { name: "deguboard" };
+    expect(startTerminalPlan([idle], none)).toEqual({ kind: "send", terminal: idle });
+  });
+
+  it("閉じた deguboard のターミナルと別の名前のターミナルは再利用せず、なければ新しく開く", () => {
     const other = { name: "zsh" };
     const exited = { name: "deguboard", exitStatus: { code: 0 } };
-    const running = { name: "deguboard" };
-    expect(runningStartTerminal([other, exited])).toBeUndefined();
-    expect(runningStartTerminal([other, exited, running])).toBe(running);
-    expect(runningStartTerminal([])).toBeUndefined();
+    expect(startTerminalPlan([other, exited], none)).toEqual({ kind: "send", terminal: undefined });
+    expect(startTerminalPlan([], none)).toEqual({ kind: "send", terminal: undefined });
+  });
+
+  it("実行中のものが閉じていれば（running に残っていても）送らず、ほかに開いたものがあればそこに送る", () => {
+    const closedBusy = { name: "deguboard", exitStatus: { code: 1 } };
+    const idle = { name: "deguboard" };
+    expect(startTerminalPlan([closedBusy, idle], new Set([closedBusy]))).toEqual({
+      kind: "send",
+      terminal: idle,
+    });
   });
 });
