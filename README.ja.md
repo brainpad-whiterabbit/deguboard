@@ -134,14 +134,14 @@ Skill を入れずに、`dg ask --format text` で作った文章をエージェ
 
 ### Claude Desktop から使う（MCP）
 
-`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出します。Claude Desktop は PATH を引き継がずにリポジトリの外で起動するので、`claude_desktop_config.json` では `command` に node の絶対パス（`mise which node`）、引数に `dg.js` の実体（`realpath "$(which dg)"`）と `-C <対象のリポジトリ>` を渡します。Claude Code は Bash で `dg` を呼べるので登録は要りません。
+`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出します。Claude Desktop は PATH を引き継がずにリポジトリの外で起動するので、`claude_desktop_config.json` では `command` に、拡張が入れる起動ファイル `~/.local/share/deguboard/dg`（node は起動ファイルが自分で探します）を指定し、引数に `-C <対象のリポジトリ>` と `mcp` を渡します。Claude Code は Bash で `dg` を呼べるので登録は要りません。
 
 ```json
 {
   "mcpServers": {
     "deguboard": {
-      "command": "/path/to/node",
-      "args": ["/path/to/deguboard/packages/cli/bin/dg.js", "-C", "/path/to/repo", "mcp"]
+      "command": "/home/<you>/.local/share/deguboard/dg",
+      "args": ["-C", "/path/to/repo", "mcp"]
     }
   }
 }
