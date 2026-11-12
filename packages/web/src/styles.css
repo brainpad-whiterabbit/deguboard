@@ -223,6 +223,11 @@ h3 {
 .spacer {
   flex: 1;
 }
+/* dg serve の上のバーの同期の印（UI-6） */
+.sync-mark {
+  display: flex;
+  gap: 0.25rem;
+}
 .project-select {
   display: flex;
   align-items: center;

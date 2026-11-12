@@ -14,6 +14,10 @@ export const EN: Readonly<Record<string, string>> = {
   "読み込み中…": "Loading…",
   なし: "None",
   閉じる: "Close",
+  リモートへ送っていないコミット: "Commits not pushed to the remote",
+  "未 push {0}": "{0} unpushed",
+  取り込んでいないリモートの更新: "Remote changes not pulled",
+  "未取り込み {0}": "{0} to pull",
   // client/http.ts
   "サーバーに届かない。dg serve が動いているか確かめる":
     "Cannot reach the server. Check that dg serve is running",

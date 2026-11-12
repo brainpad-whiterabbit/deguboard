@@ -10,7 +10,8 @@
 import { DeguboardError, OperationError } from "../errors.js";
 import { createHistoryCache } from "../git/history.js";
 import { remoteWebUrl } from "../git/repo.js";
-import { syncStatus } from "../git/sync.js";
+import { withLock } from "../git/lock.js";
+import { fetchData, syncStatus } from "../git/sync.js";
 import type { CommandClient, CommandFailure, StatusView } from "./client.js";
 import { openContext } from "./context.js";
 import type { ActorKind, UserSource } from "../model/actor.js";
@@ -32,7 +33,16 @@ export interface LocalClientOptions {
   mergeDriver?: readonly string[] | undefined;
   /** Workflow の steps に書ける Action の名前（ContextOptions.actions） */
   actions?: readonly string[] | undefined;
+  /** status がリモートを fetch する間隔（既定は STATUS_FETCH_INTERVAL_MS。テストで縮める） */
+  statusFetchIntervalMs?: number | undefined;
 }
+
+/** 画面は 15 秒ごとに status を読む。そのたびに fetch するとリモートへの負荷が大きいので、間を空ける（UI-6） */
+export const STATUS_FETCH_INTERVAL_MS = 60_000;
+/**
+ * status の後ろの fetch の時間の上限。書き込みのロックを持って fetch するので、ほかの dg の書き込みがロックを待つ上限（lock.ts の WAIT_MS）より短くする
+ */
+const STATUS_FETCH_TIMEOUT_MS = 8_000;
 
 export interface LocalClient extends CommandClient {
   /** 入口が出すコマンド（store の要るものだけ） */
@@ -55,6 +65,9 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
   let scanned = 0;
   // 届いて順番を待っている呼び出しの数。0 のときに届いた読みは、同じ瞬間の残りの読みを同じ走査に乗せるため setImmediate を 1 回待つ
   let pending = 0;
+  // status の後ろで最後に fetch を始めた時刻（失敗しても次の間隔まで試さない）
+  const fetchInterval = options.statusFetchIntervalMs ?? STATUS_FETCH_INTERVAL_MS;
+  let lastFetch: number | undefined;
 
   /** arrivedAt が undefined（書き込み）なら必ず再走査する。読みは届いた後に始まった走査が成功していればそれを使う */
   const context = async (arrivedAt: number | undefined): Promise<CommandContext> => {
@@ -121,7 +134,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
     },
     status(): Promise<StatusView> {
       // store からは Issue の件数だけを使う（同期の状態は git から毎回読む）ので、読みとして走査を使い回してよい
-      return serialized(true, async (arrivedAt) => {
+      const view = serialized(true, async (arrivedAt) => {
         const ctx = await context(arrivedAt);
         const status = await syncStatus(ctx.repo);
         return {
@@ -131,8 +144,30 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
           web_url: await remoteWebUrl(ctx.repo),
         };
       });
+      // 未取り込みの数は fetch しないと増えない（ほかの clone の push が見えない）。間を空けて、この status の後ろで fetch する。
+      // 結果はこの status ではなく次の status に出る（画面は 15 秒ごとに読む）。状態の表示を fetch で待たせないため
+      const now = Date.now();
+      if (lastFetch === undefined || now - lastFetch >= fetchInterval) {
+        lastFetch = now;
+        void serialized(false, backgroundFetch).catch(() => undefined);
+      }
+      return view;
     },
   };
+
+  /**
+   * status の後ろの fetch。失敗（届かない・時間切れ・ロックを取れない）は捨てる（状態の表示を止めない。次の間隔でまた試す）。
+   * 同じマシンの dg（CLI）の書き込みも fetch するので、書き込みのロックを待たずに取れたときだけ fetch する
+   * （同じ追跡ブランチの ref を同時に書くと片方の fetch が失敗する。取れないのはほかの dg が書き込み中で、その書き込みが fetch する）
+   */
+  async function backgroundFetch(): Promise<void> {
+    const ctx = await ctxPromise;
+    if (!ctx?.repo.remote) return;
+    const repo = ctx.repo;
+    await withLock(repo.localDir, "write", () => fetchData(repo, STATUS_FETCH_TIMEOUT_MS), {
+      waitMs: 0,
+    });
+  }
 }
 
 /** 入口が失敗を data として返すための形（CLI の --json のエラーと同じ） */

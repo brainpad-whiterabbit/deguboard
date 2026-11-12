@@ -29,6 +29,8 @@ export type Surface = "sidebar" | "panel";
 
 export interface Host {
   surface: Surface;
+  /** 拡張ホストの中（Webview）か。中なら同期の印はビューのタイトル行のバッジが出すので、画面には出さない（dg serve では画面に出す。UI-6） */
+  extension?: boolean | undefined;
   /** 詳細（チケット・Iteration）を開く。拡張ホストに頼んでエディタ領域に開く（dg serve ではハッシュ遷移） */
   open(route: Route): void;
   /** 一覧の画面（カンバンなど）を出す。パネルでは拡張ホストに頼んでサイドバーに、サイドバー（と dg serve）ではハッシュ遷移 */
@@ -67,6 +69,7 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
   if (client) {
     return {
       surface,
+      extension: true,
       open: (route) => void client.open(hrefOf(route)),
       show: (route) => (surface === "panel" ? void client.show(hrefOf(route)) : navigate(route)),
       // Webview の navigator.clipboard は VS Code の版や設定で使えないことがあるので、試さずに拡張ホストに頼む
