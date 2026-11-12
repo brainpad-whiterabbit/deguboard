@@ -4,6 +4,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   attributesFile,
+  BODY_FIELD,
   isMergeDriverPath,
   MERGE_LOG_ENV,
   MERGE_PREFER_ENV,
@@ -223,9 +224,6 @@ export async function conflictFields(repo: GitRepo): Promise<ConflictField[]> {
 
 /** 警告に載せる値の上限の字数。全体は data.conflict_fields にある */
 const VALUE_LIMIT = 80;
-
-/** 本文のフィールドの名前（マージドライバの対象の 1 つ。frontmatter のフィールドは英語の名前のまま） */
-export const BODY_FIELD = "本文";
 
 /** 英語の文に出すフィールドの名前。本文は行のまとまりとして英語で言う */
 export function fieldLabel(field: string): string {

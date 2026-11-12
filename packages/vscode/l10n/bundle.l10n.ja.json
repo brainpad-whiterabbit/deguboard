@@ -18,6 +18,7 @@
   "Progress: {0}/{1}": "進捗: {0}/{1}",
   "Select an item awaiting approval or review": "開く承認待ちを選ぶ",
   "Syncing": "同期",
+  "body lines": "本文",
   "Take local": "local を採る",
   "Take remote": "remote を採る",
   "Resolved by taking {0}: {1}": "{0} の値で解いた: {1}",

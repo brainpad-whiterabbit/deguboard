@@ -1,9 +1,9 @@
 // 同期の競合で止まったときの通知の中身（SY-4）。VS Code の API に触れない純粋な処理。extension.ts の syncFolder と notifySync から呼ぶ。
-// 型と値の書き方（ResolveSide・ConflictField・ResolvedFile・showValue・fieldLabel）は core のものを使い、写さない
+// 型と値の書き方（ResolveSide・ConflictField・ResolvedFile・showValue・BODY_FIELD）は core のものを使い、写さない
 
 import {
+  BODY_FIELD,
   type ConflictField,
-  fieldLabel,
   type ResolvedFile,
   type ResolveSide,
   showValue,
@@ -81,7 +81,7 @@ export function resolvedSummary(side: ResolveSide, data: unknown): string | unde
     t(
       "{0} {1}: took {2}, discarded {3}",
       r.file,
-      fieldLabel(r.field),
+      r.field === BODY_FIELD ? t("body lines") : r.field,
       showValue(r.taken),
       showValue(r.discarded),
     ),

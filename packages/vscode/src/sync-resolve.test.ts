@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { bundleTranslator, setTranslator } from "./l10n.js";
 import {
   hasResolvableFields,
   pickedSide,
@@ -90,6 +91,24 @@ describe("同期の競合の通知（SY-4）", () => {
     });
     expect(summary).not.toContain("本文");
     expect(summary).toContain("body lines");
+  });
+
+  it("日本語の訳では、本文のフィールドを「本文」と出す（鍵は英語の body lines）", () => {
+    setTranslator(
+      bundleTranslator({
+        "body lines": "本文",
+        "{0} {1}: took {2}, discarded {3}": "{0} の{1}: 採った {2}、捨てた {3}",
+        "Resolved by taking {0}: {1}": "{0} の値で解いた: {1}",
+      }),
+    );
+    try {
+      const summary = resolvedSummary("local", {
+        resolved: [{ file: "tickets/t1.md", field: "本文", taken: "a", discarded: "b" }],
+      });
+      expect(summary).toBe('local の値で解いた: tickets/t1.md の本文: 採った "a"、捨てた "b"');
+    } finally {
+      setTranslator(bundleTranslator({}));
+    }
   });
 
   it("長い値は字数の上限で切って示す", () => {
