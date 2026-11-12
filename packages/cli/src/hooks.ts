@@ -10,6 +10,7 @@ import { dirname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual, promisify } from "node:util";
 import {
+  bundleLayout,
   hooksOf,
   hooksSilentWarning,
   readHookInput,
@@ -178,9 +179,11 @@ async function handlerStatus(base: string): Promise<HandlerCheck> {
 /** シェルの二重引用符で囲む（パスの空白のため）。展開やエスケープを含むパスは plainWords が確かめられないが、書くことはできる */
 const doubleQuote = (s: string) => `"${s.replaceAll(/(["$`\\])/g, "\\$1")}"`;
 
-/** このプロセスを動かしている dg の起動ファイル（bin/dg.js）の実パス。リンク（~/.local/bin/dg など）は辿る */
+/** このプロセスを動かしている dg の起動ファイル（bin/dg.js。束ねた CLI では dg.mjs）の実パス。リンク（~/.local/bin/dg など）は辿る */
 function dgScript(): string {
-  return realpathSync(fileURLToPath(new URL("../bin/dg.js", import.meta.url)));
+  return realpathSync(
+    bundleLayout()?.entry ?? fileURLToPath(new URL("../bin/dg.js", import.meta.url)),
+  );
 }
 
 /**

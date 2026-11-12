@@ -49,6 +49,7 @@
 ### VS Code 拡張は Vite で 1 つの CommonJS に束ねる
 
 - 拡張ホストは CommonJS を読むので、`packages/vscode` は Vite の SSR ビルドで 1 ファイルに束ねる（`packages/vscode/vite.config.ts`）。拡張のためのバンドラは増やさない（esbuild や webpack は入れない）
+- VSIX に同梱する CLI も同じ Vite で 1 つの ESM（`dist/cli/dg.mjs`）に束ねる（`packages/vscode/vite.cli.config.ts`）。ネイティブのモジュールを含まないので、VSIX はプラットフォームごとに分けない
 - 拡張の `engines.vscode` は拡張ホストが Node 24 になった版からにし、束ねる core の Node 24 に揃える（版の理由は [development.md の「ビルドとテスト」](../development.md#ビルドとテスト)）
 - VSIX は `@vscode/vsce` で作る（`mise run vsix`）
 - 実機の確認（`mise run test:vscode`）は `@vscode/test-electron` で VS Code 本体を落とすだけに使い、起動と操作は Playwright の `_electron` で行う。VS Code の版は固定する。`check` には入れない（ダウンロードと画面が要る。細部は `test/vscode/host.ts` の冒頭）

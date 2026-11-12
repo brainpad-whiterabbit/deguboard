@@ -10,6 +10,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { bundleLayout } from "../bundle-layout.js";
 
 /** 1 ファイルの読みの結果と、読んだときの印 */
 export interface CachedRead {
@@ -33,14 +34,15 @@ let codeStampPromise: Promise<string> | undefined;
 
 /**
  * 読みのコード（core の model・storage・workflow）の印。開発中は版が同じままスキーマを変えるので、作り直したら別の鍵にする。
- * 束ねた拡張（VS Code）にはこの配置がないので、束ねたファイルそのものの印を使う。プロセスで 1 回だけ取る
+ * 束ねた拡張（VS Code）と束ねた CLI（dg.mjs）にはこの配置がないので、束ねたファイルそのものの印を使う。プロセスで 1 回だけ取る
  */
 function codeStamp(): Promise<string> {
   codeStampPromise ??= (async () => {
-    const self = fileURLToPath(import.meta.url);
+    const bundled = bundleLayout()?.entry;
+    const self = bundled ?? fileURLToPath(import.meta.url);
     const base = path.dirname(path.dirname(self));
     const parts: string[] = [];
-    for (const dir of ["model", "storage", "workflow"]) {
+    for (const dir of bundled === undefined ? ["model", "storage", "workflow"] : []) {
       const files = await readdir(path.join(base, dir)).catch(() => [] as string[]);
       for (const file of files.sort()) {
         if (!/\.(js|ts)$/.test(file) || /\.(d|test)\.ts$/.test(file)) continue;
@@ -58,10 +60,12 @@ function codeStamp(): Promise<string> {
 }
 
 /**
- * core の版（package.json）。束ねた拡張（VS Code）では読めないので空になり、版の区別は codeStamp の束ねたファイルの印
- * （大きさと更新時刻）だけに頼る。拡張を入れ替えると束ねたファイルが書き直されて印が変わるので、それで足りるとする
+ * core の版（package.json）。束ねた CLI（dg.mjs）は束ねたときに埋めた版を使う。束ねた拡張（VS Code）では読めないので空になり、
+ * 版の区別は codeStamp の束ねたファイルの印（大きさと更新時刻）だけに頼る。拡張を入れ替えると束ねたファイルが書き直されて印が変わるので、それで足りるとする
  */
 async function coreVersion(): Promise<string> {
+  const bundled = bundleLayout()?.version;
+  if (bundled !== undefined) return bundled;
   try {
     const text = await readFile(new URL("../../package.json", import.meta.url), "utf8");
     const pkg = JSON.parse(text) as { name?: unknown; version?: unknown };
