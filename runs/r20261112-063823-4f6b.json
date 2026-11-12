@@ -1,0 +1,35 @@
+{
+  "id": "r20261112-063823-4f6b",
+  "ticket": "t736",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T06:38:23Z",
+  "finished_at": "2026-11-12T06:42:39Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "UI-11 から表示言語の訳の約束と l10n の案内が抜けていた。字数の上限に収めて戻す",
+    "ADR-027 の決定に、PATH のリンクは明示のコマンドだけで作り、外す範囲は自分のリンクと起動ファイルに限る、の判断が書かれていない。決定に 1 項足す",
+    "開発文書の packages/vscode の節に、拡張を消したときの片付けの入口と束ね方が書かれていない。1 文足す",
+    "片付けの照合が解いていないパスで比べ、拡張フォルダがシンボリックリンクだと片付けが黙って飛ばされる。実パスで比べる"
+  ],
+  "usage": {
+    "input": 36,
+    "output": 17329,
+    "cache_read": 1171421,
+    "cache_write": 63571
+  },
+  "tools": {
+    "read": 7,
+    "search": 0,
+    "write": 9,
+    "bash": 11,
+    "other": 1,
+    "read_before_write": 7,
+    "search_before_write": 0
+  },
+  "session": "78fc0778-daf5-433b-812f-829c38a9c22c",
+  "review": null
+}

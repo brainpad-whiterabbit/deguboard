@@ -1,0 +1,33 @@
+{
+  "id": "r20261112-063338-9568",
+  "ticket": "t735",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T06:33:38Z",
+  "finished_at": "2026-11-12T06:38:14Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "起動ファイルの環境変数が子プロセスに引き継がれ、起動ファイル外の dg も起動ファイルを書いてしまう",
+    "起動ファイルが消えた警告が、hooks install のやり直しを案内していて誤操作を招く"
+  ],
+  "usage": {
+    "input": 32,
+    "output": 21748,
+    "cache_read": 941439,
+    "cache_write": 60699
+  },
+  "tools": {
+    "read": 10,
+    "search": 0,
+    "write": 9,
+    "bash": 7,
+    "other": 1,
+    "read_before_write": 10,
+    "search_before_write": 0
+  },
+  "session": "78fc0778-daf5-433b-812f-829c38a9c22c",
+  "review": null
+}
