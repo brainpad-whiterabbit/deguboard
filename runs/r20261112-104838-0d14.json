@@ -1,0 +1,32 @@
+{
+  "id": "r20261112-104838-0d14",
+  "ticket": "t755",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T10:48:38Z",
+  "finished_at": "2026-11-12T10:54:38Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "コードとテスト名の参照が PL-4 を指しているが、承認待ちの Plan の扱いは PL-5 に書かれているため、参照を PL-5 に直す"
+  ],
+  "usage": {
+    "input": 38,
+    "output": 7388,
+    "cache_read": 709193,
+    "cache_write": 32901
+  },
+  "tools": {
+    "read": 9,
+    "search": 0,
+    "write": 7,
+    "bash": 7,
+    "other": 4,
+    "read_before_write": 7,
+    "search_before_write": 0
+  },
+  "session": "609d820c-be5f-4e27-9252-a549631f4417",
+  "review": null
+}
