@@ -215,6 +215,86 @@ describe("frontmatter の 3-way マージ", () => {
     expect(await mergeDocuments("", ours, theirs, "ours")).toBeUndefined();
   });
 
+  it("両側の status が同じで、ずれたのが状態と一緒に書く時刻だけなら、早い方を採って競合にせず auto として返す（SY-4）", async () => {
+    // 同じ状態に着いた時刻は同じ遷移の記録なので、先に着いた側（早い方）を採る。どちらの順で渡しても同じ結果
+    const base = doc({ ...BASE, status: "doing" });
+    const late = doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:09Z" });
+    const early = doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:05Z" });
+    const closed = {
+      field: "closed_at",
+      taken: "2026-11-01T00:00:05Z",
+      discarded: "2026-11-01T00:00:09Z",
+      auto: true,
+    };
+    expect(await mergeDocuments(base, late, early)).toEqual({
+      ok: true,
+      text: early,
+      resolved: [closed],
+    });
+    expect(await mergeDocuments(base, early, late)).toEqual({
+      ok: true,
+      text: early,
+      resolved: [closed],
+    });
+    // 始めた時刻（started_at）も同じ規則
+    const startedBase = doc({ ...BASE, status: "doing" });
+    const startedLate = doc({ ...BASE, status: "doing", started_at: "2026-11-01T00:00:09Z" });
+    const startedEarly = doc({ ...BASE, status: "doing", started_at: "2026-11-01T00:00:05Z" });
+    expect(await mergeDocuments(startedBase, startedLate, startedEarly)).toEqual({
+      ok: true,
+      text: startedEarly,
+      resolved: [{ ...closed, field: "started_at" }],
+    });
+  });
+
+  it("status が違うとき、またはほかのフィールドや本文もぶつかるときは、時刻があっても競合のまま返す", async () => {
+    const base = doc({ ...BASE, status: "todo" });
+    // status が違う
+    const done = doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:09Z" });
+    const doing = doc({ ...BASE, status: "doing", closed_at: "2026-11-01T00:00:05Z" });
+    expect(await mergeDocuments(base, done, doing)).toMatchObject({
+      ok: false,
+      conflicts: ["status", "closed_at"],
+    });
+    // 同じ status でも、ほかのフィールドがぶつかる
+    const baseDone = doc({ ...BASE, status: "done" });
+    const titled = (title: string, at: string) =>
+      doc({ ...BASE, title, status: "done", closed_at: at });
+    expect(
+      await mergeDocuments(
+        baseDone,
+        titled("A の題", "2026-11-01T00:00:09Z"),
+        titled("B の題", "2026-11-01T00:00:05Z"),
+      ),
+    ).toMatchObject({ ok: false, conflicts: ["title", "closed_at"] });
+    // 同じ status で時刻がずれ、本文の同じ行もぶつかる
+    const bodyBase = doc({ ...BASE, status: "done" }, "## 概要\n\nZ\n");
+    expect(
+      await mergeDocuments(
+        bodyBase,
+        doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:09Z" }, "## 概要\n\nX\n"),
+        doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:05Z" }, "## 概要\n\nY\n"),
+      ),
+    ).toMatchObject({ ok: false, conflicts: ["closed_at", "本文"] });
+  });
+
+  it("採る側を渡したときは、同じ status の時刻の規則を使わず、その側を採る（人が選んだ解き方）", async () => {
+    const base = doc({ ...BASE, status: "doing" });
+    const late = doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:09Z" });
+    const early = doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:05Z" });
+    expect(await mergeDocuments(base, late, early, "theirs")).toEqual({
+      ok: true,
+      text: early,
+      resolved: [
+        {
+          field: "closed_at",
+          taken: "2026-11-01T00:00:05Z",
+          discarded: "2026-11-01T00:00:09Z",
+        },
+      ],
+    });
+  });
+
   it("登録するコマンド行は空白や引用符を含むパスをシェル向けにクォートし、%O %A %B %P を付ける", () => {
     expect(mergeDriverCommandLine(["/usr/bin/node", "/a b/it's/dg.js", "merge-driver"])).toBe(
       `/usr/bin/node '/a b/it'\\''s/dg.js' merge-driver %O %A %B %P`,
@@ -323,6 +403,78 @@ describe("同期のマージドライバ", () => {
     // a も取り込めば同じ内容になる
     await runCommand(sync, a, {});
     expect(await t1(a)).toBe(text);
+  });
+
+  it("両側が同じ status で閉じた時刻だけ違うとき、sync は競合にせず早い方を採り、警告に採った値と捨てた値を出す（SY-4）", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    // 同じチケットを両側で完了にし、閉じた時刻だけ違える（b の方が早い）
+    const close = (ctx: CommandContext, closedAt: string) =>
+      withWrite(
+        ctx,
+        () => ctx.store.update("ticket", "t1", { status: "done", closed_at: closedAt }),
+        {
+          message: "t1 を完了にする",
+        },
+      );
+    await close(a, "2026-11-01T00:00:09Z");
+    await runCommand(sync, a, {});
+    await close(b, "2026-11-01T00:00:05Z");
+    const synced = await runCommand(sync, b, {});
+    expect(synced.data.conflicts).toEqual([]);
+    expect(synced.data.pushed).toBe(true);
+    expect(synced.data.resolved).toEqual([
+      {
+        file: "tickets/t1.md",
+        field: "closed_at",
+        taken: "2026-11-01T00:00:05Z",
+        discarded: "2026-11-01T00:00:09Z",
+        auto: true,
+      },
+    ]);
+    expect(synced.warnings.join("\n")).toContain(
+      'tickets/t1.md closed_at (taken "2026-11-01T00:00:05Z", discarded "2026-11-01T00:00:09Z")',
+    );
+    expect(b.store.tickets.get("t1")?.data).toMatchObject({
+      status: "done",
+      closed_at: "2026-11-01T00:00:05Z",
+    });
+    // a も取り込めば同じ内容になる
+    await runCommand(sync, a, {});
+    expect(await t1(a)).toBe(await t1(b));
+  });
+
+  it("書き込み（作成）の取り込みで同じ status の時刻が自動で解けたら、書き込みの警告に採った値と捨てた値を出す（SY-4）", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    // a が先に完了にして push する。b は未コミットで完了にしたまま、書き込み（作成）を行う
+    await withWrite(
+      a,
+      () => a.store.update("ticket", "t1", { status: "done", closed_at: "2026-11-01T00:00:09Z" }),
+      {
+        message: "t1 を完了にする",
+      },
+    );
+    await runCommand(sync, a, {});
+    // b は未コミットのまま完了にする（manual）。作成は取り込みの前にまとめ待ちを 1 コミットにし、そのあと取り込む。
+    // closed_at だけがぶつかり、b の時刻（早い方）を採る
+    await runCommand(configSet, b, { key: "commit.mode", value: "manual", local: true });
+    await withWrite(
+      b,
+      () => b.store.update("ticket", "t1", { status: "done", closed_at: "2026-11-01T00:00:05Z" }),
+      {
+        message: "t1 を完了にする",
+      },
+    );
+    const created = await runCommand(ticketCreate, b, { title: "別の題" });
+    expect(created.warnings.join("\n")).toContain(
+      'Resolved automatically, not a conflict (both sides have the same status and differ only in the time that goes with it, so the earlier time is taken): tickets/t1.md closed_at (taken "2026-11-01T00:00:05Z", discarded "2026-11-01T00:00:09Z")',
+    );
+    expect(created.warnings.join("\n")).not.toContain("Conflicts with remote changes");
+    expect(b.store.tickets.get("t1")?.data).toMatchObject({
+      status: "done",
+      closed_at: "2026-11-01T00:00:05Z",
+    });
   });
 
   it("同じフィールドを双方で変えた競合は、rebase を中止してローカルのコミットを残し報告する", async () => {

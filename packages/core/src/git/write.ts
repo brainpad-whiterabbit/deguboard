@@ -12,11 +12,13 @@ import { requireIdentity, type GitRepo } from "./repo.js";
 import {
   amendAll,
   commitAll,
+  describeAutoResolved,
   fetchData,
   headSha,
-  integrate,
+  integrateLogged,
   isDirty,
   push,
+  type ResolvedFile,
   resetHard,
 } from "./sync.js";
 
@@ -31,6 +33,15 @@ export const CONFLICT_REMEDY =
 /** dg sync --resolve でも解けない競合（マージドライバの対象でないファイル）の戻し方。行単位の競合なので人が解く */
 export const UNRESOLVABLE_REMEDY =
   'Do not resolve it yourself; tell the human. The human starts git rebase <remote>/deguboard in the deguboard worktree, resolves the file, continues with git rebase --continue, makes the current state the baseline with dg adopt, and runs dg sync (see "When sync stops" in dg guide overview)';
+
+/**
+ * 取り込みでドライバが自動で解いたフィールド（同じ status の時刻。SY-4）の警告。書き込みの取り込みも sync と同じに報告する。
+ * 捨てた時刻が見えないまま消えないように、書き込みの結果の警告に載せる（data.resolved は書き込みの結果にはない）
+ */
+function autoResolvedWarnings(resolved: readonly ResolvedFile[]): string[] {
+  const text = describeAutoResolved(resolved, false);
+  return text ? [text] : [];
+}
 
 export interface WriteContext {
   repo: GitRepo;
@@ -147,7 +158,8 @@ async function writeLocked<T>(
       if (!fetched.ok) {
         warnings.push(`Cannot fetch from the remote: ${fetched.detail}`);
       } else if (fetched.remoteBranch) {
-        const integrated = await integrate(repo);
+        const { result: integrated, resolved } = await integrateLogged(repo);
+        warnings.push(...autoResolvedWarnings(resolved));
         if (!integrated.ok) {
           const detail = `Conflicts: ${integrated.conflicts.join(", ")}`;
           if (opts.cas)
@@ -244,9 +256,12 @@ async function writeLocked<T>(
       };
     }
     // 自分のコミットは残したまま次の周回で rebase して再 push する
-    const integrated = await fetchData(repo).then((f) =>
-      f.ok && f.remoteBranch ? integrate(repo) : { ok: true as const, changed: false },
-    );
+    const fetchedAgain = await fetchData(repo);
+    const { result: integrated, resolved } =
+      fetchedAgain.ok && fetchedAgain.remoteBranch
+        ? await integrateLogged(repo)
+        : { result: { ok: true as const, changed: false }, resolved: [] as ResolvedFile[] };
+    warnings.push(...autoResolvedWarnings(resolved));
     if (!integrated.ok) {
       // 取り込みの警告が既に戻し方を案内していれば繰り返さない
       const remedy = warnings.some((w) => w.includes(CONFLICT_REMEDY))
