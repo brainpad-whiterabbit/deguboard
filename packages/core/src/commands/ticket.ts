@@ -530,6 +530,12 @@ export const ticketUpdate = defineCommand({
       .describe(
         "Acceptance items. Replaces only the ## Acceptance criteria (or ## 受け入れ条件) section, and keeps the check marks of items with the same text. Appends the section at the end if there is none. Cannot be given together with body",
       ),
+    base: z
+      .string()
+      .optional()
+      .describe(
+        "The body as it was when read. If it differs from the current body (another write happened after reading), nothing is written and the result is REJECTED. The screen sends this when saving an edit of the title and body",
+      ),
     ...ticketAttributes,
     labels: z
       .array(z.string())
@@ -593,6 +599,13 @@ export const ticketUpdate = defineCommand({
         const t = doc.data;
         if (input.body !== undefined && input.acceptance !== undefined) {
           throw new UsageError("body and acceptance cannot be given together");
+        }
+        // 画面は編集を始めたときの本文を base で送る。読んだ後に本文が変わっていれば、上書きせずに拒否する（書き込みのロックの中で照らす）
+        if (input.base !== undefined && input.base !== doc.body) {
+          throw new OperationError(
+            "REJECTED",
+            `The body of ${doc.id} changed after it was read. Nothing was written. Read it again, then apply the change again`,
+          );
         }
         const body =
           input.acceptance === undefined

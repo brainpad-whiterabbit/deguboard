@@ -75,13 +75,15 @@ export function TicketPage({ id }: { id: string }) {
   if (error) return <p className="error">{error}</p>;
   if (!ticket) return <p className="muted">{tr("読み込み中…")}</p>;
 
-  // 編集はタイトルと本文だけ（属性は右の列でその場で直す）
+  // 編集はタイトルと本文だけ（属性は右の列でその場で直す）。編集を始めたときの本文（base）を渡し、
+  // 読んだ後に本文が変わっていれば拒否されるので、その変更は消さない。拒否の理由は store.run が通知に出し、入力は欄に残す
   const save = async () => {
     if (!draft) return;
     const r = await store.run("ticket.update", {
       ticket: ticket.id,
       title: draft.title,
       body: draft.body,
+      base: draft.base,
     });
     if (r.ok) setDraft(null);
   };

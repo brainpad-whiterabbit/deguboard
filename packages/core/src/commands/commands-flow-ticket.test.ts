@@ -651,6 +651,42 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     });
     expect(undone.data.body).toBe(read);
   });
+
+  it("update は base が今の本文と違えば REJECTED で書かず、読んだ本文と同じなら書き、base を渡さなければ今までどおり書く", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a", "b"] });
+    const read = (await runCommand(ticketShow, ctx, { ticket: "t1" })).data.body;
+    // 画面が読んだ後に、別の書き込み（エージェントの印）が本文を変えた
+    const changed = await runCommand(ticketCheck, ctx, { ticket: "t1", items: [2] });
+    // 読んだ本文（read）を base にして題を直そうとすると、書き込まずに拒否する
+    await expect(
+      runCommand(ticketUpdate, ctx, {
+        ticket: "t1",
+        title: "B",
+        body: "## Summary\n\n上書き\n",
+        base: read,
+      }),
+    ).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("Nothing was written"),
+    });
+    const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
+    expect(shown.data.title).toBe("A");
+    expect(shown.data.body).toBe(changed.data.body);
+    // 読み直した本文を base にすれば書ける
+    const saved = await runCommand(ticketUpdate, ctx, {
+      ticket: "t1",
+      title: "B",
+      body: "## Summary\n\n直した\n",
+      base: shown.data.body,
+    });
+    expect(saved.data.title).toBe("B");
+    expect(saved.data.body).toBe("## Summary\n\n直した\n");
+    // base を渡さない呼び出し（CLI など）は今までどおり書ける
+    const plain = await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "low" });
+    expect(plain.data.priority).toBe("low");
+  });
 });
 
 describe("Epic と Iteration", () => {
