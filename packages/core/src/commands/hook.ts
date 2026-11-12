@@ -3,7 +3,8 @@
 //   - session_start：以後の Bash の環境に DEGUBOARD_ACTOR=agent・DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を export で書く
 //     （届くのは親の Bash だけ。サブエージェントの claim・run start のセッションは Adapter の sessionFromEnv が補う）
 //   - subagent_launched：頼んだ文の先頭の印（deguboard: ticket=<id> step=<step>）があれば、その Run を開いて記録の場所をサブエージェントの記録にする（RN-7）。
-//     見直しは、別のセッションで開いたままの同じチケットの見直しの Run を先に interrupted で閉じる。
+//     同じチケットで落ちたセッションに残った Run を先に interrupted で閉じる（見直しの起動は別のセッションの見直しの Run、
+//     どの起動も別のセッションのサブエージェントの記録が古い Run。closeStaleRuns）。
 //     前景の見直し役が動いている間に、その保留から sync・pr ready が見直しの記録（capture: none）を書いていたら、開かずにその記録を引き取る。
 //     開いたままの前の手直しの Run は、ほかの Run を開くときと同じく openRun が区切りとして閉じる（引き取るときも同じ区切りで閉じる。RN-6）。
 //     バックグラウンドの起動は、止まるまで動いている印（live）を付ける。印のある間は run finish が interrupted のほかで閉じない（RN-7）
@@ -57,6 +58,8 @@ import {
 import { adoptableReviewRecord } from "./orphan-review.js";
 import {
   closePreviousFixRunOrWarn,
+  crashedSubagentRunAt,
+  isSubagentTranscript,
   openedInOtherSession,
   openedStepOf,
   openRun,
@@ -163,7 +166,7 @@ export const hook = defineCommand({
   group: "hook",
   summary:
     "Called by the harness hooks (dg hooks install writes them into the settings; people do not run it). Reads the hook input (JSON) from stdin with --payload -. At the start of a session, puts the actor, session ID, and record path into the environment. For a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts " +
-    "(if a Run for the same ticket and step is still open, it does not open one and warns. For a review, if that Run is from a different session, it is treated as left over from a crashed session and closed as interrupted before opening. A review result written to that Run after a foreground start is held and linked to the new Run. When a foreground reviewer returns and dg sync or dg pr ready has already written its held result as a review record (capture: none) in the same session after the start, it does not open a Run; it ties the transcript to that record, re-reads its usage, removes capture: none, and replaces its result with a result held after the record was written. In both cases, an earlier fix Run still open on the same ticket is closed at the start boundary, as run start does). When it stops, if the step was finished, it closes the Run (otherwise it marks the Run as stopped and waiting, and resuming continues it; a Run opened by the agent itself is the same). At the end of the session it closes the open Runs of that session's sub-agents. " +
+    "(if a Run for the same ticket and step is still open, it does not open one and warns. Before opening, it closes as interrupted the open Runs of the same ticket that are left over from a crashed session: for a review, a review Run from a different session; for any step, a Run of any step tied to the record of a sub-agent of a different session whose record has not been written for 30 minutes (a newer record is taken as a sub-agent still running in parallel, and a Run the parent opened itself, or one whose session is not known, is left open). A review result written to that Run after a foreground start is held and linked to the new Run. When a foreground reviewer returns and dg sync or dg pr ready has already written its held result as a review record (capture: none) in the same session after the start, it does not open a Run; it ties the transcript to that record, re-reads its usage, removes capture: none, and replaces its result with a result held after the record was written. In both cases, an earlier fix Run still open on the same ticket is closed at the start boundary, as run start does). When it stops, if the step was finished, it closes the Run (otherwise it marks the Run as stopped and waiting, and resuming continues it; a Run opened by the agent itself is the same). At the end of the session it closes the open Runs of that session's sub-agents. " +
     "Before a tool is used (PreToolUse), it rejects writes under .git/deguboard/ by writing tools, and Bash containing the word .git/deguboard (including read-only commands, and text inside quotes or comments), and points to dg's read and write commands instead " +
     "(writes that do not show the word are not seen; a miss is found as a change outside dg the next time dg runs, and at Stop). " +
     "It rejects gh pr ready and gh pr merge run outside dg (including the same operations through gh api) and points to dg pr ready and dg pr merge " +
@@ -369,10 +372,9 @@ async function subagentLaunched(
     (await adoptReviewRecord(ctx, agent, event, ticket.data, startedAt, view, warnings))
   )
     return;
-  // 別のセッションで開いたままの見直しの Run は、そのセッションが落ちた残り。閉じてから開く（RN-6）。
-  // 同じセッションの見直しを重ねて開くのは二重の起動なので、閉じずに下の openRun が拒否する
-  if (marker.step === REVIEW_STEP)
-    await closeStaleReviewRuns(ctx, marker.ticket, event.session, startedAt ?? now, view, warnings);
+  // 同じチケットで別のセッションに残った Run は、そのセッションが落ちた残り。閉じてから開く（RN-6）。
+  // 同じセッションの Run を重ねて開くのは二重の起動なので、閉じずに下の openRun が拒否する
+  await closeStaleRuns(ctx, marker, event.session, startedAt ?? now, view, warnings);
   // 開いたままの前の手直しの Run は、openRun がこの起動の開始を区切りとして閉じてから開く（RN-6）
   let run: Run;
   try {
@@ -527,14 +529,17 @@ async function adoptReviewRecord(
 }
 
 /**
- * 見直しの起動の前に、このマシンで開いたままの同じチケットの見直しの Run のうち別のセッションのものを interrupted で閉じる（RN-6）。
- * 使用量はその Run の記録の場所から数える。前景の起動では見直し役が終わってからここに来るので、その間の run review-result は
- * 古い Run に書かれている。起動（launchedAt）より後に書かれた結果は古い Run から外して保留に移し、新しい Run を閉じるときに結び付ける。
+ * 印の起動の前に、このマシンで開いたままの同じチケットの Run のうち、落ちたセッションの残りを interrupted で閉じる（RN-6）。残りとみなすのは次の 2 つ。
+ *   - 見直しの起動では、別のセッションで開いた見直しの Run（記録の新しさによらない。見直しを別のセッションで並行して動かすことは想定しない）
+ *   - どの step の起動でも、落ちたセッションに残ったサブエージェントの Run（crashedSubagentRunAt。step によらない。t765）。
+ *     記録が新しい別のセッションの Run・親が自分で開いた Run は、並行して動いているかセッションをまたいで続くので閉じない
+ * 使用量はその Run の記録の場所から数える。前景の見直しの起動では見直し役が終わってからここに来るので、その間の run review-result は
+ * 古い見直しの Run に書かれている。起動（launchedAt）より後に書かれた結果は古い Run から外して保留に移し、新しい Run を閉じるときに結び付ける。
  * 閉じられなければ警告して続ける（下の openRun が拒否して警告する）
  */
-async function closeStaleReviewRuns(
+async function closeStaleRuns(
   ctx: CommandContext,
-  ticket: TicketId,
+  marker: { ticket: TicketId; step: string },
   session: string,
   launchedAt: Date,
   view: HookView,
@@ -542,14 +547,19 @@ async function closeStaleReviewRuns(
 ): Promise<void> {
   const paths = await readTranscriptPaths(ctx.repo);
   for (const { data: stale } of (await readRunningRuns(ctx.repo)).runs) {
-    if (stale.ticket !== ticket || stale.step !== REVIEW_STEP) continue;
-    if (!openedInOtherSession(stale, session)) continue;
+    if (stale.ticket !== marker.ticket || !openedInOtherSession(stale, session)) continue;
+    const review = stale.step === REVIEW_STEP && marker.step === REVIEW_STEP;
+    if (
+      !review &&
+      (await crashedSubagentRunAt(stale, paths.get(stale.id), session, ctx.now())) === undefined
+    )
+      continue;
     try {
       let run = stale;
-      if (await moveReviewToPending(ctx.repo, run.id, launchedAt)) {
+      if (review && (await moveReviewToPending(ctx.repo, run.id, launchedAt))) {
         run = { ...run, review: null };
         view.done.push(
-          `The review result for ${ticket} was written by the current reviewer, so it was taken off Run ${run.id} and kept pending`,
+          `The review result for ${marker.ticket} was written by the current reviewer, so it was taken off Run ${run.id} and kept pending`,
         );
       }
       await closeSubagentRun(
@@ -659,10 +669,6 @@ export const hookTiming: {
   /** 待ちきれなかった直後に呼ぶ（テストが、その後の掃除の前に記録を書き足すため） */
   onGiveUp?: (() => Promise<void>) | undefined;
 } = { settleMs: 3000, pollMs: 100 };
-
-/** 記録のパスがサブエージェントの記録（<session>/subagents/ の下）か。agent_id 付きの Run の見分けに使う */
-const isSubagentTranscript = (p: string | undefined) =>
-  p !== undefined && path.basename(path.dirname(p)) === "subagents";
 
 /**
  * サブエージェントが止まったときの Run の扱い（RN-7）。記録の最初の文の印で照らしてチケットと step を直し、記録の場所を

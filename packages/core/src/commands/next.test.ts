@@ -191,6 +191,32 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     expect(shown.stage).toEqual(t2.stage);
   });
 
+  it("印で頼む手（実装・見直し・手直し）は、落ちたセッションに残ったサブエージェントの Run を待たずに、印で頼み直す手順とその Run を閉じることを返す（t765）", async () => {
+    const ctx = await prepared();
+    const open = { finished_at: null, result: null, session: "s-old" };
+    const crashedOf = (r: Run) => ({ crashed: new Map([[r.id, "2026-11-07T10:02:00Z"]]) });
+    const reviewing = review(6, null, open);
+    const asked = nextOf(ctx, facts({ runs: [reviewing] }), crashedOf(reviewing));
+    expect(asked).toMatchObject({ kind: "review", running_run: null });
+    expect(asked.commands[0]).toContain(`The review Run ${reviewing.id} was opened by a sub-agent`);
+    expect(asked.commands[0]).toContain("since 2026-11-07T10:02:00Z");
+    expect(asked.commands[1]).toContain("deguboard: ticket=t1 step=review");
+    const fixing = run("fix", 7, open);
+    const fix = nextOf(ctx, facts({ runs: [review(6, heavy), fixing] }), crashedOf(fixing));
+    expect(fix).toMatchObject({ kind: "fix", running_run: null });
+    expect(fix.commands[0]).toContain(`The fix Run ${fixing.id}`);
+    // 残りでない Run（crashed にない）は今までどおり待つ
+    expect(nextOf(ctx, facts({ runs: [reviewing] })).commands).toEqual([
+      expect.stringContaining("Wait for the running Run"),
+    ]);
+    // 印で頼まない手（ready）は、残りの見直しの Run も今までどおり待つ
+    const low = facts({ ticket: { gate: "low" }, runs: [review(6, passed), reviewing] });
+    expect(nextOf(ctx, low, crashedOf(reviewing))).toMatchObject({
+      kind: "ready",
+      running_run: reviewing.id,
+    });
+  });
+
   it("段階から手を選ぶ：見直しが通れば ready、重い指摘なら fix（印で頼み、直す者が run retry-reason で理由を書く）、上限を超えたら通っても wait_human、出した PR は wait_merge", async () => {
     const ctx = await prepared();
     const kind = (f: StageFacts) => nextOf(ctx, f);
