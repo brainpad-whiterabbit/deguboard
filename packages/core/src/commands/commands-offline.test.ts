@@ -83,6 +83,26 @@ describe("push 先に届かないときの即時の操作（SY-3）", () => {
     expect(ctx.store.iterations.get("s2")?.data.status).toBe("planned");
   });
 
+  it("まとめ待ちの変更を先にコミットしたときは、そのコミットがローカルに残ることをエラーで伝える", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA, { now: () => NOW });
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(iterationCreate, ctx, { name: "S2" });
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    // close はまとめ待ちに残る。届かない start が先にそれをコミットする
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    await goOffline(f);
+    const before = await head(ctx);
+
+    await expect(runCommand(iterationStart, ctx, { iteration: "s2" })).rejects.toThrow(
+      /pending changes committed before it stay locally, and the next dg sync sends them/,
+    );
+    // まとめ待ちのコミットの 1 つだけが増え、start のコミットは残らない
+    expect((await git(ctx.repo.dataDir, ["rev-parse", "HEAD~1"])).stdout.trim()).toBe(before);
+    expect(ctx.store.iterations.get("s1")?.data.status).toBe("closed");
+    expect(ctx.store.iterations.get("s2")?.data.status).toBe("planned");
+  });
+
   it("Epic・Iteration・Plan の作成は自分のコミットを捨てて PUSH_FAILED で失敗する。チケットの起票だけは仮番号で残る（DT-5）", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA, { now: () => NOW });

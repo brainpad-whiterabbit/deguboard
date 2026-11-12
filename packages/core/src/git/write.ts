@@ -133,7 +133,8 @@ async function writeLocked<T>(
 
   await requireIdentity(repo);
   // 即時の操作は、まとめ待ちの変更を先にコミットして作業ツリーを空にする
-  if (await flushPending(ctx)) warnings.push("Committed the pending changes first");
+  const flushed = await flushPending(ctx);
+  if (flushed) warnings.push("Committed the pending changes first");
 
   let attempts = 0;
   for (;;) {
@@ -192,11 +193,15 @@ async function writeLocked<T>(
         // CAS は push の成功で取得とする。届かなければ取れたか分からないので、自分のコミットを捨てて失敗にする（SY-3）。
         // ローカルに残すと、オフラインの 2 台が同じチケットを claim でき、別々に start すると active が 2 つになる（IT-1）。
         // Epic・Iteration・Plan の作成は仮番号を付けないので、残すと番号の衝突を dg sync で振り直せない（DT-5）
+        // 先にコミットしたまとめ待ちの変更は before より前にあるので残る。throw で警告が落ちるので、その旨をメッセージに含める
         await resetHard(repo, before);
         await ctx.store.rescan();
+        const kept = flushed
+          ? " The pending changes committed before it stay locally, and the next dg sync sends them."
+          : "";
         throw new OperationError(
           "PUSH_FAILED",
-          "Cannot reach the remote, so the change was not applied and no commit remains. Retry the same operation when the remote is reachable",
+          `Cannot reach the remote, so your change was not applied and its commit was discarded.${kept} Retry the same operation when the remote is reachable`,
           pushed.detail,
         );
       }
