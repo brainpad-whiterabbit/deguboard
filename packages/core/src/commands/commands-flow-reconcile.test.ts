@@ -47,6 +47,29 @@ vi.mock("../run/record.js", async (importOriginal) => {
 
 afterEach(runCleanups);
 
+/** 偽の gh を置き、`gh pr view <ブランチ名>` の応答を selector ごとの JSON で返す（応答のない selector は PR なし）。PATH に足すディレクトリを返す */
+async function fakeGhPrs(root: string, responses: Record<string, string>): Promise<string> {
+  const bin = path.join(root, "fake-bin");
+  await mkdir(bin, { recursive: true });
+  const cases = Object.entries(responses).map(
+    ([selector, json]) => `  ${selector}) echo '${json}';;`,
+  );
+  await writeFile(
+    path.join(bin, "gh"),
+    [
+      "#!/bin/sh",
+      'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+      'case "$3" in',
+      ...cases,
+      '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
+      "esac",
+      "",
+    ].join("\n"),
+    { mode: 0o755 },
+  );
+  return bin;
+}
+
 describe("チケットの流れ（照合と claim）", () => {
   it("ticket show は作業ブランチの worktree のパスを git の一覧から引き、その worktree でも同じデータを読める（t381）", async () => {
     const f = await fixture();
@@ -238,9 +261,9 @@ describe("チケットの流れ（照合と claim）", () => {
         "#!/bin/sh",
         'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
         'case "$3" in',
-        '  chore/reused|105) echo \'{"number":105,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-01T10:00:00Z"}\';;',
-        '  chore/legacy|90) echo \'{"number":90,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-01T09:00:00Z"}\';;',
-        '  chore/fresh|200) echo \'{"number":200,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-02T06:00:00Z"}\';;',
+        '  chore/reused|105) echo \'{"number":105,"state":"MERGED","isDraft":false,"createdAt":"2026-10-31T10:00:00Z","mergedAt":"2026-11-01T10:00:00Z"}\';;',
+        '  chore/legacy|90) echo \'{"number":90,"state":"MERGED","isDraft":false,"createdAt":"2026-10-31T09:00:00Z","mergedAt":"2026-11-01T09:00:00Z"}\';;',
+        '  chore/fresh|200) echo \'{"number":200,"state":"MERGED","isDraft":false,"createdAt":"2026-11-02T05:30:00Z","mergedAt":"2026-11-02T06:00:00Z"}\';;',
         '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
         "esac",
         "",
@@ -263,7 +286,7 @@ describe("チケットの流れ（照合と claim）", () => {
       const t1Warnings = synced.warnings.filter((w) => w.startsWith("t1:"));
       expect(t1Warnings).toHaveLength(1);
       expect(t1Warnings[0]).toContain("PR #105");
-      expect(t1Warnings[0]).toContain("2026-11-01T10:00:00Z");
+      expect(t1Warnings[0]).toContain("2026-10-31T10:00:00Z");
       // このチケットの PR なら、ticket update で記録して sync を回し直す手を書く（前の作業の PR なら何もしない）
       expect(t1Warnings[0]).toContain("ticket update t1 --pr 105");
       expect(t1Warnings[0]).toContain("run sync again");
@@ -297,6 +320,109 @@ describe("チケットの流れ（照合と claim）", () => {
       expect(ctx.store.tickets.get("t1")?.data.branch_at).toBe("2026-11-02T07:10:00Z");
       await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: null });
       expect(ctx.store.tickets.get("t1")?.data.branch_at).toBeUndefined();
+    } finally {
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  });
+
+  it("ブランチで探した PR のうち、記録より前に作られて開いていないもの（閉じたものも）は前の作業とみなして拾い、開いたままのものは記録より前に作られていても拾う（t747）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-02T05:00:00Z");
+    const ctx = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, ctx, { title: "Closed old PR" });
+    await runCommand(ticketCreate, ctx, { title: "Open old PR" });
+    await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t1",
+      branch: "chore/closed-old",
+    });
+    await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t2",
+      branch: "chore/open-old",
+    });
+    await recordBaseline(ctx.repo);
+    for (const b of ["chore/closed-old", "chore/open-old"]) {
+      await git(f.cloneA, ["branch", b]);
+    }
+
+    // 前の作業：マージされずに閉じた PR #105 と、まだ開いたままの PR #110。どちらも claim より前に作られた
+    const bin = await fakeGhPrs(f.root, {
+      "chore/closed-old":
+        '{"number":105,"state":"CLOSED","isDraft":false,"createdAt":"2026-10-31T10:00:00Z","mergedAt":null}',
+      "chore/open-old":
+        '{"number":110,"state":"OPEN","isDraft":false,"createdAt":"2026-10-31T11:00:00Z","mergedAt":null}',
+    });
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    try {
+      clock = new Date("2026-11-02T06:05:00Z");
+      const synced = await runCommand(sync, ctx, {});
+      // 閉じた古い PR は根拠にせず、pr も記録せず、外した理由を警告する
+      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "in_progress" });
+      expect(ctx.store.tickets.get("t1")?.data.pr).toBeUndefined();
+      const t1Warnings = synced.warnings.filter((w) => w.startsWith("t1:"));
+      expect(t1Warnings).toHaveLength(1);
+      expect(t1Warnings[0]).toContain("PR #105");
+      expect(t1Warnings[0]).toContain("is closed");
+      expect(t1Warnings[0]).toContain("2026-10-31T10:00:00Z");
+      // 開いたままの古い PR は除外せず、記録して review に進む
+      expect(synced.data.pr_recorded).toContainEqual({ id: "t2", pr: 110 });
+      expect(ctx.store.tickets.get("t2")?.data).toMatchObject({ status: "review", pr: 110 });
+      expect(synced.warnings.join("\n")).not.toContain("PR #110");
+    } finally {
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  });
+
+  it("マージされずに閉じた前の作業の PR が残るブランチ名で claim し直し、新しい PR を出すと、その PR を記録して review に進む（t747）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-02T05:00:00Z");
+    const ctx = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, ctx, { title: "Reclaimed branch" });
+    await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t1",
+      branch: "chore/reclaimed",
+    });
+    await recordBaseline(ctx.repo);
+    await git(f.cloneA, ["branch", "chore/reclaimed"]);
+
+    const savedPath = process.env["PATH"];
+    try {
+      // 前の作業の PR #105 は閉じたまま。claim し直した後の照合では拾わない
+      const bin = await fakeGhPrs(f.root, {
+        "chore/reclaimed":
+          '{"number":105,"state":"CLOSED","isDraft":false,"createdAt":"2026-10-31T10:00:00Z","mergedAt":null}',
+      });
+      process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+      resetGhCache();
+      clock = new Date("2026-11-02T06:00:00Z");
+      const first = await runCommand(sync, ctx, {});
+      expect(first.data.pr_recorded).toEqual([]);
+      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "in_progress" });
+      expect(ctx.store.tickets.get("t1")?.data.pr).toBeUndefined();
+
+      // 同じブランチで新しい PR #200 を出す（claim の後に作られ、開いている）
+      await fakeGhPrs(f.root, {
+        "chore/reclaimed":
+          '{"number":200,"state":"OPEN","isDraft":false,"createdAt":"2026-11-02T06:30:00Z","mergedAt":null}',
+      });
+      clock = new Date("2026-11-02T06:35:00Z");
+      const second = await runCommand(sync, ctx, {});
+      expect(second.data.pr_recorded).toEqual([{ id: "t1", pr: 200 }]);
+      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "review", pr: 200 });
     } finally {
       process.env["PATH"] = savedPath;
       resetGhCache();

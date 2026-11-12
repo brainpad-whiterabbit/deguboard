@@ -13,8 +13,9 @@ export interface BranchFactsOptions {
   /** チケットの今の Status。in_progress で push していないブランチは作業がまだないとみなす（ST-5） */
   status?: Status | undefined;
   /**
-   * ブランチを記録した時刻（ISO）。ブランチ名で引いた PR がこれより前にマージされていたら、
-   * 同じ名前を使い回した別の作業の PR とみなして PR はないと読む（ST-6）。記録した番号で引くときは見ない
+   * ブランチを記録した時刻（ISO）。ブランチ名で引いた PR のうち、開いていない（マージ済みか閉じた）もので
+   * 作成がこれより前のものは、同じ名前を使い回した前の作業の PR とみなして PR はないと読む（ST-6）。
+   * 記録した番号で引くときは見ない
    */
   since?: string | undefined;
 }
@@ -29,8 +30,8 @@ export interface BranchFacts {
   prMergedAt?: string;
   /** gh が「PR がない」と答えた。pr_* はすべて偽になるが、閉じた PR とは区別する（ST-5） */
   prMissing?: boolean;
-  /** ブランチ名で見つけたが、`since` より前にマージされていたので外した PR（照合が警告する） */
-  ignoredPr?: { number: number; mergedAt: string };
+  /** ブランチ名で見つけたが、`since` より前に作られ開いていなかったので外した PR（照合が警告する） */
+  ignoredPr?: { number: number; state: string; createdAt: string };
 }
 
 let ghAvailable: boolean | undefined;
@@ -283,23 +284,29 @@ async function collectPrFacts(
   createdAt?: string;
   mergedAt?: string;
   missing?: boolean;
-  ignored?: { number: number; mergedAt: string };
+  ignored?: { number: number; state: string; createdAt: string };
 }> {
   const missing = { facts: { pr_open: false, pr_draft: false, pr_merged: false }, missing: true };
   const viewed = await viewPr(repo, pr ? String(pr) : branch);
   if (!viewed) return { facts: {} };
   if ("missing" in viewed) return missing;
   const data = viewed.data;
-  // ブランチを記録する前にマージされた PR は、同じブランチ名で出した前の作業のもの（t206）
+  const createdAt = isoOrUndefined(data.createdAt);
+  // ブランチを記録する前に作られ、開いていない PR（マージ済みも閉じたものも）は、同じブランチ名で出した前の作業のもの（t206・t747）。
+  // 開いたままの PR は、記録より前に作られても今の作業の PR として使う（手放して claim し直した後も続けられるように）。
+  // 作成の時刻が読めないときは外さない
   if (
     pr === undefined &&
     since !== undefined &&
-    data.state === "MERGED" &&
-    typeof data.mergedAt === "string" &&
-    Date.parse(data.mergedAt) < Date.parse(since)
+    data.state !== "OPEN" &&
+    createdAt !== undefined &&
+    Date.parse(createdAt) < Date.parse(since)
   ) {
     return Number.isInteger(data.number) && (data.number as number) > 0
-      ? { ...missing, ignored: { number: data.number as number, mergedAt: data.mergedAt } }
+      ? {
+          ...missing,
+          ignored: { number: data.number as number, state: data.state, createdAt },
+        }
       : missing;
   }
   const facts: Facts = {
@@ -307,7 +314,6 @@ async function collectPrFacts(
     pr_draft: data.isDraft,
     pr_merged: data.state === "MERGED",
   };
-  const createdAt = isoOrUndefined(data.createdAt);
   const mergedAt = isoOrUndefined(data.mergedAt);
   return Number.isInteger(data.number) && (data.number as number) > 0
     ? {
