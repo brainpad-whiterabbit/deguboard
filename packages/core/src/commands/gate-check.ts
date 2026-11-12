@@ -56,6 +56,9 @@ function tailOf(stdout: string, stderr: string): string {
   return lines.slice(-TAIL_LINES).join("\n");
 }
 
+/** 書くときに残す、直近の通った結果の数。全体の検査の基準のコミットの結果は、これより古くても残す */
+const KEEP_RESULTS = 5;
+
 async function readRecord(file: string): Promise<CheckRecord> {
   try {
     const parsed = JSON.parse(await readFile(file, "utf8")) as Partial<CheckRecord>;
@@ -63,8 +66,16 @@ async function readRecord(file: string): Promise<CheckRecord> {
     if (parsed.full) record.full = parsed.full;
     return record;
   } catch {
+    // 読めない・旧形式（1 チケット 1 件のオブジェクト）は results が空になり、初回の検査だけ回し直す（t741）
     return { results: [] };
   }
+}
+
+/** 書くときに残す結果：直近 KEEP_RESULTS 件と、全体の検査の基準のコミットの結果（古い結果は捨てる） */
+function prunedResults(record: CheckRecord): StoredCheck[] {
+  const total = record.results.length;
+  const full = record.full?.sha;
+  return record.results.filter((r, i) => i >= total - KEEP_RESULTS || r.sha === full);
 }
 
 /** 作業ブランチの最新のコミット（リモートがあればリモートの先端、なければローカルの先端）。読めなければ undefined */
@@ -329,6 +340,7 @@ export async function judgeCheck(
       });
       // 全体の検査が通ったときだけ、その基準のコミットを動かす。軽い検査では消さない（t741）
       if (!choice.light) record.full = { sha, command };
+      record.results = prunedResults(record);
       await mkdir(path.dirname(file), { recursive: true });
       await writeFileAtomic(file, `${JSON.stringify(record, null, 2)}\n`);
     }

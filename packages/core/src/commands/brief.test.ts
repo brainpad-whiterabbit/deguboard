@@ -54,7 +54,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Tools: read files with Read and edit them with Edit. Do not read or write source with Bash cat, heredoc, or sed -i.
       - Run: the marker on the first line makes the hook open and close the implementation Run. Do not open or close a Run. The parent has already claimed the ticket.
       - Do not: claim, unclaim, iteration add, Plan operations, launching a reviewer, making the PR ready (\`dg pr ready\`), merge, \`ticket check\`, \`ticket update --pr\`, or work on other tickets. Do not fix things outside the scope; report them in what you return.
-      - Return: the draft PR's URL and number; the acceptance criteria you checked (by number) and those you could not (with reasons); the sources you reread and what you changed there; the results of the checks (format, lint, tests); and anything the human should know."
+      - Return: the draft PR's URL and number; the acceptance criteria you checked (by number) and those you could not (with reasons); the sources you reread and what you changed there; the result of \`dg gate t12 --only check\` before the push (passed or not, light or full, and the SHA); and anything the human should know."
     `);
     expect(composeBrief("review", facts({ step: "review" }))).toMatchInlineSnapshot(`
       "deguboard: ticket=t12 step=review
@@ -62,7 +62,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Read the files only; do not change them.
       - Diff: After \`git fetch origin\`, look at \`git diff origin/main...feat/t12\`.
       - Ticket body: Read the body and acceptance criteria in \`dg --json --actor agent ticket show t12\`.
-      - Conventions: Follow the agent instruction file at the repository root, and the steps below.
+      - Conventions: Follow the agent instruction file at the repository root, and the steps below. On the latest commit, run \`dg --json --actor agent gate t12 --only check\` (the check of the quality gate; it reuses the result remembered for the same commit) and use its result.
       --- Steps: Review ---
       1. 検査を通す
       2. 読み直した正本を直す
@@ -71,7 +71,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Run: the marker on the first line makes the hook open and close the review Run. Do not open or close a Run.
       - Record: Before returning the list, write the findings as a JSON array (each with severity (heavy or light), category, file, line, reason, and fix; the shape is in \`dg run review-result --help\`) to a temporary file outside the repository, and record it once with \`dg --json --actor agent run review-result t12 --findings-file <file>\`. Use \`[]\` if there are no findings. dg works out the counts and whether the review passed.
       - Do not: change files in the repository, commit, push, write anything to dg other than the Run, or look at other tickets.
-      - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a promise, procedure, or rule this PR changed, details added to an ADR or requirements, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report mismatches with the references section (\`## References\` or \`## 参考\` in the body) under the light findings, and do not count them as heavy."
+      - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a promise, procedure, or rule this PR changed, details added to an ADR or requirements, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the result of \`dg gate t12 --only check\` on the latest commit (passed or not, light or full, and the SHA). Report mismatches with the references section (\`## References\` or \`## 参考\` in the body) under the light findings, and do not count them as heavy."
     `);
     expect(composeBrief("fix", facts({ step: "fix" }))).toMatchInlineSnapshot(`
       "deguboard: ticket=t12 step=fix
@@ -92,7 +92,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Tools: read files with Read and edit them with Edit. Do not read or write source with Bash cat, heredoc, or sed -i.
       - Run: the marker on the first line makes the hook open and close the fix Run. Do not open or close a Run (do not use claim, \`run start\`, or \`run finish\`).
       - Do not: claim, unclaim, making the PR ready (\`dg pr ready\`), merge, \`ticket update --pr\`, \`ticket check\`, or work on other tickets.
-      - Return: the commits you made (hash and summary) and whether you pushed; the light findings you did not fix, with reasons; the acceptance criteria you checked (by number) and those you could not (with reasons); the results of the checks; and anything the human should know."
+      - Return: the commits you made (hash and summary) and whether you pushed; the light findings you did not fix, with reasons; the acceptance criteria you checked (by number) and those you could not (with reasons); the result of \`dg gate t12 --only check\` before the push (passed or not, light or full, and the SHA); and anything the human should know."
     `);
   });
 

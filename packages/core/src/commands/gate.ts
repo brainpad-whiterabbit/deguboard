@@ -239,7 +239,7 @@ export const gate = defineCommand({
     "low leaves out review and fix_rounds (merge: pr · acceptance · mergeable · check; ready: pr · check). " +
     "free judges only pr and, with --for merge, mergeable (merge: pr · mergeable; ready: pr). Conditions that are not judged do not appear in conditions, and their inputs (review Runs, the push time and its fetch, the check) are not read. " +
     "Set the level with dg ticket create/import/update --gate; lowering it follows a person's instruction. " +
-    "--only check judges only check, with the same judgment, on the HEAD of the work branch's worktree (a commit not pushed yet is fine; uncommitted changes refuse it), whatever the level. Run it before the push. The result is remembered per commit and command, so dg pr ready and dg pr merge after the push reuse it for the same commit. " +
+    "--only check judges only check, with the same judgment, on the HEAD of the work branch's worktree (a commit not pushed yet is fine; uncommitted changes refuse it), whatever the level. Run it before the push. With --only, --for is not judged (the view only echoes it). The result is remembered per commit and command, so dg pr ready and dg pr merge after the push reuse it for the same commit. " +
     "dg pr ready and dg pr merge make the same judgment before they call gh. Proceeding outside the conditions of the level is left to a person (a person runs gh). They do not write ticket data (they only record the results of passed checks in deguboard-local)",
   input: z.object({
     ticket: ticketRef,
@@ -253,7 +253,7 @@ export const gate = defineCommand({
       .enum(["check"])
       .optional()
       .describe(
-        "check: run only the check condition on the work branch's worktree HEAD (before the push). See the summary",
+        "check: run only the check condition on the work branch's worktree HEAD (before the push). See the summary. With it, for is not judged: the view only echoes it, and no merge conditions are judged",
       ),
   }),
   write: false,
