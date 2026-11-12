@@ -340,7 +340,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     }
     if (ignoredPr) {
       warnings.push(
-        `${doc.id}: PR #${ignoredPr.number}, found by branch name, was merged (${ignoredPr.mergedAt}) before the branch was recorded. It is taken as a PR of earlier work with the same name, so reconcile does not use it. If this PR belongs to this ticket, record it with ticket update ${doc.id} --pr ${ignoredPr.number}, then run sync again to reconcile it. If it belongs to earlier work, do nothing`,
+        `${doc.id}: PR #${ignoredPr.number}, found by branch name, is ${ignoredPr.state.toLowerCase()} and was created (${ignoredPr.createdAt}) before the branch was recorded. It is taken as a PR of earlier work with the same name, so reconcile does not use it. If this PR belongs to this ticket, record it with ticket update ${doc.id} --pr ${ignoredPr.number}, then run sync again to reconcile it. If it belongs to earlier work, do nothing`,
       );
     }
     const outcome = reconcileStatus(wf.resolved, doc.data.status, facts);
