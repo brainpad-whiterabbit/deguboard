@@ -10,6 +10,6 @@
 dg init
 ```
 
-`dg` が見つからないときは、README の「[Getting started before release](https://github.com/brainpad-whiterabbit/deguboard#getting-started-before-release)」のとおりにビルドして、`dg` を PATH に通します（npm にはまだ公開していません）。
+ターミナルで `dg` が見つからないときは、上のボタンを押します。または、コマンドパレットの **dg コマンドを入れる**（`deguboard.installDg`）を実行して、`~/.local/bin/dg` を張ります。
 
 実行すると、開き直さなくてもサイドバーがいつもの画面に変わります。

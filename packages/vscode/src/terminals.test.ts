@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { bundleTranslator, setTranslator } from "./l10n.js";
 import { afterEach, describe, expect, it } from "vitest";
-import { describeTerminals, startCommandLine, terminalInput } from "./terminals.js";
+import {
+  describeTerminals,
+  runningStartTerminal,
+  startCommandLine,
+  terminalInput,
+} from "./terminals.js";
 
 // 文言は日本語の訳で確かめる（表示言語が日本語のときに今までと同じ文言が出ること）。英語は l10n.test.ts で確かめる
 setTranslator(
@@ -110,5 +115,16 @@ describe("startCommandLine（始め方のボタンが入れる 1 行）", () => 
     rmSync(log);
     expect(run("skill").status).not.toBe(0);
     expect(readFileSync(log, "utf8")).toBe("init\nskill install\n");
+  });
+});
+
+describe("runningStartTerminal（始め方のボタンの二重押し）", () => {
+  it("閉じていない deguboard のターミナルを返し、別の名前や閉じたものは返さない", () => {
+    const other = { name: "zsh" };
+    const exited = { name: "deguboard", exitStatus: { code: 0 } };
+    const running = { name: "deguboard" };
+    expect(runningStartTerminal([other, exited])).toBeUndefined();
+    expect(runningStartTerminal([other, exited, running])).toBe(running);
+    expect(runningStartTerminal([])).toBeUndefined();
   });
 });

@@ -60,7 +60,13 @@ import {
   onPath,
   unlinkDg,
 } from "./launcher.js";
-import { describeTerminals, startCommandLine, terminalInput } from "./terminals.js";
+import {
+  describeTerminals,
+  runningStartTerminal,
+  START_TERMINAL_NAME,
+  startCommandLine,
+  terminalInput,
+} from "./terminals.js";
 import { commonDirOf, initWatchTarget, watchTargets } from "./watch.js";
 import {
   askDelivery,
@@ -408,13 +414,22 @@ async function startRepository(
   folder: vscode.WorkspaceFolder,
 ): Promise<void> {
   try {
+    // 1 回目の init が終わる前に押されたら、新しく開かずに開いているターミナルを見せる（二重に走らせない）
+    const running = runningStartTerminal(vscode.window.terminals);
+    if (running) {
+      running.show();
+      return;
+    }
     if ((await installLauncher(launcherCurrent(context))) === "unsupported") {
       void vscode.window.showWarningMessage(
         `deguboard: ${t("Starting from this view is not supported on this platform.")}`,
       );
       return;
     }
-    const terminal = vscode.window.createTerminal({ name: "deguboard", cwd: folder.uri.fsPath });
+    const terminal = vscode.window.createTerminal({
+      name: START_TERMINAL_NAME,
+      cwd: folder.uri.fsPath,
+    });
     terminal.show();
     terminal.sendText(startCommandLine(launcherFileOf()), true);
   } catch (error) {

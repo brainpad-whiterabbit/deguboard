@@ -10,6 +10,6 @@ To run it yourself in a terminal instead:
 dg init
 ```
 
-If `dg` is not found, build it as described in the README's [“Getting started before release”](https://github.com/brainpad-whiterabbit/deguboard#getting-started-before-release) section and put `dg` on your PATH (it is not on npm yet).
+If `dg` is not found in a terminal, press the button above instead. Or run **Install dg command** from the Command Palette (`deguboard.installDg`) to link `~/.local/bin/dg`.
 
 Once it finishes, the sidebar switches to the usual views without reopening.
