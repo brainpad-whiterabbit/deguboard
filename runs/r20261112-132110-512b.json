@@ -1,0 +1,35 @@
+{
+  "id": "r20261112-132110-512b",
+  "ticket": "t760",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T13:21:10Z",
+  "finished_at": "2026-11-12T13:27:09Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "requirements PL-3 omits cycles made by returning a done ticket",
+    "setup.ts lint comment still describes the rejected write",
+    "review-step warning overstates effect for low and free gate levels",
+    "cycle exemption is checked across all open Plans instead of per Plan"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 20243,
+    "cache_read": 954667,
+    "cache_write": 55871
+  },
+  "tools": {
+    "read": 7,
+    "search": 0,
+    "write": 9,
+    "bash": 13,
+    "other": 1,
+    "read_before_write": 7,
+    "search_before_write": 0
+  },
+  "session": "609d820c-be5f-4e27-9252-a549631f4417",
+  "review": null
+}
