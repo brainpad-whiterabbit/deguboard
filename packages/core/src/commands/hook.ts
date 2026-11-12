@@ -200,7 +200,7 @@ export const hook = defineCommand({
             await pruneHookSessions(ctx.repo.localDir, ctx.now());
           } catch (e) {
             warnings.push(
-              `Could not write the hook session record (${e instanceof Error ? e.message : String(e)})`,
+              `Could not prune old hook session records (${e instanceof Error ? e.message : String(e)})`,
             );
           }
         }
