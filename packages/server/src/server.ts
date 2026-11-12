@@ -1,4 +1,4 @@
-// dg serve の本体。既定で 127.0.0.1 にバインドし、認証は持たない（UI-8）
+// dg serve の本体。既定で 127.0.0.1 にバインドし、認証は持たない。別オリジンとほかのホスト名からの要求は app の guard が断る（UI-8）
 
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -6,7 +6,6 @@ import { createApp, type AppOptions } from "./app.js";
 import { DEFAULT_HOST, DEFAULT_PORT } from "./defaults.js";
 
 export interface ServeOptions extends AppOptions {
-  host?: string | undefined;
   /** 0 なら空いているポート */
   port?: number | undefined;
 }
@@ -23,7 +22,7 @@ export { DEFAULT_HOST, DEFAULT_PORT };
 
 export async function startServer(options: ServeOptions): Promise<RunningServer> {
   const host = options.host ?? DEFAULT_HOST;
-  const server = createServer(createApp(options));
+  const server = createServer(createApp({ ...options, host }));
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(options.port ?? DEFAULT_PORT, host, () => resolve());
