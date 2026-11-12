@@ -6,7 +6,7 @@
 import { execFile } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual, promisify } from "node:util";
 import {
@@ -371,12 +371,16 @@ export async function checkHooks(options: {
   for (const [base, status] of statuses) {
     const { status: verdict, gone } = await status;
     if (verdict === "ok") continue;
-    // 起動ファイルがなくなったときは、dg hooks install を案内しない（別の dg が node と dg.js を書き直してしまう）。拡張を開き直して書かせる
+    // 起動ファイルがなくなったときは、拡張が残っていれば dg hooks install を案内しない（別の dg が node と dg.js を書き直してしまう）。拡張を開き直して書かせる。
+    // 拡張を消したとき（起動ファイルも current もない）は開き直せないので、入れ直すか外す案内にする（t742）
     const launcherGone = gone.filter((p) => isLauncherPath(p, options.env));
     const otherGone = gone.filter((p) => !launcherGone.includes(p));
     if (verdict === "gone" && launcherGone.length > 0) {
+      const extensionRemoved = launcherGone.every((p) => !existsSync(join(dirname(p), "current")));
       warnings.push(
-        `Handler "${base}": ${launcherGone.join(", ")} no longer exists (the deguboard launcher was removed). Open VS Code with the deguboard extension once to write it again`,
+        extensionRemoved
+          ? `Handler "${base}": ${launcherGone.join(", ")} no longer exists, and the deguboard extension that wrote it was removed. Run dg hooks install again to write hooks that call this dg, or dg hooks uninstall to remove them`
+          : `Handler "${base}": ${launcherGone.join(", ")} no longer exists (the deguboard launcher was removed). Open VS Code with the deguboard extension once to write it again`,
       );
       if (otherGone.length === 0) continue;
     }
