@@ -1,6 +1,7 @@
 // Git のテスト用：一時ディレクトリに bare リモートと 2 つの clone を作る（CLAUDE.md の規約）
 
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { afterAll } from "vitest";
+import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { resolveRepoPaths, resolveRemote, type GitRepo } from "../../src/git/repo.js";
@@ -49,8 +50,11 @@ async function configureIdentity(dir: string): Promise<void> {
   await runGit(dir, ["config", "user.email", "test@example.com"]);
 }
 
-export async function createFixture(): Promise<Fixture> {
-  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "deguboard-git-")));
+/** 1 つのテストファイルの中で 1 度だけ作る雛形（bare リモートと clone 2 つ、最初のコミット入り）のディレクトリ */
+let template: Promise<string> | undefined;
+
+async function buildTemplate(): Promise<string> {
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "deguboard-git-template-")));
   const remoteDir = path.join(root, "remote.git");
   await runGit(root, ["init", "--quiet", "--bare", "-b", "main", remoteDir]);
   await disableBackgroundOnRemote(remoteDir);
@@ -62,6 +66,39 @@ export async function createFixture(): Promise<Fixture> {
   await runGit(cloneA, ["push", "--quiet", "origin", "main"]);
   await runGit(root, ["clone", "--quiet", remoteDir, cloneB]);
   await configureIdentity(cloneB);
+  return root;
+}
+
+/** 雛形のディレクトリ。まだ作っていなければ undefined（テストが雛形を消せたかを確かめるため） */
+export async function fixtureTemplateDir(): Promise<string | undefined> {
+  return template && (await template);
+}
+
+/** 雛形を消す。2 回目以降は何もしない */
+export async function disposeFixtureTemplate(): Promise<void> {
+  const dir = await fixtureTemplateDir();
+  template = undefined;
+  if (dir) await removeDir(dir);
+}
+
+// テストファイルが終わったら雛形を消す（写したものは各テストの cleanup が消す）
+afterAll(disposeFixtureTemplate);
+
+/**
+ * 雛形を写し、clone の remote.origin.url を写した先の remote.git に書き換える。
+ * 雛形の中で絶対パスを持つのは remote.origin.url だけなので、これで一から作ったものと同じ振る舞いになる。
+ * 毎回 git の子プロセスで作り直すより速いことは、hook.test.ts の計測で確かめた（PR の本文）
+ */
+export async function createFixture(): Promise<Fixture> {
+  template ??= buildTemplate();
+  const templateRoot = await template;
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "deguboard-git-")));
+  await cp(templateRoot, root, { recursive: true, verbatimSymlinks: true });
+  const remoteDir = path.join(root, "remote.git");
+  const cloneA = path.join(root, "a");
+  const cloneB = path.join(root, "b");
+  await runGit(cloneA, ["config", "remote.origin.url", remoteDir]);
+  await runGit(cloneB, ["config", "remote.origin.url", remoteDir]);
   return {
     root,
     remoteDir,
