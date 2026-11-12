@@ -6,7 +6,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { pathExists } from "../storage/exists.js";
 import { git } from "../../test/helpers/git-fixture.js";
-import { UsageError } from "../errors.js";
+import { OperationError, UsageError } from "../errors.js";
 import type { RunId } from "../model/run.js";
 import { resetGhCache } from "../git/facts.js";
 import { recordBaseline } from "../git/outside.js";
@@ -411,6 +411,59 @@ describe("チケットの流れ（照合と claim）", () => {
       );
       expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "in_progress" });
     } finally {
+      await writeFile(release, "");
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  }, 30_000);
+
+  it("照合のロックを取った後に照合の書き込みが失敗すると、sync は照合を飛ばしたと言わずに失敗する（t758）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    await runCommand(ticketCreate, ctx, { title: "Slow PR" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/t1-slow" });
+    await git(f.cloneA, ["branch", "feat/t1-slow"]);
+    await runCommand(commit, ctx, {});
+
+    // 偽の gh：started を置いてから release が置かれるまで（上限 15 秒）答えず、開いた PR #42 を返す
+    const started = path.join(f.root, "gh-started");
+    const release = path.join(f.root, "gh-release");
+    const bin = path.join(f.root, "fake-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+        `: > '${started}'; i=0; while [ ! -f '${release}' ] && [ $i -lt 300 ]; do sleep 0.05; i=$((i+1)); done`,
+        'echo \'{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null}\'',
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    const original = ctx.store.update.bind(ctx.store);
+    const update = vi.spyOn(ctx.store, "update");
+    try {
+      const syncing = runCommand(sync, ctx, {});
+      for (let i = 0; i < 300 && !(await pathExists(started)); i++) await sleep(50);
+      expect(await pathExists(started)).toBe(true);
+      // gh が答えない間に、照合の書き込みを「ファイルを書いてから OperationError で失敗する」ものに替える。
+      // ロックの前の検査（外の変更・rebase）は通り、照合が t1 を書いた後に失敗する
+      update.mockImplementation(async (...args) => {
+        await original(...args);
+        throw new OperationError("VALIDATION_FAILED", "injected failure after the write");
+      });
+      await writeFile(release, "");
+
+      await expect(syncing).rejects.toMatchObject({
+        code: "VALIDATION_FAILED",
+        message: "injected failure after the write",
+      });
+    } finally {
+      update.mockRestore();
       await writeFile(release, "");
       process.env["PATH"] = savedPath;
       resetGhCache();

@@ -582,10 +582,16 @@ export const sync = defineCommand({
 async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
   const pulled = await withWriteLock(ctx.repo, () => pullLocked(ctx, resolve));
   const collected = pulled.conflicts.length === 0 ? await collectReconcileFacts(ctx) : undefined;
+  // ロックを取った後（照合を始めた後）の失敗は、照合が作業ツリーに書いた後かもしれないので握りつぶさずに投げる。
+  // 握ると、コミットされない照合の書き込みが withWriteLock の基準に入り、次の sync の照合のコミットからも外れる
+  let entered = false;
   try {
-    return await withWriteLock(ctx.repo, () => reconcileLocked(ctx, pulled, collected));
+    return await withWriteLock(ctx.repo, () => {
+      entered = true;
+      return reconcileLocked(ctx, pulled, collected);
+    });
   } catch (e) {
-    if (!(e instanceof OperationError)) throw e;
+    if (entered || !(e instanceof OperationError)) throw e;
     const reason = e.detail ? `${e.message} (${e.detail})` : e.message;
     return syncResult(ctx, pulled, {
       warnings: [
