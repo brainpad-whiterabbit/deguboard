@@ -1,0 +1,34 @@
+{
+  "id": "r20261112-092504-8d24",
+  "ticket": "t750",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T09:25:04Z",
+  "finished_at": "2026-11-12T09:33:25Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "pr merge のテストが、head 固定の保護を通らず既存の review 条件で止まっている（gh の --match-head-commit を見ていない）",
+    "headRefOid が取れないとき GATE_FAILED の理由が空になる（head の行がない）",
+    "gate.ts の help 文で free の説明が Its の指す先が分かりにくい"
+  ],
+  "usage": {
+    "input": 62,
+    "output": 28586,
+    "cache_read": 2741685,
+    "cache_write": 90897
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 10,
+    "bash": 16,
+    "other": 10,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "609d820c-be5f-4e27-9252-a549631f4417",
+  "review": null
+}
