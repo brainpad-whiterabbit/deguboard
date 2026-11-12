@@ -45,7 +45,7 @@ import {
 } from "./output.js";
 
 /**
- * 同梱した web のビルド結果（packages/cli/web。build が packages/web/dist から写し、npm のパッケージにも入る）。なければ undefined。
+ * 同梱した web のビルド結果（packages/cli/web。build が packages/web/dist から写す）。なければ undefined。
  * VS Code 拡張に同梱した dg.mjs（dist/cli/）では、同じ相対の dist/web が拡張の Webview と共有する画面になる
  */
 function webDist(): string | undefined {

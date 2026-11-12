@@ -6,8 +6,6 @@ A Git-native kanban board for practicing [Agentic-Agile](https://github.com/micr
 
 deguboard is an independent project. It is not made, endorsed, or supported by Microsoft.
 
-> **Under development.** deguboard is not yet published to npm or the Marketplace. For now, clone and build `dg` and the VSIX yourself (see [Getting started before release](https://github.com/brainpad-whiterabbit/deguboard#getting-started-before-release)).
-
 ## Features
 
 - **Delegate with specs**: Hand over work as small tickets with acceptance criteria instead of open-ended prompts. Agents work from the ticket, and the result is checked against its criteria.
@@ -17,29 +15,15 @@ deguboard is an independent project. It is not made, endorsed, or supported by M
 
 ## Installation
 
-Prerequisites: Linux or macOS, Git 2.30 or later, and Node.js 24 or later. To reflect pull request status on tickets, you also need the GitHub CLI (`gh`).
+Prerequisites: Git 2.30 or later. To reflect pull request status on tickets, you also need the GitHub CLI (`gh`). deguboard runs on Linux and macOS.
 
-1. **Install the extension**: Search for "deguboard" in the Extensions view and install it. Before release, download `deguboard-vscode.vsix` from [GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) and run `code --install-extension deguboard-vscode.vsix`.
-2. **Install `dg`**: Run `npm i -g deguboard`. Before release, build it as described in [Getting started before release](https://github.com/brainpad-whiterabbit/deguboard#getting-started-before-release).
-3. **Set up your repository**: Run this once in the repository you want to manage.
+1. **Install the extension**: Download `deguboard-vscode.vsix` from [GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) and run `code --install-extension deguboard-vscode.vsix`. Then reload the VS Code window.
+2. **Start with the repository**: Open the repository you want to manage, click the deguboard icon in the Activity Bar, and press **Start with this repository** on the start screen. It runs `dg init`, installs the Skills for Claude Code (`dg skill install`, such as `/dgall`), and writes the Claude Code hooks (`dg hooks install`, to `.claude/settings.local.json`, which git does not track).
+3. **Terminal users only**: To run `dg` yourself in a terminal, run **Install dg command** from the Command Palette. It links `~/.local/bin/dg` (add `~/.local/bin` to your PATH if needed).
 
-   ```sh
-   cd <repository-to-manage>
-   dg init
-   ```
+Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
 
-4. **Give your agent the workflows**: For Claude Code, install commands such as `/dgall`.
-
-   ```sh
-   dg skill install
-   dg hooks install
-   ```
-
-   `dg hooks install` writes Claude Code hooks to `.claude/settings.local.json` (not tracked by git). They call node and `dg` by their absolute paths, so they work even when Claude Code's PATH differs from your shell's; run it again after upgrading or moving node. The hooks mark the session as an agent and record the subagents you start with a first line `deguboard: ticket=<id> step=<step>` as Runs. The agent hands the implementation and fixes of a ticket to subagents (see `dg guide work`). The hooks also refuse to mark a PR ready or merge it outside `dg`, and to edit `.git/deguboard/` directly. Confirm with `dg hooks check` in a new session that dg receives them: if the command the hooks call cannot run in Claude Code's environment, it warns, and so do `dg next`, `dg brief`, and `dg ticket claim --no-run`. Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
-
-5. **Open the board**: Click the deguboard icon in the Activity Bar.
-
-Data lives on a dedicated branch of your repository, so no service is required. Other team members only need to clone the repository and run `dg init` to see the same board.
+Data lives on a dedicated branch of your repository, so no service is required. Other team members only need to install the extension, clone the repository, and press the same button to see the same board.
 
 ## Usage
 
@@ -122,9 +106,9 @@ dg config set notify.approvals false --local
 
 ## Other ways to use it
 
-### Getting started before release
+### Getting started as a developer
 
-Install [mise](https://mise.jdx.dev/), clone the repository, and install the hooks. To run `dg` from your terminal in other repositories, also link it to your PATH (in VS Code, run `deguboard: Install dg command`); Node.js 24 must then be on that shell's PATH too (with mise, `mise use -g node@24`). The hooks do not depend on PATH: `dg hooks install` writes the absolute paths of node and `dg.js`.
+For developing deguboard itself. Install [mise](https://mise.jdx.dev/), clone the repository, and install the hooks. The hooks do not depend on PATH: `dg hooks install` writes the absolute paths of node and `dg.js`.
 
 ```sh
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
@@ -139,7 +123,7 @@ To install the VSIX by hand, run `code --install-extension packages/vscode/degub
 
 ### Use the CLI
 
-Without VS Code, you can run the same operations from the `dg` command.
+Besides the board, you can run the same operations from the `dg` command in a terminal (see step 3 of [Installation](#installation)).
 
 ```sh
 dg ticket create "Validate login" --summary "Check the input" --acceptance "Reject empty input"
@@ -150,14 +134,14 @@ Without installing Skills, you can make the same requests by pasting text made w
 
 ### Use it from Claude Desktop (MCP)
 
-`dg mcp` is a stdio MCP server that exposes `dg` commands as tools with names like `ticket_create`. Claude Desktop starts outside your repository without inheriting your PATH, so in `claude_desktop_config.json`, set `command` to the absolute path of node (`mise which node`), and pass the real path of `dg.js` (`realpath "$(which dg)"`) and `-C <target-repository>` as arguments. Claude Code can call `dg` through Bash, so it needs no registration.
+`dg mcp` is a stdio MCP server that exposes `dg` commands as tools with names like `ticket_create`. Claude Desktop starts outside your repository without inheriting your PATH, so in `claude_desktop_config.json`, set `command` to the launcher that the extension installs at `~/.local/share/deguboard/dg` (it finds node itself), and pass `-C <target-repository>` and `mcp` as arguments. Claude Code can call `dg` through Bash, so it needs no registration.
 
 ```json
 {
   "mcpServers": {
     "deguboard": {
-      "command": "/path/to/node",
-      "args": ["/path/to/deguboard/packages/cli/bin/dg.js", "-C", "/path/to/repo", "mcp"]
+      "command": "/home/<you>/.local/share/deguboard/dg",
+      "args": ["-C", "/path/to/repo", "mcp"]
     }
   }
 }
@@ -175,4 +159,4 @@ The documents below are written in Japanese.
 
 ## License
 
-[MIT](LICENSE). Licenses of the dependencies bundled in the distributions are collected in `THIRD_PARTY_LICENSES.md`, generated by the build (in `web/` of the npm package `deguboard` and in `dist/` of the VSIX).
+[MIT](LICENSE). Licenses of the dependencies bundled in the distributions are collected in `THIRD_PARTY_LICENSES.md`, generated by the build (in `dist/` of the VSIX).

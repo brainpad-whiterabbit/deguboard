@@ -81,5 +81,6 @@
 - **react-router**：Webview では遷移できず、画面が少ないのでハッシュの解析で足りる
 - **Redux や Zustand**：状態が少なく、書き込みのたびに読み直す方が CLI との整合が取りやすい
 - **Node 22（LTS）**：VS Code の拡張ホストの Node 24 と揃える
+- **npm に公開して `npm i -g` で入れてもらう**：利用者に Node.js と npm を求め、入口が拡張と npm の 2 つになる。拡張に `dg` を同梱して入口を 1 つにする
 - **拡張を esbuild や webpack で束ねる**：web のビルドに使っている Vite で足りる
 - **oxlint の版を留めたまま、規則 `react(immutability)` を off にする**：web の React の不変性の違反を検査で見つけられなくなる

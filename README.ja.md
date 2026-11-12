@@ -6,8 +6,6 @@
 
 deguboard は独立したプロジェクトで、Microsoft が作ったものでも、推薦・支援するものでもありません。
 
-> **開発中です**。npm と Marketplace にはまだ公開していません。今は clone してビルドした `dg` と VSIX を使います（「[公開前に使い始める](#公開前に使い始める)」）。
-
 ## 特長
 
 - **仕様で任せる**：任せる作業を、曖昧な指示の代わりに受け入れ条件の付いた小さなチケットにして渡します。エージェントはチケットに沿って進め、結果は受け入れ条件で確かめます。
@@ -17,29 +15,15 @@ deguboard は独立したプロジェクトで、Microsoft が作ったもので
 
 ## 導入
 
-必要なもの：Linux か macOS、Git 2.30 以上、Node.js 24 以上。PR の状態をチケットに映すときは GitHub CLI（`gh`）も使います。
+必要なもの：Git 2.30 以上。PR の状態をチケットに映すときは GitHub CLI（`gh`）も要ります。deguboard は Linux と macOS で動きます。
 
-1. **拡張を入れる**：拡張機能ビューで「deguboard」を検索してインストールします。公開前は [GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を `code --install-extension deguboard-vscode.vsix` で入れます。
-2. **`dg` を入れる**：`npm i -g deguboard` で入れます。公開前は「[公開前に使い始める](#公開前に使い始める)」のとおりビルドします。
-3. **リポジトリで準備する**：管理したいリポジトリで一度だけ実行します。
+1. **拡張を入れる**：[GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を取得し、`code --install-extension deguboard-vscode.vsix` で入れます。その後、ウィンドウを再読み込みします。
+2. **リポジトリで始める**：管理したいリポジトリを開き、Activity Bar の deguboard のアイコンを押して、始めの画面の **このリポジトリで始める** を押します。`dg init`・`dg skill install`（Claude Code の Skill。`/dgall` など）・`dg hooks install`（Claude Code のフック。git が追跡しない `.claude/settings.local.json` に書く）が順に実行されます。
+3. **ターミナルを使う人だけ**：ターミナルから `dg` を自分で呼ぶなら、コマンドパレットの **dg コマンドを入れる**（Install dg command）を実行します。`~/.local/bin/dg` が張られます（PATH に `~/.local/bin` がなければ足します）。
 
-   ```sh
-   cd <管理したいリポジトリ>
-   dg init
-   ```
+シェルを使えるほかのエージェント（Codex・Copilot CLI など）は準備が要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
 
-4. **エージェントに手順を渡す**：Claude Code では `/dgall` などのコマンドを入れます。
-
-   ```sh
-   dg skill install
-   dg hooks install
-   ```
-
-   `dg hooks install` は Claude Code のフックを、git が追跡しない `.claude/settings.local.json` に書きます。フックは node と `dg` を絶対パスで呼ぶので、Claude Code の PATH がシェルと違っても動きます。node を上げたり移したりしたら、もう一度実行します。フックはセッションをエージェントとして扱い、最初の行に `deguboard: ticket=<id> step=<step>` と書いて頼んだサブエージェントを Run として記録します。実装と手直しは、エージェントがサブエージェントに頼みます（流れは `dg guide work`）。フックは、`dg` を通さない PR の ready・マージと、`.git/deguboard/` への直接の書き込みも拒みます。新しいセッションで `dg hooks check` を実行し、dg がフックを受け取っていることを確かめます。フックの呼ぶ命令が Claude Code の環境で動かなければ、`dg hooks check` が警告し、`dg next`・`dg brief`・`dg ticket claim --no-run` も警告します。Codex・Copilot CLI など、シェルを使えるほかのエージェントでは準備は要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
-
-5. **ボードを開く**：Activity Bar の deguboard のアイコンを押します。
-
-データはリポジトリの専用ブランチに置くので、サービスは要りません。チームの 2 人目からは、clone して `dg init` を実行すれば同じボードが見えます。
+データはリポジトリの専用ブランチに置くので、サービスは要りません。チームの 2 人目からは、拡張を入れて clone し、同じボタンを押せば同じボードが見えます。
 
 ## 使い方
 
@@ -122,9 +106,9 @@ dg config set notify.approvals false --local
 
 ## ほかの使い方
 
-### 公開前に使い始める
+### 開発者として使い始める
 
-[mise](https://mise.jdx.dev/) を入れて clone し、フックを入れます。端末からほかのリポジトリでも `dg` を呼ぶときは PATH にもリンクし（VS Code なら「deguboard: dg コマンドを入れる」）、そのシェルの PATH に node 24 も通します（mise なら `mise use -g node@24`）。フックは PATH に頼りません。`dg hooks install` が node と `dg.js` の絶対パスを書きます。
+deguboard 自体を開発する人向けです。[mise](https://mise.jdx.dev/) を入れて clone し、フックを入れます。フックは PATH に頼りません。`dg hooks install` が node と `dg.js` の絶対パスを書きます。
 
 ```sh
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
@@ -139,7 +123,7 @@ VSIX を手で入れるときは、`mise run vsix` の後に `code --install-ext
 
 ### CLI で使う
 
-VS Code がなくても、同じ操作を `dg` コマンドで行えます。
+ボードのほかに、同じ操作をターミナルの `dg` コマンドでも行えます（「導入」の 3 を参照）。
 
 ```sh
 dg ticket create "ログインの検証" --summary "入力の検査" --acceptance "空のとき拒否する"
@@ -150,14 +134,14 @@ Skill を入れずに、`dg ask --format text` で作った文章をエージェ
 
 ### Claude Desktop から使う（MCP）
 
-`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出します。Claude Desktop は PATH を引き継がずにリポジトリの外で起動するので、`claude_desktop_config.json` では `command` に node の絶対パス（`mise which node`）、引数に `dg.js` の実体（`realpath "$(which dg)"`）と `-C <対象のリポジトリ>` を渡します。Claude Code は Bash で `dg` を呼べるので登録は要りません。
+`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出します。Claude Desktop は PATH を引き継がずにリポジトリの外で起動するので、`claude_desktop_config.json` では `command` に、拡張が入れる起動ファイル `~/.local/share/deguboard/dg`（node は起動ファイルが自分で探します）を指定し、引数に `-C <対象のリポジトリ>` と `mcp` を渡します。Claude Code は Bash で `dg` を呼べるので登録は要りません。
 
 ```json
 {
   "mcpServers": {
     "deguboard": {
-      "command": "/path/to/node",
-      "args": ["/path/to/deguboard/packages/cli/bin/dg.js", "-C", "/path/to/repo", "mcp"]
+      "command": "/home/<you>/.local/share/deguboard/dg",
+      "args": ["-C", "/path/to/repo", "mcp"]
     }
   }
 }
@@ -173,4 +157,4 @@ Skill を入れずに、`dg ask --format text` で作った文章をエージェ
 
 ## ライセンス
 
-[MIT](LICENSE)。配布物に束ねた依存のライセンスは、ビルドで出る `THIRD_PARTY_LICENSES.md`（npm の `deguboard` の `web/` と VSIX の `dist/`）にまとめています。
+[MIT](LICENSE)。配布物に束ねた依存のライセンスは、ビルドで出る `THIRD_PARTY_LICENSES.md`（VSIX の `dist/`）にまとめています。

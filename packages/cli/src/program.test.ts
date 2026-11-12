@@ -654,7 +654,7 @@ describe("束ねた dg.mjs（VS Code 拡張に同梱する CLI）", () => {
     expect(selfMergeDriver({})).toEqual([process.execPath, entry, "merge-driver"]);
   });
 
-  it("束ねていない dg（clone・npm）は、子から引き継いだ DEGUBOARD_LAUNCHER を読まず、node と bin/dg.js を指す（t735）", () => {
+  it("束ねていない dg（clone）は、子から引き継いだ DEGUBOARD_LAUNCHER を読まず、node と bin/dg.js を指す（t735）", () => {
     const driver = selfMergeDriver({ DEGUBOARD_LAUNCHER: "/home/u/.local/share/deguboard/dg" });
     expect(driver).toEqual([process.execPath, expect.any(String), "merge-driver"]);
     expect(driver[1]).toMatch(/[/\\]bin[/\\]dg\.js$/);

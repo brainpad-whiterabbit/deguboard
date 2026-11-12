@@ -1,6 +1,6 @@
 // 起動ファイル（VS Code 拡張が ~/.local/share/deguboard/dg に置く sh。packages/vscode/src/launcher.ts）から呼ばれた dg の、起動ファイルの絶対パス。
 // 起動ファイルが DEGUBOARD_LAUNCHER に付けて node を起こすので、dg はそれを読む。フックとマージドライバは node と dg.mjs の代わりにこれを書く（t735）。
-// 起動ファイルの外（clone の dg・npm の dg）では付かないので、今までどおり node と dg.js の絶対パスを書く。
+// 起動ファイルの外（clone の dg）では付かないので、今までどおり node と dg.js の絶対パスを書く。
 // 環境変数は子プロセス（git とそのフック、そこから起きたスクリプト）にも引き継がれるので、起動ファイルが起こした束ねた dg だけが読む。
 // 子で動く clone の dg は束ねていないので読まず、起動ファイルを書かない。
 
@@ -21,7 +21,7 @@ function launcherIn(env: Env): string | undefined {
 
 /**
  * 起動ファイル経由で動いている束ねた dg なら、その起動ファイルの絶対パス。そうでなければ undefined。
- * 束ねていない dg（clone・npm）は、子から引き継いだ環境変数を読まない
+ * 束ねていない dg（clone）は、子から引き継いだ環境変数を読まない
  */
 export function launcherFrom(env: Env): string | undefined {
   return bundleLayout() === undefined ? undefined : launcherIn(env);

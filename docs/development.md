@@ -76,7 +76,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 - TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。`mise run typecheck` は `noEmit` で検査する
 - `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` と `vscode` を `dist/` に出す。`dg` をリポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
-- `@deguboard/core` と `@deguboard/server` の `exports` は条件つきで、テストと型検査・vscode のビルド（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。公開する tarball では `publishConfig.exports` が `development` 条件を外し、`dist/` だけを指す（`mise run pack` で確かめる）。テストの前にビルドは要らない
+- `@deguboard/core` と `@deguboard/server` の `exports` は条件つきで、テストと型検査・vscode のビルド（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。テストの前にビルドは要らない
 - テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` と `test/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
 - パッケージをまたぐテストは `test/` に置く。`e2e/routes.test.ts` は CLI・HTTP・Webview の 3 経路の結果とコミットの一致（CL-6）を、`layout/` は画面の配置と吹き出しの一覧を（`mise run test:layout`）、`vscode/` は VS Code の実機の左パネルを（`mise run test:vscode`）確かめる（ブラウザと VS Code が要るので check に入れない）
 - Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う。fixture が開発者のグローバル設定と裏の git maintenance からテストを切り離す（方法は fixture のコメント）
@@ -110,7 +110,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor, actions: ACTION_NAMES })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。
 
-### `packages/cli`（npm の `deguboard`、コマンドは `dg`）
+### `packages/cli`（パッケージ名 `deguboard`、コマンドは `dg`）
 
 core の `commands` を commander（`program.ts`）と MCP のツール（`mcp.ts`）に写す。ロジックは持たない。各ファイルの役割は冒頭のコメントが正本で、引数の型ごとの対応は `options.ts`、`--json` の形は `output.ts`、終了コードは `errors.ts`。
 
@@ -138,24 +138,19 @@ VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、
 
 ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。続けて `vite.cli.config.ts` が CLI（入口は `packages/cli/src/bundle.ts`）を依存ごと `dist/cli/dg.mjs` の 1 つに束ね、Web の画面と guide は拡張の `dist/web`・`dist/guide-*.md` を共有する（束ねた配置で引く場所は `bundle.ts` の冒頭）。`vite.uninstall.config.ts` は vscode:uninstall が走らせる `src/uninstall.ts` を `dist/uninstall.mjs` に束ねる。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。実機の確認は `mise run test:vscode`：`.vscode-test/` に落とした VS Code（版は `test/vscode/host.ts` で固定）を Xvfb 上に拡張開発ホストとして起動し、一時リポジトリの左パネルで行の表示・詳細のパネル・CSP 違反と例外（あれば落ちる）・ライトとダークのスクリーンショット（`test/vscode/screenshots/`）を確かめる。Claude Code の中からでも動く。細部は `test/vscode/host.ts` の冒頭。
 
-VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき（依存は束ねてあるので `vsce` は `--no-dependencies` で、pnpm の node_modules の形に影響されない）、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（入れられないときは手で入れるコマンドを出す。条件は `scripts/install-vsix.mjs` の冒頭。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決め、入ってよいファイルの一覧は `packages/vscode/src/vsix-files.test.ts` が `vsce ls` と照らす（一覧にないものが入ると `mise run check` が落ちる。入れるファイルを増やす PR は一覧も直す）。拡張の README（Marketplace の紹介）はルートの README.md の「Other ways to use it」より前を `scripts/vscode-readme.mjs` が写して作り、git には入れない。紹介はルートの README で直し（README.ja.md は拡張の README と npm に入らない）、その部分のリンクは絶対 URL にする（相対リンクがあると作れない）。
+VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき（依存は束ねてあるので `vsce` は `--no-dependencies` で、pnpm の node_modules の形に影響されない）、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（入れられないときは手で入れるコマンドを出す。条件は `scripts/install-vsix.mjs` の冒頭。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決め、入ってよいファイルの一覧は `packages/vscode/src/vsix-files.test.ts` が `vsce ls` と照らす（一覧にないものが入ると `mise run check` が落ちる。入れるファイルを増やす PR は一覧も直す）。拡張の README（Marketplace の紹介）はルートの README.md の「Other ways to use it」より前を `scripts/vscode-readme.mjs` が写して作り、git には入れない。紹介はルートの README で直し（README.ja.md は拡張の README に入らない）、その部分のリンクは絶対 URL にする（相対リンクがあると作れない）。
 
 README の使い方の GIF（`packages/vscode/images/`）は、画面を変えたら `mise run gifs` で録り直す（台本は `scripts/record-gifs.mjs`）。画面は英語の表示で、1.5 倍の解像度（1140px 幅）で撮る。
 
 ## リリース
 
-npm に出すのは `@deguboard/core`・`@deguboard/server`・`deguboard`（cli）の 3 つで、版は全パッケージで揃える（[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。`vscode` は VSIX で配る。`main` の clean な状態で行う：
+利用者に届けるのは VSIX だけで（`dg` は拡張に同梱する）、npm には出さない。版は全パッケージで揃える（`release:version`。VSIX の版もここで決まる。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。`main` の clean な状態で行う：
 
 ```sh
 mise run release:version -- <版>    # 版を揃え、PR で main に入れる
-mise run check && mise run pack      # release/ に 3 つの tarball（LICENSE が欠ければ、cli に guide-*.md があるか core に dist/guide/ の guide がなければ失敗）
+mise run check                       # コミット前と同じ検査
 mise run audit                       # 本番の依存の脆弱性（あれば直すか人が判断する）
 mise run test:layout && mise run test:vscode   # 画面の配置と VS Code の実機（check に入らない）
-mise run release:publish             # npm login 済みで
 git tag v<版> && git push origin v<版>
 mise run vsix                        # vsix を Release に添付し、出た SHA256 の文を本文に貼る
 ```
-
-公開は必ず `pnpm publish`（`release:publish`）で行う。`npm publish` では `workspace:*` と `publishConfig.exports` が書き換わらない。
-
-tarball は一時ディレクトリで、cli は package.json の依存、core・server は pnpm-workspace.yaml の `overrides` で `file:` に向けて入れ、`dg --version` と `dg init` を試す（pnpm 12 は package.json の `overrides` を読まない）。
