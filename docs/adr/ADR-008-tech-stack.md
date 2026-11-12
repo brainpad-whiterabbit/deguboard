@@ -4,7 +4,7 @@
 
 ## 要約
 
-言語は TypeScript（Node.js 24・pnpm workspace）、画面は React、VS Code 拡張は Vite で 1 つの CommonJS に、同梱の CLI は入口と本体の chunk に束ねる。作業のコマンドは `mise run` に統一し、CI は使わずローカルの `mise run check` をマージの条件にする。lint は oxlint、整形は oxfmt を使う。
+言語は TypeScript（Node.js 24・pnpm workspace）、画面は React、VS Code 拡張は Vite で CommonJS に、同梱の CLI は ESM の入口と本体の chunk に束ねる。作業のコマンドは `mise run` に統一し、CI は使わずローカルの `mise run check` をマージの条件にする。lint は oxlint、整形は oxfmt を使う。
 
 ## 背景
 
@@ -48,7 +48,7 @@
 
 ### VS Code 拡張と同梱の CLI は Vite で束ねる
 
-- 拡張ホストは CommonJS を読むので、`packages/vscode` は Vite の SSR ビルドで 1 ファイルに束ねる（`packages/vscode/vite.config.ts`）。拡張のためのバンドラは増やさない（esbuild や webpack は入れない）
+- 拡張ホストは CommonJS を読むので、`packages/vscode` は Vite の SSR ビルドで CommonJS に束ねる。入口は `extension.cjs` で、動的 import（`core` の zod など）は別の chunk に分かれ、入口がそれを require する（`packages/vscode/vite.config.ts`）。拡張のためのバンドラは増やさない（esbuild や webpack は入れない）
 - VSIX に同梱する CLI も同じ Vite で ESM に束ね、小さな入口（`dist/cli/dg.mjs`）と、依存ごと束ねた本体の chunk（同じディレクトリ）に分ける（`packages/vscode/vite.cli.config.ts`）。入口は Node のコンパイルキャッシュを有効にしてから本体を読む。キャッシュは有効にした後に読むモジュールにだけ効くので、1 つのファイルに束ねると、呼ばれるたびに（フックは使うたびに）本体をコンパイルし直す。ネイティブのモジュールを含まないので、VSIX はプラットフォームごとに分けない
 - 拡張の `engines.vscode` は拡張ホストが Node 24 になった版からにし、束ねる core の Node 24 に揃える（版の理由は [development.md の「ビルドとテスト」](../development.md#ビルドとテスト)）
 - VSIX は `@vscode/vsce` で作る（`mise run vsix`）
