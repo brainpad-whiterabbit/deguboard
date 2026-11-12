@@ -119,13 +119,13 @@ export const configSchema = z.looseObject({
         .array(z.string().min(1))
         .default([])
         .describe(
-          "Argument array of the lighter check the quality gate's check runs instead of actions.test when every file in the work branch's diff against base falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either",
+          "Argument array of the lighter check the quality gate's check runs instead of actions.test when every file changed since the last commit whose actions.test passed (the diff against base when there is none) falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either",
         ),
       light_paths: z
         .array(z.string().min(1))
         .default([])
         .describe(
-          "Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file in the diff falls outside, actions.test runs",
+          "Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file changed since the last commit whose actions.test passed (or against base, when there is none) falls outside, actions.test runs",
         ),
     })
     .prefault({}),

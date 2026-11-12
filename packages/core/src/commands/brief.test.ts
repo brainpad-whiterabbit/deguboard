@@ -81,7 +81,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Findings to fix: (paste the list of findings here: the heavy findings and the light ones you decided to fix, returned by the reviewer or the human reviewer, each with file and line, reason, and how to fix it)
       - Before you start fixing: Run \`dg --json --actor agent run retry-reason t12 --reason <summary of finding 1> --reason <summary of finding 2> …\` once, as a standalone command, to write the retry reasons on the fix Run. Repeat --reason once per finding you fix (the number of reasons is the retry count). Write only the findings from the reviewer or the human reviewer, not fixes for failed checks. Each summary is one line and must not contain secrets, command strings, or paths.
       - Scope of the fix: The heavy findings listed, and the light ones you decide to fix. For the other light findings, decide whether to fix them, and return the reasons for those you leave.
-      - Conventions: Follow the agent instruction file at the repository root, and the steps below. Run the checks (format, lint, tests) on the latest commit before you push.
+      - Conventions: Follow the agent instruction file at the repository root, and the steps below. Before you push, run \`dg --json --actor agent gate t12 --only check\` and confirm it passes (the check of the quality gate on the latest commit; it also remembers the result for that commit).
       --- Steps: Fix findings ---
       1. 検査を通す
       2. 読み直した正本を直す

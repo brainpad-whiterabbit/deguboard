@@ -1,9 +1,11 @@
-// 品質ゲートの検査の条件（EX-6）：config の actions.test（か下の軽い検査）を、作業ブランチの最新のコミットを checkout した worktree で回す。
+// 品質ゲートの検査の条件（EX-6）：config の actions.test（か下の軽い検査）を、作業ブランチの worktree で回す。
 // actions.test は run_tests の Action と同じく確認なしで実行する（config.yaml に書ける人の権限をシェルの許可と同等とみなす。ADR-033・AG-7）。
 // 通った結果はコミットとコマンドごとに deguboard-local/checks/ に置き、同じコミットの ready の後の merge で回し直さない。Git には入れない。
 // 通らなかった結果は覚えない（確率で落ちる検査を、コミットを足さずに回し直せるように）
-// base との差分のファイルがすべて actions.light_paths に入るときは、actions.light_test（軽い検査）を回す（t632）。
-// 結果はコマンドごとに覚えるので、ready で軽い検査が通れば、同じコミットの merge も同じ差分から軽い検査を選び、回し直さない
+// 最後に全体の検査（actions.test）が通ったコミットも別に覚える（full）。その後の差分が actions.light_paths に入るだけなら、
+// 軽い検査（actions.light_test）を回す（t632・t741）。軽い検査が通っても full は消さない。
+// 全体を回し直すのは、コードを変えた・祖先でない（rebase・force push）・merge を含む（main の取り込み）・コマンドを変えた、のとき（t741）
+// dg gate --only check は、作業ブランチの worktree の HEAD（push の前のコミットも）を同じ判定で検査する（t741）
 
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -27,6 +29,18 @@ interface StoredCheck {
   at: string;
 }
 
+/** 最後に全体の検査（actions.test）が通ったコミットと、そのときのコマンド（t741） */
+export interface FullCheck {
+  sha: string;
+  command: string[];
+}
+
+/** deguboard-local/checks/<チケット ID>.json の中身。results は通った結果（コミットとコマンドごと）、full は最後に全体の検査が通ったコミット */
+interface CheckRecord {
+  results: StoredCheck[];
+  full?: FullCheck;
+}
+
 export interface CheckOutcome {
   ok: boolean;
   detail: string;
@@ -34,20 +48,22 @@ export interface CheckOutcome {
 
 const short = (sha: string) => sha.slice(0, 8);
 
+const sameCommand = (a: readonly string[], b: readonly string[]) =>
+  JSON.stringify(a) === JSON.stringify(b);
+
 function tailOf(stdout: string, stderr: string): string {
   const lines = `${stdout}\n${stderr}`.trimEnd().split("\n");
   return lines.slice(-TAIL_LINES).join("\n");
 }
 
-async function readStored(file: string, sha: string, command: string[]) {
+async function readRecord(file: string): Promise<CheckRecord> {
   try {
-    const stored = JSON.parse(await readFile(file, "utf8")) as StoredCheck;
-    // 同じコミットでも、検査のコマンドを変えたら回し直す
-    return stored.sha === sha && JSON.stringify(stored.command) === JSON.stringify(command)
-      ? stored
-      : undefined;
+    const parsed = JSON.parse(await readFile(file, "utf8")) as Partial<CheckRecord>;
+    const record: CheckRecord = { results: Array.isArray(parsed.results) ? parsed.results : [] };
+    if (parsed.full) record.full = parsed.full;
+    return record;
   } catch {
-    return undefined;
+    return { results: [] };
   }
 }
 
@@ -96,8 +112,8 @@ export interface CheckChoice {
 }
 
 /**
- * 差分のファイルから回す検査を選ぶ。軽い検査とその対象のパスがどちらも設定してあり、差分のファイルが 1 つ以上あってすべて
- * 対象のパスに入るときだけ軽い検査。差分を読めない・空のときは actions.test（軽く済ませてよいと確かめられないため）
+ * base との差分のファイルから回す検査を選ぶ（前回の全体の検査がないとき）。軽い検査とその対象のパスがどちらも設定してあり、
+ * 差分のファイルが 1 つ以上あってすべて対象のパスに入るときだけ軽い検査。差分を読めない・空のときは actions.test
  */
 export function chooseCheck(
   actions: Pick<Config["actions"], "test" | "light_test" | "light_paths">,
@@ -122,6 +138,57 @@ export function chooseCheck(
   };
 }
 
+/** 前回の全体の検査のコミットから今のコミットまでの変化（Git の事実） */
+export interface ChangesSince {
+  /** 前回のコミットが今のコミットの祖先か（rebase・force push で false） */
+  ancestor: boolean;
+  /** 前回から今までに merge のコミットがあるか（main を取り込んだ） */
+  merged: boolean;
+  /** 前回から今までに変わったファイル。読めなければ undefined */
+  files: readonly string[] | undefined;
+}
+
+/**
+ * 前回の全体の検査（full）からの変化で回す検査を選ぶ（t741）。軽い検査は、コマンドが変わらず、祖先のまま merge がなく、
+ * 前回から今までの差分のファイルがすべて actions.light_paths に入るときだけ。ほかは全体（actions.test）を回す
+ */
+export function chooseCheckSince(
+  actions: Pick<Config["actions"], "test" | "light_test" | "light_paths">,
+  full: FullCheck,
+  since: ChangesSince,
+): CheckChoice {
+  const at = short(full.sha);
+  const whole = (why: string): CheckChoice => ({ command: actions.test, light: false, why });
+  if (!sameCommand(full.command, actions.test))
+    return whole(
+      `Ran actions.test because actions.test changed since commit ${at}, the last commit whose actions.test passed`,
+    );
+  if (!since.ancestor)
+    return whole(
+      `Ran actions.test because commit ${at}, the last commit whose actions.test passed, is not an ancestor of the latest commit (rebased or force-pushed)`,
+    );
+  if (since.merged)
+    return whole(
+      `Ran actions.test because a merge commit came after commit ${at}, the last commit whose actions.test passed (for example, main was merged in)`,
+    );
+  if (!since.files)
+    return whole(`Ran actions.test because the files changed since commit ${at} could not be read`);
+  if (since.files.length === 0)
+    return whole(`Ran actions.test because there are no files changed since commit ${at}`);
+  const outside = since.files.filter((f) => !matchesAnyGlob(f, actions.light_paths));
+  if (outside.length > 0) {
+    const shown = outside.slice(0, 3).join(", ") + (outside.length > 3 ? " and others" : "");
+    return whole(
+      `Ran actions.test because the changes since commit ${at} include files outside actions.light_paths (${shown}; ${outside.length} files)`,
+    );
+  }
+  return {
+    command: actions.light_test,
+    light: true,
+    why: `Ran the light check because all ${since.files.length} changed files since commit ${at}, the last commit whose actions.test passed, are in actions.light_paths`,
+  };
+}
+
 /** base（リモートがあればリモートの base_branch）と sha の分岐点からの差分のファイル。改名は元と先の両方を数える。読めなければ undefined */
 async function changedFiles(ctx: CommandContext, sha: string): Promise<string[] | undefined> {
   const base = ctx.repo.remote
@@ -135,11 +202,55 @@ async function changedFiles(ctx: CommandContext, sha: string): Promise<string[] 
   return out.code === 0 ? out.stdout.split("\0").filter(Boolean) : undefined;
 }
 
+/** 前回の全体の検査のコミット（from）から sha までの変化。祖先でない・読めないものは、ほかの条件を見ずに全体へ回すように false・undefined にする */
+async function changesSince(ctx: CommandContext, from: string, sha: string): Promise<ChangesSince> {
+  const top = ctx.repo.topLevel;
+  const ancestor =
+    (await runGit(top, ["merge-base", "--is-ancestor", from, sha], { allowFailure: true })).code ===
+    0;
+  if (!ancestor) return { ancestor, merged: false, files: undefined };
+  // merge のコミットを数える（読めなければ merge があったものとして全体を回す）
+  const merges = await runGit(top, ["rev-list", "--merges", "--count", `${from}..${sha}`], {
+    allowFailure: true,
+  });
+  const merged = merges.code !== 0 || Number(merges.stdout.trim()) > 0;
+  const diff = await runGit(top, ["diff", "--name-only", "--no-renames", "-z", from, sha], {
+    allowFailure: true,
+  });
+  return {
+    ancestor,
+    merged,
+    files: diff.code === 0 ? diff.stdout.split("\0").filter(Boolean) : undefined,
+  };
+}
+
+/** 回す検査を選ぶ。前回の全体の検査（full）があれば、そこからの変化で選ぶ（t741）。なければ base との差分で選ぶ（t632） */
+async function chooseFor(
+  ctx: CommandContext,
+  sha: string,
+  full: FullCheck | undefined,
+): Promise<CheckChoice> {
+  const { actions } = ctx.config;
+  if (actions.light_test.length === 0 || actions.light_paths.length === 0)
+    return { command: actions.test, light: false, why: "" };
+  if (full) return chooseCheckSince(actions, full, await changesSince(ctx, full.sha, sha));
+  return chooseCheck(actions, await changedFiles(ctx, sha));
+}
+
+async function hasUncommittedChanges(dir: string): Promise<boolean> {
+  return (await runGit(dir, ["status", "--porcelain"])).stdout.trim() !== "";
+}
+
 /**
- * 検査の条件を判定する。actions.test が空なら判定しない（通す）。最新のコミットを checkout した、未コミットの変更のない
- * 作業ブランチの worktree でだけ回す（ほかのコミットや手元の変更で通っても、PR の中身が通ったことにならないため）
+ * 検査の条件を判定する。actions.test が空なら判定しない（通す）。既定では、作業ブランチの最新のコミット（リモートの先端）を
+ * checkout した、未コミットの変更のない作業ブランチの worktree で回す。local（dg gate --only check）は worktree の HEAD を、
+ * 未コミットの変更がないことを確かめて検査する（push の前でもよい）。どちらも結果はコミットとコマンドごとに覚える
  */
-export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<CheckOutcome> {
+export async function judgeCheck(
+  ctx: CommandContext,
+  ticket: Ticket,
+  options: { local?: boolean } = {},
+): Promise<CheckOutcome> {
   if (ctx.config.actions.test.length === 0)
     return {
       ok: true,
@@ -148,25 +259,38 @@ export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<C
     };
   if (!ticket.branch)
     return { ok: false, detail: "There is no work branch, so the check cannot be run" };
-  const sha = await latestCommit(ctx, ticket.branch);
-  if (!sha)
-    return { ok: false, detail: `Cannot read the latest commit of work branch ${ticket.branch}` };
-  const configured =
-    ctx.config.actions.light_test.length > 0 && ctx.config.actions.light_paths.length > 0;
-  const choice = chooseCheck(
-    ctx.config.actions,
-    configured ? await changedFiles(ctx, sha) : undefined,
-  );
+  let dir: string | undefined;
+  let sha: string | undefined;
+  if (options.local) {
+    dir = (await findBranchWorktree(ctx.repo, ticket.branch)) ?? undefined;
+    if (!dir)
+      return {
+        ok: false,
+        detail: `Work branch ${ticket.branch} has no worktree, so the check cannot be run (claim creates the worktree)`,
+      };
+    if (await hasUncommittedChanges(dir))
+      return {
+        ok: false,
+        detail: `Worktree ${dir} has uncommitted changes, so the check is not run (commit first)`,
+      };
+    sha = (await runGit(dir, ["rev-parse", "HEAD"])).stdout.trim();
+  } else {
+    sha = await latestCommit(ctx, ticket.branch);
+    if (!sha)
+      return { ok: false, detail: `Cannot read the latest commit of work branch ${ticket.branch}` };
+  }
+  const file = path.join(ctx.repo.localDir, CHECKS_DIR, `${ticket.id}.json`);
+  const record = await readRecord(file);
+  const choice = await chooseFor(ctx, sha, record.full);
   const command = choice.command;
   // detail には、どちらの検査を回したか（actions.test か actions.light_test か）と、選んだ理由を出す
   const shown = `${choice.light ? "light check actions.light_test" : "actions.test"}: ${command.join(" ")}`;
   const why = choice.why ? ` (${choice.why})` : "";
-  const file = path.join(ctx.repo.localDir, CHECKS_DIR, `${ticket.id}.json`);
-  const stored = await readStored(file, sha, command);
+  const found = record.results.find((r) => r.sha === sha && sameCommand(r.command, command));
   let result: { code: number; tail: string };
-  if (stored) result = stored;
+  if (found) result = found;
   else {
-    const dir = await findBranchWorktree(ctx.repo, ticket.branch);
+    dir ??= (await findBranchWorktree(ctx.repo, ticket.branch)) ?? undefined;
     if (!dir)
       return {
         ok: false,
@@ -178,8 +302,7 @@ export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<C
         ok: false,
         detail: `The worktree HEAD (${short(head)}) is not the latest commit of the work branch (${short(sha)}). Align them with push or pull first`,
       };
-    const dirty = (await runGit(dir, ["status", "--porcelain"])).stdout.trim();
-    if (dirty)
+    if (await hasUncommittedChanges(dir))
       return {
         ok: false,
         detail: `Worktree ${dir} has uncommitted changes, so the check is not run (commit and push first)`,
@@ -197,13 +320,15 @@ export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<C
       return { ok: false, detail: `Cannot run the check (${shown}): ${reason}` };
     }
     if (result.code === 0) {
-      const record: StoredCheck = {
+      record.results.push({
         sha,
         command,
         code: result.code,
         tail: result.tail,
         at: new Date(ctx.now()).toISOString(),
-      };
+      });
+      // 全体の検査が通ったときだけ、その基準のコミットを動かす。軽い検査では消さない（t741）
+      if (!choice.light) record.full = { sha, command };
       await mkdir(path.dirname(file), { recursive: true });
       await writeFileAtomic(file, `${JSON.stringify(record, null, 2)}\n`);
     }

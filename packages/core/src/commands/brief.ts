@@ -187,7 +187,9 @@ export function composeBrief(role: BriefRole, f: BriefFacts, findings?: string):
     ),
     item(
       "Conventions",
-      "Follow the agent instruction file at the repository root, and the steps below. Run the checks (format, lint, tests) on the latest commit before you push.",
+      "Follow the agent instruction file at the repository root, and the steps below. Before you push, run `dg --json --actor agent gate " +
+        id +
+        " --only check` and confirm it passes (the check of the quality gate on the latest commit; it also remembers the result for that commit).",
     ),
     ...steps,
     ...acceptance,

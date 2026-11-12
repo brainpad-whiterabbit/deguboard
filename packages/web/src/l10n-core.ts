@@ -113,14 +113,14 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
       ja: "テスト実行の Action（run_tests）と、品質ゲート（dg gate・dg pr ready・dg pr merge）の検査が呼ぶコマンドの引数配列（例 [mise, run, check]）。空なら run_tests は拒否し、品質ゲートの検査は判定しない（リポジトリの規約の検査で確かめる）",
     },
   // actions.light_test
-  "Argument array of the lighter check the quality gate's check runs instead of actions.test when every file in the work branch's diff against base falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either":
+  "Argument array of the lighter check the quality gate's check runs instead of actions.test when every file changed since the last commit whose actions.test passed (the diff against base when there is none) falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either":
     {
-      ja: "作業ブランチの base との差分のファイルがすべて actions.light_paths に入るとき、品質ゲートの検査が actions.test の代わりに回す軽い検査のコマンドの引数配列（例 [mise, run, check:light]）。空なら、または actions.light_paths が空なら、いつも actions.test を回す。actions.test が空なら軽い検査も回さない",
+      ja: "前回 actions.test が通ったコミットから変わったファイル（前回がなければ base との差分）がすべて actions.light_paths に入るとき、品質ゲートの検査が actions.test の代わりに回す軽い検査のコマンドの引数配列（例 [mise, run, check:light]）。空なら、または actions.light_paths が空なら、いつも actions.test を回す。actions.test が空なら軽い検査も回さない",
     },
   // actions.light_paths
-  "Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file in the diff falls outside, actions.test runs":
+  "Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file changed since the last commit whose actions.test passed (or against base, when there is none) falls outside, actions.test runs":
     {
-      ja: "軽い検査（actions.light_test）で済ませるファイルの glob（リポジトリの最上位からの相対パス。* と ? は / をまたがず、** は階層をまたぐ。例 docs/**）。差分に 1 つでも外のファイルがあれば actions.test を回す",
+      ja: "軽い検査（actions.light_test）で済ませるファイルの glob（リポジトリの最上位からの相対パス。* と ? は / をまたがず、** は階層をまたぐ。例 docs/**）。前回 actions.test が通ったコミットから変わったファイル（前回がなければ base との差分）に 1 つでも外のファイルがあれば actions.test を回す",
     },
   // work.parallel
   "Most tickets of a Plan advanced at the same time with a subagent each (dg guide parallel). An integer from 1 to 10":
