@@ -1,0 +1,33 @@
+{
+  "id": "r20261112-100855-dc49",
+  "ticket": "t753",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-12T10:08:55Z",
+  "finished_at": "2026-11-12T10:17:36Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "Conflict bullet in the guide overview does not except a rebase in progress",
+    "pr ready gives no warning when a rebase is in progress"
+  ],
+  "usage": {
+    "input": 58,
+    "output": 7782,
+    "cache_read": 1393781,
+    "cache_write": 44562
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 2,
+    "bash": 21,
+    "other": 3,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "609d820c-be5f-4e27-9252-a549631f4417",
+  "review": null
+}
