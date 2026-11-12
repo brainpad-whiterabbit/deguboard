@@ -184,7 +184,7 @@ export function App() {
           {store.loaded ? <SelectionBar /> : null}
         </AskMenuProvider>
       </SelectionProvider>
-      {/* 開き直したら（対象が替わったら）中の状態を捨てる。指示の下書きと形式は見た目の状態に残る */}
+      {/* 開くたびに中の状態を捨てる（指示は空で始まり、形式は見た目の状態に残る。host.tsx の AskProvider.open） */}
       {ask.request && store.loaded ? (
         <AskComposer
           key={ask.serial}

@@ -4,7 +4,14 @@ import { App } from "./app.js";
 import { createHttpClient } from "./client/http.js";
 import { parseAskKey } from "./ask-key.js";
 import { createWebviewClient } from "./client/webview.js";
-import { ASK_OPEN_KEY, createHost, HostBridge, HostProvider, readSurface } from "./host.js";
+import {
+  ASK_NOTE_KEY,
+  ASK_OPEN_KEY,
+  createHost,
+  HostBridge,
+  HostProvider,
+  readSurface,
+} from "./host.js";
 import { StoreProvider } from "./store.js";
 import { createUiState } from "./ui-state.js";
 import { languageOf, setLanguage } from "./l10n.js";
@@ -25,9 +32,12 @@ const webviewClient = vscodeApi ? createWebviewClient(vscodeApi) : null;
 const client = webviewClient ?? createHttpClient();
 const uiState = vscodeApi ? createUiState(vscodeApi) : undefined;
 const host = createHost(surface, webviewClient, uiState);
-// 拡張ホストがサイドバーを作る前に「エージェントに頼む」を押されたときは、対象を data-ask（ask-key.ts の鍵の形）で渡してくる（UI-15）
-if (dataset.ask !== undefined)
+// 拡張ホストがサイドバーを作る前に「エージェントに頼む」を押されたときは、対象を data-ask（ask-key.ts の鍵の形）で渡してくる（UI-15）。
+// 開くのと同じなので、指示は空で始める（host.tsx の AskProvider.open と同じ。再読み込みの復元は data-ask を渡さないので残る）
+if (dataset.ask !== undefined) {
   host.state.set(ASK_OPEN_KEY, { targets: parseAskKey(dataset.ask).targets });
+  host.state.set(ASK_NOTE_KEY, "");
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
