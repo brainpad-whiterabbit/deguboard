@@ -4,6 +4,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   attributesFile,
+  BODY_FIELD,
   isMergeDriverPath,
   MERGE_LOG_ENV,
   MERGE_PREFER_ENV,
@@ -224,7 +225,13 @@ export async function conflictFields(repo: GitRepo): Promise<ConflictField[]> {
 /** 警告に載せる値の上限の字数。全体は data.conflict_fields にある */
 const VALUE_LIMIT = 80;
 
-function showValue(value: unknown): string {
+/** 英語の文に出すフィールドの名前。本文は行のまとまりとして英語で言う */
+export function fieldLabel(field: string): string {
+  return field === BODY_FIELD ? "body lines" : field;
+}
+
+/** 文に出す値の字数（JSON の書き方で、上限を超えたら … で切る）。全体は data にある */
+export function showValue(value: unknown): string {
   const text = JSON.stringify(value) ?? "null";
   return text.length > VALUE_LIMIT ? `${text.slice(0, VALUE_LIMIT)}…` : text;
 }
@@ -234,7 +241,7 @@ export function describeConflictFields(fields: readonly ConflictField[]): string
   if (fields.length === 0) return "";
   const items = fields.map(
     (f) =>
-      `${f.file} ${f.field === "本文" ? "body lines" : f.field} (local ${showValue(f.local)}, remote ${showValue(f.remote)}, base ${showValue(f.base)})`,
+      `${f.file} ${fieldLabel(f.field)} (local ${showValue(f.local)}, remote ${showValue(f.remote)}, base ${showValue(f.base)})`,
   );
   return ` Conflicting fields (full values in data.conflict_fields): ${items.join("; ")}.`;
 }

@@ -21,6 +21,7 @@ import {
   toCommandFailure,
   WEBVIEW_CONTRACT,
   type CommandClient,
+  type ResolveSide,
   type StatusView,
   type TerminalChoice,
   type TerminalSendResult,
@@ -62,12 +63,7 @@ import {
   onPath,
   unlinkDg,
 } from "./launcher.js";
-import {
-  hasResolvableFields,
-  resolveChoices,
-  resolvedSummary,
-  type ResolveSide,
-} from "./sync-resolve.js";
+import { pickedSide, syncNotice } from "./sync-resolve.js";
 import {
   describeTerminals,
   START_TERMINAL_NAME,
@@ -653,22 +649,21 @@ function notifySync(
   data: unknown,
   resolve: ResolveSide | undefined,
 ): void {
-  if (warnings.length > 0) {
-    const message = `deguboard: ${warnings.join(" / ")}`;
-    if (!resolve && hasResolvableFields(data)) {
-      const choices = resolveChoices();
+  const notice = syncNotice(warnings, data, resolve);
+  if (notice.warning) {
+    const { message, choices } = notice.warning;
+    if (choices.length === 0) {
+      void vscode.window.showWarningMessage(message);
+    } else {
       void vscode.window
         .showWarningMessage(message, ...choices.map((c) => c.label))
         .then((picked) => {
-          const choice = choices.find((c) => c.label === picked);
-          if (choice) void syncFolder(choice.side, folder);
+          const side = pickedSide(choices, picked);
+          if (side) void syncFolder(side, folder);
         });
-    } else {
-      void vscode.window.showWarningMessage(message);
     }
   }
-  const summary = resolve ? resolvedSummary(resolve, data) : undefined;
-  if (summary) void vscode.window.showInformationMessage(`deguboard: ${summary}`);
+  if (notice.info) void vscode.window.showInformationMessage(notice.info);
 }
 
 /** 右クリックのメニューの引数から対象（チケット・Iteration・Epic）を取り、サイドバーのフォルダに対して動かす。取れなければ何もしない */

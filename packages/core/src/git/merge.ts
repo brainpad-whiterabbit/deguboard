@@ -67,9 +67,11 @@ export type MergeSide = "ours" | "theirs";
 export const MERGE_PREFER_ENV = "DEGUBOARD_MERGE_PREFER";
 /** 採る側で解いたフィールドを 1 行 1 件の JSON で書き足すファイル（呼び手が読んで結果に返す） */
 export const MERGE_LOG_ENV = "DEGUBOARD_MERGE_LOG";
+/** 本文のフィールドの名前。解いた・解けなかったフィールドの field に入る（frontmatter のフィールドは英語の名前のまま） */
+export const BODY_FIELD = "本文";
 
 /**
- * 採る側で解いた 1 件。本文は field が "本文" で、値は両側の本文全体。
+ * 採る側で解いた 1 件。本文は field が BODY_FIELD で、値は両側の本文全体。
  * auto は人が選ばずに解いたもの（同じ status の時刻の早い方。SAME_STATUS_TIMES）
  */
 export interface ResolvedField {
@@ -81,7 +83,7 @@ export interface ResolvedField {
 
 /**
  * 解けなかった 1 件（dg sync の data.conflict_fields の元）。値は git の側で言う（ours が %A、theirs が %B）。
- * 本文は field が "本文" で、ぶつかった行の塊ごとに 1 件、値はその塊の行（base は分岐点の行）
+ * 本文は field が BODY_FIELD で、ぶつかった行の塊ごとに 1 件、値はその塊の行（base は分岐点の行）
  */
 export interface ConflictedField {
   field: string;
@@ -298,7 +300,7 @@ export async function mergeDocuments(
         : await mergeText(o.body ?? "", a.body ?? "", b.body ?? "");
     if (merged === undefined && prefer) {
       merged = await mergeText(o.body ?? "", a.body ?? "", b.body ?? "", prefer);
-      if (merged !== undefined) settle("本文", a.body, b.body);
+      if (merged !== undefined) settle(BODY_FIELD, a.body, b.body);
     }
     if (merged === undefined)
       bodyHunks = await conflictHunks(o.body ?? "", a.body ?? "", b.body ?? "");
@@ -318,7 +320,7 @@ export async function mergeDocuments(
     }
   }
 
-  const conflicts = [...clashes, ...(bodyHunks === undefined ? [] : ["本文"])];
+  const conflicts = [...clashes, ...(bodyHunks === undefined ? [] : [BODY_FIELD])];
   const details: ConflictedField[] = [
     ...clashes.map((key) => ({
       field: key,
@@ -326,7 +328,7 @@ export async function mergeDocuments(
       ours: a.data[key],
       theirs: b.data[key],
     })),
-    ...(bodyHunks ?? []).map((h) => ({ field: "本文", ...h })),
+    ...(bodyHunks ?? []).map((h) => ({ field: BODY_FIELD, ...h })),
   ];
   if (conflicts.length > 0) return { ok: false, conflicts, details };
   if (Object.keys(patch).length === 0) {
