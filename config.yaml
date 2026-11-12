@@ -12,8 +12,8 @@ lint:
   require_iteration: true
 models:
   light: haiku
-  standard: haiku
-  heavy: opus
+  standard: opus
+  heavy: fable
 merge:
   method: squash
   delete_branch: true
