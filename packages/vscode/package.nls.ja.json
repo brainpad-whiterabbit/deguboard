@@ -18,7 +18,7 @@
   "walkthrough.start.ticket.description": "やりたいことを 1 件のチケットにします。",
   "walkthrough.start.ticket.markdown": "media/walkthrough/ticket.ja.md",
   "walkthrough.start.agent.title": "エージェントに頼む",
-  "walkthrough.start.agent.description": "Skill を入れ、依頼文を作ってコピーします。",
+  "walkthrough.start.agent.description": "依頼文を作って、エージェントに渡します。",
   "walkthrough.start.agent.markdown": "media/walkthrough/agent.ja.md",
   "capabilities.untrustedWorkspaces.description": "deguboard はワークスペースのリポジトリで git を実行します。リポジトリの git の設定（core.fsmonitor など）は任意のコマンドを実行させ得るため、信頼していないフォルダー（制限モード）では動きません。",
   "capabilities.virtualWorkspaces.description": "deguboard はローカルのファイルシステムと git のコマンドを使うため、仮想ワークスペースでは動きません。"

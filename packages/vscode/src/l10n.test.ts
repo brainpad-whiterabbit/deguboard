@@ -131,7 +131,7 @@ const MANIFEST_JA_BEFORE: Record<string, string> = {
   "walkthrough.start.ticket.title": "チケットを起こす",
   "walkthrough.start.ticket.description": "やりたいことを 1 件のチケットにします。",
   "walkthrough.start.agent.title": "エージェントに頼む",
-  "walkthrough.start.agent.description": "Skill を入れ、依頼文を作ってコピーします。",
+  "walkthrough.start.agent.description": "依頼文を作って、エージェントに渡します。",
   "capabilities.untrustedWorkspaces.description":
     "deguboard はワークスペースのリポジトリで git を実行します。リポジトリの git の設定（core.fsmonitor など）は任意のコマンドを実行させ得るため、信頼していないフォルダー（制限モード）では動きません。",
   "capabilities.virtualWorkspaces.description":
