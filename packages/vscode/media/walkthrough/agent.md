@@ -1,10 +1,6 @@
 # 3. Ask an agent
 
-If you use Claude Code, install the Skill so the agent can read the steps and follow them.
-
-```sh
-dg skill install
-```
+If you use Claude Code, the Skills (such as `/dgimport`) are already installed by **Start with this repository** in step 1, so you do not need to run anything here. Only if you ran `dg init` yourself in a terminal, run `dg skill install` once in that terminal.
 
 For other agents, ask them to "read `dg guide`, then proceed with `dg`".
 
