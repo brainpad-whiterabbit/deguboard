@@ -57,6 +57,7 @@ import {
   launcherFileOf,
   linkDg,
   linkPathOf,
+  mergeDriverOf,
   onPath,
   unlinkDg,
 } from "./launcher.js";
@@ -771,11 +772,13 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
   const key = folder.uri.toString();
   let client = clients.get(key);
   if (!client) {
-    // 拡張ホストに環境変数が届かない起動（GUI など）では、core が git config の deguboard.user から決める
+    // 拡張ホストに環境変数が届かない起動（GUI など）では、core が git config の deguboard.user から決める。
+    // 同期は同梱の dg を呼ぶマージドライバを登録する（拡張だけで使っても、近いフィールドの変更で同期が止まらないように。t759）
     client = createLocalClient({
       cwd: folder.uri.fsPath,
       ...pickUser(undefined, process.env["DEGUBOARD_USER"]),
       actions: ACTION_NAMES,
+      mergeDriver: extensionContext && mergeDriverOf(launcherCurrent(extensionContext)),
     });
     clients.set(key, client);
     void watchData(folder, client);

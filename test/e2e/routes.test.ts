@@ -5,7 +5,7 @@
 
 import { MessageChannel } from "node:worker_threads";
 import { afterEach, describe, expect, it } from "vitest";
-import { run as runCli } from "../../packages/cli/src/program.js";
+import { run as runCli, selfMergeDriver } from "../../packages/cli/src/program.js";
 import {
   createLocalClient,
   init,
@@ -20,6 +20,8 @@ import { createWebviewClient } from "../../packages/web/src/client/webview.js";
 import { handleRequest, isWebviewRequest } from "../../packages/vscode/src/webview.js";
 
 const USER = "e2e";
+/** 3 経路に同じマージドライバを渡す（CLI・dg serve・拡張はどれも登録する。登録がないと sync が警告して結果が揃わない。t759） */
+const MERGE_DRIVER = selfMergeDriver({});
 
 /** 前の手順の結果から取る値。run は最後に run.start が返した Run の ID */
 interface Vars {
@@ -270,6 +272,7 @@ const cli: Route = async (cwd) => ({
     await runCli(["--json", "--user", USER, ...step.argv], {
       cwd,
       env: cliEnv(),
+      mergeDriver: MERGE_DRIVER,
       streams: { out: (t) => out.push(t), err: () => {} },
     });
     return JSON.parse(out.join("\n")) as Envelope;
@@ -278,7 +281,7 @@ const cli: Route = async (cwd) => ({
 });
 
 const http: Route = async (cwd) => {
-  const server = await startServer({ cwd, port: 0, user: USER });
+  const server = await startServer({ cwd, port: 0, user: USER, mergeDriver: MERGE_DRIVER });
   return {
     async call(step) {
       const res = await fetch(`${server.url}api/commands/${step.name}`, {
@@ -295,7 +298,7 @@ const http: Route = async (cwd) => {
 /** 拡張ホスト（createLocalClient + handleRequest）と Webview（createWebviewClient）を MessageChannel でつなぐ */
 const webview: Route = async (cwd) => {
   const { port1, port2 } = new MessageChannel();
-  const hostClient = createLocalClient({ cwd, user: USER });
+  const hostClient = createLocalClient({ cwd, user: USER, mergeDriver: MERGE_DRIVER });
   port2.addEventListener("message", (event) => {
     const message = (event as MessageEvent<unknown>).data;
     if (isWebviewRequest(message))

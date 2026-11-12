@@ -174,6 +174,23 @@ export async function installLauncher(
   return "written";
 }
 
+/**
+ * 拡張の同期が git config に登録するマージドライバ（dg を呼ぶ argv の前置。SY-4、t759）。
+ * 起動ファイルを書ける環境では起動ファイルを指す（拡張のフォルダは版付きで更新のたびに変わるが、起動ファイルのパスは変わらない。
+ * CLI が起動ファイル経由で登録するもの（t735）と同じ行になる）。書けない環境（Windows）では、拡張ホストの node と同梱の dg.mjs を
+ * 直に指す。拡張ホストの node は VS Code 本体（Electron）のことがあるので、git の sh に ELECTRON_RUN_AS_NODE=1 を付けさせる。
+ * 同期のたびに登録し直すので、拡張を更新して古いフォルダが消えても次の同期で直る
+ */
+export function mergeDriverOf(
+  mine: Current,
+  options: { home?: string; platform?: NodeJS.Platform } = {},
+): string[] {
+  if ((options.platform ?? process.platform) !== "win32") {
+    return [launcherFileOf(options.home), "merge-driver"];
+  }
+  return ["ELECTRON_RUN_AS_NODE=1", mine.node, mine.dg, "merge-driver"];
+}
+
 /** PATH に通す dg のリンク（~/.local/bin/dg）。「dg コマンドを入れる」が張り、「外す」と拡張の片付けが外す */
 export function linkPathOf(home: string = homedir()): string {
   return path.join(home, ".local", "bin", "dg");

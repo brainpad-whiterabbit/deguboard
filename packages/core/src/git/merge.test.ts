@@ -254,6 +254,35 @@ describe("同期のマージドライバ", () => {
     expect(log.stdout.trim()).toBe("Add .gitattributes for the merge driver");
   });
 
+  it("ドライバの登録がない、または登録したコマンドのパスが見つからないとき、sync が警告する（t759）", async () => {
+    const f = await fixture();
+    const { a } = await twoClones(f);
+    const driverWarning = (warnings: string[]) =>
+      warnings.filter((w) => w.includes("merge.deguboard.driver"));
+    expect(driverWarning((await runCommand(sync, a, {})).warnings)).toEqual([]);
+
+    // ドライバを渡さない入口（拡張の前の版）で、登録がない
+    await git(a.repo.dataDir, ["config", "--unset", "merge.deguboard.driver"]);
+    const bare = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "eiki" } });
+    const missing = driverWarning((await runCommand(sync, bare, {})).warnings);
+    expect(missing).toHaveLength(1);
+    expect(missing[0]).toContain("is not registered");
+
+    // node を上げて、前に登録した node が消えた
+    const gone = path.join(f.root, "old node", "bin", "node");
+    await git(a.repo.dataDir, [
+      "config",
+      "merge.deguboard.driver",
+      mergeDriverCommandLine([gone, "/usr/lib/dg.js", "merge-driver"]),
+    ]);
+    const broken = driverWarning((await runCommand(sync, bare, {})).warnings);
+    expect(broken).toHaveLength(1);
+    expect(broken[0]).toContain(`runs ${gone}, which does not exist`);
+
+    // ドライバを渡す入口の sync は登録し直し、警告を出さない
+    expect(driverWarning((await runCommand(sync, a, {})).warnings)).toEqual([]);
+  });
+
   it("同じチケットの別のフィールドを双方で変えた競合を、sync が両方の変更を残して自動で解く", async () => {
     const f = await fixture();
     const { a, b } = await twoClones(f);
