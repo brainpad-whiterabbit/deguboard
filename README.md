@@ -94,6 +94,10 @@ You can turn notifications off under "Notifications" in Settings (the gear icon)
 dg config set notify.approvals false --local
 ```
 
+### Resolve a sync conflict
+
+When two people change the same field of a ticket to different values, `dg sync` stops before pushing and reports the conflict. The notification lists the conflicting fields with their remote and local values, and offers "Take remote" and "Take local". Pressing one runs `dg sync --resolve` once on that side: only the conflicting fields take its value, and the other changes and commits stay. The values taken and discarded are shown. In a terminal, run `dg sync --resolve remote` or `dg sync --resolve local`. Until it is resolved, push and reconcile wait. A same-status conflict that differs only in `closed_at`, `started_at`, or `approved_at` is not a stop: dg keeps the earlier time and shows a warning. The steps for agents are under "When sync stops" in `dg guide overview`.
+
 ## Security and privacy
 
 - The extension sends no telemetry and starts no HTTP server. Its only network access is `git` connecting to your remotes and `gh` connecting to GitHub.
