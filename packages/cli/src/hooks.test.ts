@@ -493,6 +493,30 @@ describe("dg hooks check（AG-9・t542）", () => {
     expect(after.warnings.some((w) => w.includes("No dg hook has reached"))).toBe(false);
   });
 
+  it("dg hook の中で出た警告（標準エラーに出るだけのもの）を、まだ知らせていなければ一度だけ知らせる（t756）", async () => {
+    const cwd = await repo();
+    await dg(cwd, ["init"]);
+    await dg(cwd, ["hooks", "install", "--command", process.execPath]);
+    const home = await tempHome();
+    const payload = path.join(home, "payload.json");
+    await writeFile(
+      payload,
+      JSON.stringify({ session_id: "sess-756", transcript_path: "/x.jsonl" }),
+    );
+    // 環境を書くファイルが渡されないので、フックの中で警告になる（終了コードは 0）
+    const hook = await dg(cwd, ["--actor", "agent", "hook", "SessionStart", "--payload", payload], {
+      HOME: home,
+    });
+    expect(hook.code).toBe(0);
+    expect(hook.err).toContain("No file to write the environment to was given");
+    const reported = (w: string) =>
+      w.startsWith("dg hook SessionStart") &&
+      w.includes("session sess-756") &&
+      w.includes("No file to write the environment to was given");
+    expect((await checkOf(cwd, [], { HOME: home })).warnings.filter(reported)).toHaveLength(1);
+    expect((await checkOf(cwd, [], { HOME: home })).warnings.filter(reported)).toEqual([]);
+  });
+
   it("JSON では警告は最上位の warnings に出て、data には入らない", async () => {
     const cwd = await repo();
     const result = await checkOf(cwd);

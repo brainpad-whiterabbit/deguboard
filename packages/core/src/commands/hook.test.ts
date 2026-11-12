@@ -48,6 +48,12 @@ import {
   type RunView,
 } from "./run.js";
 import { brief } from "./brief.js";
+import {
+  hookKindsOf,
+  pruneHookSessions,
+  recordHookWarnings,
+  takeHookWarnings,
+} from "./hook-sessions.js";
 import { next, type NextStep } from "./next.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
@@ -1964,6 +1970,180 @@ describe("フックが届いていないセッションの警告（t697）", () 
     ctx.env = { HOME: home };
     const outside = await runCommand(next, ctx, { ticket: "t1" });
     expect(outside.warnings.some((w) => w.includes(SILENT))).toBe(false);
+  });
+});
+
+describe("フックの中の警告と、届かない SubagentStop を後から知らせる（t756）", () => {
+  const STOP_MISSING = "No SubagentStop hook has reached this session";
+  const sessionsDir = (ctx: CommandContext) => path.join(ctx.repo.localDir, "hook-sessions");
+  const stopped = (ctx: CommandContext, agentId: string, transcript: string) =>
+    call(ctx, "SubagentStop", {
+      session_id: SESSION,
+      agent_id: agentId,
+      agent_transcript_path: transcript,
+      last_assistant_message: "終わり",
+    });
+
+  it("フックの中の警告をセッションごとに deguboard-local に残し、next・brief がまだ知らせていないものだけを一度ずつ知らせる", async () => {
+    const { ctx, parent } = await prepared();
+    // 印のチケットがないので Run を開けない（警告は標準エラーに出るだけで、誰にも届かない）
+    const missing = await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a1", "deguboard: ticket=t99 step=review"),
+    );
+    expect(missing.warnings).toEqual([expect.stringContaining("The marked ticket t99")]);
+    const lines = (await readFile(path.join(sessionsDir(ctx), `${SESSION}.warnings.jsonl`), "utf8"))
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as { event: string; text: string; at: string });
+    expect(lines).toEqual([
+      {
+        event: "PostToolUse",
+        at: expect.any(String),
+        text: expect.stringContaining("The marked ticket t99"),
+      },
+    ]);
+
+    const hookWarned = (warnings: string[], text: string) =>
+      warnings.filter((w) => w.startsWith("dg hook PostToolUse") && w.includes(text));
+    const first = await runCommand(next, ctx, { ticket: "t1" });
+    expect(hookWarned(first.warnings, "t99")).toEqual([
+      expect.stringContaining(`session ${SESSION}`),
+    ]);
+    // 知らせたものは、next でも brief でも二度は知らせない
+    expect(hookWarned((await runCommand(next, ctx, { ticket: "t1" })).warnings, "t99")).toEqual([]);
+    await call(ctx, "PostToolUse", launched(parent, "a2", "deguboard: ticket=t98 step=review"));
+    const text = await runCommand(brief, ctx, { ticket: "t1", role: "implement" });
+    expect(hookWarned(text.warnings, "t99")).toEqual([]);
+    expect(hookWarned(text.warnings, "t98")).toHaveLength(1);
+    expect(
+      hookWarned(
+        (await runCommand(brief, ctx, { ticket: "t1", role: "implement" })).warnings,
+        "t98",
+      ),
+    ).toEqual([]);
+  });
+
+  it("警告のファイルが消えて同じセッション ID で作り直されたら、前の知らせた位置を使わずに新しい警告を知らせる", async () => {
+    const { ctx } = await prepared();
+    const local = ctx.repo.localDir;
+    await recordHookWarnings(local, "s-resumed", "Stop", "2026-01-01T00:00:00Z", ["古い警告 1"]);
+    expect(await takeHookWarnings(local)).toEqual([expect.stringContaining("古い警告 1")]);
+    // 警告のファイルだけが消え（古くなって片付けた）、知らせた位置は残っている
+    await rm(path.join(sessionsDir(ctx), "s-resumed.warnings.jsonl"));
+    await recordHookWarnings(local, "s-resumed", "Stop", "2026-03-01T00:00:00Z", [
+      "新しい警告 1",
+      "新しい警告 2",
+    ]);
+    expect(await takeHookWarnings(local)).toEqual([
+      expect.stringContaining("新しい警告 1"),
+      expect.stringContaining("新しい警告 2"),
+    ]);
+    expect(await takeHookWarnings(local)).toEqual([]);
+  });
+
+  it("古い記録を片付けるとき、警告のファイルがなくなった知らせた位置も消す", async () => {
+    const { ctx } = await prepared();
+    const local = ctx.repo.localDir;
+    await recordHookWarnings(local, "s-old", "Stop", "2026-01-01T00:00:00Z", ["古い警告"]);
+    await takeHookWarnings(local);
+    const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+    await utimes(path.join(sessionsDir(ctx), "s-old.warnings.jsonl"), old, old);
+    await pruneHookSessions(local, new Date());
+    expect((await readdir(sessionsDir(ctx))).filter((n) => n.startsWith("s-old"))).toEqual([]);
+  });
+
+  it("届いた出来事の種類をセッションごとに残す", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await call(ctx, "PreToolUse", {
+      session_id: SESSION,
+      transcript_path: parent,
+      tool_name: "Bash",
+      cwd: ctx.repo.topLevel,
+      tool_input: { command: "ls" },
+    });
+    await stopped(ctx, "a1", subagent("a1"));
+    expect(await hookKindsOf(ctx.repo.localDir, SESSION)).toEqual([
+      "subagent_stopped",
+      "tool_requested",
+    ]);
+    expect(await hookKindsOf(ctx.repo.localDir, "s-other")).toEqual([]);
+  });
+
+  it("印で開いたバックグラウンドの起動を並べても、まだ動いているのと見分けられないので警告せず、SubagentStop が届かないままセッションが終われば一度だけ警告を残して next が知らせる", async () => {
+    const { ctx, parent } = await prepared();
+    const one = await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a1", "deguboard: ticket=t1 step=implement"),
+    );
+    expect(one.warnings.some((w) => w.includes(STOP_MISSING))).toBe(false);
+    // 並べて頼んだ 2 つ目は 1 つ目が動いている間に来るので、SubagentStop が届いていなくても正常
+    const two = await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a2", "deguboard: ticket=t2 step=implement"),
+    );
+    expect(two.warnings.some((w) => w.includes(STOP_MISSING))).toBe(false);
+    expect(
+      (await runCommand(next, ctx, { ticket: "t1" })).warnings.some((w) =>
+        w.includes(STOP_MISSING),
+      ),
+    ).toBe(false);
+    const end = await call(ctx, "SessionEnd", { session_id: SESSION, reason: "other" });
+    expect(end.warnings.filter((w) => w.includes(STOP_MISSING))).toHaveLength(1);
+    const step = await runCommand(next, ctx, { ticket: "t1" });
+    expect(step.warnings.filter((w) => w.includes(STOP_MISSING))).toEqual([
+      expect.stringMatching(/^dg hook SessionEnd .*2 sub-agent\(s\) were started with the marker/),
+    ]);
+    // セッションごとに一度だけ（もう一度の終わりでは書かない）
+    const again = await call(ctx, "SessionEnd", { session_id: SESSION, reason: "other" });
+    expect(again.warnings.some((w) => w.includes(STOP_MISSING))).toBe(false);
+  });
+
+  it("SubagentStop が一度でも届いたセッションは警告しない。前景の起動とセッションの終わりは、起動 1 つでも警告する", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await stopped(ctx, "x", subagent("x"));
+    await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=implement"));
+    const two = await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a2", "deguboard: ticket=t2 step=implement"),
+    );
+    expect(two.warnings.some((w) => w.includes(STOP_MISSING))).toBe(false);
+
+    // 前景の起動（SubagentStop は結果より先に来るはず）
+    const fg = await prepared();
+    const prompt = "deguboard: ticket=t1 step=investigate\n\n調べる";
+    await subagentRecord(fg.subagent("a1"), prompt, 1);
+    const done = await call(fg.ctx, "PostToolUse", {
+      ...launched(fg.parent, "a1", prompt),
+      tool_response: {
+        status: "completed",
+        agentId: "a1",
+        resolvedModel: "claude-test-1",
+        totalDurationMs: 1_000,
+        content: [{ type: "text", text: "終わり" }],
+      },
+    });
+    expect(done.warnings.filter((w) => w.includes(STOP_MISSING))).toHaveLength(1);
+
+    // セッションの終わり（バックグラウンドの起動 1 つ）
+    const bg = await prepared();
+    await call(
+      bg.ctx,
+      "PostToolUse",
+      launched(bg.parent, "a1", "deguboard: ticket=t1 step=implement"),
+    );
+    const end = await call(bg.ctx, "SessionEnd", { session_id: SESSION, reason: "other" });
+    expect(end.warnings.filter((w) => w.includes(STOP_MISSING))).toHaveLength(1);
+    // 終わったセッションの警告は、次のセッション（エージェントの外でも）の next が知らせる
+    bg.ctx.env = { HOME: bg.home };
+    const later = await runCommand(next, bg.ctx, { ticket: "t2" });
+    expect(later.warnings.filter((w) => w.includes(STOP_MISSING))).toEqual([
+      expect.stringMatching(/^dg hook SessionEnd /),
+    ]);
   });
 });
 
