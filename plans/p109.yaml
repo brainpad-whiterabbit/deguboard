@@ -29,7 +29,7 @@ after:
     - t764
   t760:
     - t758
-pending_approval: true
+pending_approval: false
 details:
   t749:
     scope: push が届かないときに claim・iteration start/reopen・epic/iteration/plan create を失敗にし、仮番号の claim を拒否する
@@ -82,3 +82,5 @@ details:
   t760:
     scope: Workflow の review step と Plan をまたぐ循環を書き込み時に検査する
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-12T09:00:02Z
