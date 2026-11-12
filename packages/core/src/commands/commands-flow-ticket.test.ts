@@ -56,13 +56,16 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(
       (await runCommand(ticketMove, human, { ticket: "t1", status: "done" })).data.status,
     ).toBe("done");
-    expect(
-      (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2" })).data.status,
-    ).toBe("in_progress");
+    const started = (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2" }))
+      .data;
+    expect(started.status).toBe("in_progress");
+    expect(started.branch_base).toBeDefined();
     const dropped = (await runCommand(ticketMove, agent, { ticket: "t2", status: "abandoned" }))
       .data;
     expect(dropped.status).toBe("abandoned");
     expect(dropped.assignee).toBeUndefined();
+    // ブランチの起点も消す（ST-4）
+    expect(dropped.branch_base).toBeUndefined();
 
     // strict：制約に当たる遷移だけが拒否される
     await writeStrictWorkflow(human);
@@ -253,9 +256,11 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const claimed = await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t1" });
     expect(claimed.data.assignee).toBe("eiki");
     expect(claimed.warnings).toContain("Changed the assignee from other to eiki");
-    // todo に戻すと担当者は消える。起票者は残る
+    expect(claimed.data.branch_base).toBeDefined();
+    // todo に戻すと担当者とブランチの起点は消える。起票者は残る
     const back = await runCommand(ticketMove, human, { ticket: "t1", status: "todo" });
     expect(back.data.assignee).toBeUndefined();
+    expect(back.data.branch_base).toBeUndefined();
     expect(back.data.created_by).toBe("eiki/agent");
     const cleared = await runCommand(ticketUpdate, human, { ticket: "t2", assignee: null });
     expect(cleared.data.assignee).toBeUndefined();

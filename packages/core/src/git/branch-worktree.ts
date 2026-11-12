@@ -47,16 +47,22 @@ export async function branchStartPoint(
   return `${repo.remote}/${base}`;
 }
 
-/** base から作業ブランチ branch を切り、dir に checkout した worktree を作る。上流は付けない（--no-track） */
+/**
+ * base から作業ブランチ branch を切り、dir に checkout した worktree を作る。上流は付けない（--no-track）。
+ * start（コミットの SHA）を渡すと取り込まずにそこから切る（claim が `branch_base` に記録した起点と同じにする。ST-4）
+ */
 export async function createBranchWorktree(
   cwd: string,
   repo: Pick<GitRepo, "remote">,
-  input: { branch: string; base: string; dir: string },
+  input: { branch: string; base: string; dir: string; start?: string | undefined },
 ): Promise<{ branch: string; path: string; base: string }> {
   if (!isSafeBranchName(input.branch)) {
     throw new OperationError("REJECTED", `Cannot be used as a branch name: ${input.branch}`);
   }
-  const start = await branchStartPoint(cwd, repo, input.base);
+  if (input.start !== undefined && !/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(input.start)) {
+    throw new OperationError("REJECTED", `Cannot be used as a start commit: ${input.start}`);
+  }
+  const start = input.start ?? (await branchStartPoint(cwd, repo, input.base));
   await runGit(cwd, ["worktree", "add", "--no-track", "-b", input.branch, "--", input.dir, start]);
   return { branch: input.branch, path: input.dir, base: start };
 }
@@ -68,7 +74,7 @@ export async function createBranchWorktree(
  */
 export async function ensureBranchWorktree(
   repo: GitRepo,
-  input: { branch: string; base: string; dir: string },
+  input: { branch: string; base: string; dir: string; start?: string | undefined },
 ): Promise<{ path: string; created: boolean }> {
   const existing = await findBranchWorktree(repo, input.branch);
   if (existing) return { path: existing, created: false };

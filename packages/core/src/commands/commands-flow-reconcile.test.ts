@@ -161,6 +161,63 @@ describe("チケットの流れ（照合と claim）", () => {
     expect(log[1]).toBe("Commit batched changes");
   });
 
+  it("コミットのない作業ブランチを push した後に main が進んでも done にせず、作業のあるブランチの ff マージと起点のない前からのチケットは done にする（t764）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["Empty", "Work", "Legacy"]) await runCommand(ticketCreate, ctx, { title });
+    const start = (await git(f.cloneA, ["rev-parse", "origin/main"])).stdout.trim();
+    // claim が切った worktree のまま、コミットせずに push する
+    const empty = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/t1-empty" });
+    expect(empty.data.branch_base).toBe(start);
+    await git(empty.data.worktree!, ["push", "-q", "origin", "feat/t1-empty"]);
+    // 作業を積んで push し、main に ff マージする
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "feat/t2-work" });
+    await git(f.cloneA, ["checkout", "-qb", "feat/t2-work", start]);
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
+    await git(f.cloneA, ["push", "-q", "origin", "feat/t2-work"]);
+    await git(f.cloneA, ["checkout", "-q", "main"]);
+    await git(f.cloneA, ["merge", "-q", "--ff-only", "feat/t2-work"]);
+    await git(f.cloneA, ["push", "-q", "origin", "main"]);
+    // 起点を記録していない前からのチケットの形（コミットのないブランチを push 済み）
+    await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t3",
+      branch: "feat/t3-legacy",
+    });
+    await ctx.store.update("ticket", "t3", { branch_base: undefined });
+    await recordBaseline(ctx.repo);
+    await git(f.cloneA, ["push", "-q", "origin", `${start}:refs/heads/feat/t3-legacy`]);
+    // 別の作業が main に入る
+    await git(f.cloneB, ["pull", "-q", "--ff-only", "origin", "main"]);
+    await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "main が進む"]);
+    await git(f.cloneB, ["push", "-q", "origin", "main"]);
+
+    const synced = await runCommand(sync, ctx, {});
+    expect(synced.data.reconciled).toEqual([
+      { id: "t2", from: "in_progress", to: "done", when: ["branch_merged"] },
+      { id: "t3", from: "in_progress", to: "done", when: ["branch_merged"] },
+    ]);
+    expect(ctx.store.tickets.get("t1")?.data.status).toBe("in_progress");
+    // unclaim で起点も消える
+    await runCommand(ticketUnclaim, ctx, { ticket: "t1" });
+    expect(ctx.store.tickets.get("t1")?.data.branch_base).toBeUndefined();
+    // update でブランチを付け替えても外しても、前のブランチの起点を残さない
+    const again = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t1",
+      branch: "feat/t1-again",
+    });
+    expect(again.data.branch_base).toBe(
+      (await git(f.cloneA, ["rev-parse", "origin/main"])).stdout.trim(),
+    );
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "feat/t1-other" });
+    expect(ctx.store.tickets.get("t1")?.data.branch_base).toBeUndefined();
+    await ctx.store.update("ticket", "t1", { branch_base: again.data.branch_base });
+    await recordBaseline(ctx.repo);
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: null });
+    expect(ctx.store.tickets.get("t1")?.data.branch_base).toBeUndefined();
+  });
+
   it("照合は gh がブランチ名で見つけた PR の番号を pr に記録し、記録済みや PR のないチケットは書き換えない", async () => {
     const f = await fixture();
     // software-development の Workflow だけが PR の事実（pr_*）を見る

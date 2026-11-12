@@ -231,6 +231,31 @@ describe("登録済みの Action の実行", () => {
     expect(head.stdout.trim()).toBe("main");
   });
 
+  it("start（チケットの branch_base）を渡すと、main が進んでいても取り込まずにそのコミットから切る", async () => {
+    const f = await fixture();
+    // claim が記録した起点。その後に B が main を進める
+    const recorded = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
+    await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "B の変更"]);
+    await git(f.cloneB, ["push", "-q", "origin", "main"]);
+    const ctx = await contextOf(f.cloneA);
+    const worktree = (await runAction(ctx, "create_worktree", {
+      branch: "feat/x",
+      start: recorded,
+    })) as { path: string; base: string };
+    expect(worktree.base).toBe(recorded);
+    expect((await git(worktree.path, ["rev-parse", "HEAD"])).stdout.trim()).toBe(recorded);
+    const branch = (await runAction(ctx, "create_branch", {
+      branch: "fix/y",
+      start: recorded,
+    })) as { base: string };
+    expect(branch.base).toBe(recorded);
+    expect((await git(f.cloneA, ["rev-parse", "fix/y"])).stdout.trim()).toBe(recorded);
+    // SHA でないものは git に渡さずに入力の誤りとして拒む
+    await expect(
+      runAction(ctx, "create_branch", { branch: "fix/z", start: "--upload-pack=x" }),
+    ).rejects.toBeInstanceOf(UsageError);
+  });
+
   it("run_tests は actions.test が空なら拒否し、あれば実行して成否を返す", async () => {
     const f = await fixture();
     const none = await contextOf(f.cloneA);

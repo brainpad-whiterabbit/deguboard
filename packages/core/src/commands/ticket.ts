@@ -2,7 +2,7 @@
 
 import { prettifyError, z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
-import { collectBranchFacts, fetchPrCreatedAt, findMergedLeftover } from "../git/facts.js";
+import { baseTip, collectBranchFacts, fetchPrCreatedAt, findMergedLeftover } from "../git/facts.js";
 import { findBranchWorktree } from "../git/worktree.js";
 import { AbortWrite, withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
@@ -621,6 +621,8 @@ export const ticketUpdate = defineCommand({
           if (input.branch !== null) await requireBranchAvailable(ctx, t.id, input.branch);
           patch["branch"] = input.branch ?? undefined;
           patch["branch_at"] = input.branch === null ? undefined : patch["updated_at"];
+          // 付け替えたブランチの起点は分からないので、前のブランチの起点を残さない（照合は祖先かだけで判定する。ST-4）
+          patch["branch_base"] = undefined;
         }
         if (input.assignee !== undefined) {
           patch["assignee"] =
@@ -800,6 +802,7 @@ async function factsFor(
       needPr,
       status: doc.data.status,
       since: doc.data.branch_at ?? doc.data.created_at,
+      start: doc.data.branch_base,
     });
     Object.assign(facts, collected.facts);
   }
@@ -843,10 +846,17 @@ function transitionSideEffects(to: Status): Record<string, unknown> {
       claimed_by: undefined,
       branch: undefined,
       branch_at: undefined,
+      branch_base: undefined,
       pr: undefined,
     };
   if (to === "abandoned")
-    return { assignee: undefined, claimed_by: undefined, branch: undefined, branch_at: undefined };
+    return {
+      assignee: undefined,
+      claimed_by: undefined,
+      branch: undefined,
+      branch_at: undefined,
+      branch_base: undefined,
+    };
   return {};
 }
 
@@ -1074,9 +1084,9 @@ export const ticketClaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "Start work on a ticket. Sets the assignee to yourself, records the branch, and sets in_progress. Winning the push gives exclusive access. Follows any todo → in_progress constraint (such as requires: [deps_done]). If the ticket is in a Plan awaiting approval, claim still succeeds and the warnings say to ask a person to approve it first. " +
+    "Start work on a ticket. Sets the assignee to yourself, records the branch and its start commit (branch_base: the tip of base, so that reconcile does not treat a branch with no commits as merged), and sets in_progress. Winning the push gives exclusive access. Follows any todo → in_progress constraint (such as requires: [deps_done]). If the ticket is in a Plan awaiting approval, claim still succeeds and the warnings say to ask a person to approve it first. " +
     "If lint.require_iteration is true and the ticket has no Iteration, it goes into the Project's active Iteration (or else the planned one, if there is only one). If there is no target, or there is no active one and several are planned, it goes into none and the warnings say to ask a person. If the ticket's Iteration is planned, it becomes active; if that fails (another active one, or actor.human_only), the failure goes into the warnings and claim still succeeds. Both are pushed in the same write as the claim. " +
-    "After the push, it creates the work branch's worktree at worktree.root/<branch name> (change with --worktree-path) from base, and puts its path in worktree. If a worktree for that branch already exists, it uses that; if only the local branch exists, it checks it out. If it cannot be created, the failure goes into the warnings and claim still succeeds. In a worktree it created (not an existing one), it runs config's worktree.setup commands; a failure goes into the warnings and claim still succeeds. That setup can take several minutes, such as pnpm install (limit 10 minutes), and claim does not return until it finishes. It creates no worktree with --no-worktree or --without-branch. " +
+    "After the push, it creates the work branch's worktree at worktree.root/<branch name> (change with --worktree-path) from that start commit, and puts its path in worktree. If a worktree for that branch already exists, it uses that; if only the local branch exists, it checks it out. If it cannot be created, the failure goes into the warnings and claim still succeeds. In a worktree it created (not an existing one), it runs config's worktree.setup commands; a failure goes into the warnings and claim still succeeds. That setup can take several minutes, such as pnpm install (limit 10 minutes), and claim does not return until it finishes. It creates no worktree with --no-worktree or --without-branch. " +
     "For an agent, it then opens an implementation Run (the step in the Workflow's steps with opens_on: claim, or else implement) and prints its ID as run (on the last line of stdout in human output). The Run opens before the setup commands run. If it cannot be opened, only a warning is given and claim still succeeds. " +
     "In a session that dg hooks have reached, an agent's claim without --no-run (other than --without-branch, and including claiming again) still opens the Run, and warns to ask a sub-agent to implement or fix with the marker instead. " +
     "If you claim again a ticket that you (the same user, human or AI) already claimed and that has a PR (in_progress or review), it is treated as the start of a fix (the review fix loop, or after a person's review). The ticket is not changed; for an agent it opens a fix Run (the step with opens_on: reclaim, or else fix). For either an implementation Run or a fix Run, when it opens, any still-open earlier fix Run on the same ticket is first closed with success at the time of the last push after that Run started (or at this claim's time if there is none), using this claim as the boundary. If the earlier fix Run's session differs from this claim's session (--session, else DEGUBOARD_SESSION from the environment, else the session ID the calling agent sets in its environment; for a sub-agent's claim, the parent session that started it), it is treated as left over from a crashed session and closed as interrupted. If either session is unknown, it is closed with success. Claims by other actors are rejected",
@@ -1229,6 +1239,9 @@ export const ticketClaim = defineCommand({
           ? undefined
           : (input.branch ?? defaultBranchName(doc.data));
         if (branch) await requireBranchAvailable(ctx, doc.id, branch);
+        // 起点は requireBranchAvailable が取り込んだ base の先端。worktree はこの SHA から切り、照合は先端が
+        // これと同じブランチ（作業のないまま push したもの）を、base が進んでもマージ済みにしない（ST-4）
+        const start = branch ? await baseTip(ctx.repo) : undefined;
         // Iteration への追加と開始は claim と同じ書き込みに入れ、claim の push で一緒に決まるようにする（ST-3）
         const iteration = await prepareIterationForClaim(ctx, doc, iterationWarnings);
         const now = nowIso(ctx);
@@ -1241,6 +1254,7 @@ export const ticketClaim = defineCommand({
           pr: undefined,
           branch,
           branch_at: branch ? now : undefined,
+          branch_base: start,
           updated_at: now,
         });
       },
@@ -1265,7 +1279,13 @@ export const ticketClaim = defineCommand({
     const branch = result.value.data.branch;
     const made =
       branch && !input.no_worktree
-        ? await prepareWorktreeForClaim(ctx, branch, input.worktree_path, warnings)
+        ? await prepareWorktreeForClaim(
+            ctx,
+            branch,
+            input.worktree_path,
+            warnings,
+            result.value.data.branch_base,
+          )
         : null;
     // Run を開くのは claim が push で取れた後。人の claim と no_run では開かない（RN-5）
     const run =
@@ -1309,7 +1329,7 @@ export const ticketUnclaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "Remove the claim and return to todo. Also removes branch, branch_at, and pr (the PR record of the earlier work). Only your own claim (same user, human or AI) or a claim with no record; others' claims need force. Implementation and fix Runs running on this machine are closed with failure (to keep a reason, close them first with run finish --result failure --error)",
+    "Remove the claim and return to todo. Also removes branch, branch_at, branch_base, and pr (the PR record of the earlier work). Only your own claim (same user, human or AI) or a claim with no record; others' claims need force. Implementation and fix Runs running on this machine are closed with failure (to keep a reason, close them first with run finish --result failure --error)",
   input: z.object({
     ticket: ticketRef,
     force: z.boolean().optional().describe("Also remove other people's claims"),
@@ -1351,6 +1371,7 @@ export const ticketUnclaim = defineCommand({
           pr: undefined,
           branch: undefined,
           branch_at: undefined,
+          branch_base: undefined,
           updated_at: nowIso(ctx),
         });
         return { doc: updated, closed };

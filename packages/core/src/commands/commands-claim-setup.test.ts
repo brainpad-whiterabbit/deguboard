@@ -208,6 +208,8 @@ describe("claim の worktree の作成", () => {
     // リモートの base から切り、上流は付けない
     const head = await out(expected, ["rev-parse", "HEAD"]);
     expect(head).toBe(await out(f.cloneA, ["rev-parse", "origin/main"]));
+    // 切った起点の SHA をチケットに記録する（照合が作業のないブランチをマージ済みにしないため。ST-4・t764）
+    expect(claimed.data.branch_base).toBe(head);
     expect(await out(expected, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/t1");
     const upstream = await runGit(expected, ["config", "--get", "branch.feat/t1.merge"], {
       allowFailure: true,
@@ -235,6 +237,9 @@ describe("claim の worktree の作成", () => {
     expect(await out(f.cloneA, ["branch", "--list", "feat/b"])).toBe("");
     const c = await runCommand(ticketClaim, ctx, { ticket: "t3", without_branch: true });
     expect(c.data.worktree).toBeNull();
+    // ブランチのない作業は起点も記録しない。worktree を作らない claim も起点は記録する
+    expect(c.data.branch_base).toBeUndefined();
+    expect(b.data.branch_base).toBe(await out(f.cloneA, ["rev-parse", "origin/main"]));
     await expect(
       runCommand(ticketClaim, ctx, { ticket: "t4", no_worktree: true, worktree_path: custom }),
     ).rejects.toMatchObject({ name: "UsageError" });
