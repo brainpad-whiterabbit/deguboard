@@ -16,7 +16,7 @@ import { readReviewFindings, readRunningRuns } from "../run/record.js";
 import { withWrite, type WriteOutcome } from "../git/write.js";
 import type { RunId } from "../model/run.js";
 import { setupFailureIn } from "./claim-setup.js";
-import { defineCommand, ok, outsideWarning, type CommandContext } from "./define.js";
+import { defineCommand, ok, outsideWarning, rebaseWarning, type CommandContext } from "./define.js";
 import { judgeGate, type GateStage, type GateView } from "./gate.js";
 import { ticketRef } from "./helpers.js";
 import {
@@ -209,6 +209,8 @@ export const prReady = defineCommand({
     if ((await orphanReviewRuns(ctx, ticket, running)).length === 0) {
       const check = await checkOutside(ctx.repo);
       if (check.kind === "found") warnings.push(outsideWarning(check.changes));
+      // 読むだけのコマンドと同じく、rebase の途中も警告にする（runCommand と揃える。t753）
+      if (check.kind === "rebasing") warnings.push(rebaseWarning(check.byDg));
     } else {
       // cas を付けないので、push を拒まれても mutate はやり直さない（自分のコミットを残して rebase し直す）。written は 1 回目に書いた Run
       const result = await withWrite(ctx, () => recordOrphanReviews(ctx, ticket, running), {
