@@ -1,0 +1,5 @@
+id: s28
+project: default
+name: sprint28
+goal: フックと dg の起動の待ちを減らす（e23）。あわせて、sync が競合で止まったときに、ぶつかった値を見てすぐ解けるようにする
+status: planned
