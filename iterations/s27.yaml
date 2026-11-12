@@ -1,6 +1,6 @@
 id: s27
 project: default
 name: sprint27
-goal: ""
+goal: VS Code 拡張を入れるだけで deguboard を始められるようにする（e22）。あわせて本文が消える不具合と Ask の小窓を直す
 status: active
 started_at: 2026-11-12T03:20:52Z
