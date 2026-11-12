@@ -1,0 +1,33 @@
+{
+  "id": "r20261112-173101-3f7f",
+  "ticket": "t779",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T17:31:01Z",
+  "finished_at": "2026-11-12T17:36:47Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "本文のフィールド名の定数（BODY_FIELD）が、フィールドを作るマージ処理の側と結び付いていない",
+    "日本語の通知に英語のフィールド名（body lines）が出る"
+  ],
+  "usage": {
+    "input": 40,
+    "output": 13743,
+    "cache_read": 1101834,
+    "cache_write": 54709
+  },
+  "tools": {
+    "read": 8,
+    "search": 0,
+    "write": 16,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 6,
+    "search_before_write": 0
+  },
+  "session": "fea6012d-49ee-40c1-9fac-4ee22cef2bef",
+  "review": null
+}
