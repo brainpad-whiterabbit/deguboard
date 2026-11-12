@@ -134,13 +134,13 @@ Without installing Skills, you can make the same requests by pasting text made w
 
 ### Use it from Claude Desktop (MCP)
 
-`dg mcp` is a stdio MCP server that exposes `dg` commands as tools with names like `ticket_create`. Claude Desktop starts outside your repository without inheriting your PATH, so in `claude_desktop_config.json`, set `command` to the launcher that the extension installs at `~/.local/share/deguboard/dg` (it finds node itself), and pass `-C <target-repository>` and `mcp` as arguments. Claude Code can call `dg` through Bash, so it needs no registration.
+`dg mcp` is a stdio MCP server that exposes `dg` commands as tools with names like `ticket_create`. Claude Desktop starts outside your repository without inheriting your PATH, so in `claude_desktop_config.json`, set `command` to the launcher that the extension installs at `~/.local/share/deguboard/dg` (it finds node itself), and pass `-C <target-repository>` and `mcp` as arguments. Write `command` as the absolute path of that file, with the home directory spelled out (`/Users/<you>/...` on macOS, `/home/<you>/...` on Linux): the JSON does not expand `~`. Claude Code can call `dg` through Bash, so it needs no registration.
 
 ```json
 {
   "mcpServers": {
     "deguboard": {
-      "command": "/home/<you>/.local/share/deguboard/dg",
+      "command": "/Users/<you>/.local/share/deguboard/dg",
       "args": ["-C", "/path/to/repo", "mcp"]
     }
   }

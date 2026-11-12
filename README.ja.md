@@ -134,13 +134,13 @@ Skill を入れずに、`dg ask --format text` で作った文章をエージェ
 
 ### Claude Desktop から使う（MCP）
 
-`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出します。Claude Desktop は PATH を引き継がずにリポジトリの外で起動するので、`claude_desktop_config.json` では `command` に、拡張が入れる起動ファイル `~/.local/share/deguboard/dg`（node は起動ファイルが自分で探します）を指定し、引数に `-C <対象のリポジトリ>` と `mcp` を渡します。Claude Code は Bash で `dg` を呼べるので登録は要りません。
+`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出します。Claude Desktop は PATH を引き継がずにリポジトリの外で起動するので、`claude_desktop_config.json` では `command` に、拡張が入れる起動ファイル `~/.local/share/deguboard/dg`（node は起動ファイルが自分で探します）を指定し、引数に `-C <対象のリポジトリ>` と `mcp` を渡します。`command` には、その起動ファイルの絶対パスを、ホームディレクトリを省略せずに書きます（macOS は `/Users/<you>/...`、Linux は `/home/<you>/...`。JSON は `~` を展開しません）。Claude Code は Bash で `dg` を呼べるので登録は要りません。
 
 ```json
 {
   "mcpServers": {
     "deguboard": {
-      "command": "/home/<you>/.local/share/deguboard/dg",
+      "command": "/Users/<you>/.local/share/deguboard/dg",
       "args": ["-C", "/path/to/repo", "mcp"]
     }
   }

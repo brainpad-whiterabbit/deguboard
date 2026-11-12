@@ -10,6 +10,6 @@ To run it yourself in a terminal instead:
 dg init
 ```
 
-If `dg` is not found in a terminal, press the button above instead. Or run **Install dg command** from the Command Palette (`deguboard.installDg`) to link `~/.local/bin/dg`.
+If `dg` is not found in a terminal, press **Start with this repository** on the start screen in the sidebar instead. Or run **Install dg command** from the Command Palette (`deguboard.installDg`) to link `~/.local/bin/dg`.
 
 Once it finishes, the sidebar switches to the usual views without reopening.
