@@ -103,7 +103,7 @@ export function AskComposer({
 
   // 小窓の外で押し始めたら閉じる。外かどうかは押し始めた場所で決める（中で押して外で離したら閉じない）。
   // 閉じるだけで押した先の操作は止めない（行の詳細を開くなどはそのまま効く）。pointerdown は Webview の中でだけ起きるので、Webview の外へ移っても閉じない。
-  // 頼むことの吹き出しや一覧（body に出る）を押すのも外なので閉じ、選んだ先で開き直す。下書きは見た目の状態に残るので閉じても消えない
+  // 頼むことの吹き出しや一覧（body に出る）を押すのも外なので閉じ、選んだ先で開き直す（指示は開くたびに空で始まる。host.tsx の AskProvider.open）
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
       if (rootRef.current?.contains(e.target as Node)) return;
