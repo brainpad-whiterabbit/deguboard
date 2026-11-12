@@ -426,4 +426,33 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
       expect(r.stderr).toContain("mise run build");
     }
   });
+
+  it("速い経路が受け持たない入力は、読んだ標準入力を添えて本体に回り、速い経路を欠いた dist（本体が標準入力を自分で読む）と同じ結果になる（t781）", async () => {
+    // 初期化していない repo の出力は標準入力に依らない（「not initialized」で終わる）ので、標準入力を取りこぼしても気づけない。
+    // 初期化した repo で、標準入力の中身が本体の出力と記録を決める入力を使う
+    const cwd = await initialized();
+    const cases: Array<[string, string]> = [
+      [
+        "JSON でない（YAML）で拒む Bash",
+        'tool_name: Bash\nsession_id: s-yaml\ntool_input:\n  command: "gh pr merge 5 --squash"\n',
+      ],
+      ["別のツール（記録だけ残る）", payload(cwd, "Read", { file_path: "/etc/hosts" })],
+    ];
+    const mainOnly = await copyDist({ remove: ["fast-hook.js"] });
+    for (const [name, stdin] of cases) {
+      await takeRecords(cwd);
+      const expected = await dg(mainOnly, ARGV, cwd, stdin);
+      const expectedRecords = await takeRecords(cwd);
+      const actual = await dg(normalBin, ARGV, cwd, stdin);
+      const actualRecords = await takeRecords(cwd);
+      expect(actual, name).toEqual(expected);
+      expect(actualRecords, name).toEqual(expectedRecords);
+      expect(actual.code, name).toBe(0);
+      // 本体が標準入力の中身を読んだこと（渡し忘れると、空の入力として扱われて記録が残らない）
+      expect(Object.keys(actualRecords), name).not.toEqual([]);
+    }
+    expect(JSON.parse((await dg(normalBin, ARGV, cwd, cases[0]![1])).stdout)).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny" },
+    });
+  });
 });
