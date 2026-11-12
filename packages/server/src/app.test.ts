@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { request, type IncomingMessage } from "node:http";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { commands, findCommand, openContext, runCommand, init } from "@deguboard/core";
@@ -7,7 +8,7 @@ import {
   createLocalOnlyRepo,
   type Fixture,
 } from "../../core/test/helpers/git-fixture.js";
-import { describeCommands } from "./app.js";
+import { describeCommands, guard } from "./app.js";
 import { startServer, type RunningServer } from "./server.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -34,6 +35,36 @@ async function post(s: RunningServer, name: string, input: unknown) {
     body: JSON.stringify({ input }),
   });
   return { status: res.status, body: (await res.json()) as any };
+}
+
+/** fetch は Host を差し替えられないので、node:http で頭を自由に付けて送る */
+function raw(
+  s: RunningServer,
+  method: string,
+  pathname: string,
+  options: { headers?: Record<string, string>; body?: string } = {},
+): Promise<{ status: number; body: any }> {
+  return new Promise((resolve, reject) => {
+    const req = request(
+      { host: "127.0.0.1", port: s.port, method, path: `/${pathname}`, headers: options.headers },
+      (res) => {
+        let text = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk: string) => (text += chunk));
+        res.on("end", () => {
+          let body: unknown = text;
+          try {
+            body = JSON.parse(text);
+          } catch {
+            // 静的ファイルなど JSON でない応答は文字列のまま
+          }
+          resolve({ status: res.statusCode ?? 0, body });
+        });
+      },
+    );
+    req.on("error", reject);
+    req.end(options.body);
+  });
 }
 
 describe("HTTP サーバー", () => {
@@ -90,8 +121,87 @@ describe("HTTP サーバー", () => {
     expect(rejected.body.error.code).toBe("TRANSITION_REJECTED");
     expect((await post(s, "ticket.nope", {})).status).toBe(404);
     expect((await post(s, "init", {})).status).toBe(404);
-    const badJson = await fetch(`${s.url}api/commands/ticket.list`, { method: "POST", body: "{" });
+    const badJson = await fetch(`${s.url}api/commands/ticket.list`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{",
+    });
     expect(badJson.status).toBe(400);
+  });
+
+  it("Host の名前が localhost・IP そのもの・--host の名前でない要求と、別オリジン（Origin: null を含む）の要求を 403 で断り、config.set を書かない", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    const setEach = JSON.stringify({ input: { key: "commit.mode", value: "each" } });
+    const json = { "content-type": "application/json" };
+    // DNS rebinding：攻撃者の名前が 127.0.0.1 を指し、Host にはその名前が来る
+    const rebound = await raw(s, "POST", "api/commands/config.set", {
+      headers: { ...json, host: `evil.example:${s.port}` },
+      body: setEach,
+    });
+    expect(rebound.status).toBe(403);
+    expect(rebound.body).toMatchObject({ ok: false, error: { code: "FORBIDDEN_HOST" } });
+    expect(rebound.body.error.message).toMatch(/^Refused a request for the host name/);
+    expect((await raw(s, "GET", "", { headers: { host: "evil.example" } })).status).toBe(403);
+    for (const origin of ["http://evil.example", `http://evil.example:${s.port}`, "null"]) {
+      const cross = await raw(s, "POST", "api/commands/config.set", {
+        headers: { ...json, origin },
+        body: setEach,
+      });
+      expect(cross.status, origin).toBe(403);
+      expect(cross.body.error.code, origin).toBe("FORBIDDEN_ORIGIN");
+    }
+    expect((await post(s, "config.show", {})).body.data.commit.mode).toBe("batch");
+  });
+
+  it("JSON でない POST を 415 で断り、config.set を書かない", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    const setEach = JSON.stringify({ input: { key: "commit.mode", value: "each" } });
+    // フォームの送信や text/plain の fetch はプリフライトなしで別オリジンから送れる
+    for (const type of ["text/plain", "application/x-www-form-urlencoded", undefined]) {
+      const res = await raw(s, "POST", "api/commands/config.set", {
+        headers: type ? { "content-type": type } : {},
+        body: setEach,
+      });
+      expect(res.status, type).toBe(415);
+      expect(res.body.error.code, type).toBe("UNSUPPORTED_MEDIA_TYPE");
+    }
+    expect((await post(s, "config.show", {})).body.data.commit.mode).toBe("batch");
+  });
+
+  it("同じオリジンからの application/json と、ポートの違う Host と Origin の組（転送）は通る", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    const set = (value: string, headers: Record<string, string>) =>
+      raw(s, "POST", "api/commands/config.set", {
+        headers: { "content-type": "application/json; charset=utf-8", ...headers },
+        body: JSON.stringify({ input: { key: "commit.mode", value } }),
+      });
+    const same = await set("each", { origin: `http://127.0.0.1:${s.port}` });
+    expect(same.status).toBe(200);
+    expect((await post(s, "config.show", {})).body.data.commit.mode).toBe("each");
+    // vite の proxy やポートの転送では、Host と Origin のポートが待ち受けと違う
+    const forwarded = await set("manual", {
+      host: "localhost:5173",
+      origin: "http://localhost:5173",
+    });
+    expect(forwarded.status).toBe(200);
+    expect((await post(s, "config.show", {})).body.data.commit.mode).toBe("manual");
+    expect((await raw(s, "GET", "api/status", { headers: { host: "[::1]:9999" } })).status).toBe(
+      200,
+    );
+  });
+
+  it("guard は --host で指定した名前を Host の名前として受け入れる", () => {
+    const req = (host: string) => ({ method: "GET", headers: { host } }) as IncomingMessage;
+    expect(guard(req("devbox:4173"), "devbox")).toBeUndefined();
+    expect(guard(req("DevBox"), "devbox")).toBeUndefined();
+    expect(guard(req("other:4173"), "devbox")?.code).toBe("FORBIDDEN_HOST");
+    expect(guard(req("10.0.0.5:4173"), "devbox")).toBeUndefined();
   });
 
   it("他のプロセス（CLI）の変更をリクエストごとに取り込み、初期化前は 503", async () => {

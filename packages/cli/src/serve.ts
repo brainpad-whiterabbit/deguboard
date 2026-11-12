@@ -44,9 +44,13 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
   program
     .command("serve")
     .description(
-      `For development: starts the HTTP server that serves the screen and the API (used to check the layout of the left panel and panels, and for screenshots. The screen opens in the VS Code extension). Binds to ${DEFAULT_HOST}:${DEFAULT_PORT} by default and has no authentication. Choose the layout with ?surface=sidebar (default) or ?surface=panel`,
+      `For development: starts the HTTP server that serves the screen and the API (used to check the layout of the left panel and panels, and for screenshots. The screen opens in the VS Code extension). Binds to ${DEFAULT_HOST}:${DEFAULT_PORT} by default and has no authentication. Refuses requests from another origin (Origin: null included) and for other host names (accepted: localhost, an IP address, or the --host name; the port is not compared, so forwarded ports work) with 403, and POSTs that are not application/json with 415, each answered by JSON with an error code. Choose the layout with ?surface=sidebar (default) or ?surface=panel`,
     )
-    .option("--host <host>", "Address to bind to", DEFAULT_HOST)
+    .option(
+      "--host <host>",
+      "Address to bind to. A host name given here is also accepted as the Host of requests",
+      DEFAULT_HOST,
+    )
     .option("--port <port>", "Port. 0 picks a free port", toPort, DEFAULT_PORT)
     .option("--open", "Open the browser after starting")
     .action(async (opts: { host: string; port: number; open?: boolean }) => {
