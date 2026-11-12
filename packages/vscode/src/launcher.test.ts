@@ -35,13 +35,13 @@ afterEach(() => {
   rmSync(home, { recursive: true, force: true });
 });
 
-/** 引数と ELECTRON_RUN_AS_NODE を出すだけの、dg.mjs の代わり */
+/** 引数・ELECTRON_RUN_AS_NODE・DEGUBOARD_LAUNCHER を出すだけの、dg.mjs の代わり */
 function fakeDg(): string {
   const file = path.join(home, "ext", "dist", "cli", "dg.mjs");
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(
     file,
-    "console.log(JSON.stringify({ args: process.argv.slice(2), electron: process.env.ELECTRON_RUN_AS_NODE }));\n",
+    "console.log(JSON.stringify({ args: process.argv.slice(2), electron: process.env.ELECTRON_RUN_AS_NODE, launcher: process.env.DEGUBOARD_LAUNCHER }));\n",
   );
   return file;
 }
@@ -203,7 +203,11 @@ describe("起動ファイル", () => {
     await installLauncher(mine(), { dir });
     const result = await runLauncher(["--version", "a b"], { PATH: fakeNodeDir(24) });
     expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({ args: ["--version", "a b"], electron: "1" });
+    expect(JSON.parse(result.stdout)).toEqual({
+      args: ["--version", "a b"],
+      electron: "1",
+      launcher: path.join(home, ".local", "share", "deguboard", "dg"),
+    });
   });
 
   it("current の node が消えていれば、PATH の node 24 以上で動かす", async () => {

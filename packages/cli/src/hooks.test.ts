@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveRepoPaths } from "@deguboard/core";
+import { resolveRepoPaths, setBundleLayout } from "@deguboard/core";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
 import { run } from "./program.js";
 
@@ -232,6 +232,7 @@ describe("dg hook の失敗", () => {
 });
 
 describe("dg hooks check（AG-9・t542）", () => {
+  afterEach(() => setBundleLayout(undefined));
   type Check = {
     ok: true;
     data: {
@@ -258,6 +259,79 @@ describe("dg hooks check（AG-9・t542）", () => {
       JSON.stringify({ event, received_at: "2026-11-07T00:00:00Z", fields }),
     );
   };
+
+  it("起動ファイル経由の install は、node と dg.js の代わりに起動ファイルを書き、確かめは ok。起動ファイルがなくなれば警告する（t735）", async () => {
+    // 起動ファイル経由で動くのは束ねた dg なので、束ねた配置を置く
+    const entry = path.join(os.tmpdir(), "ext", "dist", "cli", "dg.mjs");
+    setBundleLayout({ entry, guideDir: path.dirname(path.dirname(entry)), version: "9.8.7" });
+    const cwd = await repo();
+    const home = await tempHome();
+    const launcher = path.join(home, ".local", "share", "deguboard", "dg");
+    await mkdir(path.dirname(launcher), { recursive: true });
+    await writeFile(launcher, "#!/bin/sh\nexit 0\n");
+    await chmod(launcher, 0o755);
+    const env = { DEGUBOARD_LAUNCHER: launcher };
+
+    expect((await dg(cwd, ["hooks", "install"], env)).code).toBe(0);
+    const settings = await settingsOf(path.join(cwd, ".claude", "settings.local.json"));
+    expect(settings.hooks["SessionStart"]).toEqual([
+      {
+        hooks: [
+          {
+            type: "command",
+            command: `"${launcher}" --actor agent hook SessionStart --payload -`,
+          },
+        ],
+      },
+    ]);
+    const ok = await checkOf(cwd, [], env);
+    expect(ok.data.events.every((e) => e.installed && e.handler === "ok")).toBe(true);
+
+    await rm(launcher);
+    const gone = await checkOf(cwd, [], env);
+    expect(gone.data.events.every((e) => e.handler === "gone")).toBe(true);
+    expect(gone.warnings).toContainEqual(
+      expect.stringMatching(
+        new RegExp(`${launcher.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*no longer exists`),
+      ),
+    );
+    // 起動ファイルは dg hooks install では戻せない（別の dg が node と dg.js を書く）ので、拡張を開き直す案内にする
+    expect(gone.warnings).toContainEqual(
+      expect.stringContaining("Open VS Code with the deguboard extension"),
+    );
+    expect(gone.warnings.join("\n")).not.toContain("hooks install again");
+  });
+
+  it("起動ファイル経由でも --shared は追跡する設定に PATH の dg を書く（マシンのパスは書かない。t735）", async () => {
+    const entry = path.join(os.tmpdir(), "ext", "dist", "cli", "dg.mjs");
+    setBundleLayout({ entry, guideDir: path.dirname(path.dirname(entry)), version: "9.8.7" });
+    const cwd = await repo();
+    const launcher = path.join(await tempHome(), "dg");
+    const env = { DEGUBOARD_LAUNCHER: launcher };
+    expect((await dg(cwd, ["hooks", "install", "--shared"], env)).code).toBe(0);
+    const settings = await settingsOf(path.join(cwd, ".claude", "settings.json"));
+    expect(settings.hooks["SessionStart"]).toEqual([
+      { hooks: [{ type: "command", command: "dg --actor agent hook SessionStart --payload -" }] },
+    ]);
+  });
+
+  it("束ねていない dg（clone）は、起動ファイルの環境変数があっても node と dg.js を書く。起動ファイルがなければ、拡張を開き直す案内を出す（t735）", async () => {
+    const cwd = await repo();
+    const launcher = path.join(await tempHome(), "dg");
+    const env = { DEGUBOARD_LAUNCHER: launcher };
+    expect((await dg(cwd, ["hooks", "install"], env)).code).toBe(0);
+    const settings = await settingsOf(path.join(cwd, ".claude", "settings.local.json"));
+    const command = JSON.stringify(settings.hooks["SessionStart"]);
+    expect(command).not.toContain(launcher);
+    expect(command).toContain(process.execPath);
+
+    // 起動ファイルを指すフック（dg hooks install --command で書いた形）が、なくなっていれば拡張を開き直す案内を出す
+    expect((await dg(cwd, ["hooks", "install", "--command", `"${launcher}"`], env)).code).toBe(0);
+    const gone = await checkOf(cwd, [], env);
+    expect(gone.warnings).toContainEqual(
+      expect.stringContaining("Open VS Code with the deguboard extension"),
+    );
+  });
 
   it("フックがなければ、設定に dg のフックがないと警告する（終了コードは 0）", async () => {
     const cwd = await repo();

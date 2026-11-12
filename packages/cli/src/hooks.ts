@@ -1,7 +1,7 @@
 // dg hooks install / uninstall：harness の設定に dg hook を呼ぶフックを書く・外す（AG-5、ADR-025）。
 // 書くイベントと設定のファイルは agent の Adapter の hooks が決める。手で足した他のフックは残し、dg のフックだけを入れ替える。
-// 既定は追跡しない local の設定に、動いている node と dg.js の絶対パスで書く（t698）。ハーネスがフックを動かす環境の PATH は
-// 利用者のシェルと違いうる（node を mise・nvm・volta などで入れ、対話のシェルでだけ有効にしているなど）ので、PATH の dg や node に頼らない
+// 既定は追跡しない local の設定に、動いている node と dg.js の絶対パスで書く（t698）。起動ファイル経由なら起動ファイルの絶対パスで書く（t735）。
+// ハーネスがフックを動かす環境の PATH は利用者のシェルと違いうる（node を mise・nvm・volta などで入れ、対話のシェルでだけ有効にしているなど）ので、PATH の dg や node に頼らない
 
 import { execFile } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
@@ -19,6 +19,7 @@ import {
   type AgentEnv,
   type HookSupport,
 } from "@deguboard/core";
+import { isLauncherPath, launcherFrom } from "./launcher-env.js";
 
 /** dg が書いたフックのコマンドの終わり。これで見分けて入れ替える（基のコマンドが変わっても重ねない） */
 const OURS = /(^|\s)--actor agent hook \S+( --agent \S+)? --payload -$/;
@@ -188,10 +189,15 @@ function dgScript(): string {
 
 /**
  * 既定の、dg を呼ぶコマンド。追跡しない設定（local・personal）には、動いている node と dg.js の絶対パスを書き、PATH に頼らない。
+ * 起動ファイル経由で動いていれば（env に DEGUBOARD_LAUNCHER があれば）、node と dg.js の代わりに起動ファイルを書く。
  * 追跡する設定（project）はほかのマシンでも読まれるので、マシンのパスを書かずに PATH の dg を呼ぶ
  */
-function defaultCommand(scope: HookScope): string {
-  return scope === "project" ? "dg" : `${doubleQuote(process.execPath)} ${doubleQuote(dgScript())}`;
+function defaultCommand(scope: HookScope, env: AgentEnv): string {
+  if (scope === "project") return "dg";
+  const launcher = launcherFrom(env);
+  return launcher !== undefined
+    ? doubleQuote(launcher)
+    : `${doubleQuote(process.execPath)} ${doubleQuote(dgScript())}`;
 }
 
 function support(agent: string): HookSupport {
@@ -272,7 +278,7 @@ export async function installHooks(options: {
   const hooks = support(agent);
   const file = await settingsFile(hooks, options);
   const current = await readSettings(file);
-  const base = options.command ?? defaultCommand(options.scope);
+  const base = options.command ?? defaultCommand(options.scope, options.env);
   const next: Record<string, unknown> = withoutOurs(current.hooks ?? {});
   for (const { event, matcher } of hooks.events) {
     const groups = Array.isArray(next[event]) ? [...(next[event] as Group[])] : [];
@@ -365,10 +371,19 @@ export async function checkHooks(options: {
   for (const [base, status] of statuses) {
     const { status: verdict, gone } = await status;
     if (verdict === "ok") continue;
+    // 起動ファイルがなくなったときは、dg hooks install を案内しない（別の dg が node と dg.js を書き直してしまう）。拡張を開き直して書かせる
+    const launcherGone = gone.filter((p) => isLauncherPath(p, options.env));
+    const otherGone = gone.filter((p) => !launcherGone.includes(p));
+    if (verdict === "gone" && launcherGone.length > 0) {
+      warnings.push(
+        `Handler "${base}": ${launcherGone.join(", ")} no longer exists (the deguboard launcher was removed). Open VS Code with the deguboard extension once to write it again`,
+      );
+      if (otherGone.length === 0) continue;
+    }
     const text: Record<Exclude<HandlerStatus, "ok">, string> = {
       missing:
         "not found (it is not on PATH. Run dg hooks install without --command to call node and dg by their absolute paths)",
-      gone: `${gone.join(", ")} no longer exists (node or deguboard was upgraded or moved). Run dg hooks install again`,
+      gone: `${otherGone.join(", ")} no longer exists (node or deguboard was upgraded or moved). Run dg hooks install again`,
       timeout: "--version timed out (15 seconds)",
       failed: "--version exited abnormally (it failed to start or the exit code is not 0)",
       unverified:
