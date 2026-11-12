@@ -645,4 +645,25 @@ describe("束ねた dg.mjs（VS Code 拡張に同梱する CLI）", () => {
   it("配置がなければ、マージドライバは bin/dg.js を指す", () => {
     expect(selfMergeDriver()[1]).toMatch(/[/\\]bin[/\\]dg\.js$/);
   });
+
+  it("起動ファイル経由（DEGUBOARD_LAUNCHER があるとき）のマージドライバは、node と dg.mjs の代わりに起動ファイルを指す（t735）", async () => {
+    const launcher = "/home/u/.local/share/deguboard/dg";
+    expect(selfMergeDriver({ DEGUBOARD_LAUNCHER: launcher })).toEqual([launcher, "merge-driver"]);
+    expect(selfMergeDriver({})).toEqual([process.execPath, expect.any(String), "merge-driver"]);
+  });
+
+  it("init と sync が登録するマージドライバは、起動ファイル経由なら起動ファイルを書き、そうでなければ node と dg.js を書く（t735）", async () => {
+    const f = await fixture();
+    const launcher = path.join(os.tmpdir(), "deguboard-launcher-test", "dg");
+    expect((await dg(f.cloneA, ["init"], { DEGUBOARD_LAUNCHER: launcher })).code).toBe(0);
+    const viaLauncher = await git(f.cloneA, ["config", "--get", "merge.deguboard.driver"]);
+    expect(viaLauncher.stdout.trim()).toMatch(
+      new RegExp(`^'?${launcher.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}'? merge-driver `),
+    );
+
+    expect((await dg(f.cloneB, ["init"])).code).toBe(0);
+    const direct = await git(f.cloneB, ["config", "--get", "merge.deguboard.driver"]);
+    expect(direct.stdout.trim()).toContain(process.execPath);
+    expect(direct.stdout.trim()).toMatch(/bin\/dg\.js'? merge-driver /);
+  });
 });

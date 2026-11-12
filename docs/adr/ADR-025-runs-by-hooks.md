@@ -23,7 +23,7 @@ Run をエージェント自身が `run start`・`ticket claim` で開き、`run
 - セッションは harness が渡すものから取る（主体はセッションの始まりのフックが入れ、届かないサブエージェントは申告）。セッションの始まりのフックが主体とセッション ID を以後の Bash の環境に入れ、それが届かないサブエージェントの Bash では、製品が親のセッションの ID で付けると確かめた環境変数を Adapter が読む
 - フックのイベント・設定・入力の読み方は Adapter に閉じ、Core は製品によらない出来事だけを見る（AG-5）。フックはエージェントを起動も監視もせず（EX-1）、失敗しても作業を止めない
 - 受け付ける会話記録のパスは、その agent の Adapter の置き場所の下だけにする（`dg serve` 越しに任意のファイルを読ませない）
-- フックの命令は、`dg hooks install` を動かした node と `dg.js` の絶対パスで呼び、git が追跡しないリポジトリの設定（Claude Code は `.claude/settings.local.json`）に書く。追跡する設定には書かない（`--shared` を選べば PATH の `dg` を呼ぶ）。届いていないフックは `dg hooks check` と印で頼む操作が警告する
+- フックの命令は、`dg hooks install` を動かした node と `dg.js` の絶対パスで呼び（VS Code 拡張の起動ファイル経由なら、その起動ファイルの絶対パス）、git が追跡しないリポジトリの設定（Claude Code は `.claude/settings.local.json`）に書く。追跡する設定には書かない（`--shared` を選べば PATH の `dg` を呼ぶ）。届いていないフックは `dg hooks check` と印で頼む操作が警告する
 
 ### 閉じるのは step を終えた事実で決め、止まったら待つ
 

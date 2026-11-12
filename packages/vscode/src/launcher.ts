@@ -18,10 +18,13 @@ export function launcherDir(home: string = homedir()): string {
 
 // 中身は版によらず固定にする（更新で書き換えなくてよいように）。current の node、PATH の node 24 以上、案内の順に試す。
 // ELECTRON_RUN_AS_NODE はふつうの node には効かないので、node の種類によらず付ける。dg が子に node を起こすとき
-// （process.execPath を呼ぶマージドライバなど）も Electron が node として動くよう、子にも引き継がせる
+// （process.execPath を呼ぶマージドライバなど）も Electron が node として動くよう、子にも引き継がせる。
+// DEGUBOARD_LAUNCHER は dg に起動ファイルの場所を渡す（フックとマージドライバが起動ファイルを書くため。t735）。
+// 起動ファイルから起動した dg の環境にだけ付け、起動ファイルを通らない dg（clone の dg など）には付けない
 export const LAUNCHER_SCRIPT = `#!/bin/sh
 # deguboard launcher, written by the deguboard VS Code extension. Do not edit.
 # It runs the dg bundled in the extension, as recorded in "current" next to this file.
+launcher="$HOME/.local/share/deguboard/dg"
 current="$HOME/.local/share/deguboard/current"
 node=
 dg=
@@ -35,12 +38,12 @@ if [ -r "$current" ]; then
 fi
 if [ -n "$dg" ] && [ -f "$dg" ]; then
   if [ -n "$node" ] && [ -x "$node" ]; then
-    ELECTRON_RUN_AS_NODE=1 exec "$node" "$dg" "$@"
+    DEGUBOARD_LAUNCHER=$launcher ELECTRON_RUN_AS_NODE=1 exec "$node" "$dg" "$@"
   fi
   if command -v node >/dev/null 2>&1; then
     major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null)
     if [ "$major" -ge 24 ] 2>/dev/null; then
-      exec node "$dg" "$@"
+      DEGUBOARD_LAUNCHER=$launcher exec node "$dg" "$@"
     fi
   fi
 fi

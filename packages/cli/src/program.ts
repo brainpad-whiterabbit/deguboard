@@ -24,6 +24,7 @@ import { Argument, Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import { toErrorView, type ErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
+import { launcherFrom } from "./launcher-env.js";
 import { installSkill, skillInstallWarnings } from "./skill.js";
 import {
   checkHooks,
@@ -55,9 +56,14 @@ function webDist(): string | undefined {
 /**
  * git がマージドライバとして呼ぶ dg のコマンド（argv の前置）。PATH に dg がなくても（npx・mise run・node_modules/.bin）動くよう、
  * いま動いている node と、このパッケージの bin/dg.js を絶対パスで指す。init と sync のたびに登録し直すので、
- * npx のキャッシュや worktree が消えてパスが古くなっても次の sync で直る。束ねた dg.mjs では、そのファイルを指す
+ * npx のキャッシュや worktree が消えてパスが古くなっても次の sync で直る。束ねた dg.mjs では、そのファイルを指す。
+ * 起動ファイル経由で動いていれば（env に DEGUBOARD_LAUNCHER があれば）、node と dg.mjs の代わりに起動ファイルを指す（t735）
  */
-export function selfMergeDriver(): string[] {
+export function selfMergeDriver(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string[] {
+  const launcher = launcherFrom(env);
+  if (launcher !== undefined) return [launcher, "merge-driver"];
   return [
     process.execPath,
     bundleLayout()?.entry ?? fileURLToPath(new URL("../bin/dg.js", import.meta.url)),
@@ -257,7 +263,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       .command(action)
       .description(
         action === "install"
-          ? "Write hooks that call dg hook into the Claude Code settings. By default they go to <repository>/.claude/settings.local.json (not tracked by git), and call the node running this dg and its dg.js by absolute paths, so they work even when the agent's PATH has no node or dg (run it again after upgrading or moving node; dg hooks check warns). Warns if that file is not ignored by git, or if the tracked .claude/settings.json also has dg hooks. With --shared, writes to the tracked .claude/settings.json and calls dg on PATH. Check whether they are installed and working with dg hooks check. Sets the actor to agent; for a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts and closes it when the step ends. Rejects gh pr merge and gh pr ready when run outside dg (dg pr merge and dg pr ready call them after dg gate passes), writes to .git/deguboard/, and Bash that contains .git/deguboard. When a response ends (Stop) and a change to the data made outside dg is found, it tells the agent to keep going and reports it. Running it again does not duplicate entries; hooks added by hand are kept"
+          ? "Write hooks that call dg hook into the Claude Code settings. By default they go to <repository>/.claude/settings.local.json (not tracked by git), and call the node running this dg and its dg.js by absolute paths (or, when run through the deguboard launcher of the VS Code extension, the launcher's absolute path), so they work even when the agent's PATH has no node or dg (run it again after upgrading or moving node; dg hooks check warns). Warns if that file is not ignored by git, or if the tracked .claude/settings.json also has dg hooks. With --shared, writes to the tracked .claude/settings.json and calls dg on PATH. Check whether they are installed and working with dg hooks check. Sets the actor to agent; for a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts and closes it when the step ends. Rejects gh pr merge and gh pr ready when run outside dg (dg pr merge and dg pr ready call them after dg gate passes), writes to .git/deguboard/, and Bash that contains .git/deguboard. When a response ends (Stop) and a change to the data made outside dg is found, it tells the agent to keep going and reports it. Running it again does not duplicate entries; hooks added by hand are kept"
           : "Remove only dg's hooks from the Claude Code settings. Hooks added by hand are kept",
       )
       .option(
@@ -270,7 +276,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       )
       .option(
         "--command <cmd>",
-        "The command hooks use to call dg (install only). Defaults to the absolute paths of node and dg.js (dg with --shared)",
+        "The command hooks use to call dg (install only). Defaults to the absolute paths of node and dg.js, or of the launcher when run through it (dg with --shared)",
       )
       .option("--dry-run", "Write nothing; print the whole settings that would be written")
       .exitOverride()
@@ -388,7 +394,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       process.exitCode = await runMergeDriver(files, (line) => streams.err(line));
     });
 
-  const mergeDriver = options.mergeDriver ?? selfMergeDriver();
+  const mergeDriver = options.mergeDriver ?? selfMergeDriver(env);
 
   addServeCommands(program, {
     mergeDriver,

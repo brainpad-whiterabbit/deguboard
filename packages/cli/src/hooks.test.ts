@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -258,6 +258,51 @@ describe("dg hooks check（AG-9・t542）", () => {
       JSON.stringify({ event, received_at: "2026-11-07T00:00:00Z", fields }),
     );
   };
+
+  it("起動ファイル経由の install は、node と dg.js の代わりに起動ファイルを書き、確かめは ok。起動ファイルがなくなれば警告する（t735）", async () => {
+    const cwd = await repo();
+    const home = await tempHome();
+    const launcher = path.join(home, ".local", "share", "deguboard", "dg");
+    await mkdir(path.dirname(launcher), { recursive: true });
+    await writeFile(launcher, "#!/bin/sh\nexit 0\n");
+    await chmod(launcher, 0o755);
+    const env = { DEGUBOARD_LAUNCHER: launcher };
+
+    expect((await dg(cwd, ["hooks", "install"], env)).code).toBe(0);
+    const settings = await settingsOf(path.join(cwd, ".claude", "settings.local.json"));
+    expect(settings.hooks["SessionStart"]).toEqual([
+      {
+        hooks: [
+          {
+            type: "command",
+            command: `"${launcher}" --actor agent hook SessionStart --payload -`,
+          },
+        ],
+      },
+    ]);
+    const ok = await checkOf(cwd, [], env);
+    expect(ok.data.events.every((e) => e.installed && e.handler === "ok")).toBe(true);
+
+    await rm(launcher);
+    const gone = await checkOf(cwd, [], env);
+    expect(gone.data.events.every((e) => e.handler === "gone")).toBe(true);
+    expect(gone.warnings).toContainEqual(
+      expect.stringMatching(
+        new RegExp(`${launcher.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*no longer exists`),
+      ),
+    );
+  });
+
+  it("起動ファイル経由でも --shared は追跡する設定に PATH の dg を書く（マシンのパスは書かない。t735）", async () => {
+    const cwd = await repo();
+    const launcher = path.join(await tempHome(), "dg");
+    const env = { DEGUBOARD_LAUNCHER: launcher };
+    expect((await dg(cwd, ["hooks", "install", "--shared"], env)).code).toBe(0);
+    const settings = await settingsOf(path.join(cwd, ".claude", "settings.json"));
+    expect(settings.hooks["SessionStart"]).toEqual([
+      { hooks: [{ type: "command", command: "dg --actor agent hook SessionStart --payload -" }] },
+    ]);
+  });
 
   it("フックがなければ、設定に dg のフックがないと警告する（終了コードは 0）", async () => {
     const cwd = await repo();
