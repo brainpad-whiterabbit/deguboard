@@ -63,6 +63,12 @@ import {
   unlinkDg,
 } from "./launcher.js";
 import {
+  hasResolvableFields,
+  resolveChoices,
+  resolvedSummary,
+  type ResolveSide,
+} from "./sync-resolve.js";
+import {
   describeTerminals,
   START_TERMINAL_NAME,
   startCommandLine,
@@ -599,10 +605,11 @@ function broadcast(folder: vscode.WorkspaceFolder, event: WebviewEvent): void {
 
 /**
  * dg sync と同じ同期をサイドバーのフォルダに対して行い、終わったら画面を読み直させる。
- * リモートがなければ同期は要らないので、知らせて読み直すだけにする。警告と失敗は VS Code の通知に出す
+ * リモートがなければ同期は要らないので、知らせて読み直すだけにする。警告と失敗は VS Code の通知に出す。
+ * resolve があれば、競合の通知のボタンで選ばれた側で dg sync --resolve を 1 回呼ぶ（SY-4）。folder は押したときの対象を渡す
  */
-async function syncFolder(): Promise<void> {
-  const folder = sidebarFolder ?? (vscode.workspace.workspaceFolders ?? [])[0];
+async function syncFolder(resolve?: ResolveSide, target?: vscode.WorkspaceFolder): Promise<void> {
+  const folder = target ?? sidebarFolder ?? (vscode.workspace.workspaceFolders ?? [])[0];
   if (!folder) {
     void vscode.window.showErrorMessage(
       `deguboard: ${t("Open a folder (the target repository) to use deguboard")}`,
@@ -621,15 +628,11 @@ async function syncFolder(): Promise<void> {
       );
       return;
     }
-    await vscode.window.withProgress(
+    const result = await vscode.window.withProgress(
       { location: { viewId: VIEW_ID }, title: t("Syncing") },
-      async () => {
-        const result = await client.run("sync");
-        if (result.warnings.length > 0) {
-          void vscode.window.showWarningMessage(`deguboard: ${result.warnings.join(" / ")}`);
-        }
-      },
+      () => client.run("sync", resolve ? { resolve } : undefined),
     );
+    notifySync(folder, result.warnings, result.data, resolve);
   } catch (error) {
     void vscode.window.showErrorMessage(
       `deguboard: ${t("Cannot sync: {0}", toCommandFailure(error).message)}`,
@@ -638,6 +641,34 @@ async function syncFolder(): Promise<void> {
     syncing = false;
     broadcast(folder, { kind: "event", name: "reload" });
   }
+}
+
+/**
+ * sync の結果を通知にする。競合で止まり、ぶつかったフィールドがあれば警告にボタンを付ける（押すと syncFolder が
+ * その側で --resolve を 1 回呼ぶ）。閉じただけなら何もせず、次の同期でまた出る。--resolve のときは採った値と捨てた値を知らせる
+ */
+function notifySync(
+  folder: vscode.WorkspaceFolder,
+  warnings: string[],
+  data: unknown,
+  resolve: ResolveSide | undefined,
+): void {
+  if (warnings.length > 0) {
+    const message = `deguboard: ${warnings.join(" / ")}`;
+    if (!resolve && hasResolvableFields(data)) {
+      const choices = resolveChoices();
+      void vscode.window
+        .showWarningMessage(message, ...choices.map((c) => c.label))
+        .then((picked) => {
+          const choice = choices.find((c) => c.label === picked);
+          if (choice) void syncFolder(choice.side, folder);
+        });
+    } else {
+      void vscode.window.showWarningMessage(message);
+    }
+  }
+  const summary = resolve ? resolvedSummary(resolve, data) : undefined;
+  if (summary) void vscode.window.showInformationMessage(`deguboard: ${summary}`);
 }
 
 /** 右クリックのメニューの引数から対象（チケット・Iteration・Epic）を取り、サイドバーのフォルダに対して動かす。取れなければ何もしない */
