@@ -1,0 +1,35 @@
+{
+  "id": "r20261112-162830-5614",
+  "ticket": "t768",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-12T16:28:30Z",
+  "finished_at": "2026-11-12T16:30:31Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 36,
+    "output": 7705,
+    "cache_read": 1238529,
+    "cache_write": 81898
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 0,
+    "bash": 14,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "9c478dc1-8bb7-468e-aaf1-3f03fea01044",
+  "review": {
+    "heavy": 0,
+    "light": 1,
+    "passed": true
+  },
+  "head": "6dcff226c94342e52974ad4177b0cc5638343086"
+}
