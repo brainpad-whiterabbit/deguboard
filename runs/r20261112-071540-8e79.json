@@ -1,0 +1,35 @@
+{
+  "id": "r20261112-071540-8e79",
+  "ticket": "t737",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T07:15:40Z",
+  "finished_at": "2026-11-12T07:21:19Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "始め方の画面の README のビルド案内を、ボタンと導入コマンドを勧める案内に変える（Walkthrough の日英）",
+    "UI-7 の書き込み範囲に、始め方の画面のボタン（UI-12）が例外だと注記する",
+    "ADR-027 の却下案の理由を、特定のエージェント製品の起動に限る書き方に直す",
+    "始め方の画面のボタンを押した後は無効にし、初期化の終了まで二重に起動しないようにする"
+  ],
+  "usage": {
+    "input": 66,
+    "output": 21460,
+    "cache_read": 2106370,
+    "cache_write": 67744
+  },
+  "tools": {
+    "read": 10,
+    "search": 0,
+    "write": 14,
+    "bash": 17,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "78fc0778-daf5-433b-812f-829c38a9c22c",
+  "review": null
+}
