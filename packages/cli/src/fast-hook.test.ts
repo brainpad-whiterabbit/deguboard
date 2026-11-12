@@ -1,4 +1,6 @@
-import { mkdtemp, readdir, readFile, realpath, rm } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink } from "node:fs/promises";
 import { builtinModules } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -250,5 +252,81 @@ describe("速い経路が読むモジュール（t768）", () => {
       }
     }
     expect([...seen].sort()).toEqual([...ALLOWED].sort());
+  });
+});
+
+describe("bin/dg.js の dist の読み込み（t777）", () => {
+  const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const normalBin = path.join(cliRoot, "bin", "dg.js");
+
+  /** dist を一時ディレクトリに写し、速い経路（dist/fast-hook.js）と任意のファイルを消す。node_modules は実物への張り */
+  async function copyDist(remove: string[]): Promise<string> {
+    if (!existsSync(path.join(cliRoot, "dist", "main.js")))
+      throw new Error("dist がない。先に mise run build");
+    const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "dg-dist-")));
+    cleanups.push(() => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
+    await mkdir(path.join(root, "bin"));
+    await cp(normalBin, path.join(root, "bin", "dg.js"));
+    await cp(path.join(cliRoot, "package.json"), path.join(root, "package.json"));
+    await cp(path.join(cliRoot, "dist"), path.join(root, "dist"), { recursive: true });
+    await symlink(path.join(cliRoot, "node_modules"), path.join(root, "node_modules"), "dir");
+    for (const file of remove) await rm(path.join(root, "dist", file));
+    return path.join(root, "bin", "dg.js");
+  }
+
+  /** bin/dg.js を子プロセスで動かす。DEGUBOARD_ の環境変数は外して、結果を呼び出しの間で比べられるようにする */
+  function dg(bin: string, args: readonly string[], cwd: string, stdin: string) {
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([k]) => !k.startsWith("DEGUBOARD_")),
+    );
+    return new Promise<{ code: number; stdout: string; stderr: string }>((done) => {
+      const child = spawn(process.execPath, [bin, ...args], { cwd, env });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
+      child.stderr.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
+      child.on("close", (code) => done({ code: code ?? -1, stdout, stderr }));
+      child.stdin.end(stdin);
+    });
+  }
+
+  it("速い経路のファイルを消した dist でも、PreToolUse は今の経路で同じ結果を返す", async () => {
+    const cwd = await initialized();
+    const copied = await copyDist(["fast-hook.js"]);
+    const inputs = [
+      payload(cwd, "Bash", { command: "gh pr merge 5 --squash" }),
+      payload(cwd, "Bash", { command: "ls" }),
+    ];
+    for (const stdin of inputs) {
+      const expected = await dg(normalBin, ARGV, cwd, stdin);
+      const actual = await dg(copied, ARGV, cwd, stdin);
+      expect(actual).toEqual(expected);
+      expect(actual.code).toBe(0);
+    }
+    expect(JSON.parse((await dg(copied, ARGV, cwd, inputs[0]!)).stdout)).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny" },
+    });
+  });
+
+  it("速い経路のファイルを消した dist でも、ほかのコマンドは今の経路で同じ結果を返す", async () => {
+    const cwd = await initialized();
+    const copied = await copyDist(["fast-hook.js"]);
+    const expected = await dg(normalBin, ["ticket", "list"], cwd, "");
+    const actual = await dg(copied, ["ticket", "list"], cwd, "");
+    expect(actual).toEqual(expected);
+    expect(actual.code).toBe(0);
+  });
+
+  it("main も読めない dist では、止まらずに dist が無いか古いことと直し方を英語で出して 1 で終わる", async () => {
+    const cwd = await initialized();
+    const copied = await copyDist(["fast-hook.js", "main.js"]);
+    const hook = await dg(copied, ARGV, cwd, payload(cwd, "Bash", { command: "ls" }));
+    const list = await dg(copied, ["ticket", "list"], cwd, "");
+    for (const r of [hook, list]) {
+      expect(r.code).toBe(1);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toContain("missing or out of date");
+      expect(r.stderr).toContain("mise run build");
+    }
   });
 });

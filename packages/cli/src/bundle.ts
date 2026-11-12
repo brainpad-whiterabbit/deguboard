@@ -5,6 +5,9 @@
 // 使えない Node（22.1 より前）や置き場所に書けないときは黙って飛ばす。拡張のコードはこのファイルを読み込まない（ADR-033）
 // PreToolUse の速い経路（t769）も本体より前に処理する。bin/dg.js と同じ tryFastHook を呼び、受け持たない入力は
 // 読んだ標準入力を添えて本体に回す。速い経路は本体と分けた小さな chunk（dg-fast-*.mjs）で、本体の chunk は読まない
+// 読めないときの今の経路への回し（bin/dg.js の t777）はここには置かない。同梱の chunk は 1 回のビルドで dg.mjs と同じ
+// ディレクトリに揃い、VSIX に丸ごと入る（vsix-files.test.ts が確かめる）。一部だけ消えた状態は起きず、本体の chunk も
+// 同じディレクトリにあるので、回した先も読めない。直すのは再インストールか mise run build
 
 import module from "node:module";
 import { fileURLToPath } from "node:url";
