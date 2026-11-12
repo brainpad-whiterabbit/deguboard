@@ -49,11 +49,11 @@ export function nodeVersionProblemOf(version, argv = []) {
   if (major === undefined || Number(major) >= REQUIRED_NODE_MAJOR) return undefined;
   const lines = [
     `dg: needs Node.js ${REQUIRED_NODE_MAJOR} or later, but the node that started it is v${version}.`,
-    "Run dg with Node 24 first on PATH. In the deguboard repository, `mise run dg -- <args>` uses the Node version in mise.toml. A hook written with an absolute node path keeps the old node until you run `dg hooks install` again.",
+    `Run dg with Node ${REQUIRED_NODE_MAJOR} first on PATH. In the deguboard repository, \`mise run dg -- <args>\` uses the Node version in mise.toml. A hook written with an absolute node path keeps the old node until you run \`dg hooks install\` again.`,
   ];
   if (isPreToolUseHookArgv(argv)) {
     lines.push(
-      "This PreToolUse hook stops the tool call (exit 2) until dg runs on Node 24 or later, so the guard is not turned off silently.",
+      `This PreToolUse hook stops the tool call (exit 2) until dg runs on Node ${REQUIRED_NODE_MAJOR} or later, so the guard is not turned off silently.`,
     );
   }
   return [...lines, ""].join("\n");

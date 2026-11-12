@@ -9,9 +9,12 @@ import {
   nodeVersionProblemOf,
   REQUIRED_NODE_MAJOR,
 } from "../../packages/cli/bin/node-version.mjs";
+import { claudeCodeHooks } from "../../packages/core/src/agents/adapters/claude-code-hooks.js";
+import { DEFAULT_HOOK_AGENT } from "../../packages/core/src/agents/fast-hooks.js";
+import { hookArgv } from "../../packages/core/src/commands/hook-argv.js";
 
-// dg hooks install が書くフックの引数（既定のエージェント）と、グローバルオプションを前に付けた形
-const HOOK = ["--actor", "agent", "hook", "PreToolUse", "--payload", "-"];
+// dg hooks install が書くフックの引数（既定のエージェント）。hookArgv と同じ形を作り、形がずれたら検査が落ちる
+const HOOK = hookArgv(DEFAULT_HOOK_AGENT, "PreToolUse");
 
 describe("bin/dg.js の Node の版の確かめ（t782）", () => {
   it("要る版は 24（launcher.ts と同じ基準）", () => {
@@ -65,6 +68,22 @@ describe("古い node で止めるときの終了コード（t782）", () => {
       2,
     );
     expect(nodeVersionExitCodeOf(["-C", "/repo", "--user", "x", "hook", "PreToolUse"])).toBe(2);
+  });
+
+  it("dg hooks install が書く形（既定と別のエージェント）の PreToolUse は 2", () => {
+    expect(nodeVersionExitCodeOf(hookArgv(DEFAULT_HOOK_AGENT, "PreToolUse"))).toBe(2);
+    expect(nodeVersionExitCodeOf(hookArgv("other-agent", "PreToolUse"))).toBe(2);
+  });
+
+  it("claude-code-hooks.ts の PreToolUse 以外のフックの event は、どれも 1 のまま", () => {
+    const others = claudeCodeHooks.events
+      .map((spec) => spec.event)
+      .filter((event) => event !== "PreToolUse");
+    expect(others.length).toBeGreaterThan(0);
+    for (const event of others) {
+      expect(nodeVersionExitCodeOf(hookArgv(DEFAULT_HOOK_AGENT, event))).toBe(1);
+      expect(nodeVersionExitCodeOf(hookArgv("other-agent", event))).toBe(1);
+    }
   });
 
   it("ほかのフックの event は 1 のまま", () => {

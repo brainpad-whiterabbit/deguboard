@@ -243,6 +243,7 @@ updated_at: 2026-10-31T05:10:00Z
 - AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンドで、人に限られた操作なら人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補・おすすめ・文の形は `dg ask --help` と `packages/core/src/commands/ask.ts`・そのテストが正本
 - AG-9 `dg hooks install` は harness の追跡しない設定に `dg hook` を呼ぶフックを書き、`uninstall` は外す。届かないフック（SubagentStop だけも）と中の失敗は `check` と印で頼む操作が警告する。届かないと使用量・時間は残らない（結果は RN-9）。主体は agent（RN-7）。細部は `dg hook --help` とそのテスト、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
 - AG-10 フック（AG-9）は、データの直接の書き換えと dg を経由しない PR の ready・マージを、字句を読まずに語の有無で粗く拒み、dg の読み書きのコマンドと `dg pr ready`・`dg pr merge`（EX-6）へ案内する。応答の終わりに dg の外の変更（SY-7）があれば、止まらずに続けさせて伝える。細部は `dg hook --help` とそのテスト、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)
+- AG-11 Node 24 より古い node で dg を動かすと、PreToolUse のフック（AG-9）は終了コード 2 でツールを止め、守りを黙って外さない。ほかのコマンドは終了コード 1 で止まる（細部は `packages/cli/bin/node-version.mjs` とそのテスト）
 
 ### 6.6 作業の実績
 
