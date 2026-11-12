@@ -1,0 +1,33 @@
+{
+  "id": "r20261112-120048-e99f",
+  "ticket": "t764",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-12T12:00:48Z",
+  "finished_at": "2026-11-12T12:15:11Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "Workflow の Action で作業ブランチを切るときにチケットの起点の記録を使わず、main が進むと起点がずれる",
+    "起点の記録を消す経路のうち、ブランチの付け替えと todo・abandoned への移動にテストがない"
+  ],
+  "usage": {
+    "input": 74,
+    "output": 14038,
+    "cache_read": 2150025,
+    "cache_write": 64608
+  },
+  "tools": {
+    "read": 8,
+    "search": 0,
+    "write": 9,
+    "bash": 21,
+    "other": 5,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "609d820c-be5f-4e27-9252-a549631f4417",
+  "review": null
+}
