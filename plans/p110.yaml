@@ -1,0 +1,45 @@
+id: p110
+project: default
+tickets: [t774, t768, t775, t776, t767, t770, t769]
+after:
+  t775:
+    - t774
+  t776:
+    - t774
+  t767:
+    - t768
+  t770:
+    - t768
+  t769:
+    - t767
+    - t768
+pending_approval: true
+details:
+  t774:
+    scope: 新しい data.conflict_fields と警告と guide と SY-4 まで。conflicts はファイル名のまま
+    approach: 分岐点・ローカルの先頭・リモートの先頭でマージドライバと同じ判定を空で回して値を集める
+    tier: heavy
+  t768:
+    scope: bin/dg.js の PreToolUse の経路だけ。フックの設定のコマンドは変えない
+    approach: 判定と記録を重い依存のない core のモジュールに切り出し、main を読む前に処理する
+    tier: heavy
+  t775:
+    scope: マージドライバの規則と、自動で解いたときの警告まで
+    approach: status が同じで状態の時刻だけ違うとき早い方を採り、採った値と捨てた値を返す
+    tier: standard
+  t776:
+    scope: 拡張の syncFolder の通知だけ。パネルや帯は作らない
+    approach: t774 の値が載った警告の通知に 2 つのボタンを付け、押したら sync --resolve を 1 回呼ぶ
+    tier: standard
+  t767:
+    scope: 同梱の dist/cli/dg.mjs の作りまで
+    approach: 小さな入口でコンパイルキャッシュを有効にしてから本体の chunk を読む
+    tier: heavy
+  t770:
+    scope: Stop のフックの文脈だけ
+    approach: 場所の解決と config のリモートの名前だけを読む文脈で checkOutside を動かす
+    tier: standard
+  t769:
+    scope: 同梱の入口だけ
+    approach: t767 の入口で、本体の chunk を読む前に t768 の速い経路を処理する
+    tier: standard
