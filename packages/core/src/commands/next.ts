@@ -15,7 +15,7 @@ import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";
 import { planReadiness } from "./plan.js";
 import { hooksReachSession, takeHookWarnings, unlinkedReviewWarning } from "./hook-sessions.js";
 import { orphanReviewRuns } from "./orphan-review.js";
-import { openedStepOf } from "./run.js";
+import { crashedSubagentRuns, openedStepOf, sessionOf } from "./run.js";
 
 /** 段階の名前。claimed → implemented → reviewed(n) → fixed(n) → ready → merged と、todo・blocked・reviewing・waiting_human・closed */
 export const STAGES = [
@@ -281,7 +281,15 @@ export async function stageFactsOf(
 export interface NextOptions {
   /** このセッションにフックが届いているか（hooksReachSession）。届けば implement・fix をいつもサブエージェントに頼む（t713） */
   hooksReach?: boolean;
+  /**
+   * 落ちたセッションに残ったサブエージェントの Run（crashedSubagentRuns。Run の ID → 記録の最後の更新の時刻）。
+   * 印で頼む手（implement・review・fix）はこれを待たず、印で頼み直す（起動のフックが interrupted で閉じる。t765）
+   */
+  crashed?: ReadonlyMap<string, string>;
 }
+
+/** 印で頼む手。落ちたセッションの残りの Run は、頼み直せばフックが閉じるので待たない */
+const MARKED_KINDS: readonly NextKind[] = ["implement", "review", "fix"];
 
 /** 段階から次の 1 手を求める */
 export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions = {}): NextStep {
@@ -316,20 +324,39 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
   // 待つべき手直しの Run：開始より後に push がなく、最後の見直しより後に始まったもの
   const liveFix = (r: Run) =>
     r.step === fixStep && !pushedAfterStart(r) && r.started_at >= lastReviewAt;
-  const runningOf = (step: string) =>
-    openRuns.find((r) => r.step === step && (step !== fixStep || liveFix(r)))?.id ?? null;
+  const runningIn = (runs: readonly Run[], step: string) =>
+    runs.find((r) => r.step === step && (step !== fixStep || liveFix(r)))?.id ?? null;
+  const runningOf = (step: string) => runningIn(openRuns, step);
   // 待つべき実行中の Run：実装（ticket update --pr が閉じる）と、待つべき手直し。
   // 作業の途中で push が出ても、直し終えたか区別できないので、ここでは見直しを起動しない（guide-review）
-  const working = openRuns.find((r) => r.step === facts.implementStep || liveFix(r))?.id ?? null;
+  const workingIn = (runs: readonly Run[]) =>
+    runs.find((r) => r.step === facts.implementStep || liveFix(r))?.id ?? null;
+  const crashed = opts.crashed ?? new Map<string, string>();
   const make = (
     kind: NextKind,
     step: string | null,
     commands: string[],
     ask: string | null = null,
-    running: string | null = step ? runningOf(step) : null,
+    explicit?: string | null,
   ): NextStep => {
+    // 印で頼む手は、落ちたセッションに残ったサブエージェントの Run を待たない（頼み直しで起動のフックが閉じる。t765）
+    const marked = MARKED_KINDS.includes(kind);
+    const live = marked ? openRuns.filter((r) => !crashed.has(r.id)) : openRuns;
+    const running = explicit !== undefined ? explicit : step ? runningIn(live, step) : null;
     // その手の Run か待つべき Run が実行中なら、新しく起動せずに終わりを待つ（Run を重ねない）
-    const awaited = WAITABLE.includes(kind) ? (running ?? working) : null;
+    const awaited = WAITABLE.includes(kind) ? (running ?? workingIn(live)) : null;
+    // 待たずに置いた残りの Run を、頼み直しが閉じることと一緒に知らせる
+    const left = marked
+      ? openRuns.filter(
+          (r) =>
+            crashed.has(r.id) &&
+            ((step !== null && runningIn([r], step) !== null) || workingIn([r]) !== null),
+        )
+      : [];
+    const leftNotes = left.map(
+      (r) =>
+        `The ${r.step} Run ${r.id} was opened by a sub-agent of another session (${r.session}) whose record has not been written since ${crashed.get(r.id)}, so it is taken as left over from a crashed session: do not wait for it. Asking again with the mark closes it as interrupted before the new Run opens`,
+    );
     return {
       ...base,
       kind,
@@ -340,7 +367,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
         ? [
             `Wait for the running Run ${awaited} to end (do not start another. For a sub-agent asked with the mark, wait for its completion notice. The hook closes the Run, so do not close it with run finish)`,
           ]
-        : commands,
+        : [...leftNotes, ...commands],
       model: MODEL_KINDS.includes(kind) ? modelOf(details?.tier, ctx.config.models) : null,
       ask_human: ask,
       brief: null,
@@ -439,7 +466,7 @@ export const next = defineCommand({
     "For a ticket whose gate level is low or free (TK-9), a PR skips the review: a draft is reviewed with review_passed (the ready step), otherwise ready (wait_merge). " +
     "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
     "A review result held with no review Run counts as a review the same way as in dg gate. " +
-    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another), and the questions to ask a person (ask_human). " +
+    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another. For implement, review, and fix steps it does not wait for a Run left over from a crashed session: a Run opened by a sub-agent of a different session whose record has not been written for 30 minutes. It returns the steps to ask again with the mark, and says that asking again closes that Run as interrupted. A newer record, an unknown session, and a Run the parent opened itself are still waited for), and the questions to ask a person (ask_human). " +
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
     "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. " +
@@ -455,6 +482,7 @@ export const next = defineCommand({
     const env = ctx.env ?? process.env;
     const step = nextOf(ctx, facts, {
       hooksReach: await hooksReachSession(ctx.repo.localDir, env),
+      crashed: await crashedSubagentRuns(ctx, facts.runs, sessionOf(ctx, undefined)),
     });
     const role = BRIEF_ROLE_OF[step.kind];
     // フックが結ばなかった見直しを数えたときは知らせる。段階の手によらず出す（t702）

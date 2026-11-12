@@ -2,7 +2,7 @@
 // 使用量の取り込みは agents（Run の agent の値で Adapter を選ぶ。特定の AI 製品をここに書かない。AG-5）
 
 import { z } from "zod";
-import { realpath } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import {
   agentNames,
@@ -246,6 +246,57 @@ export function openedInOtherSession(run: Run, session: string | undefined): boo
 /** 別のセッションで開いたままだった Run を interrupted で閉じるときのエラー（RN-6） */
 export const STALE_SESSION_ERROR =
   "別のセッションで開いたままだった（落ちたセッションの残りとみなして閉じた）";
+
+/** 記録のパスがサブエージェントの記録（<session>/subagents/ の下）か。印で頼んだサブエージェントの Run の見分けに使う */
+export const isSubagentTranscript = (p: string | undefined): p is string =>
+  p !== undefined && path.basename(path.dirname(p)) === "subagents";
+
+/**
+ * 落ちたセッションに残ったサブエージェントの Run とみなす、記録の最後の更新からの時間（30 分。t765）。
+ * 生きているサブエージェントでも、1 つの Bash の終わりを待つ間は記録を書かない。Claude Code の Bash の上限は 10 分
+ * （timeout の最大 600000 ms）なので、それより十分長くとり、長い検査を待っている並行の別セッションのサブエージェントを落ちた残りと見誤らない。
+ * 長くするほど、落ちた後に dg next が待たせる時間が延びる
+ */
+export const CRASHED_SUBAGENT_IDLE_MS = 30 * 60_000;
+
+/**
+ * 開いたままの Run が、落ちたセッションに残ったサブエージェントの Run か（RN-6・RN-7。t765）。印で頼んだサブエージェントの Run は
+ * 親のセッションより長く生きないので、別のセッションで開いてサブエージェントの記録に結び付いた Run は、記録の最後の更新が
+ * CRASHED_SUBAGENT_IDLE_MS より古ければそのセッションが落ちた残りとみなす。記録が新しければ並行して動いている別のセッションの Run とみなす。
+ * どちらかのセッションが分からない Run、親が自分で開いた Run（記録が親の記録か、ない）、記録が読めない Run は当たらない。
+ * 当たれば記録の最後の更新の時刻、当たらなければ undefined
+ */
+export async function crashedSubagentRunAt(
+  run: Run,
+  transcript: string | undefined,
+  session: string | undefined,
+  now: Date,
+): Promise<string | undefined> {
+  if (!openedInOtherSession(run, session) || !isSubagentTranscript(transcript)) return undefined;
+  const mtime = await stat(transcript).then(
+    (s) => s.mtime,
+    () => undefined,
+  );
+  if (!mtime || now.getTime() - mtime.getTime() < CRASHED_SUBAGENT_IDLE_MS) return undefined;
+  return toIsoDateTime(mtime);
+}
+
+/** 開いたままの Run のうち、落ちたセッションに残ったサブエージェントの Run（crashedSubagentRunAt）と、その記録の最後の更新の時刻 */
+export async function crashedSubagentRuns(
+  ctx: CommandContext,
+  runs: readonly Run[],
+  session: string | undefined,
+): Promise<Map<string, string>> {
+  const paths = await readTranscriptPaths(ctx.repo);
+  const now = ctx.now();
+  const crashed = new Map<string, string>();
+  for (const run of runs) {
+    if (run.finished_at !== null) continue;
+    const at = await crashedSubagentRunAt(run, paths.get(run.id), session, now);
+    if (at !== undefined) crashed.set(run.id, at);
+  }
+  return crashed;
+}
 
 /** シンボリックリンクを解いたパス。まだないファイルは、あるところまでの親を解いて残りをつなぐ */
 async function resolvedPath(p: string): Promise<string> {

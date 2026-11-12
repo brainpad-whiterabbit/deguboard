@@ -39,6 +39,7 @@ import {
   type HookView,
 } from "./hook.js";
 import {
+  crashedSubagentRunAt,
   runFinish,
   runList,
   runRetryReason,
@@ -2402,5 +2403,144 @@ describe("フックが届くセッションで親が run start で実装・手�
       code: "CLAIM_LOST",
       message: expect.stringContaining("To keep implementing, use run start"),
     });
+  });
+});
+
+describe("落ちたセッションに残ったサブエージェントの Run（RN-6・RN-7。t765）", () => {
+  /** 落ちたセッション s-old の印の起動が開いたサブエージェントの Run。記録を書き、最後の更新を ageMs だけ前にする */
+  async function oldSubagentRun(
+    ctx: CommandContext,
+    parent: string,
+    ticket: string,
+    step: string,
+    ageMs: number,
+    agentId = "o1",
+  ) {
+    const oldParent = path.join(path.dirname(parent), "s-old.jsonl");
+    const oldSub = path.join(path.dirname(parent), "s-old", "subagents", `agent-${agentId}.jsonl`);
+    const prompt = `deguboard: ticket=${ticket} step=${step}`;
+    await call(ctx, "PostToolUse", {
+      ...launched(oldParent, agentId, prompt),
+      session_id: "s-old",
+    });
+    await subagentRecord(oldSub, prompt, 1);
+    const at = new Date(Date.now() - ageMs);
+    await utimes(oldSub, at, at);
+    const run = (await peekRunningRuns(ctx.repo)).find(
+      (r) => r.ticket === ticket && r.step === step,
+    )!;
+    expect(run).toMatchObject({ session: "s-old" });
+    return run;
+  }
+
+  async function claimed() {
+    const p = await prepared();
+    for (const t of ["t1", "t2"])
+      await runCommand(ticketClaim, p.ctx, {
+        no_worktree: true,
+        ticket: t,
+        branch: `feat/${t}`,
+        no_run: true,
+      });
+    p.ctx.env = { ...p.ctx.env, DEGUBOARD_SESSION: SESSION };
+    return p;
+  }
+
+  const closedRun = async (ctx: CommandContext, id: string) =>
+    ((await runCommand(runList, ctx, {})).data as RunView[]).find((r) => r.id === id);
+
+  it("dg next は記録が 30 分より古い別のセッションのサブエージェントの Run を待たずに印で頼み直す手順を返し、印の起動が step によらずその Run を interrupted で閉じてから開く", async () => {
+    const { ctx, parent } = await claimed();
+    const stale = await oldSubagentRun(ctx, parent, "t1", "implement", 31 * 60_000);
+    const step = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
+    expect(step).toMatchObject({ kind: "implement", running_run: null });
+    expect(step.commands[0]).toContain(`The implement Run ${stale.id} was opened by a sub-agent`);
+    expect(step.commands[0]).toContain("closes it as interrupted");
+    expect(step.commands).toContain(
+      "Put deguboard: ticket=t1 step=implement on the first line of the text you give the sub-agent",
+    );
+    expect(step.brief).not.toBeNull();
+
+    const { view } = await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a1", "deguboard: ticket=t1 step=implement"),
+    );
+    expect(view.done).toEqual([
+      `Closed the implement Run ${stale.id} for t1 with interrupted`,
+      expect.stringMatching(/^Opened the implement Run r\S+ for t1$/),
+    ]);
+    expect(await closedRun(ctx, stale.id)).toMatchObject({
+      result: "interrupted",
+      error: STALE_SESSION_ERROR,
+      running: false,
+    });
+
+    // 印の step と違う step の残り（見直し）も、実装の起動が閉じる
+    const review = await oldSubagentRun(ctx, parent, "t2", "review", 31 * 60_000, "o2");
+    const other = await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a2", "deguboard: ticket=t2 step=implement"),
+    );
+    expect(other.view.done).toContainEqual(
+      `Closed the review Run ${review.id} for t2 with interrupted`,
+    );
+    expect(await closedRun(ctx, review.id)).toMatchObject({ result: "interrupted" });
+  });
+
+  it("記録が新しいとき・どちらかのセッションが分からないとき・親が自分で開いた Run のときは、dg next は待たせ、印の起動は閉じない", async () => {
+    const { ctx, parent } = await claimed();
+    const waits = async (ticket: string, id: string) => {
+      const step = (await runCommand(next, ctx, { ticket })).data as NextStep;
+      expect(step).toMatchObject({ kind: "implement", running_run: id });
+      expect(step.commands).toEqual([expect.stringContaining(`Wait for the running Run ${id}`)]);
+    };
+    const keeps = async (ticket: string, id: string, agentId: string) => {
+      const { warnings } = await call(
+        ctx,
+        "PostToolUse",
+        launched(parent, agentId, `deguboard: ticket=${ticket} step=implement`),
+      );
+      expect(warnings).toContainEqual(
+        expect.stringContaining(`Could not open the implement Run of ${ticket}`),
+      );
+      expect((await peekRunningRuns(ctx.repo)).map((r) => r.id)).toContain(id);
+    };
+
+    // 記録が新しい（29 分前）：並行して動いている別のセッションのサブエージェントとみなす
+    const fresh = await oldSubagentRun(ctx, parent, "t1", "implement", 29 * 60_000);
+    await waits("t1", fresh.id);
+    await keeps("t1", fresh.id, "a1");
+
+    // 今のセッションが分からない：落ちた残りと決めない
+    const known = ctx.env;
+    ctx.env = { HOME: known!["HOME"] };
+    const at = new Date(Date.now() - 3600_000);
+    const oldSub = path.join(path.dirname(parent), "s-old", "subagents", "agent-o1.jsonl");
+    await utimes(oldSub, at, at);
+    await waits("t1", fresh.id);
+    ctx.env = known;
+    // Run のセッションが分からない（null）ときも、印の起動と dg next の判定は落ちた残りと決めない
+    expect(await crashedSubagentRunAt(fresh, oldSub, SESSION, new Date())).toBe(toIsoDateTime(at));
+    expect(
+      await crashedSubagentRunAt({ ...fresh, session: null }, oldSub, SESSION, new Date()),
+    ).toBeUndefined();
+
+    // 親が自分で開いた Run（記録が親の記録）は、記録が古くてもセッションをまたいで残す
+    const oldParent = path.join(path.dirname(parent), "s-old.jsonl");
+    await writeFile(oldParent, "");
+    await utimes(oldParent, at, at);
+    const own = (
+      await runCommand(runStart, ctx, {
+        ticket: "t2",
+        step: "implement",
+        agent: "claude-code",
+        session: "s-old",
+        transcript: oldParent,
+      })
+    ).data as Run;
+    await waits("t2", own.id);
+    await keeps("t2", own.id, "a2");
   });
 });
