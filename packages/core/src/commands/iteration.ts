@@ -4,7 +4,7 @@ import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { readHistory, type HistoryEvent, type HistoryReader } from "../git/history.js";
 import { withWrite } from "../git/write.js";
-import { isTerminal, slugSchema, type Status } from "../model/common.js";
+import { isFinishedSet, isTerminal, slugSchema, type Status } from "../model/common.js";
 import type { TicketId } from "../model/id.js";
 import {
   ITERATION_STATUSES,
@@ -19,7 +19,6 @@ import { defineCommand, ok } from "./define.js";
 import { plansContaining, type PlanBrief } from "./plan.js";
 import type { AskAction } from "./ask.js";
 import {
-  iterationComplete,
   iterationRef,
   nowIso,
   projectOf,
@@ -178,7 +177,7 @@ export async function iterationNextOf(
       ask: moved.some((m) => m.iteration === null && !isTerminal(m.status)) ? "assign" : null,
     };
   }
-  return iterationComplete(items.map((t) => t.status)) ? { kind: "ready", ask: "release" } : null;
+  return isFinishedSet(items.map((t) => t.status)) ? { kind: "ready", ask: "release" } : null;
 }
 
 /** iteration.show の出力。items は優先度と番号の順（IT-3）。progress は Epic と同じ形で、中のチケットから都度求める（EP-3）。next は次の操作の案内、plans は中のチケットを含む Plan */

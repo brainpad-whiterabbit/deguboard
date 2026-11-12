@@ -21,6 +21,16 @@ export function isTerminal(status: Status): boolean {
   return status === "done" || status === "abandoned";
 }
 
+/**
+ * 「終わった」の判定（Epic・Plan・Iteration の中のチケット）。流れ・lint・ask はこれだけを使う。
+ * 数えるのは今あるチケットだけで、消したチケット（undefined）は集まりにないものとして扱う（plan close と同じ）。
+ * 数えたものが 1 件以上あり、すべて done か abandoned なら終わり。abandoned だけの集まりも終わりに入れる（閉じられる Epic と同じ）
+ */
+export function isFinishedSet(statuses: readonly (Status | undefined)[]): boolean {
+  const counted = statuses.filter((st): st is Status => st !== undefined);
+  return counted.length > 0 && counted.every(isTerminal);
+}
+
 /** a から b への移動が前進（順が増える）か */
 export function isForward(from: Status, to: Status): boolean {
   const a = FORWARD_ORDER[from];

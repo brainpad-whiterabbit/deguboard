@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { UsageError } from "../errors.js";
 import { compareIds, parseId, type IdKind, type IdOf, type TicketId } from "../model/id.js";
-import { isTerminal, toIsoDateTime, type Status } from "../model/common.js";
+import { toIsoDateTime } from "../model/common.js";
 import type { Plan } from "../model/plan.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
@@ -14,11 +14,6 @@ export const nowIso = (ctx: CommandContext): string => toIsoDateTime(ctx.now());
 
 /** 親のエージェントが打つ dg のコマンド（dg next・dg flow next の commands）。JSON で読み、agent として記録する */
 export const agentDg = (args: string): string => `dg --json --actor agent ${args}`;
-
-/** 完了の判定（Iteration・Plan の中のチケット）：1 件以上あり、すべて done か abandoned（Status の引けないものは未完了）。iteration.show の next と ask の候補（Iteration と Plan）が同じ判定を使う正本 */
-export function iterationComplete(statuses: readonly (Status | undefined)[]): boolean {
-  return statuses.length > 0 && statuses.every((st) => st !== undefined && isTerminal(st));
-}
 
 /**
  * 今あるかは確かめず、ID の形だけを確かめて整える（消えた・閉じたものの記録も引けるように）。

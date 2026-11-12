@@ -7,13 +7,13 @@ import { join } from "node:path";
 import { z } from "zod";
 import { agentSkillDirs } from "../agents/index.js";
 import { UsageError } from "../errors.js";
-import { isTerminal, STATUSES, type Status } from "../model/common.js";
+import { isFinishedSet, isTerminal, STATUSES, type Status } from "../model/common.js";
 import { idKindOf, parseId } from "../model/id.js";
 import { peekRunningRuns } from "../run/record.js";
 import type { Store } from "../storage/store.js";
 import { findConstraint } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
-import { iterationComplete, ticketsInIteration } from "./helpers.js";
+import { ticketsInIteration } from "./helpers.js";
 import { WEBVIEW_CONTRACT } from "./client.js";
 
 /**
@@ -1588,7 +1588,7 @@ function askSubjectOf(store: Store, ref: string, running: ReadonlySet<string>): 
         id: it.id,
         title: it.name,
         status: it.status,
-        complete: iterationComplete(ticketsInIteration(store, it.id).map((t) => t.data.status)),
+        complete: isFinishedSet(ticketsInIteration(store, it.id).map((t) => t.data.status)),
       };
     }
     case "epic": {
@@ -1607,7 +1607,7 @@ function askSubjectOf(store: Store, ref: string, running: ReadonlySet<string>): 
               ? "pending_approval"
               : "approved",
         tickets: p.tickets,
-        complete: iterationComplete(p.tickets.map((id) => store.tickets.get(id)?.data.status)),
+        complete: isFinishedSet(p.tickets.map((id) => store.tickets.get(id)?.data.status)),
       };
     }
   }

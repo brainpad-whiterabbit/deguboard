@@ -29,9 +29,11 @@ The order of stages and the current stage are decided by \`dg flow next\`. Appro
 | Audit   | Table of findings                            |
 | Release | Merge of the release PR, publishing, closing |
 
+Closing a Plan whose tickets are all finished is part of the Work stage. It needs no approval, so the flow closes it and goes on (the steps are in "Closing a Plan" of \`dg guide done\`).
+
 ## Running the flow
 
-1. Call \`dg --json --actor agent flow next <target…>\` when starting, and after finishing each stage (add \`--auto\` and \`--no-assign\` if given, and \`--gate <level>\` for \`--gate-<level>\`). In the result, \`stage.name\` is the current stage (\`assign\`, \`check\`, \`plan\`, \`work\`, \`audit\`, \`release\`, or \`stop\`); \`commands\` are the dg commands to call (in order); \`guide.text\` is how to do the stage (the sections in \`guide.sections\` joined in order, including all the sections of the same topic that the step section points to, and for work the parallel steps after them); and \`approval\` is whether approval is needed and where
+1. Call \`dg --json --actor agent flow next <target…>\` when starting, and after finishing each stage (add \`--auto\` and \`--no-assign\` if given, and \`--gate <level>\` for \`--gate-<level>\`). In the result, \`stage.name\` is the current stage (\`assign\`, \`check\`, \`plan\`, \`work\`, \`close\`, \`audit\`, \`release\`, or \`stop\`; \`close\` is the Plan closing above); \`commands\` are the dg commands to call (in order); \`guide.text\` is how to do the stage (the sections in \`guide.sections\` joined in order, including all the sections of the same topic that the step section points to, and for work the parallel steps after them); and \`approval\` is whether approval is needed and where
 2. Do the stage's step. Run \`commands\` in order, and follow \`guide.text\` (to read it again, use \`guide.command\`; for work it is two \`dg guide\` calls joined by \`&&\`, so read both in order). Do not read the whole guide of the stage's topic again. Read a section of another topic only when \`guide.text\` points to it (the "…" section of \`dg guide <topic>\`)
    - \`work\` follows \`dg guide work\`. Its \`guide.text\` includes the parallel steps (\`dg guide parallel\`), which apply when \`ready\` of \`plan show\` has two or more tickets and subagents can be started. The parent only advances, asks for approval, and reads and writes \`dg\`
    - For \`release\`, if the repository's rules have no release steps, follow the "When there are no release steps" section of \`guide.text\`
@@ -55,7 +57,7 @@ With \`--auto\`, the flow proceeds without asking only in the following two case
 Merges and decisions a human makes are handled as follows.
 
 - **A PR is merged** only when \`auto.merge\` (current setting: \`false\`) is true, and only a PR that meets the "Quality gate" section of \`dg guide review\` is merged with \`dg --json --actor agent pr merge <id>\`. Leave out \`--method\` and \`--delete-branch\`, so that config's \`merge.method\` and \`merge.delete_branch\` (current settings: \`squash\` and \`false\`) decide the method and whether the branch is deleted. If the PR does not meet the gate, show the conditions it did not meet, ask for approval, and stop
-- **Decisions a human makes are asked, and the flow stops, regardless of config**: merging and publishing the release PR (tags and destinations); deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic, Iteration, or Plan; merging when \`auto.merge\` is false; changing a Plan's waits (\`after\`) and scope; operations with \`--force\`; decisions with no suggested option; and answers that cannot be a choice
+- **Decisions a human makes are asked, and the flow stops, regardless of config**: merging and publishing the release PR (tags and destinations); deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic or Iteration; merging when \`auto.merge\` is false; changing a Plan's waits (\`after\`) and scope; operations with \`--force\`; decisions with no suggested option; and answers that cannot be a choice
 
 ## Reporting the result
 
@@ -449,7 +451,7 @@ Cleanup after a PR is merged. Work that needs no PR advances to done within \`dg
 
 ## Closing a Plan
 
-- When all tickets of a Plan are finished (done or abandoned), close it with \`dg --json --actor agent plan close <p>\`. Progress is not written to the Plan, so this is the only time to close it
+- When all tickets of a Plan are finished (done or abandoned), close it with \`dg --json --actor agent plan close <p>\`. No approval is needed, and the flow in \`dg guide all\` closes it the same way. Progress is not written to the Plan, so this is the only time to close it
 - When rebuilding a plan without finishing it (the order or scope changed, or tickets were added or removed), also close it with \`plan close <p>\`, make it again by the steps of \`dg guide plan\`, and get human approval again. If tickets remain, \`warnings\` shows them, but it still closes. Until it is closed, the remaining tickets cannot go into a new Plan
 
 ## When not finished
@@ -782,7 +784,7 @@ Below, the Iteration to release is written as \`<S>\`.
 
 ## Release steps
 
-1. **Check that all are done**: after \`dg --json --actor agent sync\`, check with \`dg --json --actor agent iteration show <S>\` that every ticket is done or abandoned. If there are no tickets, say so and stop. If some remain, show the list (ID, title, state, PR), and ask with "Mark as done" (\`dg guide done\`; if a Skill is available, \`/dgdone <S>\`) and "Stop here"
+1. **Check that all are done**: after \`dg --json --actor agent sync\`, check with \`dg --json --actor agent iteration show <S>\` that every ticket is done or abandoned. If there are no tickets, say so and stop. If some remain, show the list (ID, title, state, PR), and ask with "Mark as done" (\`dg guide done\`; if a Skill is available, \`/dgdone <S>\`) and "Stop here". When all are done or abandoned, close the finished Plans first: \`dg --json --actor agent plan list --status open\` shows the open Plans with their progress, and for each one whose tickets are all done or abandoned, close it with \`dg --json --actor agent plan close <p>\` by the "Closing a Plan" section of \`dg guide done\`. No approval is needed for this
 2. **Find the release steps**: find the release section in the repository's rules (CLAUDE.md, README, development docs), and show which document and which step will be followed. If there are none, see the "When there are no release steps" section below
 3. **Proceed by the steps**: do not do operations that are not in the steps (changing how the version is decided, tagging by hand, skipping a step). If you stop, show the reason and ask
    - Do not use a checkout you are working in. Proceed in the temporary worktree made by \`git fetch origin main\` and then \`git worktree add --detach ../<repo>.worktrees/release-<S> origin/main\`. The release branch, dependency install, and build are also done inside it

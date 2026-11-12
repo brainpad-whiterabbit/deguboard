@@ -44,7 +44,7 @@ import {
   type ActorKind,
   type UserSource,
 } from "../model/actor.js";
-import { isTerminal } from "../model/common.js";
+import { isFinishedSet, isTerminal } from "../model/common.js";
 import {
   configFields,
   configSchema,
@@ -821,7 +821,7 @@ export const lint = defineCommand({
           "lint_epic_closed_unfinished",
           `Unfinished tickets ${left} remain in a closed Epic`,
         );
-      if (doc.data.status === "open" && members.some((t) => t.data.status === "done") && !left)
+      if (doc.data.status === "open" && isFinishedSet(members.map((t) => t.data.status)))
         warn(
           doc.path,
           doc.id,
@@ -832,8 +832,7 @@ export const lint = defineCommand({
     for (const doc of ctx.store.plans.values()) {
       if (input.project && doc.data.project !== input.project) continue;
       if (doc.data.closed_at !== undefined || doc.data.tickets.length === 0) continue;
-      const members = doc.data.tickets.map((id) => ctx.store.tickets.get(id));
-      if (members.every((t) => t !== undefined && finished(t)))
+      if (isFinishedSet(doc.data.tickets.map((id) => ctx.store.tickets.get(id)?.data.status)))
         warn(
           doc.path,
           doc.id,
