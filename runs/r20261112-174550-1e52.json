@@ -1,0 +1,36 @@
+{
+  "id": "r20261112-174550-1e52",
+  "ticket": "t790",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T17:45:50Z",
+  "finished_at": "2026-11-12T17:50:46Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "採らなかった案に、拡張が環境変数で PATH に dg を足す案と退けた理由を戻す",
+    "ADR-001 の画面の文言の案内を、要件 UI-11 と依頼文の実装の正本に向け直す",
+    "細部の正本の一覧を、今のディレクトリと設定の範囲・画面の配置のテストまで含むように直す",
+    "再提案されそうな退けた案と理由を採らなかった案に戻す",
+    "記録と PR に関わる項目をチーム専用にする理由を決定と設定の範囲のコメントに書く"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 16759,
+    "cache_read": 1073223,
+    "cache_write": 66739
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 13,
+    "bash": 12,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "fea6012d-49ee-40c1-9fac-4ee22cef2bef",
+  "review": null
+}

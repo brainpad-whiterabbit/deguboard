@@ -1,0 +1,33 @@
+{
+  "id": "r20261112-174755-2545",
+  "ticket": "t787",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T17:47:55Z",
+  "finished_at": "2026-11-12T17:53:34Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "dg sync の仮番号の振り直し経路で、自動で解いた時刻（resolved）が報告されることを確かめるテストがない",
+    "approved_at の自動の解決と、読めない時刻・片側だけの時刻が競合のまま残ることを確かめるテストがない（merge の earlierTimes の status が両方 undefined の分岐）"
+  ],
+  "usage": {
+    "input": 32,
+    "output": 8674,
+    "cache_read": 1000141,
+    "cache_write": 60675
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 4,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "fea6012d-49ee-40c1-9fac-4ee22cef2bef",
+  "review": null
+}
