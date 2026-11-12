@@ -82,7 +82,7 @@ description = "ビルド済みの dg を動かす。例: mise run dg -- ticket l
 run = "pnpm run dg"
 
 [tasks."dg:link"]
-description = "dg を ~/.local/bin/dg にリンクし、PATH に通す手順を案内する（端末からほかのリポジトリでも dg を呼ぶときに使う。フックは mise run dg -- hooks install が絶対パスで書くので要らない）。clone ごとに一度（build を先に走らせる）"
+description = "dg を ~/.local/bin/dg にリンクし、PATH に通す手順を案内する（端末からほかのリポジトリでも dg を呼ぶときに使う。リンクした dg は PATH の node で動くので、node 24 以上が要る。古いと英語で止まる。mise run dg -- は mise.toml の node を使う。フックは mise run dg -- hooks install が絶対パスで書くので要らない）。clone ごとに一度（build を先に走らせる）"
 depends = ["build"]
 run = "pnpm run link:dg"
 

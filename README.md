@@ -116,7 +116,7 @@ mise trust && mise install    # install node and pnpm at the versions in mise.to
 mise run install              # install dependencies, build dg and the extension, and install the VSIX into VS Code
 mise run dg -- hooks install  # write the hooks to .claude/settings.local.json with absolute paths (once per clone; again after upgrading node)
 mise run dg -- hooks check    # in a new session, confirm the hooks are installed and that dg has received them
-mise run dg:link              # optional: link dg to ~/.local/bin/dg to use it from your terminal (add ~/.local/bin to PATH if needed). To update, git pull and then mise run install
+mise run dg:link              # optional: link dg to ~/.local/bin/dg to use it from your terminal (needs Node 24 or later on PATH; add ~/.local/bin to PATH if needed). To update, git pull and then mise run install
 ```
 
 To install the VSIX by hand, run `code --install-extension packages/vscode/deguboard-vscode.vsix` after `mise run vsix`.

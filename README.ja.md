@@ -116,7 +116,7 @@ mise trust && mise install    # node・pnpm を mise.toml の版で入れる
 mise run install              # 依存を入れ、dg と拡張をビルドし、VSIX を VS Code に入れる
 mise run dg -- hooks install  # .claude/settings.local.json に絶対パスでフックを書く（clone ごとに一度。node を上げたらやり直す）
 mise run dg -- hooks check    # 新しいセッションで、フックが入っていて dg が受け取っていることを確かめる
-mise run dg:link              # 任意：端末から dg を使うために ~/.local/bin/dg にリンクする（~/.local/bin が PATH になければ足す）。更新は git pull のあと mise run install
+mise run dg:link              # 任意：端末から dg を使うために ~/.local/bin/dg にリンクする（PATH の node が 24 以上であること。~/.local/bin が PATH になければ足す）。更新は git pull のあと mise run install
 ```
 
 VSIX を手で入れるときは、`mise run vsix` の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行します。
