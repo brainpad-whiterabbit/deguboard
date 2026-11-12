@@ -1216,7 +1216,7 @@ export const ticketClaim = defineCommand({
             "TRANSITION_REJECTED",
             describeRejection(check, "todo", "in_progress"),
           );
-        // 承認待ちの Plan に入ったチケットは、承認を待たずに始めたことを知らせる（PL-4）。止めはしない（人が承認前に始めると決めることもある）
+        // 承認待ちの Plan に入ったチケットは、承認を待たずに始めたことを知らせる（PL-5）。止めはしない（人が承認前に始めると決めることもある）
         const pending = openPlanOf(ctx.store, doc.data.id);
         if (pending?.data.pending_approval)
           planWarnings = [

@@ -117,7 +117,7 @@ export interface StageFacts {
   waiting: readonly string[];
   /**
    * このチケットが入っている開いた Plan が承認待ちなら、その Plan の ID（承認待ちでなければ null）。
-   * 承認待ちの Plan のチケットは、承認まで着手しない（PL-4）
+   * 承認待ちの Plan のチケットは、承認まで着手しない（PL-5）
    */
   pendingPlan: string | null;
   /** このチケットの Run（閉じたものと実行中のもの） */
@@ -404,7 +404,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
       return make("done", null, []);
     case "blocked":
       return make("wait_deps", null, []);
-    // 承認待ちの Plan のチケットは、人が承認するまで着手しない（PL-4）。承認するのは人なので、親は頼まずに待つ
+    // 承認待ちの Plan のチケットは、人が承認するまで着手しない（PL-5）。承認するのは人なので、親は頼まずに待つ
     case "awaiting_approval":
       return make(
         "wait_human",

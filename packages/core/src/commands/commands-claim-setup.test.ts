@@ -19,7 +19,7 @@ afterEach(runCleanups);
 
 const NOW = new Date("2026-11-09T03:00:00Z");
 
-describe("承認待ちの Plan に入ったチケットの claim（PL-4）", () => {
+describe("承認待ちの Plan に入ったチケットの claim（PL-5）", () => {
   it("承認待ちの Plan に入った todo の claim は成功し、承認を待つよう警告する。Plan の外のチケットは警告しない", async () => {
     const f = await fixture();
     await initialized(f.cloneA, { now: () => NOW });

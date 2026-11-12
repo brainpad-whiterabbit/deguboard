@@ -78,7 +78,7 @@ describe("作業の段階（stageOf。EX-3）", () => {
     expect(stageOf(facts({ ticket: { status: "abandoned" } })).name).toBe("closed");
   });
 
-  it("承認待ちの Plan に入った todo は、待ちがなくても awaiting_approval で、どの Plan かを理由に書く（PL-4）", () => {
+  it("承認待ちの Plan に入った todo は、待ちがなくても awaiting_approval で、どの Plan かを理由に書く（PL-5）", () => {
     expect(
       stageOf(facts({ ticket: { status: "todo", pr: undefined }, pendingPlan: "p1" })),
     ).toMatchObject({ name: "awaiting_approval", reason: expect.stringContaining("p1") });
@@ -541,7 +541,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       tickets: ["t1", "t2"],
       tier: { t1: "heavy", t2: "light" },
     });
-    // 承認待ちの Plan のチケットは implement を返さない（PL-4）。以下は承認した後の手を確かめる
+    // 承認待ちの Plan のチケットは implement を返さない（PL-5）。以下は承認した後の手を確かめる
     await runCommand(planApprove, ctx, { plan: created.data.id });
     const models = { light: "haiku", standard: "sonnet", heavy: "opus" };
     const withModels = { ...ctx, config: { ...ctx.config, models } };
@@ -572,7 +572,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     expect(step).toMatchObject({ kind: "implement", model: null, plan: { tier: "heavy" } });
   });
 
-  it("承認待ちの Plan に入った todo は、dg next が着手ではなく人の承認を待つ手（wait_human）と Plan を返し、ticket show も同じ段階を出す。承認すると implement に戻る（PL-4）", async () => {
+  it("承認待ちの Plan に入った todo は、dg next が着手ではなく人の承認を待つ手（wait_human）と Plan を返し、ticket show も同じ段階を出す。承認すると implement に戻る（PL-5）", async () => {
     const ctx = await prepared();
     const created = await runCommand(planCreate, ctx, { tickets: ["t1"] });
     const planId = created.data.id;
