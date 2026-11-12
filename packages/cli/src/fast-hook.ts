@@ -1,11 +1,12 @@
 // bin/dg.js と、束ねた dg.mjs の入口（bundle.ts）が main を読む前に試す、PreToolUse の速い経路（t768・t769）。argv が dg hooks install の書く PreToolUse の呼び出しなら、
-// 標準入力の JSON を core の fastPreToolUse に渡し、今の経路（program.ts の dg hook と output.ts の printHuman）と同じ形で書く。
+// 標準入力の JSON を core の fastPreToolUse に渡し、今の経路（program.ts の dg hook と output.ts の printHuman）と同じ書き方（hook-print.ts）で書く。
 // 受け持たない入力は、読んだ標準入力を添えて今の経路に回す（標準入力は 1 度しか読めない）。
 // commander・yaml・core の入口を読まない（fast-hook.test.ts が静的な import を確かめる）
 
 import { fastPreToolUse, isFastHookArgv } from "@deguboard/core/fast-hook";
+import { printHookView, printWarnings } from "./hook-print.js";
 
-export interface FastHookIo {
+interface FastHookIo {
   /** 標準入力の全体。既定は process.stdin */
   stdin?: () => Promise<string>;
   cwd?: string;
@@ -16,7 +17,7 @@ export interface FastHookIo {
 }
 
 /** 速い経路の結果。受け持たなければ、読んだ標準入力（読んでいれば）を今の経路に渡す */
-export type FastHookResult =
+type FastHookResult =
   | { handled: true; exitCode: number }
   | { handled: false; stdin?: string | undefined };
 
@@ -46,12 +47,13 @@ export async function tryFastHook(
     return { handled: false, stdin: text };
   }
   if (!view) return { handled: false, stdin: text };
-  const out = io.out ?? ((t: string) => process.stdout.write(`${t}\n`));
-  const err = io.err ?? ((t: string) => process.stderr.write(`${t}\n`));
-  // printHuman の hook と同じ順：行ったことを標準エラーに、拒む文を標準出力に、警告を標準エラーに
-  for (const line of view.done) err(`dg hook: ${line}`);
-  if (view.output) out(view.output);
-  for (const w of view.warnings) err(`Warning: ${w}`);
+  const streams = {
+    out: io.out ?? ((t: string) => process.stdout.write(`${t}\n`)),
+    err: io.err ?? ((t: string) => process.stderr.write(`${t}\n`)),
+  };
+  // printHuman の hook と同じ順と書き方（hook-print.ts）：行ったことと拒む文の後に警告
+  printHookView(streams, view);
+  printWarnings(streams, view.warnings);
   return { handled: true, exitCode: 0 };
 }
 

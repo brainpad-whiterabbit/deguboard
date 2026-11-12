@@ -16,7 +16,8 @@
 //     事実がなければ止まって待っている印を付ける（bindSelfOpened。消してよい条件はその関数のコメント）
 //   - session_end：このセッションのサブエージェントの Run のうち開いたままのものをすべて閉じる。親が自分で開いた Run は残す
 //   - tool_requested：.git/deguboard/ への書き込みと、dg を経由しない gh pr ready・merge を粗く拒む（ストアを開かない。t554）。
-//     記録と判定は pre-tool-use.ts にあり、bin/dg.js の速い経路（fast-hook.ts）も同じものを呼ぶ（t768）
+//     記録と判定は pre-tool-use.ts にあり、2 つの入口（bin/dg.js と同梱の dg.mjs の入口 cli/src/bundle.ts）の速い経路（fast-hook.ts）も
+//     同じものを呼ぶ（t768・t769）。ツールのたびに呼ばれるので、止まった Run の掃除はしない
 //   - turn_stopped：データのリポジトリの dg の外の変更（SY-7）を確かめ、見つけたら止まらずに続けさせて伝える（続けさせた後の Stop では伝えない）。
 //     ストアを開かず（t770）、config のリモートの名前だけを読む文脈で確かめる（storelessRemote）。Stop は応答のたびに呼ばれ、ストアを開くと遅いため。
 //     dg の外の変更の検査は、ほかのイベントでは runCommand でも行わない（フックで作業を止めない。ownsOutsideCheck）
@@ -50,7 +51,7 @@ import {
   takePendingRetryReasons,
 } from "../run/record.js";
 import { defineCommand, ok, runCommand, type CommandContext } from "./define.js";
-import { recordHookInput, recordHookSession, recordHookWarnings } from "./hook-records.js";
+import { recordAroundHook } from "./hook-records.js";
 import {
   pruneHookSessions,
   recordMarkedLaunch,
@@ -158,14 +159,13 @@ export const hook = defineCommand({
   storelessRemote: (input, env) => eventKindOf(input, env) === "turn_stopped",
   async run(ctx, input) {
     const view: HookView = { event: input.event, done: [] };
-    const warnings: string[] = [];
     const agent = hookAgentOf(input.agent);
     const hooks = hooksOf(agent);
     if (!hooks) return ok(view, undefined, [`agent ${agent} has no hooks`]);
     const env = ctx.env ?? process.env;
     const payload = input.payload ?? {};
     const event = hooks.parse(input.event, payload, env);
-    // PreToolUse は記録から判定までを、bin/dg.js の速い経路と同じ関数で行う（t768。同じ出力と記録になる）
+    // PreToolUse は記録から判定までを、2 つの入口（bin/dg.js と同梱の dg.mjs）の速い経路と同じ関数で行う（t768。同じ出力と記録になる）
     if (event?.kind === "tool_requested") {
       const r = await runToolRequested({
         hooks,
@@ -181,59 +181,32 @@ export const hook = defineCommand({
         r.warnings,
       );
     }
-    // フックの入力の項目の有無を、イベントごとの最新の 1 件に残す（dg hooks check が読む）。扱うイベントの名前だけを使う
-    if (hooks.events.some((e) => e.event === input.event)) {
-      try {
-        await recordHookInput(
-          ctx.repo.localDir,
-          input.event,
-          toIsoDateTime(ctx.now()),
-          hooks.inputFields(input.event, payload),
-          payload,
-        );
-      } catch (e) {
-        warnings.push(
-          `Could not write the hook input record (${e instanceof Error ? e.message : String(e)})`,
-        );
-      }
-    }
-    if (!event) return ok(view, undefined, warnings);
-    // このセッションにフックが届いたことと、届いた種類を残す（next・brief・claim --no-run が、届いていないセッションを警告する。t697・t756）
-    try {
-      await recordHookSession(
-        ctx.repo.localDir,
-        event.session,
-        toIsoDateTime(ctx.now()),
-        event.kind,
-      );
-      if (event.kind === "session_start") await pruneHookSessions(ctx.repo.localDir, ctx.now());
-    } catch (e) {
-      warnings.push(
-        `Could not write the hook session record (${e instanceof Error ? e.message : String(e)})`,
-      );
-    }
-    try {
-      await handle(ctx, agent, event, view, warnings);
-    } catch (e) {
-      // フックの失敗で作業を止めない
-      warnings.push(
-        `Could not finish the ${input.event} hook (${e instanceof Error ? e.message : String(e)})`,
-      );
-    }
-    // 警告は標準エラーに出るだけで誰にも届かないので、セッションごとに残し、next・brief・hooks check が後で知らせる（t756）
-    try {
-      await recordHookWarnings(
-        ctx.repo.localDir,
-        event.session,
-        input.event,
-        toIsoDateTime(ctx.now()),
-        warnings,
-      );
-    } catch (e) {
-      warnings.push(
-        `Could not write the hook warnings record (${e instanceof Error ? e.message : String(e)})`,
-      );
-    }
+    // 記録の流れは PreToolUse と同じ recordAroundHook（hook-records.ts）。フックの入力の項目の有無をイベントごとの最新の 1 件に残し
+    // （dg hooks check が読む。扱うイベントの名前だけを使う）、このセッションにフックが届いたことと届いた種類を残し
+    // （next・brief・claim --no-run が、届いていないセッションを警告する。t697・t756）、警告をセッションごとに残す
+    // （警告は標準エラーに出るだけで誰にも届かないので、next・brief・hooks check が後で知らせる。t756）。失敗で作業を止めない
+    const warnings = await recordAroundHook({
+      localDir: ctx.repo.localDir,
+      eventName: input.event,
+      ...(hooks.events.some((e) => e.event === input.event)
+        ? { inputFields: () => hooks.inputFields(input.event, payload) }
+        : {}),
+      payload,
+      event,
+      at: toIsoDateTime(ctx.now()),
+      body: async (event, warnings) => {
+        if (event.kind === "session_start") {
+          try {
+            await pruneHookSessions(ctx.repo.localDir, ctx.now());
+          } catch (e) {
+            warnings.push(
+              `Could not prune old hook session records (${e instanceof Error ? e.message : String(e)})`,
+            );
+          }
+        }
+        await handle(ctx, agent, event, view, warnings);
+      },
+    });
     return ok(view, undefined, warnings);
   },
 });
@@ -241,7 +214,7 @@ export const hook = defineCommand({
 async function handle(
   ctx: CommandContext,
   agent: string,
-  event: HookEvent,
+  event: Exclude<HookEvent, { kind: "tool_requested" }>,
   view: HookView,
   warnings: string[],
 ): Promise<void> {
@@ -260,9 +233,6 @@ async function handle(
       break;
     case "session_end":
       return sessionEnd(ctx, event, view, warnings);
-    case "tool_requested":
-      // run が runToolRequested（pre-tool-use.ts）で扱い、ここには来ない。ツールのたびに呼ばれるので、止まった Run の掃除はしない
-      return;
     case "turn_stopped":
       // 応答のたびに呼ばれるので、止まった Run の掃除はしない
       return turnStopped(ctx, agent, event, view);

@@ -69,7 +69,7 @@ export async function readHookInput(
   }
 }
 
-export const HOOK_SESSIONS_DIR = "hook-sessions";
+const HOOK_SESSIONS_DIR = "hook-sessions";
 /** ファイル名に使えるセッション ID。ほかの形はパスを組み立てずに記録しない */
 export const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
 export const WARNINGS_SUFFIX = ".warnings.jsonl";
@@ -115,3 +115,50 @@ export async function recordHookWarnings(
     warnings.map((text) => `${JSON.stringify({ at, event, text })}\n`).join(""),
   );
 }
+
+/**
+ * フックの 1 回の記録の流れ。dg hook のすべてのイベントと PreToolUse（pre-tool-use.ts の runToolRequested）が同じ順で残す：
+ * 扱うイベントなら入力の項目の有無（inputFields を渡したとき）を残し、出来事があればセッションに届いたことを残してから body を動かし、
+ * 出た警告をセッションに残す。記録の失敗と body の失敗は警告にし、例外を投げない（フックで作業を止めない）。返すのは警告の全体
+ */
+export async function recordAroundHook<E extends { session: string; kind: string }>(args: {
+  localDir: string;
+  eventName: string;
+  /** 入力の項目の有無を残すときの、読む項目（扱わないイベントは省く） */
+  inputFields?: () => readonly string[];
+  payload: Record<string, unknown>;
+  /** 入力から読んだ出来事。なければ入力の記録だけを残す */
+  event: E | undefined;
+  at: string;
+  /** 出来事の処理。警告は warnings に足す */
+  body: (event: E, warnings: string[]) => Promise<void>;
+}): Promise<string[]> {
+  const { localDir, eventName, event, at } = args;
+  const warnings: string[] = [];
+  if (args.inputFields) {
+    try {
+      await recordHookInput(localDir, eventName, at, args.inputFields(), args.payload);
+    } catch (e) {
+      warnings.push(`Could not write the hook input record (${messageOf(e)})`);
+    }
+  }
+  if (!event) return warnings;
+  try {
+    await recordHookSession(localDir, event.session, at, event.kind);
+  } catch (e) {
+    warnings.push(`Could not write the hook session record (${messageOf(e)})`);
+  }
+  try {
+    await args.body(event, warnings);
+  } catch (e) {
+    warnings.push(`Could not finish the ${eventName} hook (${messageOf(e)})`);
+  }
+  try {
+    await recordHookWarnings(localDir, event.session, eventName, at, warnings);
+  } catch (e) {
+    warnings.push(`Could not write the hook warnings record (${messageOf(e)})`);
+  }
+  return warnings;
+}
+
+const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
