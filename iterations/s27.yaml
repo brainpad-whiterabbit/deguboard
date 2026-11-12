@@ -2,5 +2,8 @@ id: s27
 project: default
 name: sprint27
 goal: VS Code 拡張を入れるだけで deguboard を始められるようにする（e22）。あわせて本文が消える不具合と Ask の小窓を直す
-status: active
+status: closed
 started_at: 2026-11-12T03:20:52Z
+closed_at: 2026-11-12T15:22:17Z
+completed: 35
+carried_over: 0
