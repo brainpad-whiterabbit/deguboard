@@ -24,6 +24,7 @@ import { dropRunning, peekRunningRuns, readRunningRuns, runAgentByTicket } from 
 import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store, WorkflowEntry } from "../storage/store.js";
+import { cyclePath, findPlanCycleCreatedBy } from "../storage/wait-cycle.js";
 import type { Facts } from "../workflow/conditions.js";
 import { canTransition, describeRejection, findConstraint } from "../workflow/resolve.js";
 import {
@@ -286,6 +287,25 @@ function resolveExistingDep(store: Store) {
   return (ref: string): TicketId => store.require("ticket", ref).data.id;
 }
 
+/**
+ * depends_on の書き込みが、開いた Plan の after と循環を作るなら拒否する（PL-3）。before は書く前の depends_on。
+ * 書く前から循環があったもの（直接の編集で壊れたデータ）は、この書き込みが作ったものではないので拒否しない（lint が指摘する）
+ */
+function rejectPlanWaitCycle(
+  store: Store,
+  ticket: TicketId,
+  dependsOn: readonly TicketId[],
+  before: readonly TicketId[],
+): void {
+  if (dependsOn.every((id) => before.includes(id))) return;
+  const cycle = findPlanCycleCreatedBy(store, ticket, before, dependsOn);
+  if (cycle)
+    throw new OperationError(
+      "REJECTED",
+      `depends_on would form a cycle with after in an open Plan: ${cyclePath(cycle, true)}. Remove that depends_on or change the after`,
+    );
+}
+
 function provisionalMarker(ctx: CommandContext) {
   return async (docs: Doc<Ticket> | Doc<Ticket>[]) => {
     for (const doc of Array.isArray(docs) ? docs : [docs])
@@ -307,6 +327,8 @@ export const ticketCreate = defineCommand({
       async () => {
         const data = buildTicket(ctx, input, resolveExistingDep(ctx.store));
         const id = ctx.store.nextId("ticket");
+        // 新しいチケットには入ってくる辺がないので、循環は作れない。作成と更新で同じ検査を通すために置く
+        rejectPlanWaitCycle(ctx.store, id, data["depends_on"] as TicketId[], []);
         const body = input.body ?? ticketBodyTemplate(input.summary, input.acceptance);
         return ctx.store.create("ticket", { id, ...data }, body);
       },
@@ -649,6 +671,7 @@ export const ticketUpdate = defineCommand({
           if (ids.includes(t.id) || wouldCreateCycle(store, t.id, ids)) {
             throw new OperationError("REJECTED", "This would create a dependency cycle");
           }
+          rejectPlanWaitCycle(store, t.id, ids, t.depends_on);
           patch["depends_on"] = ids;
         }
         if (input.fields) {

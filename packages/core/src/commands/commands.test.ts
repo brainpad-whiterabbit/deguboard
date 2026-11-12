@@ -28,6 +28,7 @@ import {
   fixture,
   initialized,
   runCleanups,
+  setDependsOn,
 } from "../../test/helpers/commands-context.js";
 
 afterEach(runCleanups);
@@ -511,8 +512,9 @@ describe("用意", () => {
     await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance });
     await runCommand(ticketCreate, ctx, { title: "B", summary: "s", acceptance });
     await runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t1: "t2" } });
-    // 作ったときは循環しないが、後から t2 が t1 を待つようにするとまたぐ循環になる（update は拒否しない）
-    await runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t1"] });
+    // 作ったときは循環しないが、後から t2 が t1 を待つようにするとまたぐ循環になる。dg の書き込みは拒否するので、直接の編集で作る
+    await setDependsOn(ctx, "t2", "[t1]");
+    await ctx.store.rescan();
     const l = await runCommand(lint, ctx, {});
     expect(l.data.issues.map((i) => [i.id, i.code, i.message])).toEqual([
       [
@@ -533,7 +535,8 @@ describe("用意", () => {
       acceptance,
       depends_on: ["t1"],
     });
-    await runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t3"] });
+    await setDependsOn(ctx, "t2", "[t3]");
+    await ctx.store.rescan();
     const outer = await runCommand(lint, ctx, {});
     expect(outer.data.issues.map((i) => i.message)).toEqual([
       "after and depends_on form a cycle: t1 →(after) t2 →(depends_on) t3 →(depends_on) t1",

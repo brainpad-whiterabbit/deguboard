@@ -16,7 +16,7 @@ import {
 } from "./plan.js";
 import { projectCreate } from "./project.js";
 import { configSet, lint } from "./setup.js";
-import { ticketCreate, ticketDelete, ticketMove, ticketShow } from "./ticket.js";
+import { ticketCreate, ticketDelete, ticketMove, ticketShow, ticketUpdate } from "./ticket.js";
 import {
   fixture,
   setDependsOn,
@@ -141,6 +141,41 @@ describe("Plan", () => {
     expect(ctx.store.plans.size).toBe(2);
   });
 
+  it("ticket の作成と更新は、開いた Plan の after と循環を作る depends_on を拒否し、何も書かない（PL-3）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
+    // t1 は after で t2 を待つ（t2 が先）
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t1: "t2" } });
+    // t2 が t1 を depends_on で待つと、Plan の中で循環する
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t1"] }),
+    ).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining(
+        "depends_on would form a cycle with after in an open Plan: t1 →(after) t2 →(depends_on) t1. Remove that depends_on or change the after",
+      ),
+    });
+    expect(ctx.store.require("ticket", "t2").data.depends_on).toEqual([]);
+    // Plan の外の t3 を回る循環も拒否する。t3 が t1 を待つだけなら循環しないので通る
+    await runCommand(ticketUpdate, ctx, { ticket: "t3", depends_on: ["t1"] });
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t3"] }),
+    ).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("t1 →(after) t2 →(depends_on) t3 →(depends_on) t1"),
+    });
+    // 新しいチケットは入ってくる辺がないので、Plan の中のチケットに待たせても拒否しない
+    await runCommand(ticketCreate, ctx, { title: "D", depends_on: ["t1"] });
+    // 終わったチケットは待たないので、そこを通る循環はできない
+    await runCommand(ticketMove, ctx, { ticket: "t3", status: "done" });
+    await runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t3"] });
+    // 閉じた Plan の待ちは循環の検査に入らない
+    await runCommand(planClose, ctx, { plan: "p1" });
+    await runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t1"] });
+    expect(ctx.store.require("ticket", "t2").data.depends_on).toEqual(["t1"]);
+  });
+
   it("create は after が空の Plan を、depends_on だけの循環があっても拒否しない", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
@@ -152,6 +187,25 @@ describe("Plan", () => {
     const created = await runCommand(planCreate, ctx, { tickets: ["t1", "t2"] });
     expect(created.data).toMatchObject({ id: "p1", tickets: ["t1", "t2"] });
     expect(ctx.store.plans.size).toBe(1);
+  });
+
+  it("depends_on の書き込みは、別の開いた Plan にすでにある壊れた循環に関係なく、その Plan に新しくできる循環を拒否する（PL-3）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B", "C", "D"]) await runCommand(ticketCreate, ctx, { title });
+    // p1 は t2 が after で t1 を待つ。直接の編集で t1 が t2 を depends_on で待つと、p1 の中で壊れた循環になる
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t2: "t1" } });
+    await setDependsOn(ctx, "t1", "[t2]");
+    await ctx.store.rescan();
+    // p2 は t4 が after で t3 を待つ。t3 が t4 を depends_on で待つと p2 の中に新しく循環ができるので、p1 の壊れた循環があっても拒否する
+    await runCommand(planCreate, ctx, { tickets: ["t3", "t4"], after: { t4: "t3" } });
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t3", depends_on: ["t4"] }),
+    ).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("t3 →(depends_on) t4 →(after) t3"),
+    });
+    expect(ctx.store.require("ticket", "t3").data.depends_on).toEqual([]);
   });
 
   it("create は after があっても、見つかる循環が after の辺を含まない（depends_on だけ）なら拒否しない", async () => {

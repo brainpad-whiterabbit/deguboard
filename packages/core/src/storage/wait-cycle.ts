@@ -1,6 +1,7 @@
-// 待ちの循環の検出。depends_on の循環（dg validate の integrity.ts）と、Plan の after の循環（plan.create と dg lint）が共有する
+// 待ちの循環の検出。depends_on の循環（dg validate の integrity.ts）と、Plan の after の循環（plan.create・ticket の書き込み・dg lint）が共有する
 
 import { isTerminal } from "../model/common.js";
+import type { TicketId } from "../model/id.js";
 import { pendingDeps } from "../model/ticket.js";
 import type { Store } from "./store.js";
 
@@ -72,12 +73,14 @@ export function cyclePath(cycle: WaitCycle, labeled: boolean): string {
 /**
  * after と depends_on を合わせた待ちの循環のうち、after の辺を含むものを返す（なければ undefined）。
  * depends_on は Plan の外の終わっていないチケットもたどる（外を回って戻る待ちも止まる）。
- * after の辺を含まない循環（depends_on だけ）は TK-2 と validate の担当なので返さない
+ * after の辺を含まない循環（depends_on だけ）は TK-2 と validate の担当なので返さない。
+ * override は書き込みの前に、あるチケットの depends_on をこの値にしたとして見る（findPlanCycleCreatedBy）
  */
 export function findCrossingCycle(
   store: Store,
   tickets: readonly string[],
   after: Readonly<Record<string, readonly string[] | undefined>>,
+  override?: { ticket: string; dependsOn: readonly TicketId[] },
 ): WaitCycle | undefined {
   if (Object.keys(after).length === 0) return undefined;
   // planReadiness（PL-6）と同じく、終わったチケットは待たず、終わったチケットからは辺を出さない。
@@ -92,7 +95,11 @@ export function findCrossingCycle(
     const afterEdges = (after[id] ?? [])
       .filter((to) => to !== id && tickets.includes(to) && live(to))
       .map((to): WaitEdge => ({ to, via: "after" }));
-    const deps = pendingDeps(t, (dep) => store.resolve("ticket", dep)?.data.status);
+    const dependsOn = override?.ticket === id ? override.dependsOn : t.depends_on;
+    const deps = pendingDeps(
+      { depends_on: [...dependsOn] },
+      (dep) => store.resolve("ticket", dep)?.data.status,
+    );
     return [
       ...afterEdges,
       ...deps
@@ -101,4 +108,26 @@ export function findCrossingCycle(
     ];
   });
   return crossing?.edges.some((e) => e.via === "after") ? crossing : undefined;
+}
+
+/**
+ * 作成・更新で ticket の depends_on を before から dependsOn に書いたとき、開いた Plan の after と新しく循環ができるなら、その循環を返す（PL-3）。
+ * ticket が Plan に入っているかは問わない（Plan の外のチケットを回る循環もある）。
+ * Plan ごとに、書いた後に循環があり、書く前の同じ Plan にはなかったものだけを見る。
+ * 別の Plan にすでにある壊れた循環は、この書き込みが作ったものではないので対象にしない（lint が指摘する）
+ */
+export function findPlanCycleCreatedBy(
+  store: Store,
+  ticket: TicketId,
+  before: readonly TicketId[],
+  dependsOn: readonly TicketId[],
+): WaitCycle | undefined {
+  for (const plan of store.plans.values()) {
+    if (plan.data.closed_at !== undefined) continue;
+    const { tickets, after } = plan.data;
+    const found = findCrossingCycle(store, tickets, after, { ticket, dependsOn });
+    if (found && !findCrossingCycle(store, tickets, after, { ticket, dependsOn: before }))
+      return found;
+  }
+  return undefined;
 }

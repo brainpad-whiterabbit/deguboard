@@ -160,6 +160,20 @@ describe("定義の検証（WF-3）", () => {
     ]);
   });
 
+  it("steps を書いたのに見直しの review がなければ警告し、steps を書かなければ警告しない", () => {
+    const without = validateWorkflow({ ...base, steps: [{ id: "implement" }] }, "x.yaml");
+    expect(without.issues.map((i) => [i.code, i.severity])).toEqual([
+      ["workflow_review_step_missing", "warning"],
+    ]);
+    // 警告は Workflow を止めない
+    expect(without.workflow).toBeDefined();
+    expect(
+      validateWorkflow({ ...base, steps: [{ id: "implement" }, { id: "review" }] }, "x.yaml")
+        .issues,
+    ).toEqual([]);
+    expect(validateWorkflow(base, "x.yaml").issues).toEqual([]);
+  });
+
   it("step の名前の形・空の steps・Action の名前の形は形の誤りになる", () => {
     for (const steps of [[{ id: "Implement" }], [], [{ id: "a", actions: ["Create PR"] }]]) {
       expect(validateWorkflow({ ...base, steps }, "x.yaml").issues.map((i) => i.code)).toEqual([
@@ -187,6 +201,7 @@ describe("定義の検証（WF-3）", () => {
         steps: [
           { id: "implement", opens_on: "claim" },
           { id: "draft", opens_on: "claim" },
+          { id: "review" },
         ],
       },
       "x.yaml",

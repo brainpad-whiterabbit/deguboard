@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { STATUSES } from "../model/common.js";
+import { REVIEW_STEP } from "../model/run.js";
 import { workflowDefinitionSchema, type WorkflowDefinition } from "../model/workflow.js";
 import type { Issue } from "../storage/issue.js";
 import { parseCondition } from "./conditions.js";
@@ -112,6 +113,14 @@ export function validateWorkflow(
         issue("workflow_action_unknown", `steps[${i}]: unknown Action ${action}`, "warning");
     }
   });
+  // steps を書いたのに見直しの step がないと、見直しの Run が拒否され、品質ゲートの見直しが通らない。警告にとどめる
+  if (def.steps && !def.steps.some((step) => step.id === REVIEW_STEP)) {
+    issue(
+      "workflow_review_step_missing",
+      `steps has no ${REVIEW_STEP} step. A ${REVIEW_STEP} Run is rejected without it, so a ticket at gate high cannot pass the quality gate`,
+      "warning",
+    );
+  }
 
   return { workflow: resolveWorkflow(def), definition: def, issues };
 }
