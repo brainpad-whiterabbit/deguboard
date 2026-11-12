@@ -28,19 +28,12 @@ describe("PATH の dg", () => {
     });
   });
 
-  it("ないときはインストールを案内し、メジャーが違えば知らせ、同じなら何も言わない（UI-11）", () => {
+  it("ないときは dg コマンドを勧め、メジャーが違えば知らせ、同じなら何も言わない（UI-11）", () => {
     expect(dgAdvice({ kind: "missing" }, "1.0.0")).toMatchObject({ level: "info" });
     const hint = dgAdvice({ kind: "missing" }, "1.0.0")?.text ?? "";
-    // npm に未公開の今でも従える手順（README の「Getting started before release」と clone してビルドする道）を出す
-    expect(hint).toContain(
-      "npm には未公開なので、今は README の「Getting started before release」",
-    );
-    expect(hint).toContain("のとおり clone してビルドし、dg を PATH に通す。");
-    // mise の案内は README と同じ -g 付きにする
-    expect(hint).toContain(
-      "公開後は npm i -g deguboard（mise なら mise use -g npm:deguboard）で入れる",
-    );
-    expect(hint).not.toMatch(/mise use npm:/);
+    // 手順は README を指さず、拡張のコマンドを勧める（コマンドパレットの題どおりに書く）
+    expect(hint).toContain("コマンドパレットで「deguboard: dg コマンドを入れる」を実行する");
+    expect(hint).not.toContain("README");
     expect(dgAdvice({ kind: "found", version: "2.0.1" }, "1.4.0")).toMatchObject({
       level: "warning",
     });

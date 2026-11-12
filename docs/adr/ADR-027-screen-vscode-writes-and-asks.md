@@ -32,6 +32,7 @@
 - node は VS Code のもの（拡張ホストの実行ファイル）を使い、利用者に Node.js を入れてもらわない
 - 拡張が複数あるとき（Insiders・Cursor など）は、版の新しい拡張が `current` を取る。行き先が消えていれば、版の古い拡張も書き直す
 - PATH の `dg` はないときと版のメジャーが同梱の `core` と違うときに知らせる（UI-11）
+- PATH へのリンク（`~/.local/bin/dg`）は「dg コマンドを入れる」の明示のコマンドだけが張り、拡張の起動では張らない。「外す」はリンクだけを外し、起動ファイルは残す（フックが使う）。拡張の片付け（vscode:uninstall）は、`current` がこの拡張を指すときだけ、リンクと起動ファイルと `current` を消す（ほかのものは残す）
 
 ### 画面から直接書くのはチケット詳細と設定画面と同期だけにする
 
@@ -66,7 +67,7 @@
 
 画面の並び・文言・タブ・札・キーの割り当て、依頼文の文の組み立てと形式の既定、ターミナルへの送り方、設定画面の書き分けと保存前の確かめ、各項目の範囲（scope）は、次のコードとテストが正本で、「なぜ」はそのコメントとテスト名にある。
 
-- 入口と構成：`packages/vscode/src/extension.ts`・`webview.ts`・`dg.ts`・`launcher.ts`（起動ファイルの中身と `current` の形・書き直す条件）・`packages/web/src/main.tsx`・`host.tsx`・`client/webview.ts`・`client/http.ts`・`styles.css`・`packages/core/src/commands/client.ts`・`local.ts`・`packages/cli/src/serve.ts`
+- 入口と構成：`packages/vscode/src/extension.ts`・`webview.ts`・`dg.ts`・`launcher.ts`（起動ファイルの中身と `current` の形・書き直す条件）・`uninstall.ts`（片付けの入口）・`packages/web/src/main.tsx`・`host.tsx`・`client/webview.ts`・`client/http.ts`・`styles.css`・`packages/core/src/commands/client.ts`・`local.ts`・`packages/cli/src/serve.ts`
 - 書き込みの範囲と設定：`packages/web/src/write-commands.test.ts`・`pages/ticket.tsx`・`components/ticket-props-panel.tsx`・`pages/config.tsx`・`packages/core/src/model/config.ts`・`packages/core/src/git/write.ts`
 - 依頼と入口：`packages/core/src/commands/ask.ts`（`ask`・`ask-menu`・`SKILL_SUMMARY`）・`packages/web/src/components/ask-menu.tsx`・`ask-composer.tsx`・`row-nav.tsx`・`packages/vscode/src/terminals.ts`・`context-menu.ts`
 - テスト：`packages/core/src/commands/ask.test.ts`・`client.test.ts`・`local.test.ts`・`packages/web/src/app.test.tsx`・`pages/config.test.tsx`・`components/ask-menu.test.tsx`・`ask-composer.test.tsx`・`packages/vscode/src/terminals.test.ts`・`context-menu.test.ts`・`dg.test.ts`・`launcher.test.ts`・`test/layout/`
@@ -100,6 +101,7 @@
 - **VS Code 拡張もローカルサーバー経由にする**：ポートの衝突と起動順の問題が増える
 - **拡張が `core` を同梱せず、`dg` を子プロセスで呼ぶ**：`dg` がないと画面が動かなくなる
 - **`dg` を npm に公開して入れてもらう**：利用者に Node.js と npm を求め、拡張と CLI の版が別々にずれる
+- **拡張の起動のたびに PATH のリンクを自動で張る**：利用者の PATH に黙って置くことになり、外すタイミングも決めにくい
 - **拡張が環境変数で PATH に同梱の `dg` を足す**：PATH の注入は統合ターミナルにしか効かず、Claude Code の拡張が起動する `claude` に届かない
 - **外から拡張のフォルダの `dg.mjs` を直接指す**：フォルダは版付きで、更新のたびにフックやリンクが切れる
 - **最後に起動した拡張が `current` を取る**：版の古い拡張のウィンドウを開くと CLI が古い版に戻る

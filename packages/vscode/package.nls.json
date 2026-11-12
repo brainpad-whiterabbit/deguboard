@@ -7,6 +7,8 @@
   "command.askInSidebar.title": "Ask Agent",
   "command.openDetail.title": "Open Details",
   "command.copyId.title": "Copy ID",
+  "command.installDg.title": "Install dg command",
+  "command.uninstallDg.title": "Uninstall dg command",
   "walkthrough.start.title": "Get Started with deguboard",
   "walkthrough.start.description": "From initializing a repository to creating a ticket and asking an agent to work on it.",
   "walkthrough.start.init.title": "Initialize the repository",
