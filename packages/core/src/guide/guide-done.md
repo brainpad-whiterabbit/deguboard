@@ -27,7 +27,7 @@ Cleanup after a PR is merged. Work that needs no PR advances to done within `dg 
 
 ## Closing a Plan
 
-- When all tickets of a Plan are finished (done or abandoned), close it with `dg --json --actor agent plan close <p>`. Progress is not written to the Plan, so this is the only time to close it
+- When all tickets of a Plan are finished (done or abandoned), close it with `dg --json --actor agent plan close <p>`. No approval is needed, and the flow in `dg guide all` closes it the same way. Progress is not written to the Plan, so this is the only time to close it
 - When rebuilding a plan without finishing it (the order or scope changed, or tickets were added or removed), also close it with `plan close <p>`, make it again by the steps of `dg guide plan`, and get human approval again. If tickets remain, `warnings` shows them, but it still closes. Until it is closed, the remaining tickets cannot go into a new Plan
 
 ## When not finished

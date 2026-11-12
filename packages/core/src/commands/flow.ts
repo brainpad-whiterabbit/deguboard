@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { UsageError } from "../errors.js";
 import { composeGuide } from "../guide/guide.js";
-import { isTerminal } from "../model/common.js";
+import { isFinishedSet, isTerminal } from "../model/common.js";
 import { FLOW_SKIPS } from "../model/config.js";
 import { compareIds, parseId, type IterationId } from "../model/id.js";
 import { GATE_LEVELS, gateLevelOf, type GateLevel, type Ticket } from "../model/ticket.js";
@@ -14,8 +14,11 @@ import type { Store } from "../storage/store.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { agentDg as dg, sortedDocs, ticketsInIteration } from "./helpers.js";
 
-/** 流れの段階。飛ばせる段階（config の flow.skip）に、規則 8（どれにも当たらない）と同じ段階が事実も変わらずに続いたときの stop を足す */
-export const FLOW_STAGES = [...FLOW_SKIPS, "stop"] as const;
+/**
+ * 流れの段階。飛ばせる段階（config の flow.skip）に、終わった Plan を閉じる close（規則 4 の一部で、飛ばせない）と、
+ * 規則 8（どれにも当たらない）と同じ段階が事実も変わらずに続いたときの stop を足す
+ */
+export const FLOW_STAGES = [...FLOW_SKIPS, "close", "stop"] as const;
 export type FlowStageName = (typeof FLOW_STAGES)[number];
 
 /** この実行で終えたこと（会話の中にしかない事実）。resume が運ぶ */
@@ -55,8 +58,11 @@ export interface FlowFacts {
   auditLabeled: boolean;
   /** 対象のチケットを含む承認待ちの Plan（番号順） */
   pendingPlans: readonly { id: string; tickets: readonly string[] }[];
-  /** 対象のチケットを含む承認済みの開いた Plan と、その終わっていないチケット（番号順） */
-  approvedPlans: readonly { id: string; unfinished: readonly string[] }[];
+  /**
+   * 対象のチケットを含む承認済みの開いた Plan（番号順）。unfinished は終わっていないチケット、
+   * finished は Plan のチケットが「終わった」（isFinishedSet）こと。終わったものは規則 4 で閉じる
+   */
+  approvedPlans: readonly { id: string; unfinished: readonly string[]; finished: boolean }[];
   /** 対象のうち、開いた Plan に入っていない todo */
   unplanned: readonly string[];
   /** --no-assign */
@@ -80,8 +86,7 @@ export function isAudited(facts: Pick<FlowFacts, "auditLabeled">, memory: FlowMe
   return facts.auditLabeled || memory.audited;
 }
 
-const allFinished = (tickets: readonly FlowTicket[]) =>
-  tickets.length > 0 && tickets.every((t) => isTerminal(t.status));
+const allFinished = (tickets: readonly FlowTicket[]) => isFinishedSet(tickets.map((t) => t.status));
 
 /**
  * 事実とこの実行で終えたことから、8 つの規則（--help に並べた順）で最初に当たる段階を求める（純粋関数）。
@@ -129,6 +134,16 @@ export function flowStageOf(
       `The approved Plan ${working.id} has ${working.unfinished.length} unfinished tickets`,
       working.unfinished,
       working.id,
+    );
+  // 終わった承認済みの Plan は閉じる（規則 4 の一部）。閉じると規則 5 の計画に進める
+  const finishedPlan = skipped("work") ? undefined : facts.approvedPlans.find((p) => p.finished);
+  if (finishedPlan)
+    return at(
+      "close",
+      4,
+      `The approved Plan ${finishedPlan.id} is finished (every ticket is done or abandoned), so it is closed`,
+      [],
+      finishedPlan.id,
     );
   if (!skipped("plan") && facts.unplanned.length > 0)
     return at(
@@ -273,6 +288,7 @@ export const FLOW_GUIDE: Record<FlowStageName, FlowGuideRef> = {
       "Filing tickets",
     ],
   },
+  close: { topic: "done", sections: ["Closing a Plan"] },
   release: { topic: "release", sections: ["Release steps", "When there are no release steps"] },
   stop: { topic: "all", sections: ["Choosing the next step"] },
 };
@@ -338,6 +354,8 @@ export function approvalOf(
       return choose("audit", "Findings table", 'Findings table (apply all except "won\'t fix")');
     case "release":
       return ask("Merging the release PR, publishing, and closing");
+    // 終わった Plan を閉じるのは人の判断に入れない（終わった状態を記録するだけで、チケットは変わらない）
+    case "close":
     case "stop":
       return { required: false, what: null, auto: null, auto_ok: false };
   }
@@ -377,6 +395,8 @@ function commandsOf(
       return [dg(`ticket list --label audit-${s}`)];
     case "release":
       return [dg(`iteration show ${s}`)];
+    case "close":
+      return stage.plan ? [dg(`plan close ${stage.plan}`)] : [];
     case "stop":
       return [];
   }
@@ -487,6 +507,7 @@ export function flowFactsOf(
           const st = statusOf(id);
           return st !== undefined && !isTerminal(st);
         }),
+        finished: isFinishedSet(p.data.tickets.map(statusOf)),
       })),
     unplanned: target.tickets
       .filter((t) => t.status === "todo" && !inOpenPlan.has(t.id))
@@ -545,10 +566,10 @@ export const flowNext = defineCommand({
   positionals: ["targets"],
   group: "flow",
   summary:
-    "Return the current stage of the Iteration flow (assign → check → plan → work → audit → release) and the next step. " +
+    "Return the current stage of the Iteration flow (assign → check → plan → work → audit → release, with close inside the work rule) and the next step. " +
     "The target is one Iteration, one Plan, or one or more tickets. The stage is the first of these eight rules that applies, in order " +
     "(1 assign: assignment is not finished in this run, <S> is not audited, some todo is neither labeled audit-<S> nor in an Iteration, and --no-assign is not given / " +
-    "2 check: not yet checked in this run / 3 plan: an approval-waiting Plan includes the target / 4 work: an approved Plan that includes the target has unfinished tickets / " +
+    "2 check: not yet checked in this run / 3 plan: an approval-waiting Plan includes the target / 4 work: an approved Plan that includes the target has unfinished tickets, and if none, an approved open Plan that includes the target is finished (close: plan close) / " +
     "5 plan: an open Plan does not include some todo / 6 audit: all tickets of <S> are done or abandoned but not yet audited / 7 release: the same, and audited / 8 stop. If <S> is closed, nothing is assigned, and the flow stops as finished before 6 and 7). " +
     "Audited means a ticket with the label audit-<S> exists, or the audit was finished in this run. For a ticket or Plan target, <S> is the ticket's Iteration (only when it is a single one), and audit and release apply only when all tickets in that Iteration are finished. " +
     "Passing the returned resume to --resume in the next call marks the assignment, check, and audit that it returned as finished, and skips them. If resume is missing, unreadable, or for a different target, it starts again from assign and check. " +

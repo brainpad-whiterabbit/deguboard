@@ -20,7 +20,7 @@ import {
   type FlowStageName,
 } from "./flow.js";
 import { iterationAdd, iterationClose, iterationCreate } from "./iteration.js";
-import { planApprove, planCreate } from "./plan.js";
+import { planApprove, planClose, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
 import { configSet, init } from "./setup.js";
 import { ticketCreate, ticketMove } from "./ticket.js";
@@ -80,7 +80,7 @@ describe("flowStageOf（流れの 8 つの規則）", () => {
   it("規則 3 計画：対象を含む承認待ちの Plan があれば、その Plan の承認を得る（承認済みの Plan より先）", () => {
     const f = facts({
       pendingPlans: [{ id: "p2", tickets: ["t1"] }],
-      approvedPlans: [{ id: "p1", unfinished: ["t3"] }],
+      approvedPlans: [{ id: "p1", unfinished: ["t3"], finished: false }],
     });
     expect(flowStageOf(f, checked)).toMatchObject({
       name: "plan",
@@ -93,8 +93,8 @@ describe("flowStageOf（流れの 8 つの規則）", () => {
   it("規則 4 作業：承認済みの Plan に終わっていないチケットがあれば作業。終わったものだけの Plan は飛ばす", () => {
     const f = facts({
       approvedPlans: [
-        { id: "p1", unfinished: [] },
-        { id: "p3", unfinished: ["t1"] },
+        { id: "p1", unfinished: [], finished: true },
+        { id: "p3", unfinished: ["t1"], finished: false },
       ],
       unplanned: ["t4"],
     });
@@ -104,6 +104,31 @@ describe("flowStageOf（流れの 8 つの規則）", () => {
       plan: "p3",
       tickets: ["t1"],
     });
+  });
+
+  it("規則 4 閉じる：承認済みの開いた Plan が終わっていれば（すべて done か abandoned）閉じる。作業の段階より後で、計画より先", () => {
+    const f = facts({
+      approvedPlans: [{ id: "p1", unfinished: [], finished: true }],
+      unplanned: ["t4"],
+    });
+    expect(flowStageOf(f, checked)).toMatchObject({
+      name: "close",
+      rule: 4,
+      plan: "p1",
+      tickets: [],
+    });
+    // 作業が残る Plan があれば、終わった Plan を閉じるより先に作業
+    const both = facts({
+      approvedPlans: [
+        { id: "p1", unfinished: [], finished: true },
+        { id: "p3", unfinished: ["t1"], finished: false },
+      ],
+    });
+    expect(flowStageOf(both, checked).name).toBe("work");
+    // 閉じたあとは規則 5 の計画へ進む
+    expect(flowStageOf({ ...f, approvedPlans: [] }, checked).name).toBe("plan");
+    // work を飛ばすと、閉じる手も返さない（閉じるのは作業の規則の一部）
+    expect(flowStageOf(f, checked, ["work"]).name).toBe("plan");
   });
 
   it("規則 5 計画：開いた Plan に入っていない todo があれば計画（Plan はまだない）", () => {
@@ -186,7 +211,7 @@ describe("flowStageOf の flow.skip（飛ばした段階は返さない）", () 
     const pending = facts({ pendingPlans: [{ id: "p1", tickets: ["t1"] }] });
     expect(flowStageOf(pending, checked).name).toBe("plan");
     expect(flowStageOf(pending, checked, ["plan"]).name).toBe("stop");
-    const working = facts({ approvedPlans: [{ id: "p1", unfinished: ["t1"] }] });
+    const working = facts({ approvedPlans: [{ id: "p1", unfinished: ["t1"], finished: false }] });
     expect(flowStageOf(working, checked).name).toBe("work");
     expect(flowStageOf(working, checked, ["work"]).name).toBe("stop");
   });
@@ -426,7 +451,15 @@ describe("dg flow next", () => {
     expect(work.guide.text).toContain("return to `flow next`");
 
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
-    const audit = await flow(ctx, { resume: work.resume });
+    // 承認済みの Plan のチケットがすべて終わったので、見直しより先に Plan を閉じる（承認は求めない）
+    const closing = await flow(ctx, { resume: work.resume });
+    expect(closing).toMatchObject({
+      stage: { name: "close", rule: 4, plan: "p1" },
+      commands: ["dg --json --actor agent plan close p1"],
+      approval: { required: false },
+    });
+    await runCommand(planClose, ctx, { plan: "p1" });
+    const audit = await flow(ctx, { resume: closing.resume });
     expect(audit.stage).toMatchObject({ name: "audit", rule: 6 });
     const release = await flow(ctx, { resume: audit.resume });
     expect(release).toMatchObject({

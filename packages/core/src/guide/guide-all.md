@@ -31,9 +31,11 @@ The order of stages and the current stage are decided by `dg flow next`. Approva
 | Audit   | Table of findings                            |
 | Release | Merge of the release PR, publishing, closing |
 
+Closing a Plan whose tickets are all finished is part of the Work stage. It needs no approval, so the flow closes it and goes on (the steps are in "Closing a Plan" of `dg guide done`).
+
 ## Running the flow
 
-1. Call `dg --json --actor agent flow next <target…>` when starting, and after finishing each stage (add `--auto` and `--no-assign` if given, and `--gate <level>` for `--gate-<level>`). In the result, `stage.name` is the current stage (`assign`, `check`, `plan`, `work`, `audit`, `release`, or `stop`); `commands` are the dg commands to call (in order); `guide.text` is how to do the stage (the sections in `guide.sections` joined in order, including all the sections of the same topic that the step section points to, and for work the parallel steps after them); and `approval` is whether approval is needed and where
+1. Call `dg --json --actor agent flow next <target…>` when starting, and after finishing each stage (add `--auto` and `--no-assign` if given, and `--gate <level>` for `--gate-<level>`). In the result, `stage.name` is the current stage (`assign`, `check`, `plan`, `work`, `close`, `audit`, `release`, or `stop`; `close` is the Plan closing above); `commands` are the dg commands to call (in order); `guide.text` is how to do the stage (the sections in `guide.sections` joined in order, including all the sections of the same topic that the step section points to, and for work the parallel steps after them); and `approval` is whether approval is needed and where
 2. Do the stage's step. Run `commands` in order, and follow `guide.text` (to read it again, use `guide.command`; for work it is two `dg guide` calls joined by `&&`, so read both in order). Do not read the whole guide of the stage's topic again. Read a section of another topic only when `guide.text` points to it (the "…" section of `dg guide <topic>`)
    - `work` follows `dg guide work`. Its `guide.text` includes the parallel steps (`dg guide parallel`), which apply when `ready` of `plan show` has two or more tickets and subagents can be started. The parent only advances, asks for approval, and reads and writes `dg`
    - For `release`, if the repository's rules have no release steps, follow the "When there are no release steps" section of `guide.text`
@@ -57,7 +59,7 @@ With `--auto`, the flow proceeds without asking only in the following two cases.
 Merges and decisions a human makes are handled as follows.
 
 - **A PR is merged** only when `auto.merge` (current setting: `{{auto.merge}}`) is true, and only a PR that meets the "Quality gate" section of `dg guide review` is merged with `dg --json --actor agent pr merge <id>`. Leave out `--method` and `--delete-branch`, so that config's `merge.method` and `merge.delete_branch` (current settings: `{{merge.method}}` and `{{merge.delete_branch}}`) decide the method and whether the branch is deleted. If the PR does not meet the gate, show the conditions it did not meet, ask for approval, and stop
-- **Decisions a human makes are asked, and the flow stops, regardless of config**: merging and publishing the release PR (tags and destinations); deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic, Iteration, or Plan; merging when `auto.merge` is false; changing a Plan's waits (`after`) and scope; operations with `--force`; decisions with no suggested option; and answers that cannot be a choice
+- **Decisions a human makes are asked, and the flow stops, regardless of config**: merging and publishing the release PR (tags and destinations); deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic or Iteration; merging when `auto.merge` is false; changing a Plan's waits (`after`) and scope; operations with `--force`; decisions with no suggested option; and answers that cannot be a choice
 
 ## Reporting the result
 

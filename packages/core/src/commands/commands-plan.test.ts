@@ -15,7 +15,7 @@ import {
   type ReadinessTicket,
 } from "./plan.js";
 import { projectCreate } from "./project.js";
-import { configSet } from "./setup.js";
+import { configSet, lint } from "./setup.js";
 import { ticketCreate, ticketDelete, ticketMove, ticketShow } from "./ticket.js";
 import {
   fixture,
@@ -320,6 +320,27 @@ describe("Plan", () => {
       ["t5", []],
       ["t6", ["t3"]],
     ]);
+  });
+
+  it("終わったかの判定は消したチケットを数えず、abandoned だけの Plan も終わったものとして lint が指摘する（表で比べる）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    // p1：done と消したチケット / p2：abandoned だけ / p3：消したチケットだけ / p4：done と未完了
+    for (const title of ["A", "B", "C", "D", "E", "F"])
+      await runCommand(ticketCreate, ctx, { title });
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2"] });
+    await runCommand(planCreate, ctx, { tickets: ["t3"] });
+    await runCommand(planCreate, ctx, { tickets: ["t4"] });
+    await runCommand(planCreate, ctx, { tickets: ["t5", "t6"] });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketDelete, ctx, { ticket: "t2" });
+    await runCommand(ticketMove, ctx, { ticket: "t3", status: "abandoned" });
+    await runCommand(ticketDelete, ctx, { ticket: "t4" });
+    await runCommand(ticketMove, ctx, { ticket: "t5", status: "done" });
+    const l = await runCommand(lint, ctx, {});
+    expect(
+      l.data.issues.filter((i) => i.code === "lint_plan_finished_open").map((i) => i.id),
+    ).toEqual(["p1", "p2"]);
   });
 
   it("after が Plan の外を指しても待たず、閉じた Plan は着手できるものも次も出さない（PL-6）", () => {
