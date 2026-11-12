@@ -169,6 +169,44 @@ describe("仮番号の振り直し（renumberProvisional、--resolve なしの s
     });
   });
 
+  it("dg sync で仮番号を振り直した周回に同じ status の時刻が自動で解けたら、data.resolved と警告に採った値と捨てた値を出す", async () => {
+    const { a, b } = await collidedWithA();
+    // a が t1 を遅い時刻で完了にして push する
+    await withWrite(
+      a,
+      () => a.store.update("ticket", "t1", { status: "done", closed_at: "2026-11-01T00:00:09Z" }),
+      { message: "t1 を完了にする", immediate: true },
+    );
+    // b は未コミットのまま t1 を早い時刻で完了にする（batch なので sync が仮番号の t2 と一緒に 1 コミットにする）
+    await withWrite(
+      b,
+      () => b.store.update("ticket", "t1", { status: "done", closed_at: "2026-11-01T00:00:05Z" }),
+      { message: "t1 を完了にする" },
+    );
+
+    const synced = await runCommand(sync, b, {});
+    expect(synced.data.renumbered).toEqual([{ from: "t2", to: "t3" }]);
+    expect(synced.data.conflicts).toEqual([]);
+    expect(synced.data.resolved).toEqual([
+      {
+        file: "tickets/t1.md",
+        field: "closed_at",
+        taken: "2026-11-01T00:00:05Z",
+        discarded: "2026-11-01T00:00:09Z",
+        auto: true,
+      },
+    ]);
+    expect(synced.warnings.join("\n")).toContain(
+      'Resolved automatically, not a conflict (both sides have the same status and differ only in the time that goes with it, so the earlier time is taken; full values in data.resolved): tickets/t1.md closed_at (taken "2026-11-01T00:00:05Z", discarded "2026-11-01T00:00:09Z").',
+    );
+    expect(synced.warnings.join("\n")).not.toContain("Conflicts with remote changes");
+    expect(synced.data.pushed).toBe(true);
+    expect(b.store.tickets.get("t1")?.data).toMatchObject({
+      status: "done",
+      closed_at: "2026-11-01T00:00:05Z",
+    });
+  });
+
   it("仮番号の衝突でない競合があれば null を返し、何も変えない", async () => {
     const b = await collided();
     const head = (await git(b.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();

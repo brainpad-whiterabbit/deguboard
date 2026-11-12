@@ -328,6 +328,15 @@ describe("frontmatter の 3-way マージ", () => {
         doc({ ...BASE, status: "done" }),
       ),
     ).toMatchObject({ ok: false, conflicts: ["closed_at"] });
+    // 両側とも status がないと、同じ status とはみなさず、時刻だけ違っても競合のまま（status の有無は見ない）
+    const noStatus = doc(BASE);
+    expect(
+      await mergeDocuments(
+        noStatus,
+        doc({ ...BASE, closed_at: "2026-11-01T00:00:09Z" }),
+        doc({ ...BASE, closed_at: "2026-11-01T00:00:05Z" }),
+      ),
+    ).toMatchObject({ ok: false, conflicts: ["closed_at"] });
   });
 
   it("採る側を渡したときは、同じ status の時刻の規則を使わず、その側を採る（人が選んだ解き方）", async () => {
