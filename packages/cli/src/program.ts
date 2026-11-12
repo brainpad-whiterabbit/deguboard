@@ -83,6 +83,8 @@ export interface ProgramOptions {
   stdio?: { stdin: Readable; stdout: Writable } | undefined;
   /** マージドライバとして登録するコマンド。省略時は selfMergeDriver() */
   mergeDriver?: readonly string[];
+  /** 先に読んだ標準入力の全体（bin/dg.js の速い経路が受け持たなかったとき。t768）。あれば - はこれを読む */
+  stdinText?: string | undefined;
 }
 
 const GROUP_SUMMARY: Record<string, string> = {
@@ -467,15 +469,17 @@ export function buildProgram(options: ProgramOptions = {}): Command {
 
       let result: CommandResult<unknown>;
       try {
+        const stdin = () =>
+          options.stdinText !== undefined ? Promise.resolve(options.stdinText) : readStdin();
         if (fileField) {
           const file = positionals[bound.positionals.length] as string;
-          input[fileField.key] = await readText(file, cwd);
+          input[fileField.key] = await readText(file, cwd, stdin);
         }
         // ファイルから読む値（workflow set の --file）。パスを中身に置き換える
         for (const shape of bound.options) {
           const file = input[shape.key];
           if (shape.kind === "file" && typeof file === "string")
-            input[shape.key] = await readYamlFile(file, cwd);
+            input[shape.key] = await readYamlFile(file, cwd, stdin);
         }
         // 入力がコマンドの storeless を満たせば（dg hook の PreToolUse）、ストアを開かない
         const ctx = await openContextFor(def, input, {
@@ -511,19 +515,23 @@ export function buildProgram(options: ProgramOptions = {}): Command {
 }
 
 /** ファイル（- で標準入力）の中身を文字列で読む。読めなければ使い方の誤り。中身の検査は core の命令が行う */
-async function readText(file: string, cwd: string): Promise<string> {
+async function readText(file: string, cwd: string, stdin: () => Promise<string>): Promise<string> {
   try {
-    return file === "-" ? await readStdin() : await readFile(resolve(cwd, file), "utf8");
+    return file === "-" ? await stdin() : await readFile(resolve(cwd, file), "utf8");
   } catch (error) {
     throw new UsageError(`Cannot read ${file}`, String(error));
   }
 }
 
 /** YAML か JSON のファイル（- で標準入力）を読む。読めなければ使い方の誤り */
-async function readYamlFile(file: string, cwd: string): Promise<unknown> {
+async function readYamlFile(
+  file: string,
+  cwd: string,
+  stdin: () => Promise<string>,
+): Promise<unknown> {
   let text: string;
   try {
-    text = file === "-" ? await readStdin() : await readFile(resolve(cwd, file), "utf8");
+    text = file === "-" ? await stdin() : await readFile(resolve(cwd, file), "utf8");
   } catch (error) {
     throw new UsageError(`Cannot read ${file}`, String(error));
   }

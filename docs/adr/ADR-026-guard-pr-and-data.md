@@ -41,7 +41,7 @@ PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だ�
 止める語と除く形・gh や git の引数・検査の条件と確かめない場面・基準の形・拒む文と戻し方は、次のコードとテストが正本で、「なぜ」はそのコメントとテスト名にある。
 
 - `packages/core/src/commands/pr.ts`（`dg pr ready`・`dg pr merge`）・`packages/core/src/commands/gate.ts`（`judgeGate`）
-- `packages/core/src/commands/hook.ts`（`advancesPrOutsideDg`・`touchesDataDir`・`toolRequested`・`turnStopped`）
+- `packages/core/src/commands/pre-tool-use.ts`（`advancesPrOutsideDg`・`touchesDataDir`・`toolDenyReason`）・`packages/core/src/commands/hook.ts`（`turnStopped`）
 - `packages/core/src/git/outside.ts`（基準と比べ方・戻し方）・`packages/core/src/git/write.ts`（`withWriteLock`）・`packages/core/src/commands/define.ts`（`runCommand` の検査）
 - `packages/core/src/commands/pr.test.ts`・`gate.test.ts`・`hook.test.ts` の「PreToolUse」・`packages/core/src/git/outside.test.ts`
 

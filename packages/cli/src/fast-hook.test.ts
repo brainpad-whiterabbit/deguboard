@@ -1,0 +1,254 @@
+import { mkdtemp, readdir, readFile, realpath, rm } from "node:fs/promises";
+import { builtinModules } from "node:module";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterEach, describe, expect, it } from "vitest";
+import { hookArgv, hooksOf, resolveRepoPaths } from "@deguboard/core";
+import { isFastHookArgv } from "@deguboard/core/fast-hook";
+import { createFixture, createFixtureFrom } from "../../core/test/helpers/git-fixture.js";
+import { tryFastHook } from "./fast-hook.js";
+import { installHooks } from "./hooks.js";
+import { run } from "./program.js";
+import {
+  DEFAULT_HOOK_AGENT,
+  DEFAULT_TOOL_EVENT,
+  defaultHookSupport,
+} from "../../core/src/agents/fast-hooks.js";
+
+const cleanups: Array<() => Promise<void>> = [];
+afterEach(async () => {
+  await Promise.all(cleanups.splice(0).map((c) => c()));
+});
+
+const ARGV = hookArgv("claude-code", "PreToolUse");
+const SESSION = "s-fast";
+
+async function initialized(): Promise<string> {
+  const f = await createFixtureFrom("fast-hook-init", async (l) => {
+    const code = await run(["init", "--template", "software-development"], {
+      cwd: l.cloneA,
+      env: {},
+      streams: { out: () => undefined, err: () => undefined },
+    });
+    if (code !== 0) throw new Error("dg init に失敗した");
+  });
+  cleanups.push(f.cleanup);
+  return f.cloneA;
+}
+
+async function uninitialized(): Promise<string> {
+  const f = await createFixture();
+  cleanups.push(f.cleanup);
+  return f.cloneA;
+}
+
+async function outsideGit(): Promise<string> {
+  const dir = await realpath(await mkdtemp(path.join(os.tmpdir(), "deguboard-nogit-")));
+  cleanups.push(() => rm(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+interface Ran {
+  code: number;
+  out: string[];
+  err: string[];
+  /** 記録（hook-inputs・hook-sessions）のファイル名と中身。時刻は伏せる */
+  records: Record<string, string>;
+  /** 速い経路が受け持ったか（今の経路では undefined） */
+  handled?: boolean;
+}
+
+const ISO = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/g;
+
+/** deguboard-local の hook-inputs と hook-sessions を読み、読んだら消す（次の経路が初めから書く） */
+async function takeRecords(cwd: string): Promise<Record<string, string>> {
+  const paths = await resolveRepoPaths(cwd).catch(() => undefined);
+  if (!paths) return {};
+  const out: Record<string, string> = {};
+  for (const sub of ["hook-inputs", "hook-sessions"]) {
+    const dir = path.join(paths.localDir, sub);
+    for (const name of await readdir(dir).catch(() => [] as string[]))
+      out[`${sub}/${name}`] = (await readFile(path.join(dir, name), "utf8")).replace(ISO, "<time>");
+    await rm(dir, { recursive: true, force: true });
+  }
+  return out;
+}
+
+/** bin/dg.js と同じ順に動かす：速い経路を試し、受け持たなければ読んだ標準入力を添えて main（run）に回す */
+async function viaDgJs(cwd: string, stdin: string): Promise<Ran> {
+  const out: string[] = [];
+  const err: string[] = [];
+  const streams = { out: (t: string) => out.push(t), err: (t: string) => err.push(t) };
+  const fast = await tryFastHook(ARGV, {
+    stdin: async () => stdin,
+    cwd,
+    env: {},
+    out: streams.out,
+    err: streams.err,
+  });
+  const code = fast.handled
+    ? fast.exitCode
+    : await run(ARGV, {
+        cwd,
+        env: {},
+        streams,
+        ...(fast.stdin !== undefined ? { stdinText: fast.stdin } : {}),
+      });
+  return { code, out, err, records: await takeRecords(cwd), handled: fast.handled };
+}
+
+/** 今の経路（CLI の全体を読む main） */
+async function viaMain(cwd: string, stdin: string): Promise<Ran> {
+  const out: string[] = [];
+  const err: string[] = [];
+  const code = await run(ARGV, {
+    cwd,
+    env: {},
+    stdinText: stdin,
+    streams: { out: (t) => out.push(t), err: (t) => err.push(t) },
+  });
+  return { code, out, err, records: await takeRecords(cwd) };
+}
+
+const payload = (cwd: string, tool: string, input: Record<string, unknown>) =>
+  JSON.stringify({ session_id: SESSION, tool_name: tool, tool_input: input, cwd });
+
+async function compare(cwd: string, stdin: string): Promise<Ran> {
+  await takeRecords(cwd);
+  const fast = await viaDgJs(cwd, stdin);
+  const main = await viaMain(cwd, stdin);
+  const { handled: _handled, ...rest } = fast;
+  expect(rest).toEqual(main);
+  expect(fast.code).toBe(0);
+  return fast;
+}
+
+describe("PreToolUse の速い経路（bin/dg.js。t768）", () => {
+  it("拒む Bash・拒む書き込み・通す Bash・gh pr merge は速い経路が受け持ち、標準出力・標準エラー・終了コード・記録が今の経路と同じ", async () => {
+    const cwd = await initialized();
+    const { dataDir } = await resolveRepoPaths(cwd);
+    const cases: Array<[string, string, boolean]> = [
+      ["拒む Bash", payload(cwd, "Bash", { command: "cat .git/deguboard/tickets/t1.md" }), true],
+      [
+        "拒む書き込み",
+        payload(cwd, "Write", { file_path: path.join(dataDir, "tickets", "t1.md") }),
+        true,
+      ],
+      ["通す Bash", payload(cwd, "Bash", { command: "ls" }), false],
+      ["gh pr merge", payload(cwd, "Bash", { command: "gh pr merge 5 --squash" }), true],
+    ];
+    for (const [name, stdin, denied] of cases) {
+      const r = await compare(cwd, stdin);
+      expect(r.handled, name).toBe(true);
+      expect(r.out.length, name).toBe(denied ? 1 : 0);
+      if (denied) expect(JSON.parse(r.out[0]!).hookSpecificOutput.permissionDecision).toBe("deny");
+      // 入力の項目の有無と、セッションに届いたこと・届いた種類を残す
+      expect(Object.keys(r.records).sort(), name).toEqual([
+        "hook-inputs/PreToolUse.json",
+        `hook-sessions/${SESSION}.json`,
+        `hook-sessions/${SESSION}.kind-tool_requested.json`,
+      ]);
+    }
+  });
+
+  it("初期化していない・git の外・JSON でない・別のツール・オブジェクトでない入力は今の経路に回し、結果は今の経路と同じ", async () => {
+    const init = await initialized();
+    const cases: Array<[string, string, string]> = [
+      [
+        "初期化していない",
+        await uninitialized(),
+        payload("/x", "Bash", { command: "gh pr merge 5" }),
+      ],
+      ["git の外", await outsideGit(), payload("/x", "Bash", { command: "gh pr merge 5" })],
+      ["JSON でない", init, "tool_name: Bash\nsession_id: s-yaml\n"],
+      ["別のツール", init, payload(init, "Read", { file_path: "/etc/hosts" })],
+      ["オブジェクトでない", init, "[1, 2]"],
+    ];
+    for (const [name, cwd, stdin] of cases) {
+      const r = await compare(cwd, stdin);
+      expect(r.handled, name).toBe(false);
+      expect(r.out, name).toEqual([]);
+    }
+  });
+
+  it("dg hooks install が書く PreToolUse のコマンドの引数を、速い経路が受け持つ。ほかのイベントと引数は受け持たない", async () => {
+    const cwd = await initialized();
+    const result = await installHooks({
+      cwd,
+      scope: "project",
+      env: {},
+      command: "dg",
+      dryRun: true,
+    });
+    const settings = JSON.parse(result.content!) as {
+      hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+    };
+    const argvOf = (event: string) =>
+      settings.hooks[event]![0]!.hooks[0]!.command.split(" ").slice(1);
+    expect(isFastHookArgv(argvOf("PreToolUse"))).toBe(true);
+    for (const event of ["SessionStart", "PostToolUse", "Stop", "SubagentStop"])
+      expect(isFastHookArgv(argvOf(event)), event).toBe(false);
+    expect(isFastHookArgv(["--json", ...argvOf("PreToolUse")])).toBe(false);
+    expect(isFastHookArgv(["ticket", "list"])).toBe(false);
+    // 受け持たない argv では標準入力を読まない
+    const fast = await tryFastHook(["ticket", "list"], {
+      stdin: () => Promise.reject(new Error("読んではいけない")),
+    });
+    expect(fast).toEqual({ handled: false });
+  });
+
+  it("速い経路のフックの読み方は hooksOf の既定のエージェントと同じもの", () => {
+    expect(defaultHookSupport).toBe(hooksOf(DEFAULT_HOOK_AGENT));
+    expect(defaultHookSupport.events.map((e) => e.event)).toContain(DEFAULT_TOOL_EVENT);
+    expect(isFastHookArgv(hookArgv(DEFAULT_HOOK_AGENT, DEFAULT_TOOL_EVENT))).toBe(true);
+  });
+});
+
+describe("速い経路が読むモジュール（t768）", () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const coreSrc = path.resolve(here, "../../core/src");
+  /** 速い経路から静的に読んでよいファイル（packages/ からの相対）。足すときは、そのファイルが重い依存を読まないことを確かめる */
+  const ALLOWED = [
+    "cli/src/fast-hook.ts",
+    "core/src/fast-hook.ts",
+    "core/src/agents/fast-hooks.ts",
+    "core/src/agents/adapters/claude-code-hooks.ts",
+    "core/src/agents/adapters/transcript.ts",
+    "core/src/commands/hook-argv.ts",
+    "core/src/commands/hook-records.ts",
+    "core/src/commands/pre-tool-use.ts",
+    "core/src/model/time.ts",
+    "core/src/git/repo.ts",
+    "core/src/git/run.ts",
+    "core/src/errors.ts",
+    "core/src/storage/exists.ts",
+  ];
+  /** 型だけの import・export は実行時に読まないので除く */
+  const IMPORT = /^\s*(?:import|export)\s+(type\s+)?(?:[^;]*?\s+from\s+)?["']([^"']+)["']/gm;
+
+  it("静的な import は node の組み込みと許したファイルだけ（zod・yaml・commander・core の入口を読まない）", async () => {
+    const packages = path.resolve(here, "../..");
+    const seen = new Set<string>();
+    const queue = [path.join(here, "fast-hook.ts")];
+    while (queue.length > 0) {
+      const file = queue.shift()!;
+      const rel = path.relative(packages, file).split(path.sep).join("/");
+      if (seen.has(rel)) continue;
+      seen.add(rel);
+      const text = await readFile(file, "utf8");
+      for (const m of text.matchAll(IMPORT)) {
+        if (m[1]) continue;
+        const spec = m[2]!;
+        if (spec.startsWith("node:") || builtinModules.includes(spec)) continue;
+        if (spec === "@deguboard/core/fast-hook") {
+          queue.push(path.join(coreSrc, "fast-hook.ts"));
+          continue;
+        }
+        expect(spec.startsWith("."), `${rel} が ${spec} を読む`).toBe(true);
+        queue.push(path.resolve(path.dirname(file), spec.replace(/\.js$/, ".ts")));
+      }
+    }
+    expect([...seen].sort()).toEqual([...ALLOWED].sort());
+  });
+});
