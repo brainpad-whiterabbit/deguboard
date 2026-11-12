@@ -79,7 +79,10 @@ function prunedResults(record: CheckRecord): StoredCheck[] {
 }
 
 /** 作業ブランチの最新のコミット（リモートがあればリモートの先端、なければローカルの先端）。読めなければ undefined */
-async function latestCommit(ctx: CommandContext, branch: string): Promise<string | undefined> {
+export async function latestCommit(
+  ctx: CommandContext,
+  branch: string,
+): Promise<string | undefined> {
   const ref = ctx.repo.remote
     ? `refs/remotes/${ctx.repo.remote}/${branch}`
     : `refs/heads/${branch}`;

@@ -13,7 +13,7 @@ import {
 } from "../model/ticket.js";
 import { readRunningRuns } from "../run/record.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
-import { judgeCheck } from "./gate-check.js";
+import { judgeCheck, latestCommit } from "./gate-check.js";
 import { unlinkedReviewWarning } from "./hook-sessions.js";
 import { ticketRef } from "./helpers.js";
 import { orphanReviewRuns } from "./orphan-review.js";
@@ -30,6 +30,7 @@ export const GATE_CONDITIONS = [
   "review",
   "fix_rounds",
   "mergeable",
+  "head",
   "check",
 ] as const;
 export type GateConditionId = (typeof GATE_CONDITIONS)[number];
@@ -48,9 +49,13 @@ export interface GateView {
   /** 判定した段（チケットの gate。ないときは high。TK-9） */
   gate: GateLevel;
   pr: number | null;
+  /** 判定した PR の先端のコミット（gh の headRefOid）。PR を読めなければ null。dg pr merge はこの SHA を --match-head-commit で渡す（t750） */
+  sha: string | null;
   passed: boolean;
   conditions: GateCondition[];
 }
+
+const short = (sha: string) => sha.slice(0, 8);
 
 /** 見直しの Run（閉じたものと、extra の実行中のものと持ち主のない保留）を開始の順に */
 function reviewRuns(ctx: CommandContext, ticket: Ticket, extra: readonly Run[]): Run[] {
@@ -93,6 +98,8 @@ export async function judgeGate(
   const selector = ticket.pr !== undefined ? String(ticket.pr) : ticket.branch;
   let prNumber: number | null = ticket.pr ?? null;
   let mergeable: string | undefined;
+  let head: string | undefined;
+  let prRead = false;
   if (!selector) add("pr", false, "The ticket has neither a PR nor a work branch");
   else {
     const facts = await fetchPrGateFacts(ctx.repo, selector);
@@ -101,6 +108,8 @@ export async function judgeGate(
     else {
       prNumber = facts.pr.number;
       mergeable = facts.pr.mergeable;
+      head = facts.pr.head;
+      prRead = true;
       if (facts.pr.state !== "OPEN")
         add("pr", false, `PR #${prNumber} is not open (${facts.pr.state})`);
       else if (stage === "merge" && facts.pr.isDraft)
@@ -137,6 +146,25 @@ export async function judgeGate(
           ? "No conflict with base"
           : `mergeable is ${mergeable} (there is a conflict, or it is still being computed. Wait a moment and check again)`,
       );
+
+    // PR の先端は、見直しと検査が判定したブランチの最新のコミット（リモートの先端）と同じでなければならない（t750）。
+    // 違えば判定していないコミットをマージすることになるので通さない。先端を読めないときは、見直し（review）と検査（check）が
+    // 別の条件で落ちるので比べない。free は見直しも検査も判定しないので比べず、マージは判定した PR の先端（sha）に固定する
+    if (prRead && (scope.review || scope.check)) {
+      const tip = ticket.branch ? await latestCommit(ctx, ticket.branch) : undefined;
+      if (tip !== undefined) {
+        const same = head === tip;
+        add(
+          "head",
+          same,
+          same
+            ? `PR #${prNumber}'s head ${short(tip)} is the latest commit of the work branch`
+            : head === undefined
+              ? `Cannot read the head commit of PR #${prNumber} from gh, so it cannot be compared with the work branch`
+              : `PR #${prNumber}'s head ${short(head)} is not the latest commit of the work branch (${short(tip)}). Push or fetch so they match, then judge again`,
+        );
+      }
+    }
   }
 
   // 検査（actions.test）。free は回さない。時間がかかるので、ほかの条件をすべて満たしたときだけ回す（空なら回さずに通すので、いつでも判定する）
@@ -157,6 +185,7 @@ export async function judgeGate(
     for: stage,
     gate: level,
     pr: prNumber,
+    sha: head ?? null,
     passed: conditions.every((c) => c.ok),
     conditions,
   };
@@ -232,12 +261,13 @@ export const gate = defineCommand({
     "review (a review Run that started after the time of the latest commit on the work branch's remote tip has closed with success, and the run review-result result passed) · " +
     "(a review result held with no review Run, while the ticket has no open review Run and no running sub-agent, counts as a review closed when the result was written; when several are held after the same push, only the latest counts) · " +
     `fix_rounds (reviews that raised heavy findings on this branch are at most ${FIX_ROUNDS_LIMIT} times) · mergeable (with --for merge, gh's mergeable is MERGEABLE) · ` +
+    "head (with --for merge at high and low, the PR's head commit (sha in the output, which dg pr merge pins with --match-head-commit) is the latest commit of the work branch, the commit that review and check judge) · " +
     "check (config's actions.test passes when run in a worktree with no uncommitted changes, checked out at the latest commit of the work branch (remote tip). When the last commit whose actions.test passed is an ancestor of the latest commit, no merge commit came after it, actions.test is unchanged, and every file changed since then falls under actions.light_paths, the lighter check actions.light_test runs instead (with no such record yet, the diff against base decides the same way). Otherwise actions.test runs. detail gives which one ran and why. When actions.test is empty, it passes without judging and detail says so. When it fails, detail gives the exit code and the tail of the output. A passing result is remembered per commit and per command in deguboard-local and is not rerun for the same commit (it still counts after the worktree is removed, e.g. after a merge. A failing result is not remembered; the next check reruns it). It takes time, so it runs only when all the other conditions are met). " +
     "A condition that gh or Git cannot read is treated as unmet. " +
     "Which conditions are judged depends on the ticket's gate level (TK-9; gate in the output; a ticket with no gate is high). " +
-    "high judges all of them (--for merge: pr · acceptance · review · fix_rounds · mergeable · check; --for ready: pr · review · fix_rounds · check). " +
-    "low leaves out review and fix_rounds (merge: pr · acceptance · mergeable · check; ready: pr · check). " +
-    "free judges only pr and, with --for merge, mergeable (merge: pr · mergeable; ready: pr). Conditions that are not judged do not appear in conditions, and their inputs (review Runs, the push time and its fetch, the check) are not read. " +
+    "high judges all of them (--for merge: pr · acceptance · review · fix_rounds · mergeable · head · check; --for ready: pr · review · fix_rounds · check). " +
+    "low leaves out review and fix_rounds (merge: pr · acceptance · mergeable · head · check; ready: pr · check). " +
+    "free judges only pr and, with --for merge, mergeable (merge: pr · mergeable; ready: pr). At free, dg pr merge still pins the PR's head (sha), so a commit pushed after the judgment is not merged. Conditions that are not judged do not appear in conditions, and their inputs (review Runs, the push time and its fetch, the check) are not read. " +
     "Set the level with dg ticket create/import/update --gate; lowering it follows a person's instruction. " +
     "--only check judges only check, with the same judgment, on the HEAD of the work branch's worktree (a commit not pushed yet is fine; uncommitted changes refuse it), whatever the level. Run it before the push. With --only, --for is not judged (the view only echoes it). The result is remembered per commit and command, so dg pr ready and dg pr merge after the push reuse it for the same commit. " +
     "dg pr ready and dg pr merge make the same judgment before they call gh. Proceeding outside the conditions of the level is left to a person (a person runs gh). They do not write ticket data (they only record the results of passed checks in deguboard-local)",
@@ -268,6 +298,7 @@ export const gate = defineCommand({
         for: input.for ?? "merge",
         gate: gateLevelOf(ticket),
         pr: ticket.pr ?? null,
+        sha: null,
         passed: check.ok,
         conditions: [{ id: "check", ok: check.ok, detail: check.detail }],
       };

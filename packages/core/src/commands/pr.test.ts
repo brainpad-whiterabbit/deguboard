@@ -9,6 +9,7 @@ import type { Run } from "../model/run.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { brief } from "./brief.js";
+import { gate, type GateView } from "./gate.js";
 import { prMerge, prReady, type PrAdvanceView } from "./pr.js";
 import { runFinish, runHandoff, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
@@ -38,6 +39,8 @@ async function fakeGh(root: string, pr: () => string) {
   // このファイルがあると、gh pr merge はマージを済ませた状態（mergedView の JSON）にしてから失敗する（t686。ブランチの削除の失敗を写す）
   const mergedThenFail = path.join(root, "gh-merged-then-fail");
   const mergedView = path.join(root, "gh-merged-view.json");
+  // このファイルがあると、gh pr merge は比べる前に feat/t1 へ push する（判定の後に PR の先端が進むのを写す。t750）
+  const pushBeforeMerge = path.join(root, "gh-push-before-merge");
   const projectCards =
     'echo "GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience (repository.pullRequest.projectCards)" >&2; exit 1';
   await mkdir(bin, { recursive: true });
@@ -54,13 +57,15 @@ async function fakeGh(root: string, pr: () => string) {
         `    echo "api PATCH pulls/7" >> '${log}'; cp "$6" '${edited}'; exit 0`,
         "  fi",
         '  if [ "$2" = "repos/{owner}/{repo}/pulls/7" ]; then',
-        `    if [ -f '${failBody}' ]; then echo "gh の失敗" >&2; exit 1; fi; cat '${viewFile}'; exit 0`,
+        `    if [ -f '${failBody}' ]; then echo "gh の失敗" >&2; exit 1; fi; sed "s|__TIP__|$(git ls-remote origin refs/heads/feat/t1 | cut -f1)|" '${viewFile}'; exit 0`,
         "  fi",
         "  exit 1",
         "fi",
         'case "$2" in',
-        `  view) if [ "$5" = body ]; then ${projectCards}; fi; cat '${viewFile}';;`,
-        `  merge) if [ -f '${mergedThenFail}' ]; then cp '${mergedView}' '${viewFile}'; echo "gh の失敗" >&2; exit 1; fi; if [ -f '${failMerge}' ]; then echo "gh の失敗" >&2; exit 1; fi; echo "$@" >> '${log}';;`,
+        // __TIP__ は今のリモートの先端（ls-remote。追跡 ref は fetch するまで古い）に置き換える（PR の先端が push で進むのを写す。t750）
+        `  view) if [ "$5" = body ]; then ${projectCards}; fi; sed "s|__TIP__|$(git ls-remote origin refs/heads/feat/t1 | cut -f1)|" '${viewFile}';;`,
+        // gh pr merge は --match-head-commit の値がリモートの先端と違えば拒む（GitHub と同じく、判定していないコミットをマージしない。t750）
+        `  merge) if [ -f '${pushBeforeMerge}' ]; then rm -f '${pushBeforeMerge}'; git commit -q --allow-empty -m "gh の間の作業"; git push -q origin feat/t1; fi; want=""; prev=""; for a in "$@"; do if [ "$prev" = --match-head-commit ]; then want="$a"; fi; prev="$a"; done; if [ -n "$want" ] && [ "$want" != "$(git ls-remote origin refs/heads/feat/t1 | cut -f1)" ]; then echo "Head branch was modified. Review and try the merge again." >&2; exit 1; fi; if [ -f '${mergedThenFail}' ]; then cp '${mergedView}' '${viewFile}'; echo "gh の失敗" >&2; exit 1; fi; if [ -f '${failMerge}' ]; then echo "gh の失敗" >&2; exit 1; fi; echo "$@" >> '${log}';;`,
         `  ready) echo "$@" >> '${log}';;`,
         `  edit) ${projectCards};;`,
         "  *) exit 1;;",
@@ -100,6 +105,7 @@ async function fakeGh(root: string, pr: () => string) {
     failMergeCall,
     allowMergeCall,
     mergedThenFailCall,
+    pushBeforeMerge: () => writeFile(pushBeforeMerge, "1"),
   };
 }
 
@@ -125,13 +131,17 @@ async function prepared() {
   await git(f.cloneA, ["checkout", "-qb", "feat/t1"]);
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
   await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
-  const state = { draft: true };
+  const state = { draft: true, noHead: false };
+  // 今の push した先端（PR の headRefOid。偽の gh が __TIP__ をリモートの先端に置き換える）
+  const tip = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
   const prJson = (merged: boolean) =>
     JSON.stringify({
       number: 7,
       state: merged ? "MERGED" : "OPEN",
       isDraft: state.draft,
       mergeable: "MERGEABLE",
+      // headRefOid を返さない gh（JSON から外す）
+      headRefOid: state.noHead ? undefined : "__TIP__",
       body: "## 概要\n\n元の本文\n",
     });
   const gh = await fakeGh(f.root, () => prJson(false));
@@ -139,10 +149,16 @@ async function prepared() {
     state.draft = false;
     await gh.write();
   };
+  const withoutHead = async () => {
+    state.noHead = true;
+    await gh.write();
+  };
   // gh pr merge がマージを済ませた後に失敗する状態（PR の state が MERGED になって gh が非 0 で終わる）
   const mergedThenFail = () => gh.mergedThenFailCall(prJson(true));
   return {
     ctx,
+    tip,
+    f,
     calls: gh.calls,
     editedBody: gh.editedBody,
     failBodyView: gh.failBodyView,
@@ -150,7 +166,9 @@ async function prepared() {
     failMergeCall: gh.failMergeCall,
     allowMergeCall: gh.allowMergeCall,
     undraft,
+    withoutHead,
     mergedThenFail,
+    pushBeforeMerge: gh.pushBeforeMerge,
   };
 }
 
@@ -211,7 +229,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
   });
 
   it("満たせば gh pr ready・gh pr merge を PR の番号で呼び、判定した品質ゲートを返す", async () => {
-    const { ctx, calls, undraft } = await prepared();
+    const { ctx, tip, calls, undraft } = await prepared();
     await passedReview(ctx);
     const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(ready).toMatchObject({ ticket: "t1", pr: 7, action: "ready", gate: { passed: true } });
@@ -221,11 +239,14 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const merged = (await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }))
       .data as PrAdvanceView;
     expect(merged).toMatchObject({ pr: 7, action: "merge", method: "squash" });
-    expect(await calls()).toEqual(["pr ready 7", "pr merge 7 --squash --delete-branch"]);
+    expect(await calls()).toEqual([
+      "pr ready 7",
+      `pr merge 7 --squash --match-head-commit ${tip} --delete-branch`,
+    ]);
   });
 
   it("--method・--delete-branch を省けば config の merge.method・merge.delete_branch に従い、渡せばそちらを使う（t601）", async () => {
-    const { ctx: first, calls, undraft } = await prepared();
+    const { ctx: first, tip, calls, undraft } = await prepared();
     await runCommand(configSet, first, { key: "merge.method", value: "rebase" });
     await runCommand(configSet, first, { key: "merge.delete_branch", value: "true" });
     const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
@@ -235,11 +256,14 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const merged = (await runCommand(prMerge, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(merged.method).toBe("rebase");
     await runCommand(prMerge, ctx, { ticket: "t1", method: "merge", delete_branch: false });
-    expect(await calls()).toEqual(["pr merge 7 --rebase --delete-branch", "pr merge 7 --merge"]);
+    expect(await calls()).toEqual([
+      `pr merge 7 --rebase --match-head-commit ${tip} --delete-branch`,
+      `pr merge 7 --merge --match-head-commit ${tip}`,
+    ]);
   });
 
   it("--delete-branch のときは品質ゲートを通した後、gh を呼ぶ前に作業ブランチの worktree を消し、その worktree から呼べば消さずに警告する（t601）", async () => {
-    const { ctx, calls, undraft } = await prepared();
+    const { ctx, tip, calls, undraft } = await prepared();
     await passedReview(ctx);
     await undraft();
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
@@ -259,14 +283,12 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const merged = await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true });
     expect(merged.warnings).toEqual([]);
     expect((await git(main, ["worktree", "list"])).stdout).not.toContain("wt-t1");
-    expect(await calls()).toEqual([
-      "pr merge 7 --squash --delete-branch",
-      "pr merge 7 --squash --delete-branch",
-    ]);
+    const call = `pr merge 7 --squash --match-head-commit ${tip} --delete-branch`;
+    expect(await calls()).toEqual([call, call]);
   });
 
   it("--delete-branch で gh pr merge が失敗したら、消した作業ブランチの worktree を同じパスに戻し、エラーの detail にその扱いを出す。原因を直した後の再実行はマージできる（t643）", async () => {
-    const { ctx, calls, undraft, failMergeCall, allowMergeCall } = await prepared();
+    const { ctx, tip, calls, undraft, failMergeCall, allowMergeCall } = await prepared();
     await passedReview(ctx);
     await undraft();
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
@@ -291,7 +313,9 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(merged.data).toMatchObject({ pr: 7, action: "merge" });
     expect(merged.warnings).toEqual([]);
     expect((await git(main, ["worktree", "list"])).stdout).not.toContain("wt-t1");
-    expect(await calls()).toEqual(["pr merge 7 --squash --delete-branch"]);
+    expect(await calls()).toEqual([
+      `pr merge 7 --squash --match-head-commit ${tip} --delete-branch`,
+    ]);
   });
 
   /**
@@ -565,7 +589,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
   });
 
   it("free のチケットは見直しがなくても dg pr ready・dg pr merge が gh を呼び、受け入れ条件に印がなくても通る（t663）", async () => {
-    const { ctx, calls, undraft } = await prepared();
+    const { ctx, tip, calls, undraft } = await prepared();
     await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "free" });
     const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(ready).toMatchObject({ pr: 7, action: "ready" });
@@ -574,11 +598,11 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const merged = (await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }))
       .data as PrAdvanceView;
     expect(merged).toMatchObject({ pr: 7, action: "merge", gate: { gate: "free", passed: true } });
-    expect(await calls()).toEqual(["pr ready 7", "pr merge 7 --squash"]);
+    expect(await calls()).toEqual(["pr ready 7", `pr merge 7 --squash --match-head-commit ${tip}`]);
   });
 
   it("low のチケットは見直しがなくても dg pr ready が gh を呼ぶが、受け入れ条件に印がなければ dg pr merge は GATE_FAILED で止まり、印を付けると通る（t663）", async () => {
-    const { ctx, calls, undraft } = await prepared();
+    const { ctx, tip, calls, undraft } = await prepared();
     await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
     const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(ready.gate).toMatchObject({ gate: "low", passed: true });
@@ -592,6 +616,76 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const merged = (await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }))
       .data as PrAdvanceView;
     expect(merged).toMatchObject({ pr: 7, action: "merge", gate: { gate: "low", passed: true } });
-    expect(await calls()).toEqual(["pr ready 7", "pr merge 7 --squash"]);
+    expect(await calls()).toEqual(["pr ready 7", `pr merge 7 --squash --match-head-commit ${tip}`]);
+  });
+
+  it("ゲートが判定した後に別のコミットを push したら、マージしない（判定したコミットに固定し、新しいコミットは見直しと検査を通っていない。t750）", async () => {
+    const { ctx, f, tip, calls, undraft } = await prepared();
+    // 見直しは今始めて通す。あとの push は 1 秒以上あとにする（コミットの時刻は秒までなので、見直しより後の時刻にならないように）
+    const run = (
+      await runCommand(runStart, ctx, { ticket: "t1", step: "review", agent: "claude-code" })
+    ).data as Run;
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 0, passed: true });
+    await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    // ゲートは今の先端（tip）を判定して通す
+    const judged = (await runCommand(gate, ctx, { ticket: "t1", for: "merge" })).data as GateView;
+    expect(judged).toMatchObject({ passed: true, sha: tip });
+    // 判定の後にコミットを push する（PR の先端が進む）
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "判定の後の作業"]);
+    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
+    expect(err).toBeInstanceOf(OperationError);
+    expect(err!.code).toBe("GATE_FAILED");
+    expect(err!.detail).toContain("review:");
+    expect(await calls()).toEqual([]);
+  });
+
+  it("ゲートが判定した後、gh pr merge の直前に別のコミットが push されても、判定したコミットに固定した --match-head-commit を gh が拒み、マージしない（t750）", async () => {
+    const { ctx, f, tip, calls, undraft, pushBeforeMerge } = await prepared();
+    await passedReview(ctx);
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    // gh が比べる前に、リモートの先端が判定したコミットから進む（ゲートは判定の後に走らないので、これは gh の段で止まる）
+    await pushBeforeMerge();
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
+    expect(err!.message).toContain("Head branch was modified");
+    expect(await calls()).toEqual([]);
+    const remoteTip = (await git(f.cloneA, ["ls-remote", "origin", "refs/heads/feat/t1"])).stdout
+      .trim()
+      .split(/\s+/)[0];
+    expect(remoteTip).not.toBe(tip);
+  });
+
+  it("low のチケットで、別の clone から fetch されずに push されて PR の先端が作業ブランチの最新と違えば、dg pr merge は head を理由に GATE_FAILED で止まる（t750）", async () => {
+    const { ctx, f, calls, undraft } = await prepared();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    // 別の clone から push する。この clone は fetch しないので、追跡 ref（作業ブランチの最新）は古いまま
+    await git(f.cloneB, ["fetch", "-q", "origin", "feat/t1"]);
+    await git(f.cloneB, ["checkout", "-q", "-B", "feat/t1", "FETCH_HEAD"]);
+    await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "別の clone の作業"]);
+    await git(f.cloneB, ["push", "-q", "origin", "feat/t1"]);
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
+    expect(err).toBeInstanceOf(OperationError);
+    expect(err!.code).toBe("GATE_FAILED");
+    expect(err!.detail).toContain("head: PR #7's head");
+    expect(err!.detail).toContain("is not the latest commit of the work branch");
+    expect(await calls()).toEqual([]);
+  });
+
+  it("free のチケットで gh が PR の先端を返さなければ、dg pr merge は理由を head: で示して GATE_FAILED で止まる（判定できる条件がなくても理由が空にならない。t750）", async () => {
+    const { ctx, calls, undraft, withoutHead } = await prepared();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "free" });
+    await undraft();
+    await withoutHead();
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
+    expect(err).toBeInstanceOf(OperationError);
+    expect(err!.code).toBe("GATE_FAILED");
+    expect(err!.detail).toContain("head: cannot read the PR head commit from gh");
+    expect(await calls()).toEqual([]);
   });
 });

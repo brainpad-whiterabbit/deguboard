@@ -212,6 +212,8 @@ export interface PrGateFacts {
   isDraft: boolean;
   /** gh の mergeable（MERGEABLE・CONFLICTING・UNKNOWN） */
   mergeable: string;
+  /** gh の headRefOid（PR の先端のコミット）。読めなければ undefined（t750） */
+  head: string | undefined;
 }
 
 /**
@@ -225,7 +227,7 @@ export async function fetchPrGateFacts(
   try {
     const result = await runGh(
       repo.topLevel,
-      ["pr", "view", selector, "--json", "number,state,isDraft,mergeable"],
+      ["pr", "view", selector, "--json", "number,state,isDraft,mergeable,headRefOid"],
       { allowFailure: true, timeoutMs: 30_000 },
     );
     if (result.code !== 0) {
@@ -233,9 +235,9 @@ export async function fetchPrGateFacts(
         ? { missing: true }
         : { reason: `Cannot read the PR with gh (${result.stderr.trim().split("\n")[0] ?? ""})` };
     }
-    let data: Partial<PrGateFacts>;
+    let data: Partial<PrGateFacts> & { headRefOid?: unknown };
     try {
-      data = JSON.parse(result.stdout) as Partial<PrGateFacts>;
+      data = JSON.parse(result.stdout) as typeof data;
     } catch {
       return { reason: "Cannot read the output of gh" };
     }
@@ -246,6 +248,10 @@ export async function fetchPrGateFacts(
         state: String(data.state ?? ""),
         isDraft: data.isDraft === true,
         mergeable: String(data.mergeable ?? "UNKNOWN"),
+        head:
+          typeof data.headRefOid === "string" && data.headRefOid !== ""
+            ? data.headRefOid
+            : undefined,
       },
     };
   } catch (error) {
