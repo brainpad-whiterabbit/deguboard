@@ -647,21 +647,33 @@ describe("束ねた dg.mjs（VS Code 拡張に同梱する CLI）", () => {
   });
 
   it("起動ファイル経由（DEGUBOARD_LAUNCHER があるとき）のマージドライバは、node と dg.mjs の代わりに起動ファイルを指す（t735）", async () => {
+    const entry = path.join(os.tmpdir(), "ext", "dist", "cli", "dg.mjs");
+    setBundleLayout({ entry, guideDir: path.dirname(path.dirname(entry)), version: "9.8.7" });
     const launcher = "/home/u/.local/share/deguboard/dg";
     expect(selfMergeDriver({ DEGUBOARD_LAUNCHER: launcher })).toEqual([launcher, "merge-driver"]);
-    expect(selfMergeDriver({})).toEqual([process.execPath, expect.any(String), "merge-driver"]);
+    expect(selfMergeDriver({})).toEqual([process.execPath, entry, "merge-driver"]);
+  });
+
+  it("束ねていない dg（clone・npm）は、子から引き継いだ DEGUBOARD_LAUNCHER を読まず、node と bin/dg.js を指す（t735）", () => {
+    const driver = selfMergeDriver({ DEGUBOARD_LAUNCHER: "/home/u/.local/share/deguboard/dg" });
+    expect(driver).toEqual([process.execPath, expect.any(String), "merge-driver"]);
+    expect(driver[1]).toMatch(/[/\\]bin[/\\]dg\.js$/);
   });
 
   it("init と sync が登録するマージドライバは、起動ファイル経由なら起動ファイルを書き、そうでなければ node と dg.js を書く（t735）", async () => {
     const f = await fixture();
     const launcher = path.join(os.tmpdir(), "deguboard-launcher-test", "dg");
+    const entry = path.join(os.tmpdir(), "ext", "dist", "cli", "dg.mjs");
+    setBundleLayout({ entry, guideDir: path.dirname(path.dirname(entry)), version: "9.8.7" });
     expect((await dg(f.cloneA, ["init"], { DEGUBOARD_LAUNCHER: launcher })).code).toBe(0);
     const viaLauncher = await git(f.cloneA, ["config", "--get", "merge.deguboard.driver"]);
     expect(viaLauncher.stdout.trim()).toMatch(
       new RegExp(`^'?${launcher.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}'? merge-driver `),
     );
 
-    expect((await dg(f.cloneB, ["init"])).code).toBe(0);
+    // clone の dg（束ねていない）は、同じ環境変数があっても node と dg.js を書く
+    setBundleLayout(undefined);
+    expect((await dg(f.cloneB, ["init"], { DEGUBOARD_LAUNCHER: launcher })).code).toBe(0);
     const direct = await git(f.cloneB, ["config", "--get", "merge.deguboard.driver"]);
     expect(direct.stdout.trim()).toContain(process.execPath);
     expect(direct.stdout.trim()).toMatch(/bin\/dg\.js'? merge-driver /);

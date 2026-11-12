@@ -19,7 +19,7 @@ import {
   type AgentEnv,
   type HookSupport,
 } from "@deguboard/core";
-import { launcherFrom } from "./launcher-env.js";
+import { isLauncherPath, launcherFrom } from "./launcher-env.js";
 
 /** dg が書いたフックのコマンドの終わり。これで見分けて入れ替える（基のコマンドが変わっても重ねない） */
 const OURS = /(^|\s)--actor agent hook \S+( --agent \S+)? --payload -$/;
@@ -371,10 +371,19 @@ export async function checkHooks(options: {
   for (const [base, status] of statuses) {
     const { status: verdict, gone } = await status;
     if (verdict === "ok") continue;
+    // 起動ファイルがなくなったときは、dg hooks install を案内しない（別の dg が node と dg.js を書き直してしまう）。拡張を開き直して書かせる
+    const launcherGone = gone.filter((p) => isLauncherPath(p, options.env));
+    const otherGone = gone.filter((p) => !launcherGone.includes(p));
+    if (verdict === "gone" && launcherGone.length > 0) {
+      warnings.push(
+        `Handler "${base}": ${launcherGone.join(", ")} no longer exists (the deguboard launcher was removed). Open VS Code with the deguboard extension once to write it again`,
+      );
+      if (otherGone.length === 0) continue;
+    }
     const text: Record<Exclude<HandlerStatus, "ok">, string> = {
       missing:
         "not found (it is not on PATH. Run dg hooks install without --command to call node and dg by their absolute paths)",
-      gone: `${gone.join(", ")} no longer exists (node or deguboard was upgraded or moved). Run dg hooks install again`,
+      gone: `${otherGone.join(", ")} no longer exists (node or deguboard was upgraded or moved). Run dg hooks install again`,
       timeout: "--version timed out (15 seconds)",
       failed: "--version exited abnormally (it failed to start or the exit code is not 0)",
       unverified:
