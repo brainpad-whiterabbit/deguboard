@@ -48,6 +48,12 @@ async function passGate(ctx: CommandContext, ticketId: string, stage: GateStage)
   // マージは判定した先端に固定するので、先端が読めなければ通さない（ready は固定しないので先端は要らない。t750）
   if (!gate.passed || gate.pr === null || (stage === "merge" && gate.sha === null)) {
     const failed = gate.conditions.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`);
+    // free は head の条件を判定しないので、先端が読めなかったときは理由を足す（落とした理由が空にならないように）
+    if (stage === "merge" && gate.sha === null && !gate.conditions.some((c) => c.id === "head")) {
+      failed.push(
+        "head: cannot read the PR head commit from gh, so the merge cannot be pinned to the judged commit",
+      );
+    }
     throw new OperationError(
       "GATE_FAILED",
       `${ticket.id} does not meet the quality gate (dg gate ${ticket.id} --for ${stage}), so gh pr ${stage} is not called`,
