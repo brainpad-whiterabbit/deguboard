@@ -45,7 +45,8 @@ export interface PrAdvanceView {
 async function passGate(ctx: CommandContext, ticketId: string, stage: GateStage) {
   const ticket = ctx.store.require("ticket", ticketId).data;
   const gate = await judgeGate(ctx, ticket, stage);
-  if (!gate.passed || gate.pr === null) {
+  // マージは判定した先端に固定するので、先端が読めなければ通さない（ready は固定しないので先端は要らない。t750）
+  if (!gate.passed || gate.pr === null || (stage === "merge" && gate.sha === null)) {
     const failed = gate.conditions.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`);
     throw new OperationError(
       "GATE_FAILED",
@@ -53,7 +54,7 @@ async function passGate(ctx: CommandContext, ticketId: string, stage: GateStage)
       `${failed.join("\n")}\nProceeding without meeting it (the review cannot be started, the fix loop went past its limit, or a human set the count) is a human decision, so ask a human to run gh pr ${stage} (dg guide review). If the level of the ticket does not fit the change, change it with dg ticket update ${ticket.id} --gate <level> (lowering it is a human's instruction), then run dg pr ${stage} again`,
     );
   }
-  return { ticket, gate, pr: gate.pr };
+  return { ticket, gate, pr: gate.pr, sha: gate.sha };
 }
 
 /**
@@ -230,7 +231,7 @@ export const prMerge = defineCommand({
   positionals: ["ticket"],
   group: "pr",
   summary:
-    "Merge a ticket's PR with gh pr merge (squash by default), only when it meets the quality gate (dg gate <ticket> --for merge). The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to merge (the steps decide whether a merge is allowed; dg guide all). gh pr merge run outside dg is rejected by the hook. Merging outside the conditions of the level is a person's decision, and a person runs gh pr merge. It does not write ticket data (moving to done happens at the next sync)",
+    "Merge a ticket's PR with gh pr merge (squash by default), only when it meets the quality gate (dg gate <ticket> --for merge). It pins the merge to the commit the gate judged (sha in the gate's output, passed as --match-head-commit), so a commit pushed after the judgment is not merged. The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to merge (the steps decide whether a merge is allowed; dg guide all). gh pr merge run outside dg is rejected by the hook. Merging outside the conditions of the level is a person's decision, and a person runs gh pr merge. It does not write ticket data (moving to done happens at the next sync)",
   input: z.object({
     ticket: ticketRef,
     method: z
@@ -247,7 +248,9 @@ export const prMerge = defineCommand({
   write: false,
   needs: "store",
   async run(ctx, input) {
-    const { ticket, gate, pr } = await passGate(ctx, input.ticket, "merge");
+    const { ticket, gate, pr, sha } = await passGate(ctx, input.ticket, "merge");
+    // passGate が merge で先端を要求するので、ここで null になることはない（型を絞るための確認）
+    if (sha === null) throw new Error(`The gate for ${ticket.id} judged no head commit`);
     // 省いた方法とブランチの扱いはリポジトリの config で決める（LLM が規約から読み取って選ばない。EX-6）
     const method = input.method ?? ctx.config.merge.method;
     const deleteBranch = input.delete_branch ?? ctx.config.merge.delete_branch;
@@ -257,7 +260,8 @@ export const prMerge = defineCommand({
       deleteBranch && ticket.branch
         ? await removeBranchWorktree(ctx, ticket.branch, warnings)
         : null;
-    const args = ["pr", "merge", String(pr), `--${method}`];
+    // ゲートが判定した先端のコミットに固定する。判定の後に push されて先端が変わっていれば gh が拒むので、判定していないものはマージされない（t750）
+    const args = ["pr", "merge", String(pr), `--${method}`, "--match-head-commit", sha];
     if (deleteBranch) args.push("--delete-branch");
     try {
       await runGh(ctx.repo.topLevel, args, { timeoutMs: 120_000 });

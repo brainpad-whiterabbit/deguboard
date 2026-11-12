@@ -28,7 +28,11 @@ async function fakeGh(root: string, cases: () => Record<string, string>) {
         "#!/bin/sh",
         'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
         'case "$3" in',
-        ...Object.entries(cases()).map(([key, json]) => `  ${key}) echo '${json}';;`),
+        // __TIP__ は今のリモートの追跡 ref の先端に置き換える（PR の先端が push で進むのを写す。t750）
+        ...Object.entries(cases()).map(
+          ([key, json]) =>
+            `  ${key}) echo '${json}' | sed "s|__TIP__|$(git rev-parse -q --verify refs/remotes/origin/feat/t1)|";;`,
+        ),
         '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
         "esac",
         "",
@@ -46,8 +50,17 @@ async function fakeGh(root: string, cases: () => Record<string, string>) {
   return write;
 }
 
-const pr = (over: Partial<{ state: string; isDraft: boolean; mergeable: string }> = {}) =>
-  JSON.stringify({ number: 7, state: "OPEN", isDraft: false, mergeable: "MERGEABLE", ...over });
+const pr = (
+  over: Partial<{ state: string; isDraft: boolean; mergeable: string; headRefOid: string }> = {},
+) =>
+  JSON.stringify({
+    number: 7,
+    state: "OPEN",
+    isDraft: false,
+    mergeable: "MERGEABLE",
+    headRefOid: "__TIP__",
+    ...over,
+  });
 
 /** t1 を feat/t1 で claim して 1 コミット push し、PR #7（偽の gh）がある文脈 */
 async function prepared() {
@@ -119,6 +132,7 @@ describe("dg gate（品質ゲート。t532）", () => {
       "review",
       "fix_rounds",
       "mergeable",
+      "head",
       "check",
     ]);
     // actions.test が空なら検査は判定せずに通し、そう detail に出す
@@ -126,6 +140,24 @@ describe("dg gate（品質ゲート。t532）", () => {
       ok: true,
       detail: expect.stringContaining("actions.test is empty, so the check is not judged"),
     });
+  });
+
+  it("結果に判定した PR の先端の SHA を含め、PR の先端がブランチの最新のコミットと違えば head を満たさない（t750）", async () => {
+    const { ctx, setPr, f } = await prepared();
+    await review(ctx, later(1), 0);
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
+    const tip = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
+    const view = await judge(ctx);
+    expect(view).toMatchObject({ passed: true, sha: tip });
+    // PR の先端が別のコミットなら、head だけが落ち、結果の SHA は PR の先端を指す
+    const other = "1".repeat(40);
+    await setPr(pr({ headRefOid: other }));
+    const moved = await judge(ctx);
+    expect(moved).toMatchObject({ passed: false, sha: other });
+    expect(failed(moved)).toEqual(["head"]);
+    expect(moved.conditions.find((c) => c.id === "head")!.detail).toContain(
+      "not the latest commit",
+    );
   });
 
   it("受け入れ条件は英語の名前の節（## Acceptance criteria）も読む", async () => {
@@ -195,7 +227,13 @@ describe("dg gate（品質ゲート。t532）", () => {
     expect(ready).toMatchObject({ gate: "low", passed: true });
     expect(ready.conditions.map((c) => c.id)).toEqual(["pr", "check"]);
     const merge = await judge(ctx);
-    expect(merge.conditions.map((c) => c.id)).toEqual(["pr", "acceptance", "mergeable", "check"]);
+    expect(merge.conditions.map((c) => c.id)).toEqual([
+      "pr",
+      "acceptance",
+      "mergeable",
+      "head",
+      "check",
+    ]);
     // actions.test が空なので、check はほかの条件によらず判定せずに通る
     expect(failed(merge)).toEqual(["acceptance"]);
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });

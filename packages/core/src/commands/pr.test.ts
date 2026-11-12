@@ -9,6 +9,7 @@ import type { Run } from "../model/run.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { brief } from "./brief.js";
+import { gate, type GateView } from "./gate.js";
 import { prMerge, prReady, type PrAdvanceView } from "./pr.js";
 import { runFinish, runHandoff, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
@@ -54,12 +55,13 @@ async function fakeGh(root: string, pr: () => string) {
         `    echo "api PATCH pulls/7" >> '${log}'; cp "$6" '${edited}'; exit 0`,
         "  fi",
         '  if [ "$2" = "repos/{owner}/{repo}/pulls/7" ]; then',
-        `    if [ -f '${failBody}' ]; then echo "gh の失敗" >&2; exit 1; fi; cat '${viewFile}'; exit 0`,
+        `    if [ -f '${failBody}' ]; then echo "gh の失敗" >&2; exit 1; fi; sed "s|__TIP__|$(git rev-parse -q --verify refs/remotes/origin/feat/t1)|" '${viewFile}'; exit 0`,
         "  fi",
         "  exit 1",
         "fi",
         'case "$2" in',
-        `  view) if [ "$5" = body ]; then ${projectCards}; fi; cat '${viewFile}';;`,
+        // __TIP__ は今のリモートの追跡 ref の先端に置き換える（PR の先端が push で進むのを写す。t750）
+        `  view) if [ "$5" = body ]; then ${projectCards}; fi; sed "s|__TIP__|$(git rev-parse -q --verify refs/remotes/origin/feat/t1)|" '${viewFile}';;`,
         `  merge) if [ -f '${mergedThenFail}' ]; then cp '${mergedView}' '${viewFile}'; echo "gh の失敗" >&2; exit 1; fi; if [ -f '${failMerge}' ]; then echo "gh の失敗" >&2; exit 1; fi; echo "$@" >> '${log}';;`,
         `  ready) echo "$@" >> '${log}';;`,
         `  edit) ${projectCards};;`,
@@ -126,12 +128,15 @@ async function prepared() {
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
   await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
   const state = { draft: true };
+  // 今の push した先端（PR の headRefOid。偽の gh が __TIP__ をリモートの追跡 ref の先端に置き換える）
+  const tip = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
   const prJson = (merged: boolean) =>
     JSON.stringify({
       number: 7,
       state: merged ? "MERGED" : "OPEN",
       isDraft: state.draft,
       mergeable: "MERGEABLE",
+      headRefOid: "__TIP__",
       body: "## 概要\n\n元の本文\n",
     });
   const gh = await fakeGh(f.root, () => prJson(false));
@@ -143,6 +148,8 @@ async function prepared() {
   const mergedThenFail = () => gh.mergedThenFailCall(prJson(true));
   return {
     ctx,
+    tip,
+    f,
     calls: gh.calls,
     editedBody: gh.editedBody,
     failBodyView: gh.failBodyView,
@@ -211,7 +218,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
   });
 
   it("満たせば gh pr ready・gh pr merge を PR の番号で呼び、判定した品質ゲートを返す", async () => {
-    const { ctx, calls, undraft } = await prepared();
+    const { ctx, tip, calls, undraft } = await prepared();
     await passedReview(ctx);
     const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(ready).toMatchObject({ ticket: "t1", pr: 7, action: "ready", gate: { passed: true } });
@@ -221,11 +228,14 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const merged = (await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }))
       .data as PrAdvanceView;
     expect(merged).toMatchObject({ pr: 7, action: "merge", method: "squash" });
-    expect(await calls()).toEqual(["pr ready 7", "pr merge 7 --squash --delete-branch"]);
+    expect(await calls()).toEqual([
+      "pr ready 7",
+      `pr merge 7 --squash --match-head-commit ${tip} --delete-branch`,
+    ]);
   });
 
   it("--method・--delete-branch を省けば config の merge.method・merge.delete_branch に従い、渡せばそちらを使う（t601）", async () => {
-    const { ctx: first, calls, undraft } = await prepared();
+    const { ctx: first, tip, calls, undraft } = await prepared();
     await runCommand(configSet, first, { key: "merge.method", value: "rebase" });
     await runCommand(configSet, first, { key: "merge.delete_branch", value: "true" });
     const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
@@ -235,11 +245,14 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const merged = (await runCommand(prMerge, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(merged.method).toBe("rebase");
     await runCommand(prMerge, ctx, { ticket: "t1", method: "merge", delete_branch: false });
-    expect(await calls()).toEqual(["pr merge 7 --rebase --delete-branch", "pr merge 7 --merge"]);
+    expect(await calls()).toEqual([
+      `pr merge 7 --rebase --match-head-commit ${tip} --delete-branch`,
+      `pr merge 7 --merge --match-head-commit ${tip}`,
+    ]);
   });
 
   it("--delete-branch のときは品質ゲートを通した後、gh を呼ぶ前に作業ブランチの worktree を消し、その worktree から呼べば消さずに警告する（t601）", async () => {
-    const { ctx, calls, undraft } = await prepared();
+    const { ctx, tip, calls, undraft } = await prepared();
     await passedReview(ctx);
     await undraft();
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
@@ -259,14 +272,12 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const merged = await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true });
     expect(merged.warnings).toEqual([]);
     expect((await git(main, ["worktree", "list"])).stdout).not.toContain("wt-t1");
-    expect(await calls()).toEqual([
-      "pr merge 7 --squash --delete-branch",
-      "pr merge 7 --squash --delete-branch",
-    ]);
+    const call = `pr merge 7 --squash --match-head-commit ${tip} --delete-branch`;
+    expect(await calls()).toEqual([call, call]);
   });
 
   it("--delete-branch で gh pr merge が失敗したら、消した作業ブランチの worktree を同じパスに戻し、エラーの detail にその扱いを出す。原因を直した後の再実行はマージできる（t643）", async () => {
-    const { ctx, calls, undraft, failMergeCall, allowMergeCall } = await prepared();
+    const { ctx, tip, calls, undraft, failMergeCall, allowMergeCall } = await prepared();
     await passedReview(ctx);
     await undraft();
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
@@ -291,7 +302,9 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(merged.data).toMatchObject({ pr: 7, action: "merge" });
     expect(merged.warnings).toEqual([]);
     expect((await git(main, ["worktree", "list"])).stdout).not.toContain("wt-t1");
-    expect(await calls()).toEqual(["pr merge 7 --squash --delete-branch"]);
+    expect(await calls()).toEqual([
+      `pr merge 7 --squash --match-head-commit ${tip} --delete-branch`,
+    ]);
   });
 
   /**
@@ -565,7 +578,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
   });
 
   it("free のチケットは見直しがなくても dg pr ready・dg pr merge が gh を呼び、受け入れ条件に印がなくても通る（t663）", async () => {
-    const { ctx, calls, undraft } = await prepared();
+    const { ctx, tip, calls, undraft } = await prepared();
     await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "free" });
     const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(ready).toMatchObject({ pr: 7, action: "ready" });
@@ -574,11 +587,11 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const merged = (await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }))
       .data as PrAdvanceView;
     expect(merged).toMatchObject({ pr: 7, action: "merge", gate: { gate: "free", passed: true } });
-    expect(await calls()).toEqual(["pr ready 7", "pr merge 7 --squash"]);
+    expect(await calls()).toEqual(["pr ready 7", `pr merge 7 --squash --match-head-commit ${tip}`]);
   });
 
   it("low のチケットは見直しがなくても dg pr ready が gh を呼ぶが、受け入れ条件に印がなければ dg pr merge は GATE_FAILED で止まり、印を付けると通る（t663）", async () => {
-    const { ctx, calls, undraft } = await prepared();
+    const { ctx, tip, calls, undraft } = await prepared();
     await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
     const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(ready.gate).toMatchObject({ gate: "low", passed: true });
@@ -592,6 +605,30 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const merged = (await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }))
       .data as PrAdvanceView;
     expect(merged).toMatchObject({ pr: 7, action: "merge", gate: { gate: "low", passed: true } });
-    expect(await calls()).toEqual(["pr ready 7", "pr merge 7 --squash"]);
+    expect(await calls()).toEqual(["pr ready 7", `pr merge 7 --squash --match-head-commit ${tip}`]);
+  });
+
+  it("ゲートが判定した後に別のコミットを push したら、マージしない（判定したコミットに固定し、新しいコミットは見直しと検査を通っていない。t750）", async () => {
+    const { ctx, f, tip, calls, undraft } = await prepared();
+    // 見直しは今始めて通す。あとの push は 1 秒以上あとにする（コミットの時刻は秒までなので、見直しより後の時刻にならないように）
+    const run = (
+      await runCommand(runStart, ctx, { ticket: "t1", step: "review", agent: "claude-code" })
+    ).data as Run;
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 0, passed: true });
+    await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    // ゲートは今の先端（tip）を判定して通す
+    const judged = (await runCommand(gate, ctx, { ticket: "t1", for: "merge" })).data as GateView;
+    expect(judged).toMatchObject({ passed: true, sha: tip });
+    // 判定の後にコミットを push する（PR の先端が進む）
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "判定の後の作業"]);
+    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
+    expect(err).toBeInstanceOf(OperationError);
+    expect(err!.code).toBe("GATE_FAILED");
+    expect(err!.detail).toContain("review:");
+    expect(await calls()).toEqual([]);
   });
 });
