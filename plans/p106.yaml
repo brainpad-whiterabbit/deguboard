@@ -15,7 +15,7 @@ after:
     - t734
   t736:
     - t734
-pending_approval: true
+pending_approval: false
 details:
   t740:
     scope: ticket update・create・import の空か空白だけの body を INVALID_INPUT で拒む。summary・acceptance からの雛形は今のまま
@@ -49,3 +49,5 @@ details:
     scope: README・development.md・ADR-008・CLAUDE.md を VSIX だけで入れる形にし、npm に公開する仕組みを消して private にする
     approach: 各 PR で直した文書をつなぎ、pack・check-pack・release:publish・publishConfig・packages/cli/README.md を消す
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-12T04:16:05Z
