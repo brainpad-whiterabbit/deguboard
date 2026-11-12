@@ -13,7 +13,7 @@ import {
   type BranchFactsOptions,
 } from "../git/facts.js";
 import { withLock } from "../git/lock.js";
-import { checkOutside, describeOutside, recordBaseline } from "../git/outside.js";
+import { checkOutside, describeOutside, dirtyFiles, recordBaseline } from "../git/outside.js";
 import { settleRebase } from "../git/rebase.js";
 import { renumberCollisions, renumberProvisional, type Renumbered } from "../git/renumber.js";
 import {
@@ -23,7 +23,6 @@ import {
   type ResolvedField,
 } from "../git/merge.js";
 import {
-  commitAll,
   commitPaths,
   fetchAll,
   integrate,
@@ -377,11 +376,12 @@ async function reconcileAll(
       warnings.push(`${doc.id}: cannot read the Workflow, so it is not reconciled`);
       continue;
     }
-    // 事実を集めた後に claim・update・move などで入力が変わったチケットは、その事実で判定しない（ロックの中で gh を呼ばない）
+    // 事実を集めた後に claim・update・move などで入力が変わったチケットと、集めたときに対象でなかった（ロックの間に claim した・
+    // Workflow を読めなかった）チケットは、その事実で判定しない（ロックの中で gh を呼ばない）。どちらか分からないので文言は中立にする
     const got = collected.branches.get(doc.id);
     if (got?.key !== branchFactsInput(doc, wf).key) {
       warnings.push(
-        `${doc.id}: changed while sync was reading the facts of its work branch, so it is reconciled at the next sync`,
+        `${doc.id}: the facts of its work branch were not read for its current state, so it is reconciled at the next sync`,
       );
       continue;
     }
@@ -575,12 +575,25 @@ export const sync = defineCommand({
  *   1. ロックの中で取り込みと push（pullLocked）
  *   2. ロックを持たずに、照合の事実を gh と git で集める（collectReconcileFacts）
  *   3. ロックの中で最新の状態を読み直し、集めた事実で照合して書き、push する（reconcileLocked）
- * 2 の間はほかの書き込みが通る。3 は 1 の後に入った書き込みを読み直してから判定する
+ * 2 の間はほかの書き込みが通る。3 は 1 の後に入った書き込みを読み直してから判定する。
+ * 3 のロックが取れない（待ち時間の上限・2 の間に入った dg の外の変更・人が始めた rebase）ときは、照合を書かずに 1 の結果を返す。
+ * 1 は取り込みと push を済ませているので、投げると --resolve で採った値と捨てた値（data.resolved）・振り直し・取り込みの警告が消える
  */
 async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
   const pulled = await withWriteLock(ctx.repo, () => pullLocked(ctx, resolve));
   const collected = pulled.conflicts.length === 0 ? await collectReconcileFacts(ctx) : undefined;
-  return withWriteLock(ctx.repo, () => reconcileLocked(ctx, pulled, collected));
+  try {
+    return await withWriteLock(ctx.repo, () => reconcileLocked(ctx, pulled, collected));
+  } catch (e) {
+    if (!(e instanceof OperationError)) throw e;
+    const reason = e.detail ? `${e.message} (${e.detail})` : e.message;
+    return syncResult(ctx, pulled, {
+      warnings: [
+        ...pulled.warnings,
+        `The pull was done, but the reconcile was skipped because it could not write: ${reason}. Run sync again to reconcile`,
+      ],
+    });
+  }
 }
 
 type Pulled = Awaited<ReturnType<typeof pullLocked>>;
@@ -676,10 +689,10 @@ async function reconcileLocked(
   collected: CollectedFacts | undefined,
 ) {
   const repo = ctx.repo;
-  const { fetched, integrated, conflicts, renumbered, resolved } = pulled;
   const warnings = [...pulled.warnings];
   let pushed = pulled.pushed;
   await ctx.store.rescan();
+  const pendingBefore = await dirtyFiles(repo);
   // push が済んだ仮番号は確定する（DT-5）
   const confirmed: string[] = [];
   for (const id of pulled.confirmable) {
@@ -729,7 +742,11 @@ async function reconcileLocked(
         : []),
       ...(confirmed.length > 0 ? [`Confirm provisional IDs: ${confirmed.join(", ")}`] : []),
     ];
-    await commitAll(repo, parts.join(". "));
+    // 照合が書いたファイルだけをコミットする。ロックを放していた間にほかのプロセスがまとめ待ち（batch・manual）にした変更を、
+    // 照合のメッセージでコミットしない（manual は人が自分でコミットする）。まとめ待ちのファイルを照合も書き換えたときは、そのファイルごと入る
+    const after = await dirtyFiles(repo);
+    const written = Object.keys(after).filter((p) => after[p] !== pendingBefore[p]);
+    if (written.length > 0) await commitPaths(repo, written, parts.join(". "));
     for (const r of runsClosed) await dropRunning(repo, r.run);
     if (repo.remote) {
       const r = await push(repo);
@@ -739,24 +756,49 @@ async function reconcileLocked(
   }
   // 書いた記録（前に書いて結び付け損ねた記録を含む）に保留を結び付ける。コミットの後に行い、コミットの前に止まれば保留が残る
   for (const r of reviewsRecorded) await linkOrphanRounds(ctx, r.ticket.data, r.recorded);
-  const status = await syncStatus(repo);
+  return syncResult(ctx, pulled, {
+    warnings,
+    pushed,
+    reconciled,
+    prRecorded,
+    runsClosed,
+    reviewsWritten,
+    confirmed,
+  });
+}
+
+/** sync の結果。照合しなかったとき（取り込みで競合した・照合のロックが取れなかった）は照合の分を空で返す */
+async function syncResult(
+  ctx: CommandContext,
+  pulled: Pulled,
+  r: {
+    warnings: string[];
+    pushed?: boolean;
+    reconciled?: ReconciledTicket[];
+    prRecorded?: Array<{ id: string; pr: number }>;
+    runsClosed?: ReconciledRun[];
+    reviewsWritten?: Array<{ id: string; run: string }>;
+    confirmed?: string[];
+  },
+) {
+  const { fetched, integrated, conflicts, renumbered, resolved } = pulled;
   return ok(
     {
       fetched: fetched.ok,
       integrated,
-      pushed,
+      pushed: r.pushed ?? pulled.pushed,
       conflicts,
       renumbered,
       resolved,
-      reconciled,
-      pr_recorded: prRecorded,
-      runs_closed: runsClosed,
-      reviews_recorded: reviewsWritten,
-      confirmed,
-      status,
+      reconciled: r.reconciled ?? [],
+      pr_recorded: r.prRecorded ?? [],
+      runs_closed: r.runsClosed ?? [],
+      reviews_recorded: r.reviewsWritten ?? [],
+      confirmed: r.confirmed ?? [],
+      status: await syncStatus(ctx.repo),
     },
     undefined,
-    warnings,
+    r.warnings,
   );
 }
 

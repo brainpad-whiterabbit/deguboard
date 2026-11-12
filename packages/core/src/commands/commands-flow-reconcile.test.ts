@@ -326,6 +326,11 @@ describe("チケットの流れ（照合と claim）", () => {
       const other = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "eiki" } });
       const created = await runCommand(ticketCreate, other, { title: "During sync" });
       expect(created.data.id).toBe("t3");
+      await runCommand(ticketClaim, other, {
+        no_worktree: true,
+        ticket: "t3",
+        branch: "feat/t3-new",
+      });
       await runCommand(ticketUnclaim, other, { ticket: "t2" });
       expect(await pathExists(release)).toBe(false);
       await writeFile(release, "");
@@ -343,7 +348,68 @@ describe("チケットの流れ（照合と claim）", () => {
       expect(log[0]).toBe(
         "Reconcile t1: in_progress → review (pr_open, !pr_draft). Record PR numbers: t1: #42",
       );
-      expect(synced.data.status).toMatchObject({ ahead: 0, dirty: false });
+      // 集めたときに対象でなかった t3（ロックの間に claim した）は照合せずに次の sync に回す。unclaim で作業ブランチのなくなった t2 は対象でない
+      expect(synced.warnings.filter((w) => /^t\d+:/.test(w))).toEqual([
+        "t3: the facts of its work branch were not read for its current state, so it is reconciled at the next sync",
+      ]);
+      expect(ctx.store.tickets.get("t3")?.data).toMatchObject({ status: "in_progress" });
+      // 照合のコミットは照合が書いたファイルだけを入れる。ロックを放していた間にまとめ待ち（batch）になった t2 の unclaim は、
+      // 照合のメッセージでコミットせずに残す
+      const files = (
+        await git(ctx.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])
+      ).stdout.trim();
+      expect(files.split("\n")).toEqual([expect.stringContaining("t1")]);
+      expect(synced.data.status).toMatchObject({ ahead: 0, dirty: true });
+    } finally {
+      await writeFile(release, "");
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  }, 30_000);
+
+  it("sync が gh を待つ間に dg の外の変更が入ると、照合を書かずに取り込みの結果と照合を飛ばした理由を返す（t758）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    await runCommand(ticketCreate, ctx, { title: "Slow PR" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/t1-slow" });
+    await git(f.cloneA, ["branch", "feat/t1-slow"]);
+    await runCommand(commit, ctx, {});
+
+    // 偽の gh：started を置いてから release が置かれるまで（上限 15 秒）答えず、開いた PR #42 を返す
+    const started = path.join(f.root, "gh-started");
+    const release = path.join(f.root, "gh-release");
+    const bin = path.join(f.root, "fake-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+        `: > '${started}'; i=0; while [ ! -f '${release}' ] && [ $i -lt 300 ]; do sleep 0.05; i=$((i+1)); done`,
+        'echo \'{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null}\'',
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    try {
+      const syncing = runCommand(sync, ctx, {});
+      for (let i = 0; i < 300 && !(await pathExists(started)); i++) await sleep(50);
+      expect(await pathExists(started)).toBe(true);
+      // gh が答えない間に、dg を通さずにデータのリポジトリへファイルを置く
+      await writeFile(path.join(ctx.repo.dataDir, "stray.md"), "outside\n");
+      await writeFile(release, "");
+
+      const synced = await syncing;
+      expect(synced.data.fetched).toBe(true);
+      expect(synced.data.reconciled).toEqual([]);
+      expect(synced.data.pr_recorded).toEqual([]);
+      expect(synced.warnings).toContainEqual(
+        expect.stringContaining("The pull was done, but the reconcile was skipped"),
+      );
+      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "in_progress" });
     } finally {
       await writeFile(release, "");
       process.env["PATH"] = savedPath;
