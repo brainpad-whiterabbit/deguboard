@@ -13,6 +13,7 @@ import {
   mkdir,
   readFile,
   readlink,
+  realpath,
   rename,
   rm,
   symlink,
@@ -240,6 +241,19 @@ export async function unlinkDg(options: { home?: string } = {}): Promise<UnlinkO
 }
 
 /**
+ * 同じファイルか。実パス（シンボリックリンクを解いたもの）で比べる。拡張のフォルダがシンボリックリンクのとき、
+ * node（uninstall.ts の import.meta.url）は解いたパスを、VS Code（current を書く側）は解いていないパスを使うため。
+ * どちらかが消えていれば（古い版のフォルダが消された）絶対パスで比べる
+ */
+async function isSameFile(a: string, b: string): Promise<boolean> {
+  const [realA, realB] = await Promise.all([
+    realpath(a).catch(() => path.resolve(a)),
+    realpath(b).catch(() => path.resolve(b)),
+  ]);
+  return realA === realB;
+}
+
+/**
  * 拡張を消したときの片付け（vscode:uninstall の uninstall.ts が呼ぶ）。current がこの拡張の dg.mjs を指すときだけ、
  * 起動ファイル・current・起動ファイルを指すリンクを消す。版の新しい拡張やほかのエディタの拡張が使っているものは消さない。
  * 消したら true
@@ -254,7 +268,7 @@ export async function removeLauncherOf(
   const text = await readOrUndefined(currentFile);
   if (text === undefined) return false;
   const current = parseCurrent(text);
-  if (!current.dg || path.resolve(current.dg) !== path.resolve(dgFile)) return false;
+  if (!current.dg || !(await isSameFile(current.dg, dgFile))) return false;
   await unlinkDg({ home });
   await rm(launcherFileOf(home), { force: true });
   await rm(currentFile, { force: true });

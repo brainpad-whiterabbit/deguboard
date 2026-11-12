@@ -293,6 +293,16 @@ describe("~/.local/bin/dg の張りと外し", () => {
     expect(readlinkSync(linkPathOf(home))).toBe("/elsewhere/dg.js");
   });
 
+  it("拡張のフォルダがシンボリックリンクでも、実パスで同じ dg.mjs だと見て片付ける", async () => {
+    const real = fakeDg();
+    const link = path.join(home, "ext-link");
+    symlinkSync(path.join(home, "ext"), link);
+    await installLauncher(mine({ dg: path.join(link, "dist", "cli", "dg.mjs") }), { dir });
+    await linkDg({ home });
+    expect(await removeLauncherOf(real, { home })).toBe(true);
+    expect(existsSync(path.join(dir, "current"))).toBe(false);
+  });
+
   it("current がなければ、拡張を消しても何もしない", async () => {
     expect(await removeLauncherOf(path.join(home, "dg.mjs"), { home })).toBe(false);
   });
