@@ -225,8 +225,8 @@ export async function conflictFields(repo: GitRepo): Promise<ConflictField[]> {
 /** 警告に載せる値の上限の字数。全体は data.conflict_fields にある */
 const VALUE_LIMIT = 80;
 
-/** 英語の文に出すフィールドの名前。本文は行のまとまりとして英語で言う */
-export function fieldLabel(field: string): string {
+/** 警告の文に出すフィールドの名前。本文はぶつかった行の塊ごとに 1 件なので、行のまとまりとして言う */
+function fieldLabel(field: string): string {
   return field === BODY_FIELD ? "body lines" : field;
 }
 

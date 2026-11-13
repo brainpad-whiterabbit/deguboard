@@ -113,8 +113,8 @@ describe("frontmatter の 3-way マージ", () => {
     // ぶつかった行の塊だけを返し、ぶつからなかった行（一・二・四・五）は返さない
     expect(clash).toEqual({
       ok: false,
-      conflicts: ["本文"],
-      details: [{ field: "本文", base: "三", ours: "さん", theirs: "サン" }],
+      conflicts: ["body"],
+      details: [{ field: "body", base: "三", ours: "さん", theirs: "サン" }],
     });
   });
 
@@ -174,7 +174,7 @@ describe("frontmatter の 3-way マージ", () => {
     // prefer がなければ今までどおり競合
     expect(await mergeDocuments(base, ours, theirs)).toMatchObject({
       ok: false,
-      conflicts: ["title", "本文"],
+      conflicts: ["title", "body"],
     });
     const byOurs = await mergeDocuments(base, ours, theirs, "ours");
     expect(byOurs).toEqual({
@@ -186,7 +186,7 @@ describe("frontmatter の 3-way マージ", () => {
       resolved: [
         { field: "title", taken: "ours の題", discarded: "theirs の題" },
         {
-          field: "本文",
+          field: "body",
           taken: body.replace("三", "さん"),
           discarded: body.replace("三", "サン").replace("五", "ご"),
         },
@@ -201,7 +201,7 @@ describe("frontmatter の 3-way マージ", () => {
       ),
       resolved: [
         { field: "title", taken: "theirs の題", discarded: "ours の題" },
-        { field: "本文" },
+        { field: "body" },
       ],
     });
     // add/add（base が空）は採る側があっても行単位に任せる（仮番号の衝突を 1 つのチケットにまとめない）
@@ -268,7 +268,7 @@ describe("frontmatter の 3-way マージ", () => {
         doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:09Z" }, "## 概要\n\nX\n"),
         doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:05Z" }, "## 概要\n\nY\n"),
       ),
-    ).toMatchObject({ ok: false, conflicts: ["closed_at", "本文"] });
+    ).toMatchObject({ ok: false, conflicts: ["closed_at", "body"] });
   });
 
   it("承認の時刻（approved_at）も同じ status の規則で早い方を採り、auto として返す", async () => {
@@ -755,7 +755,7 @@ describe("同期のマージドライバ", () => {
         remote: "A の題",
       },
       { file: "tickets/t2.md", field: "priority", base: "medium", local: "low", remote: "high" },
-      { file: "tickets/t2.md", field: "本文", base: "二", local: "ニ", remote: "に" },
+      { file: "tickets/t2.md", field: "body", base: "二", local: "ニ", remote: "に" },
     ]);
     expect(synced.warnings.join("\n")).toContain(
       'tickets/t2.md body lines (local "ニ", remote "に", base "二")',

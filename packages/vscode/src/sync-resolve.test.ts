@@ -77,7 +77,7 @@ describe("同期の競合の通知（SY-4）", () => {
     const summary = resolvedSummary("remote", {
       resolved: [
         { file: "tickets/t1.md", field: "title", taken: "新", discarded: "旧" },
-        { file: "tickets/t1.md", field: "本文", taken: ["a"], discarded: ["b"] },
+        { file: "tickets/t1.md", field: "body", taken: ["a"], discarded: ["b"] },
       ],
     });
     expect(summary).toBe(
@@ -85,12 +85,11 @@ describe("同期の競合の通知（SY-4）", () => {
     );
   });
 
-  it("英語の通知に日本語のフィールド名（本文）を出さない", () => {
+  it("本文の識別子 body は、通知では行のまとまり（body lines）として出す", () => {
     const summary = resolvedSummary("remote", {
-      resolved: [{ file: "tickets/t1.md", field: "本文", taken: "a", discarded: "b" }],
+      resolved: [{ file: "tickets/t1.md", field: "body", taken: "a", discarded: "b" }],
     });
-    expect(summary).not.toContain("本文");
-    expect(summary).toContain("body lines");
+    expect(summary).toContain("tickets/t1.md body lines:");
   });
 
   it("日本語の訳では、本文のフィールドを「本文」と出す（鍵は英語の body lines）", () => {
@@ -103,7 +102,7 @@ describe("同期の競合の通知（SY-4）", () => {
     );
     try {
       const summary = resolvedSummary("local", {
-        resolved: [{ file: "tickets/t1.md", field: "本文", taken: "a", discarded: "b" }],
+        resolved: [{ file: "tickets/t1.md", field: "body", taken: "a", discarded: "b" }],
       });
       expect(summary).toBe('local の値で解いた: tickets/t1.md の本文: 採った "a"、捨てた "b"');
     } finally {
@@ -114,7 +113,7 @@ describe("同期の競合の通知（SY-4）", () => {
   it("長い値は字数の上限で切って示す", () => {
     const long = "あ".repeat(200);
     const summary = resolvedSummary("local", {
-      resolved: [{ file: "f.md", field: "本文", taken: long, discarded: "x" }],
+      resolved: [{ file: "f.md", field: "body", taken: long, discarded: "x" }],
     });
     expect(summary).toContain("…");
     expect(summary!.length).toBeLessThan(200);
