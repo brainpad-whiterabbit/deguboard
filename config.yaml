@@ -52,7 +52,7 @@ guide:
     assign: ""
     check: ""
     plan: ""
-    work: docs/work-notes.md
+    work: ""
     run: ""
     parallel: ""
     review: ""
@@ -62,6 +62,7 @@ guide:
     change: ""
     discuss: ""
     status: ""
+    retro: ""
     all: ""
 commit:
   mode: each
