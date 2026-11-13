@@ -27,10 +27,11 @@ function syncRoving(root: HTMLElement, current?: HTMLElement) {
     const want = el === cur ? "0" : "-1";
     if (el.getAttribute("tabindex") !== want) el.setAttribute("tabindex", want);
   }
-  // 選べる行の中の、行の主リンク以外（吹き出しのボタン、履歴の 2 段目の Iteration・Epic のリンク）は Tab で止めない。
-  // 止めると行ごとに Tab が止まり、1 回で一覧を抜けられない。吹き出しは a と Shift+F10 で開ける。マウスでは今までどおり押せる
+  // 選べる行の中の、行の主リンク以外（吹き出しのボタン、履歴の 2 段目の Iteration・Epic のリンク）と、
+  // 履歴のチケットの見方の区切りの見出しの Iteration のリンク（行の間に挟まる）は Tab で止めない。
+  // 止めると行や区切りごとに Tab が止まり、1 回で一覧を抜けられない。吹き出しは a と Shift+F10 で開ける。マウスでは今までどおり押せる
   for (const b of root.querySelectorAll<HTMLElement>(
-    "[data-select-id] button, [data-select-id] a:not(.ticket-row)",
+    "[data-select-id] button, [data-select-id] a:not(.ticket-row), .history-divider a",
   )) {
     if (b.getAttribute("tabindex") !== "-1") b.setAttribute("tabindex", "-1");
   }

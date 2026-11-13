@@ -10,7 +10,8 @@
 // components/history-rows.tsx）で出し、持ち越しを最後に分ける。
 // Epic の見方：closed の Epic を閉じた新しい順に、タイトルを 2 行まで出し、Iteration の行と同じ件数・閉じた日・チケットが入っていた Iteration を付ける。
 // 行を開くと中の終わったチケットを番号の順の 1 本の一覧（2 段目は Iteration・PR）で出し、終わったチケットのない Epic は薄く出して開けない。
-// チケットの見方：done・abandoned のチケットを終えた新しい順の 1 本の一覧（履歴用の行。2 段目は Iteration・PR・終えた日）で出す。終えた時刻は
+// チケットの見方：done・abandoned のチケットを終えた新しい順の 1 本の一覧（履歴用の行。2 段目は PR・終えた日）で出し、
+// Iteration が変わるところに区切りの見出し（番号・実績の期間・件数。スクロール中は上に貼り付く）を挟む。終えた時刻は
 // history のコマンド（deguboard ブランチの履歴）から求め、届くまでは番号の新しい順で日付を読み込み中の印にし、
 // 届いたあと履歴が浅くて分からないものは updated_at で代え、そう出す。
 // 絞り込みは検索と結果（完了・中止）だけ。Iteration・Epic で分けて見るのはそれぞれの見方に任せる。
@@ -31,6 +32,7 @@ import { useCommandData } from "../command-data.js";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { DetailLink } from "../components/parts.js";
 import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
+import { shortPeriod } from "../components/iteration-parts.js";
 import { useAskCurrent, useUiState } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { ClosedOn, ShortDay } from "../components/date-time.js";
@@ -894,23 +896,71 @@ function TicketView({
 }
 
 /**
- * チケットの見方：日付の見出しを付けず、終えた新しい順の 1 本の一覧（履歴用の行）で出す。
- * 2 段目は Iteration・PR・終えた日（Epic で分けて見るのは Epic の見方）。終えた日が履歴から分からないものは更新日に ~ を付ける。
+ * 並びの中で同じ Iteration（なしは null）が続くところを 1 つの区切りにし、区切りの先頭のチケットの ID から
+ * その Iteration と続く件数を引けるようにする。並びは変えないので、終えた順が Iteration をまたいで前後していれば
+ * 同じ Iteration の区切りが 2 回以上できる
+ */
+export function iterationRuns(
+  tickets: readonly Ticket[],
+): Map<string, { iteration: string | null; count: number }> {
+  const runs = new Map<string, { iteration: string | null; count: number }>();
+  let run: { iteration: string | null; count: number } | undefined;
+  for (const t of tickets) {
+    const iteration = t.iteration ?? null;
+    if (run && run.iteration === iteration) run.count += 1;
+    else runs.set(t.id, (run = { iteration, count: 1 }));
+  }
+  return runs;
+}
+
+/**
+ * チケットの見方の区切りの見出し：Iteration の番号（詳細へのリンク）・実績の期間（planned と、一覧にない Iteration は出さない）・
+ * 区切りに続く件数。Iteration のないチケットは「Iteration なし」。スクロール中は一覧の上に貼り付く（styles.css の .history-divider）
+ */
+function IterationDivider({ iteration, count }: { iteration: string | null; count: number }) {
+  const store = useStore();
+  const it = iteration ? store.iterations.find((i) => i.id === iteration) : undefined;
+  const period = it ? shortPeriod(it) : undefined;
+  return (
+    <h3 className="history-divider">
+      {iteration ? (
+        <DetailLink route={{ page: "iterations", id: iteration }}>{iteration}</DetailLink>
+      ) : (
+        <span>{tr("Iteration なし")}</span>
+      )}
+      {period ? <span className="history-divider-period">{period}</span> : null}
+      <span className="history-divider-count">{tr("{0} 件", count)}</span>
+    </h3>
+  );
+}
+
+/**
+ * チケットの見方：終えた新しい順の 1 本の一覧（履歴用の行）で出し、Iteration が変わるところに区切りの見出しを挟む。
+ * 日付の見出しを付けないという判断（終えた日の見出しで分けず 1 本の一覧にし、終えた日は行の 2 段目に置く）は変えない。
+ * Iteration の区切りはその中に置く：一覧を Iteration ごとの節に分け直すのではなく、並びは終えた順の 1 本のまま、
+ * どの行にも同じ番号を繰り返していた 2 段目の Iteration を、変わるところの見出し 1 行に移しただけ。
+ * だから区切りは Iteration ごとに 1 つへまとめ直さず、並びの中で変わるたびに出す（iterationRuns）。
+ * 2 段目は PR・終えた日（Epic で分けて見るのは Epic の見方）。終えた日が履歴から分からないものは更新日に ~ を付ける。
  * history の結果が届く前（at が null）は、終えた日の欄を読み込み中の印にする。
- * 多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける
+ * 多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける（区切りの件数は、まだ開いていない行も数える）
  */
 function FinishedList({ rows }: { rows: readonly FinishedRow[] }) {
   const byId = new Map(rows.map((r) => [r.ticket.id, r]));
+  const tickets = rows.map((r) => r.ticket);
+  const runs = iterationRuns(tickets);
   return (
     <div className="history-groups">
       <HistoryTicketList
-        tickets={rows.map((r) => r.ticket)}
+        tickets={tickets}
+        before={(t) => {
+          const run = runs.get(t.id);
+          return run ? <IterationDivider {...run} /> : null;
+        }}
         row={(t) => {
           const { at, approximate } = byId.get(t.id)!;
           return (
             <HistoryTicketRow
               ticket={t}
-              showIteration
               showEpic={false}
               note={
                 at === null ? (
