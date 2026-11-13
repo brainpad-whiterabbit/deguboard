@@ -1,0 +1,35 @@
+{
+  "id": "r20261113-090900-4919",
+  "ticket": "t846",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-13T09:09:00Z",
+  "finished_at": "2026-11-13T09:16:45Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "metrics lines does not rescan the store under the write lock, so a ticket changed meanwhile by another process can be overwritten",
+    "Skipped tickets keep taking the limit window of metrics lines on every call, and the help does not say how to get past them",
+    "The help of the pr option of ticket update does not say that removing or changing the PR removes lines",
+    "ADR-029 states the per-call limit of metrics lines, which is an operational detail and not a decision"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 9967,
+    "cache_read": 681020,
+    "cache_write": 51542
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 11,
+    "bash": 11,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "55be1ef8-154a-48e6-8ba7-3e2d51a10ee9",
+  "review": null
+}
