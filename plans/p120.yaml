@@ -4,7 +4,7 @@ tickets: [t850, t848, t849]
 after:
   t849:
     - t850
-pending_approval: true
+pending_approval: false
 details:
   t850:
     scope: config set --local retro.* を dg retro の案内で拒否するテスト付きの修正と、config show --fields のヘルプと config.tsx の冒頭のコメントを retro.perspectives を除く葉の項目と直す
@@ -18,3 +18,5 @@ details:
     scope: dg のマージのコマンドの結果に消したものを出し、delete_branch が true のとき sync の照合で done にしたチケットの worktree とブランチを消して reconciled に添える。消せないときは warnings。guide done の片付けの手順を替え、ST-4 を直す
     approach: pr.ts の removeBranchWorktree を reconcile から使い、未コミットの変更や先端の違いを確かめてから消す。bare リモート付きの一時リポジトリでテストする
     tier: heavy
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-13T10:28:30Z
