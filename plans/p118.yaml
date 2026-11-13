@@ -1,0 +1,57 @@
+id: p118
+project: default
+tickets: [t837, t843, t838, t839, t845, t846, t844, t841, t842]
+after:
+  t839:
+    - t837
+  t841:
+    - t838
+    - t839
+  t842:
+    - t841
+  t845:
+    - t843
+  t846:
+    - t845
+    - t838
+  t844:
+    - t843
+    - t846
+pending_approval: true
+details:
+  t837:
+    scope: web の日付の部品・ID の正規表現・backlog の Iteration の見出し。後片付けは t841
+    approach: 月日と日数差を date-time.tsx の 1 つの関数にまとめ、TEXT_ID を ids.ts の境界にそろえ、見出しをカンバンの部品に寄せる
+    tier: standard
+  t843:
+    scope: README・README.ja.md の書き直しと docs/usage.md の新設、VSIX の README の写し方。GIF の録り直しは t844
+    approach: 会話で決めた節の構成で書き直し、細かい使い方を usage.md に移して ADR-001 の表に足し、vscode-readme のテストを直す
+    tier: heavy
+  t838:
+    scope: requirements UI-5 の文、設定画面の audit の表示名、actor.human_only の空のときの文の 3 つ
+    approach: 文言を直し、l10n-en.ts・l10n-core.ts の訳とスナップショットを合わせる
+    tier: light
+  t839:
+    scope: 履歴の画面の軽い指摘 4 つ（検索欄・中止の行・期間のツールチップ・区切りの件数）
+    approach: history.tsx と history-rows.tsx を直し、変えた振る舞いをテストで確かめる
+    tier: standard
+  t845:
+    scope: guide-retro.md の数字の要約と観点にトークンを足し、README の History の節を合わせる。変更行数と観点「効率」は含めない
+    approach: metrics show の input・output・cache を工程ごとに足し合わせて割合を出す手順と、欠けたときの注記をガイドに書き、コードは変えない
+    tier: light
+  t846:
+    scope: 照合で PR の追加・削除の行数をチケットに記録し、metrics show が 1 行あたりのトークンを出し、ガイドに観点「効率」を足す。過去のチケットの埋め戻しは着手時に人に確かめる
+    approach: facts.ts の gh pr view の項目に additions,deletions を足してチケットのスキーマに lines を持たせ、metrics.ts で output と input+cache を行数で割り、requirements・ADR-029・help を直す
+    tier: heavy
+  t844:
+    scope: 録画の台本 5 本と GIF の差し替え、README の GIF の参照
+    approach: record-gifs.mjs の台本を import・assign・plan・work・retro に作り替えて mise run gifs で録り、古い GIF を消す。retro は t845・t846 のあとの流れで録る
+    tier: standard
+  t841:
+    scope: 設定と履歴の web のコードの後片付け。振る舞いは変えない
+    approach: NOTE_LABELS と GUIDE_TOPICS の対応のテストを足し、テスト専用の export を内部に寄せ、コメントと空の行の部品をそろえる
+    tier: standard
+  t842:
+    scope: guide.notes の表の印の二重と、消えた Epic の札の光りの 2 つ
+    approach: CSS の印を 1 つにし、useEpicHighlight で札の消滅（アンマウント）時に光りを消し、テストで確かめる
+    tier: standard
