@@ -169,7 +169,7 @@ gh release create v<版> --draft --notes-file <本文> packages/vscode/deguboard
 gh release edit v<版> --draft=false  # 公開すると、ワークフローが Marketplace と Open VSX に出す
 ```
 
-VSIX を添付してから公開する。公開したときだけ `.github/workflows/publish-extension.yml` が走り、その Release に添付した `deguboard-vscode.vsix` を落として、版がタグと合えば Marketplace（`vsce publish --oidc`）と Open VSX（`ovsx publish`）に出す。build と検査はしないので、上の検査を通した VSIX を添付する（判断は [ADR-008](adr/ADR-008-tech-stack.md)）。pre-release の Release は出さない。片方だけ落ちたら、Actions でその job だけを再実行する。
+VSIX を添付してから公開する。公開したときだけ `.github/workflows/publish-extension.yml` が走り、その Release に添付した `deguboard-vscode.vsix` を落として、版がタグと合えば Marketplace（`vsce publish --oidc`）と Open VSX（`ovsx publish`）に出す。build と検査はしないので、上の検査を通した VSIX を添付する（判断は [ADR-008](adr/ADR-008-tech-stack.md)）。pre-release の Release は出さず、あとで正式な Release に変えても出ない（出すなら、その Release を消して下書きから作り直して公開する）。片方だけ落ちたら、Actions でその job だけを再実行する。
 
 初めて出す前に、一度だけ準備する：
 
