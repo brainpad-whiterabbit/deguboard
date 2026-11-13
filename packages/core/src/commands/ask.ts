@@ -135,7 +135,7 @@ export interface AskView {
 
 /** PATH に dg がないときの置き換えの案内。日本語の依頼文の文章だけの形式が使う（AG-2・AG-8） */
 export const DG_PATH_NOTE =
-  "PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。";
+  "PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。";
 
 /**
  * Skill（dg<トピック>）が何をするかの 1 文。SKILL.md の冒頭（dg skill install は en）と、頼む小窓の札・候補のツールチップ（候補の skill_summary）が、この 1 か所から出る（UI-15・AG-2）。
@@ -205,7 +205,7 @@ export function skillSummary(skill: string, lang: AskLanguage = "ja"): string {
 
 /** Skill（commands/skill-files.ts の SKILL_TEMPLATE の {{dgPathNote}}）と英語の依頼文の文章だけの形式が同じ文を写す正本（DG_PATH_NOTE の英語） */
 export const DG_PATH_NOTE_EN =
-  "If `dg` is not on PATH, replace `dg` with the command the repository's guide tells you to use (`npx deguboard`, `mise run dg --`, etc.). The same applies to `dg` in the steps.";
+  "If `dg` is not on PATH, replace `dg` with the command the repository's guide tells you to use (such as `mise run dg --`). The same applies to `dg` in the steps.";
 
 /** 文章だけの形式で、頼む 1 文の次に添える dg の呼び方（AG-1） */
 export const ASK_DG_USAGE = `dg は \`dg … --json --actor agent\` で呼び、.git/deguboard/ のファイルは直接編集しないでください。${DG_PATH_NOTE}`;

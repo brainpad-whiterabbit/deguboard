@@ -64,6 +64,9 @@ describe("dg skill install", () => {
       expect(s.content).toContain(DG_PATH_NOTE_EN);
       expect(s.content).not.toContain(DG_PATH_NOTE);
       expect(s.content).not.toContain("{{");
+      // CLI は npm に出さない（@deguboard/cli）ので、動かない npx deguboard を呼び方の例に挙げない（t868）
+      expect(s.content).toContain("mise run dg --");
+      expect(s.content).not.toContain("npx deguboard");
     }
   });
 

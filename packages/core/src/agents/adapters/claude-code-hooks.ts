@@ -186,7 +186,7 @@ async function transcriptSettled(transcript: string): Promise<boolean> {
 
 const RUN_ID = /^r\d{8}-\d{6}-[0-9a-f]{4}$/;
 
-/** dg の run start・ticket claim を呼んだ Bash のコマンドか（mise run dg -- や npx deguboard を前に付けた形も含む） */
+/** dg の run start・ticket claim を呼んだ Bash のコマンドか（mise run dg -- を前に付けた形や、パス付きの dg.js を呼ぶ形も含む） */
 const OPENS_RUN = /(^|[\s/])(dg|deguboard|dg\.js)\b.*\s(run\s+start|ticket\s+claim)(\s|$)/;
 
 /** ツールの結果の中身を 1 つの文にする */
