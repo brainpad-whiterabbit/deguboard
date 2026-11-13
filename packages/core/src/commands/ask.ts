@@ -203,7 +203,7 @@ export function skillSummary(skill: string, lang: AskLanguage = "ja"): string {
   return text;
 }
 
-/** Skill（skill.md の {{dgPathNote}}）と英語の依頼文の文章だけの形式が同じ文を写す正本（DG_PATH_NOTE の英語） */
+/** Skill（commands/skill-files.ts の SKILL_TEMPLATE の {{dgPathNote}}）と英語の依頼文の文章だけの形式が同じ文を写す正本（DG_PATH_NOTE の英語） */
 export const DG_PATH_NOTE_EN =
   "If `dg` is not on PATH, replace `dg` with the command the repository's guide tells you to use (`npx deguboard`, `mise run dg --`, etc.). The same applies to `dg` in the steps.";
 

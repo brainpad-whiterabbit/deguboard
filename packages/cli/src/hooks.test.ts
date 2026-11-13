@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -585,5 +586,53 @@ describe("dg hooks check（AG-9・t542）", () => {
     const result = await checkOf(cwd);
     expect(result).not.toHaveProperty("data.warnings");
     expect(result.warnings.length).toBeGreaterThan(0);
+  });
+
+  it("入れてある dg の Skill が今の dg のものより古ければ、名前と dg skill install を警告する。手を加えたものは --force を分けて出し、dg skill install と同じ判定になる（t858）", async () => {
+    const cwd = await repo();
+    const home = await tempHome();
+    const env = { HOME: home };
+    const aboutSkills = async () =>
+      (await checkOf(cwd, [], env)).warnings.filter((w) => w.includes("dg skill install"));
+    const skillFile = (base: string, name: string) =>
+      path.join(base, ".claude", "skills", name, "SKILL.md");
+    const marker = /<!-- dg skill sha256:[0-9a-f]{64} -->\n/;
+    /** 前の版の dg が入れたままの Skill：本文が今と違い、印はその本文のハッシュと合っている */
+    const makeOlder = async (file: string, note = "") => {
+      const changed = (await readFile(file, "utf8")).replace(
+        "This Skill holds no steps.",
+        "This Skill has no steps.",
+      );
+      const hash = createHash("sha256").update(changed.replace(marker, "")).digest("hex");
+      await writeFile(file, changed.replace(marker, `<!-- dg skill sha256:${hash} -->\n`) + note);
+    };
+
+    // 入れていないときと、入れたばかり（今の dg と同じ）のときは何も足さない
+    expect(await aboutSkills()).toEqual([]);
+    expect((await dg(cwd, ["skill", "install"], env)).code).toBe(0);
+    expect((await dg(cwd, ["skill", "install", "--personal"], env)).code).toBe(0);
+    expect(await aboutSkills()).toEqual([]);
+
+    await makeOlder(skillFile(cwd, "dgwork"));
+    await makeOlder(skillFile(cwd, "dgplan"), "\nmy note\n");
+    await makeOlder(skillFile(home, "dgdone"));
+    const projectDir = path.join(cwd, ".claude", "skills");
+    const personalDir = path.join(home, ".claude", "skills");
+    const edited = `These dg Skills in ${projectDir} are older than this dg and were edited by hand, so dg skill install keeps them: dgplan. To overwrite them with the current Skills, run dg skill install --force`;
+    expect(await aboutSkills()).toEqual([
+      `These dg Skills in ${projectDir} are older than this dg (they differ from the Skills bundled with it): dgwork. Update them with dg skill install`,
+      edited,
+      `These dg Skills in ${personalDir} are older than this dg (they differ from the Skills bundled with it): dgdone. Update them with dg skill install --personal`,
+    ]);
+
+    // 案内のとおりに入れ直すと、警告と同じ分け方で更新され（手を加えたものは残る）、警告が消える
+    const installed = JSON.parse((await dg(cwd, ["--json", "skill", "install"], env)).out) as {
+      data: { updated: string[]; conflicts: string[] };
+    };
+    expect(installed.data).toMatchObject({ updated: ["dgwork"], conflicts: ["dgplan"] });
+    expect((await dg(cwd, ["skill", "install", "--personal"], env)).code).toBe(0);
+    expect(await aboutSkills()).toEqual([edited]);
+    expect((await dg(cwd, ["skill", "install", "--force"], env)).code).toBe(0);
+    expect(await aboutSkills()).toEqual([]);
   });
 });

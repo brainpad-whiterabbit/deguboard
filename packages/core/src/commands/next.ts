@@ -14,6 +14,7 @@ import { FIX_ROUNDS_LIMIT, heavyReviewRounds, reviewedTip } from "./gate.js";
 import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";
 import { planReadiness } from "./plan.js";
 import { hooksReachSession, takeHookWarnings, unlinkedReviewWarning } from "./hook-sessions.js";
+import { staleSkillWarningsOf } from "./skill-files.js";
 import { orphanReviewRuns } from "./orphan-review.js";
 import { crashedSubagentRuns, openedStepOf, sessionOf } from "./run.js";
 
@@ -508,7 +509,7 @@ export const next = defineCommand({
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
     "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. A ticket in the awaiting_approval stage is wait_human too (a person approves its Plan). " +
-    "It also warns with the dg hook warnings not reported yet (see dg hook --help). It writes nothing but the mark of the reported hook warnings in deguboard-local",
+    "It also warns with the dg hook warnings not reported yet (see dg hook --help), and with the installed dg Skills that are older than this dg (update them with dg skill install). It writes nothing but the mark of the reported hook warnings in deguboard-local",
   input: z.object({
     ticket: ticketRef,
   }),
@@ -526,7 +527,12 @@ export const next = defineCommand({
     // フックが結ばなかった見直しを数えたときは知らせる。段階の手によらず出す（t702）
     const unlinked = unlinkedReviewWarning(env, ticket.id, facts.runs, ticket.branch_at);
     // フックの中で出た警告は誰にも届いていないので、まだ知らせていないものをここで知らせる（t756）
-    const extra = [...(unlinked ? [unlinked] : []), ...(await takeHookWarnings(ctx.repo.localDir))];
+    // 入れてある dg の Skill が今の dg のものより古ければ、それも知らせる（t858）
+    const extra = [
+      ...(unlinked ? [unlinked] : []),
+      ...(await takeHookWarnings(ctx.repo.localDir)),
+      ...(await staleSkillWarningsOf(ctx.repo.topLevel, env)),
+    ];
     // 実行中の Run を待つ手には文を出さない（貼ると Run が重なる）。running_run が入るのは待つ手だけ
     if (!role || step.running_run !== null) return ok(step, undefined, extra);
     const { brief, warnings } = await briefOf(ctx, ticket, role);

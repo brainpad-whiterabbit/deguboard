@@ -31,6 +31,34 @@ export function agentSkillDirs(query: SkillQuery): string[] {
   );
 }
 
+/** Skill の置き場所の 1 つ。scope は project（リポジトリ）か personal（個人）で、dg skill install の呼び名と同じ */
+export interface SkillPlace {
+  scope: "project" | "personal";
+  /** Skill のディレクトリの絶対パス */
+  dir: string;
+}
+
+/**
+ * Adapter が Skill を読むディレクトリを、置き場所ごとに返す（project、personal の順）。topLevel を省くと personal だけ（リポジトリの外）。
+ * 入れてある dg の Skill が古いかを確かめるのに使う
+ */
+export function agentSkillPlaces(query: {
+  env: AgentEnv;
+  topLevel?: string | undefined;
+}): SkillPlace[] {
+  const { topLevel } = query;
+  return ADAPTERS.flatMap((a): SkillPlace[] =>
+    a.skillDirs
+      ? [
+          ...(topLevel === undefined
+            ? []
+            : [{ scope: "project" as const, dir: a.skillDirs.project(topLevel) }]),
+          { scope: "personal", dir: a.skillDirs.personal(query.env) },
+        ]
+      : [],
+  );
+}
+
 /** agent の Skill の置き場所。dg skill install が書く先を決めるのに使う。Skill のない agent は undefined */
 export function skillDirsOf(agent: string): SkillDirs | undefined {
   return findAdapter(agent)?.skillDirs;
