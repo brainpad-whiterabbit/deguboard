@@ -2703,9 +2703,72 @@ textarea.body {
 .config-own {
   margin-bottom: 0.35rem;
 }
-.config-desc {
+/* 項目の文：要約 1 行は名前の下に、欄の下の 1 行（選んでいる値の説明・空のときの動き）は小さく、全文は「詳しく」に畳む */
+.config-summary {
   margin: 0.2rem 0 0.4rem;
   font-size: 0.92em;
+}
+.config-hint {
+  margin: 0.3rem 0 0;
+  padding: 0;
+  font-size: 0.85em;
+  list-style: none;
+}
+.config-option-hints li + li {
+  margin-top: 0.1rem;
+}
+.config-more {
+  margin-top: 0.3rem;
+  font-size: 0.85em;
+}
+.config-more summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--vscode-textLink-foreground);
+}
+.config-detail {
+  margin: 0.3rem 0 0;
+  padding: 0.3rem 0.6rem;
+  border-left: 2px solid var(--dg-border);
+  overflow-wrap: anywhere;
+}
+/* guide.notes.* の表。説明は表の上に 1 つだけ出し、行は差し込む先の名前と入力欄 */
+.config-notes {
+  padding: 0.5rem 0.6rem;
+}
+.config-notes-table {
+  width: 100%;
+  margin-top: 0.4rem;
+  border-collapse: collapse;
+}
+.config-notes-table th,
+.config-notes-table td {
+  padding: 0.3rem 0.4rem;
+  border-top: 1px solid color-mix(in srgb, var(--dg-border) 60%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+.config-notes-table th {
+  width: 1%;
+  white-space: nowrap;
+  font-weight: normal;
+}
+.config-notes-table th .config-key {
+  display: block;
+  width: fit-content;
+  font-size: 0.85em;
+}
+.config-notes-table tr.config-field {
+  padding: 0;
+}
+.config-notes-table tr.config-field.modified th {
+  box-shadow: inset 3px 0 var(--vscode-focusBorder);
+}
+.config-note .config-field-head:empty {
+  display: none;
+}
+.config-note .config-text {
+  width: 100%;
 }
 .config-control {
   display: flex;
@@ -2782,6 +2845,27 @@ textarea.body {
 [data-surface="sidebar"] .config-list-add input {
   flex: 1;
   min-width: 0;
+}
+/* 左パネルでは guide.notes.* の表の行を、名前の下に入力欄を置く縦の並びにする */
+[data-surface="sidebar"] .config-notes {
+  padding: 0.45rem 0.3rem 0.45rem 0.45rem;
+}
+[data-surface="sidebar"] .config-notes-table tr {
+  display: block;
+  padding: 0.35rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--dg-border) 60%, transparent);
+}
+[data-surface="sidebar"] .config-notes-table th,
+[data-surface="sidebar"] .config-notes-table td {
+  display: block;
+  width: auto;
+  padding: 0.1rem 0;
+  border-top: none;
+  white-space: normal;
+}
+[data-surface="sidebar"] .config-notes-table th .config-key {
+  display: inline;
+  margin-left: 0.4em;
 }
 
 /* エージェントに頼む入力欄（UI-15）。ページの下に出し、上の 1 行が頼むことの候補、欄の頭が Skill と対象の札、下が全文・形式・コピー */
