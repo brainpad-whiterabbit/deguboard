@@ -4,7 +4,7 @@ tickets: [t845, t846]
 after:
   t846:
     - t845
-pending_approval: true
+pending_approval: false
 details:
   t845:
     scope: guide-retro.md の数字の要約と観点にトークンを足し、README の History の節を合わせる。変更行数と観点「効率」は含めない
@@ -14,3 +14,5 @@ details:
     scope: 照合で PR の追加・削除の行数をチケットに記録し、metrics show が 1 行あたりのトークンを出し、ガイドに観点「効率」を足す。過去のチケットの埋め戻しは着手時に人に確かめる
     approach: facts.ts の gh pr view の項目に additions,deletions を足してチケットのスキーマに lines を持たせ、metrics.ts で output と input+cache を行数で割り、requirements・ADR-029・help を直す
     tier: heavy
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-13T08:26:05Z
