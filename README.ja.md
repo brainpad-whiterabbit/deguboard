@@ -96,7 +96,7 @@ dg config set notify.approvals false --local
 
 ### 同期の競合を解く
 
-同じチケットの同じ項目を二人が違う値に変えると、`dg sync` は push の前で止まり、競合を知らせます。通知には競合した項目の remote と local の値が並び、「Take remote」「Take local」のボタンが出ます。押した側で `dg sync --resolve` を 1 回呼び、競合した項目だけがその側の値を採ります（ほかの変更と commit は残ります）。採った値と捨てた値は通知に出ます。ターミナルでは `dg sync --resolve remote` か `dg sync --resolve local` を実行します。解くまで push と照合は待ちます。status が同じで `closed_at`・`started_at`・`approved_at` だけが違う競合は止まらず、dg が早い方の時刻を採って警告を出します。エージェント向けの手順は `dg guide overview` の「When sync stops」にあります。
+同じチケットの同じ項目を二人が違う値に変えると、`dg sync` は push の前で止まり、競合を知らせます。通知には競合した項目の remote と local の値が並び、「Take remote」「Take local」のボタンが出ます。押した側で `dg sync --resolve` を 1 回呼び、競合した項目だけがその側の値を採ります（ほかの変更と commit は残ります）。採った値と捨てた値は通知に出ます。ターミナルでは `dg sync --resolve remote` か `dg sync --resolve local` を実行します。解くまで push と照合は待ちます。status が同じ（Plan は両側に時刻がある）で `closed_at`・`started_at`・`approved_at` だけが違う競合は止まらず、dg が早い方の時刻を採って警告を出します。エージェント向けの手順は `dg guide overview` の「When sync stops」にあります。
 
 ## セキュリティとプライバシー
 
