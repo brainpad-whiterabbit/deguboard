@@ -112,7 +112,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor, actions: ACTION_NAMES })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。
 
-### `packages/cli`（パッケージ名 `deguboard`、コマンドは `dg`）
+### `packages/cli`（`@deguboard/cli`、コマンドは `dg`）
 
 core の `commands` を commander（`program.ts`）と MCP のツール（`mcp.ts`）に写す。ロジックは持たない。`bin/dg.js` と束ねた `dist/cli/dg.mjs` の入口（`bundle.ts`）は PreToolUse と Stop のフックの呼び出しを、本体を読む前に `fast-hook.ts` で処理する（ADR-033）。各ファイルの役割は冒頭のコメントが正本で、引数の型ごとの対応は `options.ts`、`--json` の形は `output.ts`、終了コードは `errors.ts`。
 
@@ -144,7 +144,7 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 見た目は Playwright MCP（`.mcp.json`。Chromium は `mise run playwright:install`）で一時リポジトリの `dg serve` を見る。配置は `?surface=sidebar`（既定）か `panel` で選ぶ（ブラウザだけの配置はない）。Webview に固有の色・CSP・拡張ホストとのやり取りは `mise run test:vscode` で見る（「`packages/vscode`」の節）。
 
-### `packages/vscode`（`deguboard-vscode`）
+### `packages/vscode`（`deguboard`。拡張の ID は `deguboard.deguboard`）
 
 VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動しない。同梱した `dist/cli/dg.mjs` は、起動のたびに `~/.local/share/deguboard/` に書く起動ファイル `dg` から外に出す（`launcher.ts`。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。VS Code の API に触れるのは入口の `extension.ts` だけで、Webview に載せる純粋な処理は `webview.ts`、PATH の `dg` を引くのは `dg.ts`、拡張を消したときの片付けは `uninstall.ts` が呼ぶ。文言は言語ごとのファイルに置く：manifest は `package.nls.json`（英語・既定）と `package.nls.ja.json`、拡張ホストは `l10n.ts` の `t`（鍵は英語の文）と `l10n/bundle.l10n.ja.json`、Walkthrough は `media/walkthrough/*.md` と `*.ja.md`。揃っているかは `l10n.test.ts` が確かめる。Webview の画面の文言は web に置き（「`packages/web`」の節）、拡張ホストは表示言語を `<html data-language>` で渡すだけ。
 
