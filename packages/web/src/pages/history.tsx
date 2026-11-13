@@ -293,7 +293,7 @@ const VIEWS: { view: HistoryView; label: string }[] = [
 type ViewCounts = Record<HistoryView, { hit: number; total: number; filtered: boolean }>;
 
 /**
- * 見方の切り替え：枠も塗りもない文字に件数のバッジを付ける。選んだ見方だけ文字を濃く太くし、aria-pressed で伝える。
+ * 見方の切り替え：枠も塗りもない文字に件数を説明文の色の数字で続ける。選んだ見方だけ名前を濃く太くし、aria-pressed で伝える。
  * 件数の行は持たず、絞り込み中はバッジが「当たった数 / 全体」になる（狭い幅に収まるよう / の前後は細い空白）
  */
 function ViewSwitch({
@@ -317,7 +317,7 @@ function ViewSwitch({
             onClick={() => navigate({ ...route, page: "history", view: v.view })}
           >
             {tr(v.label)}{" "}
-            <span className="badge">
+            <span className="view-count">
               {c.filtered ? `${c.hit}\u2009/\u2009${c.total}` : c.total}
             </span>
           </button>
@@ -863,7 +863,7 @@ function TicketView({
               aria-pressed={result === value}
               onClick={() => setResult(value)}
             >
-              {label} <span className="badge">{n}</span>
+              {label} <span className="view-count">{n}</span>
             </button>
           ))}
       </span>

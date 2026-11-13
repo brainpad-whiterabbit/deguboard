@@ -805,8 +805,9 @@ button.link:hover {
 .result-switch {
   margin-bottom: 0.5rem;
 }
-.view-switch .badge {
-  padding: 0.05em 0.3em;
+/* 件数は塗りも枠もない説明文の色の数字。太くしない（選んだ見方は名前だけ太い） */
+.view-switch .view-count {
+  color: var(--vscode-descriptionForeground);
   font-weight: normal;
   font-variant-numeric: tabular-nums;
 }
