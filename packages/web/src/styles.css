@@ -2800,8 +2800,10 @@ textarea.body {
   width: fit-content;
   font-size: 0.85em;
 }
+/* 変更した行の印は 1 つだけにする。表の行では .config-field の左の線を外し、th の内側の影で印を付ける（左パネルは下で行の左の線に戻す） */
 .config-notes-table tr.config-field {
   padding: 0;
+  border-left: none;
 }
 .config-notes-table tr.config-field.modified th {
   box-shadow: inset 3px 0 var(--vscode-focusBorder);
@@ -2888,14 +2890,21 @@ textarea.body {
   flex: 1;
   min-width: 0;
 }
-/* 左パネルでは guide.notes.* の表の行を、名前の下に入力欄を置く縦の並びにする */
+/* 左パネルでは guide.notes.* の表の行を、名前の下に入力欄を置く縦の並びにする。変更した行の印は th の影でなく、名前と入力欄にかかる行の左の線にする */
 [data-surface="sidebar"] .config-notes {
   padding: 0.45rem 0.3rem 0.45rem 0.45rem;
 }
 [data-surface="sidebar"] .config-notes-table tr {
   display: block;
-  padding: 0.35rem 0;
+  padding: 0.35rem 0 0.35rem 0.3rem;
   border-top: 1px solid color-mix(in srgb, var(--dg-border) 60%, transparent);
+  border-left: 3px solid transparent;
+}
+[data-surface="sidebar"] .config-notes-table tr.config-field.modified {
+  border-left-color: var(--vscode-focusBorder);
+}
+[data-surface="sidebar"] .config-notes-table tr.config-field.modified th {
+  box-shadow: none;
 }
 [data-surface="sidebar"] .config-notes-table th,
 [data-surface="sidebar"] .config-notes-table td {

@@ -9,7 +9,8 @@
 // - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
 // 行数は要素の枠の中に見えている行だけを数える（2 行で切られて隠れた行は数えない）
 // カンバンの行の右端（担当の印・Plan の番号など）は、行の枠からはみ出さず、タイトルと重ならないことも確かめる
-// 設定画面（#/config）は、確認の帯を開き、長い worktree.root と actions.test のリストを入れた状態で、部品が幅からはみ出さないことを別に確かめる
+// 設定画面（#/config）は、確認の帯を開き、長い worktree.root と actions.test のリストを入れた状態で、部品が幅からはみ出さないことを別に確かめる。
+// guide.notes.* の表の変更した行の印が 1 つだけであることも、左パネルとパネルの配置で確かめる
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
@@ -138,6 +139,8 @@ beforeAll(async () => {
   // 設定画面：長い worktree.root（区切りのない長いパス）と、項目の多い actions.test
   await call("config.set", { key: "worktree.root", value: LONG_ROOT });
   await call("config.set", { key: "actions.test", value: TEST_COMMAND });
+  // guide.notes.* の表の、変更した行（印が 1 つだけかを確かめる）
+  await call("config.set", { key: "guide.notes.plan", value: "Plan の前に読む" });
   browser = await chromium.launch().catch((error: unknown) => {
     throw new Error(
       `Chromium を起動できない。mise run playwright:install を実行する（${String(error)}）`,
@@ -909,6 +912,44 @@ describe.each(SCHEMES)("設定画面（%s）", (scheme) => {
     },
   );
 });
+
+// 表の行は .config-field の左の線と th の影の両方が付きうる。どちらか 1 つだけが印になる（t842）
+it.each(["sidebar", "panel"])(
+  "設定画面（%s）の guide.notes.* の表で、変更した行の印は 1 つだけ",
+  async (surface) => {
+    const context = await browser.newContext({ viewport: { width: 900, height: 900 } });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${server.url}?surface=${surface}#/config`, { waitUntil: "networkidle" });
+      const row = page.locator('tr[data-key="guide.notes.plan"]');
+      await row.waitFor();
+      const marks = await row.evaluate((tr) => {
+        const transparent = (c: string) => c === "transparent" || c === "rgba(0, 0, 0, 0)";
+        const line = (el: Element) => {
+          const s = getComputedStyle(el);
+          return (
+            s.borderLeftStyle !== "none" &&
+            parseFloat(s.borderLeftWidth) > 0 &&
+            !transparent(s.borderLeftColor)
+          );
+        };
+        const th = tr.querySelector("th")!;
+        return {
+          modified: tr.classList.contains("modified"),
+          marks: [
+            line(tr) ? "行の左の線" : "",
+            line(th) ? "th の左の線" : "",
+            getComputedStyle(th).boxShadow !== "none" ? "th の影" : "",
+          ].filter(Boolean),
+        };
+      });
+      expect(marks.modified, "変更した行").toBe(true);
+      expect(marks.marks, "変更した行の印").toHaveLength(1);
+    } finally {
+      await context.close();
+    }
+  },
+);
 
 it("ライトとダークで背景の色が変わる（prefers-color-scheme が効いている）", async () => {
   const colors: string[] = [];

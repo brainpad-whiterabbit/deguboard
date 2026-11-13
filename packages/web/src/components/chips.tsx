@@ -3,7 +3,15 @@
 // 行は描画した位置（offsetTop）で数え、チップの並び・中身（contentKey）・幅・選んだチップが変わったら数え直す。
 // 選んだチップ（pressed）は「ほか N」に隠さず、出す分の最後に回す
 
-import { Children, isValidElement, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Children,
+  isValidElement,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { tr } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
@@ -22,10 +30,27 @@ export function Chip({
   /** 読み上げの名前。中の文字（番号だけの札など）と違うときに渡す */
   label?: string;
   className?: string;
-  /** マウスを載せた・Tab で止まったとき true、離れたとき false で呼ぶ（Epic の札が行を光らせる。epic-chip.tsx） */
+  /** マウスを載せた・Tab で止まったとき true、離れたとき（触れたまま消えたときも）false で呼ぶ（Epic の札が行を光らせる。epic-chip.tsx） */
   onHover?: ((on: boolean) => void) | undefined;
   children: ReactNode;
 }) {
+  // 触れている間に札が消える（Epic が閉じて並びから外れるなど）と mouseleave も blur も来ないので、
+  // 消えるとき（アンマウント）に離れたとして呼ぶ。行が光ったまま残らないように（t842）
+  const touching = useRef(false);
+  const latestOnHover = useRef(onHover);
+  useEffect(() => {
+    latestOnHover.current = onHover;
+  });
+  useEffect(
+    () => () => {
+      if (touching.current) latestOnHover.current?.(false);
+    },
+    [],
+  );
+  const hover = (on: boolean) => {
+    touching.current = on;
+    onHover?.(on);
+  };
   return (
     <button
       type="button"
@@ -36,10 +61,10 @@ export function Chip({
       onClick={onClick}
       {...(onHover
         ? {
-            onMouseEnter: () => onHover(true),
-            onMouseLeave: () => onHover(false),
-            onFocus: () => onHover(true),
-            onBlur: () => onHover(false),
+            onMouseEnter: () => hover(true),
+            onMouseLeave: () => hover(false),
+            onFocus: () => hover(true),
+            onBlur: () => hover(false),
           }
         : {})}
     >
