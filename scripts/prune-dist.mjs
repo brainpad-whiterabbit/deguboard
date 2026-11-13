@@ -29,7 +29,7 @@ function hasSource(pkg, rel) {
   const ext = OUTPUT_EXTENSIONS.find((e) => rel.endsWith(e));
   if (ext === undefined) return false;
   const base = rel.slice(0, -ext.length);
-  if (/\.test$/.test(base)) return false;
+  if (base.endsWith(".test")) return false;
   return existsSync(path.join(src, `${base}.ts`)) || existsSync(path.join(src, `${base}.tsx`));
 }
 
