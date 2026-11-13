@@ -1,0 +1,30 @@
+{
+  "id": "r20261113-092659-b576",
+  "ticket": "t844",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-13T09:26:59Z",
+  "finished_at": "2026-11-13T09:48:14Z",
+  "result": "failure",
+  "error": "サブエージェントが終わったとき PR がない",
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 104,
+    "output": 49679,
+    "cache_read": 6164385,
+    "cache_write": 176555
+  },
+  "tools": {
+    "read": 21,
+    "search": 0,
+    "write": 3,
+    "bash": 41,
+    "other": 0,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "55be1ef8-154a-48e6-8ba7-3e2d51a10ee9",
+  "review": null
+}
