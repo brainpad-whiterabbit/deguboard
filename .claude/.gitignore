@@ -1,2 +1,13 @@
-skills/dg*/
+skills/dgimport/
+skills/dgassign/
+skills/dgcheck/
+skills/dgplan/
+skills/dgwork/
+skills/dgaudit/
+skills/dgrelease/
+skills/dgdone/
+skills/dgchange/
+skills/dgdiscuss/
+skills/dgstatus/
+skills/dgall/
 settings.local.json

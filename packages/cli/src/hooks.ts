@@ -21,7 +21,7 @@ import {
   type AgentEnv,
   type HookSupport,
 } from "@deguboard/core";
-import { ensureIgnoreLine, trackedFiles } from "./gitignore.js";
+import { ensureIgnoreLines, trackedFiles } from "./gitignore.js";
 import { isLauncherPath, launcherFrom } from "./launcher-env.js";
 
 /** dg が書いたフックのコマンドの終わり。これで見分けて入れ替える（基のコマンドが変わっても重ねない） */
@@ -304,7 +304,7 @@ export async function installHooks(options: {
   // local の設定はマシンのパスを持つので、実行のたびに隣の .gitignore に自分の行がなければ足す（設定が変わらなくても）
   const ignoreFile = join(dirname(file), ".gitignore");
   const added =
-    options.scope === "local" && !dryRun && (await ensureIgnoreLine(ignoreFile, basename(file)));
+    options.scope === "local" && !dryRun && (await ensureIgnoreLines(ignoreFile, [basename(file)]));
   return { ...result, ignoreFile: added ? ignoreFile : null };
 }
 
@@ -423,7 +423,11 @@ export async function checkHooks(options: {
   return { agent, scope: options.scope, file, events, warnings };
 }
 
-/** dg のフックを外す。手で足したフックは残す */
+/**
+ * dg のフックを外す。手で足したフックは残す。
+ * .gitignore の settings.local.json の行は消さない。settings.local.json は Claude Code が dg の外でも各自のマシンの設定（許可など）に使うので、
+ * dg のフックがなくなっても追跡させないままにする（t804）
+ */
 export async function uninstallHooks(options: {
   cwd: string;
   scope: HookScope;
