@@ -10,7 +10,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, inject, it, vi } from "vitest";
 import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
 import { slowLock } from "../../test/helpers/slow-lock.js";
 import { openContext } from "./context.js";
@@ -43,6 +43,13 @@ import {
 } from "../run/record.js";
 import { recordBaseline } from "../git/outside.js";
 import type { ReviewFinding, Run } from "../model/run.js";
+
+declare module "vitest" {
+  /** vitest.config.ts の provide。HOME を一時ディレクトリにする前の、開発者の本物のホーム */
+  export interface ProvidedContext {
+    realHome: string;
+  }
+}
 
 vi.mock("node:fs/promises", async (importOriginal) =>
   (await import("../../test/helpers/slow-lock.js")).withSlowLock(await importOriginal()),
@@ -1198,6 +1205,8 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     await transcript(projectDir, run);
     await runCommand(runFinish, ctx, { run: run.id, result: "success" });
     const committed = (await git(ctx.repo.dataDir, ["show", "--format=", "HEAD"])).stdout;
+    // os.homedir() は vitest.config.ts が一時ディレクトリにしたもので、本物のホームではない。本物のホームは
+    // vitest.config.ts が書き換える前に取って inject("realHome") で渡す（テストの作業ディレクトリはその下にありうる）
     for (const text of [
       "秘密のプロンプト",
       "答え",
@@ -1207,6 +1216,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
       home,
       ctx.repo.topLevel,
       os.homedir(),
+      inject("realHome"),
       ".jsonl",
     ]) {
       expect(committed).not.toContain(text);

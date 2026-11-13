@@ -2,7 +2,7 @@
 // - 始め方の画面に「このリポジトリで始める」ボタンが出ること（ライトとダークのスクリーンショットを test/vscode/screenshots/ に出す）
 // - ボタンを押すと、リポジトリを開いた新しいターミナルで起動ファイルの dg が init・skill install・hooks install を実行し、
 //   終わると始め方の画面が普段の画面（タブのあるサイドバー）に変わること
-// 拡張は起動のたびに起動ファイルを HOME（~/.local/share/deguboard/）に書くので、試すときは HOME を一時ディレクトリにしてよい。
+// 拡張は起動のたびに起動ファイルを HOME（~/.local/share/deguboard/）に書くが、launchHost が HOME を一時ディレクトリにするので手元には書かない。
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す
 
 import { access } from "node:fs/promises";
