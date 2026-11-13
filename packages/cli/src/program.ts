@@ -204,7 +204,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     .configureOutput(program.configureOutput())
     .command("install")
     .description(
-      "Write the Claude Code Skills that read dg guide at each stage (dgimport, dgplan, dgwork, etc.) into <repository>/.claude/skills/. Skills you have not edited are updated to the latest, and retired deguboard Skills are deleted. Each person installs the Skills on their own machine: it adds skills/dg*/ to <repository>/.claude/.gitignore when the line is missing (commit that .gitignore), and warns if dg Skills are already tracked by git",
+      "Write the Claude Code Skills that read dg guide at each stage (dgimport, dgplan, dgwork, etc.) into <repository>/.claude/skills/. Skills you have not edited are updated to the latest, and retired deguboard Skills are deleted. Each person installs the Skills on their own machine: it adds a line per Skill it installs (skills/dgwork/ and so on) to <repository>/.claude/.gitignore when the line is missing (commit that .gitignore), and warns if those Skills are already tracked by git. Your own Skills are not ignored, even when their names start with dg",
     )
     .option(
       "--personal",
@@ -240,7 +240,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           if (result.dryRun) streams.out("--dry-run: nothing was written");
           streams.out(`Skill directory: ${result.dir}`);
           if (result.ignoreFile)
-            streams.out(`Added an ignore line for the dg Skills to ${result.ignoreFile}`);
+            streams.out(`Added ignore lines for the dg Skills to ${result.ignoreFile}`);
           for (const [label, names] of lines)
             if (names.length > 0) streams.out(`${label}: ${names.join(", ")}`);
           for (const f of result.files) streams.out(`\n--- ${f.path}\n${f.content}`);

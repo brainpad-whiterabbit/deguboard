@@ -291,28 +291,51 @@ describe("dg skill install", () => {
     }
   });
 
-  it("project では実行のたびに .claude/.gitignore に skills/dg*/ がなければ足し、利用者の行を残して重ねない。入れた Skill は git の未追跡に出ない", async () => {
+  it("project では実行のたびに .claude/.gitignore に dg が入れる Skill ごとの行がなければ足し、利用者の行を残して重ねない。入れた Skill は git の未追跡に出ない", async () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);
     const ignore = path.join(local.dir, ".claude", ".gitignore");
+    const lines = (await buildSkills()).map((s) => `skills/${s.name}/\n`).join("");
     const first = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
     expect(first.data.ignoreFile).toBe(ignore);
     expect(first.warnings).toEqual([]);
-    expect(await readFile(ignore, "utf8")).toBe("skills/dg*/\n");
+    expect(await readFile(ignore, "utf8")).toBe(lines);
+    expect(lines).toContain("skills/dgwork/\n");
     // 2 回目は足さない
     const second = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
     expect(second.data.ignoreFile).toBeNull();
-    expect(await readFile(ignore, "utf8")).toBe("skills/dg*/\n");
-    // 利用者が行を消して自分の行（末尾に改行なし）を書いていれば、残して足す。Skill が最新で何も書かない実行でも足す
-    await writeFile(ignore, "# mine\nnotes.md");
+    expect(await readFile(ignore, "utf8")).toBe(lines);
+    // 利用者が行を消して自分の行（末尾に改行なし）を書いていれば、残して足りない行だけを足す。Skill が最新で何も書かない実行でも足す
+    await writeFile(ignore, "# mine\nskills/dgwork/\nnotes.md");
     const third = await dg(local.dir, ["skill", "install"]);
-    expect(third.out).toContain(`Added an ignore line for the dg Skills to ${ignore}`);
-    expect(await readFile(ignore, "utf8")).toBe("# mine\nnotes.md\nskills/dg*/\n");
+    expect(third.out).toContain(`Added ignore lines for the dg Skills to ${ignore}`);
+    const expected = `# mine\nskills/dgwork/\nnotes.md\n${lines.replace("skills/dgwork/\n", "")}`;
+    expect(await readFile(ignore, "utf8")).toBe(expected);
     await dg(local.dir, ["skill", "install"]);
-    expect(await readFile(ignore, "utf8")).toBe("# mine\nnotes.md\nskills/dg*/\n");
+    expect(await readFile(ignore, "utf8")).toBe(expected);
     // git から見て、未追跡に出るのは .gitignore だけ（Skill は無視される）
     const status = await git(local.dir, ["status", "--porcelain", "-uall"]);
     expect(status.trim().split("\n")).toEqual(["?? .claude/.gitignore"]);
+  });
+
+  it("利用者が作った dg で始まる Skill は無視の行の対象にならず、追跡していても警告しない", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const own = skillPath(local.dir, "dgmine");
+    await mkdir(path.dirname(own), { recursive: true });
+    await writeFile(own, "mine\n");
+    const first = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
+    expect(first.warnings).toEqual([]);
+    // dg の Skill は無視され、利用者の dgmine は未追跡に出る（無視されない）
+    const status = await git(local.dir, ["status", "--porcelain", "-uall"]);
+    expect(status.trim().split("\n").sort()).toEqual([
+      "?? .claude/.gitignore",
+      "?? .claude/skills/dgmine/SKILL.md",
+    ]);
+    await git(local.dir, ["add", "."]);
+    const tracked = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
+    expect(tracked.data.tracked).toEqual([]);
+    expect(tracked.warnings).toEqual([]);
   });
 
   it("--dry-run と --personal は .gitignore を書かない", async () => {
@@ -346,11 +369,12 @@ describe("dg skill install", () => {
     const tracked = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
     expect(tracked.data.tracked).toContain(".claude/skills/dgwork/SKILL.md");
     expect(tracked.data.tracked).not.toContain(".claude/skills/mine/SKILL.md");
+    const dirs = (await buildSkills()).map((s) => `.claude/skills/${s.name}`).sort();
     expect(tracked.warnings).toEqual([
-      expect.stringContaining("git rm -r --cached '.claude/skills/dg*'"),
+      expect.stringContaining(`git rm -r --cached ${dirs.join(" ")} and commit`),
     ]);
     // 案内のとおりに外すと、警告が消え、ファイルは残る
-    await git(local.dir, ["rm", "-r", "-q", "--cached", ".claude/skills/dg*"]);
+    await git(local.dir, ["rm", "-r", "-q", "--cached", ...dirs]);
     const after = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
     expect(after.data.tracked).toEqual([]);
     expect(after.warnings).toEqual([]);

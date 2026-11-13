@@ -13,7 +13,7 @@ import {
   type AgentEnv,
 } from "@deguboard/core";
 import { stringify as stringifyYaml } from "yaml";
-import { ensureIgnoreLine, trackedFiles } from "./gitignore.js";
+import { ensureIgnoreLines, trackedFiles } from "./gitignore.js";
 import { GUIDE_TOPICS, readGuide, readGuideMeta, type GuideTopic } from "./guide.js";
 
 /** 廃止した Skill と、手を加えていないとみなす中身の sha256。一致すれば消し、違えば残して知らせる */
@@ -96,9 +96,6 @@ export interface SkillInstallResult {
   tracked: string[];
 }
 
-// dg が配る Skill のディレクトリ名の頭。無視の行（skills/dg*/）と追跡済みの検出がこの頭で見分ける
-const SKILL_PREFIX = "dg";
-
 async function readIfExists(path: string): Promise<string | undefined> {
   return readFile(path, "utf8").catch(() => undefined);
 }
@@ -107,7 +104,9 @@ async function readIfExists(path: string): Promise<string | undefined> {
  * Skill を書く。置き場所は claude-code の Adapter の skillDirs が決め、ask が Skill の有無を見る先と同じになる（AG-5）。
  * scope が project なら cwd を含むリポジトリの最上位、personal ならホームディレクトリ（env の HOME、空か未設定なら OS のホーム）の下。
  * 手を加えていない Skill は最新の中身で上書きし、手を加えたものは force がなければ残す。
- * project では、Skill は各自が入れるものなので、実行のたびに .claude/.gitignore に dg の Skill を無視する行（SKILL_PREFIX）がなければ足す（--dry-run では書かない）
+ * project では、Skill は各自が入れるものなので、実行のたびに .claude/.gitignore に dg が入れる Skill ごとの無視の行（skills/<名前>/）がなければ足す（--dry-run では書かない）。
+ * 無視の行と追跡済みの検出は dg が入れる Skill の名前だけを見る。dg で始まる名前で括ると、利用者が自分で作った dg で始まる Skill まで無視し、git rm --cached を案内してしまう（t804）。
+ * 廃止した Skill（RETIRED_SKILLS）の行は足さない。新しく入れることはなく、残っていれば消すか利用者に任せる
  */
 export async function installSkill(options: {
   cwd: string;
@@ -137,16 +136,20 @@ export async function installSkill(options: {
     ignoreFile: null,
     tracked: [],
   };
+  const skills = await buildSkills();
   if (topLevel !== undefined) {
     const ignoreFile = join(dirname(dir), ".gitignore");
-    if (!dryRun && (await ensureIgnoreLine(ignoreFile, `${basename(dir)}/${SKILL_PREFIX}*/`)))
-      result.ignoreFile = ignoreFile;
-    const prefix = `${relative(topLevel, dir).split(sep).join("/")}/${SKILL_PREFIX}`;
-    result.tracked = (await trackedFiles(topLevel, dir)).filter(
-      (p) => p.startsWith(prefix) && p.indexOf("/", prefix.length) !== -1,
-    );
+    const lines = skills.map((s) => `${basename(dir)}/${s.name}/`);
+    if (!dryRun && (await ensureIgnoreLines(ignoreFile, lines))) result.ignoreFile = ignoreFile;
+    const names = new Set(skills.map((s) => s.name));
+    const prefix = `${relative(topLevel, dir).split(sep).join("/")}/`;
+    result.tracked = (await trackedFiles(topLevel, dir)).filter((p) => {
+      const rest = p.slice(prefix.length);
+      const slash = rest.indexOf("/");
+      return p.startsWith(prefix) && slash !== -1 && names.has(rest.slice(0, slash));
+    });
   }
-  for (const skill of await buildSkills()) {
+  for (const skill of skills) {
     const path = join(dir, skill.name, "SKILL.md");
     const current = await readIfExists(path);
     if (current === skill.content) {
@@ -184,17 +187,22 @@ export async function installSkill(options: {
 
 /** 結果の警告。手を加えたので残した Skill と、追跡されていて無視の行が効かない Skill を知らせる */
 export function skillInstallWarnings(result: SkillInstallResult): string[] {
-  // tracked は <Skill のディレクトリ>/dg<名前>/... の形なので、頭の Skill のディレクトリ（.claude/skills）を取り出す
-  const trackedDir =
-    result.tracked[0] === undefined
-      ? undefined
-      : new RegExp(`^(.+?)/${SKILL_PREFIX}[^/]*/`).exec(result.tracked[0])?.[1];
+  // tracked は <Skill のディレクトリ>/<Skill の名前>/... の形（最上位からの相対パス）。Skill のディレクトリは result.dir の末尾と一致する頭なので、
+  // その次の段まで（<Skill のディレクトリ>/<Skill の名前>）を Skill ごとに 1 つ案内する
+  const dirPath = result.dir.split(sep).join("/");
+  const skillDirOf = (p: string) => {
+    const segs = p.split("/");
+    for (let k = 1; k < segs.length - 1; k++)
+      if (dirPath.endsWith(`/${segs.slice(0, k).join("/")}`)) return segs.slice(0, k + 1).join("/");
+    return p;
+  };
+  const trackedDirs = [...new Set(result.tracked.map(skillDirOf))].sort();
   return [
-    ...(trackedDir === undefined
+    ...(trackedDirs.length === 0
       ? []
       : [
-          `${result.tracked.length} dg Skill file(s) under ${trackedDir}/ are tracked by git, so the ignore line in .gitignore does not apply to them. ` +
-            `Each person installs the Skills with dg skill install. Stop tracking them at the repository root with git rm -r --cached '${trackedDir}/${SKILL_PREFIX}*' and commit (the files stay on disk)`,
+          `${result.tracked.length} dg Skill file(s) are tracked by git, so the ignore lines in .gitignore do not apply to them. ` +
+            `Each person installs the Skills with dg skill install. Stop tracking them at the repository root with git rm -r --cached ${trackedDirs.join(" ")} and commit (the files stay on disk)`,
         ]),
     ...result.conflicts.map(
       (name) =>

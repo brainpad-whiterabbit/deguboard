@@ -118,11 +118,11 @@ describe("dg hooks install / uninstall（AG-9）", () => {
     expect(second.data.ignoreFile).toBeNull();
     expect(await readFile(ignore, "utf8")).toBe("settings.local.json\n");
     // 利用者が行を消して自分の行を書いていれば、残して足す。設定が変わらない（No change）実行でも足す
-    await writeFile(ignore, "skills/dg*/\n# mine");
+    await writeFile(ignore, "skills/dgwork/\n# mine");
     const third = await dg(cwd, ["hooks", "install"]);
     expect(third.out).toContain("No change");
     expect(third.out).toContain(`Added an ignore line for the settings file to ${ignore}`);
-    expect(await readFile(ignore, "utf8")).toBe("skills/dg*/\n# mine\nsettings.local.json\n");
+    expect(await readFile(ignore, "utf8")).toBe("skills/dgwork/\n# mine\nsettings.local.json\n");
     // git から見て、未追跡に出るのは .gitignore だけ
     const status = await git(cwd, ["status", "--porcelain", "-uall"]);
     expect(status.trim().split("\n")).toEqual(["?? .claude/.gitignore"]);
@@ -224,6 +224,18 @@ describe("dg hooks install / uninstall（AG-9）", () => {
     expect((await settingsOf(file)).hooks).toEqual({
       SessionEnd: [{ hooks: [{ type: "command", command: "echo bye" }] }],
     });
+  });
+
+  it("uninstall は .claude/.gitignore の settings.local.json の行を残す（Claude Code が dg の外でも各自のマシンの設定に使うため）", async () => {
+    const cwd = await repo();
+    const ignore = path.join(cwd, ".claude", ".gitignore");
+    await dg(cwd, ["hooks", "install"]);
+    expect(await readFile(ignore, "utf8")).toBe("settings.local.json\n");
+    await dg(cwd, ["hooks", "uninstall"]);
+    expect(await readFile(ignore, "utf8")).toBe("settings.local.json\n");
+    // 残った settings.local.json は追跡されない
+    const status = await git(cwd, ["status", "--porcelain", "-uall"]);
+    expect(status.trim().split("\n")).toEqual(["?? .claude/.gitignore"]);
   });
 
   it("--personal は個人の設定（~/.claude/settings.json）に書く", async () => {
