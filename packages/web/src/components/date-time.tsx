@@ -92,6 +92,32 @@ export function ShortDay({
   );
 }
 
+/**
+ * 閉じた Iteration の期間（formatPeriod）。ShortDay と同じく <time> で包み、閉じた日時を dateTime に、
+ * 正確な開始と閉じた日時（2026-11-13 09:28 – 2026-11-13 13:24）をツールチップに置く。
+ * 開始の記録がなければツールチップは閉じた日時だけ、どちらもなければ文字だけで出す
+ */
+export function Period({
+  start,
+  end,
+}: {
+  start: string | null | undefined;
+  end: string | null | undefined;
+}) {
+  const text = formatPeriod(start, end);
+  const iso = end ?? start;
+  if (!iso) return <>{text}</>;
+  const title = [start, end]
+    .filter((x): x is string => !!x)
+    .map((x) => formatTime(x))
+    .join(" – ");
+  return (
+    <time dateTime={iso} title={title}>
+      {text}
+    </time>
+  );
+}
+
 /** 履歴の「<日付> に閉じた」。closed_at がなければ「閉じた日は不明」 */
 export function ClosedOn({ iso }: { iso: string | null | undefined }) {
   return iso ? <>{trNode("{0} に閉じた", <ShortDay iso={iso} />)}</> : <>{tr("閉じた日は不明")}</>;

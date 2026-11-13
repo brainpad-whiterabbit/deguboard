@@ -233,6 +233,15 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
     expect(overnight.querySelector("small")!.textContent).toBe("11/2 22:10–11/3 08:30 · 10 時間");
     const sameDay = screen.getByText("同じ日").closest(".history-row")!;
     expect(sameDay.querySelector("small")!.textContent).toBe("11/4 09:28–13:24 · 4 時間");
+    // 期間は ShortDay と同じく <time> で包み、閉じた日時を dateTime に、正確な開始と閉じた日時をツールチップに置く
+    const sameDayTime = sameDay.querySelector("small time")!;
+    expect(sameDayTime.textContent).toBe("11/4 09:28–13:24 · 4 時間");
+    expect(sameDayTime.getAttribute("dateTime")).toBe("2026-11-04T13:24:00Z");
+    expect(sameDayTime.getAttribute("title")).toBe("2026-11-04 09:28 – 2026-11-04 13:24");
+    // 開始の記録がなければツールチップは閉じた日時だけ
+    const noneTime = none.querySelector("small time")!;
+    expect(noneTime.getAttribute("dateTime")).toBe("2026-11-01T00:00:00Z");
+    expect(noneTime.getAttribute("title")).toBe("2026-11-01 00:00");
     expect(document.body.textContent).not.toContain("sprint4");
     expect(document.body.textContent).not.toContain("sprint5");
     expect(document.body.textContent).not.toContain("内訳");
@@ -427,6 +436,10 @@ describe("サイドバーの履歴", () => {
       ["Iteration なし", "1 件"],
       "t4",
     ]);
+    // 区切りの期間も <time> で包み、正確な開始と閉じた日時をツールチップに置く
+    expect(document.querySelector(".history-divider-period time")!.getAttribute("title")).toBe(
+      "2026-09-20 12:00 – 2026-10-02 12:00",
+    );
     expect(
       [...document.querySelectorAll(".history-divider a")].map((a) => a.getAttribute("href")),
     ).toEqual(["#/iterations/s1"]);
