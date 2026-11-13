@@ -1,0 +1,67 @@
+id: p116
+project: default
+tickets: [t830, t831, t835, t836, t832, t837, t843, t838, t839, t844, t841, t842]
+after:
+  t843:
+    - t832
+  t838:
+    - t832
+  t844:
+    - t843
+  t839:
+    - t837
+  t841:
+    - t838
+    - t839
+  t842:
+    - t841
+pending_approval: true
+details:
+  t830:
+    scope: このリポジトリの config の guide.notes.work を空に戻すだけ。PR は要らない
+    approach: dg config set で guide.notes.work を空にし、dg guide work の警告が消えたのを確かめる
+    tier: light
+  t831:
+    scope: guide-audit.md の反映の手順の文言とそのテストだけ
+    approach: guide-retro.md の t814 の書き方に合わせて注意を足し、guide.test.ts で文言を確かめる
+    tier: light
+  t832:
+    scope: development.md の 2 つの節の記述だけ。コードは変えない
+    approach: t814 の差分から直した場所を拾って手順に並べ、l10n-core.ts の鍵の言語を実装に合わせて書く
+    tier: light
+  t835:
+    scope: test/vscode の実機テストの設定だけ
+    approach: テスト用 VS Code の設定で git.enabled を false にし、理由をコメントに書く
+    tier: standard
+  t836:
+    scope: test/layout/ask-menu.layout.ts の 1 本のテストだけ
+    approach: 描画の安定を待って座標を測り、押したあとは expect.poll 等で待って確かめ、finally でページを閉じる
+    tier: standard
+  t837:
+    scope: web の日付の部品・ID の正規表現・backlog の Iteration の見出し。後片付けは t841
+    approach: 月日と日数差を date-time.tsx の 1 つの関数にまとめ、TEXT_ID を ids.ts の境界にそろえ、見出しをカンバンの部品に寄せる
+    tier: standard
+  t843:
+    scope: README・README.ja.md の書き直しと docs/usage.md の新設、VSIX の README の写し方。GIF の録り直しは t844
+    approach: 会話で決めた節の構成で書き直し、細かい使い方を usage.md に移して ADR-001 の表に足し、vscode-readme のテストを直す
+    tier: heavy
+  t838:
+    scope: requirements UI-5 の文、設定画面の audit の表示名、actor.human_only の空のときの文の 3 つ
+    approach: 文言を直し、l10n-en.ts・l10n-core.ts の訳とスナップショットを合わせる
+    tier: light
+  t839:
+    scope: 履歴の画面の軽い指摘 4 つ（検索欄・中止の行・期間のツールチップ・区切りの件数）
+    approach: history.tsx と history-rows.tsx を直し、変えた振る舞いをテストで確かめる
+    tier: standard
+  t844:
+    scope: 録画の台本 5 本と GIF の差し替え、README の GIF の参照
+    approach: record-gifs.mjs の台本を import・assign・plan・work・retro に作り替えて mise run gifs で録り、古い GIF を消す
+    tier: standard
+  t841:
+    scope: 設定と履歴の web のコードの後片付け。振る舞いは変えない
+    approach: NOTE_LABELS と GUIDE_TOPICS の対応のテストを足し、テスト専用の export を内部に寄せ、コメントと空の行の部品をそろえる
+    tier: standard
+  t842:
+    scope: guide.notes の表の印の二重と、消えた Epic の札の光りの 2 つ
+    approach: CSS の印を 1 つにし、useEpicHighlight で札の消滅（アンマウント）時に光りを消し、テストで確かめる
+    tier: standard
