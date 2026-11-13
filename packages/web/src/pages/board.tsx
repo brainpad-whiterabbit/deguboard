@@ -4,7 +4,7 @@
 // （全チケットを出すと、帯に閉じた Plan がすべて並ぶ）。Iteration の一覧の画面は置かず、札の列で選ぶ（一覧の表は縦に場所を取り、絞り込みが 2 か所に分かれる）。
 // Epic の札の列は、選んでいる範囲のチケットがある開いた Epic と「なし」（件数は範囲の Epic のないチケット）。絞っている Epic は残す。
 // 開いた Epic がなければ列を出さない。開いた Iteration がなければ Epic の列・進みの帯・一覧を出さず、バックログへ案内する（NoOpenIteration）。絞り込みの値はハッシュに持つ。
-// VS Code の左パネルに出し、見出しは Iteration の札・Epic の札・選んでいるものの名前の 3 段と進みの帯に詰め、詳細・件数は出さない（件数は帯の done/全体）。
+// VS Code の左パネルに出し、見出しは Iteration の札・Epic の札・選んでいるものの名前（active は何日目か）・目標（3 行まで）と進みの帯・状態ごとの件数に詰め、詳細は出さない。
 // 担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
 // Epic で絞っている間は、Iteration の見出しの下に選んでいる Epic の見出し（components/epic-head.tsx。× で外す）を出す。
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
@@ -24,15 +24,17 @@ import {
   AskRow,
   type RowActivity,
   StatusBand,
+  StatusCounts,
   StatusDot,
   DetailLink,
+  IdLinkedText,
 } from "../components/parts.js";
 import { formatShortTime } from "../components/date-time.js";
 import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic-chip.js";
 import { EpicFilterHead } from "../components/epic-head.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { PlanBand } from "../components/plan-band.js";
-import { shortPeriod } from "../components/iteration-parts.js";
+import { activeDay, shortPeriod } from "../components/iteration-parts.js";
 import { openPlanByTicket } from "../components/plan-graph.js";
 import {
   isWaitingReadiness,
@@ -332,8 +334,10 @@ export function hideClosedFinished<T extends Ticket>(
 
 /**
  * カンバンの見出し（UI-2）。1 段目に Iteration の札の列（IterationChips）、2 段目に Epic の札の列（epics。開いた Epic がなければ渡さない）、
- * 3 段目に選んでいるものの名前・期間・目標（1 行で省略）、Epic で絞っている間はその下に選んでいる Epic の見出し（epicHead）、
- * 最後の段に状態ごとの色の帯と「n/m done」（件数はここだけ）。
+ * 3 段目に選んでいるものの名前・期間と、active なら何日目か（開始の日を 1 日目）、その下に目標（折り返して 3 行まで。超える分は「…」で省き、
+ * 全文はツールチップ。目標の中の ID は詳細へのリンク。目標がない・「すべて」なら出さない）、
+ * Epic で絞っている間はその下に選んでいる Epic の見出し（epicHead）、
+ * 最後の段に状態ごとの色の帯と「n/m done」、その下に 1 件以上の状態の件数（帯と同じ並び・色・数え方。件数はここだけ）。
  * 右端の漏斗は担当の絞り込みを開く（filter。担当がいるときだけ渡す）。絞っている間は漏斗を色付きにする。
  * 詳細は出さないが、選んでいる Iteration の名前は Iteration 詳細へのリンクにする（「すべて」の名前はリンクにしない）
  */
@@ -366,6 +370,9 @@ function BoardHead({
       ? tr("planned・active のすべて")
       : tr("開いた Iteration はない");
   const period = it ? shortPeriod(it) : undefined;
+  // active だけ期間の横に何日目かを出す（planned・「すべて」は出さない）
+  const day = it ? activeDay(it) : undefined;
+  const goal = it?.goal.trim();
   // 選んでいる Iteration の見出し（名前・期間・目標の段）から、その Iteration を頼む（「すべて」のときは出さない）。
   // 右クリックで Iteration の「詳細を開く」「ID をコピー」を出す
   const spot = useAskSpot(
@@ -398,18 +405,22 @@ function BoardHead({
           {it ? <DetailLink route={{ page: "iterations", id: it.id }}>{name}</DetailLink> : name}
         </span>
         {period ? <span className="period">{period}</span> : null}
-        {it?.goal ? (
-          <span className="goal" title={it.goal}>
-            {it.goal}
-          </span>
-        ) : null}
+        {day !== undefined ? <span className="period day">{tr("{0} 日目", day)}</span> : null}
         {spot.overlay}
       </div>
+      {goal ? (
+        <div className="head-goal muted" title={goal}>
+          <IdLinkedText text={goal} />
+        </div>
+      ) : null}
       {epicHead}
       {open.length > 0 ? (
-        <div className="head-line">
-          <StatusBand progress={progress} />
-        </div>
+        <>
+          <div className="head-line">
+            <StatusBand progress={progress} />
+          </div>
+          <StatusCounts progress={progress} />
+        </>
       ) : null}
     </header>
   );

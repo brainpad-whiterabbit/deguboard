@@ -1,6 +1,6 @@
 // Iteration の部品：見出しに出す短い実績の期間、詳細の見出しの下の期間・目標・進捗の欄。
 // 期間は実績の started_at（active になった日時）〜 closed_at（閉じた日時）で出す（UI-5）。
-// 短い期間はカンバン（board.tsx）とバックログ（backlog.tsx）の左パネルの見出しでも共用する
+// 短い期間はカンバン（board.tsx）とバックログ（backlog.tsx）の左パネルの見出しでも共用する。何日目か（activeDay）はカンバンの見出しが出す
 
 import { DateTime } from "./date-time.js";
 import { ProgressBar } from "./parts.js";
@@ -26,6 +26,22 @@ export function shortPeriod(it: PeriodOf): string | undefined {
   const start = it.started_at ? monthDay(it.started_at) : tr("不明");
   if (it.status === "active") return `${start}–`;
   return `${start}–${it.closed_at ? monthDay(it.closed_at) : tr("不明")}`;
+}
+
+/**
+ * active の Iteration が今日で何日目か（開始の日を 1 日目に、手元の暦の日付で数える。時刻は見ない）。
+ * planned・closed と、started_at のない・読めない Iteration は undefined。開始が未来（時計のずれ）なら 1 日目にする
+ */
+export function activeDay(
+  it: Pick<Iteration, "status" | "started_at">,
+  now: Date = new Date(),
+): number | undefined {
+  if (it.status !== "active" || !it.started_at) return undefined;
+  const start = new Date(it.started_at);
+  if (Number.isNaN(start.getTime())) return undefined;
+  // 夏時間で 1 日が 24 時間でない日があるので、暦の日付を UTC の 0 時に置き直してから差を取る
+  const day = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.max(1, Math.round((day(now) - day(start)) / 86_400_000) + 1);
 }
 
 /** 詳細の期間：開始と終了の日時（active は開始だけ）。記録のない端は「不明」 */

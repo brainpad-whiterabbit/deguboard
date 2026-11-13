@@ -2,9 +2,10 @@
 // サイドバーの幅（300px・260px、一部は 320px も）とライト・ダーク（最初の検査は表示言語の日本語・英語も。language.ts）で、横スクロールが出ないことと、文字が決めた行数に収まることを確かめる。
 // 行数の基準：
 // - タブ（nav a）、カンバンの見出し、チケットの行でない行のタイトル（Epic など .row-title）は 1 行。折り返してはいけない
-//   カンバンの見出しは、Iteration の見出し（.sidebar-head .head-line：札の列・漏斗の段、名前・期間・目標の段、進みの帯の段）と
+//   カンバンの見出しは、Iteration の見出し（.sidebar-head .head-line：札の列・漏斗の段、名前・期間・何日目の段、進みの帯の段。状態ごとの件数の段も 1 行）と
 //   状態の節の見出し（.column summary h2）、履歴の見方の切り替え（.view-switch の「見方」）。チケットの見方の結果の切り替え（.result-switch）は別に確かめる
 // - ほかの画面の見出し（バックログ・履歴の summary、Epic の h2 など）は検査しない
+// - カンバンの見出しの目標（.sidebar-head .head-goal）は 3 行まで。3 行で切る CSS（-webkit-line-clamp: 3）なので、4 行以上は崩れ
 // - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
 // 行数は要素の枠の中に見えている行だけを数える（2 行で切られて隠れた行は数えない）
 // カンバンの行の右端（担当の印・Plan の番号など）は、行の枠からはみ出さず、タイトルと重ならないことも確かめる
@@ -66,8 +67,12 @@ beforeAll(async () => {
   await call("iteration.create", { name: "終わった週" });
   await call("iteration.start", { iteration: "s1" });
   await call("iteration.close", { iteration: "s1" });
-  // s2 は作るだけにし、s8 を閉じた後に始める（active の Iteration は Project に 1 つ。IT-1）
-  await call("iteration.create", { name: "今週" });
+  // s2 は作るだけにし、s8 を閉じた後に始める（active の Iteration は Project に 1 つ。IT-1）。
+  // 目標はサイドバーの幅で 3 行を超える長さにし、カンバンの見出しが 3 行で切るかを確かめる
+  await call("iteration.create", {
+    name: "今週",
+    goal: `e1 を仕上げる。t1・t2 を終え、${LONG}${LONG}を見直して、カンバンの見出しで目標の全文が 3 行を超えても崩れないことを確かめる`,
+  });
   await call("epic.create", {
     title: "とても長い名前の Epic：サイドバーの幅で省略されるかを確かめる",
   });
@@ -182,6 +187,7 @@ function measure(page: Page) {
       rows: document.querySelectorAll(".row").length,
       /** 1 行の検査をするカンバンの見出しの数。種類ごとに分けて数え、クラス名が変わって検査が黙って消えないようにする */
       headLines: document.querySelectorAll(".sidebar-head .head-line").length,
+      headGoals: document.querySelectorAll(".sidebar-head .head-goal").length,
       sectionHeadings: document.querySelectorAll(".column summary h2").length,
       viewSwitches: document.querySelectorAll(
         '.view-switch[aria-label="見方"], .view-switch[aria-label="View by"]',
@@ -189,6 +195,8 @@ function measure(page: Page) {
       wrapped: [
         ...overflowing("nav a", 1),
         ...overflowing(".sidebar-head .head-line", 1),
+        ...overflowing(".sidebar-head .head-goal", 3),
+        ...overflowing(".sidebar-head .status-counts", 1),
         ...overflowing(".column summary h2", 1),
         ...overflowing('.view-switch[aria-label="見方"]', 1),
         ...overflowing(".row-title:not(.ticket-row .row-title)", 1),
@@ -251,6 +259,7 @@ describe.each(
           if (hash === "#/board") {
             expect(m.twoLineTitles, `${hash} で 2 行に折り返したタイトル`).toBeGreaterThan(0);
             expect(m.headLines, `${hash} の Iteration の見出しの段`).toBeGreaterThan(0);
+            expect(m.headGoals, `${hash} の Iteration の目標の行`).toBe(1);
             expect(m.sectionHeadings, `${hash} の状態の節の見出し`).toBeGreaterThan(0);
             expect(m.assigneeMarks, `${hash} の担当の印`).toBeGreaterThanOrEqual(4);
             expect(m.rowEndClashes, `${hash} で右端がはみ出すか重なる行`).toEqual([]);

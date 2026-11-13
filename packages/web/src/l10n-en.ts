@@ -290,6 +290,7 @@ export const EN: Readonly<Record<string, string>> = {
   "開いた Iteration はない": "No open Iterations",
   "Iteration の見出し {0}": "Iteration heading {0}",
   担当で絞り込む: "Filter by assignee",
+  "{0} 日目": "Day {0}",
   "すべて（planned と active の Iteration）": "All (planned and active Iterations)",
   "すべて{0}{1}": "All{0}{1}",
   "\n開始 {0}": "\nStarted {0}",

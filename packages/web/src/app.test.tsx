@@ -2483,7 +2483,7 @@ describe("画面", () => {
     expect(tabs.querySelector("[aria-current=page]")!.textContent).toBe("バックログ");
   });
 
-  it("サイドバーのカンバンの見出しは Iteration の札の列・漏斗、名前・期間・目標、状態の帯と「n/m done」の 3 段で、件数・詳細・…・開始・閉じるは出さない", async () => {
+  it("サイドバーのカンバンの見出しは Iteration の札の列・漏斗、名前・期間、目標、状態の帯と「n/m done」、状態ごとの件数で、詳細・…・開始・閉じるは出さない", async () => {
     const client = mockClient();
     client.data.iterations = [
       iteration({
@@ -2500,8 +2500,23 @@ describe("画面", () => {
     await screen.findByText("API");
     const head = document.querySelector(".sidebar-head")!;
     expect(head.querySelectorAll(":scope > .head-line")).toHaveLength(3);
-    expect(head.querySelector(".goal")!.getAttribute("title")).toBe("左パネルを整える");
+    // 目標は名前・期間の次の行に出し、全文はツールチップで読む。planned は何日目かを出さない
+    expect(head.querySelector(".head-goal")!.getAttribute("title")).toBe("左パネルを整える");
+    expect(head.querySelector(".head-line.sub")!.textContent).toBe("今");
     expect(head.querySelectorAll(".status-band .bar > span")).toHaveLength(3);
+    // 帯の下に、帯と同じ並び（done・review・in progress・todo）で 1 件以上の状態の件数を出す（review は 0 件なので出さない）
+    expect(
+      [...head.querySelectorAll(".status-counts .status-count")].map((c) => [
+        c.querySelector(".status-dot")!.className,
+        c.textContent,
+        c.getAttribute("title"),
+      ]),
+    ).toEqual([
+      // 状態の名前は一覧の Workflow の表示名
+      ["status-dot status-done", "1", "Done 1"],
+      ["status-dot status-in_progress", "1", "In Progress 1"],
+      ["status-dot status-todo", "1", "Todo 1"],
+    ]);
     expect(screen.queryByText("詳細")).toBeNull();
     expect(screen.queryByRole("button", { name: "s1 の操作" })).toBeNull();
     expect(screen.queryByRole("button", { name: "開始する" })).toBeNull();
@@ -2512,6 +2527,67 @@ describe("画面", () => {
     // 絞り込みの欄は漏斗を押すまで出さない
     expect(head.querySelector(".head-line .filter-toggle")).toBeTruthy();
     expect(document.querySelector(".board-filters.compact")).toBeNull();
+  });
+
+  it("サイドバーのカンバンの見出しは、active の Iteration なら期間の横に何日目かを出し、目標の中の ID を詳細へのリンクにする", async () => {
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({
+        id: "s1",
+        name: "今",
+        status: "active",
+        // 今は 2026-11-04T12:00:00Z（beforeEach）なので 3 日目
+        started_at: "2026-11-02T12:00:00Z",
+        goal: "e1 を仕上げ、t2・p3 と s1 を見る。step1 は ID にしない",
+      }),
+    ];
+    for (const t of client.data.tickets) t.iteration = "s1";
+    const opened: Route[] = [];
+    mount(
+      client,
+      hostOf("sidebar", (route) => opened.push(route)),
+    );
+    await screen.findByText("API");
+    const head = document.querySelector(".sidebar-head")!;
+    expect(head.querySelector(".head-line.sub")!.textContent).toBe("今11/2–3 日目");
+    const goal = head.querySelector(".head-goal")!;
+    expect(goal.textContent).toBe("e1 を仕上げ、t2・p3 と s1 を見る。step1 は ID にしない");
+    const links = [...goal.querySelectorAll("a")];
+    expect(links.map((a) => a.textContent)).toEqual(["e1", "t2", "p3", "s1"]);
+    for (const a of links) fireEvent.click(a);
+    expect(opened).toEqual([
+      { page: "epics", id: "e1" },
+      { page: "ticket", id: "t2" },
+      { page: "plans", id: "p3" },
+      { page: "iterations", id: "s1" },
+    ]);
+  });
+
+  it("サイドバーのカンバンの見出しは、目標のない Iteration と「すべて」では目標の行と何日目かを出さず、件数は Epic・担当の絞り込みの後で数える", async () => {
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s1", name: "今", status: "active", started_at: "2026-11-02T12:00:00Z" }),
+      iteration({ id: "s2", name: "次", status: "planned", goal: "次の目標" }),
+    ];
+    for (const t of client.data.tickets) t.iteration = "s1";
+    window.location.hash = "#/board?epic=e1";
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("API");
+    expect(document.querySelector(".sidebar-head .head-goal")).toBeNull();
+    // Epic e1 のチケットは t2（in_progress）だけ
+    expect(
+      [...document.querySelectorAll(".sidebar-head .status-count")].map((c) =>
+        c.getAttribute("title"),
+      ),
+    ).toEqual(["In Progress 1"]);
+    cleanup();
+    window.location.hash = "#/board?iteration=*";
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("API");
+    expect(document.querySelector(".sidebar-head .head-goal")).toBeNull();
+    expect(document.querySelector(".sidebar-head .head-line.sub")!.textContent).toBe(
+      "planned・active のすべて",
+    );
   });
 
   it("サイドバーのカンバンは「すべて」と planned と active の Iteration を番号順の札で並べ、進み・枠・ツールチップで見分け、押すと切り替わる", async () => {
