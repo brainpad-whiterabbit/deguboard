@@ -306,7 +306,10 @@ async function writeSettings(userDataDir: string, theme: Theme): Promise<void> {
     "extensions.autoCheckUpdates": false,
     "telemetry.telemetryLevel": "off",
     "security.workspace.trust.enabled": false,
-    "git.openRepositoryInParentFolders": "never",
+    // 組み込みの Git 拡張を止める。開いた fixture のリポジトリの変更を見て git status を回し、.git/index.lock を一瞬取るので、
+    // テストのプロセスが同じリポジトリに dg でコミットすると重なって index.lock: File exists で落ちる（dg の withLock は dg 同士しか直列にしない）。
+    // 拡張は Git 拡張の API を使わず、dg を execFile で呼ぶだけなので、止めても検査の対象は変わらない
+    "git.enabled": false,
     "window.dialogStyle": "custom",
     // 右の副サイドバー（Chat）を出さない。スクリーンショットの幅を左パネルとエディタに使う
     "workbench.secondarySideBar.defaultVisibility": "hidden",
