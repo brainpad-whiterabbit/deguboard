@@ -48,7 +48,7 @@ Click the deguboard icon in the Activity Bar. The tabs at the top switch between
 
 ### History: retrospect and improve
 
-Choose **Ask Agent** → **Retrospect** on a finished Iteration. The agent shows the actuals (duration and tokens per step, failures, and rework), asks which viewpoints to look into, and files the improvements you approve as tickets.
+Choose **Ask Agent** → **Retrospect** on a finished Iteration. The agent shows the actuals (duration and tokens per step, failures, and rework), computes the metrics your team approved for each perspective with their trend, and files the improvements you approve as tickets.
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="Finding bottlenecks" width="560">
 

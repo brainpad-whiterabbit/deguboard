@@ -190,8 +190,8 @@ export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage,
     en: "Tells where an in-progress ticket is, why it has stopped, and the next step, without changing any data.",
   },
   dgretro: {
-    ja: "閉じた Iteration を数字の要約と選んだ観点から振り返り、根拠つきの Keep / Problem / Try を示して、承認を得た改善を起票します。",
-    en: "Looks back on a closed Iteration from a summary of its numbers and the chosen viewpoints, gives Keep / Problem / Try with a basis, and files the approved improvements as tickets.",
+    ja: "閉じた Iteration を数字の要約とチームの観点の指標から振り返り、根拠つきの Keep / Problem / Try を示して、承認を得た改善を起票します。",
+    en: "Looks back on a closed Iteration from a summary of its numbers and the metrics of the team's perspectives, gives Keep / Problem / Try with a basis, and files the approved improvements as tickets.",
   },
 };
 
@@ -917,12 +917,12 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     skill: "dgretro",
     label: () => "振り返る",
     // 振り返るは閉じた Iteration 1 つの候補（askActions）だけなので、対象は必ず Iteration。
-    // 文章だけの形も guide-retro の流れ（数字の要約 → 観点を選ぶ → 根拠つきの Keep / Problem / Try → 承認を得た改善の起票）に合わせる
+    // 文章だけの形も guide-retro の流れ（数字の要約 → 定義のない観点の指標の提案 → 定義のある指標の計算と傾向 → 根拠つきの Keep / Problem / Try → 承認を得た改善の起票）に合わせる
     text: (s, _w, lang) =>
       say(
         lang,
-        `${idList(s, lang)} を振り返ってください（数字の要約を見せてから見る観点を聞き、根拠つきの Keep / Problem / Try を示して、承認を得た改善だけを起票する）。`,
-        `Look back on ${idList(s, lang)}: show a summary of its numbers, ask which viewpoints to look into, give Keep / Problem / Try with a basis, and file only the improvements I approve as tickets.`,
+        `${idList(s, lang)} を振り返ってください（数字の要約を見せ、定義のない観点には指標を提案して承認した定義だけを記録し、定義のある指標は直近の回と比べて傾向を出し、根拠つきの Keep / Problem / Try を示して、承認を得た改善だけを起票する）。`,
+        `Look back on ${idList(s, lang)}: show a summary of its numbers, propose metrics for the perspectives that have no definition and record only the definitions I approve, compute the defined metrics with the trend against the recent Iterations, give Keep / Problem / Try with a basis, and file only the improvements I approve as tickets.`,
       ),
   },
   free: {
@@ -1178,8 +1178,8 @@ const MEANING: Record<
   retro: (s, _w, lang) =>
     say(
       lang,
-      `${idList(s, lang)} を数字の要約と選んだ観点から振り返り、承認を得た改善を起票します。`,
-      `Look back on ${idList(s, lang)} from a summary of its numbers and the chosen viewpoints, and file the approved improvements as tickets.`,
+      `${idList(s, lang)} を数字の要約とチームの観点の指標から振り返り、承認を得た改善を起票します。`,
+      `Look back on ${idList(s, lang)} from a summary of its numbers and the metrics of the team's perspectives, and file the approved improvements as tickets.`,
     ),
   free: (s, _w, lang) =>
     s.length > 0

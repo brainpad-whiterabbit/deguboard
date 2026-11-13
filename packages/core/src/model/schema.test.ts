@@ -183,7 +183,74 @@ describe("スキーマ", () => {
     expect(overlayLocalConfig(team, undefined)).toEqual({ config: team, local: {}, ignored: [] });
   });
 
-  it("configFields は config の全項目を既定値・型・説明つきで出す", () => {
+  it("振り返りの観点の既定は Agentic-Agile の評価の枠組みにもとづく 7 つで、どれも名前と問いを持ち、指標の定義は空（t847）", () => {
+    const perspectives = defaultConfig().retro.perspectives;
+    expect(Object.entries(perspectives).map(([id, p]) => [id, p.name])).toEqual([
+      ["outcome", "成果"],
+      ["review", "見直しの効き目"],
+      ["spec", "仕様の質"],
+      ["slicing", "分け方"],
+      ["stability", "エージェントの安定"],
+      ["cost", "コスト"],
+      ["improvement", "改善の追跡"],
+    ]);
+    for (const [id, p] of Object.entries(perspectives)) {
+      expect(p.question, id).not.toBe("");
+      expect(p.metrics, id).toEqual({});
+    }
+    // 既定は呼ぶたびに別の実体（片方を書き換えても既定は変わらない）
+    perspectives["outcome"]!.name = "x";
+    expect(defaultConfig().retro.perspectives["outcome"]?.name).toBe("成果");
+  });
+
+  it("振り返りの観点は、名前・問い・指標の定義（数え方の文と出どころのコマンド）をスキーマが検査する（t847）", () => {
+    const metric = { definition: "done の数 ÷ 入れた数", sources: ["dg iteration show <S>"] };
+    const parsed = configSchema.parse({
+      retro: {
+        perspectives: {
+          outcome: {
+            name: "成果",
+            question: "目標は達成できたか",
+            metrics: { "done-rate": metric },
+          },
+          flow: { name: "流れ", question: "どこで止まったか" },
+        },
+      },
+    });
+    // チームが書いた一覧がそのまま全体になる（既定の 7 つは混ざらない）
+    expect(Object.keys(parsed.retro.perspectives)).toEqual(["outcome", "flow"]);
+    expect(parsed.retro.perspectives["outcome"]?.metrics["done-rate"]).toEqual(metric);
+    expect(parsed.retro.perspectives["flow"]?.metrics).toEqual({});
+    const withMetric = (m: unknown) => ({
+      retro: { perspectives: { outcome: { name: "成果", question: "q", metrics: { m } } } },
+    });
+    for (const bad of [
+      { retro: { perspectives: { outcome: { name: "成果" } } } },
+      { retro: { perspectives: { outcome: { name: "", question: "q" } } } },
+      { retro: { perspectives: { "Out Come": { name: "成果", question: "q" } } } },
+      { retro: { perspectives: [] } },
+      withMetric({ definition: "d" }),
+      withMetric({ definition: "d", sources: [] }),
+      withMetric({ definition: "", sources: ["dg metrics show"] }),
+      withMetric({ sources: ["dg metrics show"] }),
+      {
+        retro: {
+          perspectives: { outcome: { name: "成果", question: "q", metrics: { "A b": metric } } },
+        },
+      },
+    ])
+      expect(configSchema.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    // 入れ子の観点は葉の項目でないので、設定画面と config.set の項目には出さず、個人の設定では上書きできない
+    expect(configFields().some((f) => f.key.startsWith("retro"))).toBe(false);
+    const team = configSchema.parse({});
+    const { config, ignored } = overlayLocalConfig(team, {
+      retro: { perspectives: { outcome: { name: "自分の成果" } } },
+    });
+    expect(config.retro.perspectives["outcome"]?.name).toBe("成果");
+    expect(ignored.map((i) => i.key)).toEqual(["retro.perspectives.outcome.name"]);
+  });
+
+  it("configFields は config の葉の項目を既定値・型・説明つきで出す", () => {
     const fields = configFields();
     expect(fields.map((f) => f.key)).toEqual([
       "default_project",

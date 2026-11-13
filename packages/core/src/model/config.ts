@@ -1,4 +1,5 @@
 // config.yaml のスキーマ。項目の全体はここが正本（requirements.md 5.10）。
+// 葉でない項目は振り返りの観点（retro.perspectives）だけで、下の「各項目の文」と scope は葉の項目の話。
 // 入れ子の既定は prefault で与える（Zod 4 の default は検証を短絡するため）。
 // 各項目の文は described に書く：description（詳しい説明。スキーマの describe になる）と、設定画面が短く出すための
 // summary（1 行の要約）・example（例の値）・empty（空のときの動き）・options（選択肢ごとの説明）。configFields が設定画面（config.show の fields）に渡す。
@@ -64,6 +65,81 @@ const noteField = described(z.string().default(""), {
   example: "docs/notes.md",
   empty: "Inserts nothing",
 });
+
+/**
+ * 振り返りの指標の定義（1 つ）。dg が実行する式ではなく、エージェントが読んで計算する数え方の文と、
+ * 数字の出どころのコマンド。人が承認したものだけを `dg retro metric` が書く
+ */
+export const retroMetricSchema = z.looseObject({
+  definition: z
+    .string()
+    .min(1)
+    .describe("How to count the metric, as a sentence the agent reads and computes from"),
+  sources: z
+    .array(z.string().min(1))
+    .min(1)
+    .describe("Commands the numbers come from (such as dg metrics show --iteration <S>)"),
+  unmeasured: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("The part of the perspective's question this metric cannot measure"),
+});
+export type RetroMetric = z.output<typeof retroMetricSchema>;
+
+/** 振り返りの観点（1 つ）。名前と問いと、承認した指標の定義（指標の ID → 定義。空なら定義のない観点） */
+export const retroPerspectiveSchema = z.looseObject({
+  name: z.string().min(1).describe("Name of the perspective"),
+  question: z.string().min(1).describe("The question the perspective answers"),
+  metrics: z
+    .record(slugSchema, retroMetricSchema)
+    .default({})
+    .describe("Approved metric definitions (metric ID → definition)"),
+});
+export type RetroPerspective = z.output<typeof retroPerspectiveSchema>;
+
+/**
+ * 振り返りの観点の既定。Agentic-Agile の評価の枠組み（microsoft/agentic-agile-template の docs/evaluation-framework.md）にもとづく 7 つで、
+ * どれも指標の定義は空（測りたいものと測れるものは利用者ごとに違うので、指標は決め打ちしない）。
+ * 名前と問いは priority.* の既定と同じく日本語で持ち、書いたまま出す（CL-8）
+ */
+const DEFAULT_RETRO_PERSPECTIVES: Record<string, RetroPerspective> = {
+  outcome: {
+    name: "成果",
+    question: "目標は達成できたか。終えたもの・やめたもの・持ち越したものは何か",
+    metrics: {},
+  },
+  review: {
+    name: "見直しの効き目",
+    question: "見直しは不具合をマージの前に見つけ、少ない回数で収束したか",
+    metrics: {},
+  },
+  spec: {
+    name: "仕様の質",
+    question: "チケット（受け入れ条件と範囲）は、作り直しなしで通る成果を引き出せたか",
+    metrics: {},
+  },
+  slicing: {
+    name: "分け方",
+    question: "作業は、互いにぶつからずに並べて進められる大きさと境目に分けられたか",
+    metrics: {},
+  },
+  stability: {
+    name: "エージェントの安定",
+    question: "エージェントの働きは、失敗・中断・やり直しなく安定して終わったか",
+    metrics: {},
+  },
+  cost: {
+    name: "コスト",
+    question: "時間とトークンはどこに使われ、成果に見合っていたか",
+    metrics: {},
+  },
+  improvement: {
+    name: "改善の追跡",
+    question: "前の振り返りの Try は終わり、ねらった数字は動いたか",
+    metrics: {},
+  },
+};
 
 export const configSchema = z.looseObject({
   default_project: described(slugSchema.default("default"), {
@@ -345,6 +421,19 @@ export const configSchema = z.looseObject({
       ),
     })
     .prefault({}),
+  retro: z
+    .looseObject({
+      // 観点ごとの入れ子で、葉の項目ではない。configFields（設定画面と config.set の項目）には出さず、
+      // dg retro perspective・dg retro metric・dg retro remove が書く。
+      // 既定は観点の一覧ごと（チームが 1 つでも書けば、書いた一覧がそのまま全体になる）
+      perspectives: z
+        .record(slugSchema, retroPerspectiveSchema)
+        .default(() => structuredClone(DEFAULT_RETRO_PERSPECTIVES))
+        .describe(
+          "Perspectives of the retrospective (perspective ID → name, question, and approved metric definitions). Written by dg retro perspective, dg retro metric, and dg retro remove",
+        ),
+    })
+    .prefault({}),
 });
 export type Config = z.output<typeof configSchema>;
 
@@ -446,13 +535,17 @@ function fieldOf(key: string, schema: z.ZodType, fallback: unknown): ConfigField
   return field;
 }
 
-/** config.yaml の全項目（葉）を、スキーマの並びのまま既定値・説明・範囲つきで出す */
+/**
+ * config.yaml の葉の項目を、スキーマの並びのまま既定値・説明・範囲つきで出す。
+ * 鍵が利用者の決める入れ子（retro.perspectives）は 1 つの入力欄に収まらないので出さない（専用のコマンドが書く）
+ */
 export function configFields(): ConfigField[] {
   const defaults = defaultConfig() as Record<string, unknown>;
   const fields: ConfigField[] = [];
   // 入れ子は葉まで開く（guide.notes.<topic> は 2 段の下にある）
   const walk = (key: string, schema: z.ZodType, value: unknown): void => {
     const inner = unwrap(schema);
+    if (inner instanceof z.ZodRecord) return;
     if (inner instanceof z.ZodObject) {
       const values = (value ?? {}) as Record<string, unknown>;
       for (const [leaf, child] of Object.entries(inner.shape))

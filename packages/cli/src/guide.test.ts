@@ -338,11 +338,15 @@ describe("dg guide", () => {
       expect(update, word).toContain(word);
   });
 
-  it("retro はまず数字の要約を出し、外れ値のある観点を理由つきで勧めて観点を複数選択で 1 回聞き、指示で決まっていれば聞かない", async () => {
+  it("retro はまず数字の要約を出し、観点はチームの config（retro.perspectives）から読み、指示で観点を絞れる", async () => {
     const retro = await readGuide("retro");
     const steps = section(retro, "## Retrospective steps");
-    // 要約は metrics show --by step と ticket list から。聞くより前に出す
-    for (const word of ["metrics show --iteration <S> --by step", "ticket list --iteration <S>"])
+    // 要約は metrics show --by step と ticket list から。聞くより前に出す。観点は config show で読む
+    for (const word of [
+      "metrics show --iteration <S> --by step",
+      "ticket list --iteration <S>",
+      "`config show` (`retro.perspectives`)",
+    ])
       expect(step(steps, 1), word).toContain(word);
     const summary = step(steps, 2);
     expect(summary).toContain("before asking anything");
@@ -356,30 +360,94 @@ describe("dg guide", () => {
       "Carry-overs",
     ])
       expect(summary, word).toContain(word);
-    const ask = step(steps, 3);
+    expect(lineWith(section(retro, "## Deciding the target"), "- Perspectives")).toContain(
+      "propose and compute only for those",
+    );
+    // 観点は dg が決め打ちせず、既定の 7 つはどれも定義を持たない。観点そのものを変えるのは人の指示があるときだけで、dg のコマンドで書く
+    const perspectives = section(retro, "## Perspectives");
     for (const word of [
-      "once, with multiple selection",
-      "Recommend the viewpoints where a number stands out",
-      "as the reason",
-      "Do not ask when the viewpoints are already decided",
+      "`retro.perspectives` of `config.yaml`",
+      "none has a definition",
+      "dg has no metrics of its own",
+      "not a formula that dg runs",
+      "only when a human asks",
+      "`dg retro perspective <id> --name <name> --question <question>`",
+      "`dg retro remove <perspective> [metric]`",
+      "Do not edit `config.yaml` directly",
     ])
-      expect(ask, word).toContain(word);
-    expect(section(retro, "## Deciding the target")).toContain("do not ask which viewpoints");
-    // 観点は 4 つで、それぞれ読む dg のコマンドと答える問いを持つ
-    const viewpoints = section(retro, "## Viewpoints");
-    for (const [name, command] of [
-      ["Outcome", "iteration show <S>"],
-      ["Flow", "run list --iteration <S>"],
-      ["Rework", "metrics show --iteration <S> --by ticket"],
-      ["Comparison", "ticket list --label retro-<previous S>"],
-    ] as const) {
-      const row = lineWith(viewpoints, `| ${name} `);
-      expect(row, name).toContain(command);
-      expect(row, name).toContain("?");
-    }
+      expect(perspectives, word).toContain(word);
+    for (const id of ["outcome", "review", "spec", "slicing", "stability", "cost", "improvement"])
+      expect(lineWith(perspectives, "The defaults are seven"), id).toContain(`\`${id}\``);
   });
 
-  it("retro の手戻りの原因は retry_reasons と heavy が出た PR のレビューのコメントだけから分け、gh がなければ「わからない」と書く", async () => {
+  it("retro は定義のない観点に、手元のデータで満たせる指標を数え方・出どころ・測れない部分つきで提案して承認を 1 回求め、承認された定義だけを dg retro metric で記録する（t847）", async () => {
+    const retro = await readGuide("retro");
+    const propose = step(section(retro, "## Retrospective steps"), 3);
+    for (const word of [
+      "whose `metrics` is empty",
+      "Ask once, with multiple selection",
+      '"Approve none"',
+      "Record only the approved ones, each with `dg retro metric`",
+      "Write nothing until approval is obtained",
+      "If every target perspective has a definition, do not ask",
+    ])
+      expect(propose, word).toContain(word);
+    const proposing = section(retro, "## Proposing metrics");
+    expect(proposing).toContain(
+      "| #   | Perspective | Metric ID | How to count | Sources | Unmeasured part |",
+    );
+    for (const word of [
+      "Propose only what can be computed now",
+      "Run the sources for `<S>` before proposing",
+      "propose nothing for that perspective",
+      'retro metric <perspective> <metric ID> --definition "<how to count>" --source "<command (fields)>"',
+      "record it only after approval",
+    ])
+      expect(proposing, word).toContain(word);
+    // 既定の観点ごとの候補。1 行あたりのトークン（t846）はコストの観点の候補に残し、output と input_cache を足さない
+    for (const [id, source] of [
+      ["outcome", "iteration show <S>"],
+      ["review", "total.reviews.heavy"],
+      ["spec", "metrics show --iteration <S> --by ticket"],
+      ["slicing", "`lines`"],
+      ["stability", "total.results"],
+      ["cost", "total.lines.per_line"],
+      ["improvement", "ticket list --label retro-<previous S>"],
+    ] as const)
+      expect(lineWith(proposing, `| \`${id}\` `), id).toContain(source);
+    expect(lineWith(proposing, "| `cost` ")).toContain("never added into one number");
+    expect(section(retro, "## Tokens per changed line")).toContain(
+      "do not add them into one number",
+    );
+  });
+
+  it("retro は定義のある観点を、その定義で対象の回と直近の回を計算して傾向を出し、出せない値は理由つきの「未計測」にして、結果を保存しない（t847）", async () => {
+    const retro = await readGuide("retro");
+    const compute = step(section(retro, "## Retrospective steps"), 4);
+    for (const word of [
+      "compute every metric by its definition",
+      "for `<S>` and for the recent Iterations",
+      '"unmeasured (no approved definition)"',
+    ])
+      expect(compute, word).toContain(word);
+    const computing = section(retro, "## Computing the metrics and the trend");
+    expect(computing).toContain("| Perspective | Metric | (earlier Iterations) | `<S>` | Trend |");
+    for (const word of [
+      "Do not change the way of counting to fit the data",
+      "closed just before `<S>`",
+      "up to three",
+      "the trend against the earlier Iterations",
+      "Do not fill it in by guessing, and do not make it 0",
+      "Do not store the results",
+    ])
+      expect(computing, word).toContain(word);
+    const unmeasured = lineWith(computing, "A value that cannot be computed");
+    expect(unmeasured).toContain('"unmeasured", with the reason');
+    // 承認を求めるのは、指標の定義と Try の 2 回まで
+    expect(retro).toContain("Approval is asked at most twice");
+  });
+
+  it("retro の手戻りの原因は retry_reasons と heavy が出た PR のレビューのコメントだけから分け、gh がなければ「未計測」と書く", async () => {
     const causes = section(await readGuide("retro"), "## Causes of rework");
     for (const word of [
       "only from these two sources",
@@ -390,30 +458,26 @@ describe("dg guide", () => {
     ])
       expect(causes, word).toContain(word);
     const unknown = lineWith(causes, "If `gh` is not available");
-    expect(unknown).toContain('"unknown"');
+    expect(unknown).toContain('"unmeasured"');
   });
 
-  it("retro の比較は前の Iteration の metrics に加え、retro-<前の S> のラベルのチケットの状態から前回の Try が終わったかを示す", async () => {
-    const comparison = section(
-      await readGuide("retro"),
-      "## Comparison with the previous Iteration",
+  it("retro の改善の追跡の候補は、retro-<前の S> のラベルのチケットの状態から前回の Try が終わったかを数える", async () => {
+    const tries = lineWith(
+      section(await readGuide("retro"), "## Proposing metrics"),
+      "| `improvement` ",
     );
-    const tries = lineWith(comparison, "retro-<previous S>");
-    for (const word of ["label", "status", "whether it was finished", "done", "todo", "abandoned"])
+    for (const word of ["--include-abandoned", "done is finished", "todo", "abandoned is dropped"])
       expect(tries, word).toContain(word);
-    expect(lineWith(section(await readGuide("retro"), "## Viewpoints"), "| Comparison ")).toContain(
-      "metrics show --iteration <previous S> --by step",
-    );
   });
 
-  it("retro は計測の抜け（missing・estimated_runs・no_runs）を注意書きに添え、抜けのある値は推し量らず「わからない」と書く", async () => {
+  it("retro は計測の抜け（missing・estimated_runs・no_runs）を注意書きに添え、抜けのある値は推し量らず「未計測」と書く", async () => {
     const retro = await readGuide("retro");
     const gaps = section(retro, "## Gaps in the measurement");
     for (const word of ["as notes", "`missing`", "`estimated_runs`", "`no_runs`"])
       expect(gaps, word).toContain(word);
     const guess = lineWith(gaps, "by guessing");
     expect(guess).toContain("Do not fill in a value that has a gap");
-    expect(guess).toContain('"unknown"');
+    expect(guess).toContain('"unmeasured"');
     expect(step(section(retro, "## Retrospective steps"), 2)).toContain("Gaps in the measurement");
   });
 
