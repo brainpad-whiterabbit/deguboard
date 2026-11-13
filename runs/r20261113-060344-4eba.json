@@ -1,0 +1,32 @@
+{
+  "id": "r20261113-060344-4eba",
+  "ticket": "t814",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-13T06:03:44Z",
+  "finished_at": "2026-11-13T06:07:37Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "retro guide tells the agent to add a finding with the acceptance option of ticket update without saying it replaces the whole acceptance criteria section, so existing criteria would be deleted"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 4258,
+    "cache_read": 389757,
+    "cache_write": 32574
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 2,
+    "bash": 8,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "852349dc-67c3-44d2-86f3-03d3af57eccb",
+  "review": null
+}
