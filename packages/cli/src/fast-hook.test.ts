@@ -290,7 +290,10 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
     return path.join(root, "bin", "dg.js");
   }
 
-  /** node_modules の各項目は実物への張り。@deguboard/core だけは dist/fast-hook.js を欠く写しに替える（core の依存は実物を張る） */
+  /**
+   * node_modules の各項目は実物への張り。@deguboard/core だけは dist/fast-hook.js を欠く写しに替える（core の依存は実物を張る）。
+   * @deguboard の下は名前で選ばずに core のほかをすべて張り、CLI の依存が増えても写しに欠けないようにする
+   */
   async function linkNodeModulesWithCoreCopy(root: string): Promise<void> {
     const real = path.join(cliRoot, "node_modules");
     const out = path.join(root, "node_modules");
@@ -298,11 +301,13 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
     for (const entry of await readdir(real))
       if (entry !== "@deguboard")
         await symlink(path.join(real, entry), path.join(out, entry), "dir");
-    await symlink(
-      path.join(real, "@deguboard", "server"),
-      path.join(out, "@deguboard", "server"),
-      "dir",
-    );
+    for (const entry of await readdir(path.join(real, "@deguboard")))
+      if (entry !== "core")
+        await symlink(
+          path.join(real, "@deguboard", entry),
+          path.join(out, "@deguboard", entry),
+          "dir",
+        );
     const core = await realpath(path.join(real, "@deguboard", "core"));
     const coreCopy = path.join(out, "@deguboard", "core");
     await mkdir(coreCopy);
@@ -337,13 +342,15 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
       payload(cwd, "Bash", { command: "gh pr merge 5 --squash" }),
       payload(cwd, "Bash", { command: "ls" }),
     ];
+    const actuals = [];
     for (const stdin of inputs) {
       const expected = await dg(normalBin, ARGV, cwd, stdin);
       const actual = await dg(copied, ARGV, cwd, stdin);
       expect(actual).toEqual(expected);
       expect(actual.code).toBe(0);
+      actuals.push(actual);
     }
-    expect(JSON.parse((await dg(copied, ARGV, cwd, inputs[0]!)).stdout)).toMatchObject({
+    expect(JSON.parse(actuals[0]!.stdout)).toMatchObject({
       hookSpecificOutput: { permissionDecision: "deny" },
     });
   });
@@ -364,13 +371,15 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
       payload(cwd, "Bash", { command: "gh pr merge 5 --squash" }),
       payload(cwd, "Bash", { command: "ls" }),
     ];
+    const actuals = [];
     for (const stdin of inputs) {
       const expected = await dg(normalBin, ARGV, cwd, stdin);
       const actual = await dg(copied, ARGV, cwd, stdin);
       expect(actual).toEqual(expected);
       expect(actual.code).toBe(0);
+      actuals.push(actual);
     }
-    expect(JSON.parse((await dg(copied, ARGV, cwd, inputs[0]!)).stdout)).toMatchObject({
+    expect(JSON.parse(actuals[0]!.stdout)).toMatchObject({
       hookSpecificOutput: { permissionDecision: "deny" },
     });
   });
@@ -427,6 +436,7 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
       ["別のツール（記録だけ残る）", payload(cwd, "Read", { file_path: "/etc/hosts" })],
     ];
     const mainOnly = await copyDist({ remove: ["fast-hook.js"] });
+    const stdouts: string[] = [];
     for (const [name, stdin] of cases) {
       await takeRecords(cwd);
       const expected = await dg(mainOnly, ARGV, cwd, stdin);
@@ -438,8 +448,10 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
       expect(actual.code, name).toBe(0);
       // 本体が標準入力の中身を読んだこと（渡し忘れると、空の入力として扱われて記録が残らない）
       expect(Object.keys(actualRecords), name).not.toEqual([]);
+      stdouts.push(actual.stdout);
     }
-    expect(JSON.parse((await dg(normalBin, ARGV, cwd, cases[0]![1])).stdout)).toMatchObject({
+    // 最初の入力（YAML の拒む Bash）は、本体が読んだ入力で拒まれる（読めなければ拒まれない）
+    expect(JSON.parse(stdouts[0]!)).toMatchObject({
       hookSpecificOutput: { permissionDecision: "deny" },
     });
   });

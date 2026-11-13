@@ -57,8 +57,9 @@ describe("bin/dg.js の Node の版の確かめ（t782）", () => {
 });
 
 describe("古い node で止めるときの終了コード（t782）", () => {
-  it("hook PreToolUse は終了コード 2 で止める（Claude Code がツールの呼び出しを拒む）", () => {
+  it("dg hooks install が書く hook PreToolUse（既定と別のエージェント）は終了コード 2 で止める（Claude Code がツールの呼び出しを拒む）", () => {
     expect(nodeVersionExitCodeOf(HOOK)).toBe(2);
+    expect(nodeVersionExitCodeOf(hookArgv("other-agent", "PreToolUse"))).toBe(2);
   });
 
   it("グローバルオプションを前に付けた hook PreToolUse も 2", () => {
@@ -70,11 +71,6 @@ describe("古い node で止めるときの終了コード（t782）", () => {
     expect(nodeVersionExitCodeOf(["-C", "/repo", "--user", "x", "hook", "PreToolUse"])).toBe(2);
   });
 
-  it("dg hooks install が書く形（既定と別のエージェント）の PreToolUse は 2", () => {
-    expect(nodeVersionExitCodeOf(hookArgv(DEFAULT_HOOK_AGENT, "PreToolUse"))).toBe(2);
-    expect(nodeVersionExitCodeOf(hookArgv("other-agent", "PreToolUse"))).toBe(2);
-  });
-
   it("claude-code-hooks.ts の PreToolUse 以外のフックの event は、どれも 1 のまま", () => {
     const others = claudeCodeHooks.events
       .map((spec) => spec.event)
@@ -84,13 +80,6 @@ describe("古い node で止めるときの終了コード（t782）", () => {
       expect(nodeVersionExitCodeOf(hookArgv(DEFAULT_HOOK_AGENT, event))).toBe(1);
       expect(nodeVersionExitCodeOf(hookArgv("other-agent", event))).toBe(1);
     }
-  });
-
-  it("ほかのフックの event は 1 のまま", () => {
-    expect(
-      nodeVersionExitCodeOf(["--actor", "agent", "hook", "PostToolUse", "--payload", "-"]),
-    ).toBe(1);
-    expect(nodeVersionExitCodeOf(["--actor", "agent", "hook", "SessionStart"])).toBe(1);
   });
 
   it("ほかのコマンドは 1 のまま（dist が無いときと同じ）", () => {
