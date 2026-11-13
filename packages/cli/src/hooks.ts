@@ -14,6 +14,7 @@ import {
   hookArgv,
   hooksOf,
   hooksSilentWarning,
+  staleSkillWarningsOf,
   readHookInput,
   resolveRepoPaths,
   takeHookWarnings,
@@ -311,7 +312,7 @@ export async function installHooks(options: {
 /**
  * フックの状態を確かめる：設定に dg のフックが入っているか（イベントごと・matcher）、ハンドラが動くか、直近の入力に
  * 受け取らなかった項目があるか（deguboard-local/hook-inputs/ の記録。値は見ない）。欠けていれば警告にする。
- * まだ知らせていないフックの中の警告（deguboard-local/hook-sessions/。t756）も警告に足す
+ * まだ知らせていないフックの中の警告（deguboard-local/hook-sessions/。t756）と、入れてある dg の Skill が今の dg のものより古いこと（t858）も警告に足す
  */
 export async function checkHooks(options: {
   cwd: string;
@@ -323,9 +324,9 @@ export async function checkHooks(options: {
   const hooks = support(agent);
   const file = await settingsFile(hooks, options);
   // 入力の記録はリポジトリの中にある。個人の設定をリポジトリの外で見るときは確かめずに飛ばす
-  const localDir = await resolveRepoPaths(options.cwd).then(
-    (paths) => paths.localDir,
-    () => undefined,
+  const { localDir, topLevel } = await resolveRepoPaths(options.cwd).then(
+    (paths) => ({ localDir: paths.localDir, topLevel: paths.topLevel }),
+    () => ({ localDir: undefined, topLevel: undefined }),
   );
   const warnings: string[] = [];
   let current: Settings = {};
@@ -420,6 +421,9 @@ export async function checkHooks(options: {
     // フックの中で出た警告（SubagentStop が届かないことを含む）のうち、まだ知らせていないもの（t756）
     warnings.push(...(await takeHookWarnings(localDir)));
   }
+  // 入れてある dg の Skill が今の dg のものと違えば知らせる（dg を更新しても Skill は古いまま残る。t858）。
+  // リポジトリの外では個人の置き場所だけを見る
+  warnings.push(...(await staleSkillWarningsOf(topLevel, options.env)));
   return { agent, scope: options.scope, file, events, warnings };
 }
 

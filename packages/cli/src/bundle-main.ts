@@ -2,7 +2,7 @@
 // packages/vscode/vite.cli.config.ts が core・server・cli と依存をこの chunk（と dg serve・dg mcp の chunk）に束ね、dg.mjs の隣に置く。
 // 束ねると import.meta.url はどのモジュールでもその chunk を指すので、引けない場所（guide・版・自分のパス）を最初に置く。
 // 自分のパス（フックとマージドライバが呼ぶ dg）は chunk ではなく入口の dg.mjs にする。
-// Web の画面（../web）と skill.md（./skill.md）は chunk が dg.mjs と同じディレクトリにあるので、ビルドが置く相対のまま引ける
+// Web の画面（../web）は chunk が dg.mjs と同じディレクトリにあるので、ビルドが置く相対のまま引ける
 
 import { dirname, resolve } from "node:path";
 import { setBundleLayout } from "@deguboard/core";

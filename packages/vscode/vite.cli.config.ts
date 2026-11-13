@@ -7,7 +7,7 @@ import { defineConfig } from "vite";
 // 写すだけの小さな chunk（dg-<name>-<hash>.mjs）ができる。ネイティブのモジュールはないので、プラットフォームごとの VSIX に分けない。
 // 拡張の本体（vite.config.ts）の後に走り、dist を消さない。Web の画面（dist/web）と guide（dist/guide-*.md）は拡張の本体と共有する。
 // 本体の chunk は dg.mjs の隣にあるので、../web と bundleLayout の guideDir で引ける（packages/cli/src/bundle-main.ts）。
-// skill.md は dg.mjs の隣に置く（package.json の build）。束ねた依存のライセンス表示は dist/cli/ に集める
+// 束ねた依存のライセンス表示は dist/cli/ に集める
 const cliPkg = JSON.parse(
   readFileSync(new URL("../cli/package.json", import.meta.url), "utf8"),
 ) as {

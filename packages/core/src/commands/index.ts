@@ -20,6 +20,16 @@ export * from "./local.js";
 export { readHookInput, type HookInputRecord } from "./hook-records.js";
 export { hookArgv } from "./hook-argv.js";
 export { hooksSilentWarning, takeHookWarnings } from "./hook-sessions.js";
+export {
+  buildSkills,
+  findStaleSkills,
+  skillStateOf,
+  staleSkillWarnings,
+  staleSkillWarningsOf,
+  type SkillFile,
+  type SkillState,
+  type StaleSkills,
+} from "./skill-files.js";
 export type {
   CommandClient,
   CommandFailure,
