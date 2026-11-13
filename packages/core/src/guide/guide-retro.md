@@ -1,5 +1,5 @@
 ---
-description: Looks back on a closed deguboard Iteration. Shows a short summary of its numbers (Runs, time per step, failures, retries, heavy findings, carry-overs), asks which viewpoints to look into (outcome, flow, rework, comparison), gives Keep / Problem / Try with a number or a ticket ID as the basis of each finding, and after approval files the improvements as tickets. Use when asked「s3 を振り返って」「レトロして」「振り返りをまとめて」.
+description: Looks back on a closed deguboard Iteration. Shows a short summary of its numbers (Runs, time and tokens per step, failures, retries, heavy findings, carry-overs), asks which viewpoints to look into (outcome, flow, rework, comparison), gives Keep / Problem / Try with a number or a ticket ID as the basis of each finding, and after approval files the improvements as tickets. Use when asked「s3 を振り返って」「レトロして」「振り返りをまとめて」.
 argument-hint: "[Iteration] [viewpoints]"
 ---
 
@@ -21,6 +21,7 @@ In the steps below, `<S>` is the ID of the target Iteration.
 2. **Show the summary**: a few lines, before asking anything
    - Runs: `total.runs`, and the tickets by status from `ticket list`
    - Share of time per step: each group's `duration_seconds` over `total.duration_seconds`
+   - Share of tokens per step: each group's tokens over the tokens of `total`. A Run's tokens are its `input`, `output`, `cache_read`, and `cache_write` added together (cache is `cache_read` and `cache_write` together). The four counts are separate and do not overlap, so they add up without counting any token twice. A group whose four values are all null is "unknown"; when a group has `missing` counts for them, its share covers only the Runs that have the values, and the note says so
    - Failures: `total.results.failure` and `interrupted`
    - Retries and heavy findings: `total.retries` and `total.reviews.heavy`
    - Carry-overs: `carried_over` of `iteration show <S>`, and any ticket of `ticket list` that is neither done nor abandoned
@@ -38,7 +39,7 @@ Reading (steps 1 to 5) proceeds without waiting for approval. Besides the viewpo
 | Viewpoint  | What to read (`dg --json --actor agent`)                                                                                                                               | Questions to answer                                                                                                                                             |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Outcome    | `iteration show <S>` (`goal`, `completed`, `carried_over`, and where the carry-overs are now in `next.moved`), `ticket list --iteration <S> --include-abandoned`       | Was the goal met? What was finished, what was abandoned, and what was carried over? Where are the carry-overs now, and are they finished?                       |
-| Flow       | `metrics show --iteration <S> --by step`, `--by ticket`, and `--by model`; `run list --iteration <S>` (`result` and `error` of the Runs that failed or were interrupted) | Which step took the largest share of the time? Which tickets took far longer than the others? Why did the failed or interrupted Runs stop?                      |
+| Flow       | `metrics show --iteration <S> --by step`, `--by ticket`, and `--by model`; `run list --iteration <S>` (`result` and `error` of the Runs that failed or were interrupted) | Which step took the largest share of the time, and which the largest share of the tokens? Where the two shares differ, which step is the reason? Which tickets took far longer than the others? Why did the failed or interrupted Runs stop?                      |
 | Rework     | `metrics show --iteration <S> --by ticket` (`retries`, `reviews.heavy`), then for those tickets `run list --ticket <t12>` and the PR (see "Causes of rework")           | Which tickets were reworked, and how many times? What kind of cause does each have? Which kind is the most common?                                              |
 | Comparison | `metrics show --iteration <previous S> --by step`, `ticket list --label retro-<previous S> --include-abandoned` (see "Comparison with the previous Iteration")          | Which numbers got better or worse than the previous Iteration? Was each Try of the previous retrospective finished, and did the number it aimed at change?       |
 
@@ -56,7 +57,7 @@ If `gh` is not available or the comments cannot be read, write the cause of that
 ## Comparison with the previous Iteration
 
 - The previous Iteration is the one closed just before `<S>` (`iteration list --status closed`, by `closed_at`). If there is none, say so and skip this viewpoint
-- Compare the same numbers as the summary (Runs, share of time per step, failures, retries, heavy findings, carry-overs). Counts depend on the number of tickets, so show them with the number of tickets or as a rate
+- Compare the same numbers as the summary (Runs, share of time per step, share of tokens per step, failures, retries, heavy findings, carry-overs). Counts depend on the number of tickets, so show them with the number of tickets or as a rate
 - The Try of the previous retrospective is the tickets with the label `retro-<previous S>` (for example `retro-s2`). Show from each one's status whether it was finished: done (finished), in_progress or review (under way), todo (not started), abandoned (dropped). For a finished Try, show whether the number it aimed at changed
 - If no ticket has the label, say that the previous retrospective filed no Try (or was not done), and compare only the numbers
 
@@ -65,6 +66,7 @@ If `gh` is not available or the comments cannot be read, write the cause of that
 Add these as notes to the summary and to the Keep / Problem / Try table, with their counts.
 
 - `missing`: the number of Runs whose value could not be read, per value (`duration_seconds`, `input`, `output`, `cache_read`, `cache_write`, `tools`). Those Runs are not added to the totals
+- Tokens not read: when `metrics.read_transcripts` is false (`dg config show`), or DEGUBOARD_NO_TRANSCRIPTS is set where the Runs were finished, their usage is not read. Those Runs count in `missing` for `input`, `output`, `cache_read`, and `cache_write`, so the token shares are not measured. Note it as a gap, not as 0
 - `estimated_runs`: the number of Runs whose usage is estimated. The totals include the estimates
 - `no_runs`: done tickets claimed by an agent that have no implement Run. Their work is not in the numbers
 - Runs follow each ticket's current Iteration, so the Runs of the carried-over tickets are not in the numbers of `<S>`

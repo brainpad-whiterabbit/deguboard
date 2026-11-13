@@ -44,11 +44,11 @@ Activity Bar の deguboard のアイコンを押します。上のタブで **�
 
 ### 履歴：振り返って改善する
 
-終わった Iteration で **エージェントに頼む** → **振り返る** を選びます。エージェントが実績（工程ごとの所要時間・トークン・やり直し）を見せて見る観点を聞き、承認した改善を起票します。
+終わった Iteration で **エージェントに頼む** → **振り返る** を選びます。エージェントが実績（工程ごとの所要時間とトークン、失敗、やり直し）を見せて見る観点を聞き、承認した改善を起票します。
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="ボトルネックを調べる" width="560">
 
-トークンも集計するには、会話記録から使用量を取り込む設定を有効にします（Claude Code・Codex・Copilot CLI）。
+トークンは、会話記録から使用量を取り込む設定を有効にしたときだけ集計されます（Claude Code・Codex・Copilot CLI）。設定するには次のとおりにします。
 
 ```sh
 dg config set metrics.read_transcripts true
