@@ -1,0 +1,33 @@
+{
+  "id": "r20261113-160014-6120",
+  "ticket": "t870",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-13T16:00:14Z",
+  "finished_at": "2026-11-13T16:01:32Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "ADR-001 の言語を選べる範囲を依頼文の定型の文だけとしたが、候補の 1 文と対象の 1 行も言語に従う",
+    "ADR-001 の細部の案内が画面の訳の細部まで ask.ts に向けている"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 2467,
+    "cache_read": 222971,
+    "cache_write": 24166
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 1,
+    "bash": 4,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "a5c2ea23-662a-4048-902d-1c12f239a1ea",
+  "review": null
+}
