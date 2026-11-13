@@ -10,6 +10,11 @@ on:
 
 permissions: {}
 
+env:
+  # 両方の job が mise-action で入れる mise の版。ここにだけ書く。mise 自体の版は mise.toml の [tools] では固定できないので、
+  # 手元の mise の版とは揃えない。mise.toml が新しい mise の書き方に頼るようになったら、それを読める版にここを上げる
+  MISE_VERSION: 2026.10.17
+
 jobs:
   marketplace:
     # pre-release の Release は出さない
@@ -28,7 +33,7 @@ jobs:
       # node と pnpm は mise.toml の版。秘密を持つ job なので、他の実行が書いたキャッシュは読まない
       - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         with:
-          version: 2026.10.17
+          version: ${{ env.MISE_VERSION }}
           cache: false
       - name: 拡張のパッケージの依存だけを lockfile どおりに入れる
         # 依存のスクリプトは走らせない（publish に要らない。build もしない）
@@ -60,7 +65,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         with:
-          version: 2026.10.17
+          version: ${{ env.MISE_VERSION }}
           cache: false
       - name: 拡張のパッケージの依存だけを lockfile どおりに入れる
         run: pnpm install --frozen-lockfile --ignore-scripts --filter deguboard
