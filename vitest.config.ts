@@ -5,6 +5,13 @@ import { defineConfig } from "vitest/config";
 // 手元の時差で整形すること自体は timeline.test.ts が時差を変えて確かめる
 process.env.TZ = "UTC";
 
+// ワーカー数の上限。全体のテストは check の flock で 1 本ずつになるが、test:related は lock の外で回るので、
+// 全体のテストと重なる。vitest の既定（論理 CPU 数 - 1）のままだと 2 本で CPU 数のほぼ倍のワーカーが取り合い、
+// 時間に頼るテストが落ちやすくなる。8 CPU で測ると、重ねたときは 4 と 7 で時間が変わらず（全体 193 秒と 195 秒）、
+// 1 本だけのときは 4 が 2 割遅い（133 秒と 110 秒）だけだったので、既定を CPU 数の半分にして 2 本で CPU を埋める。
+// 手元で 1 本だけ速く回したいときや、もっと絞りたいときは DEGUBOARD_TEST_MAX_WORKERS（数か "75%" のような割合）で変える
+const maxWorkers = process.env.DEGUBOARD_TEST_MAX_WORKERS || "50%";
+
 export default defineConfig({
   // @deguboard/core を dist ではなく src で解決する（ビルドなしでテストする）
   resolve: { conditions: ["development"] },
@@ -12,5 +19,6 @@ export default defineConfig({
     include: ["packages/*/src/**/*.test.{ts,tsx}", "test/**/*.test.ts"],
     // Git を使うテストは bare リモートと clone を作るので余裕を持たせる
     testTimeout: 20_000,
+    maxWorkers,
   },
 });
