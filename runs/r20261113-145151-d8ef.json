@@ -1,0 +1,32 @@
+{
+  "id": "r20261113-145151-d8ef",
+  "ticket": "t857",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-13T14:51:51Z",
+  "finished_at": "2026-11-13T14:56:50Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "Skill notices claim installed Skills are older though the refresh cannot tell which side is newer"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 5417,
+    "cache_read": 311796,
+    "cache_write": 30189
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 7,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 5,
+    "search_before_write": 0
+  },
+  "session": "d786ae01-8a2a-4001-a115-0f3a9f558d25",
+  "review": null
+}
