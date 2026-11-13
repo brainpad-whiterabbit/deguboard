@@ -1,0 +1,82 @@
+# Release を公開したときに、その Release に添付した VSIX を VS Code Marketplace と Open VSX に出す（t825）。
+# build と検査は回さない。出すのは手元で `mise run check` などを通して作り、Release に添付した VSIX そのもの
+# （判断は docs/adr/ADR-008-tech-stack.md、手順は docs/development.md の「リリース」）。
+# Marketplace の trusted publishing の policy はこのファイル名（publish-extension.yml）を指すので、名前を変えるときは policy も直す。
+name: publish-extension
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  marketplace:
+    # pre-release の Release は出さない
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    permissions:
+      # checkout と、gh で Release の添付を落とす
+      contents: read
+      # vsce publish --oidc が Marketplace と引き換える OIDC のトークンを求める（PAT は使わない）
+      id-token: write
+    steps:
+      # vsce は lockfile の版を使う。npx で取ると推移的な依存が実行のたびに解決し直され、lockfile の完全性の検査が効かないため
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # node と pnpm は mise.toml の版。秘密を持つ job なので、他の実行が書いたキャッシュは読まない
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          version: 2026.10.17
+          cache: false
+      - name: 拡張のパッケージの依存だけを lockfile どおりに入れる
+        # 依存のスクリプトは走らせない（publish に要らない。build もしない）
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter deguboard
+      - name: Release の VSIX を落とし、版がタグと合うか確かめる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern deguboard-vscode.vsix --dir "$RUNNER_TEMP"
+          version=$(unzip -p "$RUNNER_TEMP/deguboard-vscode.vsix" extension/package.json | jq -r .version)
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::VSIX version $version does not match tag $TAG"
+            exit 1
+          fi
+      - name: Marketplace に出す
+        run: pnpm --filter deguboard exec vsce publish --oidc --packagePath "$RUNNER_TEMP/deguboard-vscode.vsix"
+
+  open-vsx:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    # id-token は渡さない（要るのは Marketplace の job だけ）。Open VSX へは secret のトークンだけで出す
+    permissions:
+      contents: read
+    steps:
+      # ovsx も lockfile の版を使う（理由は marketplace の job と同じ）
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          version: 2026.10.17
+          cache: false
+      - name: 拡張のパッケージの依存だけを lockfile どおりに入れる
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter deguboard
+      - name: Release の VSIX を落とし、版がタグと合うか確かめる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern deguboard-vscode.vsix --dir "$RUNNER_TEMP"
+          version=$(unzip -p "$RUNNER_TEMP/deguboard-vscode.vsix" extension/package.json | jq -r .version)
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::VSIX version $version does not match tag $TAG"
+            exit 1
+          fi
+      - name: Open VSX に出す
+        env:
+          # ovsx は OVSX_PAT からトークンを読む
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: pnpm --filter deguboard exec ovsx publish "$RUNNER_TEMP/deguboard-vscode.vsix"

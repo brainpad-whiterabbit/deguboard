@@ -4,7 +4,7 @@
 
 ## 要約
 
-言語は TypeScript（Node.js 24・pnpm workspace）、画面は React、VS Code 拡張は Vite で CommonJS に、同梱の CLI は ESM の入口と本体の chunk に束ねる。作業のコマンドは `mise run` に統一し、CI は使わずローカルの `mise run check` をマージの条件にする。lint は oxlint、整形は oxfmt を使う。
+言語は TypeScript（Node.js 24・pnpm workspace）、画面は React、VS Code 拡張は Vite で CommonJS に、同梱の CLI は ESM の入口と本体の chunk に束ねる。作業のコマンドは `mise run` に統一し、CI で検査はせずローカルの `mise run check` をマージの条件にする。GitHub Actions は、Release に添付した VSIX を Marketplace と Open VSX に出すことだけに使う。lint は oxlint、整形は oxfmt を使う。
 
 ## 背景
 
@@ -29,7 +29,12 @@
 - タスクは pnpm scripts を呼ぶだけにし、同じ内容を 2 か所に書かない。pnpm scripts は mise から呼ばれる前提で、人は `mise run` だけ覚える
 - 依存の追加・更新・削除は、pnpm の選択肢をそのまま使えるようタスクにせず、mise の固定した pnpm で行い、lockfile をコミットする。版は固定する（コマンドと `savePrefix` は [development.md の「ビルドとテスト」](../development.md#ビルドとテスト)）
 - `check` はコミット前の確認で、書式・lint・型・テスト・文書を検査する（順は mise.toml）
-- CI は使わない。検査は作業者がローカルで `mise run check` を通すことにとどめ、マージの条件にする
+- CI で検査はしない。検査は作業者がローカルで `mise run check` を通すことにとどめ、マージの条件にする
+
+### 拡張の公開だけ GitHub Actions を使う
+
+- Release を公開したとき（`release: published`）だけ走るワークフロー（`.github/workflows/publish-extension.yml`）が、その Release に添付した VSIX を VS Code Marketplace と Open VSX に出す。build も検査もしない。出すのは手元で検査を通して作り、Release に添付した VSIX そのもの
+- Marketplace へは PAT を置かず、trusted publishing（`vsce publish --oidc`。GitHub の OIDC のトークンを引き換える）で出す。Open VSX へは secret に置いたトークンで出す。それ以外の秘密は置かない
 
 ### lint は oxlint、整形は oxfmt
 
@@ -67,7 +72,9 @@
 - `execFile` で引数配列として呼べば、ブランチ名やタイトルにシェルの特殊文字が入っても安全
 - HTTP にフレームワークを入れないのは、エンドポイントが core のコマンド定義から機械的に決まり、ルーティングの表現力が要らないため。依存が減り、`127.0.0.1` に閉じるローカルの用途に合う
 - Vitest は TypeScript と ESM をそのまま扱え、workspace のパッケージをまとめて走らせられる
-- CI を置かないのは、実装するのが主にエージェントで、変更のたびにローカルで `check` を回すから。同じ検査を CI でもう一度回しても得るものが少なく、ワークフローの保守が増える
+- CI で検査しないのは、実装するのが主にエージェントで、変更のたびにローカルで `check` を回すから。同じ検査を CI でもう一度回しても得るものが少なく、ワークフローの保守が増える
+- 公開だけ GitHub Actions に置くのは、Marketplace の trusted publishing が GitHub Actions の OIDC でしか使えず、手元から出すには期限のある PAT を人が持ち回すことになるから。公開する VSIX は利用者が Release から落とすものと同じにし、SHA256 を本文に載せた VSIX をそのまま出す。CI で build し直すと、手元で検査した VSIX と別のものが出る
+- Open VSX に出すのは、VS Code 以外のエディタ（VSCodium・Cursor など）の利用者が Marketplace から入れられないから
 
 ## 採らなかった案
 
@@ -82,5 +89,7 @@
 - **Redux や Zustand**：状態が少なく、書き込みのたびに読み直す方が CLI との整合が取りやすい
 - **Node 22（LTS）**：VS Code の拡張ホストの Node 24 と揃える
 - **npm に公開して `npm i -g` で入れてもらう**：利用者に Node.js と npm を求め、入口が拡張と npm の 2 つになる。拡張に `dg` を同梱して入口を 1 つにする
+- **Marketplace の PAT を secret に置いて出す**：期限が来るたびに人が作り直し、漏れると誰でも出せる。trusted publishing なら置く秘密がない
+- **公開のワークフローで build と検査を回してから出す**：手元で検査して Release に添付した VSIX と別のものが出て、検査も二重になる
 - **拡張を esbuild や webpack で束ねる**：web のビルドに使っている Vite で足りる
 - **oxlint の版を留めたまま、規則 `react(immutability)` を off にする**：web の React の不変性の違反を検査で見つけられなくなる
