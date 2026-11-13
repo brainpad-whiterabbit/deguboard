@@ -72,7 +72,7 @@ Give `/dgall` an Iteration or tickets (in Claude Code), such as `/dgall s3 --aut
 
 ### Find bottlenecks
 
-In the history, ask for "Retrospect" from a finished Iteration's speech bubble. The agent aggregates the actuals (duration, tokens, and rework per step) and summarizes where work got stuck and what to fix next.
+In the history, ask for "Retrospect" from a finished Iteration's speech bubble. The agent shows a summary of the actuals (duration, tokens, and rework per step), asks which viewpoints to look into, summarizes where work got stuck and what to fix next, and files the improvements you approve as tickets.
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="Finding bottlenecks" width="560">
 

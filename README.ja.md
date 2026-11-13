@@ -72,7 +72,7 @@ Iteration かチケットを `/dgall s3 --auto`（Claude Code の場合）のよ
 
 ### ボトルネックを調べる
 
-履歴で終わった Iteration の吹き出しから「振り返る」を頼むと、エージェントが実績（工程ごとの所要時間・トークン・差し戻し）を集計し、詰まった所と次に直すことをまとめます。
+履歴で終わった Iteration の吹き出しから「振り返る」を頼むと、エージェントが実績（工程ごとの所要時間・トークン・差し戻し）の要約を見せて見る観点を聞き、詰まった所と次に直すことをまとめて、承認した改善を起票します。
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="ボトルネックを調べる" width="560">
 

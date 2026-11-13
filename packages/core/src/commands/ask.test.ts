@@ -329,12 +329,12 @@ describe("依頼文の組み立て", () => {
     });
   });
 
-  it("Skill を持たない頼むことは free・retro だけ（振り返るは履歴の見出しの場所で数える）", () => {
+  it("Skill を持たない頼むことは free だけ（振り返るも履歴の見出しの場所で数え、/dgretro を持つ）", () => {
     const none = new Set<string>();
     for (const [s, within] of SAMPLES)
       for (const c of askCandidates(s, within, "ja", "historyRow"))
         if (c.skill === null) none.add(c.action);
-    expect([...none].sort()).toEqual(["free", "retro"]);
+    expect([...none].sort()).toEqual(["free"]);
   });
 
   it("actor.human_only に当たる書き換えは、/dgchange の代わりに今までどおり人が打つコマンドを返す", () => {
@@ -689,10 +689,29 @@ describe("頼むことの候補", () => {
       action: "retro",
       place: "historyRow",
     });
-    expect(view).toMatchObject({ action: "retro", kind: "prompt", skill: null });
+    expect(view).toMatchObject({ action: "retro", kind: "prompt", skill: "/dgretro" });
     expect(() => buildAsk({ subjects: [iteration("closed")], action: "retro" })).toThrow(
       /retro is not a candidate/,
     );
+  });
+
+  it("振り返るは Skill の形で /dgretro <S> になり、文章だけの形は観点を選んで承認を得た改善を起票する流れを頼む", () => {
+    const at = { subjects: [iteration("closed")], action: "retro", place: "historyRow" } as const;
+    // 頼みごとの 1 行は添えない（呼び出しだけで振り返る）。指示は次の行
+    expect(buildAsk({ ...at, format: "skill" }).text).toBe("/dgretro s10");
+    expect(buildAsk({ ...at, format: "skill", note: "flow だけ" }).text).toBe(
+      "/dgretro s10\nflow だけ",
+    );
+    expect(buildAsk({ ...at, format: "text" }).text).toBe(
+      [
+        "s10 を振り返ってください（数字の要約を見せてから見る観点を聞き、根拠つきの Keep / Problem / Try を示して、承認を得た改善だけを起票する）。",
+        ASK_DG_USAGE,
+        askGuideLine("/dgretro"),
+      ].join("\n"),
+    );
+    const en = buildAsk({ ...at, format: "text", language: "en" }).text;
+    expect(en).toContain("ask which viewpoints to look into");
+    expect(en).toContain("file only the improvements I approve as tickets");
   });
 
   it("対象なしの候補は、Skill を持つ頼むことを流れの順にすべて出し、先頭は起票（discuss は change の直後、status は work の直後）", () => {
@@ -715,7 +734,7 @@ describe("頼むことの候補", () => {
       "abandon",
       "free",
     ]);
-    // 対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、Skill のないもの（振り返り）は出さない
+    // 対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、履歴の見出しからだけ頼むもの（振り返り）は出さない
     for (const action of ["remove", "split", "undo_done", "resume", "approve", "retro"] as const)
       expect(askActions([])).not.toContain(action);
     expect(buildAsk({ subjects: [] }).action).toBe("create");
@@ -1240,7 +1259,6 @@ describe("Skill の 1 文（skill_summary・UI-15）", () => {
   it("Skill の名前に文がなければ例外", () => {
     expect(() => skillSummary("dgnone")).toThrow();
     expect(Object.keys(SKILL_SUMMARY)).toHaveLength(13);
-    // 振り返りの Skill（dgretro）は配るが、頼む小窓の振り返るはまだ Skill を引かない（合わせるのは t815）
     expect(skillSummary("dgretro", "ja")).toMatch(/[぀-ヿ一-鿿]/);
     expect(skillSummary("dgretro", "en")).not.toMatch(/[぀-ヿ一-鿿]/);
   });
