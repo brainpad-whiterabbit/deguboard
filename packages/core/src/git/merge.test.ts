@@ -462,7 +462,6 @@ describe("frontmatter の 3-way マージ", () => {
   });
 });
 
-/** init まで済ませた 2 つの clone の文脈。時刻は呼び出しごとに 1 秒進める */
 /** Plan の範囲を、a は書いて push し、b は別の値で書く（時刻でないフィールドの競合。b は sync で止まる） */
 async function scopeOnBothSides(a: CommandContext, b: CommandContext, id: string) {
   const scope = (ctx: CommandContext, text: string) =>
@@ -474,6 +473,7 @@ async function scopeOnBothSides(a: CommandContext, b: CommandContext, id: string
   await scope(b, "ローカルの範囲");
 }
 
+/** init まで済ませた 2 つの clone の文脈。時刻は呼び出しごとに 1 秒進める */
 async function twoClones(f: Fixture): Promise<{ a: CommandContext; b: CommandContext }> {
   let tick = Date.parse("2026-11-01T00:00:00Z");
   const now = () => new Date((tick += 1000));

@@ -403,15 +403,15 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
       payload(cwd, "Bash", { command: "gh pr merge 5 --squash" }),
       payload(cwd, "Bash", { command: "ls" }),
     ];
-    const actuals = [];
+    const stdouts: string[] = [];
     for (const stdin of inputs) {
       const expected = await dg(normalBin, ARGV, cwd, stdin);
       const actual = await dg(copied, ARGV, cwd, stdin);
       expect(actual).toEqual(expected);
       expect(actual.code).toBe(0);
-      actuals.push(actual);
+      stdouts.push(actual.stdout);
     }
-    expect(JSON.parse(actuals[0]!.stdout)).toMatchObject({
+    expect(JSON.parse(stdouts[0]!)).toMatchObject({
       hookSpecificOutput: { permissionDecision: "deny" },
     });
   });
@@ -432,15 +432,15 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
       payload(cwd, "Bash", { command: "gh pr merge 5 --squash" }),
       payload(cwd, "Bash", { command: "ls" }),
     ];
-    const actuals = [];
+    const stdouts: string[] = [];
     for (const stdin of inputs) {
       const expected = await dg(normalBin, ARGV, cwd, stdin);
       const actual = await dg(copied, ARGV, cwd, stdin);
       expect(actual).toEqual(expected);
       expect(actual.code).toBe(0);
-      actuals.push(actual);
+      stdouts.push(actual.stdout);
     }
-    expect(JSON.parse(actuals[0]!.stdout)).toMatchObject({
+    expect(JSON.parse(stdouts[0]!)).toMatchObject({
       hookSpecificOutput: { permissionDecision: "deny" },
     });
   });
