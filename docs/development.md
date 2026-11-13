@@ -76,7 +76,7 @@ mise run dg -- guide done      # マージ後の後始末
 ## ビルドとテスト
 
 - TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。`mise run typecheck` は `noEmit` で検査する
-- `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` と `vscode` を `dist/` に出す。tsc は消えたソースの出力を消さないので、`core`・`server`・`cli` の `dist/` と `*.tsbuildinfo` を先に消してから作る（`tsbuildinfo` が残ると tsc は出力を作り直さない）。`dg` をリポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
+- `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` と `vscode` を `dist/` に出す。tsc は消えたソースの出力を消さないので、増分の `tsc -b` のあとで `scripts/prune-dist.mjs` が `core`・`server`・`cli` の `dist/` から今のソースに対応しない出力を消す（`dist/` を先に消さないのは、ビルド中もフックが呼ぶ `dg` を動かし続けるため）。`dg` をリポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
 - `@deguboard/core` と `@deguboard/server` の `exports` は条件つきで、テストと型検査・vscode のビルド（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。テストの前にビルドは要らない
 - テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` と `test/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
 - vitest のワーカー数は既定で CPU 数の半分にしている（全体のテストと `test:related` が重なっても CPU を取り合いすぎないため。理由と測った値は `vitest.config.ts` のコメント）。変えるときは環境変数 `DEGUBOARD_TEST_MAX_WORKERS` に数か `75%` のような割合を渡す（それ以外の値と 0 はエラーで止まる）
