@@ -9,7 +9,13 @@ import { iteration, iterationDetail, mockClient, ticket } from "../test-helpers.
 import { createUiState, memoryBackend } from "../ui-state.js";
 // 持ち越しの求め方の写しを照らすためだけに core の実行時のコード（carriedOverFrom）を取り込む（画面のコードは型だけを取る）
 import { carriedOverFrom as coreCarriedOverFrom } from "@deguboard/core";
-import { carriedOverFrom, epicCountsOf, groupByEpic, historyAskTarget } from "./history.js";
+import {
+  carriedOverFrom,
+  epicCountsOf,
+  groupByEpic,
+  historyAskTarget,
+  iterationRuns,
+} from "./history.js";
 
 // 日付の書き方（今日・昨日・月/日）は今に依るので、今を固定する（Date だけ。待ち合わせの timer は本物のまま）
 beforeEach(() => {
@@ -62,6 +68,24 @@ describe("履歴のまとめ方", () => {
       ["e1", ["t2"]],
       [null, ["t1"]],
     ]);
+  });
+
+  it("並びの中で同じ Iteration が続くところを 1 つの区切りにし、先頭のチケットから Iteration と続く件数を引ける。並びは変えないので、離れた同じ Iteration は別の区切りになる", () => {
+    const runs = iterationRuns([
+      ticket({ id: "t9", iteration: "s2" }),
+      ticket({ id: "t8", iteration: "s2" }),
+      ticket({ id: "t7" }),
+      ticket({ id: "t6" }),
+      ticket({ id: "t5", iteration: "s2" }),
+      ticket({ id: "t4", iteration: "s1" }),
+    ]);
+    expect([...runs]).toEqual([
+      ["t9", { iteration: "s2", count: 2 }],
+      ["t7", { iteration: null, count: 2 }],
+      ["t5", { iteration: "s2", count: 1 }],
+      ["t4", { iteration: "s1", count: 1 }],
+    ]);
+    expect(iterationRuns([]).size).toBe(0);
   });
 
   it("core の carriedOverFrom（iteration.show の next）と同じ入力で同じ結果を返す（写しがずれたら落ちる）", () => {
@@ -332,12 +356,22 @@ describe("サイドバーの履歴", () => {
     expect(opened).toEqual([{ page: "ticket", id: "t2" }]);
   });
 
-  it("チケットの見方は日付の見出しなしの終えた新しい順の 1 本の一覧で、2 段目に Iteration・PR・終えた日を出し、中止の行は薄く出す", async () => {
+  it("チケットの見方は日付の見出しなしの終えた新しい順の 1 本の一覧で、Iteration が変わるところに番号・期間・件数の区切りを挟み、2 段目に PR・終えた日を出し、中止の行は薄く出す", async () => {
     window.location.hash = "#/history?view=ticket";
     const client = mockClient();
+    client.data.iterations = [
+      iteration({
+        id: "s1",
+        name: "sprint1",
+        status: "closed",
+        started_at: "2026-09-20T12:00:00Z",
+        closed_at: "2026-10-02T12:00:00Z",
+      }),
+    ];
     client.data.tickets = [
       ticket({ id: "t1", title: "古い", status: "done", iteration: "s1", epic: "e1", pr: 12 }),
       ticket({ id: "t2", title: "新しい", status: "done" }),
+      ticket({ id: "t3", title: "もっと古い", status: "done", iteration: "s1" }),
       ticket({
         id: "t4",
         title: "やめた",
@@ -357,7 +391,11 @@ describe("サイドバーの履歴", () => {
       changes: [{ field: "status", from: "review", to: "done" }],
     });
     client.handlers["history"] = () => ({
-      events: [finished("t1", "2026-10-01T12:00:00Z"), finished("t2", "2026-10-20T12:00:00Z")],
+      events: [
+        finished("t1", "2026-10-01T12:00:00Z"),
+        finished("t2", "2026-10-20T12:00:00Z"),
+        finished("t3", "2026-09-25T12:00:00Z"),
+      ],
       shallow: false,
       incomplete: [],
     });
@@ -368,26 +406,42 @@ describe("サイドバーの履歴", () => {
         </HostProvider>
       </StoreProvider>,
     );
-    await waitFor(() => expect(document.querySelectorAll(".history-ticket")).toHaveLength(3));
+    await waitFor(() => expect(document.querySelectorAll(".history-ticket")).toHaveLength(4));
     // 日付の見出しはなく、1 本の一覧
     expect(document.querySelector(".history-group")).toBeNull();
     expect(document.querySelectorAll(".history-list")).toHaveLength(1);
-    expect([...document.querySelectorAll(".history-list code")].map((c) => c.textContent)).toEqual([
+    // 区切りは Iteration が変わるところの行の前にだけ挟む。番号（詳細へのリンク）・実績の期間・続く件数を出し、
+    // Iteration のないチケットは「Iteration なし」の区切りに入る
+    expect(
+      [...document.querySelector(".history-list")!.children].map((el) =>
+        el.classList.contains("history-divider")
+          ? [...el.children].map((c) => c.textContent)
+          : el.querySelector("code")!.textContent,
+      ),
+    ).toEqual([
+      ["Iteration なし", "1 件"],
       "t2",
+      ["s1", "9/20–10/2", "2 件"],
       "t1",
+      "t3",
+      ["Iteration なし", "1 件"],
       "t4",
     ]);
-    // 2 段目は Iteration・PR・終えた日。Epic は出さず、終えた日が分からないものは更新日に ~ を付ける
+    expect(
+      [...document.querySelectorAll(".history-divider a")].map((a) => a.getAttribute("href")),
+    ).toEqual(["#/iterations/s1"]);
+    // 2 段目は PR・終えた日。Iteration は区切りに出すので行には出さず、Epic も出さない。終えた日が分からないものは更新日に ~ を付ける
     expect(
       [...document.querySelectorAll(".history-ticket-meta")].map((m) =>
         m.textContent!.replace(/\d\d$/, "dd"),
       ),
     ).toEqual([
-      "Iteration なし ・ PR なし ・ 10/dd",
-      "s1 ・ #12 ・ 10/dd",
-      "Abandoned ・ Iteration なし ・ PR なし ・ ~01/dd",
+      "PR なし ・ 10/dd",
+      "#12 ・ 10/dd",
+      "PR なし ・ 09/dd",
+      "Abandoned ・ PR なし ・ ~01/dd",
     ]);
-    const abandoned = document.querySelectorAll(".history-ticket")[2]!;
+    const abandoned = document.querySelectorAll(".history-ticket")[3]!;
     expect(abandoned.classList.contains("abandoned")).toBe(true);
     // 絞り込みは検索と結果だけ
     expect(screen.getByLabelText("結果")).toBeTruthy();

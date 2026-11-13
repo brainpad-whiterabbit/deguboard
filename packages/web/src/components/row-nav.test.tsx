@@ -183,12 +183,12 @@ describe("サイドバーの行のキー操作", () => {
     await waitFor(() => expect(visibleRows().filter((a) => a.tabIndex === 0)).toEqual([first()]));
   });
 
-  it("履歴の行の Iteration・Epic のリンクも Tab で止まらず、移れる行は今の 1 行だけ", async () => {
+  it("履歴のチケットの見方の区切りの見出しの Iteration のリンクも Tab で止まらず、移れる行は今の 1 行だけ", async () => {
     window.location.hash = "#/history?view=ticket";
     const client = mockClient();
     client.data.tickets = [
       ticket({ id: "t8", title: "一つ目", status: "done", iteration: "s1", epic: "e1" }),
-      ticket({ id: "t9", title: "二つ目", status: "done", iteration: "s1", epic: "e1" }),
+      ticket({ id: "t9", title: "二つ目", status: "done", iteration: "s2", epic: "e1" }),
     ];
     const ev = (id: string) => ({
       kind: "ticket",
@@ -203,10 +203,13 @@ describe("サイドバーの行のキー操作", () => {
     client.handlers["history"] = () => ({ events: [ev("t8"), ev("t9")], truncated: false });
     mount(client);
     await screen.findByText("一つ目");
-    expect(document.querySelectorAll(".history-ticket-meta a").length).toBeGreaterThan(0);
+    // チケットの見方は Iteration を行ではなく区切りの見出しに出す（行の間に挟まるリンク）
+    expect(document.querySelectorAll(".history-divider a")).toHaveLength(2);
     await waitFor(() => {
       const tabbable = [
-        ...document.querySelectorAll<HTMLElement>("[data-select-id] a, [data-select-id] button"),
+        ...document.querySelectorAll<HTMLElement>(
+          "[data-select-id] a, [data-select-id] button, .history-divider a",
+        ),
       ].filter((el) => el.tabIndex >= 0);
       expect(tabbable).toHaveLength(1);
       expect(tabbable[0]!.matches("a.ticket-row")).toBe(true);

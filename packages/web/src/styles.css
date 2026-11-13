@@ -2384,6 +2384,50 @@ textarea.body {
   align-self: flex-start;
   margin: 0.1rem 0 0 2.4rem;
 }
+/* 履歴のチケットの見方の区切りの見出し（pages/history.tsx の IterationDivider）：Iteration の番号・期間・件数を 1 行で出す。
+   スクロール中は .page の中身の上の端に貼り付き、次の区切りが来たら入れ替わる。下の行が透けないよう画面の地の色で塗る。
+   貼り付く位置は .page の上の余白（--dg-divider-gap。左パネルは 0.5rem）の下なので、余白に行が透けないよう ::before で同じ高さを上に塗り足す。
+   塗り足しが上の行に掛からないよう、区切りの上を同じ高さだけ空ける（先頭は .history-groups の上の余白 0.25rem の分を引く） */
+.history-divider {
+  --dg-divider-gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+  margin: var(--dg-divider-gap) 0 0;
+  padding: 0.3rem 6px 0.2rem;
+  font-size: 0.92em;
+  font-weight: 600;
+  background: var(--vscode-editor-background);
+  border-bottom: 1px solid var(--dg-border);
+}
+[data-surface="sidebar"] .history-divider {
+  --dg-divider-gap: 0.5rem;
+  background: var(--vscode-sideBar-background);
+}
+.history-divider:first-child {
+  margin-top: calc(var(--dg-divider-gap) - 0.25rem);
+}
+.history-divider::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: var(--dg-divider-gap);
+  background: inherit;
+}
+.history-divider-period,
+.history-divider-count {
+  font-weight: 400;
+  color: var(--vscode-descriptionForeground);
+}
+.history-divider-count {
+  margin-left: auto;
+}
 /* 検索で開いた行の中：当たった件数と「すべて見る」を付記と頭を揃えて出し、当たった部分の印はエディタの検索の当たりと同じ色 */
 .history-hits {
   display: flex;

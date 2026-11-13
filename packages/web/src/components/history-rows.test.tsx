@@ -119,6 +119,27 @@ describe("履歴用の一覧", () => {
     expect(screen.getByRole("button", { name: "ほか 8 件" })).toBeTruthy();
   });
 
+  it("before が返したものを行の前に挟み、まだ開いていない行の分は挟まない", async () => {
+    // 5 件ごとに区切りを挟む（t1・t6・t11・t16）
+    mount(
+      <HistoryTicketList
+        tickets={many(16)}
+        before={(t) =>
+          Number(t.id.slice(1)) % 5 === 1 ? <h3 className="divider">{t.id} から</h3> : null
+        }
+      />,
+    );
+    await screen.findByText("t1");
+    const order = () =>
+      [...document.querySelector(".history-list")!.children].map((el) =>
+        el.classList.contains("divider") ? el.textContent : el.querySelector("code")?.textContent,
+      );
+    expect(order().slice(0, 8)).toEqual(["t1 から", "t1", "t2", "t3", "t4", "t5", "t6 から", "t6"]);
+    expect(document.querySelectorAll(".divider")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "ほか 8 件" }));
+    expect(document.querySelectorAll(".divider")).toHaveLength(4);
+  });
+
   it("key を変えると開いた件数が戻る（検索や絞り込みを変えたときに呼ぶ側が key を変える）", async () => {
     const { rerender } = mount(<HistoryTicketList key="a" tickets={many(120)} />);
     await screen.findByText("t1");

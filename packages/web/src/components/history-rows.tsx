@@ -57,7 +57,7 @@ export function HistoryTicketRow({
   query,
 }: {
   ticket: Ticket;
-  /** 2 段目に Iteration を出す（Epic・チケットのタブ）。Iteration がなければ Iteration なし */
+  /** 2 段目に Iteration を出す（Epic の見方）。Iteration がなければ Iteration なし */
   showIteration?: boolean | undefined;
   showEpic?: boolean | undefined;
   /** 2 段目の最後に足すもの（持ち越しの行の「今は s5」、終えた日など） */
@@ -135,7 +135,8 @@ export function HistoryTicketRow({
 /**
  * 履歴用の行の一覧。渡した順のまま出す。unfoldedMax 件より多いときは先頭の head 件だけ出し、
  * 「ほか N 件」（N は残りの全件数）のボタンを押すたびに step 件ずつ開く。
- * row で行の描き方を変えられる（既定は HistoryTicketRow）。
+ * row で行の描き方を変えられる（既定は HistoryTicketRow）。before は行の前に挟むもの（区切りの見出し）を返し、
+ * 出ている行の分だけ挟む（まだ開いていない行の区切りは出さない）。
  * 「ほか N 件」を開いた状態は tickets が変わっても戻らないので、別の一覧に切り替えるときは呼ぶ側で key を変える
  */
 export function HistoryTicketList({
@@ -144,6 +145,7 @@ export function HistoryTicketList({
   unfoldedMax = HISTORY_LIST_UNFOLDED_MAX,
   step = HISTORY_LIST_STEP,
   row = (t) => <HistoryTicketRow ticket={t} />,
+  before,
 }: {
   tickets: readonly Ticket[];
   head?: number | undefined;
@@ -152,6 +154,8 @@ export function HistoryTicketList({
   /** 「ほか N 件」を 1 回押して開く件数 */
   step?: number | undefined;
   row?: ((ticket: Ticket) => ReactNode) | undefined;
+  /** 行の前に挟むもの。挟まない行では null を返す */
+  before?: ((ticket: Ticket) => ReactNode) | undefined;
 }) {
   // 開いた件数（先頭の head 件に足す数）
   const [opened, setOpened] = useState(0);
@@ -161,7 +165,10 @@ export function HistoryTicketList({
   return (
     <div className="rows history-list">
       {shown.map((t) => (
-        <Fragment key={t.id}>{row(t)}</Fragment>
+        <Fragment key={t.id}>
+          {before?.(t)}
+          {row(t)}
+        </Fragment>
       ))}
       {rest > 0 ? (
         <button

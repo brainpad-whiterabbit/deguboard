@@ -401,6 +401,65 @@ describe.each(SCHEMES)("履歴のチケットの見方の絞り込み（%s）", 
   );
 });
 
+describe.each(SCHEMES)("履歴のチケットの見方の区切りの見出し（%s）", (scheme) => {
+  it("幅 300px で 1 行に収まり、スクロールすると一覧の上に貼り付いて、下の行が透けない", async () => {
+    // 行が少なくてもスクロールできるよう、高さを小さくする
+    const context = await browser.newContext({
+      viewport: { width: 300, height: 220 },
+      colorScheme: scheme,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${server.url}?surface=sidebar#/history?view=ticket`, {
+        waitUntil: "networkidle",
+      });
+      await page.locator(".history-divider").first().waitFor();
+      const m = await page.evaluate(async () => {
+        const main = document.querySelector<HTMLElement>(".page")!;
+        const divider = document.querySelector<HTMLElement>(".history-divider")!;
+        const row = divider.nextElementSibling!;
+        const parts = [...divider.children].map((c) => c.getBoundingClientRect());
+        const before = divider.getBoundingClientRect();
+        const box = main.getBoundingClientRect();
+        const padTop = parseFloat(getComputedStyle(main).paddingTop);
+        const padRight = parseFloat(getComputedStyle(main).paddingRight);
+        // 区切りの元の位置が .page の中身の上の端より 20px 上に出るまで送る（続く行が 2 件あるので、次の区切りにはまだ押されない）
+        main.scrollTop = before.top - (box.top + padTop) + 20;
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        const after = divider.getBoundingClientRect();
+        return {
+          texts: [...divider.children].map((c) => c.textContent),
+          tops: new Set(parts.map((p) => Math.round(p.top))).size,
+          right: Math.max(...parts.map((p) => p.right)),
+          width: box.right - padRight,
+          scrolled: main.scrollTop,
+          stuckTop: after.top,
+          contentTop: box.top + padTop,
+          rowTop: row.getBoundingClientRect().top,
+          dividerBottom: after.bottom,
+          bg: getComputedStyle(divider).backgroundColor,
+          // 上の余白（.page の padding）に行が透けないよう塗り足す高さ
+          cover: parseFloat(getComputedStyle(divider, "::before").height),
+          padTop,
+          pageScroll: main.scrollWidth,
+          pageClient: main.clientWidth,
+        };
+      });
+      expect(m.texts.length, "番号・期間・件数").toBe(3);
+      expect(m.tops, "区切りは 1 行").toBe(1);
+      expect(m.right, "区切りが幅に収まる").toBeLessThanOrEqual(m.width + 0.5);
+      expect(m.scrolled, "スクロールできた").toBeGreaterThan(0);
+      expect(Math.abs(m.stuckTop - m.contentTop), "一覧の上に貼り付く").toBeLessThanOrEqual(1);
+      expect(m.rowTop, "行は区切りの下をくぐる").toBeLessThan(m.dividerBottom);
+      expect(m.bg, "下の行が透けないよう塗る").not.toBe("rgba(0, 0, 0, 0)");
+      expect(m.cover, "上の余白も塗る").toBeGreaterThanOrEqual(m.padTop);
+      expect(m.pageScroll, "画面が横に溢れない").toBeLessThanOrEqual(m.pageClient);
+    } finally {
+      await context.close();
+    }
+  });
+});
+
 describe.each(SCHEMES)("履歴の中止の行（%s）", (scheme) => {
   it("点は塗らない輪（border）で、完了の点は塗り、タイトルは薄く打ち消し線がない", async () => {
     const context = await browser.newContext({
