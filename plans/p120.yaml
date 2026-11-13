@@ -1,0 +1,20 @@
+id: p120
+project: default
+tickets: [t850, t848, t849]
+after:
+  t849:
+    - t850
+pending_approval: true
+details:
+  t850:
+    scope: config set --local retro.* を dg retro の案内で拒否するテスト付きの修正と、config show --fields のヘルプと config.tsx の冒頭のコメントを retro.perspectives を除く葉の項目と直す
+    approach: setup.ts の config set で retro.* のガードを --local の分岐より先に置き、ヘルプとコメントの文言を直す
+    tier: standard
+  t848:
+    scope: 各チケットの PR の変更ファイルと、本文・題のほかのチケットの ID の参照を dg の JSON で出し、取れないものは不明で返す。guide retro に出どころとして書き足す
+    approach: Core のコマンド定義に置き、変更ファイルは ADR-029 の変更行数と同じく gh か git から取る。どのコマンドに出すかは実装の初めに既存の ticket show・metrics と比べて決める
+    tier: heavy
+  t849:
+    scope: dg のマージのコマンドの結果に消したものを出し、delete_branch が true のとき sync の照合で done にしたチケットの worktree とブランチを消して reconciled に添える。消せないときは warnings。guide done の片付けの手順を替え、ST-4 を直す
+    approach: pr.ts の removeBranchWorktree を reconcile から使い、未コミットの変更や先端の違いを確かめてから消す。bare リモート付きの一時リポジトリでテストする
+    tier: heavy
