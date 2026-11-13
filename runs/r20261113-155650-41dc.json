@@ -1,0 +1,34 @@
+{
+  "id": "r20261113-155650-41dc",
+  "ticket": "t871",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-13T15:56:50Z",
+  "finished_at": "2026-11-13T16:01:01Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "build が先に dist を消すため、ビルド中にフックが黙って外れ増分ビルドも失われる",
+    "build のスクリプトの && の後ろの空白が抜けている",
+    "古い出力が dist に残らないことを固めるテストがない"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 8357,
+    "cache_read": 560959,
+    "cache_write": 35555
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 6,
+    "bash": 8,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "a5c2ea23-662a-4048-902d-1c12f239a1ea",
+  "review": null
+}
