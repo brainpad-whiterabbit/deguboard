@@ -135,7 +135,7 @@ const PRIORITY_ORDER_NOTE: Record<Priority, string> = {
 };
 
 /** 優先度の記号（10px の SVG。high は上向きの矢印、medium は =、low は下向きの矢印）。色は文字に合わせて currentColor */
-export function PriorityGlyph({ priority }: { priority: Priority }) {
+function PriorityGlyph({ priority }: { priority: Priority }) {
   const common = {
     className: "priority-glyph",
     width: 10,
@@ -455,7 +455,7 @@ export function prHref(webUrl: string | null | undefined, pr: number): string | 
  * PR のある行の包み（UI-2）の class。カンバンとバックログの行で PR の番号があるときだけ付け、番号の列の 2 段目に PR のリンクを置く（styles.css の .pr-row）。
  * 包みは行の要素（.row-item・li）。head は kanban の頭の印の有無（TicketRow の has-head と同じ）
  */
-export function prRowClass(
+function prRowClass(
   ticket: Pick<Ticket, "pr">,
   variant: TicketRowVariant | undefined,
   head: boolean,
