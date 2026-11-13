@@ -1,5 +1,5 @@
 // README（と、そこから作る拡張の README）に載せる使い方の GIF（packages/vscode/images/ の 5 本）を録り直す。mise run gifs から呼ぶ。引数に名前（import.gif など）を渡せばその分だけ録る。
-// 5 本は README の流れ（起票 → 割り当て → 計画 → 並列の実装 → 振り返り）の順で、import・assign・plan・work・retro（t844）。work.gif は README の冒頭と Board の節の両方に載る。
+// 5 本は README の流れ（起票 → 割り当て → 計画 → 並列の実装 → 振り返り）の順で、import・assign・plan・work・retro（t844）。README の冒頭は GIF ではなく開発の流れの図（同じ場所の flow.png。元は flow.svg）。
 // 一時ディレクトリに bare リモート付きのリポジトリを作って見本のチケットを起票し、dg serve の左パネルの画面を
 // Chromium（playwright-core）で操作して 1 コマずつスクリーンショットを撮り、gifenc で GIF にまとめる。ffmpeg などの外のツールは使わない。
 // VS Code 本体は録れないので、Activity Bar・エディタ・ターミナルの部分は画面の外枠として自前で描く（frameHtml）。左パネルの中身は実際の画面。
