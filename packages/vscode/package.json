@@ -1,7 +1,7 @@
 {
   "name": "deguboard",
   "displayName": "deguboard",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "private": true,
   "description": "%description%",
   "categories": [

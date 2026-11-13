@@ -1,6 +1,6 @@
 {
   "name": "@deguboard/core",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "private": true,
   "description": "deguboard のドメインモデル・ストレージ・Git 操作・ワークフロー・コマンド定義",
   "license": "MIT",
