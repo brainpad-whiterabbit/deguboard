@@ -30,6 +30,8 @@ export interface BranchFacts {
   prCreatedAt?: string;
   /** 見つけた PR のマージ時刻（ISO）。ブランチが消えて push の時刻を取れないとき、照合が手直しの Run を閉じる finished_at（RN-6） */
   prMergedAt?: string;
+  /** マージされた PR の先端のコミット（gh の headRefOid）。照合が done にしたチケットのブランチを消してよいかを、先端と比べて確かめる（ST-4）。マージ前・読めないときは undefined */
+  prMergedHead?: string;
   /** マージされた PR の追加・削除の行数。照合がチケットの `lines` に記録する（MT-6）。マージ前・読めないときは undefined */
   prLines?: PrLines;
   /** gh が「PR がない」と答えた。pr_* はすべて偽になるが、閉じた PR とは区別する（ST-5） */
@@ -183,6 +185,7 @@ export async function collectBranchFacts(
     ...(pr.number === undefined ? {} : { pr: pr.number }),
     ...(pr.createdAt === undefined ? {} : { prCreatedAt: pr.createdAt }),
     ...(pr.mergedAt === undefined ? {} : { prMergedAt: pr.mergedAt }),
+    ...(pr.mergedHead === undefined ? {} : { prMergedHead: pr.mergedHead }),
     ...(pr.lines === undefined ? {} : { prLines: pr.lines }),
     ...(pr.missing ? { prMissing: true } : {}),
     ...(pr.ignored ? { ignoredPr: pr.ignored } : {}),
@@ -198,13 +201,15 @@ interface PrView {
   createdAt?: string | null;
   additions?: number | null;
   deletions?: number | null;
+  /** PR の先端のコミット */
+  headRefOid?: string | null;
   /** 変えたファイルの数（PR_FILE_FIELDS で取る） */
   changedFiles?: number | null;
   /** 変えたファイル（PR_FILE_FIELDS で取る。gh は先頭の 100 件までしか返さない） */
   files?: Array<{ path?: unknown }> | null;
 }
 
-const PR_FIELDS = "number,state,isDraft,mergedAt,createdAt,additions,deletions";
+const PR_FIELDS = "number,state,isDraft,mergedAt,createdAt,additions,deletions,headRefOid";
 
 /** PR の追加・削除の行数（gh の additions・deletions。base との差分で、squash のコミットの行数と同じ） */
 export interface PrLines {
@@ -380,6 +385,7 @@ async function collectPrFacts(
   number?: number;
   createdAt?: string;
   mergedAt?: string;
+  mergedHead?: string;
   lines?: PrLines;
   missing?: boolean;
   ignored?: { number: number; state: string; createdAt: string };
@@ -414,12 +420,17 @@ async function collectPrFacts(
   };
   const mergedAt = isoOrUndefined(data.mergedAt);
   const lines = mergedLines(data);
+  const mergedHead =
+    data.state === "MERGED" && typeof data.headRefOid === "string" && data.headRefOid !== ""
+      ? data.headRefOid
+      : undefined;
   return Number.isInteger(data.number) && (data.number as number) > 0
     ? {
         facts,
         number: data.number as number,
         ...(createdAt ? { createdAt } : {}),
         ...(mergedAt ? { mergedAt } : {}),
+        ...(mergedHead ? { mergedHead } : {}),
         ...(lines ? { lines } : {}),
       }
     : { facts };

@@ -69,7 +69,7 @@ mise run dg -- guide done      # マージ後の後始末
   git pull --ff-only && mise run dg -- sync
   ```
 
-  worktree に未コミットの変更が残っていて `git worktree remove` が止まったら、要るものを退避してから `--force` を付ける
+  マージで消えなかった worktree とブランチ（人が GitHub の画面でマージしたときなど）は、チケットを done にする `dg sync` が消す。未コミットの変更やマージしていないコミットが残るものは消さず、理由と消し方を warnings に出すので、要るものを退避してから手で消す
 
 - `dg` 自体の不具合でチケットを動かせないときは、人が `.git/deguboard/` のファイルを直接直し、`mise run dg -- adopt` で取り込んでから（取り込まないと dg の外の変更として書き込みが止まる）、その不具合を起票する
 

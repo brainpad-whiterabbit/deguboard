@@ -67,6 +67,7 @@ import type { WorkflowEntry } from "../storage/store.js";
 import { cyclePath, findCrossingCycle } from "../storage/wait-cycle.js";
 import { reconcileStatus, regressionWarnings } from "../workflow/reconcile.js";
 import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
+import { removeMergedWork, type MergedWork, type RemovedWork } from "./branch-cleanup.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { closeStoppedRuns, type HookView } from "./hook.js";
 import { nowIso, sortedDocs } from "./helpers.js";
@@ -181,6 +182,8 @@ export interface ReconciledTicket {
   to: string;
   /** 当てはまった reconcile 規則の条件（根拠の事実。例：["pr_merged"]） */
   when: string[];
+  /** done にしたときに消した worktree とブランチ（config の merge.delete_branch が true のときだけ付く。ST-4） */
+  removed?: RemovedWork;
 }
 
 /** 照合がチケットに記録した、マージされた PR の追加・削除の行数（MT-6） */
@@ -209,6 +212,8 @@ export interface Reconciled {
   runsClosed: ReconciledRun[];
   /** 持ち主のない保留から書いた見直しの記録（RN-9。orphan-review.ts）。コミットの後に linkOrphanRounds で保留を結び付ける */
   reviewsRecorded: Array<{ ticket: Doc<Ticket>; recorded: RecordedOrphanReviews }>;
+  /** done にしたチケットの片付けの対象（config の merge.delete_branch が true のときだけ）。ロックを放した後に removeMergedWork で消す */
+  merged: MergedWork[];
 }
 
 /**
@@ -377,6 +382,7 @@ async function reconcileAll(
   const linesRecorded: ReconciledLines[] = [];
   const runsClosed: ReconciledRun[] = [];
   const reviewsRecorded: Reconciled["reviewsRecorded"] = [];
+  const merged: MergedWork[] = [];
   const running = (await readRunningRuns(ctx.repo)).runs;
   for (const doc of reconcileTargets(ctx)) {
     const wf = ctx.store.workflowFor(doc.data);
@@ -393,7 +399,7 @@ async function reconcileAll(
       );
       continue;
     }
-    const { pr, prCreatedAt, prMergedAt, prLines, prMissing, ignoredPr } = got.result;
+    const { pr, prCreatedAt, prMergedAt, prMergedHead, prLines, prMissing, ignoredPr } = got.result;
     const facts = { ...got.result.facts, deps_done: ctx.store.depsDone(doc.data) };
     if (pr !== undefined && prCreatedAt !== undefined && !collected.prCreated.has(pr))
       collected.prCreated.set(pr, { createdAt: prCreatedAt });
@@ -452,6 +458,9 @@ async function reconcileAll(
         to: outcome.to,
         when: [...outcome.rule.when],
       });
+      // done にしたチケットの残りの worktree とブランチは、ロックを放した後に消す（設定が true のときだけ。t849）
+      if (outcome.to === "done" && ctx.config.merge.delete_branch)
+        merged.push({ id: doc.id, branch: doc.data.branch, mergedHead: prMergedHead });
     }
     if (Object.keys(patch).length > 0) {
       await ctx.store.update("ticket", doc.id, { ...patch, updated_at: nowIso(ctx) });
@@ -546,7 +555,7 @@ async function reconcileAll(
       );
     }
   }
-  return { changed, prRecorded, linesRecorded, runsClosed, reviewsRecorded };
+  return { changed, prRecorded, linesRecorded, runsClosed, reviewsRecorded, merged };
 }
 
 /** 未チェックの受け入れ条件の番号 */
@@ -558,7 +567,7 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). When the PR is merged, its added and deleted lines are recorded on the ticket as lines (data.lines_recorded; a ticket that already has lines is not rewritten; done tickets with no lines are filled by dg metrics lines). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
+    "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches. When config's merge.delete_branch is true and a ticket becomes done, the worktree and the local and remote work branch that remain are deleted, and each data.reconciled entry gets removed: { worktree, local_branch, remote_branch } (null for what was not deleted or did not exist). Nothing is deleted when the worktree has uncommitted changes, when sync is called from that worktree, or when a branch tip is neither the head of the merged PR nor in the base branch; the reason and the commands to delete by hand are in warnings. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). When the PR is merged, its added and deleted lines are recorded on the ticket as lines (data.lines_recorded; a ticket that already has lines is not rewritten; done tickets with no lines are filled by dg metrics lines). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
     "A review result held with no Run (run review-result with no review Run, left by an environment the hook does not reach) that dg next and dg gate count as a review is written as a closed review Run marked capture: none (started and finished at the time the result was written, usage null), and the held result is linked to it (data.reviews_recorded). " +
     "A sub-agent Run left open because its record was not finished being written (one with a settling_since mark) is also closed once it has finished writing. Review Runs from a session other than the sync's are not closed; the next review start closes them. " +
     "When the import stops on a conflict, data.conflicts lists the files and data.conflict_fields lists each conflicting field as { file, field, base, local, remote }, found by running the merge driver's rule on the fork point, the local head, and the remote head (so it includes conflicts in commits after the one the rebase stopped at). For a body, field is body and each colliding block of lines is one entry. Files outside the merge driver (config.yaml and workflows) appear only in data.conflicts. " +
@@ -574,14 +583,26 @@ export const sync = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
-    const synced = await syncLocked(ctx, input.resolve);
+    const { result: synced, merged } = await syncLocked(ctx, input.resolve);
+    // 照合が done にしたチケットの、残っている worktree とブランチを消す（config の merge.delete_branch が true のとき。ST-4）。
+    // リモートを待つので書き込みのロックを外してから行い、消したものを reconciled に添える。消せない理由と消し方は warnings に出す
+    const cleanup: string[] = [];
+    for (const work of merged) {
+      const entry = synced.data.reconciled.find((r) => r.id === work.id);
+      if (entry) entry.removed = await removeMergedWork(ctx, work, cleanup);
+    }
     // 記録の書き終わりを待ちきれずに残したサブエージェントの Run を閉じる（RN-7）。閉じる書き込みは write のロックを取るので、外してから行う。
     // 別のセッションの見直しの Run は閉じない（前景の見直し役が今回の結果を書いているかもしれない）。
     // セッションの分からない sync（人が端末や画面から呼ぶもの）は閉じるので、人が前景の見直しの最中に呼ぶ場合は防げない
     const closing: string[] = [];
     const view: HookView = { event: "sync", done: [] };
     await closeStoppedRuns(ctx, closing, view, { reviewSession: sessionOf(ctx, undefined) });
-    return ok(synced.data, synced.write, [...synced.warnings, ...view.done, ...closing]);
+    return ok(synced.data, synced.write, [
+      ...synced.warnings,
+      ...cleanup,
+      ...view.done,
+      ...closing,
+    ]);
   },
 });
 
@@ -608,12 +629,13 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
   } catch (e) {
     if (entered || !(e instanceof OperationError)) throw e;
     const reason = e.detail ? `${e.message} (${e.detail})` : e.message;
-    return syncResult(ctx, pulled, {
+    const result = await syncResult(ctx, pulled, {
       warnings: [
         ...pulled.warnings,
         `The pull was done, but the reconcile was skipped because it could not write: ${reason}. Run sync again to reconcile`,
       ],
     });
+    return { result, merged: [] as MergedWork[] };
   }
 }
 
@@ -742,9 +764,17 @@ async function reconcileLocked(
     linesRecorded,
     runsClosed,
     reviewsRecorded,
+    merged,
   }: Reconciled = collected
     ? await reconcileAll(ctx, collected, warnings)
-    : { changed: [], prRecorded: [], linesRecorded: [], runsClosed: [], reviewsRecorded: [] };
+    : {
+        changed: [],
+        prRecorded: [],
+        linesRecorded: [],
+        runsClosed: [],
+        reviewsRecorded: [],
+        merged: [],
+      };
   const reviewsWritten = reviewsRecorded.flatMap((r) =>
     r.recorded.written.map((run) => ({ id: r.ticket.id, run: run.id })),
   );
@@ -795,7 +825,7 @@ async function reconcileLocked(
   }
   // 書いた記録（前に書いて結び付け損ねた記録を含む）に保留を結び付ける。コミットの後に行い、コミットの前に止まれば保留が残る
   for (const r of reviewsRecorded) await linkOrphanRounds(ctx, r.ticket.data, r.recorded);
-  return syncResult(ctx, pulled, {
+  const result = await syncResult(ctx, pulled, {
     warnings,
     pushed,
     reconciled,
@@ -805,6 +835,7 @@ async function reconcileLocked(
     reviewsWritten,
     confirmed,
   });
+  return { result, merged };
 }
 
 /** 行数を記録したコミットの題の一部（照合と `dg metrics lines` が同じ形で書く） */

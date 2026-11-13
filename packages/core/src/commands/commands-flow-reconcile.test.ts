@@ -1,5 +1,6 @@
 // チケットの流れのうち、起票・claim・照合と、それに付随して閉じる実装の Run
 
+import { existsSync } from "node:fs";
 import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -12,9 +13,9 @@ import { resetGhCache } from "../git/facts.js";
 import { recordBaseline } from "../git/outside.js";
 import { closeRun, peekRunningRuns } from "../run/record.js";
 import { openContext } from "./context.js";
-import { runCommand } from "./define.js";
+import { runCommand, type CommandContext } from "./define.js";
 import { runFinish } from "./run.js";
-import { commit, sync } from "./setup.js";
+import { commit, configSet, sync } from "./setup.js";
 import {
   ticketCheck,
   ticketClaim,
@@ -161,6 +162,146 @@ describe("チケットの流れ（照合と claim）", () => {
     const log = (await git(ctx.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
     expect(log[0]).toContain("Reconcile t1: review → done (branch_merged)");
     expect(log[1]).toBe("Commit batched changes");
+  });
+
+  /** claim が作った worktree で 1 コミット積んで push し、worktree のパスと push した先端を返す */
+  async function claimedAndPushed(ctx: CommandContext, id: string, branch: string) {
+    await runCommand(ticketCreate, ctx, { title: branch });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: id, branch });
+    const dir = claimed.data.worktree!;
+    // 題をブランチごとに変える（同じ親・同じ秒の空のコミットは同じ SHA になり、別のブランチのマージで一緒にマージ済みに見える）
+    await git(dir, ["commit", "-q", "--allow-empty", "-m", `作業 ${branch}`]);
+    await git(dir, ["push", "-q", "origin", branch]);
+    return { dir, head: (await git(dir, ["rev-parse", "HEAD"])).stdout.trim() };
+  }
+
+  /** 作業ブランチの残り方：worktree のディレクトリ・ローカルのブランチ・リモートのブランチがあるか */
+  async function remaining(cwd: string, dir: string, branch: string) {
+    const local = await git(cwd, ["branch", "--list", branch]);
+    const remote = await git(cwd, ["ls-remote", "--heads", "origin", `refs/heads/${branch}`]);
+    return {
+      worktree: existsSync(dir),
+      local: local.stdout.trim() !== "",
+      remote: remote.stdout.trim() !== "",
+    };
+  }
+
+  it("merge.delete_branch が true のとき、照合が done にしたチケットの残りの worktree・ローカルとリモートのブランチを消して reconciled に添え、未コミットの変更や PR の先端と違う先端があれば消さずに理由と消し方を警告する（t849）", async () => {
+    const f = await fixture();
+    const first = await initialized(f.cloneA, {}, { template: "software-development" });
+    await runCommand(configSet, first, { key: "merge.delete_branch", value: "true" });
+    const ctx = await openContext({ cwd: f.cloneA, actor: first.actor });
+    const clean = await claimedAndPushed(ctx, "t1", "feat/t1-clean");
+    const dirty = await claimedAndPushed(ctx, "t2", "feat/t2-dirty");
+    const ahead = await claimedAndPushed(ctx, "t3", "feat/t3-ahead");
+    // t2 は worktree にコミットしていないファイルが残り、t3 は PR の先端より後のコミットがローカルにある
+    await writeFile(path.join(dirty.dir, "memo.txt"), "コミットしていない");
+    await git(ahead.dir, ["commit", "-q", "--allow-empty", "-m", "マージの後の作業"]);
+    // 人が GitHub の画面で squash マージした形：main には別のコミットが入り、作業ブランチはリモートにも残る
+    await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "squash マージ"]);
+    await git(f.cloneB, ["push", "-q", "origin", "main"]);
+    const mergedPr = (number: number, head: string) =>
+      JSON.stringify({ number, state: "MERGED", isDraft: false, headRefOid: head });
+    const restore = await fakeGh(f.root, {
+      "feat/t1-clean": mergedPr(11, clean.head),
+      "feat/t2-dirty": mergedPr(12, dirty.head),
+      "feat/t3-ahead": mergedPr(13, ahead.head),
+    });
+    try {
+      const synced = await runCommand(sync, ctx, {});
+      const kept = { worktree: null, local_branch: null, remote_branch: null };
+      expect(synced.data.reconciled).toEqual([
+        {
+          id: "t1",
+          from: "in_progress",
+          to: "done",
+          when: ["pr_merged"],
+          removed: {
+            worktree: clean.dir,
+            local_branch: "feat/t1-clean",
+            remote_branch: "origin/feat/t1-clean",
+          },
+        },
+        { id: "t2", from: "in_progress", to: "done", when: ["pr_merged"], removed: kept },
+        { id: "t3", from: "in_progress", to: "done", when: ["pr_merged"], removed: kept },
+      ]);
+      expect(await remaining(f.cloneA, clean.dir, "feat/t1-clean")).toEqual({
+        worktree: false,
+        local: false,
+        remote: false,
+      });
+      expect(synced.warnings.filter((w) => w.startsWith("t1:"))).toEqual([]);
+      // 消さなかったものは何も消えていない。理由と、手で消すコマンドを警告する
+      const all = { worktree: true, local: true, remote: true };
+      expect(await remaining(f.cloneA, dirty.dir, "feat/t2-dirty")).toEqual(all);
+      expect(await remaining(f.cloneA, ahead.dir, "feat/t3-ahead")).toEqual(all);
+      const t2 = synced.warnings.filter((w) => w.startsWith("t2:"));
+      expect(t2).toHaveLength(1);
+      expect(t2[0]).toContain("the worktree and work branch feat/t2-dirty were not deleted");
+      expect(t2[0]).toContain(`worktree ${dirty.dir} has uncommitted changes`);
+      expect(t2[0]).toContain(
+        `git worktree remove --force ${dirty.dir}, git branch -D feat/t2-dirty, git push origin --delete feat/t2-dirty`,
+      );
+      const t3 = synced.warnings.filter((w) => w.startsWith("t3:"));
+      expect(t3).toHaveLength(1);
+      expect(t3[0]).toContain("the tip of the local branch");
+      expect(t3[0]).toContain(`differs from the head of the merged PR (${ahead.head.slice(0, 7)})`);
+      expect(t3[0]).toContain("git branch -D feat/t3-ahead");
+      // 片付けはデータを書かない（照合のコミットの後に、作業ツリーへ何も残さない）
+      expect(synced.data.status).toMatchObject({ ahead: 0, dirty: false });
+    } finally {
+      restore();
+    }
+  });
+
+  it("merge.delete_branch が false なら照合で done にしても何も消さず、true にすると PR のない（base に入った）作業ブランチも消す（t849）", async () => {
+    const f = await fixture();
+    const first = await initialized(f.cloneA);
+    const keep = await claimedAndPushed(first, "t1", "feat/t1-keep");
+    const gone = await claimedAndPushed(first, "t2", "feat/t2-gone");
+    await git(f.cloneA, ["merge", "-q", "--no-ff", "--no-edit", "feat/t1-keep"]);
+    await git(f.cloneA, ["push", "-q", "origin", "main"]);
+    // 既定（false）では消さず、reconciled に removed も付けない
+    const synced = await runCommand(sync, first, {});
+    expect(synced.data.reconciled).toEqual([
+      { id: "t1", from: "in_progress", to: "done", when: ["branch_merged"] },
+    ]);
+    expect(synced.warnings.filter((w) => w.startsWith("t1:"))).toEqual([]);
+    expect(await remaining(f.cloneA, keep.dir, "feat/t1-keep")).toEqual({
+      worktree: true,
+      local: true,
+      remote: true,
+    });
+
+    await runCommand(configSet, first, { key: "merge.delete_branch", value: "true" });
+    const ctx = await openContext({ cwd: f.cloneA, actor: first.actor });
+    await git(f.cloneA, ["merge", "-q", "--no-ff", "--no-edit", "feat/t2-gone"]);
+    await git(f.cloneA, ["push", "-q", "origin", "main"]);
+    const again = await runCommand(sync, ctx, {});
+    expect(again.data.reconciled).toEqual([
+      {
+        id: "t2",
+        from: "in_progress",
+        to: "done",
+        when: ["branch_merged"],
+        removed: {
+          worktree: gone.dir,
+          local_branch: "feat/t2-gone",
+          remote_branch: "origin/feat/t2-gone",
+        },
+      },
+    ]);
+    expect(await remaining(f.cloneA, gone.dir, "feat/t2-gone")).toEqual({
+      worktree: false,
+      local: false,
+      remote: false,
+    });
+    // 前に done になったチケットの残りには触れない（消すのは、照合が done にしたときだけ）
+    expect(await remaining(f.cloneA, keep.dir, "feat/t1-keep")).toEqual({
+      worktree: true,
+      local: true,
+      remote: true,
+    });
   });
 
   it("コミットのない作業ブランチを push した後に main が進んでも done にせず、作業のあるブランチの ff マージと起点のない前からのチケットは done にする（t764）", async () => {
