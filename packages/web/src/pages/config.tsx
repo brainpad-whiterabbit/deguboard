@@ -1,5 +1,9 @@
-// 設定画面（#/config）。config.show の fields で全項目を既定値・説明（スキーマの describe。configDescription で表示言語の訳にする）・範囲（scope）つきで読み、
+// 設定画面（#/config）。config.show の fields で全項目を既定値・文（configDescription で表示言語の訳にする）・範囲（scope）つきで読み、
 // 「チーム」と「自分」のタブで書き分ける。値を変えるたびに 1 項目ずつ保存する。
+// 項目の文は短く出す：要約（summary）1 行をいつも出し、詳しい説明（description）の全文は「詳しく」に畳む。例（example）は入力欄のプレースホルダに、
+// 空のときの動き（empty）は欄の下の 1 行に、選択肢のある項目は選んでいる値の説明（option_descriptions）だけを出す。
+// guide.notes.* は同じ説明の項目なので、説明を 1 つだけ出し、差し込む先ごとの行の表にする。
+// 検索は表示名・キー・要約・詳しい説明に当て、詳しい説明だけに当たった項目は「詳しく」を開いて出す（当たった文が畳まれて見えないため）。
 // - チーム：全項目を出し、チームで共有する config.yaml の値（view.team）を config.set で書く。欄に個人の上書きを重ねない
 //   （重ねた値を出すと保存が効かなかったように見える）。自分で上書きしている項目には「自分：値」の印を出し、押すと自分のタブのその項目に移る
 // - 自分：個人で上書きできる項目（scope が local）だけを出し、deguboard-local/config.yaml（view.local）を config.set --local で書く。
@@ -83,6 +87,40 @@ const NAMES: Record<string, string> = {
   "guide.notes.all": msg("差し込む文書（一気通し）"),
 };
 
+/** guide.notes.* の表の行に出す、差し込む先（ガイドの topic）の短い名前。ないものは topic をそのまま出す */
+const NOTE_LABELS: Record<string, string> = {
+  overview: msg("概要"),
+  import: msg("チケットの起票"),
+  assign: msg("割り当て"),
+  check: msg("点検"),
+  plan: msg("計画"),
+  work: msg("作業"),
+  run: "Run",
+  parallel: msg("並べて進める"),
+  review: msg("見直しと品質ゲート"),
+  audit: msg("リポジトリの見直し"),
+  release: msg("リリース"),
+  done: msg("完了"),
+  change: msg("書き換え"),
+  discuss: msg("検討"),
+  status: msg("様子"),
+  all: msg("一気通し"),
+};
+
+const NOTE_PREFIX = "guide.notes.";
+
+/** guide.notes.* の項目か（説明を 1 つにまとめて表で出す） */
+export function isNoteKey(key: string): boolean {
+  return key.startsWith(NOTE_PREFIX);
+}
+
+/** guide.notes.* の表の行の名前 */
+function noteLabel(key: string): string {
+  const topic = key.slice(NOTE_PREFIX.length);
+  const label = NOTE_LABELS[topic];
+  return label === undefined ? topic : tr(label);
+}
+
 /**
  * 保存の前に確かめる項目と、確かめの文に出す変わること。誤ると同期・照合・worktree・実行するコマンド・エージェントに許す操作を壊し、
  * 戻すまで気づきにくい（チームのタブでは全員に効く）。どちらのタブでも確かめる。
@@ -158,13 +196,42 @@ export function nameOf(key: string): string {
   return name === undefined ? key : tr(name);
 }
 
-/** 検索語が表示名・キー・説明（今の言語で出している文）のどれかに含まれるか（大文字小文字は区別しない） */
-export function fieldMatchesQuery(field: ConfigField, query: string): boolean {
+/** 項目がいつも出す要約（今の言語）。要約がない項目は詳しい説明を要約の代わりに出す */
+function summaryOf(field: ConfigField): string {
+  return configDescription(field.summary || field.description);
+}
+
+/** 「詳しく」に畳む詳しい説明（今の言語）。要約と同じ文（要約がない項目も）なら畳むものはない（null） */
+function detailOf(field: ConfigField): string | null {
+  if (!field.summary || !field.description || field.summary === field.description) return null;
+  return configDescription(field.description);
+}
+
+/**
+ * 検索語がどこに当たるか（大文字小文字は区別しない）。表示名・キー・要約（今の言語で出している文）に当たれば shown、
+ * 詳しい説明にだけ当たれば detail（画面は「詳しく」を開いて出す）、どれにも当たらなければ null。検索語が空なら shown
+ */
+export function fieldMatch(field: ConfigField, query: string): "shown" | "detail" | null {
   const q = query.trim().toLowerCase();
-  if (!q) return true;
-  return [nameOf(field.key), field.key, configDescription(field.description)].some((s) =>
-    s.toLowerCase().includes(q),
-  );
+  if (!q) return "shown";
+  const hit = (s: string) => s.toLowerCase().includes(q);
+  if ([nameOf(field.key), field.key, summaryOf(field)].some(hit)) return "shown";
+  const detail = detailOf(field);
+  return detail !== null && hit(detail) ? "detail" : null;
+}
+
+/** 検索語が表示名・キー・要約・詳しい説明のどれかに含まれるか */
+export function fieldMatchesQuery(field: ConfigField, query: string): boolean {
+  return fieldMatch(field, query) !== null;
+}
+
+/** 例の値の書き方（プレースホルダ）。リストの例は 1 つなら中身だけ、複数なら [a, b] */
+function exampleText(field: ConfigField): string | undefined {
+  const { example } = field;
+  if (example === undefined) return undefined;
+  const text =
+    Array.isArray(example) && example.length === 1 ? String(example[0]) : formatValue(example);
+  return tr("例 {0}", text);
 }
 
 /** 書き分ける先：チームの config.yaml か、個人の deguboard-local/config.yaml */
@@ -430,13 +497,19 @@ export function ConfigPage() {
     setPending(null);
   }, [pending]);
 
-  const groups = useMemo(() => {
-    const fields = (view?.fields ?? []).filter(
-      (f) => (tab === "team" || f.scope === "local") && fieldMatchesQuery(f, query),
-    );
-    return [...GROUPS, OTHER_GROUP]
+  /** 出す項目のまとまりと、詳しい説明にだけ当たった項目（「詳しく」を開いて出す） */
+  const { groups, detailHits } = useMemo(() => {
+    const detailHits = new Set<string>();
+    const fields = (view?.fields ?? []).filter((f) => {
+      if (tab !== "team" && f.scope !== "local") return false;
+      const match = fieldMatch(f, query);
+      if (match === "detail") detailHits.add(f.key);
+      return match !== null;
+    });
+    const groups = [...GROUPS, OTHER_GROUP]
       .map((g) => ({ ...g, fields: fields.filter((f) => groupOf(f.key) === g.id) }))
       .filter((g) => g.fields.length > 0);
+    return { groups, detailHits };
   }, [view, tab, query]);
 
   const overrides = view ? Object.keys(view.local).length : 0;
@@ -520,132 +593,145 @@ export function ConfigPage() {
         {loadError ? <p className="error">{trNode("設定を読めない: {0}", loadError)}</p> : null}
         {!view && !loadError ? <p className="muted">{tr("読み込み中…")}</p> : null}
         {view && groups.length === 0 ? <p className="empty">{tr("該当する設定がない")}</p> : null}
-        {groups.map((g) => (
-          <section key={g.id} className="config-group" aria-labelledby={`config-group-${g.id}`}>
-            <h3 id={`config-group-${g.id}`}>{tr(g.label)}</h3>
-            {g.fields.map((f) => {
-              const team = valueAt(view!.team, f.key);
-              const own = f.key in view!.local;
-              const value = tab === "local" && own ? view!.local[f.key] : team;
-              // 確かめを待つ間は、待っている項目のほかは入力欄も「既定に戻す」も触れない
-              // （触れると待ちが移り、元の項目の下書きが確かめの枠なしで残る）
-              const locked = saving.has(f.key) || (pending !== null && pending.key !== f.key);
-              const confirm =
-                pending?.key === f.key ? (
-                  <ConfirmBox
-                    field={f}
-                    pending={pending}
-                    onSave={() => void save(pending)}
-                    onCancel={cancel}
-                  />
-                ) : null;
-              if (tab === "team") {
-                const modified = isModified(team, f.default);
-                return (
-                  <FieldRow
-                    key={f.key}
-                    field={f}
-                    marked={modified}
-                    badges={
-                      <>
-                        {modified ? (
-                          <span
-                            className="badge config-modified"
-                            title={tr("既定は {0}", defaultText(f))}
-                          >
-                            {tr("変更あり")}
-                          </span>
-                        ) : null}
-                        {own ? (
-                          <button
-                            type="button"
-                            className="badge config-override"
-                            title={tr("自分の値で上書きしている。押すと「自分」のタブで開く")}
-                            onClick={() => switchTab("local", f.key)}
-                          >
-                            {tr("自分：{0}", valueText(f, view!.local[f.key]))}
-                          </button>
-                        ) : null}
-                      </>
-                    }
-                    busy={saving.has(f.key)}
-                    message={messages[f.key]}
-                    confirm={confirm}
-                    actions={
-                      modified ? (
-                        <button
-                          type="button"
-                          className="config-reset"
-                          onClick={() => change(f.key, f.default)}
-                          disabled={locked}
-                          title={tr("既定の {0} に戻す", defaultText(f))}
-                        >
-                          {tr("既定に戻す")}
-                        </button>
-                      ) : null
-                    }
-                  >
-                    <FieldInput
-                      field={f}
-                      value={value}
-                      draft={drafts[f.key]}
-                      disabled={locked}
-                      onDraft={(v) => setDrafts((d) => ({ ...d, [f.key]: v }))}
-                      onChange={(v) => change(f.key, v)}
-                    />
-                  </FieldRow>
-                );
-              }
-              return (
-                <FieldRow
-                  key={f.key}
-                  field={f}
-                  marked={own}
-                  badges={
-                    own && isModified(value, team) ? (
-                      <span className="badge config-team-value">
-                        {tr("チーム：{0}", valueText(f, team))}
-                      </span>
-                    ) : null
-                  }
-                  busy={saving.has(f.key)}
-                  message={messages[f.key]}
-                  confirm={confirm}
-                  lead={
-                    <label className="config-check config-own">
-                      <input
-                        type="checkbox"
-                        checked={own}
-                        disabled={locked}
-                        onChange={(e) => toggleOwn(f.key, e.target.checked)}
-                      />
-                      {tr("自分の値を使う")}
-                    </label>
-                  }
-                  actions={
-                    own ? null : <span className="muted">{tr("チームの値を使っている")}</span>
-                  }
-                >
-                  <FieldInput
-                    field={f}
-                    value={value}
-                    draft={drafts[f.key]}
-                    disabled={locked || !own}
-                    onDraft={(v) => setDrafts((d) => ({ ...d, [f.key]: v }))}
-                    onChange={(v) => change(f.key, v)}
-                  />
-                </FieldRow>
-              );
-            })}
-          </section>
-        ))}
+        {groups.map((g) => {
+          const notes = g.fields.filter((f) => isNoteKey(f.key));
+          return (
+            <section key={g.id} className="config-group" aria-labelledby={`config-group-${g.id}`}>
+              <h3 id={`config-group-${g.id}`}>{tr(g.label)}</h3>
+              {g.fields.filter((f) => !isNoteKey(f.key)).map((f) => rowOf(f, "block"))}
+              {notes.length > 0 ? (
+                <NotesTable field={notes[0]!} detailOpen={notes.some((f) => detailHits.has(f.key))}>
+                  {notes.map((f) => rowOf(f, "note"))}
+                </NotesTable>
+              ) : null}
+            </section>
+          );
+        })}
       </div>
     </div>
   );
+
+  /** 項目の行。block は説明つきの 1 項目、note は guide.notes.* の表の 1 行（説明は表の上に 1 つだけ出す） */
+  function rowOf(f: ConfigField, layout: "block" | "note") {
+    const team = valueAt(view!.team, f.key);
+    const own = f.key in view!.local;
+    const value = tab === "local" && own ? view!.local[f.key] : team;
+    // 確かめを待つ間は、待っている項目のほかは入力欄も「既定に戻す」も触れない
+    // （触れると待ちが移り、元の項目の下書きが確かめの枠なしで残る）
+    const locked = saving.has(f.key) || (pending !== null && pending.key !== f.key);
+    const confirm =
+      pending?.key === f.key ? (
+        <ConfirmBox
+          field={f}
+          pending={pending}
+          onSave={() => void save(pending)}
+          onCancel={cancel}
+        />
+      ) : null;
+    if (tab === "team") {
+      const modified = isModified(team, f.default);
+      return (
+        <FieldRow
+          key={f.key}
+          field={f}
+          layout={layout}
+          detailOpen={detailHits.has(f.key)}
+          current={drafts[f.key] ?? value}
+          marked={modified}
+          badges={
+            <>
+              {modified ? (
+                <span className="badge config-modified" title={tr("既定は {0}", defaultText(f))}>
+                  {tr("変更あり")}
+                </span>
+              ) : null}
+              {own ? (
+                <button
+                  type="button"
+                  className="badge config-override"
+                  title={tr("自分の値で上書きしている。押すと「自分」のタブで開く")}
+                  onClick={() => switchTab("local", f.key)}
+                >
+                  {tr("自分：{0}", valueText(f, view!.local[f.key]))}
+                </button>
+              ) : null}
+            </>
+          }
+          busy={saving.has(f.key)}
+          message={messages[f.key]}
+          confirm={confirm}
+          actions={
+            modified ? (
+              <button
+                type="button"
+                className="config-reset"
+                onClick={() => change(f.key, f.default)}
+                disabled={locked}
+                title={tr("既定の {0} に戻す", defaultText(f))}
+              >
+                {tr("既定に戻す")}
+              </button>
+            ) : null
+          }
+        >
+          <FieldInput
+            field={f}
+            value={value}
+            draft={drafts[f.key]}
+            disabled={locked}
+            onDraft={(v) => setDrafts((d) => ({ ...d, [f.key]: v }))}
+            onChange={(v) => change(f.key, v)}
+          />
+        </FieldRow>
+      );
+    }
+    return (
+      <FieldRow
+        key={f.key}
+        field={f}
+        layout={layout}
+        detailOpen={detailHits.has(f.key)}
+        current={drafts[f.key] ?? value}
+        marked={own}
+        badges={
+          own && isModified(value, team) ? (
+            <span className="badge config-team-value">{tr("チーム：{0}", valueText(f, team))}</span>
+          ) : null
+        }
+        busy={saving.has(f.key)}
+        message={messages[f.key]}
+        confirm={confirm}
+        lead={
+          <label className="config-check config-own">
+            <input
+              type="checkbox"
+              checked={own}
+              disabled={locked}
+              onChange={(e) => toggleOwn(f.key, e.target.checked)}
+            />
+            {tr("自分の値を使う")}
+          </label>
+        }
+        actions={own ? null : <span className="muted">{tr("チームの値を使っている")}</span>}
+      >
+        <FieldInput
+          field={f}
+          value={value}
+          draft={drafts[f.key]}
+          disabled={locked || !own}
+          onDraft={(v) => setDrafts((d) => ({ ...d, [f.key]: v }))}
+          onChange={(v) => change(f.key, v)}
+        />
+      </FieldRow>
+    );
+  }
 }
 
 function FieldRow({
   field,
+  layout,
+  detailOpen,
+  current,
   marked,
   badges,
   busy,
@@ -656,6 +742,12 @@ function FieldRow({
   children,
 }: {
   field: ConfigField;
+  /** block は要約・欄の下の 1 行・「詳しく」つきの 1 項目、note は guide.notes.* の表の 1 行（説明は表の上の NotesTable が出す） */
+  layout: "block" | "note";
+  /** 検索が詳しい説明にだけ当たったので「詳しく」を開いて出す */
+  detailOpen: boolean;
+  /** 欄に出している値（入力中の値があればそれ）。選択肢の説明はこの値のものを出す */
+  current: unknown;
   /** 左の線で示す（チームは既定から変えた項目、自分は上書きしている項目） */
   marked: boolean;
   badges: ReactNode;
@@ -669,28 +761,124 @@ function FieldRow({
   children: ReactNode;
 }) {
   const id = inputId(field.key);
-  return (
-    <div className={`config-field${marked ? " modified" : ""}`} data-key={field.key}>
-      <div className="config-field-head">
-        <label htmlFor={id} className="config-name">
-          {nameOf(field.key)}
-        </label>
-        <code className="config-key">{field.key}</code>
-        {badges}
-        {busy ? <span className="muted">{tr("保存中…")}</span> : null}
-      </div>
-      <p className="config-desc muted">{configDescription(field.description)}</p>
+  const className = `config-field${layout === "note" ? " config-note" : ""}${marked ? " modified" : ""}`;
+  const status = (
+    <>
+      {badges}
+      {busy ? <span className="muted">{tr("保存中…")}</span> : null}
+    </>
+  );
+  const body = (
+    <>
       {lead}
       <div className="config-control">
         {children}
         {actions}
       </div>
+      {layout === "block" ? <FieldHints field={field} current={current} /> : null}
       {confirm}
       {message ? (
         <p className="config-error error" role="alert">
           {message.text}
         </p>
       ) : null}
+    </>
+  );
+  if (layout === "note")
+    return (
+      <tr className={className} data-key={field.key}>
+        <th scope="row">
+          <label htmlFor={id} className="config-name" title={nameOf(field.key)}>
+            {noteLabel(field.key)}
+          </label>
+          <code className="config-key">{field.key}</code>
+        </th>
+        <td>
+          <div className="config-field-head">{status}</div>
+          {body}
+        </td>
+      </tr>
+    );
+  const detail = detailOf(field);
+  return (
+    <div className={className} data-key={field.key}>
+      <div className="config-field-head">
+        <label htmlFor={id} className="config-name">
+          {nameOf(field.key)}
+        </label>
+        <code className="config-key">{field.key}</code>
+        {status}
+      </div>
+      <p className="config-summary muted">{summaryOf(field)}</p>
+      {body}
+      {detail !== null ? <FieldDetail text={detail} open={detailOpen} /> : null}
+    </div>
+  );
+}
+
+/**
+ * 欄の下の 1 行：選択肢のある項目は選んでいる値（リストは入っている値ごと）の説明だけを、空にできる項目は空のときの動きを出す。
+ * 選択肢の説明は欄に出している値から引くので、値を変えると説明も替わる
+ */
+function FieldHints({ field, current }: { field: ConfigField; current: unknown }) {
+  const options = field.option_descriptions;
+  const chosen = options
+    ? (Array.isArray(current) ? current : [current])
+        .map(String)
+        .filter((v) => Object.hasOwn(options, v))
+    : [];
+  return (
+    <>
+      {chosen.length > 0 ? (
+        <ul className="config-hint config-option-hints" aria-label={tr("選んでいる値の説明")}>
+          {chosen.map((v) => (
+            <li key={v}>
+              <code>{v}</code> {configDescription(options![v]!)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {field.empty !== undefined ? (
+        <p className="config-hint config-empty muted">
+          {tr("空のとき: {0}", configDescription(field.empty))}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** 詳しい説明の全文。畳んで出し、検索が詳しい説明にだけ当たったときは開いて出す（開いた後は利用者が開け閉めできる） */
+function FieldDetail({ text, open }: { text: string; open: boolean }) {
+  return (
+    <details className="config-more" open={open}>
+      <summary>{tr("詳しく")}</summary>
+      <p className="config-detail muted">{text}</p>
+    </details>
+  );
+}
+
+/**
+ * guide.notes.* の表。どの行も同じ説明（core の noteField）なので、要約・空のときの動き・「詳しく」を表の上に 1 つだけ出し、
+ * 行は差し込む先の名前と入力欄だけにする。field は説明を引く代表の項目
+ */
+function NotesTable({
+  field,
+  detailOpen,
+  children,
+}: {
+  field: ConfigField;
+  detailOpen: boolean;
+  children: ReactNode;
+}) {
+  const detail = detailOf(field);
+  return (
+    <div className="config-notes">
+      <p className="config-summary muted">{summaryOf(field)}</p>
+      <FieldHints field={field} current={undefined} />
+      {detail !== null ? <FieldDetail text={detail} open={detailOpen} /> : null}
+      <table className="config-notes-table">
+        <tbody>{children}</tbody>
+      </table>
     </div>
   );
 }
@@ -777,6 +965,8 @@ function FieldInput({
         <ListInput
           id={id}
           items={(draft ?? value ?? []) as string[]}
+          placeholder={exampleText(field)}
+          choices={field.option_descriptions ? Object.keys(field.option_descriptions) : undefined}
           disabled={disabled}
           onChange={(items) => {
             onDraft(items);
@@ -791,6 +981,7 @@ function FieldInput({
           id={id}
           type={field.type === "number" ? "number" : "text"}
           className="config-text"
+          placeholder={exampleText(field)}
           value={String(draft ?? shownConfigValue(field.key, value, field.default) ?? "")}
           disabled={disabled}
           onChange={(e) => onDraft(e.target.value)}
@@ -811,18 +1002,27 @@ function FieldInput({
   }
 }
 
-/** リストの入力欄。項目を札で並べ、× で外し、下の欄に打って Enter か「足す」で末尾に足す */
+/**
+ * リストの入力欄。項目を札で並べ、× で外し、下の欄に打って Enter か「足す」で末尾に足す。
+ * 例のある項目は足す欄のプレースホルダに例を出し、選択肢のある項目（choices）は入っていない選択肢を候補（datalist）に出す
+ */
 function ListInput({
   id,
   items,
+  placeholder,
+  choices,
   disabled,
   onChange,
 }: {
   id: string;
   items: string[];
+  placeholder: string | undefined;
+  choices: string[] | undefined;
   disabled: boolean;
   onChange(items: string[]): void;
 }) {
+  const rest = choices?.filter((c) => !items.includes(c));
+  const listId = `${id}-choices`;
   const [text, setText] = useState("");
   const add = () => {
     const v = text.trim();
@@ -852,7 +1052,8 @@ function ListInput({
         <input
           id={id}
           type="text"
-          placeholder={tr("項目を足す")}
+          placeholder={placeholder ?? tr("項目を足す")}
+          list={rest ? listId : undefined}
           value={text}
           disabled={disabled}
           onChange={(e) => setText(e.target.value)}
@@ -863,6 +1064,13 @@ function ListInput({
         <button type="button" onClick={add} disabled={disabled || !text.trim()}>
           {tr("足す")}
         </button>
+        {rest ? (
+          <datalist id={listId}>
+            {rest.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        ) : null}
       </span>
     </div>
   );

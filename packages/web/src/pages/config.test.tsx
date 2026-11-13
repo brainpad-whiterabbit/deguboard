@@ -30,7 +30,8 @@ afterEach(() => {
 /**
  * core の configFields と同じ形の項目（説明は短くしたもの）。scope は core と同じ：local は個人で上書きできる項目。
  * clears_to_default（空にすると既定に戻る）も core と同じで、既定が空でない文字列の項目だけ true。
- * 要約（summary）は説明と同じ文にする（画面はまだ説明だけを出す）
+ * 要約（summary）は書いていない項目では説明と同じ文にする（画面は「詳しく」を出さない）。
+ * 要約と詳しい説明を分ける項目・例・空のときの動き・選択肢ごとの説明は、core と同じ形で一部の項目にだけ持たせる
  */
 const FIELDS: ConfigField[] = (
   [
@@ -70,7 +71,13 @@ const FIELDS: ConfigField[] = (
       key: "commit.mode",
       type: "enum",
       options: ["each", "batch", "manual"],
-      description: "each: 書き込みのたびにコミット",
+      summary: "チケットの書き込みをいつコミットするか",
+      description: "each: 書き込みのたびにコミット / batch: まとめてコミット / manual: 手で決める",
+      option_descriptions: {
+        each: "書き込みのたびにコミットする",
+        batch: "作業ツリーに残してまとめてコミットする",
+        manual: "dg commit のときだけコミットする",
+      },
       default: "batch",
       scope: "local",
       clears_to_default: false,
@@ -103,7 +110,10 @@ const FIELDS: ConfigField[] = (
     {
       key: "actions.test",
       type: "list",
-      description: "テストのコマンド",
+      summary: "品質ゲートの検査が回すコマンド",
+      description: "テストのコマンドの引数配列",
+      example: ["mise", "run", "check"],
+      empty: "検査を判定しない",
       default: [],
       scope: "team",
       clears_to_default: false,
@@ -120,6 +130,13 @@ const FIELDS: ConfigField[] = (
       key: "auto.decisions",
       type: "list",
       description: "聞かずに選ぶ判断",
+      option_descriptions: {
+        assign: "割り当て",
+        check: "直し方が 1 つの点検",
+        plan: "Plan の承認",
+        audit: "見直しの表",
+        accept: "受け入れ条件の確認",
+      },
       default: ["assign", "check", "plan", "audit", "accept"],
       scope: "team",
       clears_to_default: false,
@@ -127,7 +144,10 @@ const FIELDS: ConfigField[] = (
     {
       key: "models.light",
       type: "string",
-      description: "light のモデル",
+      summary: "段階 light に使うモデル",
+      description: "Plan の段階 light と調べものに使うモデル。空なら親のモデル",
+      example: "haiku",
+      empty: "親のモデル",
       default: "",
       scope: "local",
       clears_to_default: false,
@@ -140,8 +160,20 @@ const FIELDS: ConfigField[] = (
       scope: "team",
       clears_to_default: false,
     },
-  ] satisfies Omit<ConfigField, "summary">[]
-).map((f) => ({ ...f, summary: f.description }));
+    // guide.notes.* は core と同じく、どの topic も同じ文を持つ
+    ...["work", "plan"].map((topic) => ({
+      key: `guide.notes.${topic}`,
+      type: "string" as const,
+      summary: "ガイドの見出しの直後に差し込む文書",
+      description: "差し込む文書のパス。リポジトリの外は読まない",
+      example: "docs/notes.md",
+      empty: "何も差し込まない",
+      default: "",
+      scope: "team" as const,
+      clears_to_default: false,
+    })),
+  ] satisfies (Omit<ConfigField, "summary"> & { summary?: string })[]
+).map((f) => ({ summary: f.description, ...f }));
 
 function configClient(initialLocal: Record<string, unknown> = {}) {
   const client = mockClient();
@@ -156,6 +188,7 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
     auto: { merge: false, decisions: ["assign", "check", "plan", "audit", "accept"] },
     models: { light: "" },
     actor: { human_only: [] as string[] },
+    guide: { notes: { work: "docs/work-notes.md", plan: "" } },
   };
   /** 個人の上書き（ドット区切りの項目名 → 値）。core と同じく config.show は local で返し、重ねた値は config で返す */
   const local: Record<string, unknown> = { ...initialLocal };
@@ -234,7 +267,7 @@ const ownOf = (key: string) =>
   within(fieldOf(key)).getByRole<HTMLInputElement>("checkbox", { name: "自分の値を使う" });
 
 describe("設定画面", () => {
-  it("4 つのまとまりで全項目を名前・キー・説明・型に合う入力欄と一緒に出し、チーム全員に効く帯を出す", async () => {
+  it("まとまりごとに全項目を名前・キー・要約・型に合う入力欄と一緒に出し、チーム全員に効く帯を出す", async () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
@@ -243,11 +276,12 @@ describe("設定画面", () => {
       "エージェント",
       "計測",
       "Git",
+      "ガイドの差し込み",
     ]);
     expect(document.querySelectorAll(".config-field")).toHaveLength(FIELDS.length);
     const commit = fieldOf("commit.mode");
     expect(within(commit).getByText("commit.mode")).toBeTruthy();
-    expect(within(commit).getByText("each: 書き込みのたびにコミット")).toBeTruthy();
+    expect(within(commit).getByText("チケットの書き込みをいつコミットするか")).toBeTruthy();
     expect(within(commit).getByRole("combobox")).toBeTruthy();
     expect(within(fieldOf("auto.merge")).getByRole("checkbox")).toBeTruthy();
     expect(within(fieldOf("git.remote")).getByRole("textbox")).toBeTruthy();
@@ -329,7 +363,7 @@ describe("設定画面", () => {
     const reset = (key: string) =>
       within(fieldOf(key)).getByRole<HTMLButtonElement>("button", { name: "既定に戻す" });
     // actions.test（既定から変えてある）に足して、確かめを待たせる
-    const add = within(fieldOf("actions.test")).getByPlaceholderText("項目を足す");
+    const add = within(fieldOf("actions.test")).getByRole("textbox");
     fireEvent.change(add, { target: { value: "--fast" } });
     fireEvent.keyDown(add, { key: "Enter" });
     expect(within(fieldOf("actions.test")).getByRole("alertdialog")).toBeTruthy();
@@ -941,6 +975,120 @@ describe("設定画面", () => {
       false,
     );
     expect(setCalls(client)).toEqual([{ key: "metrics.read_transcripts", value: true }]);
+  });
+
+  it("要約 1 行をいつも出し、詳しい説明の全文は畳んだ「詳しく」で開ける。要約と同じ文の項目は「詳しく」を出さない", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const commit = fieldOf("commit.mode");
+    expect(commit.querySelector(".config-summary")?.textContent).toBe(
+      "チケットの書き込みをいつコミットするか",
+    );
+    const more = commit.querySelector<HTMLDetailsElement>("details.config-more")!;
+    expect(more.open).toBe(false);
+    expect(within(more).getByText("詳しく")).toBeTruthy();
+    expect(more.querySelector(".config-detail")?.textContent).toBe(
+      "each: 書き込みのたびにコミット / batch: まとめてコミット / manual: 手で決める",
+    );
+    fireEvent.click(within(more).getByText("詳しく"));
+    expect(more.open).toBe(true);
+    // 要約を書いていない項目（要約が説明と同じ）は、説明を要約の行に出し、「詳しく」を出さない
+    const remote = fieldOf("git.remote");
+    expect(remote.querySelector(".config-summary")?.textContent).toBe("同期先のリモート");
+    expect(remote.querySelector("details")).toBeNull();
+  });
+
+  it("例は入力欄のプレースホルダに、空のときの動きは欄の下の 1 行に出す", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const light = fieldOf("models.light");
+    expect(within(light).getByRole<HTMLInputElement>("textbox").placeholder).toBe("例 haiku");
+    expect(light.querySelector(".config-empty")?.textContent).toBe("空のとき: 親のモデル");
+    // リストは足す欄のプレースホルダに、例のリストを出す
+    const test = fieldOf("actions.test");
+    expect(within(test).getByRole<HTMLInputElement>("textbox").placeholder).toBe(
+      "例 [mise, run, check]",
+    );
+    expect(test.querySelector(".config-empty")?.textContent).toBe("空のとき: 検査を判定しない");
+    // 例のない項目は今までのプレースホルダのまま、空にできない項目は空のときの行を出さない
+    expect(
+      within(fieldOf("actor.human_only")).getByRole<HTMLInputElement>("textbox").placeholder,
+    ).toBe("項目を足す");
+    expect(fieldOf("commit.mode").querySelector(".config-empty")).toBeNull();
+  });
+
+  it("選択肢のある項目は選んでいる値の説明だけを出し、値を変えると説明も替わる", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const hints = () =>
+      [...fieldOf("commit.mode").querySelectorAll(".config-option-hints li")].map(
+        (e) => e.textContent,
+      );
+    expect(hints()).toEqual(["each 書き込みのたびにコミットする"]);
+    fireEvent.change(within(fieldOf("commit.mode")).getByRole("combobox"), {
+      target: { value: "manual" },
+    });
+    expect(hints()).toEqual(["manual dg commit のときだけコミットする"]);
+    await settle();
+    expect(hints()).toEqual(["manual dg commit のときだけコミットする"]);
+    // 選択肢のリストは入っている値ごとに説明を出し、外した値の説明は消える。入っていない選択肢は足す欄の候補に出す
+    const decisions = fieldOf("auto.decisions");
+    expect(
+      [...decisions.querySelectorAll(".config-option-hints code")].map((e) => e.textContent),
+    ).toEqual(["assign", "check", "plan", "audit", "accept"]);
+    fireEvent.click(within(decisions).getByLabelText("accept を外す"));
+    expect(within(decisions).queryByText("受け入れ条件の確認")).toBeNull();
+    expect(
+      [...decisions.querySelectorAll("datalist option")].map((e) => e.getAttribute("value")),
+    ).toEqual(["accept"]);
+  });
+
+  it("guide.notes.* は説明を 1 つだけ出し、差し込む先ごとの行の表で出す", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const section = screen.getByRole("region", { name: "ガイドの差し込み" });
+    expect(within(section).getAllByText("ガイドの見出しの直後に差し込む文書")).toHaveLength(1);
+    expect(within(section).getAllByText("空のとき: 何も差し込まない")).toHaveLength(1);
+    expect(section.querySelectorAll("details.config-more")).toHaveLength(1);
+    const rows = within(section).getAllByRole("row");
+    expect(
+      rows.map((r) => within(r).getByRole("rowheader").querySelector("label")?.textContent),
+    ).toEqual(["作業", "計画"]);
+    // 行の名前は入力欄の名前になり、欄はチームの値と例のプレースホルダを出す
+    const work = within(section).getByRole<HTMLInputElement>("textbox", { name: "作業" });
+    expect(work.value).toBe("docs/work-notes.md");
+    expect(
+      within(section).getByRole<HTMLInputElement>("textbox", { name: "計画" }).placeholder,
+    ).toBe("例 docs/notes.md");
+  });
+
+  it("検索は要約と詳しい説明にも当たり、詳しい説明にだけ当たった項目は「詳しく」を開いて出す", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const search = screen.getByLabelText("設定を検索");
+    const shown = () =>
+      [...document.querySelectorAll(".config-field")].map((e) => e.getAttribute("data-key"));
+    const open = (el: Element) => el.querySelector<HTMLDetailsElement>("details")!.open;
+    // 要約に当たる：「詳しく」は畳んだまま
+    fireEvent.change(search, { target: { value: "いつコミット" } });
+    expect(shown()).toEqual(["commit.mode"]);
+    expect(open(fieldOf("commit.mode"))).toBe(false);
+    // 詳しい説明にだけ当たる：「詳しく」を開く
+    fireEvent.change(search, { target: { value: "手で決める" } });
+    expect(shown()).toEqual(["commit.mode"]);
+    expect(open(fieldOf("commit.mode"))).toBe(true);
+    // guide.notes.* は表の上の 1 つの「詳しく」を開く
+    fireEvent.change(search, { target: { value: "リポジトリの外" } });
+    expect(shown()).toEqual(["guide.notes.work", "guide.notes.plan"]);
+    expect(open(document.querySelector(".config-notes")!)).toBe(true);
+    // 検索を消すと畳む
+    fireEvent.change(search, { target: { value: "" } });
+    expect(open(fieldOf("commit.mode"))).toBe(false);
   });
 
   it("検索欄で名前・キー・説明から項目を絞り、空のまとまりは出さない", async () => {

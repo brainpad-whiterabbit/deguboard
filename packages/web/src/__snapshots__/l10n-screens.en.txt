@@ -257,354 +257,448 @@ Commit mode
 commit.mode
 [title] Default: batch
 Modified
-each: commit on every write / batch: leave changes in the working tree; dg commit, dg sync, and immediate operations commit them together / manual: only dg commit and immediate operations
+When ticket writes are committed
 each
 batch
 (default)
 manual
 [title] Reset to default batch
 Reset to Default
+[aria-label] What the chosen values do
+each
+Commit on every write
+Details
+each: commit on every write / batch: leave changes in the working tree; dg commit, dg sync, and immediate operations commit them together / manual: only dg commit and immediate operations
 Push mode
 push.mode
 [title] Default: auto
 Modified
-auto: push on every commit / manual: dg sync pushes (immediate operations push even in manual)
+When commits are pushed
 auto
 (default)
 manual
 [title] Reset to default auto
 Reset to Default
+Details
+auto: push on every commit / manual: dg sync pushes (immediate operations push even in manual)
 Agents
 Allow shell Actions
 actions.shell
 [title] Default: false
 Modified
-Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation (AG-7)
+Allow the arbitrary shell Action
 Off
 [title] Reset to default false
 Reset to Default
+Details
+Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation (AG-7)
 Test command
 actions.test
 [title] Default: Empty
 Modified
-Argument array of the command that the test Action (run_tests) and the quality gate's check (dg gate, dg pr ready, dg pr merge) run (e.g. [mise, run, check]). When empty, run_tests is rejected and the gate's check does not judge (the repo's own checks are confirmed instead)
+Command run by the quality gate's check and the test Action
 Empty
 [aria-label] Items
-[placeholder] Add item
+[placeholder] e.g. [mise, run, check]
 Add
 [title] Reset to default Empty
 Reset to Default
+When empty: The gate's check does not judge, and run_tests is rejected
+Details
+Argument array of the command that the test Action (run_tests) and the quality gate's check (dg gate, dg pr ready, dg pr merge) run (e.g. [mise, run, check]). When empty, run_tests is rejected and the gate's check does not judge (the repo's own checks are confirmed instead)
 Lighter check command
 actions.light_test
 [title] Default: Empty
 Modified
-Argument array of the lighter check the quality gate's check runs instead of actions.test when every file changed since the last commit whose actions.test passed (the diff against base when there is none) falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either
+Lighter check run instead of actions.test when only light paths changed
 Empty
 [aria-label] Items
-[placeholder] Add item
+[placeholder] e.g. [mise, run, check:light]
 Add
 [title] Reset to default Empty
 Reset to Default
+When empty: The lighter check is not used (actions.test runs)
+Details
+Argument array of the lighter check the quality gate's check runs instead of actions.test when every file changed since the last commit whose actions.test passed (the diff against base when there is none) falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either
 Paths the lighter check is enough for
 actions.light_paths
 [title] Default: Empty
 Modified
-Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file changed since the last commit whose actions.test passed (or against base, when there is none) falls outside, actions.test runs
+Globs of files the lighter check is enough for
 Empty
 [aria-label] Items
-[placeholder] Add item
+[placeholder] e.g. docs/**
 Add
 [title] Reset to default Empty
 Reset to Default
+When empty: The lighter check is not used (actions.test runs)
+Details
+Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file changed since the last commit whose actions.test passed (or against base, when there is none) falls outside, actions.test runs
 Merge PRs automatically
 auto.merge
 [title] Default: false
 Modified
-Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges
+Merge PRs that pass the quality gate automatically with --auto
 Off
 [title] Reset to default false
 Reset to Default
+Details
+Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges
 Decisions --auto chooses automatically
 auto.decisions
 [title] Default: [assign, check, plan, audit, accept]
 Modified
-Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table / accept: confirming acceptance criteria after reconciling). Decisions a person makes cannot be added; PR merging is set by auto.merge
+Decisions --auto chooses without asking
 Empty
 [aria-label] Items
 [placeholder] Add item
 Add
 [title] Reset to default [assign, check, plan, audit, accept]
 Reset to Default
+When empty: --auto chooses nothing without asking
+Details
+Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table / accept: confirming acceptance criteria after reconciling). Decisions a person makes cannot be added; PR merging is set by auto.merge
 Stages to leave out of the flow
 flow.skip
 [title] Default: Empty
 Modified
-Stages that dg flow next never returns (assign, check, plan, work, audit, release). A skipped stage's rule is not read; the flow moves to the next rule
+Stages that dg flow next skips
 Empty
 [aria-label] Items
 [placeholder] Add item
 Add
 [title] Reset to default Empty
 Reset to Default
+When empty: No stage is skipped
+Details
+Stages that dg flow next never returns (assign, check, plan, work, audit, release). A skipped stage's rule is not read; the flow moves to the next rule
 Most tickets advanced at the same time
 work.parallel
 [title] Default: 3
 Modified
-Most tickets of a Plan advanced at the same time with a subagent each (dg guide parallel). An integer from 1 to 10
+Most tickets of a Plan advanced at the same time (1 to 10)
 [title] Reset to default 3
 Reset to Default
+Details
+Most tickets of a Plan advanced at the same time with a subagent each (dg guide parallel). An integer from 1 to 10
 Merge method
 merge.method
 [title] Default: squash
 Modified
-Merge method dg pr merge uses when --method is omitted (squash, merge, or rebase)
+Merge method dg pr merge uses by default
 squash
 (default)
 merge
 rebase
 [title] Reset to default squash
 Reset to Default
+Details
+Merge method dg pr merge uses when --method is omitted (squash, merge, or rebase)
 Delete the work branch after merging
 merge.delete_branch
 [title] Default: false
 Modified
-Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted
+Delete the work branch when dg pr merge merges
 Off
 [title] Reset to default false
 Reset to Default
+Details
+Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted
 Review finding categories treated as heavy
 review.heavy_categories
 [title] Default: Empty
 Modified
-Review finding categories (run review-result --findings-file) treated as heavy regardless of severity. Empty by default, so the reviewer's severity is kept
+Review finding categories always treated as heavy
 Empty
 [aria-label] Items
 [placeholder] Add item
 Add
 [title] Reset to default Empty
 Reset to Default
+When empty: The reviewer's severity is kept
+Details
+Review finding categories (run review-result --findings-file) treated as heavy regardless of severity. Empty by default, so the reviewer's severity is kept
 Require an Iteration before starting
 lint.require_iteration
 [title] Default: false
 Modified
-Whether dg lint flags tickets that moved past todo or abandoned without being in an Iteration (except done tickets in closed Epics). dg guide work asks to add the ticket to an Iteration before claim
+Have dg lint flag tickets worked on outside an Iteration
 Off
 [title] Reset to default false
 Reset to Default
+Details
+Whether dg lint flags tickets that moved past todo or abandoned without being in an Iteration (except done tickets in closed Epics). dg guide work asks to add the ticket to an Iteration before claim
 Model for tier light
 models.light
 [title] Default: 
 Modified
-Model for Plan tier light (docs, settings, and wording only) and for research within implementation. When empty, the parent's model
+Model for Plan tier light and for research
+[placeholder] e.g. haiku
 [title] Reset to default 
 Reset to Default
+When empty: The parent's model
+Details
+Model for Plan tier light (docs, settings, and wording only) and for research within implementation. When empty, the parent's model
 Model for tier standard
 models.standard
 [title] Default: 
 Modified
-Model for Plan tier standard (anything that is not light or heavy). When empty, the parent's model
+Model for Plan tier standard
+[placeholder] e.g. sonnet
 [title] Reset to default 
 Reset to Default
+When empty: The parent's model
+Details
+Model for Plan tier standard (anything that is not light or heavy). When empty, the parent's model
 Model for tier heavy
 models.heavy
 [title] Default: 
 Modified
-Model for Plan tier heavy (design decisions, data shapes, multiple packages, bugs of unknown cause). When empty, the parent's model
+Model for Plan tier heavy
+[placeholder] e.g. opus
 [title] Reset to default 
 Reset to Default
+When empty: The parent's model
+Details
+Model for Plan tier heavy (design decisions, data shapes, multiple packages, bugs of unknown cause). When empty, the parent's model
 Commands limited to people
 actor.human_only
 [title] Default: Empty
 Modified
-Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by
+Command names rejected for agents
 Empty
 [aria-label] Items
-[placeholder] Add item
+[placeholder] e.g. epic.close
 Add
 [title] Reset to default Empty
 Reset to Default
+When empty: Everything is allowed
+Details
+Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by
 Metrics
 Read usage from transcripts
 metrics.read_transcripts
 [title] Default: false
 Modified
-Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true (MT-2)
+Read conversation transcripts to fill in usage
 Off
 [title] Reset to default false
 Reset to Default
+Details
+Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true (MT-2)
 Notifications
 Notify when approvals are waiting
 notify.approvals
 [title] Default: true
 Modified
-Whether the VS Code extension shows a notification when Plans awaiting approval or tickets in review increase (the count is always shown)
+Notify in VS Code when Plans awaiting approval or tickets in review increase
 Off
 [title] Reset to default true
 Reset to Default
+Details
+Whether the VS Code extension shows a notification when Plans awaiting approval or tickets in review increase (the count is always shown)
 Git
 Default Project
 default_project
 Project used when none is given
 [value] default
+When empty: Returns to the default (in personal settings, to the team's value)
 Remote to sync with
 git.remote
 Git remote that deguboard fetches from and pushes to
 [value] origin
+When empty: Returns to the default (in personal settings, to the team's value)
 Base branch
 git.base_branch
 Base for work branches and for deciding what is merged
 [value] main
+When empty: Returns to the default (in personal settings, to the team's value)
 Worktree location
 worktree.root
 [title] Default: ../<repo>.worktrees
 Modified
-Where work worktrees go. A path relative to the repository
+Where work worktrees go
 [title] Reset to default ../<repo>.worktrees
 Reset to Default
+When empty: Returns to the default (in personal settings, to the team's value)
+Details
+Where work worktrees go. A path relative to the repository
 Setup command for worktrees
 worktree.setup
 [title] Default: Empty
 Modified
-Argument array of the setup command run first in a work worktree that claim created (e.g. [mise, run, setup]). Empty runs nothing. If it fails, claim still succeeds and the warnings give the failure and the command to run by hand
+Setup command run first in a new work worktree
 Empty
 [aria-label] Items
-[placeholder] Add item
+[placeholder] e.g. [mise, run, setup]
 Add
 [title] Reset to default Empty
 Reset to Default
+When empty: Runs nothing
+Details
+Argument array of the setup command run first in a work worktree that claim created (e.g. [mise, run, setup]). Empty runs nothing. If it fails, claim still succeeds and the warnings give the failure and the command to run by hand
 Tickets
 Criteria for priority high
 priority.high
 [title] Default: User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets
 Modified
-Criteria for priority high. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
+Criteria for priority high
 [title] Reset to default User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets
 Reset to Default
+When empty: Returns to the default (in personal settings, to the team's value)
+Details
+Criteria for priority high. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
 Criteria for priority medium
 priority.medium
 [title] Default: New features and improvements, missing or unstable tests, inconsistencies in internal docs, convention violations that do no harm yet, and dependencies that are far out of date
 Modified
-Criteria for priority medium (the default). Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
+Criteria for priority medium (the default)
 [title] Reset to default New features and improvements, missing or unstable tests, inconsistencies in internal docs, convention violations that do no harm yet, and dependencies that are far out of date
 Reset to Default
+When empty: Returns to the default (in personal settings, to the team's value)
+Details
+Criteria for priority medium (the default). Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
 Criteria for priority low
 priority.low
 [title] Default: Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent
 Modified
-Criteria for priority low. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
+Criteria for priority low
 [title] Reset to default Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent
 Reset to Default
+When empty: Returns to the default (in personal settings, to the team's value)
+Details
+Criteria for priority low. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
 Guide notes
-Document inserted into overview
+Document inserted just after the guide title. A path relative to the repository root
+When empty: Inserts nothing
+Details
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Document inserted into overview
+Overview
 guide.notes.overview
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into import
+[title] Document inserted into import
+Import
 guide.notes.import
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into assign
+[title] Document inserted into assign
+Assign
 guide.notes.assign
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into check
+[title] Document inserted into check
+Check
 guide.notes.check
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into plan
+[title] Document inserted into plan
+Planning
 guide.notes.plan
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into work
+[title] Document inserted into work
+Work
 guide.notes.work
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into run
+[title] Document inserted into run
+Run
 guide.notes.run
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into parallel
+[title] Document inserted into parallel
+Parallel
 guide.notes.parallel
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into review and quality gate
+[title] Document inserted into review and quality gate
+Review and quality gate
 guide.notes.review
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into audit
+[title] Document inserted into audit
+Audit
 guide.notes.audit
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into release
+[title] Document inserted into release
+Release
 guide.notes.release
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into done
+[title] Document inserted into done
+Done
 guide.notes.done
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into change
+[title] Document inserted into change
+Change
 guide.notes.change
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into discuss
+[title] Document inserted into discuss
+Discuss
 guide.notes.discuss
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into status
+[title] Document inserted into status
+Status
 guide.notes.status
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
-Document inserted into all
+[title] Document inserted into all
+All
 guide.notes.all
 [title] Default: 
 Modified
-Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
 

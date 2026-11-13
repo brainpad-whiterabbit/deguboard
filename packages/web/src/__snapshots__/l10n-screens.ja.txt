@@ -257,354 +257,454 @@ config.yaml
 commit.mode
 [title] 既定は batch
 変更あり
-commit.mode
+チケットの書き込みをいつコミットするか
 each
 batch
 （既定）
 manual
 [title] 既定の batch に戻す
 既定に戻す
+[aria-label] 選んでいる値の説明
+each
+書き込みのたびにコミットする
+詳しく
+commit.mode
 push の仕方
 push.mode
 [title] 既定は auto
 変更あり
-push.mode
+コミットをいつ push するか
 auto
 （既定）
 manual
 [title] 既定の auto に戻す
 既定に戻す
+詳しく
+push.mode
 エージェント
 シェルの Action を許す
 actions.shell
 [title] 既定は false
 変更あり
-actions.shell
+任意のシェルの Action を許す
 無効
 [title] 既定の false に戻す
 既定に戻す
+詳しく
+actions.shell
 テストのコマンド
 actions.test
 [title] 既定は 空
 変更あり
-actions.test
+品質ゲートの検査とテストの Action が回すコマンド
 空
 [aria-label] 項目
-[placeholder] 項目を足す
+[placeholder] 例 [mise, run, check]
 足す
 [title] 既定の 空 に戻す
 既定に戻す
+空のとき: 品質ゲートの検査を判定しない（run_tests も拒否する）
+詳しく
+actions.test
 軽い検査のコマンド
 actions.light_test
 [title] 既定は 空
 変更あり
-actions.light_test
+変更が軽いパスだけのとき、actions.test の代わりに回す検査
 空
 [aria-label] 項目
-[placeholder] 項目を足す
+[placeholder] 例 [mise, run, check:light]
 足す
 [title] 既定の 空 に戻す
 既定に戻す
+空のとき: 軽い検査を使わない（actions.test を回す）
+詳しく
+actions.light_test
 軽い検査で済ませるパス
 actions.light_paths
 [title] 既定は 空
 変更あり
-actions.light_paths
+軽い検査で済ませてよいファイルの glob
 空
 [aria-label] 項目
-[placeholder] 項目を足す
+[placeholder] 例 docs/**
 足す
 [title] 既定の 空 に戻す
 既定に戻す
+空のとき: 軽い検査を使わない（actions.test を回す）
+詳しく
+actions.light_paths
 PR を自動でマージする
 auto.merge
 [title] 既定は false
 変更あり
-auto.merge
+--auto で、品質ゲートを満たした PR を自動でマージする
 無効
 [title] 既定の false に戻す
 既定に戻す
+詳しく
+auto.merge
 --auto で自動で選ぶ判断
 auto.decisions
 [title] 既定は [assign, check, plan, audit, accept]
 変更あり
-auto.decisions
+--auto で聞かずに選ぶ判断
 空
 [aria-label] 項目
 [placeholder] 項目を足す
 足す
 [title] 既定の [assign, check, plan, audit, accept] に戻す
 既定に戻す
+空のとき: --auto でも聞かずに選ぶ判断はない
+詳しく
+auto.decisions
 流れから外す段階
 flow.skip
 [title] 既定は 空
 変更あり
-flow.skip
+dg flow next が飛ばす段階
 空
 [aria-label] 項目
 [placeholder] 項目を足す
 足す
 [title] 既定の 空 に戻す
 既定に戻す
+空のとき: どの段階も飛ばさない
+詳しく
+flow.skip
 同時に進めるチケットの上限
 work.parallel
 [title] 既定は 3
 変更あり
-work.parallel
+Plan のチケットを同時に進める数の上限（1〜10）
 [title] 既定の 3 に戻す
 既定に戻す
+詳しく
+work.parallel
 マージの方法
 merge.method
 [title] 既定は squash
 変更あり
-merge.method
+dg pr merge の既定のマージの方法
 squash
 （既定）
 merge
 rebase
 [title] 既定の squash に戻す
 既定に戻す
+詳しく
+merge.method
 マージしたら作業ブランチを消す
 merge.delete_branch
 [title] 既定は false
 変更あり
-merge.delete_branch
+dg pr merge でマージしたら作業ブランチも消す
 無効
 [title] 既定の false に戻す
 既定に戻す
+詳しく
+merge.delete_branch
 重いとみなす見直しの指摘の種類
 review.heavy_categories
 [title] 既定は 空
 変更あり
-review.heavy_categories
+いつも重いとみなす見直しの指摘の category
 空
 [aria-label] 項目
 [placeholder] 項目を足す
 足す
 [title] 既定の 空 に戻す
 既定に戻す
+空のとき: 見直し役の severity のまま
+詳しく
+review.heavy_categories
 Iteration に入れてから進める
 lint.require_iteration
 [title] 既定は false
 変更あり
-lint.require_iteration
+Iteration に入らずに進んだチケットを dg lint が指摘する
 無効
 [title] 既定の false に戻す
 既定に戻す
+詳しく
+lint.require_iteration
 段階 light のモデル
 models.light
 [title] 既定は 
 変更あり
-models.light
+Plan の段階 light と調べものに使うモデル
+[placeholder] 例 haiku
 [title] 既定の  に戻す
 既定に戻す
+空のとき: 親のモデル
+詳しく
+models.light
 段階 standard のモデル
 models.standard
 [title] 既定は 
 変更あり
-models.standard
+Plan の段階 standard に使うモデル
+[placeholder] 例 sonnet
 [title] 既定の  に戻す
 既定に戻す
+空のとき: 親のモデル
+詳しく
+models.standard
 段階 heavy のモデル
 models.heavy
 [title] 既定は 
 変更あり
-models.heavy
+Plan の段階 heavy に使うモデル
+[placeholder] 例 opus
 [title] 既定の  に戻す
 既定に戻す
+空のとき: 親のモデル
+詳しく
+models.heavy
 人だけに許すコマンド
 actor.human_only
 [title] 既定は 空
 変更あり
-actor.human_only
+agent からは拒否するコマンド名
 空
 [aria-label] 項目
-[placeholder] 項目を足す
+[placeholder] 例 epic.close
 足す
 [title] 既定の 空 に戻す
 既定に戻す
+空のとき: すべて許す
+詳しく
+actor.human_only
 計測
 会話記録から使用量を読む
 metrics.read_transcripts
 [title] 既定は false
 変更あり
-metrics.read_transcripts
+会話記録を読んで使用量を補う
 無効
 [title] 既定の false に戻す
 既定に戻す
+詳しく
+metrics.read_transcripts
 通知
 承認待ちが増えたら通知する
 notify.approvals
 [title] 既定は true
 変更あり
-notify.approvals
+承認待ちの Plan や review のチケットが増えたら VS Code で通知する
 無効
 [title] 既定の true に戻す
 既定に戻す
+詳しく
+notify.approvals
 Git
 既定の Project
 default_project
-default_project
+省略時の Project
 [value] default
+空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
+詳しく
+default_project
 同期先のリモート
 git.remote
-git.remote
+同期先のリモート
 [value] origin
+空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
+詳しく
+git.remote
 基準のブランチ
 git.base_branch
-git.base_branch
+作業ブランチの元と「マージ済み」の判定の基準
 [value] main
+空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
+詳しく
+git.base_branch
 worktree の置き場所
 worktree.root
 [title] 既定は ../<repo>.worktrees
 変更あり
-worktree.root
+作業 worktree の置き場所
 [title] 既定の ../<repo>.worktrees に戻す
 既定に戻す
+空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
+詳しく
+worktree.root
 worktree の準備のコマンド
 worktree.setup
 [title] 既定は 空
 変更あり
-worktree.setup
+新しい作業 worktree で最初に回す準備のコマンド
 空
 [aria-label] 項目
-[placeholder] 項目を足す
+[placeholder] 例 [mise, run, setup]
 足す
 [title] 既定の 空 に戻す
 既定に戻す
+空のとき: 何も回さない
+詳しく
+worktree.setup
 チケット
 優先度 high の判断基準
 priority.high
 [title] 既定は 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
 変更あり
-priority.high
+優先度 high の判断基準
 [title] 既定の 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている に戻す
 既定に戻す
+空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
+詳しく
+priority.high
 優先度 medium の判断基準
 priority.medium
 [title] 既定は 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
 変更あり
-priority.medium
+優先度 medium（既定）の判断基準
 [title] 既定の 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存 に戻す
 既定に戻す
+空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
+詳しく
+priority.medium
 優先度 low の判断基準
 priority.low
 [title] 既定は 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
 変更あり
-priority.low
+優先度 low の判断基準
 [title] 既定の 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討 に戻す
 既定に戻す
+空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
+詳しく
+priority.low
 ガイドの差し込み
-差し込む文書（概要）
+guide の題名の直後に差し込む文書。リポジトリの最上位からの相対パス
+空のとき: 差し込まない
+詳しく
+guide.notes.overview
+[title] 差し込む文書（概要）
+概要
 guide.notes.overview
 [title] 既定は 
 変更あり
-guide.notes.overview
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（起票）
+[title] 差し込む文書（起票）
+チケットの起票
 guide.notes.import
 [title] 既定は 
 変更あり
-guide.notes.import
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（割り当て）
+[title] 差し込む文書（割り当て）
+割り当て
 guide.notes.assign
 [title] 既定は 
 変更あり
-guide.notes.assign
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（点検）
+[title] 差し込む文書（点検）
+点検
 guide.notes.check
 [title] 既定は 
 変更あり
-guide.notes.check
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（計画）
+[title] 差し込む文書（計画）
+計画
 guide.notes.plan
 [title] 既定は 
 変更あり
-guide.notes.plan
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（作業）
+[title] 差し込む文書（作業）
+作業
 guide.notes.work
 [title] 既定は 
 変更あり
-guide.notes.work
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（Run）
+[title] 差し込む文書（Run）
+Run
 guide.notes.run
 [title] 既定は 
 変更あり
-guide.notes.run
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（並べて進める）
+[title] 差し込む文書（並べて進める）
+並べて進める
 guide.notes.parallel
 [title] 既定は 
 変更あり
-guide.notes.parallel
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（見直しと品質ゲート）
+[title] 差し込む文書（見直しと品質ゲート）
+見直しと品質ゲート
 guide.notes.review
 [title] 既定は 
 変更あり
-guide.notes.review
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（見直し）
+[title] 差し込む文書（見直し）
+リポジトリの見直し
 guide.notes.audit
 [title] 既定は 
 変更あり
-guide.notes.audit
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（リリース）
+[title] 差し込む文書（リリース）
+リリース
 guide.notes.release
 [title] 既定は 
 変更あり
-guide.notes.release
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（完了）
+[title] 差し込む文書（完了）
+完了
 guide.notes.done
 [title] 既定は 
 変更あり
-guide.notes.done
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（書き換え）
+[title] 差し込む文書（書き換え）
+書き換え
 guide.notes.change
 [title] 既定は 
 変更あり
-guide.notes.change
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（検討）
+[title] 差し込む文書（検討）
+検討
 guide.notes.discuss
 [title] 既定は 
 変更あり
-guide.notes.discuss
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（様子）
+[title] 差し込む文書（様子）
+様子
 guide.notes.status
 [title] 既定は 
 変更あり
-guide.notes.status
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-差し込む文書（一気通し）
+[title] 差し込む文書（一気通し）
+一気通し
 guide.notes.all
 [title] 既定は 
 変更あり
-guide.notes.all
+[placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
 
