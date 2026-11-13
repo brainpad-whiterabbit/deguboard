@@ -11,7 +11,7 @@ after:
     - t799
     - t803
     - t804
-pending_approval: true
+pending_approval: false
 details:
   t798:
     scope: hono と @hono/node-server を修正版に上げて mise run audit を通す。SDK の版は変えない
@@ -45,3 +45,5 @@ details:
     scope: s29 で触ったテストの抜けと写しを片付ける（コードは変えない）
     approach: 受け入れ条件の 4 つのテストのファイルをそれぞれ直し、gitignore.ts には隣にテストのファイルを足す
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-13T02:30:19Z
