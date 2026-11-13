@@ -80,7 +80,7 @@ dg config set metrics.read_transcripts true
 ## セキュリティとプライバシー
 
 - 拡張はテレメトリを送らず、HTTP サーバーも起動しません。通信は `git` のリモートへの接続と、`gh` の GitHub への接続だけです。
-- データは `.git/deguboard/` に置き、`.git` の外には書きません。拡張が呼ぶコマンドは `git`・`gh`・`dg --version` だけで、信頼したフォルダーでだけ動きます。
+- ボードのデータは `.git/deguboard/` に置きます。拡張は起動のたびに、`.git` の外へ次の 2 つだけを書きます。1 つ目は `dg` の起動ファイルと `current`（同梱の `dg` を指す。ターミナルとフックが呼びます）で、`~/.local/share/deguboard/` に置きます。2 つ目は dg の Skill（`dg*`）で、リポジトリの `.claude/skills/` と `~/.claude/skills/` に、同梱のものと違うときだけ書きます（手で直した Skill は残し、警告を出します）。`~/.local/bin/dg` は「dg コマンドを入れる」でだけ書き、「dg コマンドを外す」で外します。拡張が呼ぶコマンドは `git`・`gh`・`dg --version` だけで、信頼したフォルダーでだけ動きます。
 - Skill は `dg guide` を読ませる文面だけです。フックは `dg hook <イベント>` を呼ぶだけで、Run を記録し、`dg` を通さない PR の ready・マージとデータへの書き込みを拒みます。どちらも `--dry-run` で中身を見られます。
 - 脆弱性の報告先は [SECURITY.md](SECURITY.md) にあります。
 

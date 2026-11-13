@@ -80,7 +80,7 @@ The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deg
 ## Security and privacy
 
 - The extension sends no telemetry and starts no HTTP server. Its only network access is `git` connecting to your remotes and `gh` connecting to GitHub.
-- Data is stored in `.git/deguboard/`, and nothing is written outside `.git`. The extension runs only `git`, `gh`, and `dg --version`, and only in trusted folders.
+- Board data is stored in `.git/deguboard/`. At startup, the extension writes outside `.git` only two things: the `dg` launcher and its `current` file in `~/.local/share/deguboard/` (the bundled `dg`, which terminals and hooks call), and the dg Skills (`dg*`) in the repository's `.claude/skills/` and in `~/.claude/skills/`, but only where they differ from the ones bundled with the extension (a Skill you edited by hand is kept and a warning is shown). `~/.local/bin/dg` is written only by "Install dg command" and removed by "Uninstall dg command". The extension runs only `git`, `gh`, and `dg --version`, and only in trusted folders.
 - The Skills only tell the agent to read `dg guide`. The hooks only call `dg hook <event>`, which records runs and refuses to mark a PR ready, merge it, or write to the data outside `dg`. See both with `--dry-run`.
 - See [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) (in Japanese) for how to report vulnerabilities.
 
