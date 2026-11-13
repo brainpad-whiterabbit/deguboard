@@ -440,12 +440,55 @@ describe("metrics lines", () => {
       expect(first.data.recorded.map((x) => x.id)).toEqual(["t2"]);
       expect(first.data.remaining).toBe(1);
       expect(first.warnings.join("\n")).toContain("1 done tickets with no lines were not read");
+      // 取れなかったチケットがないときは、limit の枠の案内を付けない
+      expect(first.warnings.join("\n")).not.toContain("--limit");
       const scoped = await runCommand(metricsLines, ctx, { iteration: "s1" });
       expect(scoped.data).toEqual({
         recorded: [{ id: "t1", pr: 11, additions: 5, deletions: 0 }],
         skipped: [],
         remaining: 0,
       });
+    } finally {
+      restore();
+    }
+  });
+
+  it("取れなかったチケットが limit の枠に残るときは、次も読み直すことと古いチケットへの届かせ方を警告する", async () => {
+    const { ctx, root } = await doneTickets();
+    // 新しい t2 は閉じた PR で取れず、limit 1 の枠を使うので、t1 に届かない
+    const restore = await fakeGh(root, {
+      "11": merged(11, 5, 0),
+      "12": JSON.stringify({ number: 12, state: "CLOSED", isDraft: false }),
+    });
+    try {
+      const r = await runCommand(metricsLines, ctx, { limit: 1 });
+      expect(r.data).toMatchObject({ recorded: [], remaining: 1 });
+      expect(r.data.skipped.map((s) => s.id)).toEqual(["t2"]);
+      expect(r.warnings.at(-1)).toContain("The 1 skipped tickets are read again on every call");
+      expect(r.warnings.at(-1)).toContain("raise --limit or narrow with --iteration");
+    } finally {
+      restore();
+    }
+  });
+
+  it("gh を読んでいる間にほかのプロセスが変えたチケットは、ロックの中で読み直して書かず、その変更を消さない", async () => {
+    const { ctx, root } = await doneTickets();
+    // ctx が読んだ後に、別の文脈（ほかの dg のプロセス）が t1 の PR を付け替える。ctx の索引は古いまま（pr: 11）
+    const actor = { kind: "human" as const, user: "eiki" };
+    const other = await openContext({ cwd: ctx.repo.topLevel, actor });
+    await other.store.update("ticket", "t1", { pr: 21, title: "A2" });
+    await recordBaseline(other.repo);
+    expect(ctx.store.tickets.get("t1")?.data.pr).toBe(11);
+    const restore = await fakeGh(root, { "11": merged(11, 120, 30), "12": merged(12, 7, 2) });
+    try {
+      const r = await runCommand(metricsLines, ctx, {});
+      // 前の PR #11 の行数は t1 に書かず、変わっていない t2 にだけ書く
+      expect(r.data.recorded).toEqual([{ id: "t2", pr: 12, additions: 7, deletions: 2 }]);
+      const fresh = await openContext({ cwd: ctx.repo.topLevel, actor });
+      const t1 = fresh.store.tickets.get("t1")?.data;
+      expect(t1).toMatchObject({ pr: 21, title: "A2" });
+      expect(t1?.lines).toBeUndefined();
+      expect(fresh.store.tickets.get("t2")?.data.lines).toEqual({ additions: 7, deletions: 2 });
     } finally {
       restore();
     }

@@ -589,7 +589,7 @@ export const ticketUpdate = defineCommand({
       .nullable()
       .optional()
       .describe(
-        "PR number. When recorded, closes the running implementation Run with success (finished_at is the PR's creation time)",
+        "PR number. When recorded, closes the running implementation Run with success (finished_at is the PR's creation time). Removing or changing it removes lines (the changed lines of the previous PR)",
       ),
     branch: z
       .string()

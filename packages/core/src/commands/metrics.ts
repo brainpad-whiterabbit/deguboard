@@ -131,7 +131,7 @@ export const metricsLines = defineCommand({
   name: "metrics.lines",
   group: "metrics",
   summary:
-    "Record the changed lines (additions and deletions) of the merged PR on done tickets that have a PR number and no lines yet, so that dg metrics show can give the tokens per line for them. dg sync records the lines when it sees the PR merged; this fills tickets that became done before lines were recorded, or where gh was not available. It reads each PR with gh pr view, one call per ticket, newest ticket first, up to --limit tickets per call (the rest are counted in remaining; call again to continue). A PR that is not merged or cannot be read is listed in skipped with the reason and nothing is written for it. Tickets that already have lines are not rewritten",
+    "Record the changed lines (additions and deletions) of the merged PR on done tickets that have a PR number and no lines yet, so that dg metrics show can give the tokens per line for them. dg sync records the lines when it sees the PR merged; this fills tickets that became done before lines were recorded, or where gh was not available. It reads each PR with gh pr view, one call per ticket, newest ticket first, up to --limit tickets per call (the rest are counted in remaining; call again to continue). A PR that is not merged or cannot be read is listed in skipped with the reason and nothing is written for it; such a ticket is read again on every call and counts toward --limit, so when skipped tickets fill the limit, raise --limit or narrow with --iteration to reach the older tickets. Tickets that already have lines are not rewritten",
   input: z.object({
     iteration: iterationRef.optional().describe("Only tickets in this Iteration"),
     limit: z
@@ -168,17 +168,25 @@ export const metricsLines = defineCommand({
       (s) => `${s.id}: the changed lines were not recorded (${s.reason})`,
     );
     const remaining = targets.length - batch.length;
+    // 取れなかったチケットは行数のないままなので、次の呼び出しでも新しい順の先頭で limit の枠を使う。
+    // 枠が取れなかったチケットで埋まると古いチケットに届かないので、届かせ方を案内する
     if (remaining > 0)
       warnings.push(
-        `${remaining} done tickets with no lines were not read in this call (limit). Call again to continue`,
+        `${remaining} done tickets with no lines were not read in this call (limit). Call again to continue` +
+          (skipped.length > 0
+            ? `. The ${skipped.length} skipped tickets are read again on every call and count toward the limit; if the same tickets keep being skipped, raise --limit or narrow with --iteration to reach the older tickets`
+            : ""),
       );
     if (found.length === 0) return ok({ recorded: [], skipped, remaining }, undefined, warnings);
     const result = await withWrite(
       ctx,
       async () => {
+        // gh を読んでいた間のほかのプロセスの書き込みを読み直す（sync の照合と同じ）。withWrite は取り込みがリモートの変更を
+        // 入れたときしか読み直さないので、読み直さないと古い内容で判定し、古いファイルの中身で書き戻して他の変更を消す
+        await ctx.store.rescan();
         const recorded: MetricsLinesView["recorded"] = [];
         for (const f of found) {
-          // ロックの中で読み直し、読んだ後に変わった（done でなくなった・PR が変わった・もう記録された）チケットには書かない。
+          // 読み直した今の内容で確かめ、読んだ後に変わった（done でなくなった・PR が変わった・もう記録された）チケットには書かない。
           // updated_at は変えない（チケットの中身の変更ではなく、後から足す計測の値なので、更新順を乱さない）
           const now = ctx.store.tickets.get(f.id as TicketId)?.data;
           if (!now || !lacking(now) || now.pr !== f.pr) continue;
