@@ -1,0 +1,47 @@
+id: p113
+project: default
+tickets: [t798, t799, t802, t803, t804, t800, t806, t805]
+after:
+  t800:
+    - t798
+  t806:
+    - t798
+    - t802
+  t805:
+    - t799
+    - t803
+    - t804
+pending_approval: true
+details:
+  t798:
+    scope: hono と @hono/node-server を修正版に上げて mise run audit を通す。SDK の版は変えない
+    approach: SDK の範囲が修正版を許すので lock の更新で上げ、足りなければ pnpm-workspace.yaml の overrides で固定する
+    tier: standard
+  t799:
+    scope: check のテストの段の lock をスクリプトに移し、その振る舞いをテストで守る
+    approach: scripts/ に lock のスクリプトを置き package.json の script から呼び、mise.toml はその script を 1 つ呼ぶだけにする。lock の場所は絶対パスにし、作れないときは lock なしで回す
+    tier: standard
+  t802:
+    scope: conflict_fields が空の競合で止まった dg sync の警告を、手で解く手順にする。README・guide を合わせる
+    approach: sync の警告を組み立てるところで conflict_fields の有無で CONFLICT_REMEDY と UNRESOLVABLE_REMEDY を選び分ける
+    tier: standard
+  t803:
+    scope: Stop の速い経路の写し・通らない行・describe の位置を片付け、本体に回す前提を示す
+    approach: remote の名前の決め方を storage/remote-name.ts に寄せ、context.ts と fast-hook.ts の両方がそこを使う
+    tier: standard
+  t804:
+    scope: dg の Skill の無視の行と追跡の警告を dg が入れる名前だけにし、hooks uninstall が行を残すことを示し、AG-2 に正本への案内を足す
+    approach: 入れる Skill の名前の一覧から名前ごとの無視の行を作り、このリポジトリの .claude/.gitignore も直す
+    tier: standard
+  t800:
+    scope: vitest のワーカー数の既定と上書きをテストで守り、不正な値と 0 はエラーで止める
+    approach: 値を読む関数を vitest.config.ts から切り出してテストし、受ける形を示すエラーを投げる
+    tier: standard
+  t806:
+    scope: vite を 8.3.8 以上に上げ、README.ja.md の Security の節の SECURITY.md を絶対の URL にそろえる
+    approach: web と vscode の vite を上げて lock を更新し、README.ja.md の 1 行を直す
+    tier: light
+  t805:
+    scope: s29 で触ったテストの抜けと写しを片付ける（コードは変えない）
+    approach: 受け入れ条件の 4 つのテストのファイルをそれぞれ直し、gitignore.ts には隣にテストのファイルを足す
+    tier: standard
