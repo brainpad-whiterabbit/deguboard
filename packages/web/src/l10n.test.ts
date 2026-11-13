@@ -162,7 +162,7 @@ describe("画面の文言の置き場所", () => {
       }
     }
   });
-  it("設定の項目の説明の表は、鍵が英語の文で、どの鍵も日本語の訳（ja）を持つ", () => {
+  it("設定の項目の文（説明・要約・空のときの動き・選択肢ごとの説明）の表は、鍵が英語の文で、どの鍵も日本語の訳（ja）を持つ", () => {
     expect(Object.keys(CONFIG_DESCRIPTIONS).length).toBeGreaterThan(0);
     for (const [key, entry] of Object.entries(CONFIG_DESCRIPTIONS)) {
       expect(key, key).not.toMatch(JAPANESE);
@@ -343,9 +343,27 @@ describe("core が返すエラー・警告の文の訳（UI-11）", () => {
 });
 
 describe("設定の項目の説明の訳", () => {
-  it("core の項目の説明と CONFIG_DESCRIPTIONS の鍵が過不足なく揃う（core の説明を書き換えたら訳の鍵と訳も直す）", () => {
-    const descriptions = [...new Set(configFields().map((f) => f.description))].sort();
-    expect(Object.keys(CONFIG_DESCRIPTIONS).sort()).toEqual(descriptions);
+  it("core の項目の文（説明・要約・空のときの動き・選択肢ごとの説明）と CONFIG_DESCRIPTIONS の鍵が過不足なく揃う（core の文を書き換えたら訳の鍵と訳も直す）", () => {
+    // 例（example）は値なので訳さない
+    const texts = configFields().flatMap((f) => [
+      f.description,
+      f.summary,
+      ...(f.empty === undefined ? [] : [f.empty]),
+      ...Object.values(f.option_descriptions ?? {}),
+    ]);
+    expect(Object.keys(CONFIG_DESCRIPTIONS).sort()).toEqual([...new Set(texts)].sort());
+  });
+  it("要約・空のときの動き・選択肢ごとの説明も、日本語では表の ja の訳を出す（t812）", () => {
+    const byKey = new Map(configFields().map((f) => [f.key, f]));
+    const commit = byKey.get("commit.mode");
+    expect(configDescription(commit?.summary ?? "")).toBe("チケットの書き込みをいつコミットするか");
+    expect(configDescription(commit?.option_descriptions?.each ?? "")).toBe(
+      "書き込みのたびにコミットする",
+    );
+    expect(configDescription(byKey.get("models.light")?.empty ?? "")).toBe("親のモデル");
+    expect(configDescription(byKey.get("guide.notes.work")?.summary ?? "")).toBe(
+      "guide の題名の直後に差し込む文書。リポジトリの最上位からの相対パス",
+    );
   });
   it("日本語では表の ja の訳を出し、英語では core の説明（英語の文）のまま出し、表にない説明は core の説明のまま出す", () => {
     const description = "Git remote that deguboard fetches from and pushes to";

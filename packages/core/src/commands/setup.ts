@@ -1128,7 +1128,7 @@ export const configShow = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Also show, with the values, every item's key, type, default, description, and scope (scope: team is team-only, local can be overridden personally), plus the team values and personal overrides (in the form { config, team, local, fields }; used by the settings screen)",
+        "Also show, with the values, every item's key, type, default, summary, description, example, empty (what an empty value does), option_descriptions, and scope (scope: team is team-only, local can be overridden personally), plus the team values and personal overrides (in the form { config, team, local, fields }; used by the settings screen)",
       ),
   }),
   write: false,
@@ -1148,7 +1148,7 @@ export const configShow = defineCommand({
   },
 });
 
-/** config.show --fields の出力。設定画面が値・既定値・説明・範囲・空にすると既定に戻るか（clears_to_default）を一度に読む */
+/** config.show --fields の出力。設定画面が値・既定値・要約と説明・例・空のときの動き・選択肢ごとの説明・範囲・空にすると既定に戻るか（clears_to_default）を一度に読む */
 export interface ConfigShowView {
   /** 個人 > チーム > 既定 を重ねた、各コマンドが使う値 */
   config: Config;
