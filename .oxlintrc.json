@@ -20,7 +20,6 @@
                 "group": [
                   "@deguboard/*",
                   "deguboard",
-                  "deguboard-vscode",
                   "vscode",
                   "react",
                   "react-dom",
@@ -81,7 +80,6 @@
                 "group": [
                   "@deguboard/*",
                   "deguboard",
-                  "deguboard-vscode",
                   "vscode",
                   "react",
                   "react-dom",
@@ -129,7 +127,7 @@
           {
             "patterns": [
               {
-                "group": ["@deguboard/*", "!@deguboard/core", "deguboard", "deguboard-vscode"],
+                "group": ["@deguboard/*", "!@deguboard/core", "deguboard"],
                 "message": "server と vscode は core だけに依存する（ADR-033）"
               }
             ]
@@ -145,12 +143,7 @@
           {
             "patterns": [
               {
-                "group": [
-                  "@deguboard/*",
-                  "!@deguboard/core",
-                  "!@deguboard/server",
-                  "deguboard-vscode"
-                ],
+                "group": ["@deguboard/*", "!@deguboard/core", "!@deguboard/server", "deguboard"],
                 "message": "cli は core と server だけに依存する（ADR-033）"
               }
             ]
@@ -174,7 +167,7 @@
             ],
             "patterns": [
               {
-                "group": ["@deguboard/*", "!@deguboard/core", "deguboard", "deguboard-vscode"],
+                "group": ["@deguboard/*", "!@deguboard/core", "deguboard"],
                 "message": "web は core だけに依存する（ADR-033）"
               }
             ]
@@ -195,7 +188,7 @@
           {
             "patterns": [
               {
-                "group": ["@deguboard/*", "!@deguboard/core", "deguboard", "deguboard-vscode"],
+                "group": ["@deguboard/*", "!@deguboard/core", "deguboard"],
                 "message": "web は core だけに依存する（ADR-033）"
               }
             ]
