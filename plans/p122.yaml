@@ -4,7 +4,7 @@ tickets: [t827, t858, t833, t834, t828, t825, t857, t840, t826]
 after:
   t828:
     - t827
-pending_approval: true
+pending_approval: false
 details:
   t827:
     scope: 拡張の name を deguboard に、CLI のパッケージ名を @deguboard/cli に変え、参照する script・設定・文書を合わせる。VSIX のファイル名は変えない
@@ -42,3 +42,5 @@ details:
     scope: README.md と README.ja.md の導入をストアからのインストールに変え、対応する OS を示す
     approach: 拡張のページの絶対 URL と Open VSX の案内を足し、VSIX を手で入れる方法は残す
     tier: light
+approved_by: maji/agent
+approved_at: 2026-11-13T14:03:04Z
