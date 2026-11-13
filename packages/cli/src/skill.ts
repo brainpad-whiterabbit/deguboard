@@ -1,28 +1,18 @@
 // dg skill install：dg guide を読む薄い Claude Code の Skill を段階ごとに置く（AG-2）。Skill は手順を持たず、正本は guide-*.md（CL-5）。
 // Skill の中身（buildSkills）と、入れてある Skill が今の dg のものと違うかの判定（skillStateOf）と書く処理（writeSkillFiles）は core の commands/skill-files.ts にある。
 // dg hooks check・dg next・dg brief の古い Skill の警告と同じ判定で書くか残すかを決め、VS Code 拡張が起動時に古い Skill を更新するのと同じ処理で書く。
-// ここは置き場所の解決・.gitignore・追跡済みの検出・廃止した Skill の片付けを受け持つ
+// 廃止した Skill の片付け（removeRetiredSkills）も core にある。ここは置き場所の解決・.gitignore・追跡済みの検出を受け持つ
 
-import { createHash } from "node:crypto";
-import { readFile, rm, rmdir } from "node:fs/promises";
 import { basename, dirname, join, relative, sep } from "node:path";
 import {
   buildSkills,
+  removeRetiredSkills,
   resolveRepoPaths,
   skillDirsOf,
   writeSkillFiles,
   type AgentEnv,
 } from "@deguboard/core";
 import { ensureIgnoreLines, trackedFiles } from "./gitignore.js";
-
-export { buildSkills, type SkillFile } from "@deguboard/core";
-
-/** 廃止した Skill と、手を加えていないとみなす中身の sha256。一致すれば消し、違えば残して知らせる */
-const RETIRED_SKILLS: Record<string, string[]> = {
-  deguboard: ["490a7544e6cb3b3c697b76113bd496fb7b2dd9e531e87762b08b83e5cd4e3606"],
-};
-
-const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 
 export interface SkillInstallResult {
   /** project（リポジトリの .claude/skills）か personal（~/.claude/skills）。Claude Code の呼び名に合わせる */
@@ -51,17 +41,13 @@ export interface SkillInstallResult {
   tracked: string[];
 }
 
-async function readIfExists(path: string): Promise<string | undefined> {
-  return readFile(path, "utf8").catch(() => undefined);
-}
-
 /**
  * Skill を書く。置き場所は claude-code の Adapter の skillDirs が決め、ask が Skill の有無を見る先と同じになる（AG-5）。
  * scope が project なら cwd を含むリポジトリの最上位、personal ならホームディレクトリ（env の HOME、空か未設定なら OS のホーム）の下。
  * 手を加えていない Skill は最新の中身で上書きし、手を加えたものは force がなければ残す。
  * project では、Skill は各自が入れるものなので、実行のたびに .claude/.gitignore に dg が入れる Skill ごとの無視の行（skills/<名前>/）がなければ足す（--dry-run では書かない）。
  * 無視の行と追跡済みの検出は dg が入れる Skill の名前だけを見る。dg で始まる名前で括ると、利用者が自分で作った dg で始まる Skill まで無視し、git rm --cached を案内してしまう（t804）。
- * 廃止した Skill（RETIRED_SKILLS）の行は足さない。新しく入れることはなく、残っていれば消すか利用者に任せる
+ * 廃止した Skill（core の RETIRED_SKILLS）の行は足さない。新しく入れることはなく、残っていれば消すか利用者に任せる
  */
 export async function installSkill(options: {
   cwd: string;
@@ -104,22 +90,8 @@ export async function installSkill(options: {
       return p.startsWith(prefix) && slash !== -1 && names.has(rest.slice(0, slash));
     });
   }
-  Object.assign(result, await writeSkillFiles(dir, { force: options.force, dryRun }));
-  for (const [name, hashes] of Object.entries(RETIRED_SKILLS)) {
-    const path = join(dir, name, "SKILL.md");
-    const current = await readIfExists(path);
-    if (current === undefined) continue;
-    if (!hashes.includes(sha256(current))) {
-      result.retiredKept.push(name);
-      continue;
-    }
-    if (!dryRun) {
-      await rm(path);
-      // ほかのファイルを置いていればフォルダは残す
-      await rmdir(dirname(path)).catch(() => undefined);
-    }
-    result.retired.push(name);
-  }
+  Object.assign(result, await writeSkillFiles(dir, { force: options.force, dryRun, skills }));
+  Object.assign(result, await removeRetiredSkills(dir, { dryRun }));
   return result;
 }
 

@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -7,6 +6,12 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { resolveRepoPaths, setBundleLayout } from "@deguboard/core";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
+import {
+  olderVersionOf,
+  putSkill,
+  skillFileOf,
+  skillsDir,
+} from "../../core/test/helpers/skills.js";
 import { run } from "./program.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -594,17 +599,10 @@ describe("dg hooks check（AG-9・t542）", () => {
     const env = { HOME: home };
     const aboutSkills = async () =>
       (await checkOf(cwd, [], env)).warnings.filter((w) => w.includes("dg skill install"));
-    const skillFile = (base: string, name: string) =>
-      path.join(base, ".claude", "skills", name, "SKILL.md");
-    const marker = /<!-- dg skill sha256:[0-9a-f]{64} -->\n/;
-    /** 前の版の dg が入れたままの Skill：本文が今と違い、印はその本文のハッシュと合っている */
-    const makeOlder = async (file: string, note = "") => {
-      const changed = (await readFile(file, "utf8")).replace(
-        "This Skill holds no steps.",
-        "This Skill has no steps.",
-      );
-      const hash = createHash("sha256").update(changed.replace(marker, "")).digest("hex");
-      await writeFile(file, changed.replace(marker, `<!-- dg skill sha256:${hash} -->\n`) + note);
+    /** 入れた Skill を、前の版の dg が入れたままのもの（古い Skill）にする。note を足すと手を加えたものになる */
+    const makeOlder = async (base: string, name: string, note = "") => {
+      const current = await readFile(skillFileOf(base, name), "utf8");
+      await putSkill(base, name, olderVersionOf(current) + note);
     };
 
     // 入れていないときと、入れたばかり（今の dg と同じ）のときは何も足さない
@@ -613,11 +611,11 @@ describe("dg hooks check（AG-9・t542）", () => {
     expect((await dg(cwd, ["skill", "install", "--personal"], env)).code).toBe(0);
     expect(await aboutSkills()).toEqual([]);
 
-    await makeOlder(skillFile(cwd, "dgwork"));
-    await makeOlder(skillFile(cwd, "dgplan"), "\nmy note\n");
-    await makeOlder(skillFile(home, "dgdone"));
-    const projectDir = path.join(cwd, ".claude", "skills");
-    const personalDir = path.join(home, ".claude", "skills");
+    await makeOlder(cwd, "dgwork");
+    await makeOlder(cwd, "dgplan", "\nmy note\n");
+    await makeOlder(home, "dgdone");
+    const projectDir = skillsDir(cwd);
+    const personalDir = skillsDir(home);
     const edited = `These dg Skills in ${projectDir} are older than this dg and were edited by hand, so dg skill install keeps them: dgplan. To overwrite them with the current Skills, run dg skill install --force`;
     expect(await aboutSkills()).toEqual([
       `These dg Skills in ${projectDir} are older than this dg (they differ from the Skills bundled with it): dgwork. Update them with dg skill install`,

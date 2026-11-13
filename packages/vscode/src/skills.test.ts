@@ -1,13 +1,17 @@
-import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
-import { buildSkills } from "@deguboard/core";
+import { buildSkills, refreshInstalledSkills } from "@deguboard/core";
 import { afterEach, describe, expect, it } from "vitest";
+import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
+import {
+  olderVersionOf,
+  putSkill,
+  skillFileOf,
+  skillsDir,
+} from "../../core/test/helpers/skills.js";
 import { format, setTranslator } from "./l10n.js";
-import { refreshSkillsOf, skillRefreshNotices } from "./skills.js";
+import { skillRefreshNotices } from "./skills.js";
 
 // 文言は鍵（英語）で確かめる。日本語の訳があることは l10n.test.ts が確かめる
 setTranslator((message, ...args) => format(message, args));
@@ -23,54 +27,27 @@ async function tempDir(): Promise<string> {
   return dir;
 }
 
-const MARKER = /<!-- dg skill sha256:[0-9a-f]{64} -->\n/;
-
-/** 前の版の dg が入れたままの Skill（本文が今と違い、印はその本文のハッシュと合う） */
-function olderVersionOf(content: string): string {
-  const changed = content.replace("This Skill holds no steps.", "This Skill has no steps.");
-  const hash = createHash("sha256").update(changed.replace(MARKER, "")).digest("hex");
-  return changed.replace(MARKER, `<!-- dg skill sha256:${hash} -->\n`);
-}
-
-const skillsDir = (base: string) => path.join(base, ".claude", "skills");
 const contentOf = async (name: string) => (await buildSkills()).find((s) => s.name === name)!;
 
-async function put(base: string, name: string, content: string): Promise<void> {
-  const file = path.join(skillsDir(base), name, "SKILL.md");
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, content, "utf8");
-}
-
-describe("拡張の起動時の dg の Skill の更新（t857）", () => {
-  it("作業フォルダのリポジトリと ~/.claude/skills の古い Skill を更新し、個人の置き場所は 1 つにまとめる", async () => {
-    const repo = await tempDir();
-    await promisify(execFile)("git", ["init", "-q", repo]);
-    const outside = await tempDir();
+// 作業フォルダのまとめと置き場所の重複の除き方は core の skill-files.test.ts が確かめる。ここは core の結果から作る通知の文を確かめる
+describe("拡張の起動時の dg の Skill の更新の通知（t857）", () => {
+  it("core が更新したもの（info）と、手を加えたので残したもの（warning）を、置き場所ごとに知らせる", async () => {
+    const repo = await createLocalOnlyRepo();
+    cleanups.push(repo.cleanup);
     const home = await tempDir();
     const work = await contentOf("dgwork");
     const plan = await contentOf("dgplan");
-    await put(repo, "dgwork", olderVersionOf(work.content));
+    await putSkill(repo.dir, "dgwork", olderVersionOf(work.content));
     const edited = `${olderVersionOf(plan.content)}\nmy note\n`;
-    await put(home, "dgplan", edited);
+    await putSkill(home, "dgplan", edited);
 
-    const refreshed = await refreshSkillsOf([repo, outside], { HOME: home });
-    expect(refreshed).toEqual([
-      { scope: "project", dir: skillsDir(repo), updated: ["dgwork"], edited: [] },
-      { scope: "personal", dir: skillsDir(home), updated: [], edited: ["dgplan"] },
-    ]);
-    expect(await readFile(path.join(skillsDir(repo), "dgwork", "SKILL.md"), "utf8")).toBe(
-      work.content,
-    );
-    // 手で直したものは書き換えない
-    expect(await readFile(path.join(skillsDir(home), "dgplan", "SKILL.md"), "utf8")).toBe(edited);
-    // リポジトリの外のフォルダには書かず、入れていない Skill も足さない
-    await expect(readdir(path.join(outside, ".claude"))).rejects.toThrow();
-    expect(await readdir(skillsDir(repo))).toEqual(["dgwork"]);
-
+    const refreshed = await refreshInstalledSkills({ folders: [repo.dir], env: { HOME: home } });
+    expect(await readFile(skillFileOf(repo.dir, "dgwork"), "utf8")).toBe(work.content);
+    expect(await readFile(skillFileOf(home, "dgplan"), "utf8")).toBe(edited);
     expect(skillRefreshNotices(refreshed)).toEqual([
       {
         level: "info",
-        text: `Updated the dg Skills in ${skillsDir(repo)} to the ones bundled with this extension: dgwork`,
+        text: `Updated the dg Skills in ${skillsDir(repo.dir)} to the ones bundled with this extension: dgwork`,
       },
       {
         level: "warning",
@@ -79,14 +56,10 @@ describe("拡張の起動時の dg の Skill の更新（t857）", () => {
     ]);
   });
 
-  it("変えるものがなければ通知しない。作業フォルダがなくても個人の置き場所は見る", async () => {
+  it("変えるものがなければ通知しない", async () => {
     const home = await tempDir();
-    const work = await contentOf("dgwork");
-    await put(home, "dgwork", work.content);
-    expect(skillRefreshNotices(await refreshSkillsOf([], { HOME: home }))).toEqual([]);
-    await put(home, "dgwork", olderVersionOf(work.content));
-    expect(await refreshSkillsOf([], { HOME: home })).toEqual([
-      { scope: "personal", dir: skillsDir(home), updated: ["dgwork"], edited: [] },
-    ]);
+    await putSkill(home, "dgwork", (await contentOf("dgwork")).content);
+    const refreshed = await refreshInstalledSkills({ folders: [], env: { HOME: home } });
+    expect(skillRefreshNotices(refreshed)).toEqual([]);
   });
 });

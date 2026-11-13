@@ -10,6 +10,7 @@ import {
   ASK_ACTIONS,
   ASK_SKILLS,
   askCandidates,
+  buildSkills,
   createLocalClient,
   init,
   openContext,
@@ -21,7 +22,6 @@ import {
 import { startServer } from "@deguboard/server";
 import { createFixture } from "../../core/test/helpers/git-fixture.js";
 import { run } from "./program.js";
-import { buildSkills } from "./skill.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {

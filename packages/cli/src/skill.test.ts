@@ -11,12 +11,13 @@ import {
   SKILL_SUMMARY,
   agentSkillDirs,
   askSkillInstalled,
+  buildSkills,
   skillSummary,
 } from "@deguboard/core";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
 import { readGuide } from "./guide.js";
 import { run } from "./program.js";
-import { buildSkills, installSkill } from "./skill.js";
+import { installSkill } from "./skill.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {

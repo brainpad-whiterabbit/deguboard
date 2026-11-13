@@ -18,6 +18,7 @@ import {
   detailOfRoute,
   detailRouteOf,
   pickUser,
+  refreshInstalledSkills,
   toCommandFailure,
   WEBVIEW_CONTRACT,
   type CommandClient,
@@ -63,7 +64,7 @@ import {
   onPath,
   unlinkDg,
 } from "./launcher.js";
-import { refreshSkillsOf, skillRefreshNotices } from "./skills.js";
+import { skillRefreshNotices } from "./skills.js";
 import { pickedSide, syncNotice } from "./sync-resolve.js";
 import {
   describeTerminals,
@@ -255,13 +256,14 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 /**
- * 入れてある dg の Skill のうち同梱の dg のものと違うものを更新し、更新したものと手を加えたので残したものを通知する（skills.ts）。
+ * 入れてある dg の Skill のうち同梱の dg のものと違うものを core の refreshInstalledSkills で更新し、更新したものと手を加えたので残したものを通知する（文は skills.ts）。
  * 起動のたびに中身で比べるので、同じ版の入れ直しでも拾う。確かめられなくても画面は動くので、知らせずに記録だけ残す
  */
 async function refreshSkills(): Promise<void> {
   try {
     const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-    for (const notice of skillRefreshNotices(await refreshSkillsOf(folders, process.env))) {
+    const refreshed = await refreshInstalledSkills({ folders, env: process.env });
+    for (const notice of skillRefreshNotices(refreshed)) {
       const show =
         notice.level === "warning"
           ? vscode.window.showWarningMessage

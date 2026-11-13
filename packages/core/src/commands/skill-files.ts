@@ -2,13 +2,16 @@
 // dg skill install（CLI）が書くか残すかを決めるのも、dg hooks check・dg next・dg brief が古い Skill を知らせるのも、
 // VS Code 拡張が起動時に古い Skill を更新するのも、ここの skillStateOf を通す（判定を 2 つ持たない）。
 // Skill を書くのも、dg skill install と拡張で同じ writeSkillFiles を通す。
+// 公開（commands/index.ts）は入口が呼ぶものだけにする。判定の部品（skillStateOf・findStaleSkills・staleSkillWarnings）はここのテストが直接引く。
+// Skill の組み立て（buildSkills）は guide を読むので、1 回の操作で 1 回にし、組み立てたものを部品に渡して使い回す。
 // 名前・説明・引数の案内は guide の frontmatter から、冒頭の 1 文は SKILL_SUMMARY の en から、本文は SKILL_TEMPLATE から作る。
 // 雛形をファイルにせず定数にするのは、束ねた配置（拡張の extension.cjs・同梱の dg.mjs）でも置き場所を合わせずに読めるようにするため
 
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { agentSkillPlaces, type AgentEnv, type SkillPlace } from "../agents/index.js";
+import { resolveRepoPaths } from "../git/index.js";
 import { readGuide, readGuideMeta } from "../guide/guide.js";
 import { GUIDE_TOPICS, type GuideTopic } from "../guide/topics.js";
 import { stringify as stringifyYaml } from "yaml";
@@ -104,22 +107,28 @@ export interface StaleSkills extends SkillPlace {
   edited: string[];
 }
 
+/** 同じディレクトリの置き場所を 1 つにする（先に出たものを残す）。リポジトリがホームディレクトリのときと、個人の置き場所を複数のフォルダから見るとき */
+function uniquePlaces(places: readonly SkillPlace[]): SkillPlace[] {
+  const seen = new Set<string>();
+  return places.filter((p) => {
+    if (seen.has(p.dir)) return false;
+    seen.add(p.dir);
+    return true;
+  });
+}
+
 /**
- * リポジトリ（topLevel の下）と個人（env の HOME の下）の Skill のディレクトリを見て、入れてある dg の Skill のうち今の dg のものと違うものを返す。
+ * 置き場所ごとに、入れてある dg の Skill のうち今の dg のもの（skills）と違うものを返す。
  * 違うものがない置き場所は返さない。入れていない Skill は数えない（Skill は任意で、足りないことは知らせない）。
  * 今の版をもとに手を加えた Skill（印が今の dg のものと同じ）も数えない。古くはなく、知らせても毎回同じ警告が出続けるだけになる。
- * 印を消した Skill はもとの版が分からないので edited に入れる。
- * topLevel を省くと個人の置き場所だけを見る（リポジトリの外）
+ * 印を消した Skill はもとの版が分からないので edited に入れる
  */
-export async function findStaleSkills(query: {
-  topLevel?: string | undefined;
-  env: AgentEnv;
-}): Promise<StaleSkills[]> {
-  const skills = await buildSkills();
+async function staleSkillsIn(
+  places: readonly SkillPlace[],
+  skills: readonly SkillFile[],
+): Promise<StaleSkills[]> {
   const found: StaleSkills[] = [];
-  for (const place of agentSkillPlaces(query)) {
-    // リポジトリがホームディレクトリのときは同じ場所を 2 回見ない
-    if (found.some((f) => f.dir === place.dir)) continue;
+  for (const place of uniquePlaces(places)) {
     const stale: string[] = [];
     const edited: string[] = [];
     for (const skill of skills) {
@@ -133,6 +142,17 @@ export async function findStaleSkills(query: {
     if (stale.length > 0 || edited.length > 0) found.push({ ...place, stale, edited });
   }
   return found;
+}
+
+/**
+ * リポジトリ（topLevel の下）と個人（env の HOME の下）の Skill のディレクトリを見て、入れてある dg の Skill のうち今の dg のものと違うものを返す
+ * （数え方は staleSkillsIn）。topLevel を省くと個人の置き場所だけを見る（リポジトリの外）
+ */
+export async function findStaleSkills(query: {
+  topLevel?: string | undefined;
+  env: AgentEnv;
+}): Promise<StaleSkills[]> {
+  return staleSkillsIn(agentSkillPlaces(query), await buildSkills());
 }
 
 /** 1 つの Skill のディレクトリに dg の Skill を書いた結果 */
@@ -152,11 +172,17 @@ export interface SkillWriteResult {
 /**
  * dir（Skill のディレクトリ）に dg の Skill を書く。dg skill install（CLI）と、VS Code 拡張が起動時に古い Skill を更新するのが、ここを通す。
  * 手を加えていない Skill は最新の中身で上書きし、手を加えたものは force がなければ残す。
- * names を渡すと、その名前の Skill だけを扱う（拡張は入れてある古い Skill だけを渡し、入れていない Skill を足さない）。dryRun なら書かずに中身を返す
+ * names を渡すと、その名前の Skill だけを扱う（拡張は入れてある古い Skill だけを渡し、入れていない Skill を足さない）。dryRun なら書かずに中身を返す。
+ * skills は呼び出し側がすでに組み立てた Skill（省くとここで組み立てる）
  */
 export async function writeSkillFiles(
   dir: string,
-  options: { force: boolean; dryRun?: boolean; names?: readonly string[] },
+  options: {
+    force: boolean;
+    dryRun?: boolean;
+    names?: readonly string[];
+    skills?: readonly SkillFile[];
+  },
 ): Promise<SkillWriteResult> {
   const result: SkillWriteResult = {
     written: [],
@@ -165,7 +191,7 @@ export async function writeSkillFiles(
     conflicts: [],
     files: [],
   };
-  const skills = (await buildSkills()).filter(
+  const skills = (options.skills ?? (await buildSkills())).filter(
     (s) => options.names === undefined || options.names.includes(s.name),
   );
   for (const skill of skills) {
@@ -198,9 +224,44 @@ export interface RefreshedSkills extends SkillPlace {
   edited: string[];
 }
 
+/** 廃止した Skill と、手を加えていないとみなす中身の sha256。一致すれば消し、違えば残して知らせる */
+const RETIRED_SKILLS: Record<string, string[]> = {
+  deguboard: ["490a7544e6cb3b3c697b76113bd496fb7b2dd9e531e87762b08b83e5cd4e3606"],
+};
+
 /**
- * VS Code 拡張が起動のたびに呼ぶ。入れてある dg の Skill のうち今の dg のものと違うものを findStaleSkills で見つけ、
+ * dir（Skill のディレクトリ）に残っている廃止済みの Skill を片付ける（dg skill install）。
+ * 手を加えていないものは消して retired に、手を加えたものは残して retiredKept に返す。dryRun なら消さずに同じ分け方を返す
+ */
+export async function removeRetiredSkills(
+  dir: string,
+  options: { dryRun?: boolean } = {},
+): Promise<{ retired: string[]; retiredKept: string[] }> {
+  const result: { retired: string[]; retiredKept: string[] } = { retired: [], retiredKept: [] };
+  for (const [name, hashes] of Object.entries(RETIRED_SKILLS)) {
+    const path = join(dir, name, "SKILL.md");
+    const current = await readFile(path, "utf8").catch(() => undefined);
+    if (current === undefined) continue;
+    if (!hashes.includes(sha256(current))) {
+      result.retiredKept.push(name);
+      continue;
+    }
+    if (!options.dryRun) {
+      await rm(path);
+      // ほかのファイルを置いていればフォルダは残す
+      await rmdir(dirname(path)).catch(() => undefined);
+    }
+    result.retired.push(name);
+  }
+  return result;
+}
+
+/**
+ * VS Code 拡張が起動のたびに、開いている作業フォルダ（folders）を渡して呼ぶ。フォルダごとのリポジトリと個人の置き場所を見て、
+ * 入れてある dg の Skill のうち今の dg のものと違うものを見つけ（staleSkillsIn）、
  * 手を加えていないものを writeSkillFiles（dg skill install と同じ処理）で上書きする。手を加えたものは書き換えずに返す。
+ * リポジトリの外のフォルダは個人の置き場所だけを見る。フォルダがなくても個人の置き場所は見る。
+ * 個人の置き場所はどのフォルダからも同じで、同じリポジトリのフォルダも重なるので、置き場所（dir）ごとに 1 回だけ見る。
  * 入れていない Skill は足さず、dg の Skill のない置き場所には書かない（Skill は任意で、各自が入れる。AG-2）。
  * 版を比べずに中身で比べるので、同じ版の拡張を入れ直しても拾う。変えるものも知らせるものもない置き場所は返さない。
  * 中身が違うことしか分からず、どちらが新しいかは分からない。PATH の dg（npm やソースの dg）が拡張より新しいと、
@@ -208,15 +269,26 @@ export interface RefreshedSkills extends SkillPlace {
  * 版で止めるかは決めていないので、ここでは中身の違いだけで更新し、通知も「古い」ではなく「違う」と書く
  */
 export async function refreshInstalledSkills(query: {
-  topLevel?: string | undefined;
+  folders: readonly string[];
   env: AgentEnv;
 }): Promise<RefreshedSkills[]> {
+  const tops: Array<string | undefined> = [];
+  for (const folder of query.folders)
+    tops.push(
+      await resolveRepoPaths(folder).then(
+        (p) => p.topLevel,
+        () => undefined,
+      ),
+    );
+  if (tops.length === 0) tops.push(undefined);
+  const places = tops.flatMap((topLevel) => agentSkillPlaces({ topLevel, env: query.env }));
+  const skills = await buildSkills();
   const refreshed: RefreshedSkills[] = [];
-  for (const found of await findStaleSkills(query)) {
+  for (const found of await staleSkillsIn(places, skills)) {
     const updated =
       found.stale.length === 0
         ? []
-        : (await writeSkillFiles(found.dir, { force: false, names: found.stale })).updated;
+        : (await writeSkillFiles(found.dir, { force: false, names: found.stale, skills })).updated;
     if (updated.length > 0 || found.edited.length > 0)
       refreshed.push({ scope: found.scope, dir: found.dir, updated, edited: found.edited });
   }
