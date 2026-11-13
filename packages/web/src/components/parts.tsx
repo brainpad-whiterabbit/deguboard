@@ -85,8 +85,12 @@ export function DetailLink({
   );
 }
 
-/** 文の中の ID（t12・e3・s2・p7）。前後が英数字に続く字（step1 の p1 など）は ID にしない */
-const TEXT_ID = /(?<![A-Za-z0-9_])([tesp][1-9]\d*)(?![A-Za-z0-9_])/;
+/**
+ * 文の中の ID（t12・e3・s2・p7）。境界の規則は VS Code 拡張の ID_PATTERN（packages/vscode/src/ids.ts）と同じにし、
+ * カンバンとエディタで同じ字だけをリンクにする（web は vscode に依存しないので形を写している。変えるときは両方を直す）。
+ * 語や経路の一部（step1・feat/t12・v1.t2・t12abc・t12-foo・t12.md）は拾わず、文末の「t12.」・括弧・日本語に隣り合う「t12を」は拾う
+ */
+const TEXT_ID = /(?<![\w/.-])([tsep][1-9]\d*)(?![\w/]|[-.]\w)/;
 
 /** ID の頭の文字から詳細の画面を決める（core の model/id.ts の ID_PREFIX と同じ対応） */
 function idRoute(id: string): Route {

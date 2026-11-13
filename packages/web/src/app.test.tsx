@@ -1923,20 +1923,34 @@ describe("画面", () => {
         status: "active",
         // 実績の started_at から出す（active は開始だけ）
         started_at: "2026-11-01T12:00:00Z",
-        goal: "左パネルを整える",
+        goal: "左パネルを整える（t2、feat/t3 は ID にしない）",
       }),
       iteration({ id: "s2", name: "次", status: "planned" }),
     ];
     client.data.tickets[1]!.iteration = "s1";
     client.data.tickets[2]!.iteration = "s1";
-    mount(client, hostOf("sidebar"));
+    const opened: Route[] = [];
+    mount(
+      client,
+      hostOf("sidebar", (route) => opened.push(route)),
+    );
     await screen.findByText("API");
     const [s1] = [...document.querySelectorAll<HTMLDetailsElement>("details.backlog-section")];
     expect(s1!.classList.contains("iteration-active")).toBe(true);
     const lines = [...s1!.querySelectorAll("summary > .head-line")];
-    expect(lines.map((l) => l.textContent)).toEqual(["s1 今2 件", "進行中11/1–左パネルを整える"]);
-    // 2 段目は 1 行で目標から省略し、目標の全文はツールチップで読む（カンバンの見出しと同じ）
-    expect(lines[1]!.querySelector(".goal")!.getAttribute("title")).toBe("左パネルを整える");
+    expect(lines.map((l) => l.textContent)).toEqual([
+      "s1 今2 件",
+      "進行中11/01–左パネルを整える（t2、feat/t3 は ID にしない）",
+    ]);
+    // 2 段目は 1 行で目標から省略し、目標の全文はツールチップで読む（カンバンの見出しと同じ部品）
+    const goal = lines[1]!.querySelector(".goal")!;
+    expect(goal.getAttribute("title")).toBe("左パネルを整える（t2、feat/t3 は ID にしない）");
+    // 目標の中の ID はカンバンの見出しと同じく詳細へのリンクにし、ふつうのクリックで開く
+    const links = [...goal.querySelectorAll("a")];
+    expect(links.map((a) => a.textContent)).toEqual(["t2"]);
+    fireEvent.click(links[0]!);
+    expect(opened).toEqual([{ page: "ticket", id: "t2" }]);
+    expect(s1!.open).toBe(true);
     expect(s1!.querySelector(".actions")).toBeNull();
     expect(screen.queryByRole("button", { name: "s1 の操作" })).toBeNull();
     expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
@@ -2551,7 +2565,7 @@ describe("画面", () => {
     );
     await screen.findByText("API");
     const head = document.querySelector(".sidebar-head")!;
-    expect(head.querySelector(".head-line.sub")!.textContent).toBe("今11/2–3 日目");
+    expect(head.querySelector(".head-line.sub")!.textContent).toBe("今11/02–3 日目");
     const goal = head.querySelector(".head-goal")!;
     expect(goal.textContent).toBe("e1 を仕上げ、t2・p3 と s1 を見る。step1 は ID にしない");
     const links = [...goal.querySelectorAll("a")];

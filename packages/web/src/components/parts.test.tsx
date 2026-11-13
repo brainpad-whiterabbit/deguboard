@@ -9,6 +9,7 @@ import { PRIORITY_CRITERIA_EN } from "../l10n-en.js";
 import { configFields } from "@deguboard/core";
 import {
   ActivityMark,
+  IdLinkedText,
   PriorityMark,
   ProgressBar,
   RowPriority,
@@ -33,6 +34,53 @@ describe("行の担当", () => {
     expect(sameAssignee([{ assignee: "eiki/agent" }, {}])).toBe(false);
     expect(sameAssignee([{}, {}])).toBe(false);
     expect(sameAssignee([])).toBe(false);
+  });
+});
+
+describe("文の中の ID のリンク（IdLinkedText）", () => {
+  // 境界の規則は VS Code 拡張の findIds（packages/vscode/src/ids.test.ts）と同じ例で確かめる
+  const linked = (text: string) => {
+    const { container } = render(
+      <HostProvider
+        host={{
+          surface: "sidebar",
+          open: () => {},
+          show: () => {},
+          copy: async () => {},
+          state: createUiState(memoryBackend()),
+        }}
+      >
+        <p>
+          <IdLinkedText text={text} />
+        </p>
+      </HostProvider>,
+    );
+    const p = container.querySelector("p")!;
+    expect(p.textContent, "ID のほかの字はそのまま出す").toBe(text);
+    const ids = [...p.querySelectorAll("a")].map((a) => a.textContent);
+    cleanup();
+    return ids;
+  };
+
+  it("文末の句読点・括弧・引用符・# や @ の後ろ、全角の括弧と日本語に隣り合う ID はリンクにする", () => {
+    expect(linked("t12. t13, (t14) 'e2' #t5 @s3 「p7」")).toEqual([
+      "t12",
+      "t13",
+      "t14",
+      "e2",
+      "t5",
+      "s3",
+      "p7",
+    ]);
+    expect(linked("（t374）t12を直す。これはt13です")).toEqual(["t374", "t12", "t13"]);
+  });
+
+  it("語の中・URL・パス・ブランチ名・ファイル名の一部とゼロ始まりはリンクにしない", () => {
+    expect(linked("abc12 test12 step1 t12abc 12t3")).toEqual([]);
+    expect(linked("https://example.com/t12 feat/t12-foo t12.md t12-foo t12/x a.t12 v1-s3")).toEqual(
+      [],
+    );
+    expect(linked("t0 t012 t s e")).toEqual([]);
   });
 });
 

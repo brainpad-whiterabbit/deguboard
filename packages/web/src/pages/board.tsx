@@ -27,14 +27,13 @@ import {
   StatusCounts,
   StatusDot,
   DetailLink,
-  IdLinkedText,
 } from "../components/parts.js";
 import { formatShortTime } from "../components/date-time.js";
 import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic-chip.js";
 import { EpicFilterHead } from "../components/epic-head.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { PlanBand } from "../components/plan-band.js";
-import { activeDay, shortPeriod } from "../components/iteration-parts.js";
+import { activeDay, IterationGoal, shortPeriod } from "../components/iteration-parts.js";
 import { openPlanByTicket } from "../components/plan-graph.js";
 import {
   isWaitingReadiness,
@@ -409,11 +408,7 @@ function BoardHead({
           {period ? <span className="period">{period}</span> : null}
           {day !== undefined ? <span className="period day">{tr("{0} 日目", day)}</span> : null}
         </div>
-        {goal ? (
-          <div className="head-goal muted" title={goal}>
-            <IdLinkedText text={goal} />
-          </div>
-        ) : null}
+        {goal ? <IterationGoal goal={goal} className="head-goal muted" /> : null}
         {spot.overlay}
       </div>
       {epicHead}

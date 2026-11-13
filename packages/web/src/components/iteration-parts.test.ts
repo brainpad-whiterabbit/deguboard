@@ -47,21 +47,41 @@ describe("Iteration の見出しの実績の期間", () => {
     process.env.TZ = "Asia/Tokyo";
     // UTC の 11/14 16:00 は東京では 11/15
     expect(
-      shortPeriod({
-        status: "closed",
-        started_at: "2026-11-14T16:00:00Z",
-        closed_at: "2026-11-28T03:00:00Z",
-      }),
+      shortPeriod(
+        {
+          status: "closed",
+          started_at: "2026-11-14T16:00:00Z",
+          closed_at: "2026-11-28T03:00:00Z",
+        },
+        new Date("2026-12-01T03:00:00Z"),
+      ),
     ).toBe("11/15–11/28");
   });
 
   it("active は開始だけ、planned は期間を出さない", () => {
-    expect(shortPeriod({ status: "active", started_at: "2026-11-05T03:00:00Z" })).toBe("11/5–");
+    const now = new Date("2026-11-13T03:00:00Z");
+    expect(shortPeriod({ status: "active", started_at: "2026-11-05T03:00:00Z" }, now)).toBe(
+      "11/05–",
+    );
     expect(shortPeriod({ status: "planned" })).toBeUndefined();
   });
 
   it("started_at のない Iteration は開始を「不明」と出す", () => {
     expect(shortPeriod({ status: "active" })).toBe("不明–");
-    expect(shortPeriod({ status: "closed", closed_at: "2026-11-28T03:00:00Z" })).toBe("不明–11/28");
+    const now = new Date("2026-12-01T03:00:00Z");
+    expect(shortPeriod({ status: "closed", closed_at: "2026-11-28T03:00:00Z" }, now)).toBe(
+      "不明–11/28",
+    );
+  });
+
+  it("月日は履歴の日付と同じ書き方（ゼロ埋め、今年でなければ年を付ける）で、読めない日時はそのまま出す", () => {
+    const now = new Date("2026-01-03T03:00:00Z");
+    expect(
+      shortPeriod(
+        { status: "closed", started_at: "2025-12-30T03:00:00Z", closed_at: "2026-01-02T03:00:00Z" },
+        now,
+      ),
+    ).toBe("2025/12/30–01/02");
+    expect(shortPeriod({ status: "active", started_at: "x" }, now)).toBe("x–");
   });
 });

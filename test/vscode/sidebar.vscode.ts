@@ -3,7 +3,7 @@
 // - カンバンにチケットの行が出て、タブ（バックログ）に切り替えても戻しても行が出ること
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
-// - ライトとダークのテーマでスクリーンショット（カンバン・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面）を test/vscode/screenshots/ に出すこと
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
 import { access } from "node:fs/promises";
@@ -146,9 +146,14 @@ describe("VS Code の実機の左パネル", () => {
     await head.waitFor({ state: "detached" });
     await sidebar.locator(".ticket-row", { hasText: TITLES[2] }).waitFor();
 
-    // バックログは「なし」で絞る（Iteration に入っていない t2 は Epic がない）
+    // バックログは絞る前に区画の見出し（期間と、目標の中の ID のリンク）を撮り、そのあと「なし」で絞る（Iteration に入っていない t2 は Epic がない）
     await sidebar.locator('nav a[href="#/backlog"]').click();
     await sidebar.locator(".ticket-row", { hasText: TITLES[1] }).waitFor();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("backlog", theme);
+      await access(shot.sidebar);
+    }
     await sidebar.locator(".epic-chips .epic-chip.loose").click();
     await head.waitFor();
     for (const theme of ["dark", "light"] as const) {

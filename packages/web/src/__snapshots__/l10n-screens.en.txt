@@ -36,7 +36,7 @@ e1
 None
 2
 最初の Iteration
-11/1–
+11/01–
 Day 4
 [title] 目標データの文
 目標データの文
@@ -156,7 +156,7 @@ s1
 2
 items
 Active
-11/1–
+11/01–
 [title] 目標データの文
 目標データの文
 [title] Ask Agent (Shift+F10)
@@ -1286,7 +1286,7 @@ e1
 None
 2
 最初の Iteration
-11/1–
+11/01–
 Day 4
 [title] 目標データの文
 目標データの文
