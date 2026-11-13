@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 650" width="1200" height="650" role="img" aria-labelledby="fig-title fig-desc">
-  <!-- README.ja.md の flow.ja.png の元。Chromium（リポジトリの Playwright）で、viewBox と同じ 1200×650 の画面に倍率 2 で描いて撮った（Inter・Space Grotesk・Noto Sans JP は Google Fonts から読んだ） -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 610" width="1200" height="610" role="img" aria-labelledby="fig-title fig-desc">
+  <!-- README.ja.md の flow.ja.png の元。Chromium（リポジトリの Playwright）で、viewBox と同じ 1200×610 の画面に倍率 2 で描いて撮った（Inter・Space Grotesk・Noto Sans JP は Google Fonts から読んだ） -->
   <title id="fig-title">deguboard の開発の流れ</title>
-  <desc id="fig-desc">あなたとエージェントは繰り返しの中で働く。エージェントが思いつきを小さなチケットにし、あなたが承認する。エージェントがチケットを計画に並べ、あなたが承認する。Iteration では、いくつものエージェントが依存のないチケットを並列に進め、品質ゲートで別のエージェントが見直し、落ちたものは作業に戻り、マージはあなたが承認する。エージェントがリポジトリ全体を見直し、リリースはあなたが承認する。エージェントが実績を報告し、あなたが改善を選び、それが次のチケットになる。</desc>
+  <desc id="fig-desc">あなたとチームとエージェントは繰り返しの中で働き、チームの全員が同じボードを見る。エージェントが思いつきを受け入れ条件の付いた小さなチケットにし、あなたが承認する。エージェントがチケットを依存の順に計画に並べ、あなたが承認する。Iteration では、エージェントが依存のないチケットを並列に進め、チケットごとの時間とトークンが示される。品質ゲートで検査と別のエージェントによる見直しを通し、落ちたものは直しに戻り、マージに進む。あなたは Iteration を監視する。エージェントがリポジトリ全体を見直し、リリースはあなたが承認する。エージェントが働きごとの時間・トークン・やり直しの推移を報告し、あなたが改善を選び、それがエージェントとソフトウェアの改善になる。</desc>
   <style>
     text { font-family: "Inter", "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, system-ui, sans-serif; fill: #18202B; }
     .t-title, .t-iter, .t-node, .t-chip, .t-loop, .t-actor-you, .t-actor-agent, .t-tk-id, .t-dn, .t-dn-ready, .t-kpi { font-family: "Space Grotesk", "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, system-ui, sans-serif; }
@@ -65,6 +65,17 @@
     .ab { fill: #E3E9FB; stroke: #2F55C8; stroke-width: 1.5; }
     .actor-card-you { fill: #FBEFD9; }
     .actor-card-agent { fill: #E3E9FB; }
+    .hb-back { opacity: .55; }
+    .epic { fill: #E3E9FB; }
+    .t-epic { font-size: 8px; font-weight: 600; fill: #2F55C8; }
+    .lbl { fill: #F1F3F6; stroke: #C9D0D9; stroke-width: .8; }
+    .t-lbl { font-size: 8px; fill: #5B6573; }
+    .t-tk-sum { font-size: 8.5px; fill: #5B6573; }
+    .t-merge-cap { font-size: 11.5px; font-weight: 600; fill: #B8700F; }
+    .t-m { font-size: 9px; fill: #18202B; }
+    .t-mv { font-size: 9px; font-weight: 700; fill: #2E7D6B; }
+    .rework-bg { fill: #FFFFFF; stroke: #C2413A; stroke-opacity: .35; }
+    .t-run { font-size: 9px; font-weight: 600; fill: #2E7D6B; opacity: .75; }
   </style>
   <defs>
     <marker id="m-flow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-flow" d="M0,0 L10,5 L0,10 z"/></marker>
@@ -85,47 +96,47 @@
     </symbol>
   </defs>
 
-  <rect class="bg" x="0" y="0" width="1200" height="650"/>
+  <rect class="bg" x="0" y="0" width="1200" height="610"/>
 
   <!-- 戻りの弧：振り返り → バックログ -->
   <path class="loop" d="M1110,150 V110 Q1110,60 1060,60 H180 Q130,60 130,110 V138" marker-end="url(#m-loop)"/>
-  <rect class="label-bg" x="440" y="46" width="360" height="28"/>
-  <text class="t-loop" x="620" y="66" text-anchor="middle">改善が次のチケットになる</text>
+  <rect class="label-bg" x="400" y="46" width="440" height="28"/>
+  <text class="t-loop" x="620" y="66" text-anchor="middle">エージェントとソフトウェアの改善になる</text>
 
   <!-- 1. バックログ -->
   <g>
-    <rect class="ticket" x="62" y="144" width="160" height="124" rx="6"/>
-    <rect class="ticket" x="56" y="150" width="160" height="124" rx="6"/>
-    <rect class="ticket tk-front" x="50" y="156" width="160" height="124" rx="6"/>
-    <rect class="tk-id" x="60" y="164" width="24" height="14" rx="3"/>
-    <text class="t-tk-id" x="72" y="174.5" text-anchor="middle">t15</text>
-    <text class="t-tk-title" x="90" y="175">ボードを CSV で出す</text>
-    <line class="axis" x1="60" y1="185" x2="200" y2="185"/>
-    <text class="t-tk-label" x="60" y="198">受け入れ条件</text>
-    <rect class="ticket-box" x="60" y="204" width="8" height="8" rx="2"/><text class="t-tk" x="74" y="211.5">すべての列を書き出す</text>
-    <rect class="ticket-box" x="60" y="218" width="8" height="8" rx="2"/><text class="t-tk" x="74" y="225.5">カンマをエスケープする</text>
-    <rect class="ticket-box" x="60" y="232" width="8" height="8" rx="2"/><text class="t-tk" x="74" y="239.5">表計算ソフトで開ける</text>
-    <line class="axis" x1="60" y1="249" x2="200" y2="249"/>
-    <text class="t-tk-label" x="60" y="266">依存先</text>
-    <rect class="dn" x="122" y="257" width="26" height="13" rx="3"/><text class="t-dn" x="135" y="266.5" text-anchor="middle">t12</text>
-    <rect class="dn" x="152" y="257" width="26" height="13" rx="3"/><text class="t-dn" x="165" y="266.5" text-anchor="middle">t13</text>
+    <rect class="ticket" x="62" y="138" width="160" height="140" rx="6"/>
+    <rect class="ticket" x="56" y="144" width="160" height="140" rx="6"/>
+    <rect class="ticket tk-front" x="50" y="150" width="160" height="140" rx="6"/>
+    <rect class="tk-id" x="60" y="160" width="24" height="14" rx="3"/><text class="t-tk-id" x="72" y="170.5" text-anchor="middle">t15</text>
+    <text class="t-tk-title" x="90" y="171">パスワードの再設定</text>
+    <text class="t-tk-sum" x="60" y="185">忘れた人が自分で戻せるようにする</text>
+    <line class="axis" x1="60" y1="191" x2="200" y2="191"/>
+    <text class="t-tk-label" x="60" y="202">受け入れ条件</text>
+    <rect class="ticket-box" x="60" y="206" width="8" height="8" rx="2"/><text class="t-tk" x="74" y="213.5">リンクをメールで送る</text>
+    <rect class="ticket-box" x="60" y="218" width="8" height="8" rx="2"/><text class="t-tk" x="74" y="225.5">リンクは 1 時間で切れる</text>
+    <rect class="ticket-box" x="60" y="230" width="8" height="8" rx="2"/><text class="t-tk" x="74" y="237.5">古いログインを切る</text>
+    <line class="axis" x1="60" y1="243" x2="200" y2="243"/>
+    <text class="t-tk-label" x="60" y="254">エピック</text><rect class="epic" x="120" y="246" width="62" height="10" rx="3"/><text class="t-epic" x="151" y="253.5" text-anchor="middle">e4 アカウント</text>
+    <text class="t-tk-label" x="60" y="267">ラベル</text><rect class="lbl" x="120" y="258" width="25" height="10" rx="3"/><text class="t-lbl" x="132.5" y="265.5" text-anchor="middle">機能</text><rect class="lbl" x="149" y="258" width="25" height="10" rx="3"/><text class="t-lbl" x="161.5" y="265.5" text-anchor="middle">認証</text>
+    <text class="t-tk-label" x="60" y="280">依存先</text><rect class="dn" x="120" y="271" width="26" height="11" rx="3"/><text class="t-dn" x="133" y="279.5" text-anchor="middle">t12</text><rect class="dn" x="150" y="271" width="26" height="11" rx="3"/><text class="t-dn" x="163" y="279.5" text-anchor="middle">t13</text>
   </g>
-  <g><circle class="ab" cx="208" cy="158" r="15"/><use href="#agent" x="198" y="148" width="20" height="20"/></g>
-  <text class="t-title" x="50" y="298">バックログ</text>
-  <text class="t-body" x="50" y="320">エージェントが思いつきを</text>
-  <text class="t-body" x="50" y="338">受け入れ条件の付いた</text>
-  <text class="t-body" x="50" y="356">小さなチケットにする</text>
+  <g><circle class="ab" cx="208" cy="152" r="15"/><use href="#agent" x="198" y="142" width="20" height="20"/></g>
+  <text class="t-title" x="50" y="318">バックログ</text>
+  <text class="t-body" x="50" y="340">あなたの思いつきを具体化し、</text>
+  <text class="t-body" x="50" y="358">受け入れ条件が付いた</text>
+  <text class="t-body" x="50" y="376">小さなチケットにする</text>
   <g>
-    <rect class="stamp" x="50" y="380" width="128" height="30" rx="15"/>
-    <circle class="hb" cx="65" cy="395" r="11"/><use href="#human" x="57" y="387" width="16" height="16"/>
-    <text class="t-stamp" x="82" y="399">あなたが承認</text>
+    <rect class="stamp" x="50" y="404" width="128" height="30" rx="15"/>
+    <circle class="hb" cx="65" cy="419" r="11"/><use href="#human" x="57" y="411" width="16" height="16"/>
+    <text class="t-stamp" x="82" y="423">あなたが承認</text>
   </g>
 
-  <path class="flow" d="M226,230 H262" marker-end="url(#m-flow)"/>
+  <path class="flow" d="M226,220 H262" marker-end="url(#m-flow)"/>
 
   <!-- 2. 計画 -->
-  <rect class="box" x="270" y="150" width="150" height="120" rx="8"/>
-  <g>
+  <rect class="box" x="270" y="150" width="150" height="140" rx="8"/>
+  <g transform="translate(-32.3,3) scale(1.1)">
     <path class="dep" d="M312,171 C320,171 320,180 325,180" marker-end="url(#m-dep)"/>
     <path class="dep" d="M312,190 C320,190 320,180 325,180" marker-end="url(#m-dep)"/>
     <path class="dep" d="M312,209 H325" marker-end="url(#m-dep)"/>
@@ -138,23 +149,24 @@
     <rect class="dn" x="328" y="202" width="30" height="14" rx="3"/><text class="t-dn" x="343" y="212.5" text-anchor="middle">t16</text>
     <rect class="dn" x="374" y="187" width="30" height="14" rx="3"/><text class="t-dn" x="389" y="197.5" text-anchor="middle">t17</text>
   </g>
+  <rect class="dn-ready" x="282" y="273" width="9" height="9" rx="2"/><text class="t-tk" x="295" y="281">着手できる</text><rect class="dn" x="356" y="273" width="9" height="9" rx="2"/><text class="t-tk" x="369" y="281">待ち</text>
   <g><circle class="ab" cx="414" cy="152" r="15"/><use href="#agent" x="404" y="142" width="20" height="20"/></g>
-  <text class="t-title" x="286" y="246">計画</text>
-  <text class="t-small" x="286" y="262">依存の順に並べる</text>
-  <text class="t-body" x="270" y="298">エージェントは</text>
-  <text class="t-body" x="270" y="316">あなたの承認の後に着手する</text>
+  <text class="t-title" x="270" y="318">計画</text>
+  <text class="t-body" x="270" y="340">依存の順に並べる。</text>
+  <text class="t-body" x="270" y="358">あなたが承認したら</text>
+  <text class="t-body" x="270" y="376">エージェントが始める</text>
   <g>
-    <rect class="stamp" x="270" y="334" width="128" height="30" rx="15"/>
-    <circle class="hb" cx="285" cy="349" r="11"/><use href="#human" x="277" y="341" width="16" height="16"/>
-    <text class="t-stamp" x="302" y="353">あなたが承認</text>
+    <rect class="stamp" x="270" y="404" width="128" height="30" rx="15"/>
+    <circle class="hb" cx="285" cy="419" r="11"/><use href="#human" x="277" y="411" width="16" height="16"/>
+    <text class="t-stamp" x="302" y="423">あなたが承認</text>
   </g>
 
-  <path class="flow" d="M432,230 C460,230 470,200 520,186" marker-end="url(#m-flow)"/>
+  <path class="flow" d="M432,220 C462,220 482,196 520,184" marker-end="url(#m-flow)"/>
 
   <!-- 3. Iteration の繰り返し -->
   <circle class="ring" cx="620" cy="290" r="170"/>
   <path class="cycle" d="M652,159 A135,135 0 0 1 742,333" marker-end="url(#m-agent)"/>
-  <path class="cycle" d="M705,395 A135,135 0 0 1 535,395" marker-end="url(#m-agent)"/>
+  <path class="cycle" d="M705,395 A135,135 0 0 1 565,413 Q528,396 508,373" marker-end="url(#m-agent)"/>
   <path class="cycle" d="M498,333 A135,135 0 0 1 588,159" marker-end="url(#m-agent)"/>
 
   <text class="t-iter" x="620" y="250" text-anchor="middle">Iteration</text>
@@ -167,9 +179,16 @@
   <rect class="chip" x="602" y="336" width="36" height="20" rx="10"/><text class="t-chip" x="620" y="350" text-anchor="middle">t13</text>
   <rect class="chip" x="644" y="336" width="36" height="20" rx="10"/><text class="t-chip" x="662" y="350" text-anchor="middle">t14</text>
 
-  <rect class="node" x="566" y="140" width="108" height="32" rx="16"/>
-  <text class="t-node" x="620" y="161" text-anchor="middle">実装</text>
-  <text class="t-small" x="620" y="128" text-anchor="middle">それぞれ専用のブランチで</text>
+  <text class="t-mv" x="578" y="368" text-anchor="middle">18m</text>
+  <text class="t-mv" x="620" y="368" text-anchor="middle">9m</text>
+  <text class="t-mv" x="662" y="368" text-anchor="middle">25m</text>
+  <text class="t-run" x="578" y="379" text-anchor="middle">52k</text>
+  <text class="t-run" x="620" y="379" text-anchor="middle">31k</text>
+  <text class="t-run" x="662" y="379" text-anchor="middle">74k</text>
+  <text class="t-kpi-label" x="620" y="393" text-anchor="middle">チケットごとの時間・トークン</text>
+  <rect class="node" x="556" y="140" width="128" height="32" rx="16"/>
+  <circle class="ab" cx="574" cy="156" r="12"/><use href="#agent" x="566" y="148" width="16" height="16"/>
+  <text class="t-node" x="630" y="161" text-anchor="middle">実装</text>
 
   <rect class="node" x="690" y="336" width="148" height="32" rx="16"/>
   <circle class="ab" cx="708" cy="352" r="12"/><use href="#agent" x="700" y="344" width="16" height="16"/>
@@ -177,38 +196,50 @@
   <text class="t-small" x="764" y="388" text-anchor="middle">検査と、別のエージェント</text>
   <text class="t-small" x="764" y="403" text-anchor="middle">による見直し</text>
 
-  <rect class="node" x="420" y="336" width="108" height="32" rx="16"/>
-  <text class="t-node" x="474" y="357" text-anchor="middle">マージ</text>
+  <rect class="node" x="410" y="336" width="128" height="32" rx="16"/>
+  <circle class="ab" cx="428" cy="352" r="12"/><use href="#agent" x="420" y="344" width="16" height="16"/>
+  <text class="t-node" x="484" y="357" text-anchor="middle">マージ</text>
   <g>
-    <rect class="stamp" x="410" y="380" width="128" height="30" rx="15"/>
-    <circle class="hb" cx="425" cy="395" r="11"/><use href="#human" x="417" y="387" width="16" height="16"/>
-    <text class="t-stamp" x="442" y="399">あなたが承認</text>
+    <rect class="stamp" x="556" y="438" width="128" height="30" rx="15"/>
+    <circle class="hb" cx="571" cy="453" r="11"/><use href="#human" x="563" y="445" width="16" height="16"/>
+    <text class="t-stamp" x="588" y="457">あなたが監視</text>
   </g>
 
   <path class="rework" d="M716,334 Q700,240 650,180" marker-end="url(#m-rework)"/>
   <!-- 日本語は横に長く、1 行だと外の弧に重なるので、点線と弧のあいだに 2 行で置く（Iteration の説明・ボードのチケット名・kpi のラベルも同じ理由で英語版より詰めた） -->
-  <text class="t-rework" x="690" y="228">落ちたら</text>
-  <text class="t-rework" x="694" y="242">直す</text>
 
-  <path class="flow" d="M796,290 H840" marker-end="url(#m-flow)"/>
+  <rect class="rework-bg" x="642" y="211" width="70" height="18" rx="9"/>
+  <text class="t-rework" x="677" y="224" text-anchor="middle">落ちたら直す</text>
+
+  <path class="flow" d="M782,220 H840" marker-end="url(#m-flow)"/>
 
   <!-- 4. リリース -->
-  <rect class="box" x="848" y="250" width="150" height="80" rx="8"/>
-  <g><circle class="ab" cx="992" cy="252" r="15"/><use href="#agent" x="982" y="242" width="20" height="20"/></g>
-  <text class="t-title" x="864" y="282">リリース</text>
-  <text class="t-small" x="864" y="303">リポジトリ全体を</text>
-  <text class="t-small" x="864" y="319">見直してから出す</text>
+  <rect class="box" x="848" y="150" width="150" height="140" rx="8"/>
+  <g transform="translate(0,-5)">
+    <text class="t-tk-label" x="860" y="184">見直した観点</text>
+    <rect class="dn-ready" x="860" y="194" width="9" height="9" rx="2"/><path d="M862,198.5 l2,2 l3.5,-4" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text class="t-tk" x="875" y="202">文書と実装</text>
+    <rect class="dn-ready" x="860" y="209" width="9" height="9" rx="2"/><path d="M862,213.5 l2,2 l3.5,-4" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text class="t-tk" x="875" y="217">テスト</text>
+    <rect class="dn-ready" x="860" y="224" width="9" height="9" rx="2"/><path d="M862,228.5 l2,2 l3.5,-4" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text class="t-tk" x="875" y="232">設計</text>
+    <rect class="dn-ready" x="860" y="239" width="9" height="9" rx="2"/><path d="M862,243.5 l2,2 l3.5,-4" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text class="t-tk" x="875" y="247">依存関係</text>
+    <line class="axis" x1="860" y1="256" x2="986" y2="256"/>
+    <rect class="dn-ready" x="860" y="262" width="38" height="13" rx="3"/><text class="t-dn-ready" x="879" y="271.5" text-anchor="middle">v1.4.0</text>
+    <text class="t-tk" x="904" y="271.5">タグを付けて公開</text>
+  </g>
+  <g><circle class="ab" cx="992" cy="152" r="15"/><use href="#agent" x="982" y="142" width="20" height="20"/></g>
+  <text class="t-title" x="848" y="318">リリース</text>
+  <text class="t-body" x="848" y="340">リポジトリ全体を</text>
+  <text class="t-body" x="848" y="358">見直してから出す</text>
   <g>
-    <rect class="stamp" x="848" y="352" width="128" height="30" rx="15"/>
-    <circle class="hb" cx="863" cy="367" r="11"/><use href="#human" x="855" y="359" width="16" height="16"/>
-    <text class="t-stamp" x="880" y="371">あなたが承認</text>
+    <rect class="stamp" x="848" y="404" width="128" height="30" rx="15"/>
+    <circle class="hb" cx="863" cy="419" r="11"/><use href="#human" x="855" y="411" width="16" height="16"/>
+    <text class="t-stamp" x="880" y="423">あなたが承認</text>
   </g>
 
-  <path class="flow" d="M1006,290 H1036" marker-end="url(#m-flow)"/>
+  <path class="flow" d="M1006,220 H1036" marker-end="url(#m-flow)"/>
 
   <!-- 5. 振り返り -->
-  <rect class="box" x="1044" y="150" width="134" height="180" rx="8"/>
-  <g>
+  <rect class="box" x="1044" y="150" width="134" height="140" rx="8"/>
+  <g transform="translate(0,6)">
     <rect class="mini" x="1054" y="162" width="114" height="66" rx="4"/>
     <line class="ticket-line" x1="1062" y1="171" x2="1100" y2="171"/>
     <line class="axis" x1="1062" y1="218" x2="1130" y2="218"/>
@@ -222,32 +253,34 @@
     <text class="t-kpi" x="1149" y="200" text-anchor="middle">−32%</text>
     <text class="t-kpi-label" x="1149" y="213" text-anchor="middle">やり直し</text>
   </g>
+  <text class="t-m" x="1056" y="257">時間</text><text class="t-mv" x="1166" y="257" text-anchor="end">−18%</text>
+  <text class="t-m" x="1056" y="272">トークン</text><text class="t-mv" x="1166" y="272" text-anchor="end">−9%</text>
+  <line class="axis" x1="1056" y1="262" x2="1166" y2="262"/>
   <g><circle class="ab" cx="1172" cy="152" r="15"/><use href="#agent" x="1162" y="142" width="20" height="20"/></g>
-  <text class="t-title" x="1058" y="254">振り返り</text>
-  <text class="t-small" x="1058" y="274">エージェントが働き</text>
-  <text class="t-small" x="1058" y="290">ごとの所要時間・</text>
-  <text class="t-small" x="1058" y="306">トークン・やり直し</text>
-  <text class="t-small" x="1058" y="322">を推移とともに示す</text>
+  <text class="t-title" x="1044" y="318">振り返り</text>
+  <text class="t-body" x="1044" y="340">エージェントが</text>
+  <text class="t-body" x="1044" y="358">働きごとの時間・</text>
+  <text class="t-body" x="1044" y="376">トークン・やり直し</text>
+  <text class="t-body" x="1044" y="394">の推移を示す</text>
   <g>
-    <rect class="stamp" x="1044" y="352" width="128" height="30" rx="15"/>
-    <circle class="hb" cx="1059" cy="367" r="11"/><use href="#human" x="1051" y="359" width="16" height="16"/>
-    <text class="t-stamp" x="1076" y="371">あなたが選ぶ</text>
+    <rect class="stamp" x="1044" y="404" width="128" height="30" rx="15"/>
+    <circle class="hb" cx="1059" cy="419" r="11"/><use href="#human" x="1051" y="411" width="16" height="16"/>
+    <text class="t-stamp" x="1076" y="423">あなたが選ぶ</text>
   </g>
 
   <!-- 登場する二者 -->
-  <rect class="actor-card-you" x="20" y="482" width="574" height="88" rx="10"/>
-  <circle class="hb" cx="64" cy="526" r="26"/><use href="#human" x="46" y="508" width="36" height="36"/>
-  <text class="t-actor-you" x="104" y="516">あなた</text>
-  <text class="t-actor" x="104" y="540">思いつきを伝え、チケット・計画・各マージ・リリースを承認する。</text>
-  <text class="t-actor" x="104" y="558">何を改善するかを選ぶ。</text>
+  <rect class="actor-card-you" x="20" y="482" width="574" height="108" rx="10"/>
+  <g class="hb-back"><circle class="hb" cx="86" cy="536" r="24"/><use href="#human" x="70" y="520" width="32" height="32"/></g>
+  <circle class="hb" cx="56" cy="536" r="24"/><use href="#human" x="40" y="520" width="32" height="32"/>
+  <text class="t-actor-you" x="124" y="516">あなたとチーム</text>
+  <text class="t-actor" x="124" y="540">思いつきを伝え、チケット・計画・各マージ・リリースを承認する。</text>
+  <text class="t-actor" x="124" y="558">何を改善するかを選ぶ。</text>
+  <text class="t-actor" x="124" y="576">チームの全員が同じボードを見て、誰でも承認できる。</text>
 
-  <rect class="actor-card-agent" x="606" y="482" width="574" height="88" rx="10"/>
-  <circle class="ab" cx="650" cy="526" r="26"/><use href="#agent" x="632" y="508" width="36" height="36"/>
+  <rect class="actor-card-agent" x="606" y="482" width="574" height="108" rx="10"/>
+  <circle class="ab" cx="650" cy="536" r="26"/><use href="#agent" x="632" y="518" width="36" height="36"/>
   <text class="t-actor-agent" x="690" y="516">エージェント</text>
   <text class="t-actor" x="690" y="540">チケットを書き、順番を計画し、いくつも同時に作る。</text>
   <text class="t-actor" x="690" y="558">互いの作業を見直し、かかったコストを報告する。</text>
 
-  <!-- 共有のボード -->
-  <rect class="band" x="20" y="586" width="1160" height="44" rx="8"/>
-  <text class="t-band" x="600" y="613" text-anchor="middle">ボードはリポジトリのブランチにある。clone した全員が、同じチケット・計画・働きの記録を見る。</text>
 </svg>

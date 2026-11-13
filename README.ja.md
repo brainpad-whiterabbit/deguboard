@@ -8,7 +8,7 @@ AI エージェントと一緒にソフトウェアを作るための、Git リ�
 - **チームで使える**：ボードはリポジトリの専用ブランチにあるので、clone した全員が同じボードを見ます。サーバーもサービスも要りません。
 - **測って改善する**：働きごとに工程の所要時間・トークン・やり直しを記録し、チームが承認した指標を傾向つきで見て、ボトルネックを次のチケットにします。
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/flow.ja.png" alt="開発の流れ：エージェントが思いつきをチケットにして順番を計画し、Iteration の中で品質ゲートを通しながら並列に実装し、リリースと振り返りに進む。人はチケット・計画・各マージ・リリースを承認し、何を改善するかを選ぶ" width="800">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/flow.ja.png" alt="開発の流れ：エージェントが思いつきをチケットにして順番を計画し、Iteration の中で品質ゲートを通しながら並列に実装してチケットごとの時間とトークンを報告し、リリースと振り返りに進む。チームの全員が同じボードを見て、人はチケット・計画・リリースを承認し、Iteration を監視し、何を改善するかを選ぶ" width="800">
 
 deguboard は独立したプロジェクトで、Microsoft が作ったものでも、推薦・支援するものでもありません。
 
