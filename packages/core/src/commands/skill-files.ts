@@ -202,7 +202,10 @@ export interface RefreshedSkills extends SkillPlace {
  * VS Code 拡張が起動のたびに呼ぶ。入れてある dg の Skill のうち今の dg のものと違うものを findStaleSkills で見つけ、
  * 手を加えていないものを writeSkillFiles（dg skill install と同じ処理）で上書きする。手を加えたものは書き換えずに返す。
  * 入れていない Skill は足さず、dg の Skill のない置き場所には書かない（Skill は任意で、各自が入れる。AG-2）。
- * 版を比べずに中身で比べるので、同じ版の拡張を入れ直しても拾う。変えるものも知らせるものもない置き場所は返さない
+ * 版を比べずに中身で比べるので、同じ版の拡張を入れ直しても拾う。変えるものも知らせるものもない置き場所は返さない。
+ * 中身が違うことしか分からず、どちらが新しいかは分からない。PATH の dg（npm やソースの dg）が拡張より新しいと、
+ * 拡張は起動のたびに Skill を古い同梱のものに戻し、dg hooks check・next・brief はそれを古いと警告して、互いに書き換え合う。
+ * 版で止めるかは決めていないので、ここでは中身の違いだけで更新し、通知も「古い」ではなく「違う」と書く
  */
 export async function refreshInstalledSkills(query: {
   topLevel?: string | undefined;

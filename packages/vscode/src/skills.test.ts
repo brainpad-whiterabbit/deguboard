@@ -74,7 +74,7 @@ describe("拡張の起動時の dg の Skill の更新（t857）", () => {
       },
       {
         level: "warning",
-        text: `These dg Skills in ${skillsDir(home)} are older than the ones bundled with this extension, but they were edited by hand, so they were not changed: dgplan. To overwrite them, run dg skill install --personal --force`,
+        text: `These dg Skills in ${skillsDir(home)} differ from the ones bundled with this extension, but they were edited by hand, so they were not changed: dgplan. To overwrite them, run dg skill install --personal --force`,
       },
     ]);
   });

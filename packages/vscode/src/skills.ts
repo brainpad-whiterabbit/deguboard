@@ -1,5 +1,5 @@
 // 拡張の起動のたびに、入れてある dg の Skill を同梱の dg のものにそろえる（AG-2・UI-11）。
-// 古いかの判定と書く処理は core の refreshInstalledSkills（dg skill install と同じ skillStateOf と writeSkillFiles）で、ここは
+// 同梱のものと違うかの判定と書く処理は core の refreshInstalledSkills（dg skill install と同じ skillStateOf と writeSkillFiles）で、ここは
 // 作業フォルダごとに呼んで置き場所でまとめ、通知の文を作るだけにする。VS Code の API には触れない（通知を出すのは extension.ts）
 
 import {
@@ -42,7 +42,9 @@ export async function refreshSkillsOf(
   return [...merged.values()];
 }
 
-/** 通知の文。更新したもの（info）と、手を加えたので残した古いもの（warning）を分ける。変えるものも知らせるものもなければ空 */
+/**
+ * 通知の文。更新したもの（info）と、手を加えたので残した違うもの（warning）を分ける。中身の違いしか分からないので「古い」とは書かない
+ * （PATH の dg が拡張より新しいこともある）。変えるものも知らせるものもなければ空 */
 export function skillRefreshNotices(
   refreshed: readonly RefreshedSkills[],
 ): Array<{ level: "info" | "warning"; text: string }> {
@@ -67,7 +69,7 @@ export function skillRefreshNotices(
             {
               level: "warning" as const,
               text: t(
-                "These dg Skills in {0} are older than the ones bundled with this extension, but they were edited by hand, so they were not changed: {1}. To overwrite them, run {2}",
+                "These dg Skills in {0} differ from the ones bundled with this extension, but they were edited by hand, so they were not changed: {1}. To overwrite them, run {2}",
                 r.dir,
                 r.edited.join(", "),
                 install,
