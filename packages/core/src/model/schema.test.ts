@@ -226,6 +226,7 @@ describe("スキーマ", () => {
       "guide.notes.change",
       "guide.notes.discuss",
       "guide.notes.status",
+      "guide.notes.retro",
       "guide.notes.all",
       "priority.high",
       "priority.medium",

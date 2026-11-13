@@ -825,9 +825,6 @@ button.link:hover {
   margin: 0;
   font-size: 1.1em;
 }
-.board-head .goal {
-  flex: 1 1 100%;
-}
 .board-head .actions {
   display: inline-flex;
   gap: 0.5rem;
@@ -1947,7 +1944,7 @@ textarea.body {
   border: 0;
   border-radius: 0;
 }
-/* 行の形（.head-line・.period・.goal）は左パネルのカンバンの見出し（.sidebar-head）と共通の規則。ここは区画に固有のものだけ */
+/* 行の形（.head-line・.period）は左パネルのカンバンの見出し（.sidebar-head）と共通の規則。ここは区画に固有のものだけ */
 .sidebar-section .head-line {
   flex: 1 1 0;
 }
@@ -2053,7 +2050,7 @@ textarea.body {
   flex: 1;
   min-width: 0;
 }
-/* 左パネルのカンバンの見出し（board.tsx の SidebarBoardHead）：Iteration の札の列・漏斗／名前・期間・目標／進みの帯 */
+/* 左パネルのカンバンの見出し（board.tsx の BoardHead）：Iteration の札の列・漏斗／名前・期間・何日目／目標／進みの帯／状態ごとの件数 */
 .sidebar-head {
   flex-direction: column;
   flex-wrap: nowrap;
@@ -2103,7 +2100,6 @@ textarea.body {
 .sidebar-section .period {
   flex: none;
 }
-.sidebar-head .goal,
 .sidebar-section .goal {
   flex: 1 1 auto;
   min-width: 0;
@@ -2111,7 +2107,39 @@ textarea.body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 選んでいるものの名前は太字で、目標より先に縮めない（長ければ幅の 6 割で省略する） */
+/* 名前・期間・何日目の段と目標の行をまとめた、Iteration を頼む場所。段の間は見出しの段の間と同じに空ける */
+.sidebar-head .head-title {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+/* カンバンの見出しの目標は名前・期間の次の行に折り返し、3 行を超える分は「…」で省く（全文はツールチップ） */
+.sidebar-head .head-goal {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 0.92em;
+}
+/* 状態ごとの件数（帯の下）。丸印と数字を帯と同じ並びで詰める */
+.sidebar-head .status-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  font-size: 0.92em;
+  color: var(--vscode-descriptionForeground);
+}
+.sidebar-head .status-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+/* 選んでいるものの名前は太字で、長ければ幅の 6 割で省略して期間・何日目の場所を残す */
 .sidebar-head .head-line.sub .name {
   flex: none;
   max-width: 60%;

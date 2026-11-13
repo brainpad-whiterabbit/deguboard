@@ -4,6 +4,7 @@
 /**
  * 流れの順に並べる。change・discuss・status は流れの外で、change は人が頼んだ 1 つの書き換え（直す・閉じる・再開・やめる・done の取り消し）を受け、
  * discuss は人と論点を決めてから、その結論の反映を import・change に任せる。status は進んでいる作業の様子を読むだけで、データを書き換えない。
+ * retro も流れの外で、閉じた Iteration を数字とチケットから振り返り、承認を得た Try だけを起票する。
  * frontmatter に description を持つトピックは dg<トピック> の Skill として配る（AG-2）。overview・run・parallel・review は Skill を持たず、ほかのトピックから読む
  */
 export const GUIDE_TOPICS = [
@@ -22,6 +23,7 @@ export const GUIDE_TOPICS = [
   "change",
   "discuss",
   "status",
+  "retro",
   "all",
 ] as const;
 export type GuideTopic = (typeof GUIDE_TOPICS)[number];

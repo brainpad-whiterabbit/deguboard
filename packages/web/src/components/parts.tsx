@@ -85,6 +85,42 @@ export function DetailLink({
   );
 }
 
+/** 文の中の ID（t12・e3・s2・p7）。前後が英数字に続く字（step1 の p1 など）は ID にしない */
+const TEXT_ID = /(?<![A-Za-z0-9_])([tesp][1-9]\d*)(?![A-Za-z0-9_])/;
+
+/** ID の頭の文字から詳細の画面を決める（core の model/id.ts の ID_PREFIX と同じ対応） */
+function idRoute(id: string): Route {
+  switch (id.charAt(0)) {
+    case "t":
+      return { page: "ticket", id };
+    case "e":
+      return { page: "epics", id };
+    case "s":
+      return { page: "iterations", id };
+    default:
+      return { page: "plans", id };
+  }
+}
+
+/** 文の中の ID を詳細へのリンクにして出す（Iteration の目標など）。ID のほかの字はそのまま */
+export function IdLinkedText({ text }: { text: string }) {
+  // 捕まえる組が 1 つの split は、奇数の位置に ID が来る
+  const parts = text.split(new RegExp(TEXT_ID.source, "g"));
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <DetailLink key={i} route={idRoute(part)}>
+            {part}
+          </DetailLink>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
 /**
  * 優先度の並び方のひとこと（byPriorityThenNumber で high が先、low が後に並ぶ）。ツールチップの 1 行目に添える
  */
@@ -270,6 +306,32 @@ export function StatusBand({ progress }: { progress: Progress }) {
     <StackedProgress progress={progress} className="progress status-band" partial={false}>
       {progress.done}/{progress.total} done
     </StackedProgress>
+  );
+}
+
+/**
+ * 状態ごとの件数の行（左パネルのカンバンの見出しの帯の下）。並びと色は帯（StatusBand）と同じで、1 件以上の状態だけを丸印と数字で出す。
+ * 状態の名前はツールチップと読み上げで読む（幅を取らないように）
+ */
+export function StatusCounts({ progress }: { progress: Progress }) {
+  const store = useStore();
+  const items = PROGRESS_STATUSES.map((s) => ({
+    status: s,
+    count: progress.by_status[s] ?? 0,
+  })).filter((item) => item.count > 0);
+  if (items.length === 0) return null;
+  return (
+    <div className="status-counts">
+      {items.map(({ status, count }) => {
+        const label = `${store.labelOf(status)} ${count}`;
+        return (
+          <span key={status} className="status-count" title={label}>
+            <StatusDot status={status} label={label} />
+            <span aria-hidden="true">{count}</span>
+          </span>
+        );
+      })}
+    </div>
   );
 }
 

@@ -51,7 +51,12 @@ beforeAll(async () => {
   fixture = await createFixture();
   const ctx = await openContext({ cwd: fixture.cloneA, initialize: {} });
   await runCommand(init, ctx, { template: "software-development" });
-  await runCommand(iterationCreate, ctx, { name: "実機の週" });
+  // 目標はカンバンの見出しで 3 行を超えて「…」で切れる長さにし、中の ID（e1・t1）はリンクにして撮る。
+  // 実機の表示言語は英語で、日本語のフォントがない環境もあるので英語で書く
+  await runCommand(iterationCreate, ctx, {
+    name: "実機の週",
+    goal: "Ship the first version of e1. Check how rows look with t1, move the claimed ticket to review this week, return the rest to the backlog, and write down what is left for the next Iteration",
+  });
   await runCommand(iterationStart, ctx, { iteration: "s1" });
   await runCommand(epicCreate, ctx, { title: "実機の Epic" });
   // t1・t2 は s1 のカンバン、t3 はカンバンの作業中。バックログ（Iteration なし）にも行が出るよう 2 件目は入れない。

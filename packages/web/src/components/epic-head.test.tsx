@@ -58,9 +58,9 @@ describe("カンバンの選んでいる Epic の見出し（UI-10・UI-15）", 
     fireEvent.click(epicChip());
     await waitFor(() => expect(head()).toBeTruthy());
     expect(head()!.textContent).toBe("Epice1 最初の版0/1×");
-    // Iteration の見出しのすぐ下で、進みの帯の上
+    // Iteration の見出し（名前・期間の段と目標の行）のすぐ下で、進みの帯の上
     expect(head()!.previousElementSibling).toBe(
-      document.querySelector(".sidebar-head .head-line.sub"),
+      document.querySelector(".sidebar-head .head-title"),
     );
     // 題は Epic の詳細へのリンク
     expect(within(head()!).getByRole("link").getAttribute("href")).toBe("#/epics/e1");

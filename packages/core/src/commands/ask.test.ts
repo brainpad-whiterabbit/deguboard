@@ -1239,7 +1239,10 @@ describe("Skill の 1 文（skill_summary・UI-15）", () => {
 
   it("Skill の名前に文がなければ例外", () => {
     expect(() => skillSummary("dgnone")).toThrow();
-    expect(Object.keys(SKILL_SUMMARY)).toHaveLength(12);
+    expect(Object.keys(SKILL_SUMMARY)).toHaveLength(13);
+    // 振り返りの Skill（dgretro）は配るが、頼む小窓の振り返るはまだ Skill を引かない（合わせるのは t815）
+    expect(skillSummary("dgretro", "ja")).toMatch(/[぀-ヿ一-鿿]/);
+    expect(skillSummary("dgretro", "en")).not.toMatch(/[぀-ヿ一-鿿]/);
   });
 });
 
