@@ -108,7 +108,9 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
         .hasAttribute("data-vscode-context"),
     ).toBe(false);
     // Iteration の見出しは Iteration の ID を載せる。Plan の帯（Plan の見出し）は載せない
-    const head = document.querySelector(".sidebar-head .head-line.sub")!;
+    // 頼む場所は名前・期間の段と目標の行をまとめた .head-title
+    const head = document.querySelector(".sidebar-head .head-title")!;
+    expect(head.querySelector(".head-line.sub")).toBeTruthy();
     expect(contextOf(head)).toEqual({
       webviewSection: "deguboardItem",
       id: "s0",

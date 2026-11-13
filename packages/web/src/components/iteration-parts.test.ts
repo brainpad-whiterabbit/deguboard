@@ -1,5 +1,40 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { shortPeriod } from "./iteration-parts.js";
+import { activeDay, shortPeriod } from "./iteration-parts.js";
+
+describe("active の Iteration が何日目か", () => {
+  const tz = process.env.TZ;
+  afterEach(() => {
+    if (tz === undefined) delete process.env.TZ;
+    else process.env.TZ = tz;
+  });
+
+  it("開始の日を 1 日目に、手元の暦の日付で数え、時刻は見ない", () => {
+    process.env.TZ = "Asia/Tokyo";
+    // UTC の 11/14 16:00 は東京では 11/15 の 1 時
+    const it = { status: "active", started_at: "2026-11-14T16:00:00Z" } as const;
+    expect(activeDay(it, new Date("2026-11-15T14:59:00Z"))).toBe(1);
+    expect(activeDay(it, new Date("2026-11-15T15:00:00Z"))).toBe(2);
+    expect(activeDay(it, new Date("2026-11-28T03:00:00Z"))).toBe(14);
+  });
+
+  it("夏時間の切り替えをまたいでも 1 日ずつ数える", () => {
+    process.env.TZ = "America/New_York";
+    // 2026-11-01 に夏時間が終わる
+    const it = { status: "active", started_at: "2026-10-31T16:00:00Z" } as const;
+    expect(activeDay(it, new Date("2026-11-02T16:00:00Z"))).toBe(3);
+  });
+
+  it("planned・closed、started_at のない・読めない Iteration は出さず、開始が未来なら 1 日目", () => {
+    const now = new Date("2026-11-13T03:00:00Z");
+    expect(activeDay({ status: "planned" }, now)).toBeUndefined();
+    expect(
+      activeDay({ status: "closed", started_at: "2026-11-01T03:00:00Z" }, now),
+    ).toBeUndefined();
+    expect(activeDay({ status: "active" }, now)).toBeUndefined();
+    expect(activeDay({ status: "active", started_at: "x" }, now)).toBeUndefined();
+    expect(activeDay({ status: "active", started_at: "2026-11-20T03:00:00Z" }, now)).toBe(1);
+  });
+});
 
 describe("Iteration の見出しの実績の期間", () => {
   const tz = process.env.TZ;

@@ -37,6 +37,7 @@ e1
 2
 最初の Iteration
 11/1–
+4 日目
 [title] 目標データの文
 目標データの文
 [title] エージェントに頼む（Shift+F10）
@@ -46,6 +47,15 @@ e1
 /
 3
 done
+[title] Done 1
+[aria-label] Done 1
+1
+[title] Code Review 1
+[aria-label] Code Review 1
+1
+[title] In Progress 1
+[aria-label] In Progress 1
+1
 [aria-label] 実行計画
 実行計画
 1
@@ -1183,6 +1193,7 @@ e1
 2
 最初の Iteration
 11/1–
+4 日目
 [title] 目標データの文
 目標データの文
 [title] エージェントに頼む（Shift+F10）
@@ -1192,6 +1203,15 @@ e1
 /
 3
 done
+[title] Done 1
+[aria-label] Done 1
+1
+[title] Code Review 1
+[aria-label] Code Review 1
+1
+[title] In Progress 1
+[aria-label] In Progress 1
+1
 [aria-label] 実行計画
 実行計画
 1

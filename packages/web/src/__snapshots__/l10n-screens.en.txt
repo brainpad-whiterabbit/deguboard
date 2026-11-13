@@ -37,6 +37,7 @@ None
 2
 最初の Iteration
 11/1–
+Day 4
 [title] 目標データの文
 目標データの文
 [title] Ask Agent (Shift+F10)
@@ -46,6 +47,15 @@ None
 /
 3
 done
+[title] Done 1
+[aria-label] Done 1
+1
+[title] Code Review 1
+[aria-label] Code Review 1
+1
+[title] In Progress 1
+[aria-label] In Progress 1
+1
 [aria-label] Plans
 Plans
 1
@@ -1183,6 +1193,7 @@ None
 2
 最初の Iteration
 11/1–
+Day 4
 [title] 目標データの文
 目標データの文
 [title] Ask Agent (Shift+F10)
@@ -1192,6 +1203,15 @@ None
 /
 3
 done
+[title] Done 1
+[aria-label] Done 1
+1
+[title] Code Review 1
+[aria-label] Code Review 1
+1
+[title] In Progress 1
+[aria-label] In Progress 1
+1
 [aria-label] Plans
 Plans
 1
