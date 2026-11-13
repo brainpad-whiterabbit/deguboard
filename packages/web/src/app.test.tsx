@@ -2112,22 +2112,24 @@ describe("画面", () => {
     expect(screen.getByText("別の人の")).toBeTruthy();
   });
 
-  it("サイドバーのバックログは、選んだ Epic のチップが Epic の欄に出ていなければ、Epic の条件を × の札にする", async () => {
+  it("サイドバーのバックログは、Epic の条件を × の札にせず、選んだ Epic が閉じて Epic の欄から消えても、選んでいる Epic の見出しの × で外せる", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     const send = mountWithBridge(client, { readRunning: false });
     await screen.findByText("API");
     const group = screen.getByRole("group", { name: "絞り込み" });
     fireEvent.click(screen.getByRole("button", { name: /最初の版/ }));
-    // Epic の欄にチップがある間は札にしない
+    // Epic は選んでいる Epic の見出し（components/epic-head.tsx）が × を持つので、札にしない
     expect(group.querySelector(".filter-chip")).toBeNull();
-    // Epic が閉じて欄から消えたら、効いている条件を札で見せる
+    expect(document.querySelector(".epic-head")).toBeTruthy();
+    // Epic が閉じて欄から消えても、見出しは残る
     client.data.epics = client.data.epics.map((e) => ({ ...e, status: "closed" as const }));
     act(() => send()({ kind: "event", name: "reload" }));
     await waitFor(() => expect(document.querySelector(".epic-chips")).toBeNull());
-    expect(group.querySelector(".filter-chip-text")!.textContent).toBe("Epic e1");
-    fireEvent.click(screen.getByRole("button", { name: "Epic e1 の絞り込みを外す" }));
     expect(group.querySelector(".filter-chip")).toBeNull();
+    expect(document.querySelector(".epic-head .name")!.textContent).toBe("e1 最初の版");
+    fireEvent.click(screen.getByRole("button", { name: "Epic e1 の絞り込みを外す" }));
+    expect(document.querySelector(".epic-head")).toBeNull();
     expect(screen.getByText("画面")).toBeTruthy();
   });
 
@@ -2682,7 +2684,7 @@ describe("画面", () => {
     expect(document.querySelector(".filter-chips")).toBeNull();
     expect(funnel.classList.contains("active")).toBe(false);
 
-    // Epic は見出しの札の列で選び、漏斗の欄には出さない。札が見えている間は、値の札に Epic を出さない
+    // Epic は見出しの札の列で選び、漏斗の欄には出さない。値の札にも Epic を出さない（選んでいる Epic の見出しが × を持つ）
     fireEvent.click(funnel);
     expect(screen.queryByLabelText("Epic")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "e1 最初の版" }));
@@ -2692,6 +2694,7 @@ describe("画面", () => {
       ),
     );
     expect(document.querySelector(".filter-chips")).toBeNull();
+    expect(document.querySelector(".epic-head")).toBeTruthy();
   });
 
   it("担当がいなければ、カンバンの見出しに漏斗を出さない", async () => {
@@ -2844,17 +2847,18 @@ describe("画面", () => {
     }
   });
 
-  it("開いた Epic がなければ、カンバンの見出しに Epic の札の列を出さず、閉じた Epic で絞っていれば値の札に Epic を出して外せる", async () => {
+  it("開いた Epic がなければ、カンバンの見出しに Epic の札の列を出さず、閉じた Epic で絞っていれば選んでいる Epic の見出しを出して外せる", async () => {
     const client = boardClient();
     client.data.epics = client.data.epics.map((e) => ({ ...e, status: "closed" as const }));
     window.location.hash = "#/board?epic=e1";
     mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     expect(document.querySelector(".epic-chips")).toBeNull();
-    expect(document.querySelector(".filter-chip-text")!.textContent).toBe("Epic e1");
+    expect(document.querySelector(".filter-chips")).toBeNull();
+    expect(document.querySelector(".epic-head .name")!.textContent).toBe("e1 最初の版");
     fireEvent.click(screen.getByRole("button", { name: "Epic e1 の絞り込みを外す" }));
     await waitFor(() => expect(window.location.hash).not.toContain("epic"));
-    expect(document.querySelector(".filter-chips")).toBeNull();
+    expect(document.querySelector(".epic-head")).toBeNull();
   });
 
   it("開いた Iteration がなければ、開いた Epic があってもカンバンの見出しに Epic の札の列を出さず、案内を出す", async () => {
