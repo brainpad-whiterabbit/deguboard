@@ -46,7 +46,8 @@ export async function tryFastHook(
       ...(io.now ? { now: io.now } : {}),
     });
   } catch {
-    // 思わぬ失敗は、今の経路に任せる（そちらが警告にして 0 で返す）
+    // 思わぬ失敗は、今の経路に任せる（そちらが警告にして 0 で返す）。今の経路はもう 1 度記録するので、回してよいのは
+    // 最初の記録の前の失敗だけ。fastHook は記録を始めた後は投げず、undefined も返さない（core の fast-hook.ts）
     return { handled: false, stdin: text };
   }
   if (!view) return { handled: false, stdin: text };

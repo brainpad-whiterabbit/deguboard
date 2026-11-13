@@ -187,7 +187,9 @@ describe("PreToolUse の速い経路（bin/dg.js。t768）", () => {
       expect(r.out, name).toEqual([]);
     }
   });
+});
 
+describe("PreToolUse と Stop の速い経路が受け持つ引数（t768・t786）", () => {
   it("dg hooks install が書く PreToolUse と Stop のコマンドの引数を、速い経路が受け持つ。ほかのイベントと引数は受け持たない", async () => {
     const cwd = await initialized();
     const result = await installHooks({
