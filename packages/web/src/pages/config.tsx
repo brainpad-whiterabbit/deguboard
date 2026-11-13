@@ -1,10 +1,11 @@
-// 設定画面（#/config）。config.show の fields で全項目を既定値・文（configDescription で表示言語の訳にする）・範囲（scope）つきで読み、
+// 設定画面（#/config）。config.show の fields で葉の項目を既定値・文（configDescription で表示言語の訳にする）・範囲（scope）つきで読み、
 // 「チーム」と「自分」のタブで書き分ける。値を変えるたびに 1 項目ずつ保存する。
+// 振り返りの観点（retro.perspectives）は観点ごとの入れ子で 1 つの欄に収まらず fields に入らないので、この画面には出さない（dg retro が書く）。
 // 項目の文は短く出す：要約（summary）1 行をいつも出し、詳しい説明（description）の全文は「詳しく」に畳む。例（example）は入力欄のプレースホルダに、
 // 空のときの動き（empty）は欄の下の 1 行に、選択肢のある項目は選んでいる値の説明（option_descriptions）だけを出す。
 // guide.notes.* は同じ説明の項目なので、説明を 1 つだけ出し、差し込む先ごとの行の表にする。
 // 検索は表示名・キー・要約・詳しい説明に当て、詳しい説明だけに当たった項目は「詳しく」を開いて出す（当たった文が畳まれて見えないため）。
-// - チーム：全項目を出し、チームで共有する config.yaml の値（view.team）を config.set で書く。欄に個人の上書きを重ねない
+// - チーム：fields の全項目を出し、チームで共有する config.yaml の値（view.team）を config.set で書く。欄に個人の上書きを重ねない
 //   （重ねた値を出すと保存が効かなかったように見える）。自分で上書きしている項目には「自分：値」の印を出し、押すと自分のタブのその項目に移る
 // - 自分：個人で上書きできる項目（scope が local）だけを出し、deguboard-local/config.yaml（view.local）を config.set --local で書く。
 //   「自分の値を使う」を入れるとチームの値を自分の値として写し、外すと config.unset --local で上書きを外してチームの値を出す

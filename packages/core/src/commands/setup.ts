@@ -1157,7 +1157,7 @@ export const configShow = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Also show, with the values, every item's key, type, default, summary, description, example, empty (what an empty value does), option_descriptions, and scope (scope: team is team-only, local can be overridden personally), plus the team values and personal overrides (in the form { config, team, local, fields }; used by the settings screen)",
+        "Also show, with the values, each leaf item's key, type, default, summary, description, example, empty (what an empty value does), option_descriptions, and scope (scope: team is team-only, local can be overridden personally), plus the team values and personal overrides (in the form { config, team, local, fields }; used by the settings screen). fields leaves out the perspectives of the retrospective (retro.perspectives), which are nested by perspective and written with dg retro",
       ),
   }),
   write: false,
@@ -1316,6 +1316,14 @@ export const configSet = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
+    // 振り返りの観点は観点ごとの入れ子で、1 つの値では書けない（指標の定義は数え方と出どころが揃って 1 つ）。
+    // --local の分岐より先に弾く。後に置くと --local では splitKey の「スキーマにない」の案内になり、dg retro に辿り着けない
+    if (input.key === "retro" || input.key.startsWith("retro."))
+      throw new OperationError(
+        "VALIDATION_FAILED",
+        `${input.key} cannot be set with config set`,
+        "Write the perspectives of the retrospective with dg retro perspective, dg retro metric, and dg retro remove (dg config unset retro.perspectives returns to the defaults)",
+      );
     if (input.local) {
       // 個人の設定は Git 管理外なので withWrite（取り込み・コミット・push）を通さず、同じマシンの書き込みの排他だけ取る
       const config = await withLock(ctx.repo.localDir, "write", async () => {
@@ -1325,13 +1333,6 @@ export const configSet = defineCommand({
       });
       return ok(config);
     }
-    // 振り返りの観点は観点ごとの入れ子で、1 つの値では書けない（指標の定義は数え方と出どころが揃って 1 つ）
-    if (input.key === "retro" || input.key.startsWith("retro."))
-      throw new OperationError(
-        "VALIDATION_FAILED",
-        `${input.key} cannot be set with config set`,
-        "Write the perspectives of the retrospective with dg retro perspective, dg retro metric, and dg retro remove (dg config unset retro.perspectives returns to the defaults)",
-      );
     const result = await withWrite(
       ctx,
       async () => {
