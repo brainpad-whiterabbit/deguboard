@@ -68,8 +68,11 @@ export type MergeSide = "ours" | "theirs";
 export const MERGE_PREFER_ENV = "DEGUBOARD_MERGE_PREFER";
 /** 採る側で解いたフィールドを 1 行 1 件の JSON で書き足すファイル（呼び手が読んで結果に返す） */
 export const MERGE_LOG_ENV = "DEGUBOARD_MERGE_LOG";
-/** 本文のフィールドの名前。解いた・解けなかったフィールドの field に入る（frontmatter のフィールドは英語の名前のまま） */
-export const BODY_FIELD = "本文";
+/**
+ * 本文のフィールドの識別子。解いた・解けなかったフィールドの field に入る。
+ * dg の出力の識別子は英語にそろえるので、frontmatter のフィールドの名前と同じく英語の body にする
+ */
+export const BODY_FIELD = "body";
 
 /**
  * 採る側で解いた 1 件。本文は field が BODY_FIELD で、値は両側の本文全体。
