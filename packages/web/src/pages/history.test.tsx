@@ -860,7 +860,7 @@ describe("サイドバーの履歴", () => {
   it("検索は Epic の番号・タイトルにも当たり、行にだけ当たった行は閉じたまま印を付け、終わったチケットのない Epic も残る", async () => {
     window.location.hash = "#/history?view=epic";
     const client = mockClient();
-    const epic = (id: string, title: string, closed_at: string) => ({
+    const epic = (id: `e${number}`, title: string, closed_at: string) => ({
       ...client.data.epics[0]!,
       id,
       title,
