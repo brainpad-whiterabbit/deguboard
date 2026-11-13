@@ -45,11 +45,11 @@ The Board shows the tickets of an Iteration in columns by status, and the band a
 
 2. **Plan**: Choose **Ask Agent** → **Plan** on the Board's heading (`/dgplan s3`). The agent orders the tickets by their dependencies, and the Plan appears in the band, awaiting your approval. Click its state to open the dependency graph.
 
-   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="Planning and approving the order" width="560">
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="Planning and approving the order" width="612">
 
 3. **Work**: Choose **Ask Agent** → **Run Plan** on the Plan in the band (`/dgwork p3`). Agents implement the tickets that are not blocked at the same time, each on its own branch and worktree, and open PRs. A PR becomes ready and merges only when the quality gate passes. As the work goes on, the colors in the graph and the columns of the Board change.
 
-   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="Agents working on a plan in parallel" width="560">
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="Agents working on a plan in parallel" width="612">
 
 ### History: retrospect and improve
 
