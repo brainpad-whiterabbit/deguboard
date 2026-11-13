@@ -294,7 +294,7 @@ type ViewCounts = Record<HistoryView, { hit: number; total: number; filtered: bo
 
 /**
  * 見方の切り替え：枠も塗りもない文字に件数を説明文の色の数字で続ける。選んだ見方だけ名前を濃く太くし、aria-pressed で伝える。
- * 件数の行は持たず、絞り込み中はバッジが「当たった数 / 全体」になる（狭い幅に収まるよう / の前後は細い空白）
+ * 件数の行は持たず、絞り込み中は件数が「当たった数 / 全体」になる（狭い幅に収まるよう / の前後は細い空白）
  */
 function ViewSwitch({
   route,
