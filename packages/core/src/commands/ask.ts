@@ -914,14 +914,15 @@ const ACTIONS: Record<AskAction, ActionDef> = {
           ),
   },
   retro: {
-    skill: null,
+    skill: "dgretro",
     label: () => "振り返る",
-    // 振り返るは閉じた Iteration 1 つの候補（askActions）だけなので、対象は必ず Iteration
+    // 振り返るは閉じた Iteration 1 つの候補（askActions）だけなので、対象は必ず Iteration。
+    // 文章だけの形も guide-retro の流れ（数字の要約 → 観点を選ぶ → 根拠つきの Keep / Problem / Try → 承認を得た改善の起票）に合わせる
     text: (s, _w, lang) =>
       say(
         lang,
-        `${idList(s, lang)} の振り返りを、終わったチケット・Run の集計・持ち越しから、うまくいったことと次に直すことを挙げてまとめてください（データは書き換えない）。`,
-        `Write a retrospective of ${idList(s, lang)} from the finished tickets, the Run totals, and the carry-overs, listing what went well and what to improve next (do not change any data).`,
+        `${idList(s, lang)} を振り返ってください（数字の要約を見せてから見る観点を聞き、根拠つきの Keep / Problem / Try を示して、承認を得た改善だけを起票する）。`,
+        `Look back on ${idList(s, lang)}: show a summary of its numbers, ask which viewpoints to look into, give Keep / Problem / Try with a basis, and file only the improvements I approve as tickets.`,
       ),
   },
   free: {
@@ -1177,8 +1178,8 @@ const MEANING: Record<
   retro: (s, _w, lang) =>
     say(
       lang,
-      `${idList(s, lang)} の振り返りをまとめます（データは書き換えません）。`,
-      `Write a retrospective of ${idList(s, lang)} (no data changes).`,
+      `${idList(s, lang)} を数字の要約と選んだ観点から振り返り、承認を得た改善を起票します。`,
+      `Look back on ${idList(s, lang)} from a summary of its numbers and the chosen viewpoints, and file the approved improvements as tickets.`,
     ),
   free: (s, _w, lang) =>
     s.length > 0
@@ -1640,7 +1641,7 @@ export const ask = defineCommand({
       .enum(ASK_FORMATS)
       .optional()
       .describe(
-        "skill gives only the Skill call and the instruction; text gives one line asking for the action, the dg command, and (for actions that have a Skill) one line to read guide, plus the instruction. The actions with no Skill (free, retro) use the text form even when skill is given. When omitted, uses skill if dg's Skill is in the place dg skill install writes to (under the repository or the home directory), otherwise text",
+        "skill gives only the Skill call and the instruction; text gives one line asking for the action, the dg command, and (for actions that have a Skill) one line to read guide, plus the instruction. The action with no Skill (free) uses the text form even when skill is given. When omitted, uses skill if dg's Skill is in the place dg skill install writes to (under the repository or the home directory), otherwise text",
       ),
     within: z
       .string()
