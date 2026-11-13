@@ -1,4 +1,6 @@
 # 開発に必要なツールの版。作業のコマンドは mise run <task> に統一する（docs/adr/ADR-008-tech-stack.md）
+# mise 自体の版はここでは固定しない。公開のワークフローが使う mise の版は .github/workflows/publish-extension.yml の
+# env.MISE_VERSION にだけ書く。このファイルに新しい mise でしか読めない書き方を足したら、その版も上げる
 [tools]
 node = "24.22.2"
 pnpm = "12.12.1"
