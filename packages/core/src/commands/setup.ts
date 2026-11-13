@@ -659,10 +659,14 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
   let fields: ConflictField[] = [];
   if (conflicts.length > 0) {
     fields = await conflictFields(repo);
+    // 競合したフィールドが 1 つもない（マージドライバの対象でないファイルだけの）競合は、--resolve でも解けないので
+    // どちらかを選ぶ手順ではなく手で解く手順を出す。フィールドが 1 つでもあれば、選ぶ手順で先にそれを解く（t802）
     warnings.push(
       resolve
         ? `Conflicts that --resolve cannot resolve remain (files outside the merge driver, or files that cannot be read): ${conflicts.join(", ")}. ${UNRESOLVABLE_REMEDY}`
-        : `Conflicts with remote changes: ${conflicts.join(", ")}.${describeConflictFields(fields)} ${CONFLICT_REMEDY}`,
+        : fields.length === 0
+          ? `Conflicts with remote changes that --resolve cannot resolve (files outside the merge driver, or files that cannot be read): ${conflicts.join(", ")}. ${UNRESOLVABLE_REMEDY}`
+          : `Conflicts with remote changes: ${conflicts.join(", ")}.${describeConflictFields(fields)} ${CONFLICT_REMEDY}`,
     );
   }
   const autoResolved = describeAutoResolved(resolved, true);
