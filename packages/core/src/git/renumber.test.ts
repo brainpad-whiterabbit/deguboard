@@ -197,7 +197,7 @@ describe("仮番号の振り直し（renumberProvisional、--resolve なしの s
       },
     ]);
     expect(synced.warnings.join("\n")).toContain(
-      'Resolved automatically, not a conflict (both sides have the same status and differ only in the time that goes with it, so the earlier time is taken; full values in data.resolved): tickets/t1.md closed_at (taken "2026-11-01T00:00:05Z", discarded "2026-11-01T00:00:09Z").',
+      'Resolved automatically, not a conflict (both sides reached the same state and differ only in the time that goes with it, so the earlier time is taken; full values in data.resolved): tickets/t1.md closed_at (taken "2026-11-01T00:00:05Z", discarded "2026-11-01T00:00:09Z").',
     );
     expect(synced.warnings.join("\n")).not.toContain("Conflicts with remote changes");
     expect(synced.data.pushed).toBe(true);

@@ -149,23 +149,16 @@ describe("frontmatter の 3-way マージ", () => {
   });
 
   it("frontmatter のない YAML でも、両側が同じフィールドを違う値に変えたら競合として返し、形の揃わない 3 つは行単位に任せる", async () => {
-    const base = "id: p1\nclosed_at: null\n";
+    const base = "id: p1\napproved_by: null\n";
     const r = await mergeDocuments(
       base,
-      "id: p1\nclosed_at: 2026-11-01T00:00:01Z\n",
-      "id: p1\nclosed_at: 2026-11-01T00:00:02Z\n",
+      "id: p1\napproved_by: eiki\n",
+      "id: p1\napproved_by: agent\n",
     );
     expect(r).toEqual({
       ok: false,
-      conflicts: ["closed_at"],
-      details: [
-        {
-          field: "closed_at",
-          base: null,
-          ours: "2026-11-01T00:00:01Z",
-          theirs: "2026-11-01T00:00:02Z",
-        },
-      ],
+      conflicts: ["approved_by"],
+      details: [{ field: "approved_by", base: null, ours: "eiki", theirs: "agent" }],
     });
     expect(await mergeDocuments(base, doc({ id: "p1" }), base)).toBeUndefined();
   });
@@ -279,7 +272,7 @@ describe("frontmatter の 3-way マージ", () => {
   });
 
   it("承認の時刻（approved_at）も同じ status の規則で早い方を採り、auto として返す", async () => {
-    // Plan には status がないので、この規則は frontmatter の形（status がある）で確かめる
+    // Plan の形（status のない素の YAML）は、次のテストで確かめる
     const base = doc({ ...BASE, status: "todo" });
     const late = doc({ ...BASE, status: "todo", approved_at: "2026-11-01T00:00:09Z" });
     const early = doc({ ...BASE, status: "todo", approved_at: "2026-11-01T00:00:05Z" });
@@ -299,6 +292,112 @@ describe("frontmatter の 3-way マージ", () => {
       text: early,
       resolved: [approved],
     });
+  });
+
+  /** Plan のファイルの形（status のない素の YAML）。値が undefined のフィールドは書かない */
+  function plan(fields: Record<string, string | undefined>): string {
+    const all: Record<string, string | undefined> = {
+      pending_approval: "true",
+      updated_at: "2026-11-01T00:00:00Z",
+      ...fields,
+    };
+    const rest = Object.entries(all)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => `${k}: ${v}\n`)
+      .join("");
+    return `id: p1\nproject: default\ntickets:\n  - t1\n${rest}`;
+  }
+
+  it("Plan の両側が承認した・閉じた時刻を持ち、その値だけが違うなら、status がなくても早い方を採って auto として返す（SY-4）", async () => {
+    const approvedBy = { pending_approval: "false", approved_by: "eiki" };
+    const time = (field: string) => ({
+      field,
+      taken: "2026-11-01T00:00:05Z",
+      discarded: "2026-11-01T00:00:09Z",
+      auto: true,
+    });
+    // 両側が承認した
+    const base = plan({});
+    const lateApproved = plan({ ...approvedBy, approved_at: "2026-11-01T00:00:09Z" });
+    const earlyApproved = plan({ ...approvedBy, approved_at: "2026-11-01T00:00:05Z" });
+    for (const [ours, theirs] of [
+      [lateApproved, earlyApproved],
+      [earlyApproved, lateApproved],
+    ] as const) {
+      expect(await mergeDocuments(base, ours, theirs)).toEqual({
+        ok: true,
+        text: earlyApproved,
+        resolved: [time("approved_at")],
+      });
+    }
+    // 両側が閉じた。片側だけが変えたフィールド（承認）はその側の値を採り、updated_at は新しい方を採る
+    const lateClosed = plan({
+      ...approvedBy,
+      approved_at: "2026-11-01T00:00:01Z",
+      updated_at: "2026-11-01T00:00:09Z",
+      closed_at: "2026-11-01T00:00:09Z",
+    });
+    const earlyClosed = plan({
+      updated_at: "2026-11-01T00:00:05Z",
+      closed_at: "2026-11-01T00:00:05Z",
+    });
+    expect(await mergeDocuments(base, lateClosed, earlyClosed)).toEqual({
+      ok: true,
+      text: plan({
+        ...approvedBy,
+        approved_at: "2026-11-01T00:00:01Z",
+        updated_at: "2026-11-01T00:00:09Z",
+        closed_at: "2026-11-01T00:00:05Z",
+      }),
+      resolved: [time("closed_at")],
+    });
+    // 両側が承認して閉じ、どちらの時刻もずれた
+    expect(
+      await mergeDocuments(
+        base,
+        plan({
+          ...approvedBy,
+          approved_at: "2026-11-01T00:00:09Z",
+          closed_at: "2026-11-01T00:00:05Z",
+        }),
+        plan({
+          ...approvedBy,
+          approved_at: "2026-11-01T00:00:05Z",
+          closed_at: "2026-11-01T00:00:09Z",
+        }),
+      ),
+    ).toMatchObject({ ok: true, resolved: [time("approved_at"), time("closed_at")] });
+  });
+
+  it("Plan でも、片側だけに時刻があるとき、時刻が読めないとき、ほかのフィールドもぶつかるときは競合のまま返す", async () => {
+    const closed = plan({ closed_at: "2026-11-01T00:00:05Z" });
+    // 片側は閉じた時刻を変え、もう片側は消した（片側だけに時刻がある）
+    expect(
+      await mergeDocuments(closed, plan({ closed_at: "2026-11-01T00:00:09Z" }), plan({})),
+    ).toMatchObject({ ok: false, conflicts: ["closed_at"] });
+    expect(
+      await mergeDocuments(closed, plan({}), plan({ closed_at: "2026-11-01T00:00:09Z" })),
+    ).toMatchObject({ ok: false, conflicts: ["closed_at"] });
+    // 読めない時刻
+    const base = plan({});
+    expect(
+      await mergeDocuments(
+        base,
+        plan({ closed_at: "いつか" }),
+        plan({ closed_at: "2026-11-01T00:00:05Z" }),
+      ),
+    ).toMatchObject({ ok: false, conflicts: ["closed_at"] });
+    expect(
+      await mergeDocuments(base, plan({ approved_at: "いつか" }), plan({ approved_at: "明日" })),
+    ).toMatchObject({ ok: false, conflicts: ["approved_at"] });
+    // 時刻のほかに承認者もぶつかる
+    expect(
+      await mergeDocuments(
+        base,
+        plan({ approved_by: "eiki", approved_at: "2026-11-01T00:00:09Z" }),
+        plan({ approved_by: "agent", approved_at: "2026-11-01T00:00:05Z" }),
+      ),
+    ).toMatchObject({ ok: false, conflicts: ["approved_by", "approved_at"] });
   });
 
   it("時刻が読めないとき、または片側だけに時刻があるときは、同じ status でも時刻の規則で解かず競合のまま返す", async () => {
@@ -364,6 +463,17 @@ describe("frontmatter の 3-way マージ", () => {
 });
 
 /** init まで済ませた 2 つの clone の文脈。時刻は呼び出しごとに 1 秒進める */
+/** Plan の範囲を、a は書いて push し、b は別の値で書く（時刻でないフィールドの競合。b は sync で止まる） */
+async function scopeOnBothSides(a: CommandContext, b: CommandContext, id: string) {
+  const scope = (ctx: CommandContext, text: string) =>
+    withWrite(ctx, () => ctx.store.update("plan", id, { details: { t1: { scope: text } } }), {
+      message: `${id} の範囲を書く`,
+    });
+  await scope(a, "リモートの範囲");
+  await runCommand(sync, a, {});
+  await scope(b, "ローカルの範囲");
+}
+
 async function twoClones(f: Fixture): Promise<{ a: CommandContext; b: CommandContext }> {
   let tick = Date.parse("2026-11-01T00:00:00Z");
   const now = () => new Date((tick += 1000));
@@ -529,7 +639,7 @@ describe("同期のマージドライバ", () => {
     );
     const created = await runCommand(ticketCreate, b, { title: "別の題" });
     expect(created.warnings.join("\n")).toContain(
-      'Resolved automatically, not a conflict (both sides have the same status and differ only in the time that goes with it, so the earlier time is taken): tickets/t1.md closed_at (taken "2026-11-01T00:00:05Z", discarded "2026-11-01T00:00:09Z")',
+      'Resolved automatically, not a conflict (both sides reached the same state and differ only in the time that goes with it, so the earlier time is taken): tickets/t1.md closed_at (taken "2026-11-01T00:00:05Z", discarded "2026-11-01T00:00:09Z")',
     );
     expect(created.warnings.join("\n")).not.toContain("Conflicts with remote changes");
     expect(b.store.tickets.get("t1")?.data).toMatchObject({
@@ -560,7 +670,7 @@ describe("同期のマージドライバ", () => {
     );
     expect(write).toMatchObject({ committed: true, pushed: true, attempts: 2 });
     expect(write.warnings.join("\n")).toContain(
-      'Resolved automatically, not a conflict (both sides have the same status and differ only in the time that goes with it, so the earlier time is taken): tickets/t1.md closed_at (taken "2026-11-01T00:00:05Z", discarded "2026-11-01T00:00:09Z")',
+      'Resolved automatically, not a conflict (both sides reached the same state and differ only in the time that goes with it, so the earlier time is taken): tickets/t1.md closed_at (taken "2026-11-01T00:00:05Z", discarded "2026-11-01T00:00:09Z")',
     );
     expect(write.warnings.join("\n")).not.toContain("Conflicts with remote changes");
     expect(a.store.tickets.get("t1")?.data).toMatchObject({
@@ -714,7 +824,7 @@ describe("同期のマージドライバ", () => {
     );
   });
 
-  it("同じ Plan の同じフィールドを双方で違う値にした分岐は、今までどおり競合として報告する", async () => {
+  it("同じ Plan を双方で閉じて閉じた時刻だけ違うとき、sync は競合にせず早い方を採り、警告と data.resolved（auto）で知らせる（SY-4）", async () => {
     const f = await fixture();
     const { a, b } = await twoClones(f);
     const created = await runCommand(planCreate, a, { tickets: ["t1"] });
@@ -723,7 +833,37 @@ describe("同期のマージドライバ", () => {
     await runCommand(sync, b, {});
     await runCommand(planClose, a, { plan: id });
     await runCommand(sync, a, {});
+    const remoteClosedAt = a.store.plans.get(id)?.data.closed_at;
     await runCommand(planClose, b, { plan: id });
+    const localClosedAt = b.store.plans.get(id)?.data.closed_at;
+    // 先に閉じた a の時刻が早い
+    expect(Date.parse(String(remoteClosedAt))).toBeLessThan(Date.parse(String(localClosedAt)));
+    const synced = await runCommand(sync, b, {});
+    expect(synced.data.conflicts).toEqual([]);
+    // 早い方を採ると b のコミットはリモートと同じ内容になって消え、push するものが残らない
+    expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
+    const file = `plans/${id}.yaml`;
+    expect(synced.data.resolved).toEqual([
+      { file, field: "closed_at", taken: remoteClosedAt, discarded: localClosedAt, auto: true },
+    ]);
+    expect(synced.warnings.join("\n")).toContain(
+      `${file} closed_at (taken "${remoteClosedAt}", discarded "${localClosedAt}")`,
+    );
+    expect(b.store.plans.get(id)?.data.closed_at).toBe(remoteClosedAt);
+    await runCommand(sync, a, {});
+    expect(await readFile(path.join(a.repo.dataDir, file), "utf8")).toBe(
+      await readFile(path.join(b.repo.dataDir, file), "utf8"),
+    );
+  });
+
+  it("同じ Plan の同じフィールド（時刻でないもの）を双方で違う値にした分岐は、今までどおり競合として報告する", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    const created = await runCommand(planCreate, a, { tickets: ["t1"] });
+    const id = created.data.id;
+    await runCommand(sync, a, {});
+    await runCommand(sync, b, {});
+    await scopeOnBothSides(a, b, id);
     const synced = await runCommand(sync, b, {});
     expect(synced.data.conflicts).toEqual([`plans/${id}.yaml`]);
     expect(synced.data.pushed).toBe(false);
@@ -759,42 +899,43 @@ describe("同期のマージドライバ", () => {
 });
 
 describe("dg sync --resolve（SY-4）", () => {
-  /** 同じ Plan を両側で閉じた分岐。b は閉じる前に承認し（競合したファイルの競合しないフィールド）、別のチケットも変える（競合しないコミット） */
-  async function closedOnBothSides(f: Fixture) {
+  /**
+   * 同じ Plan の範囲を両側で違う値にした分岐（閉じた時刻のずれは自動で解けるので、時刻でないフィールドでぶつける）。
+   * b は承認もし（競合したファイルの競合しないフィールド）、別のチケットも変える（競合しないコミット）
+   */
+  async function scopedOnBothSides(f: Fixture) {
     const { a, b } = await twoClones(f);
     const id = (await runCommand(planCreate, a, { tickets: ["t1"] })).data.id;
     await runCommand(sync, a, {});
     await runCommand(sync, b, {});
-    await runCommand(planClose, a, { plan: id });
-    await runCommand(sync, a, {});
-    const remoteClosedAt = a.store.plans.get(id)?.data.closed_at;
+    await scopeOnBothSides(a, b, id);
     await runCommand(planApprove, b, { plan: id });
-    await runCommand(planClose, b, { plan: id });
     await runCommand(sync, b, {}); // 競合で止まり、まとめ待ちはコミットされて残る
     await runCommand(ticketUpdate, b, { ticket: "t1", priority: "high" });
     await runCommand(sync, b, {});
-    const localClosedAt = b.store.plans.get(id)?.data.closed_at;
-    expect(remoteClosedAt).not.toBe(localClosedAt);
-    return { a, b, id, remoteClosedAt, localClosedAt };
+    const remoteDetails = { t1: { scope: "リモートの範囲" } };
+    const localDetails = { t1: { scope: "ローカルの範囲" } };
+    expect(b.store.plans.get(id)?.data.details).toEqual(localDetails);
+    return { a, b, id, remoteDetails, localDetails };
   }
 
   for (const side of ["remote", "local"] as const) {
     it(`--resolve ${side} は競合したフィールドだけ ${side} の値を採り、照合と push まで済ませて ahead 0 / behind 0 にする`, async () => {
       const f = await fixture();
-      const { a, b, id, remoteClosedAt, localClosedAt } = await closedOnBothSides(f);
+      const { a, b, id, remoteDetails, localDetails } = await scopedOnBothSides(f);
       const before = await git(b.repo.dataDir, ["rev-list", "--count", "HEAD"]);
       const synced = await runCommand(sync, b, { resolve: side });
       expect(synced.data.conflicts).toEqual([]);
       expect(synced.data.pushed).toBe(true);
       expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
       const [taken, discarded] =
-        side === "remote" ? [remoteClosedAt, localClosedAt] : [localClosedAt, remoteClosedAt];
+        side === "remote" ? [remoteDetails, localDetails] : [localDetails, remoteDetails];
       expect(synced.data.resolved).toEqual([
-        { file: `plans/${id}.yaml`, field: "closed_at", taken, discarded },
+        { file: `plans/${id}.yaml`, field: "details", taken, discarded },
       ]);
       // 競合しないフィールド（承認）と競合しないコミット（t1 の優先度）は残る
       expect(b.store.plans.get(id)?.data).toMatchObject({
-        closed_at: taken,
+        details: taken,
         approved_by: "eiki",
         pending_approval: false,
       });

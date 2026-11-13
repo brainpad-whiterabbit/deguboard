@@ -259,7 +259,7 @@ export function describeAutoResolved(fields: readonly ResolvedFile[], inResult: 
       `${f.file} ${f.field} (taken ${showValue(f.taken)}, discarded ${showValue(f.discarded)})`,
   );
   const full = inResult ? "; full values in data.resolved" : "";
-  return `Resolved automatically, not a conflict (both sides have the same status and differ only in the time that goes with it, so the earlier time is taken${full}): ${items.join("; ")}.`;
+  return `Resolved automatically, not a conflict (both sides reached the same state and differ only in the time that goes with it, so the earlier time is taken${full}): ${items.join("; ")}.`;
 }
 
 /** 時間切れは、リモートに届かないときと同じ失敗にする（投げると CAS が自分のコミットを捨てずに抜ける。t753） */

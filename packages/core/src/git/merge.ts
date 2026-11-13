@@ -53,7 +53,8 @@ const NEWER_WINS = new Set(["updated_at"]);
  * 同じ status のまま両側で違っていてよい、状態と一緒に書く時刻（閉じた・始めた・承認した時刻）。
  * 両側が同じ状態に着いたのなら、どちらの時刻も同じ遷移の記録なので、早い方（最初に着いた側）を採る。
  * どちらを採っても状態は変わらず、人が選ぶほどの違いがないので競合にしない。status が違う、またはほかのフィールドや本文もぶつかるときは、
- * 状態の判断に関わるので競合のまま返す（earlierTimes）
+ * 状態の判断に関わるので競合のまま返す（earlierTimes）。
+ * status を持たない素の YAML（Plan）は、承認した・閉じた時刻そのものが状態なので、両側が同じ時刻のフィールドを持てば同じ状態に着いたとみなす
  */
 const SAME_STATUS_TIMES = new Set(["closed_at", "started_at", "approved_at"]);
 
@@ -126,15 +127,18 @@ function newer(a: unknown, b: unknown): unknown {
 }
 
 /**
- * SAME_STATUS_TIMES の規則で解く。両側の status が同じで、ぶつかったフィールドがすべて時刻（両側とも読める ISO 8601）のときだけ、
- * 早い方を採った 1 件ずつを返す。どれか外れれば undefined（競合のまま）
+ * SAME_STATUS_TIMES の規則で解く。両側の status が同じ（素の YAML なら両側とも status がないのも同じとみなす）で、
+ * ぶつかったフィールドがすべて時刻（両側とも読める ISO 8601）のときだけ、早い方を採った 1 件ずつを返す。どれか外れれば undefined（競合のまま）。
+ * frontmatter つき Markdown で両側とも status がないのは壊れたチケットなので、同じ状態とはみなさない
  */
 function earlierTimes(
   ours: Record<string, unknown>,
   theirs: Record<string, unknown>,
   clashes: readonly string[],
+  plain: boolean,
 ): ResolvedField[] | undefined {
-  if (ours.status === undefined || !isDeepStrictEqual(ours.status, theirs.status)) return undefined;
+  if (!isDeepStrictEqual(ours.status, theirs.status)) return undefined;
+  if (ours.status === undefined && !plain) return undefined;
   const fixes: ResolvedField[] = [];
   for (const key of clashes) {
     if (!SAME_STATUS_TIMES.has(key)) return undefined;
@@ -239,7 +243,7 @@ async function conflictHunks(
  * frontmatter つき Markdown と素の YAML（最上位がマッピング）の 3-way マージ。
  * - フィールド（最上位のキー）ごとに、片側だけ変えた値を採る。両側が違う値に変えたら競合（updated_at だけは新しい方を採る）
  * - 本文は片側だけ変えたらその本文、両側が変えたら行単位でマージし、同じ行がぶつかれば競合
- * - 両側の status が同じで、ぶつかったのが状態と一緒に書く時刻（SAME_STATUS_TIMES）だけなら、早い方を採り auto: true で resolved に返す（競合にしない）
+ * - 両側の status が同じ（status のない Plan も含む）で、ぶつかったのが状態と一緒に書く時刻（SAME_STATUS_TIMES）だけなら、早い方を採り auto: true で resolved に返す（競合にしない）
  * - 読めない・base にない（add/add）・3 つの形（frontmatter の有無）が揃わないときは ok: false の代わりに undefined を返し、
  *   呼び手が行単位のマージに任せる（仮番号の add/add を行単位の競合のまま残し、振り直し DT-5 の検出を変えないため）
  * - prefer を渡すと（dg sync --resolve）、競合したフィールドだけその側の値を採り、本文は同じ行がぶつかった箇所だけその側を採る。
@@ -310,7 +314,7 @@ export async function mergeDocuments(
   // 同じ status の分岐で、ずれたのが状態と一緒に書く時刻だけなら早い方を採る（SAME_STATUS_TIMES）。
   // prefer があれば人が選んだ側で解くので使わない。本文やほかのフィールドがぶつかれば、全体を競合のまま返す
   if (!prefer && bodyHunks === undefined && clashes.length > 0) {
-    const fixes = earlierTimes(a.data, b.data, clashes);
+    const fixes = earlierTimes(a.data, b.data, clashes, plain);
     if (fixes) {
       for (const f of fixes) {
         resolved.push(f);
