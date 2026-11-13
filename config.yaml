@@ -20,9 +20,9 @@ merge:
 actions:
   shell: false
   test:
-    - mise
-    - run
-    - check
+    - '["mise"'
+    - '"run"'
+    - '"check"]'
   light_test:
     - mise
     - run
@@ -41,3 +41,23 @@ worktree:
     - mise
     - run
     - setup
+guide:
+  notes:
+    overview: ""
+    import: ""
+    assign: ""
+    check: ""
+    plan: ""
+    work: docs/work-notes.md
+    run: ""
+    parallel: ""
+    review: ""
+    audit: ""
+    release: ""
+    done: ""
+    change: ""
+    discuss: ""
+    status: ""
+    all: ""
+commit:
+  mode: each
