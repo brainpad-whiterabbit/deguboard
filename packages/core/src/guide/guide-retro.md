@@ -1,5 +1,5 @@
 ---
-description: Looks back on a closed deguboard Iteration. Shows a short summary of its numbers (Runs, time and tokens per step, failures, retries, heavy findings, carry-overs), asks which viewpoints to look into (outcome, flow, rework, comparison), gives Keep / Problem / Try with a number or a ticket ID as the basis of each finding, and after approval files the improvements as tickets. Use when asked「s3 を振り返って」「レトロして」「振り返りをまとめて」.
+description: Looks back on a closed deguboard Iteration. Shows a short summary of its numbers (Runs, time and tokens per step, tokens per changed line, failures, retries, heavy findings, carry-overs), asks which viewpoints to look into (outcome, flow, rework, efficiency, comparison), gives Keep / Problem / Try with a number or a ticket ID as the basis of each finding, and after approval files the improvements as tickets. Use when asked「s3 を振り返って」「レトロして」「振り返りをまとめて」.
 argument-hint: "[Iteration] [viewpoints]"
 ---
 
@@ -11,7 +11,7 @@ Looks back on a closed Iteration from its numbers and tickets, and gives Keep / 
 
 - Iteration (`s3`): the target. It should be closed. For any other status, show its status from `iteration show` and the ask that fits (for example, `dg guide release` for an active one whose tickets are all done), and stop
 - No target given: suggests the Iteration closed last (`iteration list --status closed`, the latest `closed_at`) and asks to confirm it. If there is none, say so and stop
-- Viewpoints (`outcome`, `flow`, `rework`, `comparison`) after the Iteration, or named in the instruction: look into those, and do not ask which viewpoints (step 3)
+- Viewpoints (`outcome`, `flow`, `rework`, `efficiency`, `comparison`) after the Iteration, or named in the instruction: look into those, and do not ask which viewpoints (step 3)
 
 In the steps below, `<S>` is the ID of the target Iteration.
 
@@ -21,12 +21,13 @@ In the steps below, `<S>` is the ID of the target Iteration.
 2. **Show the summary**: a few lines, before asking anything
    - Runs: `total.runs`, and the tickets by status from `ticket list`
    - Share of time per step: each group's `duration_seconds` over `total.duration_seconds`
-   - Share of tokens per step: each group's tokens over the tokens of `total`. A Run's tokens are its `input`, `output`, `cache_read`, and `cache_write` added together (cache is `cache_read` and `cache_write` together). The four counts are separate and do not overlap, so they add up without counting any token twice. A group whose four values are all null is "unknown"; when a group has `missing` counts for them, its share covers only the Runs that have the values, and the note says so
+   - Share of tokens per step: each group's tokens over the tokens of `total`. A Run's tokens are its `input`, `output`, `cache_read`, and `cache_write` added together (cache is `cache_read` and `cache_write` together). The four counts are separate and do not overlap, so they add up without counting any token twice. A group whose four values are all null is "unknown". Each value adds up only the Runs that have it, so when a group has `missing` counts for them, its share covers only those Runs, and the note gives the `missing` count of each value
+   - Tokens per changed line: `total.lines.per_line` (`output` and `input_cache`), with the lines it divides by (`total.lines.additions` and `deletions`) and the tickets left out (`total.lines.missing`). If `per_line` is null, it is "unknown"
    - Failures: `total.results.failure` and `interrupted`
    - Retries and heavy findings: `total.retries` and `total.reviews.heavy`
    - Carry-overs: `carried_over` of `iteration show <S>`, and any ticket of `ticket list` that is neither done nor abandoned
    - Gaps in the measurement, as notes (see the "Gaps in the measurement" section below)
-3. **Ask the viewpoints**: once, with multiple selection, from the four in the "Viewpoints" section below. Recommend the viewpoints where a number stands out, and give the number as the reason (for example, "rework: 4 retries and 1 heavy finding", "flow: implement took 84% of the time, 1 failure", "outcome: 3 carry-overs", "comparison: `retro-<previous S>` has tickets"). If nothing stands out, recommend outcome. Do not ask when the viewpoints are already decided (see "Deciding the target")
+3. **Ask the viewpoints**: once, with multiple selection, from the five in the "Viewpoints" section below. Recommend the viewpoints where a number stands out, and give the number as the reason (for example, "rework: 4 retries and 1 heavy finding", "flow: implement took 84% of the time, 1 failure", "outcome: 3 carry-overs", "efficiency: 310 output tokens per changed line", "comparison: `retro-<previous S>` has tickets"). If nothing stands out, recommend outcome. Do not ask when the viewpoints are already decided (see "Deciding the target")
 4. **Look into each chosen viewpoint**: read the commands of the viewpoint, and answer its questions (the "Viewpoints" section). Read only; no subagent is needed
 5. **Show Keep / Problem / Try**: in the table of the "Keep / Problem / Try" section below, with the notes on the gaps
 6. **Get approval**: ask once, with multiple selection (`#`), which Try rows to reflect (include "Do not reflect"). Write nothing until approval is obtained. If there is no Try row to reflect, do not ask
@@ -41,6 +42,7 @@ Reading (steps 1 to 5) proceeds without waiting for approval. Besides the viewpo
 | Outcome    | `iteration show <S>` (`goal`, `completed`, `carried_over`, and where the carry-overs are now in `next.moved`), `ticket list --iteration <S> --include-abandoned`       | Was the goal met? What was finished, what was abandoned, and what was carried over? Where are the carry-overs now, and are they finished?                       |
 | Flow       | `metrics show --iteration <S> --by step`, `--by ticket`, and `--by model`; `run list --iteration <S>` (`result` and `error` of the Runs that failed or were interrupted) | Which step took the largest share of the time, and which the largest share of the tokens? Where the two shares differ, which step is the reason? Which tickets took far longer than the others? Why did the failed or interrupted Runs stop?                      |
 | Rework     | `metrics show --iteration <S> --by ticket` (`retries`, `reviews.heavy`), then for those tickets `run list --ticket <t12>` and the PR (see "Causes of rework")           | Which tickets were reworked, and how many times? What kind of cause does each have? Which kind is the most common?                                              |
+| Efficiency | `metrics show --iteration <S> --by step` and `--by ticket` (`lines` of `total` and of each group: `additions`, `deletions`, `per_line.output`, `per_line.input_cache`, `missing`); `metrics show --iteration <previous S>` (`total.lines`) (see "Tokens per changed line") | In which steps and which tickets are the tokens per changed line high? Is it the output or the context read (`input_cache`) that is high? Did the tokens per changed line go up or down from the previous Iteration? |
 | Comparison | `metrics show --iteration <previous S> --by step`, `ticket list --label retro-<previous S> --include-abandoned` (see "Comparison with the previous Iteration")          | Which numbers got better or worse than the previous Iteration? Was each Try of the previous retrospective finished, and did the number it aimed at change?       |
 
 ## Causes of rework
@@ -54,10 +56,18 @@ The kinds are: the ticket (acceptance criteria or scope that were unclear or mis
 
 If `gh` is not available or the comments cannot be read, write the cause of that heavy finding as "unknown", and say that it could not be read. A retry with no `retry_reasons` is also "unknown".
 
+## Tokens per changed line
+
+- `lines` of `metrics show` holds the changed lines of the tickets of the Runs (`additions` and `deletions` of each ticket's merged PR) and the tokens per changed line (`per_line`). It is split into `output` (what was written) and `input_cache` (the context read: `input`, `cache_read`, and `cache_write` together), because `cache_read` is most of the tokens. Read the two separately, and do not add them into one number
+- A ticket with no changed lines (work with no PR, or a PR not merged yet) is left out of `per_line`, and is counted in `lines.missing`. Show that count with the number
+- In `--by step`, a group's `per_line` is the tokens of that step's Runs over the changed lines of their tickets, so it tells which step costs the most per line. In `--by ticket`, show the tickets whose `per_line` is far above `total`, with their changed lines: a ticket with few changed lines has a high `per_line` whatever the work was, so do not make it a Problem from `per_line` alone
+- Against the previous Iteration, compare `total.lines.per_line` of the two, each with its `lines.missing`. If there is no previous Iteration, or its `per_line` is null, say so and answer only for `<S>`
+- Changed lines are a rough measure of the size of the work, not of its value. Use the number to find where to look, and give the ticket IDs as the basis
+
 ## Comparison with the previous Iteration
 
 - The previous Iteration is the one closed just before `<S>` (`iteration list --status closed`, by `closed_at`). If there is none, say so and skip this viewpoint
-- Compare the same numbers as the summary (Runs, share of time per step, share of tokens per step, failures, retries, heavy findings, carry-overs). Counts depend on the number of tickets, so show them with the number of tickets or as a rate
+- Compare the same numbers as the summary (Runs, share of time per step, share of tokens per step, tokens per changed line, failures, retries, heavy findings, carry-overs). Counts depend on the number of tickets, so show them with the number of tickets or as a rate
 - The Try of the previous retrospective is the tickets with the label `retro-<previous S>` (for example `retro-s2`). Show from each one's status whether it was finished: done (finished), in_progress or review (under way), todo (not started), abandoned (dropped). For a finished Try, show whether the number it aimed at changed
 - If no ticket has the label, say that the previous retrospective filed no Try (or was not done), and compare only the numbers
 
@@ -66,7 +76,8 @@ If `gh` is not available or the comments cannot be read, write the cause of that
 Add these as notes to the summary and to the Keep / Problem / Try table, with their counts.
 
 - `missing`: the number of Runs whose value could not be read, per value (`duration_seconds`, `input`, `output`, `cache_read`, `cache_write`, `tools`). Those Runs are not added to the totals
-- Tokens not read: when `metrics.read_transcripts` is false (`dg config show`), or DEGUBOARD_NO_TRANSCRIPTS is set where the Runs were finished, their usage is not read. Those Runs count in `missing` for `input`, `output`, `cache_read`, and `cache_write`, so the token shares are not measured. Note it as a gap, not as 0
+- Tokens not read: the `missing` counts of `input`, `output`, `cache_read`, and `cache_write` are the signal. Each value adds up only the Runs that have it, so give the `missing` count of each value, and note it as a gap, not as 0. The usage is not read when `metrics.read_transcripts` was false, or DEGUBOARD_NO_TRANSCRIPTS was set, where the Runs were finished (the setting now, in `dg config show`, may differ from the one then). `dg run refresh` can read the usage of closed Runs again
+- `lines.missing`: the number of tickets with no changed lines, which are left out of the tokens per changed line. A done ticket that has a PR and no lines can be filled with `dg metrics lines --iteration <S>` (it writes the lines to the tickets, so run it only when a human asks)
 - `estimated_runs`: the number of Runs whose usage is estimated. The totals include the estimates
 - `no_runs`: done tickets claimed by an agent that have no implement Run. Their work is not in the numbers
 - Runs follow each ticket's current Iteration, so the Runs of the carried-over tickets are not in the numbers of `<S>`

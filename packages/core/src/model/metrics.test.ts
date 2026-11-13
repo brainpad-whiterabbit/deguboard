@@ -162,4 +162,66 @@ describe("Run の集計", () => {
     ]);
     expect(measureRuns(all, {}).groups).toEqual([]);
   });
+
+  it("変更行数はチケットごとに 1 回だけ足し、1 行あたりのトークンを output と input+cache に分けて出す。行数のないチケットは計算から外して数える（MT-6）", () => {
+    const usage = (input: number, output: number) => ({
+      input,
+      output,
+      cache_read: input * 2,
+      cache_write: null,
+    });
+    const runs = [
+      // t1（+80 -20）：実装と手直し
+      run("00", { usage: usage(1000, 300) }),
+      run("01", { step: "fix", usage: usage(500, 200) }),
+      // t2：行数なし（PR の要らない作業・マージ前）
+      run("02", { ticket: "t2", usage: usage(9000, 9000) }),
+      // t3（+50 -0）：使用量のない Run だけ
+      run("03", { ticket: "t3", usage: emptyUsage() }),
+    ];
+    const lines: Record<string, { additions: number; deletions: number }> = {
+      t1: { additions: 80, deletions: 20 },
+      t3: { additions: 50, deletions: 0 },
+    };
+    const m = summarizeRuns(runs, (id) => lines[id]);
+    // 行数は t1 と t3 の合計。t1 は Run が 2 件でも 1 回だけ足す
+    expect(m.lines).toEqual({
+      tickets: 2,
+      additions: 130,
+      deletions: 20,
+      missing: 1,
+      // t2 のトークンは足さない。値のある Run のない t3 の行数は分母に入れない：output 500 / 100、input+cache 4500 / 100
+      per_line: { output: 5, input_cache: 45 },
+    });
+
+    // 工程ごとの集計でも、その工程の Run のトークンをチケットの行数で割る
+    const placed = runs.map((r) => ({ run: r, at: placeRun(r, undefined) }));
+    const byStep = measureRuns(placed, {}, "step", (id) => lines[id]).groups;
+    expect(byStep.map((g) => [g.key, g.lines.per_line.output, g.lines.missing])).toEqual([
+      ["fix", 2, 0],
+      ["implement", 3, 1],
+    ]);
+
+    // 行数のあるチケットがなければ行数も 1 行あたりも null。linesOf を省いても同じ
+    expect(summarizeRuns([runs[2]!]).lines).toEqual({
+      tickets: 0,
+      additions: null,
+      deletions: null,
+      missing: 1,
+      per_line: { output: null, input_cache: null },
+    });
+    // 行数が 0 の PR（追加も削除もない）では割らない
+    expect(
+      summarizeRuns([runs[0]!], () => ({ additions: 0, deletions: 0 })).lines.per_line,
+    ).toEqual({ output: null, input_cache: null });
+    // capture: none の記録のトークンは足さず、小数第 1 位に丸める
+    const rounded = summarizeRuns(
+      [
+        run("04", { usage: usage(10, 10) }),
+        run("05", { step: "review", capture: "none", usage: usage(999, 999) }),
+      ],
+      () => ({ additions: 3, deletions: 0 }),
+    );
+    expect(rounded.lines.per_line).toEqual({ output: 3.3, input_cache: 10 });
+  });
 });

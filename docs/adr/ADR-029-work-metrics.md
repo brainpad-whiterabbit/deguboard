@@ -4,7 +4,7 @@
 
 ## 要約
 
-作業の使用量は Run ごとに公式の会話記録から実測し、エージェントの自己申告は使わない。Git に写すのは数とモデル名だけで、プロンプトや中身は写さない。実装・見直し・手直しは別の step の Run にし、会話記録を読む許可はリポジトリの config に置く。
+作業の使用量は Run ごとに公式の会話記録から実測し、エージェントの自己申告は使わない。Git に写すのは数とモデル名だけで、プロンプトや中身は写さない。実装・見直し・手直しは別の step の Run にし、会話記録を読む許可はリポジトリの config に置く。作業の大きさはマージされた PR の行数をチケットに記録し、1 行あたりのトークンを output と読んだ文脈に分けて出す。
 
 ## 背景
 
@@ -24,6 +24,12 @@
 - エージェント・モデル・日時・トークン数・結果・エラー・やり直しの理由・step（項目は RN-1）と、ツールの呼び出しの種類ごとの回数と最初に書くまでの読む・探すの回数
 - 集計は Run から Step までの単位で表示のたびに求め、保存しない（MT-3）
 - Epic・Iteration・Project へは、Run の持つチケットの今の所属でたどる（持ち越したチケットの Run は今の Iteration に数える）
+
+### 変更行数はチケットに記録し、1 行あたりのトークンは内訳で出す
+
+- 作業の大きさの目安として、マージされた PR の追加・削除の行数をチケットに記録する（TK-11）。照合がマージを見たときに、PR の状態を読むのと同じ gh の呼び出しから採る
+- `metrics show` は、Run のトークンをそのチケットの行数で割った 1 行あたりのトークンを出す。合計では割らず、output と読んだ文脈（input + cache）に分ける。行数のないチケットは計算から外し、件数を出す（MT-6）
+- 行数のない done のチケットには、人が呼ぶ `metrics lines` が後から記録する。1 回に読む PR の数に上限を持つ
 
 ### 実装・見直し・手直しを別の Run にする
 
@@ -66,7 +72,7 @@
 - `packages/core/src/agents/index.ts`（`detectAgent`・読む許可）・`packages/core/src/agents/adapters/`（製品ごとの Adapter と `transcript.ts` の `bindFile`・`OverlapClaims`）・`packages/core/src/agents/agents.test.ts`
 - `packages/core/src/model/run.ts`（Run の形）・`packages/core/src/commands/run.ts`（`run start`・`run finish`・`run refresh`）・`packages/core/src/run/record.ts`・`packages/core/src/commands/run.test.ts`
 - `packages/core/src/commands/ticket.ts`（`ticket update --pr`）・`packages/core/src/commands/setup.ts`（照合が閉じる Run と `dg lint`）・`packages/core/src/commands/commands-flow-reconcile.test.ts`
-- `packages/core/src/model/metrics.ts`・`packages/core/src/commands/metrics.ts`（`dg metrics show --help`）
+- `packages/core/src/model/metrics.ts`・`packages/core/src/commands/metrics.ts`（`dg metrics show --help`・`dg metrics lines --help`）・`packages/core/src/git/facts.ts`（PR の行数）
 
 ## 理由
 
@@ -79,6 +85,7 @@
 - 実装の Run の開閉をチケットの操作に付けたのは、手順書を通らずに実装すると `run start`・`run finish` が呼ばれず、Run が残らないか開いたままになったため。使用量は `finished_at` で区切るので、古い手順のまま `run finish` を呼んでも数は壊れない
 - 親の使用量を Run で測るには Run の形と多くのコードを変えることになる。親の分は 2026-11-05 の会話記録で単価の比の重みを付けて全体の約 3 割と小さくないが、それを見たうえでも、今はチケットの粒度とモデルの選び方を決める数があれば足りると判断した
 - 集計値を保存せず、チケットに Run の ID を書き足さないのは、Run を足すたびに複数のファイルを書き換えて衝突させないため。所属を Run に写さないのは、チケットを動かしたときに Run と食い違うため
+- トークンの大半は cache_read なので、合計を行数で割ると読んだ文脈の量だけが見え、書いた量の違いが埋もれる。行数をチケットに持つのは、表示のたびに gh を呼ばずに済み、gh のないマシンでも同じ数になるため
 - 記録のパスはホームのパスとユーザ名を含み、Git に入れると他人に見え、別のマシンでは読めないので、マシンごとのローカルに置き、Git にはセッション ID だけを残す
 
 ## 採らなかった案
@@ -90,6 +97,8 @@
 - **Plan に結び付ける親の Run**：Plan の ID は計画の後にしかできず、親の Run は会話の再開をまたいで長く、チケットがある前提のコードを直すことになる
 - **すべての Run を Plan に結び付け、1 枚の作業にも軽い Plan を作る**：Plan のない作業と Skill なしの使い方が止まる
 - **実装の Run を開けたまま修正ループを回し、`retries` に直した回数を書く**：見直しと手直しの量が実装と分かれない
+- **トークンの合計を行数で割る**：cache_read に埋もれて、書いた量の違いが見えない
+- **`dg sync` が行数のない done のチケットを毎回 gh で引く**：マージされなかった PR の done を sync のたびに読み続け、照合が遅くなる
 - **AI に振り返りを書かせて数字を残す**：正確でない
 - **会話の中身を記録する**：個人データと秘密情報が Git に入る
 - **Run の ID が最初に出た会話記録だけで結び付ける**：後から開いた見直しの応答を数えられない。場所がないときの落ち先にだけ残す

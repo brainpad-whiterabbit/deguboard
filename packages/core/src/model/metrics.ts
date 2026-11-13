@@ -46,6 +46,75 @@ export interface RunMetrics {
    * 結果のない Run（見直し以外の step と、結果を記録せずに終わった見直し）は数えない
    */
   reviews: { recorded: number; passed: number; heavy: number; light: number };
+  lines: LineMetrics;
+}
+
+/**
+ * 変更行数と 1 行あたりのトークン（MT-6）。行数は Run のチケットに記録された、マージされた PR の追加・削除（Ticket の lines）。
+ * 同じチケットの Run がいくつあっても、行数は 1 回だけ足す
+ */
+export interface LineMetrics {
+  /** 行数のあるチケットの数 */
+  tickets: number;
+  /** 行数のあるチケットの追加・削除の合計。行数のあるチケットがなければ null */
+  additions: number | null;
+  deletions: number | null;
+  /** 行数がなく（PR の要らない作業・マージ前・見つからないチケット）、1 行あたりのトークンの計算から外したチケットの数 */
+  missing: number;
+  /**
+   * 1 行（追加 + 削除）あたりのトークン。cache_read が大半を占めるので合計では割らず、output と、読んだ文脈
+   * （input + cache_read + cache_write）に分ける。分子は行数のあるチケットの Run のうち値のあるものの合計、
+   * 分母は値のある Run が 1 件でもあるチケットの行数の合計（値のない Run だけのチケットの行数で薄めない）。
+   * 分母が 0 なら null。小数第 1 位に丸める
+   */
+  per_line: { output: number | null; input_cache: number | null };
+}
+
+/** チケットに記録された行数（Ticket の lines と同じ形） */
+export interface TicketLines {
+  additions: number;
+  deletions: number;
+}
+
+/** 読んだ文脈のトークン（input + cache_read + cache_write）。3 つとも null なら null、ほかは値のあるものだけを足す */
+function inputCacheOf(run: Run): number | null {
+  const parts = [run.usage.input, run.usage.cache_read, run.usage.cache_write].filter(
+    (v): v is number => v !== null,
+  );
+  return parts.length === 0 ? null : parts.reduce((a, b) => a + b, 0);
+}
+
+function summarizeLines(
+  runs: readonly Run[],
+  linesOf: (ticket: string) => TicketLines | undefined,
+): LineMetrics {
+  const tickets = [...new Set(runs.map((r) => r.ticket))];
+  const withLines = tickets.flatMap((id) => {
+    const lines = linesOf(id);
+    return lines ? [{ id, lines }] : [];
+  });
+  const perLine = (valueOf: (run: Run) => number | null): number | null => {
+    let tokens = 0;
+    let changed = 0;
+    for (const { id, lines } of withLines) {
+      // capture: none の記録は使用量を持たない（summarizeRuns と同じく外す）
+      const values = runs
+        .filter((r) => r.ticket === id && r.capture !== "none")
+        .map(valueOf)
+        .filter((v): v is number => v !== null);
+      if (values.length === 0) continue;
+      tokens += values.reduce((a, b) => a + b, 0);
+      changed += lines.additions + lines.deletions;
+    }
+    return changed === 0 ? null : Math.round((tokens / changed) * 10) / 10;
+  };
+  return {
+    tickets: withLines.length,
+    additions: withLines.length === 0 ? null : withLines.reduce((a, t) => a + t.lines.additions, 0),
+    deletions: withLines.length === 0 ? null : withLines.reduce((a, t) => a + t.lines.deletions, 0),
+    missing: tickets.length - withLines.length,
+    per_line: { output: perLine((r) => r.usage.output), input_cache: perLine(inputCacheOf) },
+  };
 }
 
 /** Run の各単位の値。Epic・Iteration・Project はチケットの今の値からたどる。チケットがなければ null */
@@ -71,7 +140,11 @@ export function runDurationSeconds(run: Run): number | null {
   return Number.isFinite(ms) && ms >= 0 ? ms / 1000 : null;
 }
 
-export function summarizeRuns(runs: readonly Run[]): RunMetrics {
+/** linesOf はチケットの ID から記録された行数を引く。省けばどのチケットも行数なしとして数える */
+export function summarizeRuns(
+  runs: readonly Run[],
+  linesOf: (ticket: string) => TicketLines | undefined = () => undefined,
+): RunMetrics {
   const sums: Record<MetricValue, number | null> = {
     duration_seconds: null,
     input: null,
@@ -133,6 +206,7 @@ export function summarizeRuns(runs: readonly Run[]): RunMetrics {
     missing,
     estimated_runs: estimated,
     reviews,
+    lines: summarizeLines(runs, linesOf),
   };
 }
 
@@ -215,9 +289,13 @@ export function measureRuns(
   placed: readonly { run: Run; at: RunPlacement }[],
   filter: MetricFilter = {},
   by?: MetricUnit,
+  linesOf?: (ticket: string) => TicketLines | undefined,
 ): MetricsReport {
   const matched = filterRuns(placed, filter);
-  const total = summarizeRuns(matched.map((p) => p.run));
+  const total = summarizeRuns(
+    matched.map((p) => p.run),
+    linesOf,
+  );
   if (!by) return { total, groups: [] };
   const buckets = new Map<string | null, Run[]>();
   for (const p of matched) {
@@ -228,6 +306,6 @@ export function measureRuns(
   }
   const groups = [...buckets.entries()]
     .sort(([a], [b]) => compareKeys(a, b))
-    .map(([key, runs]) => ({ key, ...summarizeRuns(runs) }));
+    .map(([key, runs]) => ({ key, ...summarizeRuns(runs, linesOf) }));
   return { total, groups };
 }
