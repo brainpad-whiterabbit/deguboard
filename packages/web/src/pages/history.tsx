@@ -35,7 +35,7 @@ import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.
 import { shortPeriod } from "../components/iteration-parts.js";
 import { useAskCurrent, useUiState } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
-import { ClosedOn, ShortDay } from "../components/date-time.js";
+import { ClosedOn, formatPeriod, ShortDay } from "../components/date-time.js";
 import { navigate, replaceRoute, type HistoryQuery, type HistoryView } from "../router.js";
 import { useStore } from "../store.js";
 import {
@@ -489,7 +489,7 @@ function IterationItem({
   const epics = epicCountsOf(finished);
   const abandoned = finished.filter((t) => t.status === "abandoned").length;
   // 1 段目は目標（なければ薄く「目標なし」。名前は出さず、ツールチップにだけ置く）。2 段目は実績の期間と Epic ごとの内訳。
-  // 期間は実績の started_at〜closed_at で出す（UI-5）。started_at のないものは開始を「不明」と出す
+  // 期間は実績の started_at〜closed_at を時刻と所要時間で出す（UI-5、formatPeriod）。started_at のないものは開始を「不明」と出す
   const goal = i.goal?.trim();
   // 終わったチケットがすべて Epic なしなら内訳は出さない（Epic なしだけの内訳は情報にならない）
   const showEpics = epics.some((e) => e.epic !== null);
@@ -521,12 +521,7 @@ function IterationItem({
             title={tr("完了と持ち越しは閉じたときに記録した件数")}
           />
           <small>
-            {i.started_at ? (
-              <>{trNode("{0} 〜 ", <ShortDay iso={i.started_at} />)}</>
-            ) : (
-              tr("開始は不明 ・ ")
-            )}
-            <ClosedOn iso={i.closed_at} />
+            {formatPeriod(i.started_at, i.closed_at)}
             {showEpics ? (
               <span className="epics">
                 {tr(" ・ ")}
@@ -912,13 +907,20 @@ export function iterationRuns(
 }
 
 /**
- * チケットの見方の区切りの見出し：Iteration の番号（詳細へのリンク）・実績の期間（planned と、一覧にない Iteration は出さない）・
+ * チケットの見方の区切りの見出し：Iteration の番号（詳細へのリンク）・実績の期間（planned と、一覧にない Iteration は出さない。閉じたものは時刻と所要時間）・
  * 区切りに続く件数。Iteration のないチケットは「Iteration なし」。スクロール中は一覧の上に貼り付く（styles.css の .history-divider）
  */
 function IterationDivider({ iteration, count }: { iteration: string | null; count: number }) {
   const store = useStore();
   const it = iteration ? store.iterations.find((i) => i.id === iteration) : undefined;
-  const period = it ? shortPeriod(it) : undefined;
+  // 閉じた Iteration は Iteration の見方の行と同じく時刻と所要時間で出す（formatPeriod）。active と、開始の記録がない
+  // （長い文になって 1 行に収まらない）ものは短い日付の期間（shortPeriod）のまま
+  const period =
+    it?.status === "closed" && it.started_at
+      ? formatPeriod(it.started_at, it.closed_at)
+      : it
+        ? shortPeriod(it)
+        : undefined;
   return (
     <h3 className="history-divider">
       {iteration ? (

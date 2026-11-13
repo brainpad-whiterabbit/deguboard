@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { formatShortDay, formatShortTime } from "./date-time.js";
+import { formatPeriod, formatShortDay, formatShortTime } from "./date-time.js";
 
 describe("日時（formatShortTime）", () => {
   const now = new Date("2026-11-03T12:00:00Z");
@@ -46,6 +46,69 @@ describe("履歴の日付（formatShortDay）", () => {
 
   it("読めない値はそのまま出す", () => {
     expect(formatShortDay("not-a-date", now)).toBe("not-a-date");
+  });
+});
+
+describe("閉じた Iteration の期間（formatPeriod）", () => {
+  // テストの時差は UTC に固定されている
+  const now = new Date("2026-11-13T15:00:00Z");
+
+  it("同じ日に閉じたら、日付・開始と閉じた時刻・時間で出す", () => {
+    expect(formatPeriod("2026-11-13T09:28:00Z", "2026-11-13T13:24:00Z", now)).toBe(
+      "11/13 09:28–13:24 · 4 時間",
+    );
+  });
+
+  it("1 時間に満たなければ分で出す", () => {
+    expect(formatPeriod("2026-11-13T09:28:00Z", "2026-11-13T10:10:00Z", now)).toBe(
+      "11/13 09:28–10:10 · 42 分",
+    );
+  });
+
+  it("次の日に閉じたら、両方の日付と時刻で出す", () => {
+    expect(formatPeriod("2026-11-12T22:10:00Z", "2026-11-13T08:00:00Z", now)).toBe(
+      "11/12 22:10–11/13 08:00 · 10 時間",
+    );
+  });
+
+  it("2 日以上あとに閉じたら、日付と日数（開始の日を 1 日目に数える）で出す", () => {
+    expect(formatPeriod("2026-11-10T23:00:00Z", "2026-11-13T01:00:00Z", now)).toBe(
+      "11/10–11/13 · 4 日",
+    );
+  });
+
+  it("開始の記録がなければ、今と同じく開始を不明と出す", () => {
+    expect(formatPeriod(undefined, "2026-11-13T13:24:00Z", now)).toBe(
+      "開始は不明 ・ 11/13 13:24 に閉じた",
+    );
+    expect(formatPeriod(null, null, now)).toBe("開始は不明 ・ 閉じた日は不明");
+    expect(formatPeriod("2026-11-13T09:28:00Z", undefined, now)).toBe(
+      "11/13 09:28 〜 閉じた日は不明",
+    );
+  });
+
+  it("今年でない日付には年を付ける", () => {
+    expect(formatPeriod("2025-12-31T22:00:00Z", "2026-01-01T02:00:00Z", now)).toBe(
+      "2025/12/31 22:00–1/1 02:00 · 4 時間",
+    );
+  });
+
+  it("読めない値はそのまま出す", () => {
+    expect(formatPeriod("not-a-date", "2026-11-13T13:24:00Z", now)).toBe("not-a-date–11/13 13:24");
+  });
+
+  it("手元の時差で日付と時刻を数える（UTC では同じ日でも Asia/Tokyo では日をまたぐ）", () => {
+    const original = process.env.TZ;
+    process.env.TZ = "Asia/Tokyo";
+    try {
+      // 手元 11/13 08:00–11/14 02:00（UTC では 11/12 23:00–11/13 17:00）
+      expect(formatPeriod("2026-11-12T23:00:00Z", "2026-11-13T17:00:00Z", now)).toBe(
+        "11/13 08:00–11/14 02:00 · 18 時間",
+      );
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
   });
 });
 

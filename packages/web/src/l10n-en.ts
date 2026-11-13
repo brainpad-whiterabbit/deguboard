@@ -84,6 +84,11 @@ export const EN: Readonly<Record<string, string>> = {
   "{0}（{1}）": "{0} ({1})",
   "{0} に閉じた": "Closed {0}",
   閉じた日は不明: "Closed date unknown",
+  "開始は不明 ・ ": "Start unknown · ",
+  "{0} 〜 ": "{0} – ",
+  "{0} 日": "{0} days",
+  "{0} 分": "{0}m",
+  "{0} 時間": "{0}h",
   // components/filter-toggle.tsx
   "絞り込み（絞っている）": "Filter (active)",
   絞り込み: "Filter",
@@ -421,8 +426,6 @@ export const EN: Readonly<Record<string, string>> = {
   "タイトル {0}": "Title {0}",
   "この Epic でカンバンを見る": "View this Epic on the board",
   // pages/history.tsx
-  "{0} 〜 ": "{0} – ",
-  "開始は不明 ・ ": "Start unknown · ",
   "中止 {0}": "Abandoned {0}",
   "持ち越し {0}": "Carried over {0}",
   見方: "View by",

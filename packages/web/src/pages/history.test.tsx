@@ -169,9 +169,7 @@ describe("Iteration の行", () => {
       </StoreProvider>,
     );
     const row = (await screen.findByText("左パネルを主画面にする")).closest(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe(
-      "10/20 〜 11/01 に閉じた ・ e1 2, Epic なし 2",
-    );
+    expect(row.querySelector("small")!.textContent).toBe("10/20–11/1 · 13 日 ・ e1 2, Epic なし 2");
     expect([...row.querySelectorAll(".counts > span")].map((b) => b.textContent)).toEqual([
       "3",
       "中止 1",
@@ -186,7 +184,7 @@ describe("Iteration の行", () => {
 });
 
 describe("Iteration の行の 1 段目と 2 段目", () => {
-  it("目標がなければ名前（sprint4）ではなく「目標なし」を出し、目標があれば名前を出さない。閉じた日は今日・昨日を言葉で出し、正確な日時をツールチップに置く。内訳は終わったチケットがすべて Epic なしなら出さない", async () => {
+  it("目標がなければ名前（sprint4）ではなく「目標なし」を出し、目標があれば名前を出さない。期間は時刻と所要時間で出し、開始の記録がなければ開始を不明と出す。内訳は終わったチケットがすべて Epic なしなら出さない", async () => {
     window.location.hash = "#/history";
     const client = mockClient();
     client.data.iterations = [
@@ -201,16 +199,18 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
       iteration({
         id: "s6",
         name: "n6",
-        goal: "きのう",
+        goal: "日をまたぐ",
         status: "closed",
+        started_at: "2026-11-02T22:10:00Z",
         closed_at: "2026-11-03T08:30:00Z",
       }),
       iteration({
         id: "s7",
         name: "n7",
-        goal: "きょう",
+        goal: "同じ日",
         status: "closed",
-        closed_at: "2026-11-04T01:00:00Z",
+        started_at: "2026-11-04T09:28:00Z",
+        closed_at: "2026-11-04T13:24:00Z",
       }),
     ];
     client.data.tickets = [
@@ -226,14 +226,13 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
     );
     const none = (await screen.findByText("目標なし")).closest(".history-row")!;
     // started_at のないもの（記録する前に始めた）は開始を「不明」と出す
-    expect(none.querySelector("small")!.textContent).toBe("開始は不明 ・ 11/01 に閉じた");
+    expect(none.querySelector("small")!.textContent).toBe("開始は不明 ・ 11/1 00:00 に閉じた");
     const goal = screen.getByText("目標あり").closest(".history-row")!;
-    expect(goal.querySelector("small")!.textContent).toBe("開始は不明 ・ 11/02 に閉じた");
-    const yesterday = screen.getByText("きのう").closest(".history-row")!;
-    expect(yesterday.querySelector("small")!.textContent).toBe("開始は不明 ・ 昨日 に閉じた");
-    expect(yesterday.querySelector("time")!.getAttribute("title")).toBe("2026-11-03 08:30");
-    const today = screen.getByText("きょう").closest(".history-row")!;
-    expect(today.querySelector("small")!.textContent).toBe("開始は不明 ・ 今日 に閉じた");
+    expect(goal.querySelector("small")!.textContent).toBe("開始は不明 ・ 11/2 00:00 に閉じた");
+    const overnight = screen.getByText("日をまたぐ").closest(".history-row")!;
+    expect(overnight.querySelector("small")!.textContent).toBe("11/2 22:10–11/3 08:30 · 10 時間");
+    const sameDay = screen.getByText("同じ日").closest(".history-row")!;
+    expect(sameDay.querySelector("small")!.textContent).toBe("11/4 09:28–13:24 · 4 時間");
     expect(document.body.textContent).not.toContain("sprint4");
     expect(document.body.textContent).not.toContain("sprint5");
     expect(document.body.textContent).not.toContain("内訳");
@@ -421,7 +420,8 @@ describe("サイドバーの履歴", () => {
     ).toEqual([
       ["Iteration なし", "1 件"],
       "t2",
-      ["s1", "9/20–10/2", "2 件"],
+      // 閉じた Iteration の期間は Iteration の見方の行と同じく時刻と所要時間（ここでは数日なので日付と日数）
+      ["s1", "9/20–10/2 · 13 日", "2 件"],
       "t1",
       "t3",
       ["Iteration なし", "1 件"],
@@ -965,10 +965,14 @@ describe("履歴のタブ・Iteration の行・Epic の見方", () => {
     const chips = (id: string) =>
       [...rowOf(id).querySelectorAll(".counts > span")].map((b) => b.textContent);
     expect(chips("s1")).toEqual(["3", "持ち越し 1"]);
-    expect(rowOf("s1").querySelector("small")!.textContent).toBe("開始は不明 ・ 10/10 に閉じた");
+    expect(rowOf("s1").querySelector("small")!.textContent).toBe(
+      "開始は不明 ・ 10/10 00:00 に閉じた",
+    );
     // s2 には閉じたときの記録がないので、web で数え直さず「—」と出し、持ち越しのチップは出さない
     expect(chips("s2")).toEqual(["—"]);
-    expect(rowOf("s2").querySelector("small")!.textContent).toBe("開始は不明 ・ 10/24 に閉じた");
+    expect(rowOf("s2").querySelector("small")!.textContent).toBe(
+      "開始は不明 ・ 10/24 00:00 に閉じた",
+    );
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログイン" } });
     expect(names()).toEqual(["core"]);
     // 件数の行はなく、見方のバッジが「当たった数 / 全体」になる
