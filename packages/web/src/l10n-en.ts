@@ -89,6 +89,7 @@ export const EN: Readonly<Record<string, string>> = {
   "{0} 日": "{0} days",
   "{0} 分": "{0}m",
   "{0} 時間": "{0}h",
+  "{0} に開始（閉じた日は不明）": "Started {0} (closed date unknown)",
   // components/filter-toggle.tsx
   "絞り込み（絞っている）": "Filter (active)",
   絞り込み: "Filter",
@@ -446,6 +447,10 @@ export const EN: Readonly<Record<string, string>> = {
   "中止 {0}": "Abandoned {0}",
   "持ち越し {0}": "Carried over {0}",
   見方: "View by",
+  "番号・目標・名前・チケットで検索": "Search by ID, goal, name, or ticket",
+  "Iteration と中のチケットを探す": "Find Iterations and their tickets",
+  "番号・タイトル・チケットで検索": "Search by ID, title, or ticket",
+  "Epic と中のチケットを探す": "Find Epics and their tickets",
   チケットを探す: "Find tickets",
   "閉じた Epic はない": "No closed Epics",
   "閉じた Iteration はない": "No closed Iterations",
@@ -473,6 +478,7 @@ export const EN: Readonly<Record<string, string>> = {
   当たるチケットはない: "No matching tickets",
   履歴から分からないので更新日: "Update date (not found in history)",
   終えた日時: "Finished at",
+  この区切りから次の区切りまでの件数: "Tickets from this divider to the next",
   // pages/iterations.tsx
   "この Iteration でカンバンを見る": "View this Iteration on the board",
   // pages/plans.tsx

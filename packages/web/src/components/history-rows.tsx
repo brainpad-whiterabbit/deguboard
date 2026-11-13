@@ -1,7 +1,8 @@
 // 履歴用のチケットの行と一覧（左パネルの履歴）。Iteration・Epic・チケットのタブで共用する。
 // 行は 2 段：1 段目は状態の丸印・番号・タイトル（サイドバーでは 2 行まで）、2 段目は Epic などの付記。
 // PR はカンバンの行と同じく番号のすぐ下にリンクで出す（RowPrLink。UI-2）。
-// 優先度と担当者は出さない（終わったものを見る画面なので）。中止の行は点を塗らない輪にしてタイトルを薄くし、付記の頭に「中止」と書いて、色だけに頼らず完了と見分ける。
+// 優先度と担当者は出さない（終わったものを見る画面なので）。中止の行は点を塗らない輪にしてタイトルを薄くし、色だけに頼らず完了と見分ける。
+// 完了と混ざる一覧では付記の頭にも「中止」と書く。「中止 N 件」の小見出しの下の行では、小見出しと重なるので書かない。
 // 検索中は query を渡し、当たった部分（タイトル・番号・ラベル）に印（mark）を付ける（Highlight。Iteration・Epic の行の印にも使う）。
 // 行はエージェントに頼める場所にする（右端の吹き出し・Shift+F10。ask-menu.tsx）。右クリックは「詳細を開く」「ID をコピー」
 
@@ -44,7 +45,7 @@ export function Highlight({ text, query }: { text: string; query?: string | unde
 }
 
 /**
- * 履歴用のチケットの行。2 段目は「中止」（中止のときだけ）・Iteration（showIteration のとき）・Epic（あるときだけ）・
+ * 履歴用のチケットの行。2 段目は「中止」（中止で markAbandoned のときだけ）・Iteration（showIteration のとき）・Epic（あるときだけ）・
  * note の順に「・」で区切って出す。
  * PR の番号があるときは、番号のすぐ下に PR の印と #番号のリンクを出す（カンバンの行と同じ RowPrLink）。
  * 番号と PR は番号の列に縦に積み、PR は行の 2 行目（タイトルが 2 行なら 2 行目の横、1 行なら付記の横）に重ねて、行を増やさない（styles.css の .history-ticket）。
@@ -57,6 +58,7 @@ export function HistoryTicketRow({
   ticket: t,
   showIteration = false,
   showEpic = true,
+  markAbandoned = true,
   note,
   query,
 }: {
@@ -64,6 +66,11 @@ export function HistoryTicketRow({
   /** 2 段目に Iteration を出す（Epic の見方）。Iteration がなければ Iteration なし */
   showIteration?: boolean | undefined;
   showEpic?: boolean | undefined;
+  /**
+   * 中止の行の 2 段目の頭に「中止」と書く。「中止 N 件」の小見出しの下（history.tsx の AbandonedGroup）では
+   * 小見出しと同じ言葉を行ごとに繰り返すことになるので false にする（輪の点と薄いタイトルは残る）
+   */
+  markAbandoned?: boolean | undefined;
   /** 2 段目の最後に足すもの（持ち越しの行の「今は s5」、終えた日など） */
   note?: ReactNode;
   /** 検索語。当たった部分に印を付ける */
@@ -82,7 +89,8 @@ export function HistoryTicketRow({
   const abandoned = t.status === "abandoned";
   const parts: ReactNode[] = [];
   // 中止の表記は履歴の結果の切り替えと同じ「中止」（labelOf の表示名は使わない。理由は history.tsx の結果の切り替えの注記）
-  if (abandoned) parts.push(<span className="history-abandoned">{tr("中止")}</span>);
+  if (abandoned && markAbandoned)
+    parts.push(<span className="history-abandoned">{tr("中止")}</span>);
   if (showIteration)
     parts.push(
       t.iteration ? (

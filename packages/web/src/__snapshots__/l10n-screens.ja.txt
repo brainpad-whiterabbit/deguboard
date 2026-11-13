@@ -228,8 +228,8 @@ Epic
 0
 チケット
 2
-[aria-label] チケットを探す
-[placeholder] 番号・タイトル・ラベルで検索
+[aria-label] Iteration と中のチケットを探す
+[placeholder] 番号・目標・名前・チケットで検索
 s0
 [title] 前の Iteration
 目標なし

@@ -81,6 +81,21 @@ describe("履歴用の行", () => {
     // 輪とタイトルの薄さの見た目は CSS なので、test/layout/sidebar.layout.ts の computed style で確かめる
     expect(row.querySelector(".status-dot.status-abandoned")).toBeTruthy();
   });
+
+  it("markAbandoned={false}（中止の小見出しの下）の中止の行は 2 段目に中止と書かず、輪の点と abandoned の印は残す", async () => {
+    mount(
+      <HistoryTicketRow
+        ticket={ticket({ id: "t3", status: "abandoned", epic: "e1" })}
+        markAbandoned={false}
+      />,
+    );
+    await screen.findByText("t3");
+    const row = document.querySelector(".history-ticket")!;
+    expect(metaOf("t3")).toBe("e1");
+    expect(row.querySelector(".history-abandoned")).toBeNull();
+    expect(row.classList.contains("abandoned")).toBe(true);
+    expect(row.querySelector(".status-dot.status-abandoned")).toBeTruthy();
+  });
 });
 
 describe("履歴用の行の PR（UI-2 と同じ番号の下のリンク）", () => {

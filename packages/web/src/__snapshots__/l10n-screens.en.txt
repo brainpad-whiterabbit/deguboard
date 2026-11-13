@@ -228,8 +228,8 @@ Epic
 0
 Tickets
 2
-[aria-label] Find tickets
-[placeholder] Search by ID, title, or label
+[aria-label] Find Iterations and their tickets
+[placeholder] Search by ID, goal, name, or ticket
 s0
 [title] 前の Iteration
 No goal
