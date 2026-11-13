@@ -1,9 +1,16 @@
-import { createHash } from "node:crypto";
-import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { createFixture } from "../../test/helpers/git-fixture.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createFixture, createLocalOnlyRepo } from "../../test/helpers/git-fixture.js";
+import {
+  olderVersionOf,
+  putSkill as put,
+  SKILL_MARKER as MARKER,
+  skillsDir,
+} from "../../test/helpers/skills.js";
+import * as guide from "../guide/guide.js";
+import { GUIDE_TOPICS } from "../guide/topics.js";
 import { brief } from "./brief.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
@@ -30,22 +37,11 @@ async function tempDir(): Promise<string> {
   return dir;
 }
 
-const MARKER = /<!-- dg skill sha256:[0-9a-f]{64} -->\n/;
-
-/** 前の版の dg が入れたままの Skill：本文が今と違い、印はその本文のハッシュと合っている（手を加えていない） */
-function olderVersionOf(content: string): string {
-  const changed = content.replace("This Skill holds no steps.", "This Skill has no steps.");
-  expect(changed).not.toBe(content);
-  const hash = createHash("sha256").update(changed.replace(MARKER, "")).digest("hex");
-  return changed.replace(MARKER, `<!-- dg skill sha256:${hash} -->\n`);
-}
-
-const skillsDir = (base: string) => path.join(base, ".claude", "skills");
-
-async function put(base: string, name: string, content: string): Promise<void> {
-  const file = path.join(skillsDir(base), name, "SKILL.md");
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, content, "utf8");
+/** リモートのないリポジトリ（作業フォルダ）。Skill の置き場所はその最上位の下 */
+async function repoDir(): Promise<string> {
+  const repo = await createLocalOnlyRepo();
+  cleanups.push(repo.cleanup);
+  return repo.dir;
 }
 
 const contentOf = async (name: string) => (await buildSkills()).find((s) => s.name === name)!;
@@ -121,43 +117,86 @@ describe("VS Code 拡張の起動時の Skill の更新（AG-2・t857）", () =>
     );
 
   it("手を加えていない古い Skill を今の dg のもので上書きし、置き場所ごとに更新したものを返す", async () => {
-    const top = await tempDir();
+    const top = await repoDir();
     const home = await tempDir();
     const work = await contentOf("dgwork");
     const done = await contentOf("dgdone");
     await put(top, "dgwork", olderVersionOf(work.content));
     await put(home, "dgdone", olderVersionOf(done.content));
 
-    expect(await refreshInstalledSkills({ topLevel: top, env: { HOME: home } })).toEqual([
+    expect(await refreshInstalledSkills({ folders: [top], env: { HOME: home } })).toEqual([
       { scope: "project", dir: skillsDir(top), updated: ["dgwork"], edited: [] },
       { scope: "personal", dir: skillsDir(home), updated: ["dgdone"], edited: [] },
     ]);
     expect(await read(top, "dgwork")).toBe(work.content);
     expect(await read(home, "dgdone")).toBe(done.content);
     // そろったら変えるものはなく、何も返さない（通知しない）
-    expect(await refreshInstalledSkills({ topLevel: top, env: { HOME: home } })).toEqual([]);
+    expect(await refreshInstalledSkills({ folders: [top], env: { HOME: home } })).toEqual([]);
   });
 
   it("手で直した古い Skill は書き換えずに edited に返す", async () => {
-    const top = await tempDir();
+    const top = await repoDir();
     const home = await tempDir();
     const edited = `${olderVersionOf((await contentOf("dgplan")).content)}\nmy note\n`;
     await put(top, "dgplan", edited);
     const expected = [{ scope: "project", dir: skillsDir(top), updated: [], edited: ["dgplan"] }];
-    expect(await refreshInstalledSkills({ topLevel: top, env: { HOME: home } })).toEqual(expected);
+    const query = { folders: [top], env: { HOME: home } };
+    expect(await refreshInstalledSkills(query)).toEqual(expected);
     expect(await read(top, "dgplan")).toBe(edited);
     // 書き換えないので、次の起動でも同じように知らせる
-    expect(await refreshInstalledSkills({ topLevel: top, env: { HOME: home } })).toEqual(expected);
+    expect(await refreshInstalledSkills(query)).toEqual(expected);
   });
 
   it("dg の Skill を入れていない置き場所には書かず、入れてある置き場所でも入れていない Skill は足さない", async () => {
-    const top = await tempDir();
+    const top = await repoDir();
     const home = await tempDir();
     await put(home, "dgwork", olderVersionOf((await contentOf("dgwork")).content));
-    await refreshInstalledSkills({ topLevel: top, env: { HOME: home } });
+    await refreshInstalledSkills({ folders: [top], env: { HOME: home } });
     expect(await exists(top, "")).toBe(false);
     expect(await exists(home, "dgwork")).toBe(true);
     expect(await exists(home, "dgplan")).toBe(false);
+  });
+
+  it("作業フォルダごとのリポジトリと個人の置き場所を見て、同じ置き場所は 1 つにまとめる。リポジトリの外のフォルダは個人の置き場所だけを見る", async () => {
+    const repo = await repoDir();
+    const other = await repoDir();
+    const outside = await tempDir();
+    const home = await tempDir();
+    const work = await contentOf("dgwork");
+    const plan = await contentOf("dgplan");
+    await put(repo, "dgwork", olderVersionOf(work.content));
+    await put(other, "dgplan", olderVersionOf(plan.content));
+    const edited = `${olderVersionOf(plan.content)}\nmy note\n`;
+    await put(home, "dgplan", edited);
+    await put(home, "dgwork", olderVersionOf(work.content));
+
+    // 同じリポジトリの中のフォルダを 2 つ開いていても、その置き場所は 1 回だけ返す
+    const sub = path.join(repo, ".claude");
+    expect(
+      await refreshInstalledSkills({ folders: [repo, outside, sub, other], env: { HOME: home } }),
+    ).toEqual([
+      { scope: "project", dir: skillsDir(repo), updated: ["dgwork"], edited: [] },
+      { scope: "personal", dir: skillsDir(home), updated: ["dgwork"], edited: ["dgplan"] },
+      { scope: "project", dir: skillsDir(other), updated: ["dgplan"], edited: [] },
+    ]);
+    expect(await read(repo, "dgwork")).toBe(work.content);
+    expect(await read(other, "dgplan")).toBe(plan.content);
+    // 手で直したものは書き換えない
+    expect(await read(home, "dgplan")).toBe(edited);
+    // リポジトリの外のフォルダには書かず、入れていない Skill も足さない
+    await expect(readdir(path.join(outside, ".claude"))).rejects.toThrow();
+    expect(await readdir(skillsDir(repo))).toEqual(["dgwork"]);
+  });
+
+  it("作業フォルダがなくても個人の置き場所は見る", async () => {
+    const home = await tempDir();
+    const work = await contentOf("dgwork");
+    await put(home, "dgwork", work.content);
+    expect(await refreshInstalledSkills({ folders: [], env: { HOME: home } })).toEqual([]);
+    await put(home, "dgwork", olderVersionOf(work.content));
+    expect(await refreshInstalledSkills({ folders: [], env: { HOME: home } })).toEqual([
+      { scope: "personal", dir: skillsDir(home), updated: ["dgwork"], edited: [] },
+    ]);
   });
 });
 
@@ -212,5 +251,31 @@ describe("dg next と dg brief の古い Skill の警告（t858）", () => {
     expect(aboutSkills(fromNext)).toEqual([
       `These dg Skills in ${skillsDir(home)} are older than this dg (they differ from the Skills bundled with it): dgdone. Update them with dg skill install --personal`,
     ]);
+  });
+
+  it("1 回の更新と 1 回の dg next・dg brief で、Skill の組み立て（guide の読み込み）は 1 回に収まる", async () => {
+    // buildSkills はトピックごとに readGuideMeta を 1 回呼ぶ。手順の文（brief）が読まないトピックの回数で、組み立ての回数を数える
+    expect(GUIDE_TOPICS).toContain("retro");
+    const meta = vi.spyOn(guide, "readGuideMeta");
+    cleanups.push(async () => meta.mockRestore());
+    const builds = () => meta.mock.calls.filter(([topic]) => topic === "retro").length;
+
+    const ctx = await prepared();
+    const top = ctx.repo.topLevel;
+    const home = ctx.env!["HOME"]!;
+    // 置き場所が 2 つあり、どちらにも書くものがあっても 1 回
+    await put(top, "dgwork", olderVersionOf((await contentOf("dgwork")).content));
+    await put(home, "dgdone", olderVersionOf((await contentOf("dgdone")).content));
+
+    meta.mockClear();
+    await runCommand(next, ctx, { ticket: "t1" });
+    expect(builds()).toBe(1);
+    meta.mockClear();
+    await runCommand(brief, ctx, { ticket: "t1", role: "implement" });
+    expect(builds()).toBe(1);
+    meta.mockClear();
+    const refreshed = await refreshInstalledSkills({ folders: [top, top], env: ctx.env! });
+    expect(refreshed.map((r) => r.updated)).toEqual([["dgwork"], ["dgdone"]]);
+    expect(builds()).toBe(1);
   });
 });

@@ -20,19 +20,14 @@ export * from "./local.js";
 export { readHookInput, type HookInputRecord } from "./hook-records.js";
 export { hookArgv } from "./hook-argv.js";
 export { hooksSilentWarning, takeHookWarnings } from "./hook-sessions.js";
+// Skill は入口が呼ぶものだけを公開する（dg skill install・dg hooks check・VS Code 拡張の起動時の更新）。判定の部品は公開しない
 export {
   buildSkills,
-  findStaleSkills,
   refreshInstalledSkills,
-  skillStateOf,
-  staleSkillWarnings,
+  removeRetiredSkills,
   staleSkillWarningsOf,
   writeSkillFiles,
   type RefreshedSkills,
-  type SkillFile,
-  type SkillState,
-  type SkillWriteResult,
-  type StaleSkills,
 } from "./skill-files.js";
 export type {
   CommandClient,

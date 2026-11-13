@@ -26,9 +26,7 @@ export function agentNames(): string[] {
 
 /** Adapter が Skill を読むディレクトリをまとめたもの。ask が形式の既定を決めるのに使う（AG-8） */
 export function agentSkillDirs(query: SkillQuery): string[] {
-  return ADAPTERS.flatMap((a) =>
-    a.skillDirs ? [a.skillDirs.project(query.topLevel), a.skillDirs.personal(query.env)] : [],
-  );
+  return agentSkillPlaces(query).map((p) => p.dir);
 }
 
 /** Skill の置き場所の 1 つ。scope は project（リポジトリ）か personal（個人）で、dg skill install の呼び名と同じ */
@@ -40,7 +38,7 @@ export interface SkillPlace {
 
 /**
  * Adapter が Skill を読むディレクトリを、置き場所ごとに返す（project、personal の順）。topLevel を省くと personal だけ（リポジトリの外）。
- * 入れてある dg の Skill が古いかを確かめるのに使う
+ * Skill の置き場所を並べるのはここだけで、agentSkillDirs もここを通す。入れてある dg の Skill が古いかを確かめるのに使う
  */
 export function agentSkillPlaces(query: {
   env: AgentEnv;
