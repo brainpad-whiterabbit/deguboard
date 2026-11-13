@@ -273,7 +273,7 @@
   <g class="hb-back"><circle class="hb" cx="86" cy="536" r="24"/><use href="#human" x="70" y="520" width="32" height="32"/></g>
   <circle class="hb" cx="56" cy="536" r="24"/><use href="#human" x="40" y="520" width="32" height="32"/>
   <text class="t-actor-you" x="124" y="516">あなたとチーム</text>
-  <text class="t-actor" x="124" y="540">思いつきを伝え、チケット・計画・各マージ・リリースを承認する。</text>
+  <text class="t-actor" x="124" y="540">思いつきを伝え、チケット・計画・リリースを承認する。</text>
   <text class="t-actor" x="124" y="558">何を改善するかを選ぶ。</text>
   <text class="t-actor" x="124" y="576">チームの全員が同じボードを見て、誰でも承認できる。</text>
 

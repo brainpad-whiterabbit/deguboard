@@ -273,8 +273,8 @@
   <g class="hb-back"><circle class="hb" cx="86" cy="536" r="24"/><use href="#human" x="70" y="520" width="32" height="32"/></g>
   <circle class="hb" cx="56" cy="536" r="24"/><use href="#human" x="40" y="520" width="32" height="32"/>
   <text class="t-actor-you" x="124" y="516">You &amp; your team</text>
-  <text class="t-actor" x="124" y="540">Describe the idea, and approve the tickets, the plan,</text>
-  <text class="t-actor" x="124" y="558">each merge and the release. Choose what to improve.</text>
+  <text class="t-actor" x="124" y="540">Describe the idea, and approve the tickets, the plan and the release.</text>
+  <text class="t-actor" x="124" y="558">Choose what to improve.</text>
   <text class="t-actor" x="124" y="576">The whole team sees the same board, and anyone can approve.</text>
 
   <rect class="actor-card-agent" x="606" y="482" width="574" height="108" rx="10"/>
