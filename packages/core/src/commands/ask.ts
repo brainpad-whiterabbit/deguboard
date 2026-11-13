@@ -189,6 +189,10 @@ export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage,
     ja: "進んでいるチケットの様子を、今の段階・止まった理由・次の一手で、データを書き換えずに教えます。",
     en: "Tells where an in-progress ticket is, why it has stopped, and the next step, without changing any data.",
   },
+  dgretro: {
+    ja: "閉じた Iteration を数字の要約と選んだ観点から振り返り、根拠つきの Keep / Problem / Try を示して、承認を得た改善を起票します。",
+    en: "Looks back on a closed Iteration from a summary of its numbers and the chosen viewpoints, gives Keep / Problem / Try with a basis, and files the approved improvements as tickets.",
+  },
 };
 
 /** Skill（dg<トピック>）の 1 文。SKILL_SUMMARY に文がなければ例外 */

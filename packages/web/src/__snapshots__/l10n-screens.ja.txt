@@ -600,6 +600,13 @@ guide.notes.status
 guide.notes.status
 [title] 既定の  に戻す
 既定に戻す
+差し込む文書（振り返り）
+guide.notes.retro
+[title] 既定は 
+変更あり
+guide.notes.retro
+[title] 既定の  に戻す
+既定に戻す
 差し込む文書（一気通し）
 guide.notes.all
 [title] 既定は 
