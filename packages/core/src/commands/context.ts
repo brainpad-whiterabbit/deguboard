@@ -12,7 +12,7 @@ import {
 import { ensureDeguboardWorktree, type WorktreeOrigin } from "../git/worktree.js";
 import { actorIdOf } from "../model/actor.js";
 import { STORE_CACHE_DIR } from "../storage/paths.js";
-import { readRemoteName } from "../storage/remote-name.js";
+import { resolveConfigRemote } from "../storage/remote-name.js";
 import { Store } from "../storage/store.js";
 import type { ActorInfo, AnyCommand, CommandContext } from "./define.js";
 
@@ -73,7 +73,7 @@ async function storelessContext(
   });
   const remote = withRemote
     ? {
-        value: await resolveRemote(paths, await readRemoteName(paths.dataDir, paths.localDir)),
+        value: await resolveConfigRemote(paths),
         enumerable: true,
       }
     : unread("repo.remote");
