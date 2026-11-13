@@ -6,6 +6,10 @@ actor:
   human_only: []
 auto:
   merge: true
+  decisions:
+    - assign
+    - check
+    - plan
 metrics:
   read_transcripts: true
 lint:
