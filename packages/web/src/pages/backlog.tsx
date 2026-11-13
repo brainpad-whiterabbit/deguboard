@@ -18,13 +18,12 @@ import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { Chip } from "../components/chips.js";
 import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic-chip.js";
 import { EpicFilterHead } from "../components/epic-head.js";
-import { shortPeriod } from "../components/iteration-parts.js";
-import { TicketTable } from "../components/parts.js";
+import { IterationGoal, shortPeriod } from "../components/iteration-parts.js";
+import { DetailLink, TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { useSelection } from "../components/selection.js";
-import { useHost, useUiState } from "../host.js";
-import { hrefOf } from "../router.js";
+import { useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import {
   BOARD_STATUSES,
@@ -441,26 +440,18 @@ function Section({
   /** 行の右端（TicketTable の end） */
   rowEnd: (t: Ticket) => ReactNode;
 }) {
-  const host = useHost();
   const [open, setOpen] = useUiState(`backlog.section.${it?.id ?? "none"}`, true);
+  // 詳細は拡張ホストに頼んでエディタ領域に開く（カンバンの見出しと同じ DetailLink）
   const link = it ? (
-    <a
-      href={hrefOf({ page: "iterations", id: it.id })}
-      title={tr("詳細")}
-      onClick={(e) => {
-        // 詳細を拡張ホストに頼んでエディタ領域に開く（履歴の行と同じ）
-        e.preventDefault();
-        host.open({ page: "iterations", id: it.id });
-      }}
-    >
+    <DetailLink route={{ page: "iterations", id: it.id }} title={tr("詳細")}>
       <code>{it.id}</code> {it.name}
-    </a>
+    </DetailLink>
   ) : (
     tr("Iteration なし")
   );
-  // 見出し（カンバンの BoardHead と同じ部品）：左の帯の色で Iteration の状態を出し、1 段目に番号・名前・件数、
-  // 2 段目に状態・月日の期間・目標を 1 行で（目標が溢れたら省略してツールチップで全文。カンバンと同じ）。
-  // 0 件の区画は帯も 2 段目もない 1 行にする
+  // 見出し：左の帯の色で Iteration の状態を出し、1 段目に番号・名前・件数、2 段目に状態・月日の期間・目標を 1 行で出す。
+  // 名前のリンク・期間（shortPeriod）・目標（IterationGoal。中の ID は詳細へのリンク、全文はツールチップ）はカンバンの見出し（BoardHead）と同じ部品で、
+  // 目標はカンバンと違って折り返さず、溢れたら省略する。0 件の区画は帯も 2 段目もない 1 行にする
   const period = it ? shortPeriod(it) : undefined;
   // 区画の見出しから頼む：Iteration の区画はその Iteration、「Iteration なし」は中のチケットをまとめて（0 件なら出さない）。
   // 右クリックの「詳細を開く」「ID をコピー」は Iteration の区画だけ（「Iteration なし」は ID がない）
@@ -484,11 +475,7 @@ function Section({
         <span className="head-line sub muted">
           <span className={`state iteration-${it.status}`}>{tr(ITERATION_LABELS[it.status])}</span>
           {period ? <span className="period">{period}</span> : null}
-          {it.goal ? (
-            <span className="goal" title={it.goal}>
-              {it.goal}
-            </span>
-          ) : null}
+          {it.goal ? <IterationGoal goal={it.goal} className="goal" /> : null}
         </span>
       ) : null}
     </>

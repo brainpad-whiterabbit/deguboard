@@ -169,7 +169,9 @@ describe("Iteration の行", () => {
       </StoreProvider>,
     );
     const row = (await screen.findByText("左パネルを主画面にする")).closest(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("10/20–11/1 · 13 日 ・ e1 2, Epic なし 2");
+    expect(row.querySelector("small")!.textContent).toBe(
+      "10/20–11/01 · 13 日 ・ e1 2, Epic なし 2",
+    );
     expect([...row.querySelectorAll(".counts > span")].map((b) => b.textContent)).toEqual([
       "3",
       "中止 1",
@@ -226,16 +228,16 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
     );
     const none = (await screen.findByText("目標なし")).closest(".history-row")!;
     // started_at のないもの（記録する前に始めた）は開始を「不明」と出す
-    expect(none.querySelector("small")!.textContent).toBe("開始は不明 ・ 11/1 00:00 に閉じた");
+    expect(none.querySelector("small")!.textContent).toBe("開始は不明 ・ 11/01 00:00 に閉じた");
     const goal = screen.getByText("目標あり").closest(".history-row")!;
-    expect(goal.querySelector("small")!.textContent).toBe("開始は不明 ・ 11/2 00:00 に閉じた");
+    expect(goal.querySelector("small")!.textContent).toBe("開始は不明 ・ 11/02 00:00 に閉じた");
     const overnight = screen.getByText("日をまたぐ").closest(".history-row")!;
-    expect(overnight.querySelector("small")!.textContent).toBe("11/2 22:10–11/3 08:30 · 10 時間");
+    expect(overnight.querySelector("small")!.textContent).toBe("11/02 22:10–11/03 08:30 · 10 時間");
     const sameDay = screen.getByText("同じ日").closest(".history-row")!;
-    expect(sameDay.querySelector("small")!.textContent).toBe("11/4 09:28–13:24 · 4 時間");
+    expect(sameDay.querySelector("small")!.textContent).toBe("11/04 09:28–13:24 · 4 時間");
     // 期間は ShortDay と同じく <time> で包み、閉じた日時を dateTime に、正確な開始と閉じた日時をツールチップに置く
     const sameDayTime = sameDay.querySelector("small time")!;
-    expect(sameDayTime.textContent).toBe("11/4 09:28–13:24 · 4 時間");
+    expect(sameDayTime.textContent).toBe("11/04 09:28–13:24 · 4 時間");
     expect(sameDayTime.getAttribute("dateTime")).toBe("2026-11-04T13:24:00Z");
     expect(sameDayTime.getAttribute("title")).toBe("2026-11-04 09:28 – 2026-11-04 13:24");
     // 開始の記録がなければツールチップは閉じた日時だけ
@@ -529,7 +531,7 @@ describe("サイドバーの履歴", () => {
       ["Iteration なし", "1 件"],
       "t2",
       // 閉じた Iteration の期間は Iteration の見方の行と同じく時刻と所要時間（ここでは数日なので日付と日数）
-      ["s1", "9/20–10/2 · 13 日", "2 件"],
+      ["s1", "09/20–10/02 · 13 日", "2 件"],
       "t1",
       "t3",
       ["Iteration なし", "1 件"],

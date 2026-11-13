@@ -1,4 +1,5 @@
-// 日時の表示。履歴の日付は今日・昨日を言葉にし、今年は月/日、それより前は年/月/日にする（formatShortDay）。履歴の閉じた Iteration の期間は時刻と所要時間で出す（formatPeriod）。チケット詳細の作成・更新と Plan 詳細の日時は経過と同じ手元時刻で、今年なら年を省く
+// 日時の表示。月日（11/03・2025/11/03）は formatMonthDay、暦の日数の差は calendarDayDiff の 1 か所で出し、履歴とカンバン・バックログの見出しで共用する。
+// 履歴の日付は今日・昨日を言葉にし、ほかは月日にする（formatShortDay）。履歴の閉じた Iteration の期間は時刻と所要時間で出す（formatPeriod）。チケット詳細の作成・更新と Plan 詳細の日時は経過と同じ手元時刻で、今年なら年を省く
 
 import { formatTime } from "./timeline.js";
 import { tr } from "../l10n.js";
@@ -14,20 +15,36 @@ export function formatShortTime(iso: string, now: Date = new Date()): string {
 }
 
 /**
- * 履歴用の短い日付。手元の日付で now と同じ日は「今日」、前の日は「昨日」、同じ年なら `11/03`、それより前は `2025/11/03`。
+ * 手元の暦の日付で、from の日から to の日まで何日あとか（同じ日は 0、時刻は見ない）。
+ * 履歴の今日・昨日（formatShortDay）、閉じた Iteration の日数（formatPeriod）、カンバンの何日目（activeDay）はこれで数える
+ */
+export function calendarDayDiff(from: Date, to: Date): number {
+  // 夏時間で 1 日が 24 時間でない日があるので、暦の日付を UTC の 0 時に置き直してから差を取る
+  const day = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((day(to) - day(from)) / 86_400_000);
+}
+
+/**
+ * 手元の暦の月日をゼロ埋めで出す（11/03）。now と違う年なら年を付ける（2025/11/03）。
+ * 履歴の日付・期間と、カンバン・バックログの見出しの期間（shortPeriod）の月日はこれで出す
+ */
+export function formatMonthDay(d: Date, now: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  const md = `${p(d.getMonth() + 1)}/${p(d.getDate())}`;
+  return d.getFullYear() === now.getFullYear() ? md : `${d.getFullYear()}/${md}`;
+}
+
+/**
+ * 履歴用の短い日付。手元の日付で now と同じ日は「今日」、前の日は「昨日」、ほかは月日（formatMonthDay。11/03・2025/11/03）。
  * 読めなければそのまま出す。now は試験で固定できるよう引数にしている
  */
 export function formatShortDay(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
-  // 夏時間で 1 日が 24 時間でない日があるので、日付の差は暦の日で数える
-  const diff = Math.round((day(now).getTime() - day(d).getTime()) / 86_400_000);
+  const diff = calendarDayDiff(d, now);
   if (diff === 0) return tr("今日");
   if (diff === 1) return tr("昨日");
-  const p = (n: number) => String(n).padStart(2, "0");
-  const md = `${p(d.getMonth() + 1)}/${p(d.getDate())}`;
-  return d.getFullYear() === now.getFullYear() ? md : `${d.getFullYear()}/${md}`;
+  return formatMonthDay(d, now);
 }
 
 /**
@@ -37,7 +54,7 @@ export function formatShortDay(iso: string, now: Date = new Date()): string {
  * - 次の日に閉じた：`11/12 22:10–11/13 08:00 · 10 時間`
  * - 2 日以上あと：`11/10–11/13 · 4 日`（日数は開始の日を 1 日目に数える暦の日数。activeDay と同じ数え方）
  * - 開始の記録がない：`開始は不明 ・ 11/13 13:24 に閉じた`。閉じた日時がない端は「閉じた日は不明」
- * 日付は now と違う年なら年を付ける（2025/11/13）。読めない値はそのまま出す。now は試験で固定できるよう引数にしている
+ * 日付は formatMonthDay で出す（now と違う年なら年を付ける。2025/11/13）。読めない値はそのまま出す。now は試験で固定できるよう引数にしている
  */
 export function formatPeriod(
   startIso: string | null | undefined,
@@ -49,8 +66,7 @@ export function formatPeriod(
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? undefined : d;
   };
-  const day = (d: Date) =>
-    `${d.getFullYear() === now.getFullYear() ? "" : `${d.getFullYear()}/`}${d.getMonth() + 1}/${d.getDate()}`;
+  const day = (d: Date) => formatMonthDay(d, now);
   const time = (d: Date) => `${p(d.getHours())}:${p(d.getMinutes())}`;
   const at = (iso: string) => {
     const d = parse(iso);
@@ -63,9 +79,7 @@ export function formatPeriod(
   const start = parse(startIso);
   const end = parse(endIso);
   if (!start || !end) return `${at(startIso)}–${at(endIso)}`;
-  // 夏時間で 1 日が 24 時間でない日があるので、暦の日付を UTC の 0 時に置き直してから差を取る
-  const utcDay = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
-  const days = Math.round((utcDay(end) - utcDay(start)) / 86_400_000);
+  const days = calendarDayDiff(start, end);
   if (days >= 2) return `${day(start)}–${day(end)} · ${tr("{0} 日", days + 1)}`;
   const minutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000));
   const length = minutes < 60 ? tr("{0} 分", minutes) : tr("{0} 時間", Math.round(minutes / 60));

@@ -1,5 +1,47 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { formatPeriod, formatShortDay, formatShortTime } from "./date-time.js";
+import {
+  calendarDayDiff,
+  formatMonthDay,
+  formatPeriod,
+  formatShortDay,
+  formatShortTime,
+} from "./date-time.js";
+
+describe("月日（formatMonthDay）と暦の日数の差（calendarDayDiff）", () => {
+  // テストの時差は UTC に固定されている
+  const now = new Date("2026-11-13T12:00:00Z");
+
+  it("月日はゼロ埋めし、今年でなければ年を付ける", () => {
+    expect(formatMonthDay(new Date("2026-01-05T00:00:00Z"), now)).toBe("01/05");
+    expect(formatMonthDay(new Date("2026-11-13T23:59:00Z"), now)).toBe("11/13");
+    expect(formatMonthDay(new Date("2025-12-31T00:00:00Z"), now)).toBe("2025/12/31");
+  });
+
+  it("日数の差は手元の暦の日付で数え、時刻は見ない（同じ日は 0、前なら負）", () => {
+    const at = (iso: string) => new Date(iso);
+    expect(calendarDayDiff(at("2026-11-13T00:00:00Z"), at("2026-11-13T23:59:00Z"))).toBe(0);
+    expect(calendarDayDiff(at("2026-11-12T23:59:00Z"), at("2026-11-13T00:00:00Z"))).toBe(1);
+    expect(calendarDayDiff(at("2025-12-31T12:00:00Z"), at("2026-01-02T12:00:00Z"))).toBe(2);
+    expect(calendarDayDiff(at("2026-11-13T12:00:00Z"), at("2026-11-10T12:00:00Z"))).toBe(-3);
+  });
+
+  it("夏時間の切り替え（1 日が 23・25 時間）をまたいでも 1 日ずつ数える", () => {
+    const original = process.env.TZ;
+    process.env.TZ = "America/New_York";
+    try {
+      // 2026-03-08 に夏時間が始まり、2026-11-01 に終わる。どちらも手元の正午どうし
+      expect(
+        calendarDayDiff(new Date("2026-03-07T17:00:00Z"), new Date("2026-03-09T16:00:00Z")),
+      ).toBe(2);
+      expect(
+        calendarDayDiff(new Date("2026-10-31T16:00:00Z"), new Date("2026-11-02T17:00:00Z")),
+      ).toBe(2);
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
+  });
+});
 
 describe("日時（formatShortTime）", () => {
   const now = new Date("2026-11-03T12:00:00Z");
@@ -89,7 +131,7 @@ describe("閉じた Iteration の期間（formatPeriod）", () => {
 
   it("今年でない日付には年を付ける", () => {
     expect(formatPeriod("2025-12-31T22:00:00Z", "2026-01-01T02:00:00Z", now)).toBe(
-      "2025/12/31 22:00–1/1 02:00 · 4 時間",
+      "2025/12/31 22:00–01/01 02:00 · 4 時間",
     );
   });
 
