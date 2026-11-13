@@ -98,7 +98,7 @@ dg config set notify.approvals false --local
 
 同じチケットの同じ項目を二人が違う値に変えると、`dg sync` は push の前で止まり、競合を知らせます。通知には競合した項目の remote と local の値が並び、「Take remote」「Take local」のボタンが出ます。押した側で `dg sync --resolve` を 1 回呼び、競合した項目だけがその側の値を採ります（ほかの変更と commit は残ります）。採った値と捨てた値は通知に出ます。ターミナルでは `dg sync --resolve remote` か `dg sync --resolve local` を実行します。解くまで push と照合は待ち、チケットの起票・claim・Iteration の開始と再開のような push まで行う即時の書き込みも、画面からのものを含めて待ちます。status が同じ（Plan は両側に時刻がある）で `closed_at`・`started_at`・`approved_at` だけが違う競合は止まらず、dg が早い方の時刻を採って警告を出します。
 
-ボタンの出ない競合もあります。`config.yaml` やワークフローのように merge driver の扱わないファイルの競合は知らせるだけで、人が deguboard の worktree で手で解きます（手順は警告の remedy に出ます）。チケットの項目の競合と同時に起きたときはボタンが出ますが、そのファイルは `--resolve` の後も残ります。エージェント向けの手順は `dg guide overview` の「When sync stops」にあります。
+ボタンの出ない競合もあります。`config.yaml` やワークフローのように merge driver の扱わないファイルの競合は知らせるだけで、人が deguboard の worktree で手で解きます（手順は `dg sync --resolve` の後に出る警告の remedy にあります。ただの `dg sync` の警告は、どちらかを選ぶ手順を出します）。チケットの項目の競合と同時に起きたときはボタンが出ますが、そのファイルは `--resolve` の後も残ります。エージェント向けの手順は `dg guide overview` の「When sync stops」にあります。
 
 ## セキュリティとプライバシー
 
