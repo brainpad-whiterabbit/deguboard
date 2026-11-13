@@ -100,12 +100,23 @@ run = ["pnpm run format:check", "pnpm run check:docs", "pnpm run test:docs"]
 description = "文書を読むテスト（test/scripts/check-docs.test.ts）だけを回す。実際の docs・CLAUDE.md・README を写して、check:docs の検査とテストの期待の値が合うかを確かめる。軽い検査（check:light）にも入っている"
 run = "pnpm run test:docs"
 
+# 並列のエージェントが別々の worktree で check を同時に回すと、全体のテストどうしが CPU を取り合って
+# 遅くなり、時間に頼るテストが落ちる。そこでテストの段だけを、worktree が共有する git-common-dir の下の
+# lock ファイルで flock を取ってから回し、全体のテストを 1 本ずつにする。書式・lint・型・文書の検査と、
+# test:related・check:light は軽いので lock の外で回す。lock がすぐ取れないときは待つことを 1 行出して待ち、
+# 待ちに独自の上限は付けない（品質ゲートの検査の打ち切りに任せる）。flock がない環境（macOS の既定など）や
+# git の外では、検査を落とさないように lock なしで回す
 [tasks.check]
-description = "コミット前の確認。書式・lint・型・テスト・文書を順に検査する"
-run = [
-  "pnpm run format:check",
-  "pnpm run lint",
-  "pnpm run typecheck",
-  "pnpm run test",
-  "pnpm run check:docs",
-]
+description = "コミット前の確認。書式・lint・型・テスト・文書を順に検査する。テストの段だけは、別の worktree の全体のテストと CPU を取り合って遅くなり落ちないように、git-common-dir の下の lock を flock で取ってから回す（取れなければ 1 行出して待つ。flock がなければ lock なしで回す）"
+run = ["pnpm run format:check", "pnpm run lint", "pnpm run typecheck", '''
+lock_dir=$(git rev-parse --git-common-dir 2>/dev/null) || lock_dir=""
+if [ -n "$lock_dir" ] && command -v flock >/dev/null 2>&1; then
+  lock="$lock_dir/deguboard-check-test.lock"
+  exec 9>"$lock"
+  if ! flock -n 9; then
+    echo "Waiting for the full test run in another worktree to finish (lock: $lock)" >&2
+    flock 9
+  fi
+fi
+pnpm run test
+''', "pnpm run check:docs"]
