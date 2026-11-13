@@ -1,6 +1,7 @@
 // Iteration の部品：見出しに出す短い実績の期間と目標、詳細の見出しの下の期間・目標・進捗の欄。
 // 期間は実績の started_at（active になった日時）〜 closed_at（閉じた日時）で出す（UI-5）。
-// 短い期間と目標はカンバン（board.tsx）とバックログ（backlog.tsx）の左パネルの見出しでも共用する。何日目か（activeDay）はカンバンの見出しが出す
+// 短い期間（shortPeriod）と目標（IterationGoal）はカンバン（board.tsx）とバックログ（backlog.tsx）の左パネルの見出しで共用し、
+// 短い期間は履歴のチケットの見方の区切り（history.tsx の IterationDivider。閉じていない Iteration）でも使う。何日目か（activeDay）はカンバンの見出しが出す
 
 import { calendarDayDiff, DateTime, formatMonthDay } from "./date-time.js";
 import { IdLinkedText, ProgressBar } from "./parts.js";

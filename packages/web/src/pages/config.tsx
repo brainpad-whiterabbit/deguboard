@@ -88,7 +88,10 @@ const NAMES: Record<string, string> = {
   "guide.notes.all": msg("差し込む文書（一気通し）"),
 };
 
-/** guide.notes.* の表の行に出す、差し込む先（ガイドの topic）の短い名前。ないものは topic をそのまま出す */
+/**
+ * guide.notes.* の表の行に出す、差し込む先（ガイドの topic）の短い名前。ないものは topic をそのまま出す。
+ * core の GUIDE_TOPICS を写すので、topic を足したらここにも足す（どの topic にも名前があることをテストが確かめる）
+ */
 const NOTE_LABELS: Record<string, string> = {
   overview: msg("概要"),
   import: msg("チケットの起票"),
@@ -112,7 +115,7 @@ const NOTE_LABELS: Record<string, string> = {
 const NOTE_PREFIX = "guide.notes.";
 
 /** guide.notes.* の項目か（説明を 1 つにまとめて表で出す） */
-export function isNoteKey(key: string): boolean {
+function isNoteKey(key: string): boolean {
   return key.startsWith(NOTE_PREFIX);
 }
 
@@ -220,11 +223,6 @@ export function fieldMatch(field: ConfigField, query: string): "shown" | "detail
   if ([nameOf(field.key), field.key, summaryOf(field)].some(hit)) return "shown";
   const detail = detailOf(field);
   return detail !== null && hit(detail) ? "detail" : null;
-}
-
-/** 検索語が表示名・キー・要約・詳しい説明のどれかに含まれるか */
-export function fieldMatchesQuery(field: ConfigField, query: string): boolean {
-  return fieldMatch(field, query) !== null;
 }
 
 /** 例の値の書き方（プレースホルダ）。リストの例は 1 つなら中身だけ、複数なら [a, b] */

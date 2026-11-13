@@ -9,14 +9,14 @@ import { toggleRoute } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
 import type { ConfigField, ConfigShowView } from "../types.js";
-import { configFields } from "@deguboard/core";
+import { configFields, GUIDE_TOPICS } from "@deguboard/core";
 import {
   CONFIRM_KEYS,
   clearsToDefault,
   formatValue,
   groupOf,
   isModified,
-  fieldMatchesQuery,
+  fieldMatch,
   nameOf,
   valueAt,
 } from "./config.js";
@@ -1066,6 +1066,28 @@ describe("設定画面", () => {
     ).toBe("例 docs/notes.md");
   });
 
+  it("guide.notes.* の表は、core のどのガイドの topic の行にも短い名前（NOTE_LABELS）を出す（topic を足したときの漏れを防ぐ）", async () => {
+    const { client } = configClient();
+    // 項目は core の configFields の guide.notes.*（GUIDE_TOPICS の全 topic）に差し替える
+    const notes = configFields().filter((f) => f.key.startsWith("guide.notes."));
+    const show = client.handlers["config.show"]!;
+    client.handlers["config.show"] = (input) => {
+      const out = show(input) as ConfigShowView | Record<string, unknown>;
+      return "fields" in out
+        ? { ...out, fields: [...FIELDS.filter((f) => !f.key.startsWith("guide.notes.")), ...notes] }
+        : out;
+    };
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const section = screen.getByRole("region", { name: "ガイドの差し込み" });
+    const labels = within(section)
+      .getAllByRole("row")
+      .map((r) => within(r).getByRole("rowheader").querySelector("label")?.textContent);
+    expect(labels).toHaveLength(GUIDE_TOPICS.length);
+    // 名前がない topic は topic のまま出る
+    expect(labels.filter((l) => (GUIDE_TOPICS as readonly unknown[]).includes(l))).toEqual([]);
+  });
+
   it("検索は要約と詳しい説明にも当たり、詳しい説明にだけ当たった項目は「詳しく」を開いて出す", async () => {
     const { client } = configClient();
     mount(client);
@@ -1202,18 +1224,18 @@ describe("設定画面の部品", () => {
     expect(groupOf("actor.human_only")).toBe("agent");
     expect(groupOf("default_project")).toBe("git");
     expect(groupOf("new.item")).toBe("other");
-    expect(fieldMatchesQuery(FIELDS[1]!, "リモート")).toBe(true);
-    expect(fieldMatchesQuery(FIELDS[1]!, "GIT.REMOTE")).toBe(true);
-    expect(fieldMatchesQuery(FIELDS[1]!, "push")).toBe(false);
+    expect(fieldMatch(FIELDS[1]!, "リモート")).toBe("shown");
+    expect(fieldMatch(FIELDS[1]!, "GIT.REMOTE")).toBe("shown");
+    expect(fieldMatch(FIELDS[1]!, "push")).toBeNull();
   });
 
   it("英語の表示では、検索が英語の説明にも当たる", () => {
     setLanguage("en");
     try {
       // 表示名（Remote to sync with）には含まれず、英語の説明にだけある語
-      expect(fieldMatchesQuery(FIELDS[1]!, "FETCHES FROM")).toBe(true);
-      expect(fieldMatchesQuery(FIELDS[1]!, "pushes to")).toBe(true);
-      expect(fieldMatchesQuery(FIELDS[1]!, "worktree")).toBe(false);
+      expect(fieldMatch(FIELDS[1]!, "FETCHES FROM")).toBe("shown");
+      expect(fieldMatch(FIELDS[1]!, "pushes to")).toBe("shown");
+      expect(fieldMatch(FIELDS[1]!, "worktree")).toBeNull();
     } finally {
       setLanguage("ja");
     }

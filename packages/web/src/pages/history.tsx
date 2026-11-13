@@ -32,7 +32,7 @@ import {
   type SyntheticEvent,
 } from "react";
 import { useCommandData } from "../command-data.js";
-import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
+import { ASK_SECTIONS, useAskSpot, type AskSpot } from "../components/ask-menu.js";
 import { DetailLink } from "../components/parts.js";
 import { Highlight, HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
 import { shortPeriod } from "../components/iteration-parts.js";
@@ -538,6 +538,30 @@ function SearchHitsBar({ hits, total, fold }: { hits: number; total: number; fol
 }
 
 /**
+ * 開いても中に出すものがない Iteration・Epic の行（styles.css の .history-empty）。details の代わりに div で包んで開けなくし、
+ * 薄く出す。番号の詳細へのリンクと右クリックのメニュー（spot の属性）は開ける行と同じく残し、Tab で行に止まれるようにする
+ */
+function EmptyHistoryItem({
+  rowClassName,
+  spotProps,
+  children,
+}: {
+  rowClassName: string;
+  spotProps: AskSpot["props"];
+  children: ReactNode;
+}) {
+  return (
+    <li>
+      <div className="history-item history-empty">
+        <div className={rowClassName} tabIndex={0} {...spotProps}>
+          {children}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/**
  * Iteration の行。開閉の印を付け、開くと中のチケットを完了・中止・持ち越しの順に出す（IterationTickets）。
  * 終わったチケットも持ち越しもない Iteration は薄く出し、開けない（検索で番号・目標・名前に当たれば、開けない行のまま残る）。
  * 検索語（query）に当たった番号・目標には印を付ける。名前は行に出さないので、名前に当たったときだけ 2 段目に「名前 …」を印付きで足す
@@ -626,13 +650,9 @@ function IterationItem({
   // 持ち越しは閉じたときの記録（carried_over）で見る。履歴から求めると、行を描くたびに history を読むことになるため
   if (finished.length === 0 && !i.carried_over)
     return (
-      <li>
-        <div className="history-item history-empty">
-          <div className="history-row" tabIndex={0} {...spot.props}>
-            {head}
-          </div>
-        </div>
-      </li>
+      <EmptyHistoryItem rowClassName="history-row" spotProps={spot.props}>
+        {head}
+      </EmptyHistoryItem>
     );
   return (
     <li>
@@ -876,13 +896,9 @@ function EpicItem({ epic: e, fold, query }: { epic: EpicRow; fold: RowFold; quer
   );
   if (finished.length === 0)
     return (
-      <li>
-        <div className="history-item history-empty">
-          <div className="history-row history-epic" tabIndex={0} {...spot.props}>
-            {head}
-          </div>
-        </div>
-      </li>
+      <EmptyHistoryItem rowClassName="history-row history-epic" spotProps={spot.props}>
+        {head}
+      </EmptyHistoryItem>
     );
   return (
     <li>
