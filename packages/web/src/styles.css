@@ -2384,10 +2384,53 @@ textarea.body {
   font-weight: 600;
   color: var(--vscode-descriptionForeground);
 }
+/*
+ * 履歴用のチケットの行（history-rows.tsx の HistoryTicketRow）：包みが丸印・番号・タイトルの 3 列を持ち、行のリンク（1 段目）と
+ * 付記（2 段目）は subgrid でその列を使う。付記はタイトルの列に出し、番号の列の 2 段目は空ける。
+ * PR のリンク（.row-pr。UI-2）は番号と同じ 1 段目の番号の列に置いて列の幅に入れ（PR の文字が番号より広ければ列が広がり、タイトルと付記に重ならない）、
+ * 行の 2 行目の高さまで下にずらして番号のすぐ下に出す。タイトルが 2 行（サイドバー）なら 2 行目の横、1 行なら付記の横に並ぶ。
+ * ずらしは relative で段の高さに入らないので、PR のある行もない行と同じ行数になる（カンバンの .pr-row はタイトルを 2 段にまたがらせるので、
+ * 1 行のタイトルで行が高くなる。履歴は付記の段があるので、その段に重ねる）。
+ * 付記の段は付記が空でも 1 行の高さを取り、2 段目に PR を重ねる場所を残す。付記の段は行の幅いっぱいなので、行の要素は子で埋まる（ask-menu.tsx の onClickCapture の前提）
+ */
+.history-ticket {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  column-gap: 6px;
+}
+.history-ticket > .history-ticket-main,
+.history-ticket > .history-ticket-meta {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+.history-ticket > .history-ticket-main {
+  grid-row: 1;
+}
 .history-ticket-meta {
-  display: block;
-  padding: 0 6px 2px 2.4rem;
+  grid-row: 2;
+  display: grid;
+  min-height: 16px;
+  padding: 0 6px 2px 0;
+  line-height: 16px;
   color: var(--vscode-descriptionForeground);
+}
+.history-ticket-note {
+  grid-column: 3;
+}
+/*
+ * 2 行目のずらし：16px の PR の欄の上端を、タイトルの 2 行目（行のリンクの上の余白 2px・枠 1px・1 行目 18px の下で 21px から 18px）と
+ * 付記の段（1 段目の高さ 24px の下で 24px から 16px）の真ん中のあいだに置く。どちらとも 1px のずれに収まる
+ */
+.history-ticket > .row-pr {
+  grid-row: 1;
+  grid-column: 2;
+  align-self: start;
+  position: relative;
+  top: 23px;
+}
+/* PR の欄に載せている間も、行のリンクのホバーの背景を消さない */
+.history-ticket:has(> .row-pr:hover) > .history-ticket-main {
+  background: var(--vscode-list-hoverBackground);
 }
 /* 履歴用の中止の行：点は塗らず輪にして形で見分け（バックログの todo の白抜きと同じ border。強制カラーモードでも消えない）、タイトルだけ薄くする。打ち消し線は使わない */
 .history-ticket.abandoned .status-dot {
@@ -2398,10 +2441,8 @@ textarea.body {
 .history-ticket.abandoned .row-title {
   opacity: 0.6;
 }
-/* 履歴用の行（components/history-rows.tsx）：1 段目は丸印・番号・タイトルだけ。2 段目の「中止」は太く、「なし」は薄く。「ほか N 件」は付記と頭を揃える */
-.ticket-row.history-ticket-main {
-  grid-template-columns: auto auto minmax(0, 1fr);
-}
+/* 履歴用の行（components/history-rows.tsx）：1 段目は丸印・番号・タイトルだけ（列は包みの .history-ticket が持つ）。2 段目の「中止」は太く、「なし」は薄く。
+   「ほか N 件」は決まった幅（2.4rem）だけ字下げする（付記はタイトルの列に出て、頭の位置は行ごとの番号の列の幅で変わるので、付記には揃えない） */
 .history-abandoned {
   font-weight: 600;
 }
@@ -2456,7 +2497,7 @@ textarea.body {
 .history-divider-count {
   margin-left: auto;
 }
-/* 検索で開いた行の中：当たった件数と「すべて見る」を付記と頭を揃えて出し、当たった部分の印はエディタの検索の当たりと同じ色 */
+/* 検索で開いた行の中：当たった件数と「すべて見る」を「ほか N 件」と同じだけ字下げして出し、当たった部分の印はエディタの検索の当たりと同じ色 */
 .history-hits {
   display: flex;
   flex-wrap: wrap;
