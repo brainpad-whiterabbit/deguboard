@@ -509,6 +509,7 @@ function SearchHitsBar({ hits, total, fold }: { hits: number; total: number; fol
 
 /**
  * Iteration の行。開閉の印を付け、開くと中のチケットを完了・中止・持ち越しの順に出す（IterationTickets）。
+ * 終わったチケットも持ち越しもない Iteration は薄く出し、開けない（検索で番号・目標・名前に当たれば、開けない行のまま残る）。
  * 検索語（query）に当たった番号・目標には印を付ける。名前は行に出さないので、名前に当たったときだけ 2 段目に「名前 …」を印付きで足す
  * （目標と同じ文字なら目標の印で分かるので足さない）
  */
@@ -544,52 +545,70 @@ function IterationItem({
     place: ASK_SECTIONS.historyRow,
     menu: i.id,
   });
+  const head = (
+    <>
+      <DetailLink route={{ page: "iterations", id: i.id }}>
+        <code>
+          <Highlight text={i.id} query={query} />
+        </code>
+      </DetailLink>
+      <span className={goal ? "name" : "name history-none"} title={i.name}>
+        {goal ? <Highlight text={goal} query={query} /> : tr("目標なし")}
+      </span>
+      {/* 完了と持ち越しは iteration.close が記録した値（core が数える）をそのまま出し、web では数え直さない。
+              中止は記録がないので Iteration に入っている abandoned を数える */}
+      <CountChips
+        completed={i.completed}
+        abandoned={abandoned}
+        carried={i.carried_over}
+        title={tr("完了と持ち越しは閉じたときに記録した件数")}
+      />
+      <small>
+        <Period start={i.started_at} end={i.closed_at} />
+        {nameHit ? (
+          <span className="history-hit-name">
+            {tr(" ・ ")}
+            {trNode("名前{0}{1}", " ", <Highlight text={i.name} query={query} />)}
+          </span>
+        ) : null}
+        {showEpics ? (
+          <span className="epics">
+            {tr(" ・ ")}
+            {epics.map((e, n) => (
+              <span key={e.epic ?? "-"}>
+                {n > 0 ? ", " : ""}
+                {e.epic ? (
+                  <DetailLink route={{ page: "epics", id: e.epic }}>{e.epic}</DetailLink>
+                ) : (
+                  tr("Epic なし")
+                )}{" "}
+                {e.count}
+              </span>
+            ))}
+          </span>
+        ) : null}
+      </small>
+      {spot.overlay}
+    </>
+  );
+  // 終わったチケット（done・abandoned）も持ち越しもない Iteration は、開いても中に出すものがないので
+  // Epic の行と同じく薄く出して開けなくする（番号の詳細へのリンクと右クリックのメニューは残す）。
+  // 持ち越しは閉じたときの記録（carried_over）で見る。履歴から求めると、行を描くたびに history を読むことになるため
+  if (finished.length === 0 && !i.carried_over)
+    return (
+      <li>
+        <div className="history-item history-empty">
+          <div className="history-row" tabIndex={0} {...spot.props}>
+            {head}
+          </div>
+        </div>
+      </li>
+    );
   return (
     <li>
       <details className="history-item fold" {...foldProps(fold)}>
         <summary className="history-row" {...spot.props}>
-          <DetailLink route={{ page: "iterations", id: i.id }}>
-            <code>
-              <Highlight text={i.id} query={query} />
-            </code>
-          </DetailLink>
-          <span className={goal ? "name" : "name history-none"} title={i.name}>
-            {goal ? <Highlight text={goal} query={query} /> : tr("目標なし")}
-          </span>
-          {/* 完了と持ち越しは iteration.close が記録した値（core が数える）をそのまま出し、web では数え直さない。
-              中止は記録がないので Iteration に入っている abandoned を数える */}
-          <CountChips
-            completed={i.completed}
-            abandoned={abandoned}
-            carried={i.carried_over}
-            title={tr("完了と持ち越しは閉じたときに記録した件数")}
-          />
-          <small>
-            <Period start={i.started_at} end={i.closed_at} />
-            {nameHit ? (
-              <span className="history-hit-name">
-                {tr(" ・ ")}
-                {trNode("名前{0}{1}", " ", <Highlight text={i.name} query={query} />)}
-              </span>
-            ) : null}
-            {showEpics ? (
-              <span className="epics">
-                {tr(" ・ ")}
-                {epics.map((e, n) => (
-                  <span key={e.epic ?? "-"}>
-                    {n > 0 ? ", " : ""}
-                    {e.epic ? (
-                      <DetailLink route={{ page: "epics", id: e.epic }}>{e.epic}</DetailLink>
-                    ) : (
-                      tr("Epic なし")
-                    )}{" "}
-                    {e.count}
-                  </span>
-                ))}
-              </span>
-            ) : null}
-          </small>
-          {spot.overlay}
+          {head}
         </summary>
         {!fold.open ? null : fold.searching && !fold.all ? (
           <SearchHits finished={finished} query={query} fold={fold} splitAbandoned />
