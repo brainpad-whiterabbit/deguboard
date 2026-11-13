@@ -19,7 +19,7 @@ after:
   t870:
     - t860
     - t868
-pending_approval: true
+pending_approval: false
 details:
   t862:
     scope: README.md と README.ja.md の Security and privacy の節だけ
@@ -69,3 +69,5 @@ details:
     scope: guide-overview・Walkthrough・ADR-001 の食い違いと ask の雛形の言語
     approach: 雛形は dg の出力なので英語にし、文書を今の実装に合わせる
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-13T15:12:42Z
