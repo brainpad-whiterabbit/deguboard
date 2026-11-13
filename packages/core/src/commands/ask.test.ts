@@ -168,6 +168,8 @@ describe("依頼文の組み立て", () => {
     // PATH に dg がないときの置き換えの案内も、文章の形式に入る
     expect(ASK_DG_USAGE).toContain(DG_PATH_NOTE);
     expect(view.text).toContain("mise run dg --");
+    // CLI は npm に出さない（@deguboard/cli）ので、動かない npx deguboard を例に挙げない（t868）
+    expect(view.text).not.toContain("npx");
     expect(view.text).not.toContain("/dgdone");
     expect(view.text).not.toContain("右の列を細くする");
     // 複数の対象は頼む 1 文に並べる
@@ -531,6 +533,8 @@ describe("依頼文の定型の文の言語（UI-11）", () => {
     );
     expect(ASK_DG_USAGE_EN).toContain("--json --actor agent");
     expect(ASK_DG_USAGE_EN).toContain(DG_PATH_NOTE_EN);
+    expect(ASK_DG_USAGE_EN).toContain("mise run dg --");
+    expect(ASK_DG_USAGE_EN).not.toContain("npx");
     expect(askGuideLine("/dgdone", "en")).toBe(
       "Read `dg guide done` for the steps and follow them.",
     );
