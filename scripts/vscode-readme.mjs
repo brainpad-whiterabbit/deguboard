@@ -1,4 +1,4 @@
-// ルートの README.md の「Other ways to use it」より前を packages/vscode/README.md に書き出す。mise run vsix（packages/vscode の package script）から呼ぶ（t429）。
+// ルートの README.md の全文を packages/vscode/README.md に書き出す（相対リンクがあれば失敗する）。mise run vsix（packages/vscode の package script）から呼ぶ（t429）。
 // 書き出した README は git の管理に入れない（.gitignore）
 
 import { readFile, writeFile } from "node:fs/promises";

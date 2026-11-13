@@ -2,168 +2,89 @@
 
 English | [日本語](https://github.com/brainpad-whiterabbit/deguboard/blob/main/README.ja.md)
 
-A Git-native kanban board for practicing [Agentic-Agile](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md). You work as the agents' partner, designing, reviewing, and approving, while agents carry out small tickets with acceptance criteria in parallel along their dependencies. Every run is measured, so you can see where the work gets stuck and improve how you work together.
+A kanban board inside your Git repository for building software together with AI agents, as a way to practice [Agentic-Agile](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md). You write small tickets with acceptance criteria and approve the plan; agents implement the tickets in parallel, and nothing merges until the quality gate passes.
 
-deguboard is an independent project. It is not made, endorsed, or supported by Microsoft.
-
-## Features
-
-- **Delegate with specs**: Hand over work as small tickets with acceptance criteria instead of open-ended prompts. Agents work from the ticket, and the result is checked against its criteria.
-- **Run in parallel along dependencies**: Plan the order from dependencies, and agents work on tickets that are not blocked at the same time, each on its own branch and worktree.
-- **Governance built in**: Plans wait for approval before work starts. A PR is marked ready or merged only when the quality gate (`dg gate`) passes. Each ticket has a gate level, `high` by default, which requires everything including an independent review; `low` skips the review, and `free` checks only that the PR is open and does not conflict. `actor.human_only` and workflow rules can reserve commands and transitions for people, and the Claude Code hooks refuse to mark a PR ready or merge it outside `dg`, and to write to the data directly.
-- **Measure and improve**: Aggregate duration, tokens, retries, review findings, and results per ticket, step, and model with `dg metrics`, and use retrospectives to find bottlenecks and what to fix next.
-
-## Installation
-
-Prerequisites: Git 2.30 or later. To reflect pull request status on tickets, you also need the GitHub CLI (`gh`). deguboard runs on Linux and macOS.
-
-1. **Install the extension**: Download `deguboard-vscode.vsix` from [GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) and run `code --install-extension deguboard-vscode.vsix`. Then reload the VS Code window.
-2. **Start with the repository**: Open the repository you want to manage, click the deguboard icon in the Activity Bar, and press **Start with this repository** on the start screen. It runs `dg init`, installs the Skills for Claude Code (`dg skill install`, such as `/dgall`), and writes the Claude Code hooks (`dg hooks install`, to `.claude/settings.local.json`, which git does not track). The Skills and the hooks belong to each machine: the two commands add them to `.claude/.gitignore`, so commit that `.gitignore`.
-3. **Terminal users only**: To run `dg` yourself in a terminal, run **Install dg command** from the Command Palette. It links `~/.local/bin/dg` (add `~/.local/bin` to your PATH if needed).
-
-Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
-
-Data lives on a dedicated branch of your repository, so no service is required. Other team members only need to install the extension, clone the repository, and press the same button to see the same board (the button also runs `dg skill install` and `dg hooks install` on their machine, because the Skills and the hooks are not in the clone).
-
-## Usage
-
-### Open the board
-
-Click the deguboard icon in the Activity Bar to open the board. Use the tabs at the top to switch to the backlog and history.
+- **You stay in charge**: Agents start only after you approve the plan, and a PR becomes ready or merges only when the quality gate (the checks and an independent review) passes. You and the agents build together, without the AI running away with the work.
+- **Made for teams**: The board lives on a dedicated branch of your repository, so everyone who clones it sees the same board. There is no server or service to run.
+- **Measure and improve**: Every run records its duration, tokens, and rework, and a retrospective turns the bottlenecks into the next tickets.
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/open-board.gif" alt="Opening the board" width="560">
 
-### Jump to details by ID or title
+deguboard is an independent project. It is not made, endorsed, or supported by Microsoft.
 
-Run "deguboard: Go to Ticket" from the Command Palette, or press `Ctrl+K Ctrl+Alt+G` (`⌘K ⌘⌥G` on macOS), to filter tickets, Iterations, Epics, and Plans by ID or title and open their details.
+## Installation
 
-### Use the keyboard
+deguboard runs on Linux and macOS. It needs Git 2.30 or later, and the GitHub CLI (`gh`) to show pull request status on tickets.
 
-Rows in the sidebar (board, backlog, and history) work without a mouse. When you Tab into a list, only the current row is focusable, and a single Tab leaves the list.
+1. **Install the extension**: Download `deguboard-vscode.vsix` from [GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases), run `code --install-extension deguboard-vscode.vsix`, and reload the VS Code window.
+2. **Start with the repository**: Open your repository, click the deguboard icon in the Activity Bar, and press **Start with this repository**. It creates the board and installs the Skills (such as `/dgplan`) and the hooks for Claude Code on your machine. Commit the `.claude/.gitignore` it adds.
+3. **Terminal users only**: To run `dg` yourself, run **Install dg command** from the Command Palette.
 
-| Key              | Action                                                                                                |
-| ---------------- | ----------------------------------------------------------------------------------------------------- |
-| ↑ ↓ / Home / End | Move between rows (the current row shows a focus outline)                                             |
-| Enter            | Open details of the current row in an editor panel                                                    |
-| Space            | Select or deselect the current row (keep adding to select several)                                    |
-| a                | Open the "Ask Agent" menu for the selected rows (or the current row if none). Shift+F10 also opens it |
+Teammates install the extension, clone the repository, and press the same button to see the same board.
 
-None of these conflict with VS Code's default keybindings.
+## Usage
 
-With a mouse, Ctrl/⌘+click adds or removes a row from the selection and Shift+click selects the range from the row you pressed before; a plain click opens details instead. Pressing the strip at a row's left edge adds or removes that row, and dragging across the strip selects a range; Esc clears the selection. The speech bubble of a selected row (and `a`) asks an agent about all the selected rows. Right-click a ticket row or an Iteration or Epic heading to open its details or copy its ID (ask an agent from the speech bubble).
+Click the deguboard icon in the Activity Bar. The tabs at the top switch between **Backlog**, **Board**, and **History**. You ask for work with **Ask Agent**, the speech bubble on a row or a heading: choose what to ask for, then paste the copied request into your agent or send it to an open terminal. The requests are Skills for Claude Code such as `/dgplan s3`, so you can also type them yourself.
 
-### Turn a rough idea into tickets
+### Backlog: turn ideas into tickets
 
-Ask for something in your own words with `/dgimport` (in Claude Code). The agent investigates the code and proposes tickets with acceptance criteria and dependencies. Approve them, and they appear in the backlog.
+1. **Create tickets**: Tell the agent what you want in your own words with `/dgimport` (**Ask Agent** → **Create tickets**). It investigates the code and proposes small tickets with acceptance criteria and dependencies. Approve them, and they appear in the Backlog.
+2. **Read the details**: Click a row to open the ticket. You can edit its text and attributes there.
+3. **Discuss**: When a ticket is still vague, choose **Ask Agent** → **Discuss** (`/dgdiscuss t12`). The agent settles the open points with you through choices and updates the ticket after you approve the changes.
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/import.gif" alt="Turning a rough idea into tickets" width="560">
 
-### Ask an agent
+### Board: assign, plan, and work in parallel
 
-Click a row's speech bubble, choose what to ask for, and paste the copied request into your agent. For agents other than Claude Code, set the format to "Text". You can also pick an open terminal and "Send" the request to it. A single line is typed into the input without pressing Enter. Multiple lines are pasted with VS Code's paste, so choose whether to paste when asked. If the input does not support pasting, each line may be run separately.
+1. **Assign**: Choose **Ask Agent** → **Assign** on tickets (`/dgassign`) to put them into an Iteration. The Board shows the tickets of the Iteration in columns by status.
+2. **Plan**: Choose **Plan** on the Iteration (`/dgplan s3`). The agent orders the tickets by their dependencies and waits for your approval.
+3. **Work**: Choose **Work on** (`/dgwork`). Agents implement the tickets that are not blocked at the same time, each on its own branch and worktree, and open PRs. A PR becomes ready and merges only when the quality gate passes. The band above the Board shows the progress of the plan and its dependency graph.
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/ask-agent.gif" alt="Asking an agent" width="560">
 
-### Hand off everything
+### History: retrospect and improve
 
-Give `/dgall` an Iteration or tickets (in Claude Code), such as `/dgall s3 --auto`, and the agent plans and implements them in one go. It does not turn what you want to build into tickets, so do that first with `/dgimport`. The agent stops and asks for releasing (merging and publishing the release PR), deleting, abandoning, or undoing done on tickets, closing or reopening an Epic or Iteration, merging PRs when `auto.merge` is off or when a PR does not meet the quality gate, changing a Plan's waits or scope, anything with `--force`, decisions with no suggested option, and answers that cannot be a choice. Other decisions proceed with the suggested option when `auto.decisions` in config includes them. Watch the progress on the board, and click a plan's band to see its dependencies as a graph. `--gate-high`, `--gate-low`, or `--gate-free` (`/dgwork` takes the same flags) sets the quality gate level of the target tickets (without one, each ticket keeps its own level). For other agents, ask them to "read `dg guide all` and proceed to the end with `--auto`".
-
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/run-all.gif" alt="Handing off everything" width="560">
-
-### Find bottlenecks
-
-In the history, ask for "Retrospect" from a finished Iteration's speech bubble. The agent shows a summary of the actuals (duration, tokens, and rework per step), asks which viewpoints to look into, summarizes where work got stuck and what to fix next, and files the improvements you approve as tickets.
+Choose **Ask Agent** → **Retrospect** on a finished Iteration. The agent shows the actuals (duration, tokens, and rework per step), asks which viewpoints to look into, and files the improvements you approve as tickets.
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="Finding bottlenecks" width="560">
 
-To aggregate tokens as well, enable reading usage from conversation transcripts (supported for Claude Code, Codex, and Copilot CLI).
+To aggregate tokens as well, let deguboard read usage from conversation transcripts (Claude Code, Codex, and Copilot CLI):
 
 ```sh
 dg config set metrics.read_transcripts true
 ```
 
-This setting is shared with your team. To turn it off on your own machine only, set `DEGUBOARD_NO_TRANSCRIPTS=1`.
+The setting is shared with your team. To turn it off on your own machine only, set `DEGUBOARD_NO_TRANSCRIPTS=1`.
 
-### Notice what awaits approval
+## Tips
 
-When Plans await approval or tickets are in review, the sidebar title shows the count, like "DEGUBOARD: Awaiting Approval/Review 3" (otherwise just "DEGUBOARD"). When the count grows, a notification appears, and "Open" opens the details. The number on the Activity Bar icon is something else: the total of unpushed commits and remote updates not yet pulled (deguboard fetches from the remote about once a minute to count them).
+The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md) (in Japanese).
 
-You can turn notifications off under "Notifications" in Settings (the gear icon); the count stays visible. To turn them off only for yourself while keeping the team setting, use the "Mine" (自分) tab in Settings or add `--local` (a personal setting that is not committed to Git; see `dg config set --help`).
-
-```sh
-dg config set notify.approvals false --local
-```
-
-### Resolve a sync conflict
-
-When two people change the same field of a ticket to different values, `dg sync` stops before pushing and reports the conflict. The notification lists the conflicting fields with their remote and local values, and offers "Take remote" and "Take local". Pressing one runs `dg sync --resolve` once on that side: only the conflicting fields take its value, and the other changes and commits stay. The values taken and discarded are shown. In a terminal, run `dg sync --resolve remote` or `dg sync --resolve local`. Until it is resolved, push and reconcile wait, and so do the writes that push at once (filing a ticket, claiming it, and starting or reopening an Iteration), including those made from the screen. A conflict where both sides have the same status (for a Plan, both sides have the time) and differ only in `closed_at`, `started_at`, or `approved_at` is not a stop: dg keeps the earlier time and shows a warning.
-
-Some conflicts have no buttons. A conflict in a file the merge driver does not handle, such as `config.yaml` or a workflow, is only reported, and a person resolves that file by hand in the deguboard worktree (the steps are in the warning that `dg sync` gives). If such a file conflicts together with ticket fields, the buttons still appear, but the file stays after `--resolve`. The steps for agents are under "When sync stops" in `dg guide overview`.
+- [Hand off everything](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#最後まで任せる): `/dgall s3 --auto` runs an Iteration from assignment to release in one go.
+- [Quality gate levels](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#品質ゲートの段): `high` (the default), `low`, or `free` per ticket.
+- [Resolve a sync conflict](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#同期の競合を解く) when two people change the same field.
+- [Notifications](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#承認待ちの通知) for Plans awaiting approval and tickets in review.
+- [Go to Ticket](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#チケットへ移動する): jump to details by ID or title.
+- [Use the CLI](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#cli-で使う) and [use it from Claude Desktop (MCP)](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#claude-desktop-から使う).
+- Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup: ask them to "read `dg guide` and proceed with `dg`".
 
 ## Security and privacy
 
 - The extension sends no telemetry and starts no HTTP server. Its only network access is `git` connecting to your remotes and `gh` connecting to GitHub.
-- Data is stored in `.git/deguboard/`, and nothing is written outside `.git`.
-- The extension runs only `git`, `gh`, and `dg --version`, none of them through a shell (git running a merge driver with `sh -c` during a sync rebase is how git works).
-- Because git configuration can run arbitrary commands, the extension works only in trusted folders (not in Restricted Mode or virtual workspaces).
-- The Skills written by `dg skill install` contain only text telling the agent to read `dg guide`, with no scripts and no tool permissions. Use `--dry-run` to see their contents.
-- The hooks written by `dg hooks install` only call `dg hook <event>`, which records Runs and reads transcripts under `~/.claude/projects/`. Before a tool runs, they also refuse `gh pr ready` and `gh pr merge` (and the same operations through `gh api`) outside `dg`, file-edit tools that write under `.git/deguboard/`, and Bash commands that mention `.git/deguboard`; use the `dg` commands instead. Use `--dry-run` to see the settings, and `dg hooks uninstall` to remove them.
+- Data is stored in `.git/deguboard/`, and nothing is written outside `.git`. The extension runs only `git`, `gh`, and `dg --version`, and only in trusted folders.
+- The Skills only tell the agent to read `dg guide`. The hooks only call `dg hook <event>`, which records runs and refuses to mark a PR ready, merge it, or write to the data outside `dg`. See both with `--dry-run`.
 - See [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) (in Japanese) for how to report vulnerabilities.
-
-## Other ways to use it
-
-### Getting started as a developer
-
-For developing deguboard itself. Install [mise](https://mise.jdx.dev/), clone the repository, and install the Skills and the hooks (neither is tracked by git, so each clone installs them). The hooks do not depend on PATH: `dg hooks install` writes the absolute paths of node and `dg.js`.
-
-```sh
-git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
-mise trust && mise install    # install node and pnpm at the versions in mise.toml
-mise run install              # install dependencies, build dg and the extension, and install the VSIX into VS Code
-mise run dg -- skill install  # write the Claude Code Skills (dg*) to .claude/skills/ (once per clone; again after git pull updates dg)
-mise run dg -- hooks install  # write the hooks to .claude/settings.local.json with absolute paths (once per clone; again after upgrading node)
-mise run dg -- hooks check    # in a new session, confirm the hooks are installed and that dg has received them
-mise run dg:link              # optional: link dg to ~/.local/bin/dg to use it from your terminal (needs Node 24 or later on PATH; add ~/.local/bin to PATH if needed). To update, git pull and then mise run install
-```
-
-To install the VSIX by hand, run `code --install-extension packages/vscode/deguboard-vscode.vsix` after `mise run vsix`.
-
-### Use the CLI
-
-Besides the board, you can run the same operations from the `dg` command in a terminal (see step 3 of [Installation](#installation)).
-
-```sh
-dg ticket create "Validate login" --summary "Check the input" --acceptance "Reject empty input"
-dg ticket list                # --json for machine-readable output
-```
-
-Without installing Skills, you can make the same requests by pasting text made with `dg ask --format text` into your agent.
-
-### Use it from Claude Desktop (MCP)
-
-`dg mcp` is a stdio MCP server that exposes `dg` commands as tools with names like `ticket_create`. Claude Desktop starts outside your repository without inheriting your PATH, so in `claude_desktop_config.json`, set `command` to the launcher that the extension installs at `~/.local/share/deguboard/dg` (it finds node itself), and pass `-C <target-repository>` and `mcp` as arguments. Write `command` as the absolute path of that file, with the home directory spelled out (`/Users/<you>/...` on macOS, `/home/<you>/...` on Linux): the JSON does not expand `~`. Claude Code can call `dg` through Bash, so it needs no registration.
-
-```json
-{
-  "mcpServers": {
-    "deguboard": {
-      "command": "/Users/<you>/.local/share/deguboard/dg",
-      "args": ["-C", "/path/to/repo", "mcp"]
-    }
-  }
-}
-```
 
 ## Documentation
 
 The documents below are written in Japanese.
 
-- [Requirements](docs/requirements.md): the source of truth for the current specification
-- [ADRs](docs/adr/README.md): background and reasons for design decisions
-- [Development guide](docs/development.md): for people developing in this repository
-- [SECURITY.md](SECURITY.md): where to report vulnerabilities and which versions receive fixes
-- `dg --help` and `dg guide <topic>`: the list of commands and the source of truth for agent workflows (bundled with the CLI)
+- [Usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md): the details that this README leaves out
+- [Requirements](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md): the source of truth for the current specification
+- [ADRs](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/adr/README.md): background and reasons for design decisions
+- [Development guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/development.md): for people developing in this repository
+- `dg --help` and `dg guide <topic>`: the list of commands and the source of truth for agent workflows (bundled with the CLI, in English)
 
 ## License
 
-[MIT](LICENSE). Licenses of the dependencies bundled in the distributions are collected in `THIRD_PARTY_LICENSES.md`, generated by the build (in `dist/` of the VSIX).
+[MIT](https://github.com/brainpad-whiterabbit/deguboard/blob/main/LICENSE). Licenses of the dependencies bundled in the distributions are collected in `THIRD_PARTY_LICENSES.md`, generated by the build (in `dist/` of the VSIX).
