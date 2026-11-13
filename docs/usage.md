@@ -1,67 +1,69 @@
-# 使い方の細部
+# Usage details
 
-[README](../README.ja.md) の「使い方」に収めない、人がする操作をまとめる。コマンドの細部は `dg <コマンド> --help`、エージェントの手順は `dg guide <topic>`、約束は [requirements.md](requirements.md) が正本で、ここには写さない。
+English | [日本語](usage.ja.md)
 
-## 最後まで任せる
+This page covers the things people do that the [README](../README.md) leaves out. The details of each command are in `dg <command> --help`, the steps for agents are in `dg guide <topic>`, and the promises are in [requirements.md](requirements.md) (written in Japanese), which is the source of truth; this page does not copy them.
 
-Claude Code で `/dgall s3 --auto` のように Iteration かチケットを渡すと、エージェントが割り当て・計画・実装・見直し・リリースを続けて進める。作りたいものの起票はしないので、先に `/dgimport` でチケットにする。
+## Hand off everything
 
-- `--auto` を付けると、config の `auto.decisions` に入っている判断は提案の選択肢で進む。リリース、チケットをやめる・削除する、Epic・Iteration を閉じるなど、人が決めることでは止まって聞く（一覧は `dg guide all`）
-- 品質ゲートを通った PR のマージは、config の `auto.merge` が true のときだけ自動で行う
-- 進み具合はカンバンで見られ、計画の帯を押すと依存のグラフが出る
-- Claude Code 以外のエージェントには「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼む
+In Claude Code, pass an Iteration or tickets such as `/dgall s3 --auto`, and the agent carries on through assignment, planning, implementation, review, and release. It does not create tickets for what you want to build, so first turn your ideas into tickets with `/dgimport`.
 
-## 品質ゲートの段
+- With `--auto`, the decisions listed in `auto.decisions` in the config proceed with the suggested option. Decisions that people make, such as release, abandoning or deleting a ticket, and closing an Epic or Iteration, stop and ask. The full list is in `dg guide all`.
+- A PR that passed the quality gate is merged automatically only when `auto.merge` in the config is true.
+- You can follow the progress on the Board. Press the Plan band to show the dependency graph.
+- For agents other than Claude Code, ask them to "read `dg guide all` and carry on to the end with `--auto`."
 
-PR を ready にする・マージするときに判定する条件は、チケットの段（`gate`）で変わる。
+## Quality gate levels
 
-| 段             | 判定する条件                        |
-| -------------- | ----------------------------------- |
-| `high`（既定） | 検査と独立した見直しを含むすべて    |
-| `low`          | 見直しを除く（検査はする）          |
-| `free`         | PR が開いていて、衝突しないことだけ |
+The conditions checked before a PR becomes ready or is merged depend on the ticket's gate level (`gate`).
 
-段はチケット詳細か `dg ticket update <id> --gate <段>` で付ける。`/dgall`・`/dgwork` に `--gate-high`・`--gate-low`・`--gate-free` を付けると、対象のチケットの段をまとめて決める（付けなければ各チケットの段のまま）。段を下げるのは人の指示があるときだけにする。条件の細部は `dg gate --help`。
+| Gate level       | Conditions checked                              |
+| ---------------- | ----------------------------------------------- |
+| `high` (default) | Everything, including an independent review     |
+| `low`            | Everything except the review (checks still run) |
+| `free`           | Only that the PR is open and does not conflict  |
 
-## 同期の競合を解く
+Set the level in the ticket details or with `dg ticket update <id> --gate <level>`. Passing `--gate-high`, `--gate-low`, or `--gate-free` to `/dgall` or `/dgwork` sets the level of the target tickets all at once (without them, each ticket keeps its own level). Lower a level only when a person asks for it. The details of the conditions are in `dg gate --help`.
 
-同じチケットの同じ項目を二人が違う値に変えると、同期は push の前で止まり、通知に競合した項目の remote と local の値が並ぶ。
+## Resolve a sync conflict
 
-- 通知の「Take remote」か「Take local」を押すと、競合した項目だけがその側の値になる（ほかの変更は残る）。ターミナルでは `dg sync --resolve remote` か `dg sync --resolve local`
-- 解くまで、push と、起票・claim のようにすぐ push する書き込みは待つ
-- `config.yaml` やワークフローの競合にはボタンが出ない。`dg sync` の警告にある手順で、人が手で解く
+When two people change the same field of a ticket to different values, sync stops before the push. The notification shows the remote and local values of the conflicting field side by side.
 
-エージェント向けの手順は `dg guide overview` の「When sync stops」、細部は `dg sync --help`。
+- Press "Take remote" or "Take local" in the notification, and only the conflicting field takes that side's value (other changes stay). In a terminal, use `dg sync --resolve remote` or `dg sync --resolve local`.
+- Until the conflict is resolved, the push waits, and so do writes that push right away, such as creating tickets and claims.
+- Conflicts in `config.yaml` or in the workflow get no buttons. Resolve them by hand, following the warning from `dg sync`.
 
-## 承認待ちの通知
+For agents, see the "When sync stops" section of `dg guide overview`. For details, see `dg sync --help`.
 
-承認待ちの Plan と review のチケットがあると、サイドバーのタイトルに件数が出て（「DEGUBOARD: 承認待ち 3」）、増えたときは通知が出る。通知の「開く」で詳細が開く。Activity Bar のアイコンの数字は別で、未 push のコミットと未取り込みのリモートの更新の合計を示す。
+## Notifications
 
-通知は設定画面（歯車）の「通知」で切れる（件数の表示は残る）。チームの設定のまま自分だけ切るときは、設定画面の「自分」のタブか `--local` を使う。
+When there are Plans awaiting approval or tickets in review, the count appears in the sidebar title (for example, "DEGUBOARD: Awaiting Approval/Review 3"), and a notification appears when the count goes up. Press "Open" in the notification to open the details. The number on the Activity Bar icon is separate: it is the total of unpushed commits and remote updates that have not been pulled.
+
+You can turn notifications off in the settings screen (the gear icon) under "Notifications". The count stays visible. To turn them off only for yourself while keeping the team setting, use the "Mine" tab of the settings screen or `--local`.
 
 ```sh
 dg config set notify.approvals false --local
 ```
 
-## チケットへ移動する
+## Go to Ticket
 
-コマンドパレットの「deguboard: チケットへ移動」（Go to Ticket）か `Ctrl+K Ctrl+Alt+G`（macOS は `⌘K ⌘⌥G`）で、チケット・Iteration・Epic・Plan を ID かタイトルで絞り込んで詳細を開く。
+From the Command Palette, run "deguboard: Go to Ticket", or press `Ctrl+K Ctrl+Alt+G` (`⌘K ⌘⌥G` on macOS). Filter tickets, Iterations, Epics, and Plans by ID or title, and open the details.
 
-## CLI で使う
+## Use the CLI
 
-画面と同じ操作をターミナルの `dg` でも行える。コマンドパレットの「dg コマンドを入れる」（Install dg command）が `~/.local/bin/dg` を張る（PATH に `~/.local/bin` がなければ足す）。
+You can do the same things as on the screen from a terminal with `dg`. The Command Palette command "Install dg command" creates `~/.local/bin/dg` (add `~/.local/bin` to your PATH if it is not there).
 
 ```sh
-dg ticket create "ログインの検証" --summary "入力の検査" --acceptance "空のとき拒否する"
-dg ticket list                # --json で機械向け
-dg --help                     # コマンドの一覧
+dg ticket create "Validate login" --summary "Check the input" --acceptance "Reject an empty value"
+dg ticket list                # --json for machine-readable output
+dg --help                     # the list of commands
 ```
 
-Skill を入れていないエージェントには、`dg ask --format text` で作った文章を貼って頼める。
+For an agent that does not have the Skill installed, paste the text made by `dg ask --format text` and ask with it.
 
-## Claude Desktop から使う
+## Use it from Claude Desktop (MCP)
 
-`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドをツールとして出す。`claude_desktop_config.json` の `command` に、拡張が入れる起動ファイル `~/.local/share/deguboard/dg` の絶対パスを書き（JSON は `~` を展開しないので、macOS は `/Users/<you>/...`、Linux は `/home/<you>/...`）、引数に `-C <対象のリポジトリ>` と `mcp` を渡す。Claude Code は Bash で `dg` を呼べるので、登録は要らない。
+`dg mcp` is an MCP server over stdio that offers the `dg` commands as tools. In `claude_desktop_config.json`, set `command` to the absolute path of the launcher `~/.local/share/deguboard/dg` that the extension installs (JSON does not expand `~`, so use `/Users/<you>/...` on macOS and `/home/<you>/...` on Linux), and pass `-C <target repository>` and `mcp` as `args`. Claude Code can call `dg` through Bash, so it needs no registration.
 
 ```json
 {

@@ -67,14 +67,14 @@ The setting is shared with your team. To turn it off on your own machine only, s
 
 ## Tips
 
-The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md) (in Japanese).
+The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md).
 
-- [Hand off everything](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#最後まで任せる): `/dgall s3 --auto` runs an Iteration from assignment to release in one go.
-- [Quality gate levels](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#品質ゲートの段): `high` (the default), `low`, or `free` per ticket.
-- [Resolve a sync conflict](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#同期の競合を解く) when two people change the same field.
-- [Notifications](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#承認待ちの通知) for Plans awaiting approval and tickets in review.
-- [Go to Ticket](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#チケットへ移動する): jump to details by ID or title.
-- [Use the CLI](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#cli-で使う) and [use it from Claude Desktop (MCP)](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#claude-desktop-から使う).
+- [Hand off everything](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#hand-off-everything): `/dgall s3 --auto` runs an Iteration from assignment to release in one go.
+- [Quality gate levels](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#quality-gate-levels): `high` (the default), `low`, or `free` per ticket.
+- [Resolve a sync conflict](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#resolve-a-sync-conflict) when two people change the same field.
+- [Notifications](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#notifications) for Plans awaiting approval and tickets in review.
+- [Go to Ticket](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#go-to-ticket): jump to details by ID or title.
+- [Use the CLI](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-the-cli) and [use it from Claude Desktop (MCP)](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-it-from-claude-desktop-mcp).
 - Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup: ask them to "read `dg guide` and proceed with `dg`".
 
 ## Security and privacy
@@ -86,7 +86,7 @@ The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deg
 
 ## Documentation
 
-The documents below are written in Japanese.
+The documents below are written in Japanese, except the usage guide.
 
 - [Usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md): the details that this README leaves out
 - [Requirements](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md): the source of truth for the current specification
