@@ -95,7 +95,7 @@ ADR は、次のどれかに当たる判断だけに書く。
 ### 言語
 
 - docs・CLAUDE.md・コードのコメント・テスト名は日本語で書く。例外は英語で書く README.md（GitHub・Marketplace の入口）・SECURITY.md（GitHub の Security タブの入口）・docs/usage.md（README から引く使い方の英語版）。日本語の README.ja.md と docs/usage.ja.md は、それぞれ英語版と同じ節の構成にし、先頭から互いに辿れるようにする。README から指すほかの docs（要件定義書・開発ガイド・ADR 一覧）は日本語のままにする
-- dg がエージェントと利用者に出す文は英語だけで書く。範囲は、guide・Skill の雛形、CLI のヘルプ、MCP のツールの説明、エラー・警告、`dg next`・`flow next` の段階の理由、brief の定型の文、フックが止める文、データのブランチへのコミットの 1 行目、`dg pr ready` が PR の本文に足す定型の節、`dg ask`・`dg ask-menu` の候補の名前と札の sub と人が打つコマンドの雛形。依頼文の定型の文だけは依頼の言語（ja・en）を選べる。画面（VS Code 拡張と web）の定型の文は、dg の英語の文も訳して表示言語で出す（要件 UI-11。細部は `packages/core/src/commands/ask.ts`）
+- dg がエージェントと利用者に出す文は英語だけで書く。範囲は、guide・Skill の雛形、CLI のヘルプ、MCP のツールの説明、エラー・警告、`dg next`・`flow next` の段階の理由、brief の定型の文、フックが止める文、データのブランチへのコミットの 1 行目、`dg pr ready` が PR の本文に足す定型の節、`dg ask`・`dg ask-menu` の候補の名前と札の sub と人が打つコマンドの雛形。`dg ask` の依頼文と札の説明の定型の文（候補の 1 文・対象の 1 行）は、言語（ja・en）を選べる（細部は `packages/core/src/commands/ask.ts`）。画面（VS Code 拡張と web）の定型の文は、dg の英語の文も訳して表示言語で出す（要件 UI-11）
 - エージェントが書く文章（チケット・PR・コミット・人への返答）は、リポジトリの既存の文章と人の依頼の言語に合わせる
 
 ## 理由
