@@ -348,7 +348,7 @@ export const EN: Readonly<Record<string, string>> = {
   "差し込む文書（Run）": "Document inserted into run",
   "差し込む文書（並べて進める）": "Document inserted into parallel",
   "差し込む文書（見直しと品質ゲート）": "Document inserted into review and quality gate",
-  "差し込む文書（見直し）": "Document inserted into audit",
+  "差し込む文書（リポジトリの見直し）": "Document inserted into audit",
   "差し込む文書（リリース）": "Document inserted into release",
   "差し込む文書（完了）": "Document inserted into done",
   "差し込む文書（書き換え）": "Document inserted into change",

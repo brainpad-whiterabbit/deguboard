@@ -481,7 +481,7 @@ agent からは拒否するコマンド名
 足す
 [title] 既定の 空 に戻す
 既定に戻す
-空のとき: すべて許す
+空のとき: すべてのコマンドを許す。チケットの遷移は Workflow の by で縛る
 詳しく
 actor.human_only
 計測
@@ -660,7 +660,7 @@ guide.notes.review
 [placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
-[title] 差し込む文書（見直し）
+[title] 差し込む文書（リポジトリの見直し）
 リポジトリの見直し
 guide.notes.audit
 [title] 既定は 

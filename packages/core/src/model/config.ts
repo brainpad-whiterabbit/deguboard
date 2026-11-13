@@ -295,7 +295,8 @@ export const configSchema = z.looseObject({
         description:
           "Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by",
         example: ["epic.close"],
-        empty: "Everything is allowed",
+        empty:
+          "Every command is allowed. Ticket transitions are still restricted with the Workflow's by",
       }),
     })
     .prefault({}),
