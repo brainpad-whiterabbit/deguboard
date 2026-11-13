@@ -18,6 +18,7 @@
 // 番号を押すと詳細を開く（拡張ホストに頼んでエディタに）。
 // 検索欄は 3 つの見方で全幅にし、チケットの見方だけその下に結果の絞り込み（すべて・完了・中止）を件数付きの文字の切り替えで出す。
 // Iteration と Epic の見方の検索は、中の終わったチケットと行そのもの（Iteration の番号・目標・名前、Epic の番号・タイトル）に当てる。
+// 検索欄の案内と名前は、見方ごとに当てるものを言う（SEARCH_LABELS）。
 // 検索語があるあいだ、中のチケットに当たった行は開いて当たったチケットだけを印付きで出し、行にだけ当たった行は閉じたまま
 // 行の当たった部分に印を付ける（開くと全件が出る）。
 // 「すべて見る」でその行の全件の一覧に戻せる。検索中に閉じた行や「すべて見る」は検索語を変えると捨て、検索語を消すと検索前の開閉に戻る
@@ -375,8 +376,43 @@ export function historyAskTarget(
   return open.length === 1 ? [open[0]!] : [];
 }
 
-/** 検索欄の案内（バックログと同じ言い方） */
-const SEARCH_PLACEHOLDER = msg("番号・タイトル・ラベルで検索");
+/**
+ * 見方ごとの検索欄の案内と名前。当てるもの（iterationTexts・epicTexts と中の終わったチケット）を言う。
+ * チケットの見方はバックログと同じ言い方
+ */
+const SEARCH_LABELS: Record<HistoryView, { placeholder: string; label: string }> = {
+  iteration: {
+    placeholder: msg("番号・目標・名前・チケットで検索"),
+    label: msg("Iteration と中のチケットを探す"),
+  },
+  epic: {
+    placeholder: msg("番号・タイトル・チケットで検索"),
+    label: msg("Epic と中のチケットを探す"),
+  },
+  ticket: { placeholder: msg("番号・タイトル・ラベルで検索"), label: msg("チケットを探す") },
+};
+
+/** 履歴の検索欄（3 つの見方で共通。案内と名前は見方ごと） */
+function HistorySearch({
+  view,
+  query,
+  setQuery,
+}: {
+  view: HistoryView;
+  query: string;
+  setQuery: (q: string) => void;
+}) {
+  const { placeholder, label } = SEARCH_LABELS[view];
+  return (
+    <input
+      type="search"
+      placeholder={tr(placeholder)}
+      value={query}
+      onChange={(e) => setQuery(e.target.value)}
+      aria-label={tr(label)}
+    />
+  );
+}
 
 export function HistoryPage({ route }: { route: HistoryQuery }) {
   const store = useStore();
@@ -440,13 +476,7 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
       <div className="toolbar">
         <h1>{tr("履歴")}</h1>
         <ViewSwitch route={route} view={view} counts={counts} />
-        <input
-          type="search"
-          placeholder={tr(SEARCH_PLACEHOLDER)}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label={tr("チケットを探す")}
-        />
+        <HistorySearch view={view} query={query} setQuery={setQuery} />
       </div>
       {all.length === 0 ? (
         <p className="empty">
@@ -636,6 +666,7 @@ function IterationItem({
 
 /**
  * 中止のチケットを「中止 N 件」の小見出しの下にまとめる（持ち越しの小見出しと同じ形）。0 件なら何も出さない。
+ * 行は row に markAbandoned=false を渡して描き、小見出しと同じ「中止」を行ごとに繰り返さない（HistoryTicketRow の markAbandoned）。
  * 一覧は完了と同じく多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける。
  * listKey は一覧の「ほか N 件」の開いた状態を捨てる鍵（検索中は検索語）
  */
@@ -645,7 +676,7 @@ function AbandonedGroup({
   listKey,
 }: {
   tickets: readonly Ticket[];
-  row: (ticket: Ticket) => ReactNode;
+  row: (ticket: Ticket, markAbandoned: boolean) => ReactNode;
   listKey?: string | undefined;
 }) {
   if (tickets.length === 0) return null;
@@ -654,7 +685,7 @@ function AbandonedGroup({
       <h3>
         {trNode("中止 {0}", <span className="muted">{trNode("{0} 件", tickets.length)}</span>)}
       </h3>
-      <HistoryTicketList key={listKey} tickets={tickets} row={row} />
+      <HistoryTicketList key={listKey} tickets={tickets} row={(t) => row(t, false)} />
     </section>
   );
 }
@@ -692,7 +723,9 @@ function IterationTickets({
   const carriedTickets = (carried ?? []).flatMap((id) => byId.get(id) ?? []);
   const done = finished.filter((t) => t.status !== "abandoned");
   const abandoned = finished.filter((t) => t.status === "abandoned");
-  const row = (t: Ticket) => <HistoryTicketRow ticket={t} query={query} />;
+  const row = (t: Ticket, markAbandoned = true) => (
+    <HistoryTicketRow ticket={t} query={query} markAbandoned={markAbandoned} />
+  );
   return (
     <div className="history-groups">
       {header}
@@ -766,12 +799,13 @@ function SearchHits({
   const abandoned = splitAbandoned ? hits.filter((t) => t.status === "abandoned") : [];
   const main = splitAbandoned ? hits.filter((t) => t.status !== "abandoned") : hits;
   const listKey = query.trim().toLowerCase();
-  const row = (t: Ticket) => (
+  const row = (t: Ticket, markAbandoned = true) => (
     <HistoryTicketRow
       ticket={t}
       query={query}
       showIteration={showIteration}
       showEpic={!showIteration}
+      markAbandoned={markAbandoned}
     />
   );
   return (
@@ -940,13 +974,7 @@ function TicketView({
           view="ticket"
           counts={{ ...counts, ticket: { hit: rows.length, total: all.length, filtered } }}
         />
-        <input
-          type="search"
-          placeholder={tr(SEARCH_PLACEHOLDER)}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label={tr("チケットを探す")}
-        />
+        <HistorySearch view="ticket" query={query} setQuery={setQuery} />
       </div>
       {/* 結果の絞り込みは見方の切り替えと同じ文字の切り替え。件数は検索に当たった数で、中止が 0 件なら中止は出さない（選んでいるときは残す）。
           言葉は「すべて・完了・中止」で、Workflow で変えられる Status の表示名（labelOf）は使わない。結果は done・abandoned に固定で、
@@ -1017,7 +1045,9 @@ export function iterationRuns(
 
 /**
  * チケットの見方の区切りの見出し：Iteration の番号（詳細へのリンク）・実績の期間（planned と、一覧にない Iteration は出さない。閉じたものは時刻と所要時間）・
- * 区切りに続く件数。Iteration のないチケットは「Iteration なし」。スクロール中は一覧の上に貼り付く（styles.css の .history-divider）
+ * 区切りに続く件数。Iteration のないチケットは「Iteration なし」。スクロール中は一覧の上に貼り付く（styles.css の .history-divider）。
+ * 件数は Iteration の終わったチケットの全件ではなく、この区切りから次の区切りまでの行の数（iterationRuns。終えた順が Iteration を
+ * またいで前後すると、同じ Iteration の区切りが分かれて件数も分かれる）。読み違えないよう件数のツールチップでそう言う
  */
 function IterationDivider({ iteration, count }: { iteration: string | null; count: number }) {
   const store = useStore();
@@ -1038,7 +1068,9 @@ function IterationDivider({ iteration, count }: { iteration: string | null; coun
         <span>{tr("Iteration なし")}</span>
       )}
       {period ? <span className="history-divider-period">{period}</span> : null}
-      <span className="history-divider-count">{tr("{0} 件", count)}</span>
+      <span className="history-divider-count" title={tr("この区切りから次の区切りまでの件数")}>
+        {tr("{0} 件", count)}
+      </span>
     </h3>
   );
 }

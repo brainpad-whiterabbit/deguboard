@@ -2353,7 +2353,7 @@ textarea.body {
   grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
 }
-/* サイドバーの履歴（history.tsx の Sidebar*）：行の一覧（持ち越しは小見出しで分ける）。Epic の見方はタイトルを 2 行まで、中止の行は薄く */
+/* 履歴（pages/history.tsx）：開いた行の中の一覧（中止と持ち越しは「中止 N 件」「持ち越し N 件」の小見出し .history-group h3 で分ける）。Epic の見方はタイトルを 2 行まで、中止の行は薄く */
 .history-groups {
   display: grid;
   gap: 0.4rem;
@@ -2441,7 +2441,7 @@ textarea.body {
 .history-ticket.abandoned .row-title {
   opacity: 0.6;
 }
-/* 履歴用の行（components/history-rows.tsx）：1 段目は丸印・番号・タイトルだけ（列は包みの .history-ticket が持つ）。2 段目の「中止」は太く、「なし」は薄く。
+/* 履歴用の行（components/history-rows.tsx）：1 段目は丸印・番号・タイトルだけ（列は包みの .history-ticket が持つ）。2 段目の「中止」（中止の小見出しの下の行では出さない）は太く、「なし」は薄く。
    「ほか N 件」は決まった幅（2.4rem）だけ字下げする（付記はタイトルの列に出て、頭の位置は行ごとの番号の列の幅で変わるので、付記には揃えない） */
 .history-abandoned {
   font-weight: 600;

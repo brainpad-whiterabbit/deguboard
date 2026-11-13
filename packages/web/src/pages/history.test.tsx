@@ -214,6 +214,13 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
         started_at: "2026-11-04T09:28:00Z",
         closed_at: "2026-11-04T13:24:00Z",
       }),
+      iteration({
+        id: "s8",
+        name: "n8",
+        goal: "閉じた日なし",
+        status: "closed",
+        started_at: "2026-11-03T10:00:00Z",
+      }),
     ];
     client.data.tickets = [
       ticket({ id: "t1", status: "done", iteration: "s4" }),
@@ -244,6 +251,12 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
     const noneTime = none.querySelector("small time")!;
     expect(noneTime.getAttribute("dateTime")).toBe("2026-11-01T00:00:00Z");
     expect(noneTime.getAttribute("title")).toBe("2026-11-01 00:00");
+    // 閉じた日時がなければ、ツールチップの時刻 1 つが開始の時刻だと言う
+    const unclosed = screen.getByText("閉じた日なし").closest(".history-row")!;
+    expect(unclosed.querySelector("small")!.textContent).toBe("11/03 10:00 〜 閉じた日は不明");
+    const unclosedTime = unclosed.querySelector("small time")!;
+    expect(unclosedTime.getAttribute("dateTime")).toBe("2026-11-03T10:00:00Z");
+    expect(unclosedTime.getAttribute("title")).toBe("2026-11-03 10:00 に開始（閉じた日は不明）");
     expect(document.body.textContent).not.toContain("sprint4");
     expect(document.body.textContent).not.toContain("sprint5");
     expect(document.body.textContent).not.toContain("内訳");
@@ -286,6 +299,11 @@ describe("サイドバーの履歴", () => {
     expect(
       item.querySelector(".history-abandoned-group .history-ticket.abandoned code")!.textContent,
     ).toBe("t3");
+    // 中止の小見出しの下の行は、小見出しと同じ「中止」を 2 段目に繰り返さない（輪の点は残す）
+    const abandonedRow = item.querySelector(".history-abandoned-group .history-ticket")!;
+    expect(abandonedRow.querySelector(".history-abandoned")).toBeNull();
+    expect(abandonedRow.querySelector(".history-ticket-meta")!.textContent).toBe("");
+    expect(abandonedRow.querySelector(".status-dot.status-abandoned")).toBeTruthy();
     const first = item.querySelector(".history-groups > .history-list")!;
     expect(
       first.querySelector(".history-ticket:last-child .history-ticket-meta")!.textContent,
@@ -357,7 +375,7 @@ describe("サイドバーの履歴", () => {
       "終わったチケットなし ・ 10/31 に閉じた ・ s1",
     );
     expect(screen.getByRole("searchbox").getAttribute("placeholder")).toBe(
-      "番号・タイトル・ラベルで検索",
+      "番号・タイトル・チケットで検索",
     );
   });
 
@@ -409,7 +427,7 @@ describe("サイドバーの履歴", () => {
       expect(item.classList.contains("history-empty")).toBe(false);
     }
 
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "空の" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "空の" } });
     const hit = document.querySelectorAll(".history-item");
     expect(hit).toHaveLength(1);
     expect(hit[0]!.classList.contains("history-empty")).toBe(true);
@@ -541,6 +559,10 @@ describe("サイドバーの履歴", () => {
     expect(document.querySelector(".history-divider-period time")!.getAttribute("title")).toBe(
       "2026-09-20 12:00 – 2026-10-02 12:00",
     );
+    // 区切りの件数は Iteration の全件ではなく、次の区切りまでの行の数だとツールチップで言う
+    expect(
+      [...document.querySelectorAll(".history-divider-count")].map((c) => c.getAttribute("title")),
+    ).toEqual(Array(3).fill("この区切りから次の区切りまでの件数"));
     expect(
       [...document.querySelectorAll(".history-divider a")].map((a) => a.getAttribute("href")),
     ).toEqual(["#/iterations/s1"]);
@@ -666,7 +688,7 @@ describe("サイドバーの履歴", () => {
     const more = await screen.findByRole("button", { name: "ほか 62 件" });
     fireEvent.click(more);
     expect(document.querySelectorAll(".history-ticket")).toHaveLength(58);
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "チケット" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "チケット" } });
     expect(document.querySelectorAll(".history-ticket")).toHaveLength(8);
     expect(screen.getByRole("button", { name: "ほか 62 件" })).toBeTruthy();
   });
@@ -723,7 +745,7 @@ describe("サイドバーの履歴", () => {
     // 完了（t4）の後に中止（t3）
     await waitFor(() => expect(codes(s3)).toEqual(["t4", "t3"]));
 
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "検索" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "検索" } });
     expect(items()).toHaveLength(2);
     expect(items().map((d) => d.open)).toEqual([true, true]);
     expect(codes(items()[0]!)).toEqual(["t1"]);
@@ -742,7 +764,7 @@ describe("サイドバーの履歴", () => {
     expect(codes(items()[1]!)).toEqual(["t3"]);
 
     // 検索語を消すと、検索前の開閉（s3 だけ開いた）に戻る
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "" } });
     expect(items().map((d) => d.open)).toEqual([false, true, false]);
     expect(codes(items()[1]!)).toEqual(["t4", "t3"]);
     expect(document.querySelector("mark")).toBeNull();
@@ -791,7 +813,7 @@ describe("サイドバーの履歴", () => {
       );
     const headings = (d: Element) =>
       [...d.querySelectorAll(".history-group h3")].map((h) => h.textContent);
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "検索" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "検索" } });
     const [s4, s3] = items();
     // 当たった完了（t2・t4）の後に、当たった中止（t1）だけを「中止 1 件」の下に出す。当たらない中止（t3）は出さない
     expect(lists(s4!)).toEqual([["t2", "t4"], ["t1"]]);
@@ -800,7 +822,7 @@ describe("サイドバーの履歴", () => {
     expect(lists(s3!)).toEqual([["t5"]]);
     expect(headings(s3!)).toEqual([]);
     // 当たったのが中止だけなら、完了の一覧を出さず中止の小見出しだけを出す
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "中止" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "中止" } });
     expect(items()).toHaveLength(1);
     expect(lists(items()[0]!)).toEqual([["t1", "t3"]]);
     expect(headings(items()[0]!)).toEqual(["中止 2 件"]);
@@ -831,7 +853,7 @@ describe("サイドバーの履歴", () => {
     );
     await screen.findByText("sprint4");
     const item = () => document.querySelector<HTMLDetailsElement>("details.history-item")!;
-    const search = screen.getByLabelText("チケットを探す");
+    const search = screen.getByRole("searchbox");
     fireEvent.change(search, { target: { value: "検索" } });
     item().open = false;
     fireEvent(item(), new Event("toggle"));
@@ -871,7 +893,7 @@ describe("サイドバーの履歴", () => {
       </StoreProvider>,
     );
     await screen.findByText("二番目");
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "検索" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "検索" } });
     const items = [...document.querySelectorAll<HTMLDetailsElement>("details.history-item")];
     expect(items).toHaveLength(1);
     expect(items[0]!.open).toBe(true);
@@ -912,7 +934,7 @@ describe("サイドバーの履歴", () => {
       </StoreProvider>,
     );
     await screen.findByText("二番目");
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "T1" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "T1" } });
     const items = [...document.querySelectorAll<HTMLDetailsElement>("details.history-item")];
     expect(items).toHaveLength(1);
     expect([...items[0]!.querySelectorAll(".history-list code")].map((c) => c.textContent)).toEqual(
@@ -977,7 +999,7 @@ describe("サイドバーの履歴", () => {
       [...d.querySelectorAll(`${selector} mark`)].map((m) => m.textContent);
     const codes = (d: Element) =>
       [...d.querySelectorAll(".history-list code")].map((c) => c.textContent);
-    const search = screen.getByLabelText("チケットを探す");
+    const search = screen.getByRole("searchbox");
 
     fireEvent.change(search, { target: { value: "検索" } });
     // 目標（s4）・名前（s3）・目標と中のチケット（s2）に当たった行が残り、件数にも数える
@@ -1053,7 +1075,7 @@ describe("サイドバーの履歴", () => {
     await screen.findByText("二番目");
     const rows = () => [...document.querySelectorAll<HTMLElement>(".history-item")];
     const ids = () => rows().map((d) => d.querySelector(".history-row code")!.textContent);
-    const search = screen.getByLabelText("チケットを探す");
+    const search = screen.getByRole("searchbox");
 
     fireEvent.change(search, { target: { value: "検索" } });
     expect(ids()).toEqual(["e1", "e2", "e3"]);
@@ -1098,7 +1120,7 @@ describe("タブを移って戻ったとき", () => {
     const codes = () =>
       [...document.querySelectorAll(".history-list code")].map((c) => c.textContent);
     await waitFor(() => expect(codes()).toHaveLength(3));
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログ" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "ログ" } });
     fireEvent.click(
       within(screen.getByRole("group", { name: "結果" })).getByRole("button", { name: /^完了/ }),
     );
@@ -1108,7 +1130,7 @@ describe("タブを移って戻ったとき", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/board"));
     nav("履歴");
     await waitFor(() => expect(codes()).toEqual(["t1"]));
-    expect(screen.getByLabelText<HTMLInputElement>("チケットを探す").value).toBe("ログ");
+    expect(screen.getByRole<HTMLInputElement>("searchbox").value).toBe("ログ");
     expect(
       within(screen.getByRole("group", { name: "結果" })).getByRole("button", { name: /^完了/ }),
     ).toHaveProperty("ariaPressed", "true");
@@ -1117,7 +1139,7 @@ describe("タブを移って戻ったとき", () => {
     await waitFor(() =>
       expect(window.location.hash).toBe("#/history?q=%E3%83%AD%E3%82%B0&result=done"),
     );
-    expect(screen.getByLabelText<HTMLInputElement>("チケットを探す").value).toBe("ログ");
+    expect(screen.getByRole<HTMLInputElement>("searchbox").value).toBe("ログ");
   });
 
   it("開いた Iteration・Epic の行は他のタブから戻っても開いたままで、開いた行はハッシュに入らず、持ち越しの履歴は開き直しても読み直さない", async () => {
@@ -1201,7 +1223,7 @@ describe("履歴のハッシュ", () => {
         [...document.querySelectorAll(".history-list .ticket-row code")].map((c) => c.textContent),
       ).toEqual(["t2"]),
     );
-    expect(screen.getByLabelText<HTMLInputElement>("チケットを探す").value).toBe("ログ");
+    expect(screen.getByRole<HTMLInputElement>("searchbox").value).toBe("ログ");
     expect(
       within(screen.getByRole("group", { name: "結果" })).getByRole("button", {
         name: /^中止/,
@@ -1232,7 +1254,7 @@ describe("履歴のハッシュ", () => {
         .map((b) => b.textContent);
     // 結果の言葉は「すべて・完了・中止」（Status の表示名ではなく、見方の切り替えと同じ日本語の言葉）
     expect(names()).toEqual(["すべて 3", "完了 2", "中止 1"]);
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "一覧" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "一覧" } });
     expect(names()).toEqual(["すべて 1", "完了 1"]);
     // 中止を選んでいるときは、検索に当たらず 0 件でも中止を残す
     window.location.hash = "#/history?view=ticket&result=abandoned&q=%E4%B8%80%E8%A6%A7";
@@ -1254,6 +1276,29 @@ describe("履歴のハッシュ", () => {
     const group = await screen.findByRole("group", { name: "結果" });
     expect(within(group).getByRole("button", { name: "中止 1" })).toBeTruthy();
     expect(document.querySelector(".history-abandoned")!.textContent).toBe("中止");
+  });
+
+  it("検索欄の案内と名前は、見方ごとに当てるもの（Iteration・Epic の行と中のチケット、チケットの見方はチケット）を言う", async () => {
+    const cases = [
+      ["iteration", "番号・目標・名前・チケットで検索", "Iteration と中のチケットを探す"],
+      ["epic", "番号・タイトル・チケットで検索", "Epic と中のチケットを探す"],
+      ["ticket", "番号・タイトル・ラベルで検索", "チケットを探す"],
+    ] as const;
+    for (const [view, placeholder, label] of cases) {
+      window.location.hash = `#/history?view=${view}`;
+      const client = mockClient();
+      client.handlers["history"] = () => ({ events: [], shallow: false, incomplete: [] });
+      render(
+        <StoreProvider client={client}>
+          <HostProvider host={sidebarHost()}>
+            <App />
+          </HostProvider>
+        </StoreProvider>,
+      );
+      const search = await screen.findByRole("searchbox", { name: label });
+      expect(search.getAttribute("placeholder")).toBe(placeholder);
+      cleanup();
+    }
   });
 });
 
@@ -1307,7 +1352,7 @@ describe("履歴のタブ・Iteration の行・Epic の見方", () => {
     expect(rowOf("s2").querySelector("small")!.textContent).toBe(
       "開始は不明 ・ 10/24 00:00 に閉じた",
     );
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログイン" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "ログイン" } });
     expect(names()).toEqual(["core"]);
     // 件数の行はなく、見方のバッジが「当たった数 / 全体」になる
     expect(screen.queryByText(/件$/, { selector: ".toolbar span" })).toBeNull();
@@ -1482,7 +1527,7 @@ describe("履歴のタブ・Iteration の行・Epic の見方", () => {
     );
     expect(document.querySelector(".history-row small")!.textContent).toBe("10/20 に閉じた ・ s1");
     expect(screen.getByRole("link", { name: "s1" }).getAttribute("href")).toBe("#/iterations/s1");
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "t1" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "t1" } });
     expect(names()).toEqual(["新しい"]);
     expect(screen.getByRole("button", { name: /^Epic/ }).textContent).toBe("Epic 1 / 2");
   });
