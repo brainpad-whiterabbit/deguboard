@@ -305,7 +305,9 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   // models.*
   "The parent's model": { ja: "親のモデル" },
   // actor.human_only
-  "Everything is allowed": { ja: "すべて許す" },
+  "Every command is allowed. Ticket transitions are still restricted with the Workflow's by": {
+    ja: "すべてのコマンドを許す。チケットの遷移は Workflow の by で縛る",
+  },
   // guide.notes.*
   "Inserts nothing": { ja: "差し込まない" },
 

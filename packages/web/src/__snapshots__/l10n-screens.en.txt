@@ -481,7 +481,7 @@ Empty
 Add
 [title] Reset to default Empty
 Reset to Default
-When empty: Everything is allowed
+When empty: Every command is allowed. Ticket transitions are still restricted with the Workflow's by
 Details
 Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by
 Metrics
