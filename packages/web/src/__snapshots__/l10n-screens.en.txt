@@ -412,7 +412,7 @@ Off
 [title] Reset to default false
 Reset to Default
 Details
-Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted
+Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted, and whether dg sync deletes the worktree and work branch that remain when it moves a ticket to done
 Review finding categories treated as heavy
 review.heavy_categories
 [title] Default: Empty

@@ -8,13 +8,18 @@ import { OperationError } from "../errors.js";
 import path from "node:path";
 import { checkOutside } from "../git/outside.js";
 import { runGh, runGit } from "../git/run.js";
-import { findBranchWorktree } from "../git/worktree.js";
 import { PR_MERGE_METHODS } from "../model/config.js";
 import type { Ticket } from "../model/ticket.js";
 import { unfixedLightLines, withUnfixedLight } from "../run/findings.js";
 import { readReviewFindings, readRunningRuns } from "../run/record.js";
 import { withWrite, type WriteOutcome } from "../git/write.js";
 import type { RunId } from "../model/run.js";
+import {
+  branchTips,
+  removeBranchWorktree,
+  removedByMerge,
+  type RemovedWork,
+} from "./branch-cleanup.js";
 import { setupFailureIn } from "./claim-setup.js";
 import { defineCommand, ok, outsideWarning, rebaseWarning, type CommandContext } from "./define.js";
 import { judgeGate, type GateStage, type GateView } from "./gate.js";
@@ -39,6 +44,8 @@ export interface PrAdvanceView {
   noted?: number;
   /** 持ち主のない保留から書いた見直しの記録の Run（ready のときだけ。orphan-review.ts） */
   reviews_recorded?: RunId[];
+  /** 消した worktree とブランチ（merge で作業ブランチも消すときだけ。消さなかった・なかったものは null） */
+  removed?: RemovedWork;
 }
 
 /** ゲートを判定し、満たさなければ満たさない条件と理由を GATE_FAILED で返す（gh を呼ばない） */
@@ -61,36 +68,6 @@ async function passGate(ctx: CommandContext, ticketId: string, stage: GateStage)
     );
   }
   return { ticket, gate, pr: gate.pr, sha: gate.sha };
-}
-
-/**
- * 作業ブランチを checkout した worktree を消す（gh がローカルのブランチを消せるように）。消したパスを返す（消さなかったら null）。
- * 呼んだ作業ツリーそのもの・未コミットの変更がある worktree は消さずに warnings に出す（作業を失わない。gh がローカルのブランチを
- * 消せなければ gh の警告になる）
- */
-async function removeBranchWorktree(
-  ctx: CommandContext,
-  branch: string,
-  warnings: string[],
-): Promise<string | null> {
-  const dir = await findBranchWorktree(ctx.repo, branch);
-  if (!dir) return null;
-  if (path.resolve(dir) === path.resolve(ctx.repo.topLevel)) {
-    warnings.push(
-      `Called from the worktree of branch ${branch}, so the worktree is not deleted (the local branch remains. Call it from the main worktree)`,
-    );
-    return null;
-  }
-  const removed = await runGit(ctx.repo.topLevel, ["worktree", "remove", "--", dir], {
-    allowFailure: true,
-  });
-  if (removed.code !== 0) {
-    warnings.push(
-      `Could not delete worktree ${dir} (${removed.stderr.trim().split("\n")[0] ?? ""}). Move anything you need out, then delete it`,
-    );
-    return null;
-  }
-  return dir;
 }
 
 /**
@@ -239,7 +216,7 @@ export const prMerge = defineCommand({
   positionals: ["ticket"],
   group: "pr",
   summary:
-    "Merge a ticket's PR with gh pr merge (squash by default), only when it meets the quality gate (dg gate <ticket> --for merge). It pins the merge to the commit the gate judged (sha in the gate's output, passed as --match-head-commit), so a commit pushed after the judgment is not merged. The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to merge (the steps decide whether a merge is allowed; dg guide all). gh pr merge run outside dg is rejected by the hook. Merging outside the conditions of the level is a person's decision, and a person runs gh pr merge. It does not write ticket data (moving to done happens at the next sync)",
+    "Merge a ticket's PR with gh pr merge (squash by default), only when it meets the quality gate (dg gate <ticket> --for merge). It pins the merge to the commit the gate judged (sha in the gate's output, passed as --match-head-commit), so a commit pushed after the judgment is not merged. The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to merge (the steps decide whether a merge is allowed; dg guide all). gh pr merge run outside dg is rejected by the hook. Merging outside the conditions of the level is a person's decision, and a person runs gh pr merge. When it also deletes the work branch, data.removed shows what was deleted (worktree, local_branch, remote_branch; null for what was not deleted or did not exist), so do not delete them again. It does not write ticket data (moving to done happens at the next sync, which also deletes what remains when merge.delete_branch is true)",
   input: z.object({
     ticket: ticketRef,
     method: z
@@ -264,10 +241,10 @@ export const prMerge = defineCommand({
     const deleteBranch = input.delete_branch ?? ctx.config.merge.delete_branch;
     const warnings: string[] = [];
     // 検査（actions.test）は作業ブランチの worktree で回すので、worktree は品質ゲートを通した後に消す（先に消すと検査を回せない）
-    const removedDir =
-      deleteBranch && ticket.branch
-        ? await removeBranchWorktree(ctx, ticket.branch, warnings)
-        : null;
+    const branch = deleteBranch ? ticket.branch : undefined;
+    // gh が消す前の先端。後の先端と比べて、消えたブランチを結果に出す（エージェントが消し直さないように。t849）
+    const before = branch ? await branchTips(ctx, branch) : undefined;
+    const removedDir = branch ? await removeBranchWorktree(ctx, branch, warnings) : null;
     // ゲートが判定した先端のコミットに固定する。判定の後に push されて先端が変わっていれば gh が拒むので、判定していないものはマージされない（t750）
     const args = ["pr", "merge", String(pr), `--${method}`, "--match-head-commit", sha];
     if (deleteBranch) args.push("--delete-branch");
@@ -285,8 +262,8 @@ export const prMerge = defineCommand({
         );
       } else {
         // マージに失敗したら消した worktree を戻し、その扱いを detail に出す（ブランチとデータを残して作業を続けられるように）
-        if (removedDir === null || !ticket.branch) throw e;
-        const kept = await restoreBranchWorktree(ctx, ticket.branch, removedDir);
+        if (removedDir === null || !branch) throw e;
+        const kept = await restoreBranchWorktree(ctx, branch, removedDir);
         throw new OperationError(
           "GIT_ERROR",
           `The merge of PR #${pr} failed (gh pr merge)`,
@@ -300,6 +277,11 @@ export const prMerge = defineCommand({
       action: "merge",
       gate,
       method,
+      ...(branch && before
+        ? {
+            removed: removedByMerge(ctx, branch, removedDir, before, await branchTips(ctx, branch)),
+          }
+        : {}),
     };
     return ok(view, undefined, warnings);
   },

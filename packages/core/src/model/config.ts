@@ -316,7 +316,7 @@ export const configSchema = z.looseObject({
       delete_branch: described(z.boolean().default(false), {
         summary: "Delete the work branch when dg pr merge merges",
         description:
-          "Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted",
+          "Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted, and whether dg sync deletes the worktree and work branch that remain when it moves a ticket to done",
       }),
     })
     .prefault({}),

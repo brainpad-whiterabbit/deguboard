@@ -41,6 +41,8 @@ async function fakeGh(root: string, pr: () => string) {
   const mergedView = path.join(root, "gh-merged-view.json");
   // このファイルがあると、gh pr merge は比べる前に feat/t1 へ push する（判定の後に PR の先端が進むのを写す。t750）
   const pushBeforeMerge = path.join(root, "gh-push-before-merge");
+  // このファイルがあると、gh pr merge はリモートとローカルの feat/t1 を消す（本物の gh の --delete-branch を写す。t849）
+  const deleteOnMerge = path.join(root, "gh-delete-on-merge");
   const projectCards =
     'echo "GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience (repository.pullRequest.projectCards)" >&2; exit 1';
   await mkdir(bin, { recursive: true });
@@ -65,7 +67,7 @@ async function fakeGh(root: string, pr: () => string) {
         // __TIP__ は今のリモートの先端（ls-remote。追跡 ref は fetch するまで古い）に置き換える（PR の先端が push で進むのを写す。t750）
         `  view) if [ "$5" = body ]; then ${projectCards}; fi; sed "s|__TIP__|$(git ls-remote origin refs/heads/feat/t1 | cut -f1)|" '${viewFile}';;`,
         // gh pr merge は --match-head-commit の値がリモートの先端と違えば拒む（GitHub と同じく、判定していないコミットをマージしない。t750）
-        `  merge) if [ -f '${pushBeforeMerge}' ]; then rm -f '${pushBeforeMerge}'; git commit -q --allow-empty -m "gh の間の作業"; git push -q origin feat/t1; fi; want=""; prev=""; for a in "$@"; do if [ "$prev" = --match-head-commit ]; then want="$a"; fi; prev="$a"; done; if [ -n "$want" ] && [ "$want" != "$(git ls-remote origin refs/heads/feat/t1 | cut -f1)" ]; then echo "Head branch was modified. Review and try the merge again." >&2; exit 1; fi; if [ -f '${mergedThenFail}' ]; then cp '${mergedView}' '${viewFile}'; echo "gh の失敗" >&2; exit 1; fi; if [ -f '${failMerge}' ]; then echo "gh の失敗" >&2; exit 1; fi; echo "$@" >> '${log}';;`,
+        `  merge) if [ -f '${pushBeforeMerge}' ]; then rm -f '${pushBeforeMerge}'; git commit -q --allow-empty -m "gh の間の作業"; git push -q origin feat/t1; fi; want=""; prev=""; for a in "$@"; do if [ "$prev" = --match-head-commit ]; then want="$a"; fi; prev="$a"; done; if [ -n "$want" ] && [ "$want" != "$(git ls-remote origin refs/heads/feat/t1 | cut -f1)" ]; then echo "Head branch was modified. Review and try the merge again." >&2; exit 1; fi; if [ -f '${mergedThenFail}' ]; then cp '${mergedView}' '${viewFile}'; echo "gh の失敗" >&2; exit 1; fi; if [ -f '${failMerge}' ]; then echo "gh の失敗" >&2; exit 1; fi; echo "$@" >> '${log}'; if [ -f '${deleteOnMerge}' ]; then git push -q origin --delete feat/t1; git branch -q -D feat/t1; fi;;`,
         `  ready) echo "$@" >> '${log}';;`,
         `  edit) ${projectCards};;`,
         "  *) exit 1;;",
@@ -106,6 +108,7 @@ async function fakeGh(root: string, pr: () => string) {
     allowMergeCall,
     mergedThenFailCall,
     pushBeforeMerge: () => writeFile(pushBeforeMerge, "1"),
+    deleteOnMerge: () => writeFile(deleteOnMerge, "1"),
   };
 }
 
@@ -169,6 +172,7 @@ async function prepared() {
     withoutHead,
     mergedThenFail,
     pushBeforeMerge: gh.pushBeforeMerge,
+    deleteOnMerge: gh.deleteOnMerge,
   };
 }
 
@@ -299,6 +303,31 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect((await git(main, ["worktree", "list"])).stdout).not.toContain("wt-t1");
     const call = `pr merge 7 --squash --match-head-commit ${tip} --delete-branch`;
     expect(await calls()).toEqual([call, call]);
+  });
+
+  it("--delete-branch でマージすると、消した worktree とブランチを結果の removed に出す。ブランチを消さないマージには removed を付けない（t849）", async () => {
+    const { ctx, undraft, deleteOnMerge } = await prepared();
+    await passedReview(ctx);
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    const main = ctx.repo.topLevel;
+    await git(main, ["checkout", "-q", "main"]);
+    const wt = path.join(path.dirname(main), "wt-t1");
+    await git(main, ["worktree", "add", "-q", wt, "feat/t1"]);
+    const kept = await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false });
+    expect((kept.data as PrAdvanceView).removed).toBeUndefined();
+    expect(existsSync(wt)).toBe(true);
+    // gh がリモートとローカルのブランチを消す
+    await deleteOnMerge();
+    const merged = await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true });
+    expect(merged.warnings).toEqual([]);
+    expect((merged.data as PrAdvanceView).removed).toEqual({
+      worktree: wt,
+      local_branch: "feat/t1",
+      remote_branch: "origin/feat/t1",
+    });
+    expect(existsSync(wt)).toBe(false);
+    expect((await git(main, ["branch", "--list", "feat/t1"])).stdout.trim()).toBe("");
   });
 
   it("--delete-branch で gh pr merge が失敗したら、消した作業ブランチの worktree を同じパスに戻し、エラーの detail にその扱いを出す。原因を直した後の再実行はマージできる（t643）", async () => {

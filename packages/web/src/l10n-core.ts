@@ -149,9 +149,9 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     ja: "dg pr merge が --method を省いたときのマージの方法（squash・merge・rebase）",
   },
   // merge.delete_branch
-  "Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted":
+  "Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted, and whether dg sync deletes the worktree and work branch that remain when it moves a ticket to done":
     {
-      ja: "dg pr merge が --delete-branch を省いたとき、リモートとローカルの作業ブランチも消すか",
+      ja: "dg pr merge が --delete-branch を省いたとき、リモートとローカルの作業ブランチも消すか。dg sync がチケットを done にしたとき、残った worktree と作業ブランチを消すか",
     },
   // review.heavy_categories
   "Review finding categories (run review-result --findings-file) treated as heavy regardless of severity. Empty by default, so the reviewer's severity is kept":
