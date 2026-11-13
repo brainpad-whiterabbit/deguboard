@@ -1,0 +1,33 @@
+{
+  "id": "r20261113-153302-3839",
+  "ticket": "t859",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-13T15:33:02Z",
+  "finished_at": "2026-11-13T15:33:46Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "README.ja.md の SECURITY.md へのリンクに、リンク先が英語であることの断りがない",
+    "CLAUDE.md と ADR-001 で、SECURITY.md を GitHub・Marketplace の入口と書いているが、SECURITY.md は GitHub の Security タブの入口"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 4156,
+    "cache_read": 276377,
+    "cache_write": 28145
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 4,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "a5c2ea23-662a-4048-902d-1c12f239a1ea",
+  "review": null
+}
