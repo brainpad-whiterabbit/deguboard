@@ -29,22 +29,27 @@ Click the deguboard icon in the Activity Bar. The tabs at the top switch between
 ### Backlog: turn ideas into tickets
 
 1. **Create tickets**: Tell the agent what you want in your own words with `/dgimport` (**Ask Agent** → **Create tickets**). It investigates the code and proposes small tickets with acceptance criteria and dependencies. Approve them, and they appear in the Backlog.
+
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/import.gif" alt="Turning a rough idea into tickets" width="560">
+
 2. **Read the details**: Click a row to open the ticket. You can edit its text and attributes there.
 3. **Discuss**: When a ticket is still vague, choose **Ask Agent** → **Discuss** (`/dgdiscuss t12`). The agent settles the open points with you through choices and updates the ticket after you approve the changes.
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/import.gif" alt="Turning a rough idea into tickets" width="560">
-
 ### Board: assign, plan, and work in parallel
 
-1. **Assign**: Choose **Ask Agent** → **Assign** on tickets (`/dgassign`) to put them into an Iteration or an Epic. To ask about several tickets at once, select their rows by the left edge and press **Ask** at the bottom. The Board shows the tickets of the Iteration in columns by status.
-2. **Plan**: Choose **Plan** on the Iteration (`/dgplan s3`). The agent orders the tickets by their dependencies and waits for your approval.
-3. **Work**: Choose **Run Plan** on the plan in the band above the Board (`/dgwork p3`). Agents implement the tickets that are not blocked at the same time, each on its own branch and worktree, and open PRs. A PR becomes ready and merges only when the quality gate passes. The band above the Board shows the progress of the plan and its dependency graph.
+The Board shows the tickets of an Iteration in columns by status, and the band above it shows the Iteration's plans (Plan).
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/assign.gif" alt="Assigning tickets to an Iteration and an Epic" width="560">
+1. **Assign**: In the Backlog, select tickets by the left edge of their rows, then choose **Ask** → **Assign** (`/dgassign`) at the bottom (for a single ticket, use **Ask Agent** on its row). The agent proposes the Iteration or Epic to put them into. Approve it, and they appear in Todo on the Board.
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="Planning and approving the order" width="560">
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/assign.gif" alt="Assigning tickets to an Iteration and an Epic" width="560">
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="Agents working on a plan in parallel" width="560">
+2. **Plan**: Choose **Ask Agent** → **Plan** on the Board's heading (`/dgplan s3`). The agent orders the tickets by their dependencies, and the Plan appears in the band, awaiting your approval. Click its state to open the dependency graph.
+
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="Planning and approving the order" width="560">
+
+3. **Work**: Choose **Ask Agent** → **Run Plan** on the Plan in the band (`/dgwork p3`). Agents implement the tickets that are not blocked at the same time, each on its own branch and worktree, and open PRs. A PR becomes ready and merges only when the quality gate passes. As the work goes on, the colors in the graph and the columns of the Board change.
+
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="Agents working on a plan in parallel" width="560">
 
 ### History: retrospect and improve
 
