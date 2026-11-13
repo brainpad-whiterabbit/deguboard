@@ -1713,6 +1713,17 @@ textarea.body {
 .row-wait {
   color: var(--dg-warning);
 }
+/*
+ * Epic の札に触れている間（UI-10。epic-chip.tsx の useEpicHighlightClass）：その Epic の行は枠と下地で光らせ、ほかの行（PR の欄も）は薄くする。
+ * 行の高さを変えないよう、.row の透明な枠の色だけを変える
+ */
+.row.epic-hit {
+  background: var(--vscode-list-hoverBackground);
+  border-color: var(--vscode-focusBorder);
+}
+.epic-dim {
+  opacity: 0.4;
+}
 /* 待ちと承認待ちの行（kanbanReadiness）はタイトルを説明文の色で出し、着手可の行と見分ける（UI-2） */
 .row-item.is-waiting .row-title {
   color: var(--vscode-descriptionForeground);

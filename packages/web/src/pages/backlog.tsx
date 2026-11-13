@@ -3,7 +3,7 @@
 // Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの一覧で出す。
 // 表示だけで書き込まない。Iteration の移動・作成・閉じると Epic の作成は、吹き出しからエージェントに頼む（ADR-027）。
 // Iteration の開始は着手（claim）の手順が行う。
-// open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。
+// open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。札に触れている間はその Epic の行を光らせる（useEpicHighlight）。
 // VS Code の左パネルに出す。検索を常に出し、その右端の漏斗（カンバンと同じ FilterToggle）で絞り込みの欄を検索の下に開く（開閉は host.state に残す）。
 // その下によく使う絞り込み（自分・作業中・high）のチップと、欄で効いている条件の札（× で外す）を並べ、
 // 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す。漏斗は条件が効いている間だけ色付きにする。
@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { Chip } from "../components/chips.js";
-import { EpicChipRow } from "../components/epic-chip.js";
+import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic-chip.js";
 import { shortPeriod } from "../components/iteration-parts.js";
 import { TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
@@ -233,6 +233,8 @@ export function BacklogPage() {
   const epicShown =
     openEpics.length > 0 &&
     (filter.epic === NO_EPIC || openEpics.some((e) => e.id === filter.epic));
+  // 札に触れている間は、その Epic の行を光らせる（UI-10。Epic で絞っている間は光らせない）
+  const epicHighlight = useEpicHighlight(filter.epic);
 
   const filters: ReactNode = (
     <>
@@ -333,15 +335,18 @@ export function BacklogPage() {
         <EpicChips
           selected={filter.epic}
           onSelect={(epic) => set({ epic: filter.epic === epic ? "" : epic })}
+          onHighlight={epicHighlight.onHighlight}
         />
         <div className="backlog-main">
-          {store.iterations.some((i) => i.status !== "closed") ? (
-            sectionsOf(rows, store.iterations, tickets).map((s) => (
-              <Section key={s.iteration?.id ?? "none"} section={s} rowEnd={rowEnd} />
-            ))
-          ) : (
-            <TicketTable tickets={rows} assigneeInEnd rowMenu end={rowEnd} />
-          )}
+          <EpicHighlight.Provider value={epicHighlight.highlight}>
+            {store.iterations.some((i) => i.status !== "closed") ? (
+              sectionsOf(rows, store.iterations, tickets).map((s) => (
+                <Section key={s.iteration?.id ?? "none"} section={s} rowEnd={rowEnd} />
+              ))
+            ) : (
+              <TicketTable tickets={rows} assigneeInEnd rowMenu end={rowEnd} />
+            )}
+          </EpicHighlight.Provider>
         </div>
       </div>
     </section>
@@ -508,8 +513,24 @@ function useOpenEpics() {
  * 押すとその Epic で絞り、もう一度押すと外れる。2 行を超える分は「ほか N」にまとめる。
  * カンバンは開いた Iteration がないと列を出さないが（board.tsx）、バックログは Iteration と関係なく、全体の open の Epic で出す
  */
-function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
+function EpicChips({
+  selected,
+  onSelect,
+  onHighlight,
+}: {
+  selected: string;
+  onSelect: (epic: string) => void;
+  onHighlight: (epic: string | undefined) => void;
+}) {
   const { epics, noEpic } = useOpenEpics();
   if (epics.length === 0) return null;
-  return <EpicChipRow epics={epics} noEpic={noEpic} selected={selected} onSelect={onSelect} />;
+  return (
+    <EpicChipRow
+      epics={epics}
+      noEpic={noEpic}
+      selected={selected}
+      onSelect={onSelect}
+      onHighlight={onHighlight}
+    />
+  );
 }

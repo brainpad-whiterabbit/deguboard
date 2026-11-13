@@ -2,6 +2,7 @@
 
 import { type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import { BACKLOG_TICKET_SECTION, useAskSpot, type AskSection } from "./ask-menu.js";
+import { useEpicHighlightClass } from "./epic-chip.js";
 import { useHost } from "../host.js";
 import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
@@ -323,7 +324,8 @@ export function RowPriority({ priority }: { priority: Priority }) {
  * 列がないぶんの幅はタイトルに回る。
  * variant で行の種類を選ぶ（TicketRowVariant）。end を渡すと右端の優先度の印の代わりにそれを出す（カンバンの行の Plan の番号と待ちなど）。
  * head を渡すとカンバンの行の頭（list の行の丸印の位置）にそれを出す（Run の実行中の印。ActivityMark）。
- * カンバンとバックログの行で PR の番号があるときは、行のリンクの外の 2 段目に PR のリンクを出す（RowPrLink）。包みの class は呼び出し側が prRowClass で付ける
+ * カンバンとバックログの行で PR の番号があるときは、行のリンクの外の 2 段目に PR のリンクを出す（RowPrLink）。包みの class は呼び出し側が prRowClass で付ける。
+ * Epic の札に触れている間（EpicHighlight で包んだ一覧）は、その Epic の行を光らせ、ほかを薄くする（useEpicHighlightClass）
  */
 export function TicketRow({
   ticket,
@@ -348,11 +350,12 @@ export function TicketRow({
   const kanban = variant === "kanban";
   const backlog = variant === "backlog";
   const withHead = kanban && head != null;
+  const epicClass = useEpicHighlightClass(ticket);
   return (
     <>
       <TicketLink
         id={ticket.id}
-        className={`row ticket-row status-${ticket.status}${kanban ? " kanban-row" : ""}${backlog ? " backlog-row" : ""}${withHead ? " has-head" : ""}${flash ? " changed" : ""}`}
+        className={`row ticket-row status-${ticket.status}${kanban ? " kanban-row" : ""}${backlog ? " backlog-row" : ""}${withHead ? " has-head" : ""}${flash ? " changed" : ""}${epicClass}`}
         onClick={onClick}
       >
         {kanban ? withHead ? head : null : <StatusDot status={ticket.status} />}
@@ -369,7 +372,7 @@ export function TicketRow({
         )}
         {end ?? <RowPriority priority={ticket.priority} />}
       </TicketLink>
-      {(kanban || backlog) && ticket.pr ? <RowPrLink pr={ticket.pr} /> : null}
+      {(kanban || backlog) && ticket.pr ? <RowPrLink pr={ticket.pr} className={epicClass} /> : null}
     </>
   );
 }
@@ -399,7 +402,7 @@ export function prRowClass(
  * 行の番号の下の PR のリンク（UI-2）。行のリンクの外に置くので、リンクの中にリンクを入れず、Tab では止まらない（tabIndex -1）。
  * 押しても行の選択と詳細は変えない（ask-menu.tsx の NOT_SELECT_CLICK が .row-pr を外す）。PR の印と #番号（PrLink と同じ URL）
  */
-function RowPrLink({ pr }: { pr: number }) {
+function RowPrLink({ pr, className }: { pr: number; className: string }) {
   const href = prHref(useStore().status?.web_url, pr);
   const label = (
     <>
@@ -407,7 +410,7 @@ function RowPrLink({ pr }: { pr: number }) {
     </>
   );
   return (
-    <span className="row-pr">
+    <span className={`row-pr${className}`}>
       <span className="row-pr-link">
         {href ? (
           <a href={href} target="_blank" rel="noreferrer" tabIndex={-1}>

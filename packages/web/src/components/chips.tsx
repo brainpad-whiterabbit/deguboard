@@ -13,6 +13,7 @@ export function Chip({
   title,
   label,
   className,
+  onHover,
   children,
 }: {
   pressed: boolean;
@@ -21,6 +22,8 @@ export function Chip({
   /** 読み上げの名前。中の文字（番号だけの札など）と違うときに渡す */
   label?: string;
   className?: string;
+  /** マウスを載せた・Tab で止まったとき true、離れたとき false で呼ぶ（Epic の札が行を光らせる。epic-chip.tsx） */
+  onHover?: ((on: boolean) => void) | undefined;
   children: ReactNode;
 }) {
   return (
@@ -31,6 +34,14 @@ export function Chip({
       aria-label={label}
       title={title}
       onClick={onClick}
+      {...(onHover
+        ? {
+            onMouseEnter: () => onHover(true),
+            onMouseLeave: () => onHover(false),
+            onFocus: () => onHover(true),
+            onBlur: () => onHover(false),
+          }
+        : {})}
     >
       {children}
     </button>
