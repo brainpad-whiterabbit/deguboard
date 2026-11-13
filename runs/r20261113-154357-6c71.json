@@ -1,0 +1,32 @@
+{
+  "id": "r20261113-154357-6c71",
+  "ticket": "t867",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-13T15:43:57Z",
+  "finished_at": "2026-11-13T15:44:39Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "development.md の Open VSX 箇条で、create-namespace をトークン設定の前に書いており、書いた順に打つと失敗する"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 3801,
+    "cache_read": 239827,
+    "cache_write": 28104
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 1,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "a5c2ea23-662a-4048-902d-1c12f239a1ea",
+  "review": null
+}
