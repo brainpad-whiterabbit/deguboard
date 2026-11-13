@@ -13,4 +13,4 @@ Or create one from a terminal. This needs `dg` on your PATH. If `dg` is not foun
 dg ticket create "My first ticket"
 ```
 
-The ticket shows up in the sidebar's backlog and kanban. Click a row to open its details in the editor.
+The ticket shows up in the sidebar's **Backlog** and **Board** tabs. Click a row to open its details in the editor.
