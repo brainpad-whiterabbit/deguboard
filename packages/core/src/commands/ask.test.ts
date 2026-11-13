@@ -232,7 +232,7 @@ describe("依頼文の組み立て", () => {
       "/dgassign\nIteration を作って",
     );
     const into = buildAsk({ subjects: [iteration("active")], action: "create", note: "見出し" });
-    expect(into.label).toBe("起票して s10 に入れる");
+    expect(into.label).toBe("Create tickets in s10");
     expect(into.text).toBe("/dgimport\n起票して s10 に入れて\n見出し");
     expect(
       buildAsk({ subjects: [iteration("active")], action: "create", format: "text" }).text.split(
@@ -324,7 +324,7 @@ describe("依頼文の組み立て", () => {
       SAMPLES.flatMap(([s, within]) => askCandidates(s, within).map((c) => c.action as string)),
     ).not.toContain("edit");
     expect(askCandidates([ticket()]).find((c) => c.action === "change")).toMatchObject({
-      label: "変える",
+      label: "Change",
       skill: "/dgchange",
     });
   });
@@ -402,7 +402,7 @@ describe("依頼文の組み立て", () => {
       action: "change",
       humanOnly: ["epic.update"],
     });
-    expect(edit).toMatchObject({ kind: "command", label: "題・概要を変える" });
+    expect(edit).toMatchObject({ kind: "command", label: "Change title and summary" });
     expect(edit.text).toBe(`dg epic update ${epic("open").id} --title "<題>" --body "<概要>"`);
     // Iteration の変えるは名前・目標を変えるので、人に回すコマンドも名前・目標を直す（予定の期間は持たない）
     const editIt = buildAsk({
@@ -410,7 +410,7 @@ describe("依頼文の組み立て", () => {
       action: "change",
       humanOnly: ["iteration.update"],
     });
-    expect(editIt).toMatchObject({ kind: "command", label: "名前・目標を変える" });
+    expect(editIt).toMatchObject({ kind: "command", label: "Change name and goal" });
     expect(editIt.text).toBe('dg iteration update s10 --name "<名前>" --goal "<目標>"');
     // 入っていない操作は依頼文のまま
     expect(buildAsk({ subjects: [epic("open")], action: "close", humanOnly }).kind).toBe("prompt");
@@ -874,7 +874,7 @@ describe("頼むことの候補", () => {
     expect(askActions([iteration("active")], "s10")).not.toContain("remove");
 
     const view = buildAsk({ subjects: [ticket()], action: "remove", within: "s10" });
-    expect(view.label).toBe("s10 から外す");
+    expect(view.label).toBe("Remove from s10");
     expect(view.text).toBe("/dgassign t265\ns10 から外して");
     const human = buildAsk({
       subjects: [ticket({ epic: "e9" })],
@@ -895,7 +895,7 @@ describe("頼むことの候補", () => {
       expect(actions, `${before}`).toContain("discuss");
       expect(actions.indexOf("discuss"), JSON.stringify(actions)).toBe(actions.indexOf(before) + 1);
       expect(askCandidates(s).find((c) => c.action === "discuss")).toMatchObject({
-        label: "検討する",
+        label: "Discuss",
         skill: "/dgdiscuss",
         recommended: false,
       });
@@ -999,13 +999,13 @@ describe("ask", () => {
     expect(t1.text).toBe("/dgwork t1");
     expect(t1.text).not.toContain("本文の秘密");
     // 依存先が終わっていない todo は待ちを確かめる
-    expect((await run({ targets: ["t2"] })).label).toBe("待ちを確かめる");
+    expect((await run({ targets: ["t2"] })).label).toBe("Check what it's waiting on");
     expect((await run({ targets: ["s1"] })).targets[0]).toMatchObject({
       kind: "iteration",
       line: "Iteration s1「Sprint 1」（active）",
       sub: "active",
     });
-    expect((await run({ targets: ["e1"] })).label).toBe("起票して e1 に足す");
+    expect((await run({ targets: ["e1"] })).label).toBe("Create tickets for e1");
     // planned の Iteration に入った着手可の todo は計画から
     await runCommand(ticketCreate, ctx, { title: "C" });
     await runCommand(iterationCreate, ctx, { name: "Sprint 2" });
@@ -1024,7 +1024,7 @@ describe("ask", () => {
     await runCommand(planCreate, ctx, { tickets: ["t1", "t2"] });
     expect((await run({ targets: ["p1"] })).targets[0]).toMatchObject({
       line: "Plan p1（承認待ち、t1 t2）",
-      sub: "承認待ち",
+      sub: "Awaiting approval",
     });
 
     // 番号だけの ID は種類が決まらないので使い方の誤り、ないものは NOT_FOUND
@@ -1074,7 +1074,7 @@ describe("ask", () => {
     await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
     await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
     const view = (await runCommand(ask, ctx, { targets: ["t1"], within: "s1" })).data;
-    expect(view.candidates.map((c) => c.label)).toContain("s1 から外す");
+    expect(view.candidates.map((c) => c.label)).toContain("Remove from s1");
     await expect(runCommand(ask, ctx, { targets: ["t1"], within: "t1" })).rejects.toMatchObject({
       code: "INVALID_INPUT",
     });

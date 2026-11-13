@@ -1,8 +1,9 @@
 // 画面が引く core の文の訳の表（UI-11・t649）。鍵は core の文そのもの（可変の部分は {0}・{1}）で、値は表示言語ごとの訳。
 // 表示言語の訳がない言語では core の文のまま出す（l10n.ts の trCore・trCoreMessage・configDescription）。
-// CORE_LABELS の文は今は日本語なので、鍵の文に en の訳だけを持つ（英語化は e11 で進める）。CORE_MESSAGES は core のエラー・警告の英語の文を鍵に、ja に今の日本語の文を持つ（t651）。
+// CORE_LABELS は core の頼むの候補の名前と Plan の承認の状態の英語の文を鍵に、ja に日本語の訳を持つ。候補の名前は dg ask・ask-menu が CLI・MCP にも返す dg の出力なので、
+// ADR-001 の「dg がエージェントと利用者に出す文は英語」に当たり、画面の定型の文として表示言語で出すのは web の役目にする（t834）。CORE_MESSAGES は core のエラー・警告の英語の文を鍵に、ja に日本語の訳を持つ（t651）。
 // CONFIG_DESCRIPTIONS は設定の項目の文（説明・要約・空のときの動き・選択肢ごとの説明）の英語の文を鍵にし、値に ja の訳を持つ（英語の表示では鍵の英語の文をそのまま出す）。
-// 鍵が core の候補の名前・エラーと警告の文・設定の項目の文に合うことと、訳の揃いは l10n.test.ts が確かめる。
+// 鍵が core の候補の名前・Plan の承認の状態・エラーと警告の文・設定の項目の文に合うことと、訳の揃いは l10n.test.ts が確かめる。
 // 画面のコードの文言（tr の鍵）の英訳は l10n-en.ts に置く
 
 import type { Language } from "./l10n.js";
@@ -11,49 +12,49 @@ import type { Language } from "./l10n.js";
 export type CoreTextTable = Readonly<Record<string, Readonly<Partial<Record<Language, string>>>>>;
 
 /**
- * core が返す決まった文（エージェントに頼むの候補の名前・Plan の承認の状態）の訳（trCore）。文の中の ID は {0} にした形を鍵にする。
- * 同じ文が頼むことによって意味の違うものは「頼むこと:文」の鍵で分ける
+ * core が返す決まった文（エージェントに頼むの候補の名前・Plan の承認の状態）の訳（trCore）。鍵は core の英語の文で、文の中の ID は {0} にした形にする。
+ * 鍵と core の候補の名前が過不足なく揃うことは l10n.test.ts が確かめる
  */
 export const CORE_LABELS: CoreTextTable = {
-  "起票して {0} に入れる": { en: "Create tickets in {0}" },
-  続きを起票する: { en: "Create follow-up tickets" },
-  "起票して {0} に足す": { en: "Create tickets in {0}" },
-  "不具合・続きを起票する": { en: "Create bug or follow-up tickets" },
-  起票し直す: { en: "Recreate tickets" },
-  起票する: { en: "Create tickets" },
-  "Iteration を作る": { en: "Create Iteration" },
-  "Epic を作る": { en: "Create Epic" },
-  変える: { en: "Change" },
-  分ける: { en: "Split" },
-  "{0} から外す": { en: "Remove from {0}" },
-  "Iteration・Epic": { en: "Iteration/Epic" },
-  "名前・目標を変える": { en: "Change name and goal" },
-  "題・概要を変える": { en: "Change title and summary" },
-  持ち越しを割り当てる: { en: "Assign carried-over tickets" },
-  "チケットを足す・外す": { en: "Add or remove tickets" },
-  割り当てる: { en: "Assign" },
-  組み直す: { en: "Replan" },
-  計画を立てる: { en: "Plan" },
-  承認する: { en: "Approve" },
-  "Plan を進める": { en: "Run Plan" },
-  進める: { en: "Work on" },
-  最後まで進める: { en: "Run to completion" },
-  確かめて片付ける: { en: "Verify and wrap up" },
-  待ちを確かめる: { en: "Check what it's waiting on" },
-  点検する: { en: "Check" },
-  リリースする: { en: "Release" },
-  検討する: { en: "Discuss" },
-  "done を取り消す": { en: "Undo done" },
-  様子を聞く: { en: "Ask for status" },
-  振り返る: { en: "Retrospect" },
-  自由に: { en: "Free-form" },
-  "reopen:再開する": { en: "Reopen" },
-  "resume:再開する": { en: "Resume" },
-  "abandon:やめる": { en: "Abandon" },
-  "close:閉じる": { en: "Close" },
-  承認待ち: { en: "Awaiting approval" },
-  承認済み: { en: "Approved" },
-  閉じた: { en: "Closed" },
+  "Create tickets in {0}": { ja: "起票して {0} に入れる" },
+  "Create follow-up tickets": { ja: "続きを起票する" },
+  "Create tickets for {0}": { ja: "起票して {0} に足す" },
+  "Create bug or follow-up tickets": { ja: "不具合・続きを起票する" },
+  "Recreate tickets": { ja: "起票し直す" },
+  "Create tickets": { ja: "起票する" },
+  "Create Iteration": { ja: "Iteration を作る" },
+  "Create Epic": { ja: "Epic を作る" },
+  Change: { ja: "変える" },
+  Split: { ja: "分ける" },
+  "Remove from {0}": { ja: "{0} から外す" },
+  "Iteration/Epic": { ja: "Iteration・Epic" },
+  "Change name and goal": { ja: "名前・目標を変える" },
+  "Change title and summary": { ja: "題・概要を変える" },
+  "Assign carried-over tickets": { ja: "持ち越しを割り当てる" },
+  "Add or remove tickets": { ja: "チケットを足す・外す" },
+  Assign: { ja: "割り当てる" },
+  Replan: { ja: "組み直す" },
+  Plan: { ja: "計画を立てる" },
+  Approve: { ja: "承認する" },
+  "Run Plan": { ja: "Plan を進める" },
+  "Work on": { ja: "進める" },
+  "Run to completion": { ja: "最後まで進める" },
+  "Verify and wrap up": { ja: "確かめて片付ける" },
+  "Check what it's waiting on": { ja: "待ちを確かめる" },
+  Check: { ja: "点検する" },
+  Release: { ja: "リリースする" },
+  Discuss: { ja: "検討する" },
+  "Undo done": { ja: "done を取り消す" },
+  "Ask for status": { ja: "様子を聞く" },
+  Retrospect: { ja: "振り返る" },
+  "Free-form": { ja: "自由に" },
+  Reopen: { ja: "再開する" },
+  Resume: { ja: "再開する" },
+  Abandon: { ja: "やめる" },
+  Close: { ja: "閉じる" },
+  "Awaiting approval": { ja: "承認待ち" },
+  Approved: { ja: "承認済み" },
+  Closed: { ja: "閉じた" },
 };
 
 /** 設定の guide.notes.* の項目が共通に持つ説明（core の鍵の英語の文） */

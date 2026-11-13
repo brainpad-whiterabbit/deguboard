@@ -102,26 +102,21 @@ export function storedConfigValue(key: string, text: unknown, defaultValue: unkn
   return text === PRIORITY_CRITERIA_EN[level] ? defaultValue : text;
 }
 
-/** core が返す決まった文の中の ID（t12・s3・e2・p7）と、外す場所の既定の「Iteration・Epic」 */
-const CORE_ARG = /\b[tsep]\d+\b|Iteration・Epic/g;
+/** core が返す決まった文の中の ID（t12・s3・e2・p7）と、外す場所の既定の「Iteration/Epic」 */
+const CORE_ARG = /\b[tsep]\d+\b|Iteration\/Epic/g;
 
 /**
- * core が返す決まった短い文（エージェントに頼むの候補の名前、札の添え字の Plan の承認の状態）を今の言語の文にする。
+ * core が返す決まった短い英語の文（エージェントに頼むの候補の名前、札の添え字の Plan の承認の状態）を今の言語の文にする。
  * どの言語でも、文の中の ID を {0}・{1} に置き換えた形を鍵にして CORE_LABELS を引き、表にない文は core の文のまま出す。
  * 表にあっても今の言語の訳がなければ鍵（core の文の形）に ID を戻して出す（core の文と同じになる）。
- * scope（候補の頼むこと）を渡すと「scope:鍵」を先に引く（同じ文でも頼むことによって訳が違うもの）。
  * 依頼文は訳さない（エージェントに渡す core の出力）。エラー・警告の文は trCoreMessage が訳す
  */
-export function trCore(text: string, scope?: string): string {
+export function trCore(text: string): string {
   const args: string[] = [];
   const key = text.replace(CORE_ARG, (m) => `{${args.push(m) - 1}}`);
-  const found = [scope === undefined ? undefined : `${scope}:${key}`, key].find(
-    (k) => k !== undefined && Object.hasOwn(CORE_LABELS, k),
-  );
-  if (found === undefined) return text;
-  const entry = CORE_LABELS[found]!;
+  if (!Object.hasOwn(CORE_LABELS, key)) return text;
   return format(
-    entry[current] ?? key,
+    CORE_LABELS[key]![current] ?? key,
     args.map((a) => lookup(CORE_LABELS, a) ?? a),
   );
 }

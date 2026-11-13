@@ -287,7 +287,7 @@ export function AskComposer({
                   ★
                 </span>
               ) : null}
-              {trCore(c.label, c.action)}
+              {trCore(c.label)}
             </button>
           ))}
         </div>

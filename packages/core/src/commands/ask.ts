@@ -96,12 +96,13 @@ export type AskSubject =
 export type AskTarget = AskSubject & {
   /** 対象の ID とタイトル（と Status・Iteration）の 1 行。定型の文の言語で組み、画面の札のツールチップにそのまま出す。依頼文には入れない */
   line: string;
-  /** 画面の札の小さな添え字。チケット・Iteration・Epic は Status、Plan は承認の状態の表示名（承認待ち・承認済み・閉じた） */
+  /** 画面の札の小さな添え字。チケット・Iteration・Epic は Status、Plan は承認の状態の英語の表示名（Awaiting approval・Approved・Closed。画面が訳す） */
   sub: string;
 };
 
 export interface AskCandidate {
   action: AskAction;
+  /** 候補の名前。dg の出力なので英語で返し（ADR-001）、画面は表示言語に訳す（web の l10n-core.ts の CORE_LABELS） */
   label: string;
   /** 1 行目の Skill（`/dgdone`）。Skill を使わない頼むことは null */
   skill: string | null;
@@ -390,12 +391,14 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     noTargetOk: true,
     label(s) {
       const it = single(s, "iteration");
-      if (it) return `起票して ${it.id} に入れる`;
+      if (it) return `Create tickets in ${it.id}`;
       const ep = single(s, "epic");
-      if (ep) return ep.status === "closed" ? "続きを起票する" : `起票して ${ep.id} に足す`;
-      if (only(s, "ticket")?.every((t) => t.status === "done")) return "不具合・続きを起票する";
-      if (only(s, "ticket")?.every((t) => t.status === "abandoned")) return "起票し直す";
-      return "起票する";
+      if (ep)
+        return ep.status === "closed" ? "Create follow-up tickets" : `Create tickets for ${ep.id}`;
+      if (only(s, "ticket")?.every((t) => t.status === "done"))
+        return "Create bug or follow-up tickets";
+      if (only(s, "ticket")?.every((t) => t.status === "abandoned")) return "Recreate tickets";
+      return "Create tickets";
     },
     text: (s, _w, lang) => `${createTarget(s, lang).text}${createdByHuman(lang)}${end(lang)}`,
     intent: (s, _w, lang) => createTarget(s, lang).intent ?? "",
@@ -415,7 +418,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     skill: "dgassign",
     bare: true,
     noTargetOk: true,
-    label: () => "Iteration を作る",
+    label: () => "Create Iteration",
     text: (s, _w, lang) =>
       say(
         lang,
@@ -436,7 +439,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     skill: "dgassign",
     bare: true,
     noTargetOk: true,
-    label: () => "Epic を作る",
+    label: () => "Create Epic",
     text: (s, _w, lang) =>
       say(
         lang,
@@ -455,7 +458,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   split: {
     skill: "dgimport",
-    label: () => "分ける",
+    label: () => "Split",
     text: (s, _w, lang) =>
       say(
         lang,
@@ -469,7 +472,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   remove: {
     skill: "dgassign",
-    label: (_s, w) => `${w?.id ?? "Iteration・Epic"} から外す`,
+    label: (_s, w) => `Remove from ${w?.id ?? "Iteration/Epic"}`,
     text: (s, w, lang) =>
       say(
         lang,
@@ -492,15 +495,15 @@ const ACTIONS: Record<AskAction, ActionDef> = {
           ]
         : [],
   },
-  // 人の指示による書き換え（直す・閉じる・再開・やめる・done の取り消し）は /dgchange。呼び出しだけでは何を書き換えるかが決まらないので、頼みごとの 1 行を添える。鍵と表示名は Skill の名前 dgchange に揃えて change・変える
+  // 人の指示による書き換え（直す・閉じる・再開・やめる・done の取り消し）は /dgchange。呼び出しだけでは何を書き換えるかが決まらないので、頼みごとの 1 行を添える。鍵と表示名は Skill の名前 dgchange に揃えて change・Change
   change: {
     skill: "dgchange",
     label: (s) =>
       single(s, "iteration")
-        ? "名前・目標を変える"
+        ? "Change name and goal"
         : single(s, "epic")
-          ? "題・概要を変える"
-          : "変える",
+          ? "Change title and summary"
+          : "Change",
     text: (s, _w, lang) =>
       s.length === 0
         ? say(
@@ -562,7 +565,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   // 答えの決まった直すと違い、何を直すかを人と決めてから反映する。/dgdiscuss <ID> の呼び出しで頼むことが決まるので、頼みごとの 1 行は付けない
   discuss: {
     skill: "dgdiscuss",
-    label: () => "検討する",
+    label: () => "Discuss",
     text: (s, _w, lang) =>
       s.length === 0
         ? say(
@@ -580,10 +583,10 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     skill: "dgassign",
     label: (s) =>
       single(s, "iteration")?.status === "closed"
-        ? "持ち越しを割り当てる"
+        ? "Assign carried-over tickets"
         : single(s, "epic") || single(s, "iteration")
-          ? "チケットを足す・外す"
-          : "割り当てる",
+          ? "Add or remove tickets"
+          : "Assign",
     text(s, _w, lang) {
       const it = single(s, "iteration");
       if (s.length === 0)
@@ -637,7 +640,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   plan: {
     skill: "dgplan",
-    label: (s) => (single(s, "plan") ? "組み直す" : "計画を立てる"),
+    label: (s) => (single(s, "plan") ? "Replan" : "Plan"),
     text: (s, _w, lang) =>
       s.length === 0
         ? say(
@@ -664,7 +667,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   approve: {
     skill: "dgplan",
-    label: () => "承認する",
+    label: () => "Approve",
     text: (s, _w, lang) =>
       say(
         lang,
@@ -675,7 +678,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   work: {
     skill: "dgwork",
-    label: (s) => (single(s, "plan") ? "Plan を進める" : "進める"),
+    label: (s) => (single(s, "plan") ? "Run Plan" : "Work on"),
     text: (s, _w, lang) =>
       s.length === 0
         ? say(lang, "指示の内容を進めてください。", "Proceed with the instructions.")
@@ -689,7 +692,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   resume: {
     skill: "dgwork",
-    label: () => "再開する",
+    label: () => "Resume",
     // 実行中の Run と同じ Skill を重ねて呼ばないよう、1 行目には止まったものだけを並べる
     args: (s) => (only(s, "ticket") ?? []).filter(isStalled),
     text(s, _w, lang) {
@@ -710,7 +713,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   all: {
     skill: "dgall",
-    label: () => "最後まで進める",
+    label: () => "Run to completion",
     text: (s, _w, lang) =>
       s.length === 0
         ? say(
@@ -726,7 +729,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   done: {
     skill: "dgdone",
-    label: () => "確かめて片付ける",
+    label: () => "Verify and wrap up",
     text: (s, _w, lang) =>
       s.length === 0
         ? say(
@@ -749,7 +752,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   check: {
     skill: "dgcheck",
     noTargetOk: true,
-    label: (s) => (only(s, "ticket")?.every(isWaiting) ? "待ちを確かめる" : "点検する"),
+    label: (s) => (only(s, "ticket")?.every(isWaiting) ? "Check what it's waiting on" : "Check"),
     text: (s, _w, lang) =>
       s.length === 0
         ? say(
@@ -771,7 +774,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   release: {
     skill: "dgrelease",
-    label: () => "リリースする",
+    label: () => "Release",
     text: (s, _w, lang) =>
       s.length === 0
         ? say(
@@ -787,7 +790,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   close: {
     skill: "dgchange",
-    label: () => "閉じる",
+    label: () => "Close",
     intent: (s, _w, lang) =>
       s.length === 0
         ? say(
@@ -816,7 +819,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   reopen: {
     skill: "dgchange",
-    label: () => "再開する",
+    label: () => "Reopen",
     intent: (s, _w, lang) =>
       s.length === 0
         ? say(
@@ -851,7 +854,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   abandon: {
     skill: "dgchange",
-    label: () => "やめる",
+    label: () => "Abandon",
     intent: (s, _w, lang) =>
       s.length === 0
         ? say(
@@ -881,7 +884,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   undo_done: {
     skill: "dgchange",
-    label: () => "done を取り消す",
+    label: () => "Undo done",
     intent: (s, _w, lang) =>
       say(lang, `${idList(s, lang)} の done を取り消して`, `Undo done for ${idList(s, lang)}`),
     text: (s, _w, lang) =>
@@ -899,7 +902,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   status: {
     skill: "dgstatus",
-    label: () => "様子を聞く",
+    label: () => "Ask for status",
     text: (s, _w, lang) =>
       s.length === 0
         ? say(
@@ -915,7 +918,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   retro: {
     skill: "dgretro",
-    label: () => "振り返る",
+    label: () => "Retrospect",
     // 振り返るは閉じた Iteration 1 つの候補（askActions）だけなので、対象は必ず Iteration。
     // 文章だけの形も guide-retro の流れ（数字の要約 → 定義のない観点の指標の提案 → 定義のある指標の計算と傾向 → 根拠つきの Keep / Problem / Try → 承認を得た改善の起票）に合わせる
     text: (s, _w, lang) =>
@@ -927,7 +930,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
   free: {
     skill: null,
-    label: () => "自由に",
+    label: () => "Free-form",
     text: (s, _w, lang) =>
       s.length > 0
         ? say(
@@ -1420,15 +1423,23 @@ export function askCandidates(
   });
 }
 
+/** Plan の承認の状態の日本語の表示名（line の日本語の形に使う） */
 const PLAN_STATE_LABEL: Record<PlanState, string> = {
   pending_approval: "承認待ち",
   approved: "承認済み",
   closed: "閉じた",
 };
 
-/** 画面の札の添え字（AskTarget の sub） */
+/** Plan の承認の状態の英語の表示名（sub と、line の英語の形に使う） */
+const PLAN_STATE_LABEL_EN: Record<PlanState, string> = {
+  pending_approval: "Awaiting approval",
+  approved: "Approved",
+  closed: "Closed",
+};
+
+/** 画面の札の添え字（AskTarget の sub）。Plan の状態は候補の名前と同じく英語で返し、画面が表示言語に訳す（trCore） */
 function targetSub(t: AskSubject): string {
-  return t.kind === "plan" ? PLAN_STATE_LABEL[t.status] : t.status;
+  return t.kind === "plan" ? PLAN_STATE_LABEL_EN[t.status] : t.status;
 }
 
 /** Skill を持つ頼むことの文章だけの形に添える、その段階の手順を読む 1 文。トピックは Skill の呼び出し（`/dgplan`）から `/dg` を除いたもの */
@@ -1439,13 +1450,6 @@ export const askGuideLine = (skill: string, lang: AskLanguage = "ja") => {
     `手順は ${command} を読み、そのとおりに進めてください。`,
     `Read ${command} for the steps and follow them.`,
   );
-};
-
-/** Plan の承認の状態の英語の表示名（line の英語の形に使う。sub は日本語のまま返し、画面が訳す） */
-const PLAN_STATE_LABEL_EN: Record<PlanState, string> = {
-  pending_approval: "Awaiting approval",
-  approved: "Approved",
-  closed: "Closed",
 };
 
 /**
