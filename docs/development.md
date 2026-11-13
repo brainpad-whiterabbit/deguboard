@@ -174,6 +174,6 @@ VSIX を添付してから公開する。公開したときだけ `.github/workf
 初めて出す前に、一度だけ準備する。初回の VSIX は人が手で上げ、その後の版から Release の公開で出す。手で上げるのは、Marketplace の trusted publishing の policy が既存の拡張のページに登録するもので、拡張が一度出ていないと設定できず、ワークフローは Release の公開でしか走らないため。Open VSX も、namespace と拡張のページを手元から確かめてから Release の経路に載せる：
 
 - Marketplace：publisher `deguboard` を作り、`mise run vsix` の VSIX を publisher の管理画面（`https://marketplace.visualstudio.com/manage/publishers/deguboard`）の New extension から手で上げて拡張のページを作る。次に、その拡張の trusted publishing の policy にこのリポジトリとワークフローのファイル `publish-extension.yml` を登録する（PAT は作らない）
-- Open VSX：namespace `deguboard` を作り（`ovsx create-namespace deguboard`）、出せるアカウントのトークンを環境変数 `OVSX_PAT` に入れて、同じ VSIX を `ovsx publish <VSIX>` で手元から出す。トークンはリポジトリの Actions の secret `OVSX_PAT` にも置く
+- Open VSX：namespace `deguboard` を作り（`packages/vscode/node_modules/.bin/ovsx create-namespace deguboard`）、出せるアカウントのトークンを環境変数 `OVSX_PAT` に入れて、同じ VSIX を `packages/vscode/node_modules/.bin/ovsx publish <VSIX>` で手元から出す。どちらも `packages/vscode` が lockfile で固定した ovsx（`mise run install` で入る）を使う。トークンはリポジトリの Actions の secret `OVSX_PAT` にも置く
 
-手で上げる VSIX は、検査を通した今の版（`packages/vscode/package.json` の version）のものにする。Release で出す版は、それより後の版にする（同じ版は Marketplace と Open VSX に二度出せず、ワークフローが失敗するため）。
+手で上げる VSIX は、`mise run vsix` で作った今の版（`packages/vscode/package.json` の version）のもので、上のコードブロックの検査（`mise run check`・`mise run audit`・`mise run test:layout`・`mise run test:vscode`）を通したものにする。初回の版は GitHub の Release もタグも作らない。Release を公開するとワークフローが同じ版を両方に出そうとして失敗するため。Release で出す版は、それより後の版にして、上のコードブロックの手順で作る（同じ版は Marketplace と Open VSX に二度出せず、ワークフローが失敗するため）。
