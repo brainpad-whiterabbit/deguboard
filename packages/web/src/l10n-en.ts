@@ -442,8 +442,9 @@ export const EN: Readonly<Record<string, string>> = {
   チケットなし: "No tickets",
   "履歴が浅いか欠けているので、終えた日の分からないチケットは更新日（updated_at）で並べている（日付に ~ を付けた）":
     "History is shallow or incomplete, so tickets with an unknown finish date are sorted by updated_at (dates marked with ~)",
-  "終えた時刻を読み込み中…（それまでは更新日の順）":
-    "Loading finish times… (sorted by update date until then)",
+  "終えた時刻を読み込み中…（それまでは番号の順）":
+    "Loading finish times… (sorted by number until then)",
+  終えた日を読み込み中: "Loading finish date",
   当たるチケットはない: "No matching tickets",
   履歴から分からないので更新日: "Update date (not found in history)",
   終えた日時: "Finished at",

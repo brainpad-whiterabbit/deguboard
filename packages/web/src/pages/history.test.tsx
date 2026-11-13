@@ -394,7 +394,7 @@ describe("サイドバーの履歴", () => {
     expect(screen.queryByLabelText("Epic")).toBeNull();
   });
 
-  it("チケットの見方は history の結果が届く前から更新日の新しい順で出し、届いたら終えた時刻の順に並べ直す。失敗しても更新日の順のまま出す", async () => {
+  it("チケットの見方は history の結果が届く前は番号の新しい順で日付の欄を読み込み中の印にし、届いたら終えた時刻の順に並べ直して ~ は時刻の分からない行にだけ付ける。失敗したら更新日に ~ を付けて出す", async () => {
     const finished = (id: string, at: string) => ({
       kind: "ticket",
       id,
@@ -409,17 +409,24 @@ describe("サイドバーの履歴", () => {
       window.location.hash = "#/history?view=ticket";
       const client = mockClient();
       client.data.tickets = [
+        // 番号の順・更新日の順・終えた時刻の順がそれぞれ違うようにする
         ticket({
           id: "t1",
+          title: "更新が新しい",
+          status: "done",
+          updated_at: "2026-10-28T00:00:00Z",
+        }),
+        ticket({
+          id: "t2",
           title: "更新が古い",
           status: "done",
           updated_at: "2026-10-01T00:00:00Z",
         }),
         ticket({
-          id: "t2",
-          title: "更新が新しい",
+          id: "t3",
+          title: "履歴に終えた出来事がない",
           status: "done",
-          updated_at: "2026-10-20T00:00:00Z",
+          updated_at: "2026-10-05T00:00:00Z",
         }),
       ];
       client.handlers["history"] = history;
@@ -447,22 +454,29 @@ describe("サイドバーの履歴", () => {
         incomplete: [],
       };
     });
-    await waitFor(() => expect(ids()).toEqual(["t2", "t1"]));
+    const skeletons = () => document.querySelectorAll(".history-ticket-meta .skeleton-day");
+    // 届く前は番号の新しい順で、日付の欄は日付でも ~ でもなく読み込み中の印
+    await waitFor(() => expect(ids()).toEqual(["t3", "t2", "t1"]));
     expect(screen.getByRole("status").textContent).toContain("終えた時刻を読み込み中");
-    expect(dates()).toEqual(["~10/20", "~10/01"]);
-    // 届いたら終えた時刻の順に並べ直し、日付も置き換わり、読み中の表示は消える
+    expect(dates()).toEqual([]);
+    expect(skeletons()).toHaveLength(3);
+    expect(screen.getAllByRole("img", { name: "終えた日を読み込み中" })).toHaveLength(3);
+    // 届いたら終えた時刻の順に並べ直して日付を出し、~ は履歴から時刻の分からない t3（更新日で代える）にだけ付く
     release();
-    await waitFor(() => expect(ids()).toEqual(["t1", "t2"]));
-    expect(dates()).toEqual(["10/25", "10/10"]);
+    await waitFor(() => expect(ids()).toEqual(["t1", "t2", "t3"]));
+    expect(dates()).toEqual(["10/25", "10/10", "~10/05"]);
+    expect(skeletons()).toHaveLength(0);
     expect(screen.queryByRole("status")).toBeNull();
     cleanup();
 
-    // 失敗しても更新日の順のまま出す
+    // 失敗したら終えた時刻はどれも分からないので、更新日の順に ~ を付けて出す
     setup(async () => {
       throw new Error("history が読めない");
     });
     await waitFor(() => expect(document.querySelector(".error")).not.toBeNull());
-    expect(ids()).toEqual(["t2", "t1"]);
+    expect(ids()).toEqual(["t1", "t3", "t2"]);
+    expect(dates()).toEqual(["~10/28", "~10/05", "~10/01"]);
+    expect(skeletons()).toHaveLength(0);
     expect(screen.queryByRole("status")).toBeNull();
   });
 

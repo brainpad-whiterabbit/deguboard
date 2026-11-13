@@ -2428,6 +2428,13 @@ textarea.body {
 .skeleton-head {
   width: 40%;
 }
+/* 履歴のチケットの見方で、終えた日が届くまで日付の欄に置く短い骨組み（pages/history.tsx の FinishedList） */
+.skeleton-day {
+  display: inline-block;
+  width: 2.75em;
+  height: 0.9em;
+  vertical-align: middle;
+}
 @keyframes dg-skeleton-pulse {
   50% {
     opacity: 0.5;

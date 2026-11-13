@@ -11,7 +11,8 @@
 // Epic の見方：closed の Epic を閉じた新しい順に、タイトルを 2 行まで出し、Iteration の行と同じ件数・閉じた日・チケットが入っていた Iteration を付ける。
 // 行を開くと中の終わったチケットを番号の順の 1 本の一覧（2 段目は Iteration・PR）で出し、終わったチケットのない Epic は薄く出して開けない。
 // チケットの見方：done・abandoned のチケットを終えた新しい順の 1 本の一覧（履歴用の行。2 段目は Iteration・PR・終えた日）で出す。終えた時刻は
-// history のコマンド（deguboard ブランチの履歴）から求め、履歴が浅くて分からないものは updated_at で代え、そう出す。
+// history のコマンド（deguboard ブランチの履歴）から求め、届くまでは番号の新しい順で日付を読み込み中の印にし、
+// 届いたあと履歴が浅くて分からないものは updated_at で代え、そう出す。
 // 絞り込みは検索と結果（完了・中止）だけ。Iteration・Epic で分けて見るのはそれぞれの見方に任せる。
 // 番号を押すと詳細を開く（拡張ホストに頼んでエディタに）。
 // 検索欄は 3 つの見方で全幅にし、チケットの見方だけその下に結果の絞り込み（すべて・完了・中止）を件数付きの文字の切り替えで出す。
@@ -230,9 +231,9 @@ function finishedAtOf(events: readonly HistoryEvent[]): Map<string, string> {
 
 interface FinishedRow {
   ticket: Ticket;
-  /** 終えた時刻。履歴から分からなければ updated_at */
-  at: string;
-  /** at を updated_at で代えたか */
+  /** 終えた時刻。履歴から分からなければ updated_at。history の結果が届く前は null（日付を出さない） */
+  at: string | null;
+  /** 届いたあと、at を updated_at で代えたか */
   approximate: boolean;
 }
 
@@ -256,16 +257,25 @@ function useCarriedOver(): CarriedOver {
   return { need, events: error ? [] : (data?.events ?? null) };
 }
 
-/** 終わったチケットを終えた新しい順に。検索は番号・タイトル・ラベル */
+/**
+ * 終わったチケットを終えた新しい順に。検索は番号・タイトル・ラベル。
+ * finishedAt が null（history の結果が届く前）なら、終えた時刻が分からないので番号の新しい順にし、日付は持たせない
+ * （updated_at で仮に並べると、届いたときに大きく並べ替わり、~ もすべての行に付いてしまう）
+ */
 function finishedTickets(
   tickets: readonly Ticket[],
-  finishedAt: ReadonlyMap<string, string>,
+  finishedAt: ReadonlyMap<string, string> | null,
   f: FinishedFilter,
 ): FinishedRow[] {
-  return tickets
+  const finished = tickets
     .filter((t) => isFinished(t.status))
     .filter((t) => !f.result || t.status === f.result)
-    .filter((t) => ticketMatchesQuery(t, f.query))
+    .filter((t) => ticketMatchesQuery(t, f.query));
+  if (!finishedAt)
+    return finished
+      .sort((a, b) => byNumber(b, a))
+      .map((t) => ({ ticket: t, at: null, approximate: false }));
+  return finished
     .map((t) => {
       const at = finishedAt.get(t.id);
       return { ticket: t, at: at ?? t.updated_at, approximate: at === undefined };
@@ -367,9 +377,7 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
       filtered: searching,
     });
     const finished = (q: string) =>
-      view === "ticket"
-        ? 0
-        : finishedTickets(store.tickets, new Map(), { query: q, result: "" }).length;
+      view === "ticket" ? 0 : finishedTickets(store.tickets, null, { query: q, result: "" }).length;
     return {
       iteration: count(iterations, "iteration"),
       epic: count(epics, "epic"),
@@ -772,7 +780,10 @@ function EpicItem({ epic: e, fold, query }: { epic: EpicRow; fold: RowFold; quer
   );
 }
 
-/** チケットの見方：終わったチケットの一覧。history の結果を待たず updated_at の順で出し、届いたら終えた時刻で並べ直す */
+/**
+ * チケットの見方：終わったチケットの一覧。history の結果を待たず番号の新しい順で日付の欄を読み込み中の印にして出し、
+ * 届いたら終えた時刻で並べ直す
+ */
 function TicketView({
   route,
   counts,
@@ -793,7 +804,12 @@ function TicketView({
       page: "history",
       result: value === "done" || value === "abandoned" ? value : undefined,
     });
-  const finishedAt = useMemo(() => finishedAtOf(log?.events ?? []), [log]);
+  // 届く前は null（番号の順で日付を出さない）。読めなかったときは時刻の分からない行として updated_at に ~ を付ける
+  const pending = !log && !error;
+  const finishedAt = useMemo(
+    () => (pending ? null : finishedAtOf(log?.events ?? [])),
+    [pending, log],
+  );
   const all = useMemo(
     () => finishedTickets(store.tickets, finishedAt, { query: "", result: "" }),
     [store.tickets, finishedAt],
@@ -859,10 +875,10 @@ function TicketView({
           )}
         </p>
       ) : null}
-      {!log && !error ? (
-        // 終えた時刻は history の結果が届くまで分からないので、updated_at の順で先に出しておく
+      {pending ? (
+        // 終えた時刻は history の結果が届くまで分からないので、番号の順で先に出し、日付の欄は読み込み中の印にしておく
         <p className="muted history-loading" role="status">
-          {tr("終えた時刻を読み込み中…（それまでは更新日の順）")}
+          {tr("終えた時刻を読み込み中…（それまでは番号の順）")}
         </p>
       ) : null}
       {all.length === 0 ? (
@@ -880,6 +896,7 @@ function TicketView({
 /**
  * チケットの見方：日付の見出しを付けず、終えた新しい順の 1 本の一覧（履歴用の行）で出す。
  * 2 段目は Iteration・PR・終えた日（Epic で分けて見るのは Epic の見方）。終えた日が履歴から分からないものは更新日に ~ を付ける。
+ * history の結果が届く前（at が null）は、終えた日の欄を読み込み中の印にする。
  * 多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける
  */
 function FinishedList({ rows }: { rows: readonly FinishedRow[] }) {
@@ -896,11 +913,19 @@ function FinishedList({ rows }: { rows: readonly FinishedRow[] }) {
               showIteration
               showEpic={false}
               note={
-                <ShortDay
-                  iso={at}
-                  approximate={approximate}
-                  note={approximate ? tr("履歴から分からないので更新日") : tr("終えた日時")}
-                />
+                at === null ? (
+                  <span
+                    className="skeleton-bar skeleton-day"
+                    role="img"
+                    aria-label={tr("終えた日を読み込み中")}
+                  />
+                ) : (
+                  <ShortDay
+                    iso={at}
+                    approximate={approximate}
+                    note={approximate ? tr("履歴から分からないので更新日") : tr("終えた日時")}
+                  />
+                )
               }
             />
           );
