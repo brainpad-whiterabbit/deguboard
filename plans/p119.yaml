@@ -1,0 +1,16 @@
+id: p119
+project: default
+tickets: [t847, t848]
+after:
+  t848:
+    - t847
+pending_approval: true
+details:
+  t847:
+    scope: config.yaml の retro の観点（名前・問い・承認した指標の定義）のスキーマと既定の 7 観点、定義を書く dg のコマンド、guide retro の書き直し、requirements 5.10 と振り返りの項、ADR。今の 5 観点（効率を含む）は置き換え、t846 の 1 行あたりのトークンはコストの観点の指標の候補として guide に残す。元のデータの出力は含めない
+    approach: Core のコマンド定義で入れ子の観点を検査して書き、CLI は写すだけにする。guide retro は定義のない観点の提案と承認・定義のある観点の計算と傾向・未計測の扱いの手順にする
+    tier: heavy
+  t848:
+    scope: 各チケットの PR の変更ファイルと、本文・題のほかのチケットの ID の参照を dg の JSON で出し、取れないものは不明で返す。guide retro に出どころとして書き足す
+    approach: Core のコマンド定義に置き、変更ファイルは ADR-029 の変更行数と同じく gh か git から取る。どのコマンドに出すかは実装の初めに既存の ticket show・metrics と比べて決める
+    tier: heavy
