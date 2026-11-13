@@ -6,8 +6,8 @@
 // 色付きの文字）、2 段目は実績の期間（started_at〜closed_at）と、終わったチケットの Epic ごとの内訳（見出しなし。Epic なしを含み、合計は終わったチケットの件数に合う。
 // すべて Epic なしなら出さない）。
 // Run の実績はここに出さない（チケット詳細の Run の節と dg metrics show で見る）。
-// 左パネルの狭い幅で読めるよう、Iteration の行は開閉の印を付け、開くと中の done・abandoned のチケットを番号の順の 1 本の一覧（履歴用の行。
-// components/history-rows.tsx）で出し、持ち越しを最後に分ける。
+// 左パネルの狭い幅で読めるよう、Iteration の行は開閉の印を付け、開くと中を完了・中止・持ち越しの順に出す。完了は番号の順の 1 本の一覧
+// （履歴用の行。components/history-rows.tsx）、中止と持ち越しは 1 件以上のときだけ「中止 N 件」「持ち越し N 件」の小見出しの下に分ける。
 // Epic の見方：closed の Epic を閉じた新しい順に、タイトルを 2 行まで出し、Iteration の行と同じ件数・閉じた日・チケットが入っていた Iteration を付ける。
 // 行を開くと中の終わったチケットを番号の順の 1 本の一覧（2 段目は Iteration・PR）で出し、終わったチケットのない Epic は薄く出して開けない。
 // チケットの見方：done・abandoned のチケットを終えた新しい順の 1 本の一覧（履歴用の行。2 段目は PR・終えた日）で出し、
@@ -508,7 +508,7 @@ function SearchHitsBar({ hits, total, fold }: { hits: number; total: number; fol
 }
 
 /**
- * Iteration の行。開閉の印を付け、開くと中の done・abandoned のチケットを番号の順の 1 本の一覧（履歴用の行）で出す。
+ * Iteration の行。開閉の印を付け、開くと中のチケットを完了・中止・持ち越しの順に出す（IterationTickets）。
  * 検索語（query）に当たった番号・目標には印を付ける。名前は行に出さないので、名前に当たったときだけ 2 段目に「名前 …」を印付きで足す
  * （目標と同じ文字なら目標の印で分かるので足さない）
  */
@@ -592,7 +592,7 @@ function IterationItem({
           {spot.overlay}
         </summary>
         {!fold.open ? null : fold.searching && !fold.all ? (
-          <SearchHits finished={finished} query={query} fold={fold} />
+          <SearchHits finished={finished} query={query} fold={fold} splitAbandoned />
         ) : (
           <IterationTickets
             iteration={i.id}
@@ -616,8 +616,35 @@ function IterationItem({
 }
 
 /**
- * 開いた Iteration の中：終わったチケットを番号の順の 1 本の一覧で出し（Epic で分けて見るのは Epic のタブ）、
- * 最後に持ち越したチケットを 1 件以上あるときだけ出す。多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける。
+ * 中止のチケットを「中止 N 件」の小見出しの下にまとめる（持ち越しの小見出しと同じ形）。0 件なら何も出さない。
+ * 一覧は完了と同じく多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける。
+ * listKey は一覧の「ほか N 件」の開いた状態を捨てる鍵（検索中は検索語）
+ */
+function AbandonedGroup({
+  tickets,
+  row,
+  listKey,
+}: {
+  tickets: readonly Ticket[];
+  row: (ticket: Ticket) => ReactNode;
+  listKey?: string | undefined;
+}) {
+  if (tickets.length === 0) return null;
+  return (
+    <section className="history-group history-abandoned-group">
+      <h3>
+        {trNode("中止 {0}", <span className="muted">{trNode("{0} 件", tickets.length)}</span>)}
+      </h3>
+      <HistoryTicketList key={listKey} tickets={tickets} row={row} />
+    </section>
+  );
+}
+
+/**
+ * 開いた Iteration の中：完了・中止・持ち越しの順に出す。完了は番号の順の 1 本の一覧で（Epic で分けて見るのは Epic のタブ）、
+ * 中止と持ち越しはそれぞれ 1 件以上あるときだけ小見出しの下にまとめる。中止を完了と混ぜないのは、Iteration で
+ * やり遂げたものを先に読み、やめたものを後でまとめて見られるようにするため。持ち越しは Iteration から外れたものなので最後に置く。
+ * どの一覧も多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける。
  * 持ち越しは履歴から求める（読むのは画面で 1 回。useCarriedOver）
  */
 function IterationTickets({
@@ -644,17 +671,18 @@ function IterationTickets({
   );
   const byId = new Map<string, Ticket>(store.tickets.map((t) => [t.id, t]));
   const carriedTickets = (carried ?? []).flatMap((id) => byId.get(id) ?? []);
+  const done = finished.filter((t) => t.status !== "abandoned");
+  const abandoned = finished.filter((t) => t.status === "abandoned");
+  const row = (t: Ticket) => <HistoryTicketRow ticket={t} query={query} />;
   return (
     <div className="history-groups">
       {header}
       {finished.length === 0 ? (
         <p className="empty">{tr("終わったチケットはない")}</p>
-      ) : (
-        <HistoryTicketList
-          tickets={finished}
-          row={(t) => <HistoryTicketRow ticket={t} query={query} />}
-        />
-      )}
+      ) : done.length > 0 ? (
+        <HistoryTicketList tickets={done} row={row} />
+      ) : null}
+      <AbandonedGroup tickets={abandoned} row={row} />
       {carriedTickets.length > 0 ? (
         <section className="history-group history-carried">
           <h3>
@@ -695,36 +723,45 @@ function IterationTickets({
 
 /**
  * 検索で開いた行の中：終わったチケットのうち当たったものだけを番号の順に印付きで出す（持ち越しは出さない）。
- * 「すべて見る」で行の全件の一覧に戻す。「ほか N 件」の開いた状態は検索語を変えたら戻す
+ * 「すべて見る」で行の全件の一覧に戻す。「ほか N 件」の開いた状態は検索語を変えたら戻す。
+ * splitAbandoned（Iteration の行）では、当たったものを開いた Iteration の中と同じく完了・中止の順に分け、
+ * 中止を「中止 N 件」（N は当たった中止の数）の小見出しの下にまとめる。検索の前後で同じチケットが同じ節にあれば、
+ * 「すべて見る」で全件に戻しても並びが入れ替わらないため。持ち越しは終わったチケットでないので検索の当たりに入れない
  */
 function SearchHits({
   finished,
   query,
   fold,
   showIteration = false,
+  splitAbandoned = false,
 }: {
   finished: readonly Ticket[];
   query: string;
   fold: RowFold;
   /** Epic の行の中では Epic を省き Iteration を出す */
   showIteration?: boolean;
+  /** 中止を「中止 N 件」の小見出しの下に分ける（Iteration の行） */
+  splitAbandoned?: boolean;
 }) {
   const hits = finished.filter((t) => ticketMatchesQuery(t, query));
+  const abandoned = splitAbandoned ? hits.filter((t) => t.status === "abandoned") : [];
+  const main = splitAbandoned ? hits.filter((t) => t.status !== "abandoned") : hits;
+  const listKey = query.trim().toLowerCase();
+  const row = (t: Ticket) => (
+    <HistoryTicketRow
+      ticket={t}
+      query={query}
+      showIteration={showIteration}
+      showEpic={!showIteration}
+    />
+  );
   return (
     <div className="history-groups">
       <SearchHitsBar hits={hits.length} total={finished.length} fold={fold} />
-      <HistoryTicketList
-        key={query.trim().toLowerCase()}
-        tickets={hits}
-        row={(t) => (
-          <HistoryTicketRow
-            ticket={t}
-            query={query}
-            showIteration={showIteration}
-            showEpic={!showIteration}
-          />
-        )}
-      />
+      {main.length > 0 || abandoned.length === 0 ? (
+        <HistoryTicketList key={listKey} tickets={main} row={row} />
+      ) : null}
+      <AbandonedGroup tickets={abandoned} row={row} listKey={listKey} />
     </div>
   );
 }
