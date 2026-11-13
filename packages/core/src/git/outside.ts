@@ -119,11 +119,22 @@ export async function recordBaseline(repo: GitRepo): Promise<void> {
   await writeFileAtomic(baselinePath(repo), `${JSON.stringify(baseline)}\n`);
 }
 
+/**
+ * リモートの名前の読み方。省けば repo.remote。Stop の速い経路（fast-hook.ts）は、名前を読むのに config（yaml・zod）を読むので、
+ * 要るとき（基準の HEAD から HEAD が動いたとき）だけ読む関数を渡す（t786）
+ */
+type RemoteOf = () => Promise<string | null>;
+
 /** 基準の HEAD より後で、リモートの deguboard にない、印のないコミット（新しい順） */
-async function outsideCommits(repo: GitRepo, base: string): Promise<OutsideCommit[]> {
+async function outsideCommits(
+  repo: GitRepo,
+  base: string,
+  remoteOf: RemoteOf,
+): Promise<OutsideCommit[]> {
   const known = await git(repo, ["cat-file", "-e", `${base}^{commit}`]);
   // 基準のコミットがない（履歴を作り直した）ときは、リモートにないコミットだけを見る。リモートもなければ見ない
-  const remote = repo.remote ? `refs/remotes/${repo.remote}/${DATA_BRANCH}` : undefined;
+  const remoteName = await remoteOf();
+  const remote = remoteName ? `refs/remotes/${remoteName}/${DATA_BRANCH}` : undefined;
   const hasRemote =
     remote !== undefined &&
     (await git(repo, ["show-ref", "--verify", "--quiet", remote])).code === 0;
@@ -172,10 +183,11 @@ const baselineText = (repo: GitRepo) => readFile(baselinePath(repo), "utf8").cat
 async function compare(
   repo: GitRepo,
   baseline: OutsideBaseline,
+  remoteOf: RemoteOf,
 ): Promise<{ commits: OutsideCommit[]; files: OutsideFile[]; rewritten: boolean }> {
   const head = await headOf(repo);
   if (head === undefined) return { commits: [], files: [], rewritten: false };
-  const commits = head === baseline.head ? [] : await outsideCommits(repo, baseline.head);
+  const commits = head === baseline.head ? [] : await outsideCommits(repo, baseline.head, remoteOf);
   const rewritten = head !== baseline.head && !(await isAncestor(repo, baseline.head));
   const files: OutsideFile[] = [];
   const now = await dirtyFiles(repo);
@@ -191,12 +203,14 @@ async function compare(
 /**
  * dg の外の変更を確かめる。基準がなければ clean（initial）。opts.underLock は、呼び出し側が書き込みのロックを持っていること。
  * 持っていなければ、ほかの dg の書き込み（ロックを取ってから基準を記録して放すまで）と重なりうるので、比べる前後で基準とロックを確かめ、
- * 重なったら比べ直す。重なり続けたら、作業ツリーと履歴の書き換えは見ずに、印のないコミットだけを返す（並べて動く dg の書きかけを取り違えない）
+ * 重なったら比べ直す。重なり続けたら、作業ツリーと履歴の書き換えは見ずに、印のないコミットだけを返す（並べて動く dg の書きかけを取り違えない）。
+ * opts.remote はリモートの名前の読み方（RemoteOf）
  */
 export async function checkOutside(
   repo: GitRepo,
-  opts: { underLock?: boolean } = {},
+  opts: { underLock?: boolean; remote?: RemoteOf } = {},
 ): Promise<OutsideCheck> {
+  const remoteOf = opts.remote ?? (async () => repo.remote);
   // 生きた dg が書き込みのロックを持つ間の rebase はその dg の取り込みなので、下の比べ方（書きかけを捨てる）に任せる
   if ((await rebaseInProgress(repo)) && (opts.underLock || !(await writeLocked(repo))))
     return { kind: "rebasing", byDg: await rebaseLeftByDg(repo) };
@@ -209,7 +223,7 @@ export async function checkOutside(
       return { kind: "clean", initial: true };
     }
     const lockedBefore = !opts.underLock && (await writeLocked(repo));
-    const found = await compare(repo, baseline);
+    const found = await compare(repo, baseline, remoteOf);
     const stable =
       opts.underLock ||
       (!lockedBefore && !(await writeLocked(repo)) && (await baselineText(repo)) === before);

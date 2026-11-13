@@ -121,7 +121,7 @@ describe("同梱の dg の束ね方（vite.cli.config.ts）", () => {
     expect(stderr).toBe("");
   });
 
-  it("PreToolUse は本体の chunk を読まずに判定する（入口の速い経路。t769）", async () => {
+  it("PreToolUse と Stop は本体の chunk を読まずに判定する（入口の速い経路。t769・t786）", async () => {
     // 本体の chunk を消したコピーでも、初期化した repo の PreToolUse の拒みは出る。本体が要る --version は動かない
     const copy = path.join(tmp, "cli-no-main");
     await cp(outDir, copy, { recursive: true });
@@ -150,6 +150,21 @@ describe("同梱の dg の束ね方（vite.cli.config.ts）", () => {
     );
     expect(hook.status).toBe(0);
     expect(JSON.parse(hook.stdout).hookSpecificOutput.permissionDecision).toBe("deny");
+    // Stop も、データのリポジトリの dg の外の未コミットの変更を本体の chunk なしで伝える（t786）
+    await writeFile(path.join(repo, ".git", "deguboard", "outside.md"), "x\n");
+    const stop = spawnSync(
+      process.execPath,
+      [path.join(copy, "dg.mjs"), "--actor", "agent", "hook", "Stop", "--payload", "-"],
+      {
+        cwd: repo,
+        input: JSON.stringify({ session_id: "s-bundle", stop_hook_active: false }),
+        encoding: "utf8",
+        env,
+      },
+    );
+    expect(stop.status).toBe(0);
+    expect(JSON.parse(stop.stdout).decision).toBe("block");
+    expect(JSON.parse(stop.stdout).reason).toContain("outside.md");
     const main = spawnSync(process.execPath, [path.join(copy, "dg.mjs"), "--version"], {
       encoding: "utf8",
       env,

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 
 // 拡張に同梱する dg を、小さな入口（dist/cli/dg.mjs）と、core・server・cli と MCP SDK などの依存を束ねた本体の chunk
-// （dist/cli/dg-main-<hash>.mjs）の ESM に分ける。入口はコンパイルキャッシュを有効にしてから、PreToolUse の速い経路（dg-fast-<hash>.mjs）か本体を読む（packages/cli/src/bundle.ts）。
+// （dist/cli/dg-main-<hash>.mjs）の ESM に分ける。入口はコンパイルキャッシュを有効にしてから、PreToolUse と Stop の速い経路（dg-fast-<hash>.mjs）か本体を読む（packages/cli/src/bundle.ts）。
 // 本体の中の動的な import（dg serve の server・dg mcp など）も本体の chunk に入れる。動的な import の先ごとに、本体から名前を
 // 写すだけの小さな chunk（dg-<name>-<hash>.mjs）ができる。ネイティブのモジュールはないので、プラットフォームごとの VSIX に分けない。
 // 拡張の本体（vite.config.ts）の後に走り、dist を消さない。Web の画面（dist/web）と guide（dist/guide-*.md）は拡張の本体と共有する。
@@ -16,7 +16,8 @@ const cliPkg = JSON.parse(
 
 const entryPath = "/cli/src/bundle.ts";
 
-// PreToolUse の速い経路（t769）が静的に読むファイル（packages/ からの相対）。入口の dg.mjs はこれだけを読み、本体の chunk を読まない。
+// PreToolUse と Stop の速い経路（t769・t786）が静的に読むファイル（packages/ からの相対）。入口の dg.mjs はこれだけを読み、本体の chunk を読まない
+// （Stop が config のリモートの名前を要るときだけ、core/src/fast-hook.ts が config を読むファイルを動的に読み、本体の chunk を読む）。
 // 一覧は fast-path-files.json の 1 か所に置き、fast-hook.test.ts が速い経路の静的な import とこの一覧の揃いを確かめる
 // （bundle-cli.test.ts が、本体の chunk を読まずに判定することを確かめる）
 const FAST_PATH_FILES = (
