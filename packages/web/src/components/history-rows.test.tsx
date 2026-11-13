@@ -44,11 +44,11 @@ describe("履歴用の行", () => {
         .querySelectorAll("mark");
     expect([...marks("t1")].map((m) => m.textContent)).toEqual(["Search", "search"]);
     expect([...marks("t2")].map((m) => m.textContent)).toEqual(["search"]);
-    expect(metaOf("t2")).toBe("PR なし ・ ラベル search-ui");
+    expect(metaOf("t2")).toBe("ラベル search-ui");
     expect([...marks("t3")].map((m) => m.closest("code") !== null)).toEqual([true]);
   });
 
-  it("2 段目に Epic と PR 番号を出し、Epic のないものは何も書かず、PR のないものは「PR なし」と書く。優先度のバッジは出さない", async () => {
+  it("2 段目に Epic を出し、Epic のないものは何も書かない。優先度のバッジは出さない", async () => {
     mount(
       <>
         <HistoryTicketRow
@@ -58,8 +58,8 @@ describe("履歴用の行", () => {
       </>,
     );
     await screen.findByText("t1");
-    expect(metaOf("t1")).toBe("e1 ・ #12");
-    expect(metaOf("t2")).toBe("PR なし");
+    expect(metaOf("t1")).toBe("e1");
+    expect(metaOf("t2")).toBe("");
     expect(document.querySelector(".priority-high")).toBeNull();
     expect(document.querySelector(".row-assignee")).toBeNull();
   });
@@ -76,10 +76,37 @@ describe("履歴用の行", () => {
     await screen.findByText("t3");
     const row = document.querySelector(".history-ticket")!;
     expect(row.classList.contains("abandoned")).toBe(true);
-    expect(metaOf("t3")).toBe("中止 ・ s2 ・ PR なし ・ 今は s3");
+    expect(metaOf("t3")).toBe("中止 ・ s2 ・ 今は s3");
     expect(row.querySelector(".history-abandoned")).toBeTruthy();
     // 輪とタイトルの薄さの見た目は CSS なので、test/layout/sidebar.layout.ts の computed style で確かめる
     expect(row.querySelector(".status-dot.status-abandoned")).toBeTruthy();
+  });
+});
+
+describe("履歴用の行の PR（UI-2 と同じ番号の下のリンク）", () => {
+  const rowOf = (id: string) =>
+    [...document.querySelectorAll(".history-ticket")].find(
+      (r) => r.querySelector("code")?.textContent === id,
+    )!;
+
+  it("PR のある行は番号の下の欄（行のリンクの外）に PR の印と #番号を出し、付記には PR を書かない", async () => {
+    mount(<HistoryTicketRow ticket={ticket({ id: "t1", status: "done", epic: "e1", pr: 12 })} />);
+    await screen.findByText("t1");
+    const row = rowOf("t1");
+    const cell = row.querySelector(".row-pr")!;
+    expect(cell.textContent).toBe("#12");
+    expect(cell.querySelector("svg"), "PR の印").toBeTruthy();
+    expect(cell.closest("a.ticket-row"), "行のリンクの中に入れない").toBeNull();
+    expect(row.querySelector(".history-ticket-meta")!.textContent).not.toContain("#12");
+  });
+
+  it("PR のない行は PR の欄を出さず、付記にも「PR なし」を書かない（カンバンの行と同じ）", async () => {
+    mount(<HistoryTicketRow ticket={ticket({ id: "t2", status: "done", epic: "e1" })} />);
+    await screen.findByText("t2");
+    const row = rowOf("t2");
+    expect(row.querySelector(".row-pr")).toBeNull();
+    expect(row.querySelector(".history-ticket-meta")!.textContent).toBe("e1");
+    expect(row.textContent).not.toContain("PR");
   });
 });
 

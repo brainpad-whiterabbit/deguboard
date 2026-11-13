@@ -273,8 +273,10 @@ describe("サイドバーの履歴", () => {
     expect(item.querySelector(".history-group")).toBeNull();
     expect(item.querySelector(".history-ticket.abandoned code")!.textContent).toBe("t3");
     expect(item.querySelector(".history-ticket:last-child .history-ticket-meta")!.textContent).toBe(
-      "e1 ・ #30",
+      "e1",
     );
+    // PR は付記ではなく番号の下の欄に出す
+    expect(item.querySelector(".history-ticket:last-child .row-pr")!.textContent).toBe("#30");
   });
 
   it("終わったチケットのない Epic は薄く出して開けず、チップは完了 0 だけ、2 段目にチケットなし・閉じた日・Iteration を出す", async () => {
@@ -347,9 +349,9 @@ describe("サイドバーの履歴", () => {
       "t10",
     ]);
     expect([...item.querySelectorAll(".history-ticket-meta")].map((m) => m.textContent)).toEqual([
-      "Iteration なし ・ PR なし",
-      "中止 ・ s1 ・ PR なし",
-      "s1 ・ #30",
+      "Iteration なし",
+      "中止 ・ s1",
+      "s1",
     ]);
     // 番号を押すと詳細を開く
     fireEvent.click(item.querySelector(".history-list .history-ticket-main")!);
@@ -435,12 +437,13 @@ describe("サイドバーの履歴", () => {
       [...document.querySelectorAll(".history-ticket-meta")].map((m) =>
         m.textContent!.replace(/\d\d$/, "dd"),
       ),
-    ).toEqual([
-      "PR なし ・ 10/dd",
-      "#12 ・ 10/dd",
-      "PR なし ・ 09/dd",
-      "中止 ・ PR なし ・ ~01/dd",
-    ]);
+    ).toEqual(["10/dd", "10/dd", "09/dd", "中止 ・ ~01/dd"]);
+    // PR は PR のある行だけ番号の下の欄に出す
+    expect(
+      [...document.querySelectorAll(".history-ticket")].map(
+        (r) => r.querySelector(".row-pr")?.textContent ?? null,
+      ),
+    ).toEqual([null, "#12", null, null]);
     const abandoned = document.querySelectorAll(".history-ticket")[3]!;
     expect(abandoned.classList.contains("abandoned")).toBe(true);
     // 絞り込みは検索と結果だけ
@@ -698,7 +701,7 @@ describe("サイドバーの履歴", () => {
     expect([...items[0]!.querySelectorAll(".history-list code")].map((c) => c.textContent)).toEqual(
       ["t1"],
     );
-    expect(items[0]!.querySelector(".history-ticket-meta")!.textContent).toBe("s1 ・ PR なし");
+    expect(items[0]!.querySelector(".history-ticket-meta")!.textContent).toBe("s1");
     expect(items[0]!.querySelector(".row-title mark")!.textContent).toBe("検索");
     fireEvent.click(within(items[0]!).getByRole("button", { name: "すべて見る" }));
     expect([...items[0]!.querySelectorAll(".history-list code")].map((c) => c.textContent)).toEqual(
@@ -1031,7 +1034,7 @@ describe("履歴のタブ・Iteration の行・Epic の見方", () => {
     expect(lists).toEqual([["t1", "t4"], ["t6"]]);
     expect(item.querySelector(".history-carried h3")!.textContent).toBe("持ち越し 1 件");
     expect(item.querySelector(".history-carried .history-ticket-meta")!.textContent).toBe(
-      "PR なし ・ 今は s2",
+      "今は s2",
     );
     fireEvent.click(item.querySelector(".history-list .row")!);
     fireEvent.click(row.querySelector("small a")!);

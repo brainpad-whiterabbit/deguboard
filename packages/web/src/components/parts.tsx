@@ -461,10 +461,12 @@ export function prRowClass(
 }
 
 /**
- * 行の番号の下の PR のリンク（UI-2）。行のリンクの外に置くので、リンクの中にリンクを入れず、Tab では止まらない（tabIndex -1）。
- * 押しても行の選択と詳細は変えない（ask-menu.tsx の NOT_SELECT_CLICK が .row-pr を外す）。PR の印と #番号（PrLink と同じ URL）
+ * 行の番号の下の PR のリンク（UI-2）。カンバン・バックログの行（TicketRow）と履歴の行（history-rows.tsx）で使う。
+ * 行のリンクの外に置くので、リンクの中にリンクを入れず、Tab では止まらない（tabIndex -1）。
+ * 押しても行の選択と詳細は変えない（ask-menu.tsx の NOT_SELECT_CLICK が .row-pr を外す）。PR の印と #番号（PrLink と同じ URL）。
+ * className は欄に足す class（先頭に空白を付けて渡す。Epic の札に触れている間の光らせ方）
  */
-function RowPrLink({ pr, className }: { pr: number; className: string }) {
+export function RowPrLink({ pr, className = "" }: { pr: number; className?: string | undefined }) {
   const href = prHref(useStore().status?.web_url, pr);
   const label = (
     <>

@@ -1,4 +1,4 @@
-// 行の番号の下の PR のリンク（UI-2）。dg serve の画面を Chromium で開き、カンバンとバックログで PR の番号があるチケットの行は番号の下に PR の印と #番号を出し、
+// 行の番号の下の PR のリンク（UI-2）。dg serve の画面を Chromium で開き、カンバンとバックログと履歴で PR の番号があるチケットの行は番号の下に PR の印と #番号を出し、
 // ない行は今と同じ高さ・列の幅で出ることを確かめる。リンクは詳細の PR の欄と同じ URL を新しいタブで開き、詳細は開かず、行の選択も変えず、Tab では止まらない。
 // リポジトリの web の URL がわからないときは、リンクにせず #番号を文字だけで出す。
 // web の URL は画面が /api/status の web_url で受け取るので、GitHub の URL の形に書き換えて見せる（手元の bare リモートは GitHub ではないため）。
@@ -29,6 +29,8 @@ const GITHUB = "https://github.com/o/r";
 const PR = 7;
 /** todo のまま PR の番号を持つ行（t4。頭の印がない行の番号の列を見る） */
 const PR_TODO = 142;
+/** 終えたチケットの PR の番号（t5。履歴の行を見る） */
+const PR_DONE = 1234;
 
 let fixture: Fixture;
 let server: { url: string; close(): Promise<void> };
@@ -100,6 +102,16 @@ beforeAll(async () => {
   await call("ticket.move", { ticket: "t3", status: "in_progress" });
   await call("ticket.update", { ticket: "t2", pr: PR });
   await call("ticket.update", { ticket: "t4", pr: PR_TODO });
+  // 履歴の行（t5 は PR のある 1 行のタイトル、t6 は PR のない行、t7 は PR のある 2 行のタイトル）
+  await call("ticket.create", { title: "PR のある終えたチケット", iteration: "s1" });
+  await call("ticket.create", { title: "PR のない終えたチケット", iteration: "s1" });
+  await call("ticket.create", {
+    title: "左パネルの幅ではタイトルが 2 行に折り返す長さの、PR のある終えたチケットの題",
+    iteration: "s1",
+  });
+  await call("ticket.update", { ticket: "t5", pr: PR_DONE });
+  await call("ticket.update", { ticket: "t7", pr: PR });
+  for (const ticket of ["t5", "t6", "t7"]) await call("ticket.move", { ticket, status: "done" });
   browser = await chromium.launch().catch((error: unknown) => {
     throw new Error(
       `Chromium を起動できない。mise run playwright:install を実行する（${String(error)}）`,
@@ -334,6 +346,89 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
     expect((await pr.locator(".row-pr").textContent())?.trim()).toBe(`#${PR}`);
     expect(await pr.locator(".row-pr a").count(), "リンクにしない").toBe(0);
     await context.close();
+  });
+
+  describe("履歴の行（チケットの見方）", () => {
+    const HISTORY = "/history?view=ticket";
+
+    it("PR のある行は番号のすぐ下に PR の印と #番号を出し、行の高さは PR のない行と同じ。付記に PR を書かない", async () => {
+      const { page, context } = await openPage(HISTORY);
+      const pr = rowOf(page, "t5");
+      const plain = rowOf(page, "t6");
+      await pr.waitFor();
+      expect((await pr.locator(".row-pr").textContent())?.trim()).toBe(`#${PR_DONE}`);
+      expect(await pr.locator(".row-pr svg").count(), "PR の印").toBe(1);
+      expect(await plain.locator(".row-pr").count(), "PR のない行に PR の欄はない").toBe(0);
+      for (const row of [pr, plain])
+        expect(await row.locator(".history-ticket-meta").textContent()).not.toMatch(/#\d|PR/);
+
+      const [codeP, codeN, link, titleP, meta] = await Promise.all([
+        boxOf(pr.locator("code")),
+        boxOf(plain.locator("code")),
+        boxOf(pr.locator(".row-pr-link")),
+        boxOf(pr.locator(".row-title")),
+        boxOf(pr.locator(".history-ticket-note")),
+      ]);
+      expect(Math.abs(codeP.x - codeN.x), "番号の左端").toBeLessThan(0.5);
+      expect(Math.abs(link.x - codeP.x), "PR の欄の左端は番号の左端").toBeLessThan(0.5);
+      expect(link.y, "PR の欄は番号の下").toBeGreaterThanOrEqual(codeP.y + codeP.height - 1);
+      // 1 行のタイトルでは、PR は付記の横（同じ高さ）に並び、タイトルと付記に重ならない
+      expect(Math.abs(link.y + link.height / 2 - (meta.y + meta.height / 2))).toBeLessThan(1.5);
+      expect(link.x + link.width, "PR は付記の左").toBeLessThanOrEqual(meta.x);
+      expect(link.x + link.width, "PR はタイトルの左").toBeLessThanOrEqual(titleP.x);
+      expect(
+        Math.abs((await boxOf(pr)).height - (await boxOf(plain)).height),
+        "行の高さ",
+      ).toBeLessThan(0.5);
+      await context.close();
+    });
+
+    it("タイトルが 2 行の行は、PR をタイトルの 2 行目の横に出し、行を増やさない", async () => {
+      const { page, context } = await openPage(HISTORY);
+      const pr = rowOf(page, "t7");
+      await pr.waitFor();
+      const [code, link, title, row, main, meta] = await Promise.all([
+        boxOf(pr.locator("code")),
+        boxOf(pr.locator(".row-pr-link")),
+        boxOf(pr.locator(".row-title")),
+        boxOf(pr),
+        boxOf(pr.locator("a.ticket-row")),
+        boxOf(pr.locator(".history-ticket-meta")),
+      ]);
+      expect(title.height, "タイトルは 2 行").toBeGreaterThan(code.height * 1.5);
+      const secondLine = { top: title.y + title.height / 2, bottom: title.y + title.height };
+      const mid = link.y + link.height / 2;
+      expect(mid, "PR はタイトルの 2 行目の高さ").toBeGreaterThan(secondLine.top);
+      expect(mid).toBeLessThan(secondLine.bottom);
+      expect(link.x + link.width, "PR はタイトルの左").toBeLessThanOrEqual(title.x);
+      // 行は 1 段目（2 行のタイトル）と付記の段だけ
+      expect(Math.abs(row.height - main.height - meta.height), "行の高さ").toBeLessThan(0.5);
+      await context.close();
+    });
+
+    it("リンクを押すと PR を新しいタブで開き、行の選択と開いている画面を変えず、Tab では止まらない", async () => {
+      const { page, context } = await openPage(HISTORY);
+      const pr = rowOf(page, "t5");
+      const plain = rowOf(page, "t6");
+      await pr.waitFor();
+      const strip = await stripPoint(plain);
+      await page.mouse.click(strip.x, strip.y);
+      expect(await plain.getAttribute("data-selected"), "帯で t6 を選んだ").not.toBeNull();
+      const hashBefore = new URL(page.url()).hash;
+
+      const link = prLinkOf(page, "t5");
+      expect(await link.evaluate((el) => (el as HTMLAnchorElement).tabIndex)).toBe(-1);
+      const href = (await link.getAttribute("href"))!;
+      expect(href).toBe(`${GITHUB}/pull/${PR_DONE}`);
+      const [popup] = await Promise.all([context.waitForEvent("page"), link.click()]);
+      expect(popup.url()).toBe(href);
+      await popup.close();
+
+      expect(new URL(page.url()).hash, "詳細は開かない").toBe(hashBefore);
+      expect(await plain.getAttribute("data-selected"), "選びは変わらない").not.toBeNull();
+      expect(await pr.getAttribute("data-selected"), "PR のリンクでは選ばれない").toBeNull();
+      await context.close();
+    });
   });
 
   it("PR の欄は詳細の PR の欄と同じ URL を指す", async () => {

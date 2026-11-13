@@ -90,7 +90,6 @@ export const EN: Readonly<Record<string, string>> = {
   // components/history-rows.tsx
   "行 {0}": "Row {0}",
   "Iteration なし": "No Iteration",
-  "PR なし": "No PR",
   "ラベル{0}{1}": "Labels{0}{1}",
   " ・ ": " · ",
   "ほか {0} 件": "{0} more",

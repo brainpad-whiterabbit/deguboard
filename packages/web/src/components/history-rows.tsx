@@ -1,12 +1,13 @@
 // 履歴用のチケットの行と一覧（左パネルの履歴）。Iteration・Epic・チケットのタブで共用する。
-// 行は 2 段：1 段目は状態の丸印・番号・タイトル（サイドバーでは 2 行まで）、2 段目は Epic・PR などの付記。
+// 行は 2 段：1 段目は状態の丸印・番号・タイトル（サイドバーでは 2 行まで）、2 段目は Epic などの付記。
+// PR はカンバンの行と同じく番号のすぐ下にリンクで出す（RowPrLink。UI-2）。
 // 優先度と担当者は出さない（終わったものを見る画面なので）。中止の行は点を塗らない輪にしてタイトルを薄くし、付記の頭に「中止」と書いて、色だけに頼らず完了と見分ける。
 // 検索中は query を渡し、当たった部分（タイトル・番号・ラベル）に印（mark）を付ける。
 // 行はエージェントに頼める場所にする（右端の吹き出し・Shift+F10。ask-menu.tsx）。右クリックは「詳細を開く」「ID をコピー」
 
 import { Fragment, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "./ask-menu.js";
-import { DetailLink, StatusDot, TicketLink } from "./parts.js";
+import { DetailLink, RowPrLink, StatusDot, TicketLink } from "./parts.js";
 import type { Ticket } from "../types.js";
 import { tr } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
@@ -44,7 +45,11 @@ function Highlight({ text, query }: { text: string; query?: string | undefined }
 
 /**
  * 履歴用のチケットの行。2 段目は「中止」（中止のときだけ）・Iteration（showIteration のとき）・Epic（あるときだけ）・
- * PR 番号（なければ PR なし）・note の順に「・」で区切って出す。
+ * note の順に「・」で区切って出す。
+ * PR の番号があるときは、番号のすぐ下に PR の印と #番号のリンクを出す（カンバンの行と同じ RowPrLink）。
+ * 番号と PR は番号の列に縦に積み、PR は行の 2 行目（タイトルが 2 行なら 2 行目の横、1 行なら付記の横）に重ねて、行を増やさない（styles.css の .history-ticket）。
+ * PR のないチケットは PR の欄にも付記にも何も出さない（カンバンの行と同じ）。PR の有無は番号の下の印の有無で見分けられ、
+ * ない行ごとに「PR なし」と書くと、Epic のないものを書かないのと同じく付記の読むところが埋もれるので。
  * Epic のタブのように Epic が分かっている一覧では showEpic={false} で Epic を省く。
  * query を渡すと、番号とタイトルの当たった部分に印を付け、当たったラベルを note の前に足す
  */
@@ -89,7 +94,6 @@ export function HistoryTicketRow({
   // Epic のないチケットは何も書かない（Iteration の行の内訳で分かり、行ごとに繰り返すと読むところが埋もれる）
   if (showEpic && t.epic)
     parts.push(<DetailLink route={{ page: "epics", id: t.epic }}>{t.epic}</DetailLink>);
-  parts.push(t.pr ? <span>#{t.pr}</span> : <span className="history-none">{tr("PR なし")}</span>);
   const labels = q ? t.labels.filter((l) => l.toLowerCase().includes(q)) : [];
   if (labels.length > 0)
     parts.push(
@@ -118,14 +122,18 @@ export function HistoryTicketRow({
           <Highlight text={t.title} query={q} />
         </span>
       </TicketLink>
+      {/* 付記が空でも 2 段目の高さは取る（PR のある行とない行の高さを揃える。styles.css の .history-ticket-meta） */}
       <small className="history-ticket-meta">
-        {parts.map((p, n) => (
-          <span key={n}>
-            {n > 0 ? tr(" ・ ") : ""}
-            {p}
-          </span>
-        ))}
+        <span className="history-ticket-note">
+          {parts.map((p, n) => (
+            <span key={n}>
+              {n > 0 ? tr(" ・ ") : ""}
+              {p}
+            </span>
+          ))}
+        </span>
       </small>
+      {t.pr ? <RowPrLink pr={t.pr} /> : null}
       {spot.overlay}
     </div>
   );
