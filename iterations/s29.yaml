@@ -2,5 +2,8 @@ id: s29
 project: default
 name: sprint29
 goal: s28 の持ち越しを片付ける。Plan の時刻だけが違う競合を自動で解き（e24）、Stop のフックを速くし（e23）、並列のエージェントの検査を軽くする
-status: active
+status: closed
 started_at: 2026-11-13T00:28:38Z
+closed_at: 2026-11-13T04:24:50Z
+completed: 17
+carried_over: 0
