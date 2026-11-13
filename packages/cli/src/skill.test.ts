@@ -318,6 +318,12 @@ describe("dg skill install", () => {
     expect(status.trim().split("\n")).toEqual(["?? .claude/.gitignore"]);
   });
 
+  it("このリポジトリが追跡する .claude/.gitignore は、dg が入れる Skill ごとの行をすべて持つ（Skill を足したら同じ PR で行を足す。古いと各自の作業木に dg skill install の差分が出る）", async () => {
+    const own = await readFile(new URL("../../../.claude/.gitignore", import.meta.url), "utf8");
+    const lines = new Set(own.split("\n"));
+    for (const s of await buildSkills()) expect(lines, s.name).toContain(`skills/${s.name}/`);
+  });
+
   it("利用者が作った dg で始まる Skill は無視の行の対象にならず、追跡していても警告しない", async () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);
