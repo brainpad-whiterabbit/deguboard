@@ -14,7 +14,7 @@
 
 ### 言語とランタイム
 
-- TypeScript、Node.js 24、pnpm workspace
+- TypeScript、Node.js 24、pnpm workspace。どのパッケージも `private` にし、npm に出さない（`dg` は拡張に同梱する。[ADR-027](ADR-027-screen-vscode-writes-and-asks.md)）
 - 型検査と core・server・cli のビルドは TypeScript 7（Go で書かれたネイティブ版の tsc）で行う。tsc の JS API には依存しない（lint は oxlint、変換は Vite と Vitest の oxc なので、typescript を import するツールは無い）
 - スキーマと検証は Zod。CLI は commander。UI は React（Vite でビルド）。テストは Vitest
 - HTTP サーバーは Node 標準の `node:http` で書き、フレームワークを入れない。要るのはコマンドの呼び出しと静的ファイルの配信だけなので、小さなルータで足りる（エンドポイントは `packages/server/src/app.ts`）
@@ -88,7 +88,7 @@
 - **react-router**：Webview では遷移できず、画面が少ないのでハッシュの解析で足りる
 - **Redux や Zustand**：状態が少なく、書き込みのたびに読み直す方が CLI との整合が取りやすい
 - **Node 22（LTS）**：VS Code の拡張ホストの Node 24 と揃える
-- **npm に公開して `npm i -g` で入れてもらう**：利用者に Node.js と npm を求め、入口が拡張と npm の 2 つになる。拡張に `dg` を同梱して入口を 1 つにする
+- **`dg` を npm に公開して `npm i -g` で入れてもらう**：利用者に Node.js と npm を求め、入口が拡張と npm の 2 つになり、拡張と CLI の版がずれる。拡張に `dg` を同梱して入口を 1 つにする
 - **Marketplace の PAT を secret に置いて出す**：期限が来るたびに人が作り直し、漏れると誰でも出せる。trusted publishing なら置く秘密がない
 - **公開のワークフローで build と検査を回してから出す**：手元で検査して Release に添付した VSIX と別のものが出て、検査も二重になる
 - **拡張を esbuild や webpack で束ねる**：web のビルドに使っている Vite で足りる

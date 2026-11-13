@@ -1,18 +1,9 @@
 {
   "name": "@deguboard/core",
   "version": "0.27.0",
+  "private": true,
   "description": "deguboard のドメインモデル・ストレージ・Git 操作・ワークフロー・コマンド定義",
-  "homepage": "https://github.com/brainpad-whiterabbit/deguboard#readme",
-  "bugs": "https://github.com/brainpad-whiterabbit/deguboard/issues",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/brainpad-whiterabbit/deguboard.git",
-    "directory": "packages/core"
-  },
-  "files": [
-    "dist"
-  ],
   "type": "module",
   "exports": {
     ".": {
