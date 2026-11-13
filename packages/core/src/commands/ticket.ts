@@ -589,7 +589,7 @@ export const ticketUpdate = defineCommand({
       .nullable()
       .optional()
       .describe(
-        "PR number. When recorded, closes the running implementation Run with success (finished_at is the PR's creation time)",
+        "PR number. When recorded, closes the running implementation Run with success (finished_at is the PR's creation time). Removing or changing it removes lines (the changed lines of the previous PR)",
       ),
     branch: z
       .string()
@@ -639,6 +639,8 @@ export const ticketUpdate = defineCommand({
         if (input.labels !== undefined) patch["labels"] = input.labels;
         if (input.gate !== undefined) patch["gate"] = input.gate ?? undefined;
         if (input.pr !== undefined) patch["pr"] = input.pr ?? undefined;
+        // 行数は記録した PR のもの。PR を消す・別の番号に変えるときは残さない（MT-6）
+        if (input.pr !== undefined && (input.pr ?? undefined) !== t.pr) patch["lines"] = undefined;
         if (input.branch !== undefined && input.branch !== (t.branch ?? null)) {
           if (input.branch !== null) await requireBranchAvailable(ctx, t.id, input.branch);
           patch["branch"] = input.branch ?? undefined;
@@ -871,6 +873,7 @@ function transitionSideEffects(to: Status): Record<string, unknown> {
       branch_at: undefined,
       branch_base: undefined,
       pr: undefined,
+      lines: undefined,
     };
   if (to === "abandoned")
     return {
@@ -1275,6 +1278,7 @@ export const ticketClaim = defineCommand({
           claimed_by: undefined,
           // 新しい claim は新しい作業の周期。todo にあった前の作業の PR（unclaim 前の記録）は残さない（ST-3・ST-7・ST-9）
           pr: undefined,
+          lines: undefined,
           branch,
           branch_at: branch ? now : undefined,
           branch_base: start,
@@ -1392,6 +1396,7 @@ export const ticketUnclaim = defineCommand({
           claimed_by: undefined,
           // 前の作業の PR も外す。次の claim は手直しではなく新しい作業になる（ST-7）
           pr: undefined,
+          lines: undefined,
           branch: undefined,
           branch_at: undefined,
           branch_base: undefined,

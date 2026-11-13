@@ -674,6 +674,57 @@ describe("チケットの流れ（照合と claim）", () => {
     }
   });
 
+  it("照合は、マージされた PR の追加・削除の行数をチケットの lines に記録する。開いている PR の行数は記録せず、PR の番号を変えると消す（MT-6）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    await runCommand(ticketCreate, ctx, { title: "Lines" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/lines" });
+    await recordBaseline(ctx.repo);
+    await git(f.cloneA, ["branch", "feat/lines"]);
+    const pr = (state: string, mergedAt: string | null) =>
+      JSON.stringify({
+        number: 300,
+        state,
+        isDraft: false,
+        createdAt: "2099-01-01T00:00:00Z",
+        mergedAt,
+        additions: 120,
+        deletions: 30,
+      });
+    const savedPath = process.env["PATH"];
+    try {
+      // 開いている間の行数は push のたびに変わるので記録しない
+      const bin = await fakeGhPrs(f.root, { "feat/lines|300": pr("OPEN", null) });
+      process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+      resetGhCache();
+      const open = await runCommand(sync, ctx, {});
+      expect(open.data.lines_recorded).toEqual([]);
+      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "review", pr: 300 });
+      expect(ctx.store.tickets.get("t1")?.data.lines).toBeUndefined();
+
+      // マージされたら、done に進めるのと同じ書き込みで行数を記録する
+      await fakeGhPrs(f.root, { "feat/lines|300": pr("MERGED", "2099-01-02T00:00:00Z") });
+      const mergedSync = await runCommand(sync, ctx, {});
+      expect(mergedSync.data.lines_recorded).toEqual([{ id: "t1", additions: 120, deletions: 30 }]);
+      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({
+        status: "done",
+        lines: { additions: 120, deletions: 30 },
+      });
+      expect((await git(ctx.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim()).toBe(
+        "Reconcile t1: review → done (pr_merged). Record changed lines: t1: +120 -30",
+      );
+
+      // 同じ番号の記録では残し、別の番号に変えると前の PR の行数を残さない
+      await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 300 });
+      expect(ctx.store.tickets.get("t1")?.data.lines).toEqual({ additions: 120, deletions: 30 });
+      await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 301 });
+      expect(ctx.store.tickets.get("t1")?.data.lines).toBeUndefined();
+    } finally {
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  });
+
   it("claim と update は、マージ済みのまま残った同じ名前のブランチと、終わっていない別のチケットが使う名前を拒否する（t216）", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

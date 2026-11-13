@@ -112,6 +112,7 @@ updated_at: 2026-10-31T05:10:00Z
 - TK-8 `priority` は `low`・`medium`（既定）・`high`。値ごとの判断基準は Core が既定を持ち、`config.yaml`（5.10）で書き換えられる
 - TK-9 `gate`（品質ゲートの段）は `high`（既定）・`low`・`free` で、`create`・`import`・`update` で付ける。`dg gate` が判定する条件は段で変わる（EX-6。条件は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - TK-10 `branch_base` は claim が作業ブランチを切った起点のコミットの SHA で、照合が作業のないブランチを見分けるのに使う（ST-4）。`branch` を変えるか消すと消え、古いチケットにはない
+- TK-11 `lines`（`additions`・`deletions`）はマージされた `pr` の追加・削除の行数で、照合と `dg metrics lines` が記録する（MT-6）。`pr` を消すか変えると消え、PR の要らない作業とマージ前のチケットにはない
 
 ### 5.5 Epic（`epics/e3.md`）
 
@@ -252,6 +253,7 @@ updated_at: 2026-10-31T05:10:00Z
 - MT-3 `metrics show` は Run を絞り込んで集計する（軸は `dg metrics show --help`）。null は足さず欠けた数を出す。絞り込みに合う done のチケットのうちエージェントが claim し、実装の Run が 1 件もないものは、ID を示す。`capture: none` の見直しの記録は見直しの回にだけ数え、使用量・時間・欠けた数には入れない。集計値は保存しない
 - MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけで、会話の中身・コマンドの文字列・ファイルのパスは写さない（Git に入るのは RN-1 のセッション ID まで）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
 - MT-5 `run refresh` は閉じた Run のモデル名と使用量を、finish と同じ方法と MT-2 の許可で会話記録から取り直し、取れた値だけを書き換えて、取れなかった値は残して警告する。実行中の Run は拒み、RN-3 の期間を過ぎた Run は読まずに今の値を残して警告する（細部は `dg run refresh --help`）
+- MT-6 `metrics show` の集計は、Run のチケットの変更行数（TK-11）と、output と input+cache に分けた 1 行あたりのトークンを含む。行数のないチケットは計算から外し、件数を出す。照合はマージを見たときに行数を記録し、`metrics lines` は行数のない done のチケットに後から記録する（細部は `dg metrics show --help`・`dg metrics lines --help`）
 
 ### 6.7 ワークフロー実行
 

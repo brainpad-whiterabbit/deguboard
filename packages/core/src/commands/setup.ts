@@ -183,6 +183,13 @@ export interface ReconciledTicket {
   when: string[];
 }
 
+/** 照合がチケットに記録した、マージされた PR の追加・削除の行数（MT-6） */
+export interface ReconciledLines {
+  id: string;
+  additions: number;
+  deletions: number;
+}
+
 /** 照合が閉じた Run（RN-6）。opener は開いた操作（claim は実装、reclaim は手直し）、result は閉じた結果 */
 export interface ReconciledRun {
   id: string;
@@ -196,6 +203,8 @@ export interface Reconciled {
   changed: ReconciledTicket[];
   /** PR 番号を記録したチケット（ST-6） */
   prRecorded: Array<{ id: string; pr: number }>;
+  /** マージされた PR の行数を記録したチケット（MT-6） */
+  linesRecorded: ReconciledLines[];
   /** 照合が閉じた実装の Run（PR の発見・終わったチケット・戻った・取られたチケット）と手直しの Run（区切り）（RN-6）。コミットの後に dropRunning で実行中の記録を消す */
   runsClosed: ReconciledRun[];
   /** 持ち主のない保留から書いた見直しの記録（RN-9。orphan-review.ts）。コミットの後に linkOrphanRounds で保留を結び付ける */
@@ -365,6 +374,7 @@ async function reconcileAll(
 ): Promise<Reconciled> {
   const changed: ReconciledTicket[] = [];
   const prRecorded: Array<{ id: string; pr: number }> = [];
+  const linesRecorded: ReconciledLines[] = [];
   const runsClosed: ReconciledRun[] = [];
   const reviewsRecorded: Reconciled["reviewsRecorded"] = [];
   const running = (await readRunningRuns(ctx.repo)).runs;
@@ -383,7 +393,7 @@ async function reconcileAll(
       );
       continue;
     }
-    const { pr, prCreatedAt, prMergedAt, prMissing, ignoredPr } = got.result;
+    const { pr, prCreatedAt, prMergedAt, prLines, prMissing, ignoredPr } = got.result;
     const facts = { ...got.result.facts, deps_done: ctx.store.depsDone(doc.data) };
     if (pr !== undefined && prCreatedAt !== undefined && !collected.prCreated.has(pr))
       collected.prCreated.set(pr, { createdAt: prCreatedAt });
@@ -427,6 +437,12 @@ async function reconcileAll(
     if (pr !== undefined && doc.data.pr === undefined) {
       patch["pr"] = pr;
       prRecorded.push({ id: doc.id, pr });
+    }
+    // マージされた PR の行数は、状態が done に進まなくても記録する（記録済みなら触れない。MT-6）。
+    // 同じ gh pr view の応答から採るので、gh を呼ぶ回数は増えない
+    if (prLines !== undefined && doc.data.lines === undefined) {
+      patch["lines"] = prLines;
+      linesRecorded.push({ id: doc.id, ...prLines });
     }
     if (outcome.kind === "advance") {
       patch["status"] = outcome.to;
@@ -530,7 +546,7 @@ async function reconcileAll(
       );
     }
   }
-  return { changed, prRecorded, runsClosed, reviewsRecorded };
+  return { changed, prRecorded, linesRecorded, runsClosed, reviewsRecorded };
 }
 
 /** 未チェックの受け入れ条件の番号 */
@@ -542,7 +558,7 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
+    "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). When the PR is merged, its added and deleted lines are recorded on the ticket as lines (data.lines_recorded; a ticket that already has lines is not rewritten; done tickets with no lines are filled by dg metrics lines). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
     "A review result held with no Run (run review-result with no review Run, left by an environment the hook does not reach) that dg next and dg gate count as a review is written as a closed review Run marked capture: none (started and finished at the time the result was written, usage null), and the held result is linked to it (data.reviews_recorded). " +
     "A sub-agent Run left open because its record was not finished being written (one with a settling_since mark) is also closed once it has finished writing. Review Runs from a session other than the sync's are not closed; the next review start closes them. " +
     "When the import stops on a conflict, data.conflicts lists the files and data.conflict_fields lists each conflicting field as { file, field, base, local, remote }, found by running the merge driver's rule on the fork point, the local head, and the remote head (so it includes conflicts in commits after the one the rebase stopped at). For a body, field is body and each colliding block of lines is one entry. Files outside the merge driver (config.yaml and workflows) appear only in data.conflicts. " +
@@ -723,17 +739,19 @@ async function reconcileLocked(
   const {
     changed: reconciled,
     prRecorded,
+    linesRecorded,
     runsClosed,
     reviewsRecorded,
   }: Reconciled = collected
     ? await reconcileAll(ctx, collected, warnings)
-    : { changed: [], prRecorded: [], runsClosed: [], reviewsRecorded: [] };
+    : { changed: [], prRecorded: [], linesRecorded: [], runsClosed: [], reviewsRecorded: [] };
   const reviewsWritten = reviewsRecorded.flatMap((r) =>
     r.recorded.written.map((run) => ({ id: r.ticket.id, run: run.id })),
   );
   if (
     reconciled.length > 0 ||
     prRecorded.length > 0 ||
+    linesRecorded.length > 0 ||
     runsClosed.length > 0 ||
     reviewsWritten.length > 0 ||
     confirmed.length > 0
@@ -749,6 +767,7 @@ async function reconcileLocked(
       ...(prRecorded.length > 0
         ? [`Record PR numbers: ${prRecorded.map((r) => `${r.id}: #${r.pr}`).join(", ")}`]
         : []),
+      ...(linesRecorded.length > 0 ? [describeLinesRecorded(linesRecorded)] : []),
       ...describeClosedRuns(
         runsClosed.map((r) => ({
           run: { ticket: r.id, id: r.run, result: r.result },
@@ -781,10 +800,18 @@ async function reconcileLocked(
     pushed,
     reconciled,
     prRecorded,
+    linesRecorded,
     runsClosed,
     reviewsWritten,
     confirmed,
   });
+}
+
+/** 行数を記録したコミットの題の一部（照合と `dg metrics lines` が同じ形で書く） */
+export function describeLinesRecorded(recorded: readonly ReconciledLines[]): string {
+  return `Record changed lines: ${recorded
+    .map((r) => `${r.id}: +${r.additions} -${r.deletions}`)
+    .join(", ")}`;
 }
 
 /** sync の結果。照合しなかったとき（取り込みで競合した・照合のロックが取れなかった）は照合の分を空で返す */
@@ -796,6 +823,7 @@ async function syncResult(
     pushed?: boolean;
     reconciled?: ReconciledTicket[];
     prRecorded?: Array<{ id: string; pr: number }>;
+    linesRecorded?: ReconciledLines[];
     runsClosed?: ReconciledRun[];
     reviewsWritten?: Array<{ id: string; run: string }>;
     confirmed?: string[];
@@ -813,6 +841,7 @@ async function syncResult(
       resolved,
       reconciled: r.reconciled ?? [],
       pr_recorded: r.prRecorded ?? [],
+      lines_recorded: r.linesRecorded ?? [],
       runs_closed: r.runsClosed ?? [],
       reviews_recorded: r.reviewsWritten ?? [],
       confirmed: r.confirmed ?? [],

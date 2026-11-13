@@ -30,6 +30,8 @@ export interface BranchFacts {
   prCreatedAt?: string;
   /** 見つけた PR のマージ時刻（ISO）。ブランチが消えて push の時刻を取れないとき、照合が手直しの Run を閉じる finished_at（RN-6） */
   prMergedAt?: string;
+  /** マージされた PR の追加・削除の行数。照合がチケットの `lines` に記録する（MT-6）。マージ前・読めないときは undefined */
+  prLines?: PrLines;
   /** gh が「PR がない」と答えた。pr_* はすべて偽になるが、閉じた PR とは区別する（ST-5） */
   prMissing?: boolean;
   /** ブランチ名で見つけたが、`since` より前に作られ開いていなかったので外した PR（照合が警告する） */
@@ -181,6 +183,7 @@ export async function collectBranchFacts(
     ...(pr.number === undefined ? {} : { pr: pr.number }),
     ...(pr.createdAt === undefined ? {} : { prCreatedAt: pr.createdAt }),
     ...(pr.mergedAt === undefined ? {} : { prMergedAt: pr.mergedAt }),
+    ...(pr.lines === undefined ? {} : { prLines: pr.lines }),
     ...(pr.missing ? { prMissing: true } : {}),
     ...(pr.ignored ? { ignoredPr: pr.ignored } : {}),
   };
@@ -193,9 +196,47 @@ interface PrView {
   isDraft: boolean;
   mergedAt?: string | null;
   createdAt?: string | null;
+  additions?: number | null;
+  deletions?: number | null;
 }
 
-const PR_FIELDS = "number,state,isDraft,mergedAt,createdAt";
+const PR_FIELDS = "number,state,isDraft,mergedAt,createdAt,additions,deletions";
+
+/** PR の追加・削除の行数（gh の additions・deletions。base との差分で、squash のコミットの行数と同じ） */
+export interface PrLines {
+  additions: number;
+  deletions: number;
+}
+
+const isCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0;
+
+/**
+ * マージされた PR の行数だけを採る。開いている PR の行数は push のたびに変わり、閉じた PR の行数は base に入っていないので採らない。
+ * 行数が読めなければ undefined
+ */
+function mergedLines(data: PrView): PrLines | undefined {
+  return data.state === "MERGED" && isCount(data.additions) && isCount(data.deletions)
+    ? { additions: data.additions, deletions: data.deletions }
+    : undefined;
+}
+
+/**
+ * 記録した番号の PR の行数（`dg metrics lines` が done のチケットに後から記録する。MT-6）。
+ * マージされていない・gh がない・読めないときは理由を返す
+ */
+export async function fetchMergedPrLines(
+  repo: GitRepo,
+  pr: number,
+): Promise<{ lines: PrLines; reason?: undefined } | { lines?: undefined; reason: string }> {
+  const viewed = await viewPr(repo, String(pr));
+  if (!viewed) return { reason: "Cannot read the PR with gh" };
+  if ("missing" in viewed) return { reason: `PR #${pr} not found` };
+  if (viewed.data.state !== "MERGED")
+    return { reason: `PR #${pr} is not merged (${String(viewed.data.state).toLowerCase()})` };
+  const lines = mergedLines(viewed.data);
+  return lines ? { lines } : { reason: `Cannot read the changed lines of PR #${pr}` };
+}
 
 /** gh pr view を番号かブランチ名で呼ぶ。PR がなければ missing、gh がない・読めないときは undefined */
 async function viewPr(
@@ -304,6 +345,7 @@ async function collectPrFacts(
   number?: number;
   createdAt?: string;
   mergedAt?: string;
+  lines?: PrLines;
   missing?: boolean;
   ignored?: { number: number; state: string; createdAt: string };
 }> {
@@ -336,12 +378,14 @@ async function collectPrFacts(
     pr_merged: data.state === "MERGED",
   };
   const mergedAt = isoOrUndefined(data.mergedAt);
+  const lines = mergedLines(data);
   return Number.isInteger(data.number) && (data.number as number) > 0
     ? {
         facts,
         number: data.number as number,
         ...(createdAt ? { createdAt } : {}),
         ...(mergedAt ? { mergedAt } : {}),
+        ...(lines ? { lines } : {}),
       }
     : { facts };
 }

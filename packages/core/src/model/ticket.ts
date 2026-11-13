@@ -81,6 +81,13 @@ const ticketFrontmatter = z.looseObject({
     .regex(/^[0-9a-f]{40}([0-9a-f]{24})?$/, "branch_base is a commit SHA")
     .optional(),
   pr: z.number().int().positive().optional(),
+  /**
+   * マージされた `pr` の追加・削除の行数（MT-6）。照合がマージを見たときと `dg metrics lines` が記録し、`pr` を消す・変える操作が消す。
+   * `dg metrics show` が 1 行あたりのトークンの分母にする。PR の要らない作業とマージ前のチケットにはない
+   */
+  lines: z
+    .object({ additions: z.number().int().min(0), deletions: z.number().int().min(0) })
+    .optional(),
   provisional: z.boolean().optional(),
   created_at: isoDateTime,
   updated_at: isoDateTime,

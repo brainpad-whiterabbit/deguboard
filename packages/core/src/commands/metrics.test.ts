@@ -9,7 +9,8 @@ import { runCommand, type CommandContext } from "./define.js";
 import { epicAdd, epicCreate } from "./epic.js";
 import { findCommand } from "./index.js";
 import { iterationAdd, iterationClose, iterationCreate, iterationStart } from "./iteration.js";
-import { metricsShow } from "./metrics.js";
+import { fakeGh } from "../../test/helpers/commands-context.js";
+import { metricsLines, metricsShow } from "./metrics.js";
 import { commit, init } from "./setup.js";
 import { ticketCreate } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
@@ -310,5 +311,186 @@ describe("metrics show", () => {
     await runCommand(commit, ctx, {});
 
     expect((await runCommand(metricsShow, ctx, {})).data.no_runs).toEqual(["t4"]);
+  });
+
+  it("チケットの行数から変更行数と 1 行あたりのトークンを出し、--by iteration で Iteration ごとに比べられる。行数のないチケットは外して数える（MT-6）", async () => {
+    const ctx = await scenario();
+    await runCommand(iterationCreate, ctx, { name: "I1" });
+    await runCommand(iterationCreate, ctx, { name: "I2" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    await runCommand(iterationAdd, ctx, { iteration: "s2", tickets: ["t2"] });
+    // t1 はマージされた PR の行数を持つ（+40 -10）。t2 は行数がない
+    await ctx.store.update("ticket", "t1", { pr: 7, lines: { additions: 40, deletions: 10 } });
+    await recordBaseline(ctx.repo);
+    await runCommand(commit, ctx, {});
+
+    const r = await runCommand(metricsShow, ctx, { by: "iteration" });
+    // t1 の Run：output 100、input+cache は 1000 + 50 と 200。50 行で割る
+    expect(r.data.total.lines).toEqual({
+      tickets: 1,
+      additions: 40,
+      deletions: 10,
+      missing: 1,
+      per_line: { output: 2, input_cache: 25 },
+    });
+    expect(r.data.groups.map((g) => [g.key, g.lines])).toEqual([
+      [
+        "s1",
+        {
+          tickets: 1,
+          additions: 40,
+          deletions: 10,
+          missing: 0,
+          per_line: { output: 2, input_cache: 25 },
+        },
+      ],
+      [
+        "s2",
+        {
+          tickets: 0,
+          additions: null,
+          deletions: null,
+          missing: 1,
+          per_line: { output: null, input_cache: null },
+        },
+      ],
+    ]);
+    // 工程ごとにも出る（見直しの Run は output がないので、output は実装だけ）
+    const byStep = await runCommand(metricsShow, ctx, { iteration: "s1", by: "step" });
+    expect(byStep.data.groups.map((g) => [g.key, g.lines.per_line])).toEqual([
+      ["implement", { output: 2, input_cache: 21 }],
+      ["review", { output: null, input_cache: 4 }],
+    ]);
+  });
+});
+
+describe("metrics lines", () => {
+  /** t1〜t4 を done にする。t1 は PR #11（マージ済み）、t2 は PR #12（閉じた）、t3 は PR なし、t4 は PR #14 で行数を記録済み */
+  async function doneTickets(): Promise<{ ctx: CommandContext; root: string }> {
+    const f = await createFixture();
+    cleanups.push(f.cleanup);
+    const actor = { kind: "human" as const, user: "eiki" };
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
+    const ctx = await openContext({ cwd: f.cloneA, actor });
+    for (const title of ["A", "B", "C", "D", "E"]) await runCommand(ticketCreate, ctx, { title });
+    await ctx.store.update("ticket", "t1", { status: "done", pr: 11 });
+    await ctx.store.update("ticket", "t2", { status: "done", pr: 12 });
+    await ctx.store.update("ticket", "t3", { status: "done" });
+    await ctx.store.update("ticket", "t4", {
+      status: "done",
+      pr: 14,
+      lines: { additions: 1, deletions: 1 },
+    });
+    // t5 は PR があるがまだ done でない（照合がマージを見たときに記録する）
+    await ctx.store.update("ticket", "t5", { status: "review", pr: 15 });
+    await recordBaseline(ctx.repo);
+    await runCommand(commit, ctx, {});
+    return { ctx, root: f.root };
+  }
+
+  const merged = (number: number, additions: number, deletions: number) =>
+    JSON.stringify({ number, state: "MERGED", isDraft: false, additions, deletions });
+
+  it("行数のない done のチケットに、マージされた PR の行数を記録する。マージされていない PR は理由を付けて外し、記録済み・PR なし・done でないチケットは読まない", async () => {
+    const { ctx, root } = await doneTickets();
+    const restore = await fakeGh(root, {
+      "11": merged(11, 120, 30),
+      "12": JSON.stringify({ number: 12, state: "CLOSED", isDraft: false }),
+      "14": merged(14, 999, 999),
+      "15": merged(15, 999, 999),
+    });
+    try {
+      const updatedAt = ctx.store.tickets.get("t1")?.data.updated_at;
+      const r = await runCommand(metricsLines, ctx, {});
+      expect(r.data).toEqual({
+        recorded: [{ id: "t1", pr: 11, additions: 120, deletions: 30 }],
+        skipped: [{ id: "t2", pr: 12, reason: "PR #12 is not merged (closed)" }],
+        remaining: 0,
+      });
+      expect(r.warnings).toEqual([
+        "t2: the changed lines were not recorded (PR #12 is not merged (closed))",
+      ]);
+      // 書き込みは commit.mode に従う（既定はまとめ待ち）
+      expect(r.write).toBeDefined();
+      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({
+        lines: { additions: 120, deletions: 30 },
+        updated_at: updatedAt,
+      });
+      expect(ctx.store.tickets.get("t2")?.data.lines).toBeUndefined();
+      expect(ctx.store.tickets.get("t4")?.data.lines).toEqual({ additions: 1, deletions: 1 });
+      expect(ctx.store.tickets.get("t5")?.data.lines).toBeUndefined();
+
+      // もう一度呼ぶと、残るのは取れなかった t2 だけで、何も書かない
+      const again = await runCommand(metricsLines, ctx, {});
+      expect(again.data.recorded).toEqual([]);
+      expect(again.data.skipped.map((s) => s.id)).toEqual(["t2"]);
+      expect(again.write).toBeUndefined();
+    } finally {
+      restore();
+    }
+  });
+
+  it("limit までを新しいチケットから読み、残りの数を返す。Iteration で絞れる", async () => {
+    const { ctx, root } = await doneTickets();
+    await runCommand(iterationCreate, ctx, { name: "I" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    const restore = await fakeGh(root, { "11": merged(11, 5, 0), "12": merged(12, 7, 2) });
+    try {
+      const first = await runCommand(metricsLines, ctx, { limit: 1 });
+      expect(first.data.recorded.map((x) => x.id)).toEqual(["t2"]);
+      expect(first.data.remaining).toBe(1);
+      expect(first.warnings.join("\n")).toContain("1 done tickets with no lines were not read");
+      // 取れなかったチケットがないときは、limit の枠の案内を付けない
+      expect(first.warnings.join("\n")).not.toContain("--limit");
+      const scoped = await runCommand(metricsLines, ctx, { iteration: "s1" });
+      expect(scoped.data).toEqual({
+        recorded: [{ id: "t1", pr: 11, additions: 5, deletions: 0 }],
+        skipped: [],
+        remaining: 0,
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  it("取れなかったチケットが limit の枠に残るときは、次も読み直すことと古いチケットへの届かせ方を警告する", async () => {
+    const { ctx, root } = await doneTickets();
+    // 新しい t2 は閉じた PR で取れず、limit 1 の枠を使うので、t1 に届かない
+    const restore = await fakeGh(root, {
+      "11": merged(11, 5, 0),
+      "12": JSON.stringify({ number: 12, state: "CLOSED", isDraft: false }),
+    });
+    try {
+      const r = await runCommand(metricsLines, ctx, { limit: 1 });
+      expect(r.data).toMatchObject({ recorded: [], remaining: 1 });
+      expect(r.data.skipped.map((s) => s.id)).toEqual(["t2"]);
+      expect(r.warnings.at(-1)).toContain("The 1 skipped tickets are read again on every call");
+      expect(r.warnings.at(-1)).toContain("raise --limit or narrow with --iteration");
+    } finally {
+      restore();
+    }
+  });
+
+  it("gh を読んでいる間にほかのプロセスが変えたチケットは、ロックの中で読み直して書かず、その変更を消さない", async () => {
+    const { ctx, root } = await doneTickets();
+    // ctx が読んだ後に、別の文脈（ほかの dg のプロセス）が t1 の PR を付け替える。ctx の索引は古いまま（pr: 11）
+    const actor = { kind: "human" as const, user: "eiki" };
+    const other = await openContext({ cwd: ctx.repo.topLevel, actor });
+    await other.store.update("ticket", "t1", { pr: 21, title: "A2" });
+    await recordBaseline(other.repo);
+    expect(ctx.store.tickets.get("t1")?.data.pr).toBe(11);
+    const restore = await fakeGh(root, { "11": merged(11, 120, 30), "12": merged(12, 7, 2) });
+    try {
+      const r = await runCommand(metricsLines, ctx, {});
+      // 前の PR #11 の行数は t1 に書かず、変わっていない t2 にだけ書く
+      expect(r.data.recorded).toEqual([{ id: "t2", pr: 12, additions: 7, deletions: 2 }]);
+      const fresh = await openContext({ cwd: ctx.repo.topLevel, actor });
+      const t1 = fresh.store.tickets.get("t1")?.data;
+      expect(t1).toMatchObject({ pr: 21, title: "A2" });
+      expect(t1?.lines).toBeUndefined();
+      expect(fresh.store.tickets.get("t2")?.data.lines).toEqual({ additions: 7, deletions: 2 });
+    } finally {
+      restore();
+    }
   });
 });
