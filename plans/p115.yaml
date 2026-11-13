@@ -1,0 +1,102 @@
+id: p115
+project: default
+tickets: [t816, t807, t817, t812, t814, t809, t808, t819, t813, t815, t810, t824, t822, t818, t820, t821, t823]
+after:
+  t809:
+    - t807
+  t808:
+    - t807
+  t810:
+    - t808
+    - t809
+  t819:
+    - t816
+    - t817
+  t824:
+    - t819
+    - t809
+  t822:
+    - t824
+    - t807
+  t818:
+    - t824
+  t820:
+    - t818
+  t821:
+    - t820
+  t823:
+    - t821
+  t813:
+    - t812
+  t815:
+    - t814
+pending_approval: true
+details:
+  t807:
+    scope: カンバンとバックログで、Epic の札に触れる・Tab で止まるとその Epic の行を光らせ、ほかを薄くする。絞り込みの動きは変えない
+    approach: EpicChipRow の hover と focus から、光らせる Epic を画面の状態に持ち、TicketRow がそれを見てクラスを付け、見た目は styles.css に置く
+    tier: standard
+  t809:
+    scope: 履歴の見方の切り替えと結果の絞り込みの件数を、塗りの札から説明文の色の数字にする。ほかの画面の .badge は変えない
+    approach: history.tsx の ViewSwitch の件数の要素と、styles.css の .view-switch の中の件数の見た目だけを変える
+    tier: light
+  t808:
+    scope: Epic で絞っている間、Iteration の見出しと同じ作りの Epic の見出しを出し、そこから吹き出しと Shift+F10 でその Epic を頼めるようにする。core の候補は変えない
+    approach: 今の Epic の絞り込みの札を見出しの行にまとめ、ask-menu の useAskSpot で Epic の詳細と同じ候補を出し、「なし」は複数選んだときの候補を使う
+    tier: heavy
+  t810:
+    scope: カンバンの見出しに、目標を 3 行まで・active の何日目か・状態ごとの件数を出す
+    approach: BoardHead に目標の行と何日目かを足し、StatusBand の下に、帯と同じ数え方の件数の行を足す
+    tier: standard
+  t816:
+    scope: 履歴のチケットの見方で、history の結果が届くまで日付を読み込み中の印にして番号の新しい順に並べ、~ は届いたあと時刻が分からない行だけに付ける
+    approach: TicketView・finishedTickets で届く前と後を分け、届く前は番号順と ShortDay の代わりのスケルトンを出し、両方をテストで示す
+    tier: standard
+  t817:
+    scope: HistoryTicketList の「ほか N 件」を 50 件ずつ開き、15 件以下の一覧は切らない
+    approach: history-rows.tsx の開いた件数の状態を 50 件ずつ増やし、全体が 15 件以下なら切らない条件を足してテストする
+    tier: standard
+  t812:
+    scope: config の各項目に summary・example・empty・選択肢ごとの説明を足して config.show --fields で渡す。describe と CLI のヘルプは変えない
+    approach: core の configFields と ConfigField に項目を足し、guide.notes.* は定義を共有し、web の l10n-core に訳を足して過不足と summary の有無をテストする
+    tier: heavy
+  t813:
+    scope: 設定画面の各項目を要約 1 行・入力欄のヒント・「詳しく」に分け、選択肢は選んだ値の説明だけ、guide.notes.* は説明 1 つと表で出す
+    approach: config.tsx の FieldRow を t812 の fields で組み直し、fieldMatchesQuery を要約と詳しい説明にも当て、詳しい説明だけに当たれば「詳しく」を開く
+    tier: standard
+  t814:
+    scope: guide-retro.md と dgretro の Skill を新設し、数字の要約から観点を選んで Keep/Problem/Try をまとめ、承認後に retro-<S> のラベルで起票する流れを示す
+    approach: guide-audit.md の型に合わせて guide-retro.md を書いて topics.ts に登録し、skill.ts と SKILL_SUMMARY に dgretro を足してテストする
+    tier: heavy
+  t815:
+    scope: 頼む小窓の retro を /dgretro で頼む形にし、文章だけの依頼文・guide-overview・ヘルプ・テスト・README を合わせる
+    approach: ask.ts の ACTIONS の retro の skill を dgretro にして依頼文を直し、ask.test.ts と guide-overview と README.md・README.ja.md をそろえる
+    tier: standard
+  t819:
+    scope: 履歴のチケットの見方で Iteration が変わるところに貼り付く区切りの見出しを置き、行から Iteration を省く
+    approach: FinishedList で Iteration ごとに区切りを入れて sticky にし、HistoryTicketRow の showIteration を外し、日付の見出しを付けない判断との関係をコメントに書く
+    tier: heavy
+  t824:
+    scope: チケットの見方の結果の切り替えと行の中止の表記を、同じ言葉の体系にそろえる
+    approach: TicketView の切り替えの言葉と HistoryTicketRow の中止の表記を一方にそろえ、理由をコメントに書いてテストする
+    tier: light
+  t822:
+    scope: 履歴の行で、PR のリンクをカンバンと同じく番号のすぐ下に行を増やさず出し、付記から PR を外す
+    approach: HistoryTicketRow で parts.tsx の RowPrLink・prRowClass を使い、styles.css の .pr-row を履歴の行にも当て、押しても選択が変わらないようにする
+    tier: standard
+  t818:
+    scope: 履歴の Iteration の期間を、同じ日・日をまたぐ・数日・開始が不明に分けて時刻と所要時間で出す
+    approach: date-time.tsx に期間を整える関数を足して IterationItem から使い、4 つの場合をテストする
+    tier: standard
+  t820:
+    scope: 履歴の Iteration と Epic の見方の検索を、行の番号・目標・名前・タイトルにも当て、当たった部分に印を付け、件数にも数える
+    approach: filterHistory で行そのものの一致を持ち、useRowFolds と IterationItem・EpicItem で行だけに当たったときの出し方を決めてテストする
+    tier: heavy
+  t821:
+    scope: 開いた Iteration の中を完了・中止・持ち越しの順にし、中止を「中止 N 件」の小見出しにまとめる
+    approach: IterationTickets で abandoned を分けて持ち越しと同じ形の小見出しを出し、SearchHits の並びも合わせてテストする
+    tier: standard
+  t823:
+    scope: 終わったチケットも持ち越しもない Iteration の行を薄く出して開けなくし、詳細へのリンクと右クリックのメニューは残す
+    approach: IterationItem に EpicItem の history-empty と同じ扱いを入れてテストする
+    tier: standard
