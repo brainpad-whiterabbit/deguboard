@@ -1,0 +1,33 @@
+{
+  "id": "r20261113-151935-d7ff",
+  "ticket": "t862",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-13T15:19:35Z",
+  "finished_at": "2026-11-13T15:22:37Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "README の Security and privacy で、入れてある dg の Skill だけを更新すると書けていない（インストール済みでないものを入れるように読める）",
+    "dg の起動ファイルの説明で、括弧書きが current の指す先を説明しているように読める（起動ファイルが dg を呼び出す）"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 4585,
+    "cache_read": 242454,
+    "cache_write": 29009
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 2,
+    "bash": 5,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "a5c2ea23-662a-4048-902d-1c12f239a1ea",
+  "review": null
+}
