@@ -370,7 +370,7 @@ describe("依頼文の組み立て", () => {
       const create = buildAsk({
         subjects: [],
         action: "create",
-        lang,
+        language: lang,
         humanOnly: ["ticket.create"],
       });
       expect(create, lang).toMatchObject({ kind: "command", text: 'dg ticket create "<title>"' });
