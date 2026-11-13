@@ -10,6 +10,7 @@
     "packages/vscode/vite.cli.config.ts",
     "packages/vscode/vite.uninstall.config.ts",
     "vitest.config.ts",
+    "vitest.workers.ts",
     "vitest.layout.config.ts",
     "vitest.vscode.config.ts"
   ],
