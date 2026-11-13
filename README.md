@@ -2,11 +2,11 @@
 
 English | [日本語](https://github.com/brainpad-whiterabbit/deguboard/blob/main/README.ja.md)
 
-A kanban board inside your Git repository for building software together with AI agents, as a way to practice [Agentic-Agile](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md). You write small tickets with acceptance criteria and approve the plan; agents implement the tickets in parallel, and nothing merges until the quality gate passes.
+A kanban board inside your Git repository for building software together with AI agents, as a way to practice [Agentic-Agile](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md). You bring the idea; agents turn it into small tickets with acceptance criteria, implement them in parallel, and keep revising each one until it passes the quality gate. Every agent run is measured, and in the retrospective you decide how to improve the agents and the software.
 
 - **You stay in charge**: Agents start only after you approve the plan, and a PR becomes ready or merges only when the quality gate (the checks and an independent review) passes. You and the agents build together, without the AI running away with the work.
 - **Made for teams**: The board lives on a dedicated branch of your repository, so everyone who clones it sees the same board. There is no server or service to run.
-- **Measure and improve**: Every run records its duration, tokens, and rework, and a retrospective turns the bottlenecks into the next tickets.
+- **Measure and improve**: Each run records how long each step took, how many tokens it used, and how much rework it needed, and the metrics your team approved show their trend, so the bottlenecks become the next tickets.
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/flow.png" alt="The development flow: an agent turns your idea into tickets, plans the order, and agents work in parallel through the quality gate in each Iteration, then release and retrospect; you approve the tickets, the plan, each merge, and the release, and choose what to improve" width="800">
 
