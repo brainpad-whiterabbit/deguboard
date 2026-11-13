@@ -44,6 +44,8 @@
   "Could not start this repository: {0}": "Could not start this repository: {0}",
   "Removed the dg link at {0}. The launcher that the hooks use was kept.": "Removed the dg link at {0}. The launcher that the hooks use was kept.",
   "There is no dg link at {0}.": "There is no dg link at {0}.",
+  "Updated the dg Skills in {0} to the ones bundled with this extension: {1}": "Updated the dg Skills in {0} to the ones bundled with this extension: {1}",
+  "These dg Skills in {0} differ from the ones bundled with this extension, but they were edited by hand, so they were not changed: {1}. To overwrite them, run {2}": "These dg Skills in {0} differ from the ones bundled with this extension, but they were edited by hand, so they were not changed: {1}. To overwrite them, run {2}",
   "{0} is not a symbolic link, so it was not removed.": "{0} is not a symbolic link, so it was not removed.",
   "{0} points to {1}, not to deguboard, so it was not removed.": "{0} points to {1}, not to deguboard, so it was not removed.",
   "{0} and {1} more": "{0} and {1} more",

@@ -1,15 +1,16 @@
 // dg skill install：dg guide を読む薄い Claude Code の Skill を段階ごとに置く（AG-2）。Skill は手順を持たず、正本は guide-*.md（CL-5）。
-// Skill の中身（buildSkills）と、入れてある Skill が今の dg のものと違うかの判定（skillStateOf）は core の commands/skill-files.ts にある。
-// dg hooks check・dg next・dg brief の古い Skill の警告と同じ判定で、書くか残すかを決める
+// Skill の中身（buildSkills）と、入れてある Skill が今の dg のものと違うかの判定（skillStateOf）と書く処理（writeSkillFiles）は core の commands/skill-files.ts にある。
+// dg hooks check・dg next・dg brief の古い Skill の警告と同じ判定で書くか残すかを決め、VS Code 拡張が起動時に古い Skill を更新するのと同じ処理で書く。
+// ここは置き場所の解決・.gitignore・追跡済みの検出・廃止した Skill の片付けを受け持つ
 
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
+import { readFile, rm, rmdir } from "node:fs/promises";
 import { basename, dirname, join, relative, sep } from "node:path";
 import {
   buildSkills,
   resolveRepoPaths,
   skillDirsOf,
-  skillStateOf,
+  writeSkillFiles,
   type AgentEnv,
 } from "@deguboard/core";
 import { ensureIgnoreLines, trackedFiles } from "./gitignore.js";
@@ -103,25 +104,7 @@ export async function installSkill(options: {
       return p.startsWith(prefix) && slash !== -1 && names.has(rest.slice(0, slash));
     });
   }
-  for (const skill of skills) {
-    const path = join(dir, skill.name, "SKILL.md");
-    const current = await readIfExists(path);
-    const state = skillStateOf(current, skill);
-    if (state === "current") {
-      result.unchanged.push(skill.name);
-      continue;
-    }
-    if (state === "edited" && !options.force) {
-      result.conflicts.push(skill.name);
-      continue;
-    }
-    if (dryRun) result.files.push({ name: skill.name, path, content: skill.content });
-    else {
-      await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, skill.content, "utf8");
-    }
-    (state === "missing" ? result.written : result.updated).push(skill.name);
-  }
+  Object.assign(result, await writeSkillFiles(dir, { force: options.force, dryRun }));
   for (const [name, hashes] of Object.entries(RETIRED_SKILLS)) {
     const path = join(dir, name, "SKILL.md");
     const current = await readIfExists(path);

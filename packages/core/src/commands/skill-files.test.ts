@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -12,6 +12,7 @@ import { init } from "./setup.js";
 import {
   buildSkills,
   findStaleSkills,
+  refreshInstalledSkills,
   skillStateOf,
   staleSkillWarnings,
   staleSkillWarningsOf,
@@ -107,6 +108,56 @@ describe("入れてある dg の Skill が今の dg のものと違うかの判�
     expect(await findStaleSkills({ topLevel: top, env: { HOME: home } })).toEqual([
       { scope: "project", dir: skillsDir(top), stale: [], edited: ["dgplan"] },
     ]);
+  });
+});
+
+describe("VS Code 拡張の起動時の Skill の更新（AG-2・t857）", () => {
+  const read = (base: string, name: string) =>
+    readFile(path.join(skillsDir(base), name, "SKILL.md"), "utf8");
+  const exists = (base: string, name: string) =>
+    access(path.join(skillsDir(base), name)).then(
+      () => true,
+      () => false,
+    );
+
+  it("手を加えていない古い Skill を今の dg のもので上書きし、置き場所ごとに更新したものを返す", async () => {
+    const top = await tempDir();
+    const home = await tempDir();
+    const work = await contentOf("dgwork");
+    const done = await contentOf("dgdone");
+    await put(top, "dgwork", olderVersionOf(work.content));
+    await put(home, "dgdone", olderVersionOf(done.content));
+
+    expect(await refreshInstalledSkills({ topLevel: top, env: { HOME: home } })).toEqual([
+      { scope: "project", dir: skillsDir(top), updated: ["dgwork"], edited: [] },
+      { scope: "personal", dir: skillsDir(home), updated: ["dgdone"], edited: [] },
+    ]);
+    expect(await read(top, "dgwork")).toBe(work.content);
+    expect(await read(home, "dgdone")).toBe(done.content);
+    // そろったら変えるものはなく、何も返さない（通知しない）
+    expect(await refreshInstalledSkills({ topLevel: top, env: { HOME: home } })).toEqual([]);
+  });
+
+  it("手で直した古い Skill は書き換えずに edited に返す", async () => {
+    const top = await tempDir();
+    const home = await tempDir();
+    const edited = `${olderVersionOf((await contentOf("dgplan")).content)}\nmy note\n`;
+    await put(top, "dgplan", edited);
+    const expected = [{ scope: "project", dir: skillsDir(top), updated: [], edited: ["dgplan"] }];
+    expect(await refreshInstalledSkills({ topLevel: top, env: { HOME: home } })).toEqual(expected);
+    expect(await read(top, "dgplan")).toBe(edited);
+    // 書き換えないので、次の起動でも同じように知らせる
+    expect(await refreshInstalledSkills({ topLevel: top, env: { HOME: home } })).toEqual(expected);
+  });
+
+  it("dg の Skill を入れていない置き場所には書かず、入れてある置き場所でも入れていない Skill は足さない", async () => {
+    const top = await tempDir();
+    const home = await tempDir();
+    await put(home, "dgwork", olderVersionOf((await contentOf("dgwork")).content));
+    await refreshInstalledSkills({ topLevel: top, env: { HOME: home } });
+    expect(await exists(top, "")).toBe(false);
+    expect(await exists(home, "dgwork")).toBe(true);
+    expect(await exists(home, "dgplan")).toBe(false);
   });
 });
 
