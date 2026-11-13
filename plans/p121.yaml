@@ -1,0 +1,16 @@
+id: p121
+project: default
+tickets: [t854, t853]
+after:
+  t853:
+    - t854
+pending_approval: true
+details:
+  t854:
+    scope: Only the opening sentence of README.md and README.ja.md and the third bullet (Measure and improve / 測って改善する). Use the wording agreed in the ticket for the opening sentence
+    approach: Put the agreed wording into the opening sentence, and rewrite the third bullet to add what gets measured (time, tokens, rework) without repeating the opening
+    tier: light
+  t853:
+    scope: Replace flow.svg/flow.ja.svg with the proposal from the review page, retake flow.png/flow.ja.png, and fix the alt text in both READMEs and the SVG title/desc
+    approach: Pull flow.svg/flow.ja.svg from version 1794571736-07bf of the Artifact, set the screen size in the capture comment to 1200x610, and retake the PNGs with that method
+    tier: standard
