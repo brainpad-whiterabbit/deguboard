@@ -99,7 +99,7 @@
     <rect class="ticket tk-front" x="50" y="156" width="160" height="124" rx="6"/>
     <rect class="tk-id" x="60" y="164" width="24" height="14" rx="3"/>
     <text class="t-tk-id" x="72" y="174.5" text-anchor="middle">t15</text>
-    <text class="t-tk-title" x="90" y="175">Export the board as CSV</text>
+    <text class="t-tk-title" x="90" y="175">Export as CSV</text>
     <line class="axis" x1="60" y1="185" x2="200" y2="185"/>
     <text class="t-tk-label" x="60" y="198">ACCEPTANCE CRITERIA</text>
     <rect class="ticket-box" x="60" y="204" width="8" height="8" rx="2"/><text class="t-tk" x="74" y="211.5">Exports every column</text>
@@ -140,7 +140,7 @@
   </g>
   <g><circle class="ab" cx="414" cy="152" r="15"/><use href="#agent" x="404" y="142" width="20" height="20"/></g>
   <text class="t-title" x="286" y="246">Plan</text>
-  <text class="t-small" x="286" y="262">Tickets in dependency order</text>
+  <text class="t-small" x="286" y="262">In dependency order</text>
   <text class="t-body" x="270" y="298">Agents start only</text>
   <text class="t-body" x="270" y="316">after your approval</text>
   <g>
