@@ -1,0 +1,33 @@
+{
+  "id": "r20261113-154058-3381",
+  "ticket": "t867",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-13T15:40:58Z",
+  "finished_at": "2026-11-13T15:42:01Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "Open VSX の手順の ovsx が PATH になく、そのままでは手元で実行できない",
+    "手で上げる版が通した検査の範囲と、初回に Release を作るかが書かれていない"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 7584,
+    "cache_read": 480457,
+    "cache_write": 35215
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 1,
+    "bash": 9,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "a5c2ea23-662a-4048-902d-1c12f239a1ea",
+  "review": null
+}
