@@ -24,8 +24,9 @@ import {
 
 /**
  * 同期の競合の戻し方（SY-4・dg guide overview の「When sync stops」）。
- * 競合のどちらの値を残すかは人が決める（--auto でも自動で選ばない）ので、書き込みの失敗・警告と sync の警告はどれもこの文言で、
- * 人に remote か local を選んでもらい dg sync --resolve を 1 回呼ぶ手順を案内する
+ * 競合のどちらの値を残すかは人が決める（--auto でも自動で選ばない）ので、競合したフィールドがあるときの書き込みの失敗・警告と
+ * sync の警告はこの文言で、人に remote か local を選んでもらい dg sync --resolve を 1 回呼ぶ手順を案内する
+ * （競合したフィールドのない sync の警告は UNRESOLVABLE_REMEDY を添える）
  */
 export const CONFLICT_REMEDY =
   'Do not choose yourself. Show each conflicted field with its local and remote values (data.conflict_fields of dg sync) and ask the human, as a choice, whether to take remote (the remote values) or local (the local values), then call dg sync --resolve <remote|local> once with the chosen side (only the conflicted fields take that side\'s value, and the taken and discarded values are returned in data.resolved. It is not chosen automatically even with --auto. See "When sync stops" in dg guide overview)';
