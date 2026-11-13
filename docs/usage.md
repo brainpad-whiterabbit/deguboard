@@ -11,8 +11,6 @@ Claude Code で `/dgall s3 --auto` のように Iteration かチケットを渡�
 - 進み具合はカンバンで見られ、計画の帯を押すと依存のグラフが出る
 - Claude Code 以外のエージェントには「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼む
 
-<img src="../packages/vscode/images/run-all.gif" alt="最後まで任せる" width="560">
-
 ## 品質ゲートの段
 
 PR を ready にする・マージするときに判定する条件は、チケットの段（`gate`）で変わる。

@@ -8,7 +8,7 @@ A kanban board inside your Git repository for building software together with AI
 - **Made for teams**: The board lives on a dedicated branch of your repository, so everyone who clones it sees the same board. There is no server or service to run.
 - **Measure and improve**: Every run records its duration, tokens, and rework, and a retrospective turns the bottlenecks into the next tickets.
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/open-board.gif" alt="Opening the board" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="Agents working on a plan in parallel" width="560">
 
 deguboard is an independent project. It is not made, endorsed, or supported by Microsoft.
 
@@ -36,11 +36,15 @@ Click the deguboard icon in the Activity Bar. The tabs at the top switch between
 
 ### Board: assign, plan, and work in parallel
 
-1. **Assign**: Choose **Ask Agent** → **Assign** on tickets (`/dgassign`) to put them into an Iteration. The Board shows the tickets of the Iteration in columns by status.
+1. **Assign**: Choose **Ask Agent** → **Assign** on tickets (`/dgassign`) to put them into an Iteration or an Epic. To ask about several tickets at once, select their rows by the left edge and press **Ask** at the bottom. The Board shows the tickets of the Iteration in columns by status.
 2. **Plan**: Choose **Plan** on the Iteration (`/dgplan s3`). The agent orders the tickets by their dependencies and waits for your approval.
-3. **Work**: Choose **Work on** (`/dgwork`). Agents implement the tickets that are not blocked at the same time, each on its own branch and worktree, and open PRs. A PR becomes ready and merges only when the quality gate passes. The band above the Board shows the progress of the plan and its dependency graph.
+3. **Work**: Choose **Run Plan** on the plan in the band above the Board (`/dgwork p3`). Agents implement the tickets that are not blocked at the same time, each on its own branch and worktree, and open PRs. A PR becomes ready and merges only when the quality gate passes. The band above the Board shows the progress of the plan and its dependency graph.
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/ask-agent.gif" alt="Asking an agent" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/assign.gif" alt="Assigning tickets to an Iteration and an Epic" width="560">
+
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="Planning and approving the order" width="560">
+
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="Agents working on a plan in parallel" width="560">
 
 ### History: retrospect and improve
 
