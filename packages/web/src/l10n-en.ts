@@ -279,6 +279,10 @@ export const EN: Readonly<Record<string, string>> = {
   "{0} {1}・完了 {2}/{3}": "{0} {1} · {2}/{3} done",
   "{0}。押すと絞り込みを外す": "{0}. Click to remove the filter",
   "Epic なし": "No Epic",
+  // components/epic-head.tsx
+  "Epic の見出し {0}": "Epic heading {0}",
+  "完了 {0}/{1}": "{0}/{1} done",
+  "Epic {0} の絞り込みを外す": "Remove filter Epic {0}",
   // pages/board.tsx
   "開いた Iteration（planned・active）はない": "No open Iterations (planned or active)",
   "チケットは {0} で見る": "See tickets in {0}",
@@ -291,7 +295,6 @@ export const EN: Readonly<Record<string, string>> = {
   "\n開始 {0}": "\nStarted {0}",
   "\n目標 {0}": "\nGoal {0}",
   "{0} {1}（{2}）{3}{4}": "{0} {1} ({2}){3}{4}",
-  "Epic {0} の絞り込みを外す": "Remove filter Epic {0}",
   "担当 {0} の絞り込みを外す": "Remove filter assignee {0}",
   "状態の節 {0}": "Status section {0}",
   // pages/config.tsx

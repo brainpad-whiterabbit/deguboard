@@ -3,7 +3,7 @@
 // - カンバンにチケットの行が出て、タブ（バックログ）に切り替えても戻しても行が出ること
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
-// - ライトとダークのテーマでスクリーンショット（カンバン・Epic の札に触れて光らせた行・実行計画の依存グラフ・設定画面）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面）を test/vscode/screenshots/ に出すこと
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
 import { access } from "node:fs/promises";
@@ -123,6 +123,39 @@ describe("VS Code の実機の左パネル", () => {
     await sidebar.locator(".ticket-row.epic-hit, .ticket-row.epic-dim").first().waitFor({
       state: "detached",
     });
+  });
+
+  it("Epic で絞ると選んでいる Epic の見出しが出て、触れると吹き出しが出るところを、カンバンとバックログのライトとダークで撮る", async () => {
+    const chip = sidebar.locator(".epic-chips .epic-chip", { hasText: "e1" });
+    const head = sidebar.locator(".epic-head");
+    await chip.click();
+    await head.waitFor();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      await head.hover();
+      const shot = await host.screenshot("epic-head", theme);
+      await access(shot.sidebar);
+    }
+    // × で絞り込みを外すと見出しが消え、ほかの Epic の行が戻る
+    await head.locator(".epic-head-clear").click();
+    await head.waitFor({ state: "detached" });
+    await sidebar.locator(".ticket-row", { hasText: TITLES[2] }).waitFor();
+
+    // バックログは「なし」で絞る（Iteration に入っていない t2 は Epic がない）
+    await sidebar.locator('nav a[href="#/backlog"]').click();
+    await sidebar.locator(".ticket-row", { hasText: TITLES[1] }).waitFor();
+    await sidebar.locator(".epic-chips .epic-chip.loose").click();
+    await head.waitFor();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      await head.hover();
+      const shot = await host.screenshot("epic-head-backlog", theme);
+      await access(shot.sidebar);
+    }
+    await head.locator(".epic-head-clear").click();
+    await head.waitFor({ state: "detached" });
+    await sidebar.locator('nav a[href="#/board"]').click();
+    await sidebar.locator(".ticket-row", { hasText: TITLES[0] }).waitFor();
   });
 
   it("設定画面に並列の上限（work.parallel）の数の欄が出て、ライトとダークで撮る", async () => {

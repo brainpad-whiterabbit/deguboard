@@ -4,18 +4,20 @@
 // 表示だけで書き込まない。Iteration の移動・作成・閉じると Epic の作成は、吹き出しからエージェントに頼む（ADR-027）。
 // Iteration の開始は着手（claim）の手順が行う。
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。札に触れている間はその Epic の行を光らせる（useEpicHighlight）。
+// Epic で絞っている間は、札の下に選んでいる Epic の見出し（components/epic-head.tsx。× で外す）を出す。
 // VS Code の左パネルに出す。検索を常に出し、その右端の漏斗（カンバンと同じ FilterToggle）で絞り込みの欄を検索の下に開く（開閉は host.state に残す）。
-// その下によく使う絞り込み（自分・作業中・high）のチップと、欄で効いている条件の札（× で外す）を並べ、
+// その下によく使う絞り込み（自分・作業中・high）のチップと、欄で効いている条件の札（× で外す。Epic は見出しが兼ねるので出さない）を並べ、
 // 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す。漏斗は条件が効いている間だけ色付きにする。
 // Epic の欄は open の Epic があるときだけ、番号の札（components/epic-chip.tsx）と「なし」の札を並べる（2 行を超える分は「ほか N」）。題と進みは札のツールチップで読む
 // 行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
 // 行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
-// 行・区画の見出しは、エージェントに頼める場所にする（吹き出しと Shift+F10。UI-15）。Epic の札と件数は頼む入口にしない
+// 行・区画の見出し・選んでいる Epic の見出しは、エージェントに頼める場所にする（吹き出しと Shift+F10。UI-15）。Epic の札と件数は頼む入口にしない
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { Chip } from "../components/chips.js";
 import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic-chip.js";
+import { EpicFilterHead } from "../components/epic-head.js";
 import { shortPeriod } from "../components/iteration-parts.js";
 import { TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
@@ -158,15 +160,15 @@ const QUICK_FILTERS = [
 
 /**
  * 効いている条件のうち、ほかの場所で見えていないものを札にする。よく使うチップで見えている条件（出ているチップが効いているとき）と、
- * Epic の欄のチップで見えている Epic（epicShown。選んだチップは ChipRow が「ほか N」に隠さない）は札にしない
+ * Epic（選んでいる Epic の見出しが × を持つ。EpicFilterHead）は札にしない
  */
 function foldedFilters(
   f: BacklogFilter,
   active: readonly ActiveFilter[],
-  { meKnown, epicShown }: { meKnown: boolean; epicShown: boolean },
+  { meKnown }: { meKnown: boolean },
 ): ActiveFilter[] {
   return active.filter((a) => {
-    if (a.key === "epic") return !epicShown;
+    if (a.key === "epic") return false;
     const quick = QUICK_FILTERS.find((q) => q.key === a.key);
     if (!quick || !quick.on(f)) return true;
     return quick.key === "mine" && !meKnown;
@@ -229,10 +231,6 @@ export function BacklogPage() {
   const active = activeFilters(filter, (st) => store.labelOf(st as Ticket["status"]));
   const filtering = active.length > 0 || filter.query.trim() !== "";
   const { epics: openEpics } = useOpenEpics();
-  // Epic の欄に選んだ Epic のチップが出ているか（open の Epic がないと欄は出ず、閉じた Epic を選んでいればチップはない）
-  const epicShown =
-    openEpics.length > 0 &&
-    (filter.epic === NO_EPIC || openEpics.some((e) => e.id === filter.epic));
   // 札に触れている間は、その Epic の行を光らせる（UI-10。Epic で絞っている間は光らせない）
   const epicHighlight = useEpicHighlight(filter.epic);
 
@@ -325,18 +323,33 @@ export function BacklogPage() {
       ) : null}
       <QuickFilters
         filter={filter}
-        folded={foldedFilters(filter, active, { meKnown: store.me !== null, epicShown })}
+        folded={foldedFilters(filter, active, { meKnown: store.me !== null })}
         statusLabel={store.labelOf("in_progress")}
         meKnown={store.me !== null}
         onChange={set}
         count={filtering ? <FilteredCount rows={rows} total={total} /> : null}
       />
       <div className="backlog-layout">
-        <EpicChips
-          selected={filter.epic}
-          onSelect={(epic) => set({ epic: filter.epic === epic ? "" : epic })}
-          onHighlight={epicHighlight.onHighlight}
-        />
+        {/* Epic の欄：札の行と、絞っている間はその下に選んでいる Epic の見出し（絞っている Epic が閉じて札が消えても見出しは残す） */}
+        {openEpics.length > 0 || filter.epic ? (
+          <div className="backlog-epics">
+            <EpicChips
+              selected={filter.epic}
+              onSelect={(epic) => set({ epic: filter.epic === epic ? "" : epic })}
+              onHighlight={epicHighlight.onHighlight}
+            />
+            {filter.epic ? (
+              <EpicFilterHead
+                selected={filter.epic}
+                epic={store.epics.find((e) => e.id === filter.epic)}
+                // 「なし」の件数と頼む対象は、絞って見えている行（ほかの絞り込み・検索の後）
+                tickets={rows}
+                section={ASK_SECTIONS.backlogHeading}
+                onClear={() => set({ epic: "" })}
+              />
+            ) : null}
+          </div>
+        ) : null}
         <div className="backlog-main">
           <EpicHighlight.Provider value={epicHighlight.highlight}>
             {store.iterations.some((i) => i.status !== "closed") ? (

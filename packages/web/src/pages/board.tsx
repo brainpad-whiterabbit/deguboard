@@ -6,12 +6,13 @@
 // 開いた Epic がなければ列を出さない。開いた Iteration がなければ Epic の列・進みの帯・一覧を出さず、バックログへ案内する（NoOpenIteration）。絞り込みの値はハッシュに持つ。
 // VS Code の左パネルに出し、見出しは Iteration の札・Epic の札・選んでいるものの名前の 3 段と進みの帯に詰め、詳細・件数は出さない（件数は帯の done/全体）。
 // 担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
+// Epic で絞っている間は、Iteration の見出しの下に選んでいる Epic の見出し（components/epic-head.tsx。× で外す）を出す。
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
 // 待ちと承認待ちの行（実行中の Run がないもの）はタイトルを説明文の色で薄く出す。
 // 左パネルの行の頭には、実行中の Run があるチケットなら回るリング（右端の下の段に「実行中」）を、実行中の Run のない in_progress なら止まった半分塗りの丸を出す。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
-// 左パネルの行・状態の節の見出し・Iteration の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）。
+// 左パネルの行・状態の節の見出し・Iteration の見出し・選んでいる Epic の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // 表示だけで書き込まない。チケットを進める・片付ける・やめる・done を取り消すと、Iteration の作成・閉じるは、吹き出しから
 // エージェントに頼む（ADR-027）。Status を直に選んで変える操作はなく、Iteration の開始は着手（claim）の手順が行う
@@ -28,6 +29,7 @@ import {
 } from "../components/parts.js";
 import { formatShortTime } from "../components/date-time.js";
 import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic-chip.js";
+import { EpicFilterHead } from "../components/epic-head.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { PlanBand } from "../components/plan-band.js";
 import { shortPeriod } from "../components/iteration-parts.js";
@@ -55,7 +57,6 @@ import {
   ITERATION_LABELS,
   matchesEpic,
   NO_CLAIM,
-  NO_EPIC,
   type Epic,
   type Iteration,
   type Progress,
@@ -199,10 +200,17 @@ export function BoardPage({ query }: { query: BoardQuery }) {
       onHighlight={epicHighlight.onHighlight}
     />
   ) : undefined;
-  // 札が見えている Epic は、× で外す札に出さない（FilterChips）
-  const epicShown =
-    !!epicRow &&
-    (!query.epic || query.epic === NO_EPIC || epicChips.some((e) => e.id === query.epic));
+  // 選んでいる Epic の見出し。絞っている間だけ出し、閉じた Epic で絞ったとき（札の列に出ない）も出す。
+  // 「なし」の件数と頼む対象は、絞って見えているチケット（Epic・担当の絞り込みの後）
+  const epicHead = query.epic ? (
+    <EpicFilterHead
+      selected={query.epic}
+      epic={store.epics.find((e) => e.id === query.epic)}
+      tickets={tickets}
+      section={ASK_SECTIONS.boardHeading}
+      onClear={() => setFilter({ epic: undefined })}
+    />
+  ) : undefined;
 
   return (
     <section>
@@ -216,6 +224,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         progress={ticketProgress(tickets)}
         onSelect={select}
         epics={epicRow}
+        epicHead={epicHead}
         // 漏斗は担当の絞り込みだけ。担当がいなければ出さない
         filter={
           claims.length > 0
@@ -247,13 +256,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           </label>
         </div>
       ) : null}
-      <FilterChips
-        epic={query.epic ? store.epics.find((e) => e.id === query.epic) : undefined}
-        epicId={query.epic}
-        epicShown={epicShown}
-        assignee={query.assignee}
-        onClear={setFilter}
-      />
+      <FilterChips assignee={query.assignee} onClear={setFilter} />
       {open.length === 0 ? (
         <NoOpenIteration />
       ) : (
@@ -329,7 +332,8 @@ export function hideClosedFinished<T extends Ticket>(
 
 /**
  * カンバンの見出し（UI-2）。1 段目に Iteration の札の列（IterationChips）、2 段目に Epic の札の列（epics。開いた Epic がなければ渡さない）、
- * 3 段目に選んでいるものの名前・期間・目標（1 行で省略）、4 段目に状態ごとの色の帯と「n/m done」（件数はここだけ）。
+ * 3 段目に選んでいるものの名前・期間・目標（1 行で省略）、Epic で絞っている間はその下に選んでいる Epic の見出し（epicHead）、
+ * 最後の段に状態ごとの色の帯と「n/m done」（件数はここだけ）。
  * 右端の漏斗は担当の絞り込みを開く（filter。担当がいるときだけ渡す）。絞っている間は漏斗を色付きにする。
  * 詳細は出さないが、選んでいる Iteration の名前は Iteration 詳細へのリンクにする（「すべて」の名前はリンクにしない）
  */
@@ -340,6 +344,7 @@ function BoardHead({
   progress,
   onSelect,
   epics,
+  epicHead,
   filter,
 }: {
   open: Iteration[];
@@ -350,6 +355,8 @@ function BoardHead({
   onSelect: (iteration: string) => void;
   /** Epic の札の行（EpicChipRow）。開いた Epic がなければ undefined */
   epics: ReactNode;
+  /** 選んでいる Epic の見出し（EpicFilterHead）。Epic で絞っていなければ undefined */
+  epicHead: ReactNode;
   filter: { open: boolean; active: boolean; onToggle: () => void } | undefined;
 }) {
   const it = selection.kind === "iteration" ? selection.iteration : undefined;
@@ -398,6 +405,7 @@ function BoardHead({
         ) : null}
         {spot.overlay}
       </div>
+      {epicHead}
       {open.length > 0 ? (
         <div className="head-line">
           <StatusBand progress={progress} />
@@ -529,55 +537,30 @@ function ProgressRing({ progress }: { progress: Progress }) {
 }
 
 /**
- * 左パネルのカンバンで絞っている値の札（例「担当 eiki/agent ×」）。× で外す。絞っていなければ何も出さない。
- * Epic は Epic の札の列に見えている間は出さず、見えていないとき（開いた Epic がないなど）だけ番号の札で出す。題はツールチップで読む
+ * 左パネルのカンバンで絞っている担当の札（例「担当 eiki/agent ×」）。× で外す。絞っていなければ何も出さない。
+ * Epic の絞り込みは、選んでいる Epic の見出し（EpicFilterHead）が × を持つので、ここには出さない
  */
 function FilterChips({
-  epic,
-  epicId,
-  epicShown,
   assignee,
   onClear,
 }: {
-  epic: Epic | undefined;
-  epicId: string | undefined;
-  /** Epic の札の列に選んでいる Epic の札が見えているか */
-  epicShown: boolean;
   assignee: string | undefined;
   onClear: (patch: Partial<BoardQuery>) => void;
 }) {
-  const showEpic = !!epicId && !epicShown;
-  if (!showEpic && !assignee) return null;
-  const who = assignee === NO_CLAIM ? tr("なし") : assignee ? actorLabel(assignee) : "";
+  if (!assignee) return null;
+  const who = assignee === NO_CLAIM ? tr("なし") : actorLabel(assignee);
   return (
     <div className="filter-chips">
-      {showEpic ? (
-        <span
-          className="filter-chip"
-          title={epic ? `${epic.id} ${epic.title}` : epicId === NO_EPIC ? tr("Epic なし") : epicId}
+      <span className="filter-chip" title={assignee === NO_CLAIM ? tr("担当なし") : assignee}>
+        <span className="filter-chip-text">{trNode("担当 {0}", who)}</span>
+        <button
+          type="button"
+          aria-label={tr("担当 {0} の絞り込みを外す", who)}
+          onClick={() => onClear({ assignee: undefined })}
         >
-          <span className="filter-chip-text">Epic {epicId === NO_EPIC ? tr("なし") : epicId}</span>
-          <button
-            type="button"
-            aria-label={tr("Epic {0} の絞り込みを外す", epicId === NO_EPIC ? tr("なし") : epicId)}
-            onClick={() => onClear({ epic: undefined })}
-          >
-            ×
-          </button>
-        </span>
-      ) : null}
-      {assignee ? (
-        <span className="filter-chip" title={assignee === NO_CLAIM ? tr("担当なし") : assignee}>
-          <span className="filter-chip-text">{trNode("担当 {0}", who)}</span>
-          <button
-            type="button"
-            aria-label={tr("担当 {0} の絞り込みを外す", who)}
-            onClick={() => onClear({ assignee: undefined })}
-          >
-            ×
-          </button>
-        </span>
-      ) : null}
+          ×
+        </button>
+      </span>
     </div>
   );
 }

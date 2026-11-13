@@ -1831,6 +1831,58 @@ textarea.body {
   flex: 1;
   min-width: 0;
 }
+/* バックログの Epic の欄：札の行と、絞っている間はその下に選んでいる Epic の見出し */
+.backlog-epics {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+/* 選んでいる Epic の見出し（components/epic-head.tsx）：「Epic e12 題 done/全体 ×」の 1 行。形はカンバンの Iteration の見出し（.head-line.sub）に合わせる。
+   右の余白は吹き出し（.ask-bubble）の場所で、× に重ねない */
+.epic-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 30px 0 0.3rem;
+  font-size: 0.92em;
+  color: var(--vscode-descriptionForeground);
+  border-radius: 3px;
+}
+/* カンバンの見出しでは見出しの余白に合わせる（.sidebar-head .epic-chips と同じ） */
+.sidebar-head .epic-head {
+  padding-left: 0;
+}
+.epic-head-label,
+.epic-head .count,
+.epic-head .state {
+  flex: none;
+}
+/* 題は長ければ省略し、進みと × は縮めない */
+.epic-head .name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+.epic-head-clear {
+  flex: none;
+  margin-left: auto;
+  padding: 0 0.45em;
+  line-height: 1.4;
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 3px;
+}
+.epic-head-clear:hover {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
 /*
  * サイドバーのバックログの行（parts.tsx の TicketTable の assigneeInEnd）：状態の丸印は in_progress（青）と review（黄）が塗り、todo は白抜き。
  * 優先度は右端の札（row-end.tsx の BacklogRowEnd）。カンバンの Run の印（12px のリング・半分塗りの丸。in_progress の色）とは大きさと形で見分ける
