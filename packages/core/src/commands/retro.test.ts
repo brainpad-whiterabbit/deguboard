@@ -144,4 +144,20 @@ describe("振り返りの観点と指標の定義", () => {
     const reset = await runCommand(configUnset, ctx, { key: "retro.perspectives" });
     expect(Object.keys(reset.data.retro.perspectives)).toEqual(DEFAULT_IDS);
   });
+
+  it("config.set --local retro.* も dg retro のコマンドを案内して弾き、個人の設定に何も書かない", async () => {
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
+    for (const key of ["retro", "retro.perspectives", "retro.perspectives.spec.name"])
+      await expect(
+        runCommand(configSet, ctx, { key, value: "x", local: true }),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_FAILED",
+        message: `${key} cannot be set with config set`,
+        detail: expect.stringContaining(
+          "dg retro perspective, dg retro metric, and dg retro remove",
+        ),
+      });
+    expect(ctx.store.localConfig).toEqual({});
+  });
 });
