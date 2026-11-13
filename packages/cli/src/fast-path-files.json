@@ -8,9 +8,15 @@
   "core/src/commands/hook-argv.ts",
   "core/src/commands/hook-records.ts",
   "core/src/commands/pre-tool-use.ts",
+  "core/src/commands/turn-stopped.ts",
   "core/src/model/time.ts",
+  "core/src/git/lock.ts",
+  "core/src/git/outside.ts",
+  "core/src/git/rebase.ts",
   "core/src/git/repo.ts",
   "core/src/git/run.ts",
+  "core/src/git/worktree.ts",
   "core/src/errors.ts",
+  "core/src/storage/atomic.ts",
   "core/src/storage/exists.ts"
 ]

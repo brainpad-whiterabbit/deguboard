@@ -20,6 +20,7 @@
 //     同じものを呼ぶ（t768・t769）。ツールのたびに呼ばれるので、止まった Run の掃除はしない
 //   - turn_stopped：データのリポジトリの dg の外の変更（SY-7）を確かめ、見つけたら止まらずに続けさせて伝える（続けさせた後の Stop では伝えない）。
 //     ストアを開かず（t770）、config のリモートの名前だけを読む文脈で確かめる（storelessRemote）。Stop は応答のたびに呼ばれ、ストアを開くと遅いため。
+//     記録と確かめは turn-stopped.ts にあり、2 つの入口の速い経路も同じものを呼ぶ（t786）。
 //     dg の外の変更の検査は、ほかのイベントでは runCommand でも行わない（フックで作業を止めない。ownsOutsideCheck）
 //   どのイベントでも、扱うイベントなら読む項目の有無と時刻を deguboard-local/hook-inputs/ に残す（t542。dg hooks check が読む）。
 //   届いた出来事の種類と、フックの中で出た警告は deguboard-local/hook-sessions/ にセッションごとに残し、next・brief・hooks check が後で知らせる（t756）
@@ -30,7 +31,6 @@ import path from "node:path";
 import { z } from "zod";
 import { collectRunUsage, hookAgentNames, hooksOf, type HookEvent } from "../agents/index.js";
 import { OperationError } from "../errors.js";
-import { checkOutside, describeOutside, outsideRemedy } from "../git/outside.js";
 import { collectBranchFacts, lastPushedAt } from "../git/facts.js";
 import { withWrite } from "../git/write.js";
 import { toIsoDateTime } from "../model/common.js";
@@ -58,6 +58,7 @@ import {
   subagentStopMissingWarning,
 } from "./hook-sessions.js";
 import { runToolRequested } from "./pre-tool-use.js";
+import { runTurnStopped } from "./turn-stopped.js";
 import { adoptableReviewRecord } from "./orphan-review.js";
 import {
   closePreviousFixRunOrWarn,
@@ -181,6 +182,23 @@ export const hook = defineCommand({
         r.warnings,
       );
     }
+    // Stop も、2 つの入口の速い経路と同じ関数で行う（t786）。リモートの名前は storelessRemote の文脈が読んだもの。
+    // 応答のたびに呼ばれるので、止まった Run の掃除（closeStoppedRuns）はしない
+    if (event?.kind === "turn_stopped") {
+      const r = await runTurnStopped({
+        hooks,
+        eventName: input.event,
+        payload,
+        event,
+        repo: ctx.repo,
+        now: () => ctx.now(),
+      });
+      return ok(
+        { ...view, done: r.done, ...(r.output !== undefined ? { output: r.output } : {}) },
+        undefined,
+        r.warnings,
+      );
+    }
     // 記録の流れは PreToolUse と同じ recordAroundHook（hook-records.ts）。フックの入力の項目の有無をイベントごとの最新の 1 件に残し
     // （dg hooks check が読む。扱うイベントの名前だけを使う）、このセッションにフックが届いたことと届いた種類を残し
     // （next・brief・claim --no-run が、届いていないセッションを警告する。t697・t756）、警告をセッションごとに残す
@@ -214,7 +232,7 @@ export const hook = defineCommand({
 async function handle(
   ctx: CommandContext,
   agent: string,
-  event: Exclude<HookEvent, { kind: "tool_requested" }>,
+  event: Exclude<HookEvent, { kind: "tool_requested" | "turn_stopped" }>,
   view: HookView,
   warnings: string[],
 ): Promise<void> {
@@ -233,9 +251,6 @@ async function handle(
       break;
     case "session_end":
       return sessionEnd(ctx, event, view, warnings);
-    case "turn_stopped":
-      // 応答のたびに呼ばれるので、止まった Run の掃除はしない
-      return turnStopped(ctx, agent, event, view);
   }
   // 記録の書き終わりを待ちきれずに残した Run を、次のフックの機会に閉じる（RN-7）
   await closeStoppedRuns(ctx, warnings, view, { session: event.session, markedBefore: calledAt });
@@ -929,26 +944,6 @@ async function sessionEnd(
       );
     }
   }
-}
-
-/**
- * エージェントが応答を終えたとき（Stop。t546）。データのリポジトリに dg の外の変更があれば、止まらずに続けさせてファイルと戻し方を伝える。
- * 続けさせた後の Stop（continued）では伝えない（直せないときに続けさせ続けない。次の dg のコマンドが書き込みを止めて同じことを伝える）
- */
-async function turnStopped(
-  ctx: CommandContext,
-  agent: string,
-  event: Extract<HookEvent, { kind: "turn_stopped" }>,
-  view: HookView,
-): Promise<void> {
-  if (event.continued) return;
-  const check = await checkOutside(ctx.repo);
-  if (check.kind !== "found") return;
-  const reason =
-    `The deguboard data repository has changes made outside dg (${describeOutside(check.changes)}). ` +
-    `${outsideRemedy(check.changes)}. If you wrote them yourself, tell a person and confirm whether to adopt or discard them`;
-  view.output = hooksOf(agent)!.continueOutput(view.event, reason);
-  view.done.push(`Reported changes made outside dg: ${describeOutside(check.changes)}`);
 }
 
 export const hookCommands = [hook];

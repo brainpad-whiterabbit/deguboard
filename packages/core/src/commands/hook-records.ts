@@ -1,5 +1,5 @@
 // dg hook が deguboard-local/ に残す記録の書き方（hook-inputs/ と hook-sessions/。t542・t697・t756）。
-// PreToolUse の速い経路（fast-hook.ts）も書くので、node の組み込みのほかに依存を持たない（t768）。
+// PreToolUse と Stop の速い経路（fast-hook.ts）も書くので、node の組み込みのほかに依存を持たない（t768・t786）。
 // 記録の意味と読む側は hook-sessions.ts の冒頭
 
 import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -114,6 +114,18 @@ export async function recordHookWarnings(
     fileOf(localDir, session, WARNINGS_SUFFIX),
     warnings.map((text) => `${JSON.stringify({ at, event, text })}\n`).join(""),
   );
+}
+
+/**
+ * 速い経路（fast-hook.ts）が受け持つフック（PreToolUse・Stop）の結果。入口は done を `dg hook: ` を付けて標準エラーに、
+ * output を標準出力に、warnings を標準エラーに書く（dg hook の人向けの出力と同じ。cli の hook-print.ts）
+ */
+export interface HookRunView {
+  /** 行ったこと（1 件 1 行） */
+  done: string[];
+  /** フックが標準出力に書く文（ツールの使用を拒む・止まらずに続けさせるときの製品の形。Adapter が作る） */
+  output?: string;
+  warnings: string[];
 }
 
 /**

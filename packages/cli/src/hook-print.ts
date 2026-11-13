@@ -1,4 +1,4 @@
-// dg hook の人向けの出力の書き方。今の経路（output.ts の printHuman）と PreToolUse の速い経路（fast-hook.ts）が同じものを使う。
+// dg hook の人向けの出力の書き方。今の経路（output.ts の printHuman）と PreToolUse と Stop の速い経路（fast-hook.ts）が同じものを使う。
 // 速い経路が読むので、ほかのファイルを読まない（fast-hook.test.ts が確かめる）
 
 interface Streams {

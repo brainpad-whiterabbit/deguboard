@@ -1,5 +1,5 @@
 // VS Code 拡張に同梱する dg（dist/cli/dg.mjs）の入口。ここには入口だけを置き、本体（bundle-main.ts）は隣の chunk に束ねる
-// （packages/vscode/vite.cli.config.ts）。コンパイルキャッシュを有効にしてから PreToolUse の速い経路（t769）を試し、受け持たない入力を
+// （packages/vscode/vite.cli.config.ts）。コンパイルキャッシュを有効にしてから PreToolUse と Stop の速い経路（t769・t786）を試し、受け持たない入力を
 // 読んだ標準入力を添えて本体に回す流れは、bin/dg.js と共通の run-entry.mjs に置き、dg.mjs に束ねる（t767・t788）。
 // キャッシュは有効にした後に読むモジュールにだけ効くので、本体を同じファイルに束ねると効かない。
 // 速い経路は本体と分けた小さな chunk（dg-fast-*.mjs）で、本体の chunk は読まない。

@@ -103,7 +103,7 @@ mise run dg -- guide done      # マージ後の後始末
 | `workflow/` | 遷移の制約の合成と検査、条件の評価、`reconcile` の評価、定義の検証、同梱テンプレート                                                                                                                                    |
 | `git/`      | deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`、仮番号の振り直し、事実の収集、frontmatter と YAML のマージドライバ（`merge.ts`。SY-4）、経過の読み取り（`history.ts`。CL-7）                 |
 | `run/`      | Run の start・finish と、チケットの操作の書き込みの中で閉じる closeRun。実行中の記録は `deguboard-local/runs/`、二重の start は `locks/runs` のロックで拒む                                                             |
-| `agents/`   | Agent Adapter（`adapters/` に製品ごと）。会話記録からの使用量の取り込みと、Skill の置き場所（`skillDirs`）。汎用部分は `index.ts` だけを import する（PreToolUse の速い経路は `fast-hooks.ts`。ADR-033）                |
+| `agents/`   | Agent Adapter（`adapters/` に製品ごと）。会話記録からの使用量の取り込みと、Skill の置き場所（`skillDirs`）。汎用部分は `index.ts` だけを import する（PreToolUse と Stop の速い経路は `fast-hooks.ts`。ADR-033）        |
 | `actions/`  | 登録済みの Action（ライブラリ。コマンドにはしない）。core の公開は `ACTION_NAMES` だけ                                                                                                                                  |
 | `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                                                                                                            |
 | `guide/`    | guide の本文（`guide-*.md`）の読み込み・節の切り出し（`sections.ts`）・config の埋め込み。`dg guide`・`dg next`・`dg brief`・`dg flow next` が写す（ADR-030）                                                           |
@@ -112,7 +112,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 ### `packages/cli`（パッケージ名 `deguboard`、コマンドは `dg`）
 
-core の `commands` を commander（`program.ts`）と MCP のツール（`mcp.ts`）に写す。ロジックは持たない。`bin/dg.js` と束ねた `dist/cli/dg.mjs` の入口（`bundle.ts`）は PreToolUse のフックの呼び出しを、本体を読む前に `fast-hook.ts` で処理する（ADR-033）。各ファイルの役割は冒頭のコメントが正本で、引数の型ごとの対応は `options.ts`、`--json` の形は `output.ts`、終了コードは `errors.ts`。
+core の `commands` を commander（`program.ts`）と MCP のツール（`mcp.ts`）に写す。ロジックは持たない。`bin/dg.js` と束ねた `dist/cli/dg.mjs` の入口（`bundle.ts`）は PreToolUse と Stop のフックの呼び出しを、本体を読む前に `fast-hook.ts` で処理する（ADR-033）。各ファイルの役割は冒頭のコメントが正本で、引数の型ごとの対応は `options.ts`、`--json` の形は `output.ts`、終了コードは `errors.ts`。
 
 グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は開発用（配置の確認とスクリーンショット。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）で、`@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` は `packages/core/src/guide/` にあり、ビルドで core の `dist/guide/` に、拡張の `dist/` に写す（ルートと `packages/vscode` の `build`）。`skill.md` は `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide-<トピック>.md` を置き、`packages/core/src/guide/topics.ts` の `GUIDE_TOPICS`（guide の読み込みと config の `guide.notes` が読む）・`guide-overview.md` の表・`packages/core/src/model/schema.test.ts` の `guide.notes.<トピック>` の一覧を直す。Skill を持つトピック（frontmatter に `description`）は `packages/core/src/commands/ask.ts` の `SKILL_SUMMARY` に文を足し、持たないトピックは `packages/cli/src/guide.test.ts` の Skill を持たないトピックの並びに足す。
 

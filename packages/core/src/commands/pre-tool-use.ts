@@ -5,7 +5,7 @@
 import path from "node:path";
 import type { HookEvent, HookSupport } from "../agents/define.js";
 import { toIsoDateTime } from "../model/time.js";
-import { recordAroundHook } from "./hook-records.js";
+import { recordAroundHook, type HookRunView } from "./hook-records.js";
 
 /** .git/deguboard の語（区切りは / と \。.git/deguboard-local も含む） */
 const DATA_DIR_WORD = /\.git[\\/]+deguboard/;
@@ -112,15 +112,6 @@ function toolDenyReason(
   return advancesPrOutsideDg(command) ? GH_PR_DENIED : undefined;
 }
 
-/** PreToolUse の結果。入口は done を `dg hook: ` を付けて標準エラーに、output を標準出力に、warnings を標準エラーに書く */
-export interface ToolRequestedView {
-  /** 行ったこと（1 件 1 行） */
-  done: string[];
-  /** フックが標準出力に書く文（ツールの使用を拒むときの製品の形。Adapter の denyOutput が作る） */
-  output?: string;
-  warnings: string[];
-}
-
 /**
  * PreToolUse の全体：入力の項目の有無（hook-inputs/）とセッションに届いたこと（hook-sessions/）を残し、拒むか決め、
  * 出た警告をセッションに残す（t542・t697・t756）。記録の失敗と判定の失敗は警告にし、例外を投げない（フックで作業を止めない）。
@@ -133,9 +124,9 @@ export async function runToolRequested(args: {
   event: ToolRequested;
   repo: { topLevel: string; dataDir: string; localDir: string };
   now: () => Date;
-}): Promise<ToolRequestedView> {
+}): Promise<HookRunView> {
   const { hooks, eventName, payload, repo } = args;
-  const view: ToolRequestedView = { done: [], warnings: [] };
+  const view: HookRunView = { done: [], warnings: [] };
   view.warnings = await recordAroundHook({
     localDir: repo.localDir,
     eventName,

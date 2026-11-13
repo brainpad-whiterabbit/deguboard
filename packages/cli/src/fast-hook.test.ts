@@ -17,16 +17,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { hookArgv, hooksOf, resolveRepoPaths } from "@deguboard/core";
-import { isFastHookArgv } from "@deguboard/core/fast-hook";
-import { createFixture, createFixtureFrom } from "../../core/test/helpers/git-fixture.js";
+import { fastHookEventOf } from "@deguboard/core/fast-hook";
+import { createFixture, createFixtureFrom, git } from "../../core/test/helpers/git-fixture.js";
 import { tryFastHook } from "./fast-hook.js";
 import { installHooks } from "./hooks.js";
 import { run } from "./program.js";
 import {
   DEFAULT_HOOK_AGENT,
+  DEFAULT_STOP_EVENT,
   DEFAULT_TOOL_EVENT,
   defaultHookSupport,
 } from "../../core/src/agents/fast-hooks.js";
+
+const isFastHookArgv = (argv: readonly string[]) => fastHookEventOf(argv) !== undefined;
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -34,6 +37,7 @@ afterEach(async () => {
 });
 
 const ARGV = hookArgv("claude-code", "PreToolUse");
+const STOP_ARGV = hookArgv("claude-code", "Stop");
 const SESSION = "s-fast";
 
 async function initialized(): Promise<string> {
@@ -88,11 +92,11 @@ async function takeRecords(cwd: string): Promise<Record<string, string>> {
 }
 
 /** bin/dg.js と同じ順に動かす：速い経路を試し、受け持たなければ読んだ標準入力を添えて main（run）に回す */
-async function viaDgJs(cwd: string, stdin: string): Promise<Ran> {
+async function viaDgJs(cwd: string, stdin: string, argv = ARGV): Promise<Ran> {
   const out: string[] = [];
   const err: string[] = [];
   const streams = { out: (t: string) => out.push(t), err: (t: string) => err.push(t) };
-  const fast = await tryFastHook(ARGV, {
+  const fast = await tryFastHook(argv, {
     stdin: async () => stdin,
     cwd,
     env: {},
@@ -101,7 +105,7 @@ async function viaDgJs(cwd: string, stdin: string): Promise<Ran> {
   });
   const code = fast.handled
     ? fast.exitCode
-    : await run(ARGV, {
+    : await run(argv, {
         cwd,
         env: {},
         streams,
@@ -111,10 +115,10 @@ async function viaDgJs(cwd: string, stdin: string): Promise<Ran> {
 }
 
 /** 今の経路（CLI の全体を読む main） */
-async function viaMain(cwd: string, stdin: string): Promise<Ran> {
+async function viaMain(cwd: string, stdin: string, argv = ARGV): Promise<Ran> {
   const out: string[] = [];
   const err: string[] = [];
-  const code = await run(ARGV, {
+  const code = await run(argv, {
     cwd,
     env: {},
     stdinText: stdin,
@@ -126,10 +130,10 @@ async function viaMain(cwd: string, stdin: string): Promise<Ran> {
 const payload = (cwd: string, tool: string, input: Record<string, unknown>) =>
   JSON.stringify({ session_id: SESSION, tool_name: tool, tool_input: input, cwd });
 
-async function compare(cwd: string, stdin: string): Promise<Ran> {
+async function compare(cwd: string, stdin: string, argv = ARGV): Promise<Ran> {
   await takeRecords(cwd);
-  const fast = await viaDgJs(cwd, stdin);
-  const main = await viaMain(cwd, stdin);
+  const fast = await viaDgJs(cwd, stdin, argv);
+  const main = await viaMain(cwd, stdin, argv);
   const { handled: _handled, ...rest } = fast;
   expect(rest).toEqual(main);
   expect(fast.code).toBe(0);
@@ -184,7 +188,7 @@ describe("PreToolUse の速い経路（bin/dg.js。t768）", () => {
     }
   });
 
-  it("dg hooks install が書く PreToolUse のコマンドの引数を、速い経路が受け持つ。ほかのイベントと引数は受け持たない", async () => {
+  it("dg hooks install が書く PreToolUse と Stop のコマンドの引数を、速い経路が受け持つ。ほかのイベントと引数は受け持たない", async () => {
     const cwd = await initialized();
     const result = await installHooks({
       cwd,
@@ -198,8 +202,9 @@ describe("PreToolUse の速い経路（bin/dg.js。t768）", () => {
     };
     const argvOf = (event: string) =>
       settings.hooks[event]![0]!.hooks[0]!.command.split(" ").slice(1);
-    expect(isFastHookArgv(argvOf("PreToolUse"))).toBe(true);
-    for (const event of ["SessionStart", "PostToolUse", "Stop", "SubagentStop"])
+    expect(fastHookEventOf(argvOf("PreToolUse"))).toBe("PreToolUse");
+    expect(fastHookEventOf(argvOf("Stop"))).toBe("Stop");
+    for (const event of ["SessionStart", "PostToolUse", "SubagentStop"])
       expect(isFastHookArgv(argvOf(event)), event).toBe(false);
     expect(isFastHookArgv(["--json", ...argvOf("PreToolUse")])).toBe(false);
     expect(isFastHookArgv(["ticket", "list"])).toBe(false);
@@ -212,8 +217,62 @@ describe("PreToolUse の速い経路（bin/dg.js。t768）", () => {
 
   it("速い経路のフックの読み方は hooksOf の既定のエージェントと同じもの", () => {
     expect(defaultHookSupport).toBe(hooksOf(DEFAULT_HOOK_AGENT));
-    expect(defaultHookSupport.events.map((e) => e.event)).toContain(DEFAULT_TOOL_EVENT);
-    expect(isFastHookArgv(hookArgv(DEFAULT_HOOK_AGENT, DEFAULT_TOOL_EVENT))).toBe(true);
+    for (const event of [DEFAULT_TOOL_EVENT, DEFAULT_STOP_EVENT]) {
+      expect(defaultHookSupport.events.map((e) => e.event)).toContain(event);
+      expect(fastHookEventOf(hookArgv(DEFAULT_HOOK_AGENT, event))).toBe(event);
+    }
+  });
+});
+
+describe("Stop の速い経路（bin/dg.js。t786）", () => {
+  const stop = (continued = false) =>
+    JSON.stringify({ session_id: SESSION, stop_hook_active: continued });
+  const STOP_RECORDS = [
+    "hook-inputs/Stop.json",
+    `hook-sessions/${SESSION}.json`,
+    `hook-sessions/${SESSION}.kind-turn_stopped.json`,
+  ];
+  const compareStop = async (cwd: string, stdin: string) => {
+    const r = await compare(cwd, stdin, STOP_ARGV);
+    expect(r.handled).toBe(true);
+    expect(Object.keys(r.records).sort()).toEqual(STOP_RECORDS);
+    return r;
+  };
+
+  it("dg の外の変更がない・未コミットの変更・続けさせた後・dg の外のコミットは速い経路が受け持ち、標準出力・標準エラー・終了コード・記録が今の経路と同じ", async () => {
+    const cwd = await initialized();
+    const { dataDir } = await resolveRepoPaths(cwd);
+    // 変更がなければ何も出さない
+    expect((await compareStop(cwd, stop())).out).toEqual([]);
+    // 未コミットの変更は、止まらずに続けさせてファイルを伝える
+    await writeFile(path.join(dataDir, "outside.md"), "x\n");
+    const dirty = await compareStop(cwd, stop());
+    expect(JSON.parse(dirty.out[0]!)).toMatchObject({ decision: "block" });
+    expect(dirty.out[0]).toContain("outside.md");
+    // 続けさせた後の Stop では伝えない
+    expect((await compareStop(cwd, stop(true))).out).toEqual([]);
+    // dg の外のコミット（HEAD が基準から動く）は、速い経路も config のリモートの名前を読んで確かめる
+    await git(dataDir, ["add", "outside.md"]);
+    await git(dataDir, ["commit", "-q", "-m", "outside commit"]);
+    const committed = await compareStop(cwd, stop());
+    const { decision, reason } = JSON.parse(committed.out[0]!) as Record<string, string>;
+    expect(decision).toBe("block");
+    expect(reason).toContain('"outside commit": outside.md');
+  });
+
+  it("初期化していない・git の外・JSON でない・オブジェクトでない・セッションのない入力は今の経路に回し、結果は今の経路と同じ", async () => {
+    const init = await initialized();
+    const cases: Array<[string, string, string]> = [
+      ["初期化していない", await uninitialized(), stop()],
+      ["git の外", await outsideGit(), stop()],
+      ["JSON でない", init, `session_id: ${SESSION}\nstop_hook_active: false\n`],
+      ["オブジェクトでない", init, "[1, 2]"],
+      ["セッションのない", init, JSON.stringify({ stop_hook_active: false })],
+    ];
+    for (const [name, cwd, stdin] of cases) {
+      const r = await compare(cwd, stdin, STOP_ARGV);
+      expect(r.handled, name).toBe(false);
+    }
   });
 });
 
