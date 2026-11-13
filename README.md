@@ -8,7 +8,7 @@ A kanban board inside your Git repository for building software together with AI
 - **Made for teams**: The board lives on a dedicated branch of your repository, so everyone who clones it sees the same board. There is no server or service to run.
 - **Measure and improve**: Each run records how long each step took, how many tokens it used, and how much rework it needed, and the metrics your team approved show their trend, so the bottlenecks become the next tickets.
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/flow.png" alt="The development flow: an agent turns your idea into tickets, plans the order, and agents work in parallel through the quality gate in each Iteration, then release and retrospect; you approve the tickets, the plan, each merge, and the release, and choose what to improve" width="800">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/flow.png" alt="The development flow: an agent turns your idea into tickets and plans the order, agents work in parallel through the quality gate in each Iteration and report the time and tokens per ticket, then release and retrospect; your whole team sees the same board, and you approve the tickets, the plan, and the release, monitor the Iteration, and choose what to improve" width="800">
 
 deguboard is an independent project. It is not made, endorsed, or supported by Microsoft.
 
