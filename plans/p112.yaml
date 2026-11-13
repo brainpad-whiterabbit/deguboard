@@ -12,7 +12,7 @@ after:
     - t793
   t796:
     - t795
-pending_approval: true
+pending_approval: false
 details:
   t792:
     scope: Plan の approved_at・closed_at だけが違う競合を早い方で自動で解く。片側だけ・読めない時刻は競合のまま
@@ -46,3 +46,5 @@ details:
     scope: vitest のワーカー数に測って決めた既定の上限を付け、環境変数で上書きできるようにする
     approach: t795 の後に test:related と全体のテストを重ねて測り、vitest.config.ts の maxWorkers を環境変数から読み、理由をコメントと development.md に書く
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-13T00:27:04Z
