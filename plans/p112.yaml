@@ -1,0 +1,48 @@
+id: p112
+project: default
+tickets: [t792, t795, t793, t785, t797, t786, t796, t794]
+after:
+  t785:
+    - t792
+  t797:
+    - t785
+  t794:
+    - t797
+  t786:
+    - t793
+  t796:
+    - t795
+pending_approval: true
+details:
+  t792:
+    scope: Plan の approved_at・closed_at だけが違う競合を早い方で自動で解く。片側だけ・読めない時刻は競合のまま
+    approach: merge.ts の earlierTimes を status のない Plan のファイルでも同じ時刻のフィールドに働かせ、merge.test.ts に Plan の形のテストを足し、SY-4・sync のヘルプ・ADR-034 を合わせる
+    tier: standard
+  t785:
+    scope: sync の JSON の本文のフィールドの識別子を body にし、fieldLabel の使われない export を外す。データの移行はしない
+    approach: merge.ts の BODY_FIELD を body にし、sync.ts の読み替え・guide-overview・vscode の sync-resolve.ts・テストを body に合わせる
+    tier: standard
+  t797:
+    scope: dg skill install と dg hooks install が .claude/.gitignore に自分の行を足し、追跡済みなら git rm --cached を案内する。このリポジトリの .claude/skills を追跡から外す
+    approach: skill.ts と hooks.ts に .gitignore へ行を足す共通の処理を置き、installWarnings を直し、README・README.ja・walkthrough・AG-2・AG-9・ADR-030 を同じ PR で直す
+    tier: heavy
+  t794:
+    scope: README の同期の競合の節に、画面の即時の書き込みも待つことと、ボタンの出ない競合を書き、AG-11 を CL-1 の例外と示す。文書だけ
+    approach: README.md と README.ja.md の同じ節を同じ構成で直し、requirements.md の AG-11 に 1 句足して check:docs を通す
+    tier: light
+  t793:
+    scope: s28 で足したテストの写し・重複・環境への依存を片付ける。テストだけで、本体のコードは変えない
+    approach: fast-hook.test.ts・bundle-cli.test.ts・dg-node-version.test.ts を受け入れ条件の順に直し、DEGUBOARD_ の変数を外した環境で入口を起動する
+    tier: standard
+  t786:
+    scope: Stop のフックを入口の速い経路で処理し、ほかの入力は今の経路に回す。出力・終了コード・記録は変えない
+    approach: t768・t769 の PreToolUse の速い経路と同じ形で fast-hook.ts に Stop を足し、hook.ts の turnStopped と同じ結果を比べるテストを書き、前後を 5 回測る
+    tier: standard
+  t795:
+    scope: mise run check のテストの段だけを git-common-dir の下の lock で 1 本ずつ回す。test:related・check:light は lock の外
+    approach: mise.toml の check のテストの段を flock で囲み、取れないときは 1 行出して待ち、flock がなければ lock なしで回す。理由をコメントと description に書く
+    tier: standard
+  t796:
+    scope: vitest のワーカー数に測って決めた既定の上限を付け、環境変数で上書きできるようにする
+    approach: t795 の後に test:related と全体のテストを重ねて測り、vitest.config.ts の maxWorkers を環境変数から読み、理由をコメントと development.md に書く
+    tier: standard
