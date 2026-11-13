@@ -2,7 +2,7 @@
 
 In the repository you want to manage, run this once. It creates the place where tickets are stored (`.git/deguboard/`).
 
-The easiest way is to press **Start with this repository** on the deguboard start screen in the sidebar. A new terminal runs `dg init`, `dg skill install`, and `dg hooks install` in order, so `dg` does not need to be on your PATH.
+The easiest way is to press **Start with this repository** on the deguboard start screen in the sidebar. A new terminal runs `dg init`, `dg skill install`, and `dg hooks install` in order, so `dg` does not need to be on your PATH. The last two write the Claude Code Skills and hooks for this machine and add them to `.claude/.gitignore`; commit that `.gitignore`. Someone who clones the repository presses the same button to get their own.
 
 To run it yourself in a terminal instead:
 

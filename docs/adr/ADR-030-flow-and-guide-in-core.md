@@ -62,3 +62,4 @@ Iteration の流れ（段階・次の 1 手・止まる判定・自動で選ん�
 - **guide の読み込みを CLI に残し、CLI が next・brief の結果に節を足す**：入口にロジックが入り、HTTP・MCP の結果が CLI とずれる（ADR-033）
 - **入口が guide の読み手を Core に注入する**：すべての入口が同じ読み手を渡す必要があり、渡し忘れた入口だけ結果が欠ける。版と一緒に変わる静的な文書に注入の口は要らない
 - **SKILL.md・guide・CLAUDE.md の書き換えでカスタマイズする**：Skill と guide は更新を受け取れなくなり、CLAUDE.md は dg が形を読めない
+- **Skill を追跡して共有する**：dg の版を上げるたびに差分が出て、人によって版が違うと書き戻し合う。Skill は各自が `dg skill install` で入れ、共有する文は `guide.notes` に置く

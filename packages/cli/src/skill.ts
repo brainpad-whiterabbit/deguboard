@@ -4,7 +4,7 @@
 
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join, relative, sep } from "node:path";
 import {
   DG_PATH_NOTE_EN,
   resolveRepoPaths,
@@ -13,6 +13,7 @@ import {
   type AgentEnv,
 } from "@deguboard/core";
 import { stringify as stringifyYaml } from "yaml";
+import { ensureIgnoreLine, trackedFiles } from "./gitignore.js";
 import { GUIDE_TOPICS, readGuide, readGuideMeta, type GuideTopic } from "./guide.js";
 
 /** 廃止した Skill と、手を加えていないとみなす中身の sha256。一致すれば消し、違えば残して知らせる */
@@ -89,7 +90,14 @@ export interface SkillInstallResult {
   dryRun: boolean;
   /** --dry-run のときは、書くことになる SKILL.md の絶対パスと中身。それ以外は空の配列 */
   files: Array<{ name: string; path: string; content: string }>;
+  /** この実行で dg の Skill を無視する行を足した .gitignore の絶対パス。足さなかった（すでにある・personal・--dry-run）なら null */
+  ignoreFile: string | null;
+  /** git が追跡している dg の Skill のファイル（リポジトリの最上位からの相対パス）。無視の行が効かないので警告する。personal は空 */
+  tracked: string[];
 }
+
+// dg が配る Skill のディレクトリ名の頭。無視の行（skills/dg*/）と追跡済みの検出がこの頭で見分ける
+const SKILL_PREFIX = "dg";
 
 async function readIfExists(path: string): Promise<string | undefined> {
   return readFile(path, "utf8").catch(() => undefined);
@@ -98,7 +106,8 @@ async function readIfExists(path: string): Promise<string | undefined> {
 /**
  * Skill を書く。置き場所は claude-code の Adapter の skillDirs が決め、ask が Skill の有無を見る先と同じになる（AG-5）。
  * scope が project なら cwd を含むリポジトリの最上位、personal ならホームディレクトリ（env の HOME、空か未設定なら OS のホーム）の下。
- * 手を加えていない Skill は最新の中身で上書きし、手を加えたものは force がなければ残す
+ * 手を加えていない Skill は最新の中身で上書きし、手を加えたものは force がなければ残す。
+ * project では、Skill は各自が入れるものなので、実行のたびに .claude/.gitignore に dg の Skill を無視する行（SKILL_PREFIX）がなければ足す（--dry-run では書かない）
  */
 export async function installSkill(options: {
   cwd: string;
@@ -110,10 +119,9 @@ export async function installSkill(options: {
 }): Promise<SkillInstallResult> {
   const dirs = skillDirsOf("claude-code");
   if (!dirs) throw new Error("The claude-code Adapter has no Skill directory");
-  const dir =
-    options.scope === "personal"
-      ? dirs.personal(options.env)
-      : dirs.project((await resolveRepoPaths(options.cwd)).topLevel);
+  const topLevel =
+    options.scope === "personal" ? undefined : (await resolveRepoPaths(options.cwd)).topLevel;
+  const dir = topLevel === undefined ? dirs.personal(options.env) : dirs.project(topLevel);
   const dryRun = options.dryRun ?? false;
   const result: SkillInstallResult = {
     scope: options.scope,
@@ -126,7 +134,18 @@ export async function installSkill(options: {
     retiredKept: [],
     dryRun,
     files: [],
+    ignoreFile: null,
+    tracked: [],
   };
+  if (topLevel !== undefined) {
+    const ignoreFile = join(dirname(dir), ".gitignore");
+    if (!dryRun && (await ensureIgnoreLine(ignoreFile, `${basename(dir)}/${SKILL_PREFIX}*/`)))
+      result.ignoreFile = ignoreFile;
+    const prefix = `${relative(topLevel, dir).split(sep).join("/")}/${SKILL_PREFIX}`;
+    result.tracked = (await trackedFiles(topLevel, dir)).filter(
+      (p) => p.startsWith(prefix) && p.indexOf("/", prefix.length) !== -1,
+    );
+  }
   for (const skill of await buildSkills()) {
     const path = join(dir, skill.name, "SKILL.md");
     const current = await readIfExists(path);
@@ -163,9 +182,20 @@ export async function installSkill(options: {
   return result;
 }
 
-/** 結果の警告。手を加えたので残した Skill を知らせる */
+/** 結果の警告。手を加えたので残した Skill と、追跡されていて無視の行が効かない Skill を知らせる */
 export function skillInstallWarnings(result: SkillInstallResult): string[] {
+  // tracked は <Skill のディレクトリ>/dg<名前>/... の形なので、頭の Skill のディレクトリ（.claude/skills）を取り出す
+  const trackedDir =
+    result.tracked[0] === undefined
+      ? undefined
+      : new RegExp(`^(.+?)/${SKILL_PREFIX}[^/]*/`).exec(result.tracked[0])?.[1];
   return [
+    ...(trackedDir === undefined
+      ? []
+      : [
+          `${result.tracked.length} dg Skill file(s) under ${trackedDir}/ are tracked by git, so the ignore line in .gitignore does not apply to them. ` +
+            `Each person installs the Skills with dg skill install. Stop tracking them at the repository root with git rm -r --cached '${trackedDir}/${SKILL_PREFIX}*' and commit (the files stay on disk)`,
+        ]),
     ...result.conflicts.map(
       (name) =>
         `${name}: it was edited by hand, so it ${result.dryRun ? "will not be" : "was not"} overwritten. To overwrite it, add --force. ` +

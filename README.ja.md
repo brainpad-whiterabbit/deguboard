@@ -18,12 +18,12 @@ deguboard は独立したプロジェクトで、Microsoft が作ったもので
 必要なもの：Git 2.30 以上。PR の状態をチケットに映すときは GitHub CLI（`gh`）も要ります。deguboard は Linux と macOS で動きます。
 
 1. **拡張を入れる**：[GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を取得し、`code --install-extension deguboard-vscode.vsix` で入れます。その後、ウィンドウを再読み込みします。
-2. **リポジトリで始める**：管理したいリポジトリを開き、Activity Bar の deguboard のアイコンを押して、始めの画面の **このリポジトリで始める** を押します。`dg init`・`dg skill install`（Claude Code の Skill。`/dgall` など）・`dg hooks install`（Claude Code のフック。git が追跡しない `.claude/settings.local.json` に書く）が順に実行されます。
+2. **リポジトリで始める**：管理したいリポジトリを開き、Activity Bar の deguboard のアイコンを押して、始めの画面の **このリポジトリで始める** を押します。`dg init`・`dg skill install`（Claude Code の Skill。`/dgall` など）・`dg hooks install`（Claude Code のフック。git が追跡しない `.claude/settings.local.json` に書く）が順に実行されます。Skill とフックはマシンごとのもので、2 つのコマンドが `.claude/.gitignore` に足すので、その `.gitignore` をコミットします。
 3. **ターミナルを使う人だけ**：ターミナルから `dg` を自分で呼ぶなら、コマンドパレットの **dg コマンドを入れる**（Install dg command）を実行します。`~/.local/bin/dg` が張られます（PATH に `~/.local/bin` がなければ足します）。
 
 シェルを使えるほかのエージェント（Codex・Copilot CLI など）は準備が要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
 
-データはリポジトリの専用ブランチに置くので、サービスは要りません。チームの 2 人目からは、拡張を入れて clone し、同じボタンを押せば同じボードが見えます。
+データはリポジトリの専用ブランチに置くので、サービスは要りません。チームの 2 人目からは、拡張を入れて clone し、同じボタンを押せば同じボードが見えます（Skill とフックは clone に入らないので、ボタンが各自のマシンで `dg skill install` と `dg hooks install` も実行します）。
 
 ## 使い方
 
@@ -112,12 +112,13 @@ dg config set notify.approvals false --local
 
 ### 開発者として使い始める
 
-deguboard 自体を開発する人向けです。[mise](https://mise.jdx.dev/) を入れて clone し、フックを入れます。フックは PATH に頼りません。`dg hooks install` が node と `dg.js` の絶対パスを書きます。
+deguboard 自体を開発する人向けです。[mise](https://mise.jdx.dev/) を入れて clone し、Skill とフックを入れます（どちらも git が追跡しないので、clone ごとに入れます）。フックは PATH に頼りません。`dg hooks install` が node と `dg.js` の絶対パスを書きます。
 
 ```sh
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
 mise trust && mise install    # node・pnpm を mise.toml の版で入れる
 mise run install              # 依存を入れ、dg と拡張をビルドし、VSIX を VS Code に入れる
+mise run dg -- skill install  # .claude/skills/ に Claude Code の Skill（dg*）を書く（clone ごとに一度。git pull で dg が変わったらやり直す）
 mise run dg -- hooks install  # .claude/settings.local.json に絶対パスでフックを書く（clone ごとに一度。node を上げたらやり直す）
 mise run dg -- hooks check    # 新しいセッションで、フックが入っていて dg が受け取っていることを確かめる
 mise run dg:link              # 任意：端末から dg を使うために ~/.local/bin/dg にリンクする（PATH の node が 24 以上であること。~/.local/bin が PATH になければ足す）。更新は git pull のあと mise run install

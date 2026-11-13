@@ -18,12 +18,12 @@ deguboard is an independent project. It is not made, endorsed, or supported by M
 Prerequisites: Git 2.30 or later. To reflect pull request status on tickets, you also need the GitHub CLI (`gh`). deguboard runs on Linux and macOS.
 
 1. **Install the extension**: Download `deguboard-vscode.vsix` from [GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) and run `code --install-extension deguboard-vscode.vsix`. Then reload the VS Code window.
-2. **Start with the repository**: Open the repository you want to manage, click the deguboard icon in the Activity Bar, and press **Start with this repository** on the start screen. It runs `dg init`, installs the Skills for Claude Code (`dg skill install`, such as `/dgall`), and writes the Claude Code hooks (`dg hooks install`, to `.claude/settings.local.json`, which git does not track).
+2. **Start with the repository**: Open the repository you want to manage, click the deguboard icon in the Activity Bar, and press **Start with this repository** on the start screen. It runs `dg init`, installs the Skills for Claude Code (`dg skill install`, such as `/dgall`), and writes the Claude Code hooks (`dg hooks install`, to `.claude/settings.local.json`, which git does not track). The Skills and the hooks belong to each machine: the two commands add them to `.claude/.gitignore`, so commit that `.gitignore`.
 3. **Terminal users only**: To run `dg` yourself in a terminal, run **Install dg command** from the Command Palette. It links `~/.local/bin/dg` (add `~/.local/bin` to your PATH if needed).
 
 Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
 
-Data lives on a dedicated branch of your repository, so no service is required. Other team members only need to install the extension, clone the repository, and press the same button to see the same board.
+Data lives on a dedicated branch of your repository, so no service is required. Other team members only need to install the extension, clone the repository, and press the same button to see the same board (the button also runs `dg skill install` and `dg hooks install` on their machine, because the Skills and the hooks are not in the clone).
 
 ## Usage
 
@@ -112,12 +112,13 @@ When two people change the same field of a ticket to different values, `dg sync`
 
 ### Getting started as a developer
 
-For developing deguboard itself. Install [mise](https://mise.jdx.dev/), clone the repository, and install the hooks. The hooks do not depend on PATH: `dg hooks install` writes the absolute paths of node and `dg.js`.
+For developing deguboard itself. Install [mise](https://mise.jdx.dev/), clone the repository, and install the Skills and the hooks (neither is tracked by git, so each clone installs them). The hooks do not depend on PATH: `dg hooks install` writes the absolute paths of node and `dg.js`.
 
 ```sh
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
 mise trust && mise install    # install node and pnpm at the versions in mise.toml
 mise run install              # install dependencies, build dg and the extension, and install the VSIX into VS Code
+mise run dg -- skill install  # write the Claude Code Skills (dg*) to .claude/skills/ (once per clone; again after git pull updates dg)
 mise run dg -- hooks install  # write the hooks to .claude/settings.local.json with absolute paths (once per clone; again after upgrading node)
 mise run dg -- hooks check    # in a new session, confirm the hooks are installed and that dg has received them
 mise run dg:link              # optional: link dg to ~/.local/bin/dg to use it from your terminal (needs Node 24 or later on PATH; add ~/.local/bin to PATH if needed). To update, git pull and then mise run install
