@@ -44,11 +44,11 @@ Click the deguboard icon in the Activity Bar. The tabs at the top switch between
 
 ### History: retrospect and improve
 
-Choose **Ask Agent** → **Retrospect** on a finished Iteration. The agent shows the actuals (duration, tokens, and rework per step), asks which viewpoints to look into, and files the improvements you approve as tickets.
+Choose **Ask Agent** → **Retrospect** on a finished Iteration. The agent shows the actuals (duration and tokens per step, failures, and rework), asks which viewpoints to look into, and files the improvements you approve as tickets.
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="Finding bottlenecks" width="560">
 
-To aggregate tokens as well, let deguboard read usage from conversation transcripts (Claude Code, Codex, and Copilot CLI):
+Tokens are counted only when deguboard reads usage from conversation transcripts (Claude Code, Codex, and Copilot CLI). To turn it on:
 
 ```sh
 dg config set metrics.read_transcripts true

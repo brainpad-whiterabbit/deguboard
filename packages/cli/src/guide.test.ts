@@ -349,6 +349,7 @@ describe("dg guide", () => {
     for (const word of [
       "`total.runs`",
       "Share of time per step",
+      "Share of tokens per step",
       "`total.results.failure`",
       "`total.retries`",
       "`total.reviews.heavy`",
