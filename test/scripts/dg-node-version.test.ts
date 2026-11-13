@@ -82,6 +82,16 @@ describe("古い node で止めるときの終了コード（t782）", () => {
     }
   });
 
+  it("hookArgv と別の主体（--actor を省く・ほかの値・--actor=・--user）の hook PostToolUse・SessionStart も 1 のまま", () => {
+    for (const event of ["PostToolUse", "SessionStart"]) {
+      const tail = ["hook", event, "--payload", "-"];
+      expect(nodeVersionExitCodeOf(tail)).toBe(1);
+      expect(nodeVersionExitCodeOf(["--actor", "human", ...tail])).toBe(1);
+      expect(nodeVersionExitCodeOf(["--actor=human", "--json", ...tail])).toBe(1);
+      expect(nodeVersionExitCodeOf(["--user", "x", "--actor", "agent", ...tail])).toBe(1);
+    }
+  });
+
   it("ほかのコマンドは 1 のまま（dist が無いときと同じ）", () => {
     expect(nodeVersionExitCodeOf(["--version"])).toBe(1);
     expect(nodeVersionExitCodeOf(["--json", "status"])).toBe(1);
