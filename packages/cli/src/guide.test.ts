@@ -324,6 +324,18 @@ describe("dg guide", () => {
     const audit = await readGuide("audit");
     expect(audit).toContain('"Remove ADR details"');
     expect(section(audit, "## Not repeating the same findings")).toContain("tests or comments");
+    // --acceptance と --body は丸ごと置き換える。先に ticket show で読み、前からある中身も渡すと書かないと、
+    // 手順のとおりに足したエージェントが、終わっていないチケットの受け入れ条件や本文を消す（t831）
+    const update = lineWith(
+      section(audit, "## Filing tickets"),
+      "`ticket update <ID> --acceptance`",
+    );
+    for (const word of [
+      "`ticket show <ID>` first",
+      "`--acceptance` replaces the whole acceptance criteria section, so give the existing items and the new one",
+      "`--body` replaces the whole body, so give the existing text and the addition",
+    ])
+      expect(update, word).toContain(word);
   });
 
   it("retro はまず数字の要約を出し、外れ値のある観点を理由つきで勧めて観点を複数選択で 1 回聞き、指示で決まっていれば聞かない", async () => {
