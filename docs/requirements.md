@@ -256,6 +256,7 @@ updated_at: 2026-10-31T05:10:00Z
 - MT-5 `run refresh` は閉じた Run のモデル名と使用量を、finish と同じ方法と MT-2 の許可で会話記録から取り直し、取れた値だけを書き換えて、取れなかった値は残して警告する。実行中の Run は拒み、RN-3 の期間を過ぎた Run は読まずに今の値を残して警告する（細部は `dg run refresh --help`）
 - MT-6 `metrics show` の集計は、Run のチケットの変更行数（TK-11）と、output と input+cache に分けた 1 行あたりのトークンを含む。行数のないチケットは計算から外し、件数を出す。照合はマージを見たときに行数を記録し、`metrics lines` は行数のない done のチケットに後から記録する（細部は `dg metrics show --help`・`dg metrics lines --help`）
 - MT-7 振り返り（`dg guide retro`）は、チームの観点（5.10 の `retro.perspectives`）ごとに、承認した定義で対象の回と直近の回の指標を計算して傾向を出す。定義のない観点には指標を提案し、人が承認した定義だけを記録する。dg は指標を決め打ちせず、計算した値は保存しない（[ADR-035](adr/ADR-035-retro-perspectives.md)）
+- MT-8 `metrics sources` は振り返りの指標の元のデータをチケットごとに返す（マージされた PR が変えたファイルと、題と本文に書かれたほかのチケットの ID）。取れないファイルは理由を付けて null にし、推測で埋めず、何も書かない（細部は `dg metrics sources --help`）
 
 ### 6.7 ワークフロー実行
 

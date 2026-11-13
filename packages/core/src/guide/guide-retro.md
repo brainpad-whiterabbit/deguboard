@@ -47,7 +47,7 @@ Reading and computing proceed without waiting for approval. Approval is asked at
 | #   | Perspective | Metric ID | How to count | Sources | Unmeasured part |
 | --- | ----------- | --------- | ------------ | ------- | --------------- |
 
-- Propose only what can be computed now from what dg and `gh` return: `metrics show`, `run list`, `ticket list`, `ticket show`, `iteration show`, `history`, and `gh pr view`. Run the sources for `<S>` before proposing, and show the value they give next to the proposal, so that the human approves a metric that is seen to work
+- Propose only what can be computed now from what dg and `gh` return: `metrics show`, `metrics sources`, `run list`, `ticket list`, `ticket show`, `iteration show`, `history`, and `gh pr view`. Run the sources for `<S>` before proposing, and show the value they give next to the proposal, so that the human approves a metric that is seen to work
 - "How to count" is one sentence: what is divided by what (or what is counted), and over which tickets or Runs. Write it so that another agent reading only the sentence and the sources gets the same number. Prefer a rate or a number per ticket to a bare count, because the Iterations differ in size
 - "Sources" are the commands with the fields to read, with `<S>` for the Iteration (for example `dg metrics show --iteration <S> --by ticket (retries, reviews.heavy)`)
 - "Unmeasured part" is the part of the perspective's question that the metric does not answer. Write it honestly; if no data at hand answers the question at all, propose nothing for that perspective and say what data would be needed
@@ -62,7 +62,7 @@ Candidates for the default perspectives (starting points; propose what fits the 
 | `outcome`     | The done tickets over the tickets that were in the Iteration when it closed (`iteration show <S>`: `completed`, `carried_over`; `ticket list --iteration <S> --include-abandoned`)                                                                                                                        |
 | `review`      | The heavy findings per reviewed ticket, and the share of the reviews that passed (`metrics show --iteration <S>`: `total.reviews.heavy`, `passed`, `recorded`)                                                                                                                                            |
 | `spec`        | The share of the tickets with no retry and no heavy finding (`metrics show --iteration <S> --by ticket`: `retries`, `reviews.heavy`). When the cause matters, the share of the rework whose cause is the ticket (see "Causes of rework")                                                                  |
-| `slicing`     | The spread of the changed lines and of the time per ticket (`metrics show --iteration <S> --by ticket`: `lines`, `duration_seconds`), such as the largest over the median                                                                                                                                 |
+| `slicing`     | The spread of the changed lines and of the time per ticket (`metrics show --iteration <S> --by ticket`: `lines`, `duration_seconds`), such as the largest over the median. The share of the tickets whose PR changed a file that another ticket's PR of the Iteration also changed (`metrics sources --iteration <S>`: `files`; see "Files and references of the tickets") |
 | `stability`   | The share of the Runs that failed or were interrupted (`metrics show --iteration <S>`: `total.results`), and the retries per ticket (`total.retries`)                                                                                                                                                     |
 | `cost`        | The tokens per changed line, `output` and `input_cache` read separately and never added into one number (`metrics show --iteration <S>`: `total.lines.per_line`, with `lines.missing`); the share of time and of tokens per step (`--by step`). See "Tokens per changed line"                             |
 | `improvement` | The share of the Try of the previous retrospective that is done (`ticket list --label retro-<previous S> --include-abandoned`: done is finished, in_progress or review is under way, todo is not started, abandoned is dropped). If no ticket has the label, the previous retrospective filed no Try      |
@@ -90,6 +90,13 @@ The kinds are: the ticket (acceptance criteria or scope that were unclear or mis
 
 If `gh` is not available or the comments cannot be read, write the cause of that heavy finding as "unmeasured", and say that it could not be read. A retry with no `retry_reasons` is also "unmeasured".
 
+## Files and references of the tickets
+
+- `metrics sources --iteration <S>` gives, for each ticket, `files` (the paths that its merged PR changed) and `refs` (the IDs of other tickets written in its title and body). Use it for metrics about the overlap between PRs (the same file in `files` of two tickets) and about tickets that came from other tickets (a ticket whose `refs` has a ticket of an earlier Iteration, such as a defect that passed the review or the audit). Do not count them by hand from `git log` or the bodies
+- `files` is null when it could not be read, with the reason in `files_unknown` (no PR recorded, a PR not merged, `gh` not available, a PR with more than 100 files, or not read because of `--limit`: `unread` counts those, so raise `--limit`). Null is not "no files": leave such a ticket out of the metric and give the count of them with the number, and write "unmeasured" when most of the tickets are null
+- `refs` tells only that the ID is written, not why. When the metric needs the reason (it came from that ticket, it depends on it, it is only an example), read the ticket with `ticket show` and say in the definition how to tell
+- `refs` of the tickets of `<S>` holds only what those tickets mention. To find the tickets that mention a ticket of `<S>`, read `metrics sources` of the later Iteration (or with no filter) and look for the ID in their `refs`
+
 ## Tokens per changed line
 
 - `lines` of `metrics show` holds the changed lines of the tickets of the Runs (`additions` and `deletions` of each ticket's merged PR) and the tokens per changed line (`per_line`). It is split into `output` (what was written) and `input_cache` (the context read: `input`, `cache_read`, and `cache_write` together), because `cache_read` is most of the tokens. Read the two separately, and do not add them into one number
@@ -106,6 +113,7 @@ Add these as notes to the summary, to the table of the metrics, and to the Keep 
 - `lines.missing`: the number of tickets with no changed lines, which are left out of the tokens per changed line. A done ticket that has a PR and no lines can be filled with `dg metrics lines --iteration <S>` (it writes the lines to the tickets, so run it only when a human asks)
 - `estimated_runs`: the number of Runs whose usage is estimated. The totals include the estimates
 - `no_runs`: done tickets claimed by an agent that have no implement Run. Their work is not in the numbers
+- `files_unknown` and `unread` of `metrics sources`: the tickets whose changed files could not be read (`files` is null). They are left out of the metrics that read `files`
 - Runs follow each ticket's current Iteration, so the Runs of the carried-over tickets are not in the numbers of `<S>`
 
 Do not fill in a value that has a gap by guessing. For a metric or a finding that depends on it, write "unmeasured" with the gap as the reason (for example, "share of time per step: unmeasured, 3 Runs have no `duration_seconds`"), and do not make it a Keep or a Problem.

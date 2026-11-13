@@ -284,6 +284,21 @@ export function doneTicketsWithoutImplementRun(
     .sort((a, b) => idNumber(a) - idNumber(b));
 }
 
+/**
+ * 題と本文に書かれた、ほかのチケットの ID（MT-8）。`t12` の形で、前後が英数字・`_` でないものを、出た順に重ねずに返す。
+ * 自分の ID と、exists が偽の ID（チケットのない番号。例に書いた ID や別の語の一部）は外す。
+ * 書かれているかだけを返し、参照の意味（依存・由来・例）は読み手が決める
+ */
+export function referencedTickets(
+  ticket: { id: string; title: string; body: string },
+  exists: (id: string) => boolean,
+): string[] {
+  const found = `${ticket.title}\n${ticket.body}`.match(
+    /(?<![A-Za-z0-9_])t[1-9]\d*(?![A-Za-z0-9_])/g,
+  );
+  return [...new Set(found ?? [])].filter((id) => id !== ticket.id && exists(id));
+}
+
 /** 絞り込んだ Run の集計と、単位ごとの集計 */
 export function measureRuns(
   placed: readonly { run: Run; at: RunPlacement }[],

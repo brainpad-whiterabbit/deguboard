@@ -1,8 +1,9 @@
 // 作業の実績の集計（requirements.md 6.6 MT-3・MT-6、ADR-029）。metrics show は runs/ の Run とチケットの行数を読み、表示のたびに求める（何も書かない）。
-// metrics lines は done のチケットに PR の行数を後から記録する
+// metrics lines は done のチケットに PR の行数を後から記録する。metrics sources は振り返りの指標の元のデータ
+// （PR が変えたファイルと、ほかのチケットの ID の参照）をチケットごとに読む（MT-8。何も書かない）
 
 import { z } from "zod";
-import { fetchMergedPrLines } from "../git/facts.js";
+import { fetchMergedPrFiles, fetchMergedPrLines } from "../git/facts.js";
 import { withWrite } from "../git/write.js";
 import { slugSchema } from "../model/common.js";
 import { idNumber, type TicketId } from "../model/id.js";
@@ -12,6 +13,7 @@ import {
   filterRuns,
   measureRuns,
   placeRun,
+  referencedTickets,
   type MetricFilter,
   type MetricUnit,
   type MetricsReport,
@@ -208,4 +210,114 @@ export const metricsLines = defineCommand({
   },
 });
 
-export const metricsCommands = [metricsShow, metricsLines];
+/** `metrics sources` が 1 回に gh で読む PR の数の既定と上限（gh は 1 件ずつ直列に呼ぶ） */
+const SOURCES_DEFAULT_LIMIT = 100;
+const SOURCES_MAX_LIMIT = 1000;
+
+export interface TicketSources {
+  id: string;
+  status: Ticket["status"];
+  iteration: string | null;
+  epic: string | null;
+  /** 記録した PR の番号。なければ null */
+  pr: number | null;
+  /** マージされた PR が変えたファイルのパス。取れなければ null（理由は files_unknown） */
+  files: string[] | null;
+  /** files が null の理由。files があれば null */
+  files_unknown: string | null;
+  /** 題と本文に書かれた、ほかのチケットの ID（今あるチケットだけ。出た順） */
+  refs: string[];
+}
+
+export interface MetricsSourcesView {
+  tickets: TicketSources[];
+  /** limit で今回は gh で読まなかった、PR のあるチケットの数 */
+  unread: number;
+}
+
+/**
+ * 振り返りの指標の元のデータを、チケットごとに返す（MT-8）。PR どうしで重なったファイルや、
+ * ほかのチケットから生まれたチケットを、エージェントが git log と本文から手で数えずに済ませる。
+ * ファイルのパスは Git のデータに写さない決まり（MT-4）なので、チケットに記録せず、呼ぶたびに gh から読む
+ */
+export const metricsSources = defineCommand({
+  name: "metrics.sources",
+  group: "metrics",
+  summary:
+    "Read the data behind retrospective metrics for each ticket, without writing anything: files, the paths changed by the ticket's merged PR, and refs, the IDs of other tickets written in its title and body. files comes from gh pr view, one call per ticket that has a PR number, newest ticket first, up to --limit tickets per call. files is null when it cannot be read, with the reason in files_unknown (no PR recorded, the PR is not merged or not found, gh is not available or failed, gh returned only part of a PR with more than 100 files, or not read because of --limit); it is never filled in by guessing, and null does not mean that no file changed. The tickets left unread by --limit are counted in unread; raise --limit or narrow the filter to read them. refs lists IDs in the form t12 in the order they appear, each once, leaving out the ticket itself and IDs with no ticket; it tells only that the ID is written, not why (a dependency, an origin, or an example). Filter by ticket, Epic, or Iteration (each ticket's current value); with no filter, every ticket is returned",
+  input: z.object({
+    ticket: ticketRef.optional().describe("Only this ticket"),
+    epic: epicRef.optional().describe("Only tickets in this Epic"),
+    iteration: iterationRef.optional().describe("Only tickets in this Iteration"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(SOURCES_MAX_LIMIT)
+      .optional()
+      .describe(
+        `Maximum number of PRs to read in this call (default ${SOURCES_DEFAULT_LIMIT}, at most ${SOURCES_MAX_LIMIT})`,
+      ),
+  }),
+  write: false,
+  needs: "store",
+  async run(ctx, input) {
+    const filter = {
+      ticket: idShapeOf(input.ticket, "ticket"),
+      epic: idShapeOf(input.epic, "epic"),
+      iteration: idShapeOf(input.iteration, "iteration"),
+    };
+    const docs = [...ctx.store.tickets.values()]
+      .filter(
+        ({ data: t }) =>
+          (filter.ticket === undefined || filter.ticket === t.id) &&
+          (filter.epic === undefined || filter.epic === t.epic) &&
+          (filter.iteration === undefined || filter.iteration === t.iteration),
+      )
+      .sort((a, b) => idNumber(a.data.id) - idNumber(b.data.id));
+    // gh で読むのは新しいチケットから limit 件まで（metrics lines と同じ順）
+    const withPr = docs
+      .map((d) => d.data)
+      .filter((t): t is Ticket & { pr: number } => t.pr !== undefined)
+      .reverse();
+    const batch = withPr.slice(0, input.limit ?? SOURCES_DEFAULT_LIMIT);
+    const read = new Map<string, Awaited<ReturnType<typeof fetchMergedPrFiles>>>();
+    for (const t of batch) read.set(t.id, await fetchMergedPrFiles(ctx.repo, t.pr));
+
+    const tickets = docs.map((doc): TicketSources => {
+      const t = doc.data;
+      const got = read.get(t.id);
+      const unknown =
+        t.pr === undefined
+          ? "No PR is recorded on the ticket"
+          : got === undefined
+            ? "Not read in this call (limit)"
+            : (got.reason ?? null);
+      return {
+        id: t.id,
+        status: t.status,
+        iteration: t.iteration ?? null,
+        epic: t.epic ?? null,
+        pr: t.pr ?? null,
+        files: got?.files ?? null,
+        files_unknown: unknown,
+        refs: referencedTickets({ id: t.id, title: t.title, body: doc.body }, (id) =>
+          ctx.store.tickets.has(id as TicketId),
+        ),
+      };
+    });
+    // PR のないチケット（PR の要らない作業・着手前）は普通にあるので警告しない。PR があるのに読めなかったものだけを知らせる
+    const failed = tickets.filter((t) => t.pr !== null && read.has(t.id) && t.files === null);
+    const warnings = failed.map(
+      (t) => `${t.id}: the changed files are unknown (${t.files_unknown})`,
+    );
+    const unread = withPr.length - batch.length;
+    if (unread > 0)
+      warnings.push(
+        `${unread} tickets with a PR were not read in this call (limit), and their files are null. Raise --limit or narrow with --iteration, --epic, or --ticket`,
+      );
+    return ok<MetricsSourcesView>({ tickets, unread }, undefined, warnings);
+  },
+});
+
+export const metricsCommands = [metricsShow, metricsLines, metricsSources];
