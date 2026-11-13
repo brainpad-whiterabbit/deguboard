@@ -67,14 +67,14 @@ dg config set metrics.read_transcripts true
 
 ## ヒント
 
-細部は[使い方の細部](docs/usage.md)にあります。
+細部は[使い方の細部](docs/usage.ja.md)にあります。
 
-- [最後まで任せる](docs/usage.md#最後まで任せる)：`/dgall s3 --auto` で、Iteration を割り当てからリリースまで続けて進めます。
-- [品質ゲートの段](docs/usage.md#品質ゲートの段)：チケットごとに `high`（既定）・`low`・`free` を選べます。
-- [同期の競合を解く](docs/usage.md#同期の競合を解く)：二人が同じ項目を変えたときの解き方です。
-- [承認待ちの通知](docs/usage.md#承認待ちの通知)：承認待ちの Plan と review のチケットを知らせます。
-- [チケットへ移動する](docs/usage.md#チケットへ移動する)：ID かタイトルから詳細を開きます。
-- [CLI で使う](docs/usage.md#cli-で使う)・[Claude Desktop から使う（MCP）](docs/usage.md#claude-desktop-から使う)
+- [最後まで任せる](docs/usage.ja.md#最後まで任せる)：`/dgall s3 --auto` で、Iteration を割り当てからリリースまで続けて進めます。
+- [品質ゲートの段](docs/usage.ja.md#品質ゲートの段)：チケットごとに `high`（既定）・`low`・`free` を選べます。
+- [同期の競合を解く](docs/usage.ja.md#同期の競合を解く)：二人が同じ項目を変えたときの解き方です。
+- [承認待ちの通知](docs/usage.ja.md#承認待ちの通知)：承認待ちの Plan と review のチケットを知らせます。
+- [チケットへ移動する](docs/usage.ja.md#チケットへ移動する)：ID かタイトルから詳細を開きます。
+- [CLI で使う](docs/usage.ja.md#cli-で使う)・[Claude Desktop から使う（MCP）](docs/usage.ja.md#claude-desktop-から使う)
 - シェルを使えるほかのエージェント（Codex・Copilot CLI など）は準備が要りません。「`dg guide` を読んでから `dg` で進めて」と頼みます。
 
 ## セキュリティとプライバシー
@@ -86,7 +86,7 @@ dg config set metrics.read_transcripts true
 
 ## ドキュメント
 
-- [使い方の細部](docs/usage.md)：この README に収めない使い方
+- [使い方の細部](docs/usage.ja.md)：この README に収めない使い方
 - [要件定義書](docs/requirements.md)：今の仕様の正本
 - [ADR](docs/adr/README.md)：設計判断の背景と理由
 - [開発ガイド](docs/development.md)：このリポジトリで開発する人向け

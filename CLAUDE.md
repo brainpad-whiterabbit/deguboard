@@ -27,7 +27,7 @@ Agentic-Agile を実践するための、Git リポジトリの中で動くカ�
 - すべての操作は `packages/core/src/commands/` のコマンド定義に置き、CLI・HTTP・Webview は写すだけにする。入口にロジックを書かない
 - git・gh は `child_process.execFile` で引数配列として呼ぶ。シェルを経由しない
 - Git 操作のテストは、一時ディレクトリの bare リモート付きリポジトリで行う
-- コメント・ドキュメント・テスト名は日本語で書く。README.md（GitHub・Marketplace の入口）と SECURITY.md（GitHub の Security タブの入口）は英語で書く（日本語版の README.ja.md も同じ PR で同じ節の構成に合わせる）。guide・Skill の雛形・dg の出力（ヘルプ・エラー・警告などエージェントと利用者が読む文字列）も英語で書く（[ADR-001](docs/adr/ADR-001-doc-strategy.md)）
+- コメント・ドキュメント・テスト名は日本語で書く。README.md（GitHub・Marketplace の入口）と SECURITY.md（GitHub の Security タブの入口）と docs/usage.md（README から引く使い方）は英語で書く（日本語版の README.ja.md と docs/usage.ja.md も同じ PR で、英語版と同じ節の構成に合わせる）。guide・Skill の雛形・dg の出力（ヘルプ・エラー・警告などエージェントと利用者が読む文字列）も英語で書く（[ADR-001](docs/adr/ADR-001-doc-strategy.md)）
 
 ## チケット
 
