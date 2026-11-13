@@ -1,0 +1,33 @@
+{
+  "id": "r20261113-081639-9fab",
+  "ticket": "t832",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-13T08:16:39Z",
+  "finished_at": "2026-11-13T08:17:29Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "手順が案内するテスト名が誤っており、topic の除外リストの場所を読み手が取り違える",
+    "手順の由来の説明が正確でなく、チケット ID が手順に残っている"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 5184,
+    "cache_read": 347375,
+    "cache_write": 34992
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 2,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "55be1ef8-154a-48e6-8ba7-3e2d51a10ee9",
+  "review": null
+}
