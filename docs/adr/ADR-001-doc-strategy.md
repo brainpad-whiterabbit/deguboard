@@ -94,7 +94,7 @@ ADR は、次のどれかに当たる判断だけに書く。
 
 ### 言語
 
-- docs・CLAUDE.md・コードのコメント・テスト名は日本語で書く。例外は GitHub・Marketplace の入口の README.md と SECURITY.md で、英語で書く。日本語の README.ja.md は README.md と同じ節の構成にし、先頭から互いに辿れるようにする。README から指す docs は日本語のままにする
+- docs・CLAUDE.md・コードのコメント・テスト名は日本語で書く。例外は README.md（GitHub・Marketplace の入口）と SECURITY.md（GitHub の Security タブの入口）で、英語で書く。日本語の README.ja.md は README.md と同じ節の構成にし、先頭から互いに辿れるようにする。README から指す docs は日本語のままにする
 - dg がエージェントと利用者に出す文は英語だけで書く。範囲は、guide・Skill の雛形、CLI のヘルプ、MCP のツールの説明、エラー・警告、`dg next`・`flow next` の段階の理由、brief の定型の文、フックが止める文、データのブランチへのコミットの 1 行目、`dg pr ready` が PR の本文に足す定型の節。画面（VS Code 拡張と web）の定型の文は表示言語で出す（要件 UI-11。細部は `packages/core/src/commands/ask.ts`）
 - エージェントが書く文章（チケット・PR・コミット・人への返答）は、リポジトリの既存の文章と人の依頼の言語に合わせる
 
