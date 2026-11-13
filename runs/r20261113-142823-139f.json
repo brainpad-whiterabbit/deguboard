@@ -1,0 +1,34 @@
+{
+  "id": "r20261113-142823-139f",
+  "ticket": "t858",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-13T14:28:23Z",
+  "finished_at": "2026-11-13T14:36:06Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "hooks check tests read the real home directory, so exact warning comparisons depend on the machine's installed Skills",
+    "A comment in ask still names the deleted Skill template file instead of SKILL_TEMPLATE",
+    "AG-2 points to the CLI Skill module for details, but the Skill content and stale check now live in core"
+  ],
+  "usage": {
+    "input": 56,
+    "output": 16111,
+    "cache_read": 1468504,
+    "cache_write": 58682
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 0,
+    "bash": 28,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "d786ae01-8a2a-4001-a115-0f3a9f558d25",
+  "review": null
+}
