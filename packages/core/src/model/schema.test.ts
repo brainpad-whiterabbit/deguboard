@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  AUTO_DECISIONS,
   configFields,
   configSchema,
   defaultConfig,
+  FLOW_SKIPS,
   flattenConfig,
   nestedConfigValue,
   overlayLocalConfig,
@@ -290,20 +292,9 @@ describe("スキーマ", () => {
     for (const f of fields.filter((x) => x.type === "enum"))
       expect(Object.keys(f.option_descriptions ?? {}), f.key).toEqual(f.options);
     expect(Object.keys(byKey.get("auto.decisions")?.option_descriptions ?? {})).toEqual([
-      "assign",
-      "check",
-      "plan",
-      "audit",
-      "accept",
+      ...AUTO_DECISIONS,
     ]);
-    expect(Object.keys(byKey.get("flow.skip")?.option_descriptions ?? {})).toEqual([
-      "assign",
-      "check",
-      "plan",
-      "work",
-      "audit",
-      "release",
-    ]);
+    expect(Object.keys(byKey.get("flow.skip")?.option_descriptions ?? {})).toEqual([...FLOW_SKIPS]);
     expect(
       fields.filter((f) => f.option_descriptions).map((f) => f.key),
       "選択肢ごとの説明を持つ項目",

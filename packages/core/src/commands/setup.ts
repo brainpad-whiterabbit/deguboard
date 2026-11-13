@@ -1128,7 +1128,7 @@ export const configShow = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Also show, with the values, every item's key, type, default, description, and scope (scope: team is team-only, local can be overridden personally), plus the team values and personal overrides (in the form { config, team, local, fields }; used by the settings screen)",
+        "Also show, with the values, every item's key, type, default, summary, description, example, empty (what an empty value does), option_descriptions, and scope (scope: team is team-only, local can be overridden personally), plus the team values and personal overrides (in the form { config, team, local, fields }; used by the settings screen)",
       ),
   }),
   write: false,

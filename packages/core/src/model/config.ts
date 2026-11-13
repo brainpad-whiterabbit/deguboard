@@ -53,7 +53,7 @@ function described<T extends z.ZodType>(schema: T, texts: FieldTexts): T {
 const EMPTY_RETURNS_TO_DEFAULT =
   "Returns to the default (in personal settings, to the team's value)";
 
-const TEST_ALWAYS_RUNS = "actions.test always runs";
+const LIGHT_CHECK_UNUSED = "The lighter check is not used (actions.test runs)";
 const PARENT_MODEL = "The parent's model";
 
 /** guide.notes.<topic> の項目。どの topic も同じ実体なので、要約と詳しい説明をここ 1 か所で持つ */
@@ -162,14 +162,14 @@ export const configSchema = z.looseObject({
         description:
           "Argument array of the lighter check the quality gate's check runs instead of actions.test when every file changed since the last commit whose actions.test passed (the diff against base when there is none) falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either",
         example: ["mise", "run", "check:light"],
-        empty: TEST_ALWAYS_RUNS,
+        empty: LIGHT_CHECK_UNUSED,
       }),
       light_paths: described(z.array(z.string().min(1)).default([]), {
         summary: "Globs of files the lighter check is enough for",
         description:
           "Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file changed since the last commit whose actions.test passed (or against base, when there is none) falls outside, actions.test runs",
         example: ["docs/**"],
-        empty: TEST_ALWAYS_RUNS,
+        empty: LIGHT_CHECK_UNUSED,
       }),
     })
     .prefault({}),

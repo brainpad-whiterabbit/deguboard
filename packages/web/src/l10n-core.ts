@@ -293,7 +293,9 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     ja: "品質ゲートの検査を判定しない（run_tests も拒否する）",
   },
   // actions.light_test・actions.light_paths
-  "actions.test always runs": { ja: "いつも actions.test を回す" },
+  "The lighter check is not used (actions.test runs)": {
+    ja: "軽い検査を使わない（actions.test を回す）",
+  },
   // auto.decisions
   "--auto chooses nothing without asking": { ja: "--auto でも聞かずに選ぶ判断はない" },
   // flow.skip
