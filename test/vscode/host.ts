@@ -7,6 +7,8 @@
 // - ウィンドウ全体（ワークベンチと Webview）の CSP 違反（Chromium が Console の error に出す）と捕まえていない例外（pageerror）を集め、
 //   あれば検査を落とす（WebviewWatch。Playwright の console・pageerror は OOPIF の Webview の分も page に届く）
 // - 起動の PATH にビルド済みの dg（packages/cli/bin）を足し、「dg が PATH にない」の通知がスクリーンショットに写らないようにする
+// - HOME は一時ディレクトリにする。拡張は起動のたびに起動ファイルを ~/.local/share/deguboard/ に書き、個人の置き場所
+//   （~/.claude/skills）の古い Skill を作業ブランチの版に更新するので、本物の HOME を渡すと開発者の手元を書き換える（t863）
 // VS Code の API に触れない純粋な部分（cleanEnv・isCspViolation・pickDisplay）は host.test.ts が確かめる
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -33,8 +35,9 @@ const VSCODE_VERSION = "1.145.1";
 /**
  * 起動する Electron に渡す環境変数。Claude Code や VS Code の統合ターミナルから引き継ぐ、起動の仕方を変える変数を外す：
  * ELECTRON_RUN_AS_NODE（Electron を Node として起動する。画面が出ない）、ほかの ELECTRON_*、
- * VSCODE_*（親の VS Code の IPC・言語・作業ディレクトリ。子の VS Code が親の設定を拾う）、NODE_OPTIONS（Electron の Node にも効く）。
- * DISPLAY は渡された値で上書きする
+ * VSCODE_*（親の VS Code の IPC・言語・作業ディレクトリ。子の VS Code が親の設定を拾う）、NODE_OPTIONS（Electron の Node にも効く）、
+ * XDG_CONFIG_HOME・XDG_DATA_HOME・XDG_CACHE_HOME・XDG_STATE_HOME（本物のホームの下を指し、HOME を一時ディレクトリにしても
+ * Electron や git がそこを読み書きする）。DISPLAY は渡された値で上書きする
  */
 export function cleanEnv(
   env: NodeJS.ProcessEnv,
@@ -44,7 +47,11 @@ export function cleanEnv(
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) continue;
-    if (/^(ELECTRON_|VSCODE_)/.test(key) || key === "NODE_OPTIONS") continue;
+    if (
+      /^(ELECTRON_|VSCODE_|XDG_(CONFIG|DATA|CACHE|STATE)_HOME$)/.test(key) ||
+      key === "NODE_OPTIONS"
+    )
+      continue;
     out[key] = value;
   }
   return { ...out, ...extra, DISPLAY: display };
@@ -181,7 +188,7 @@ export interface Host {
 
 /**
  * 拡張開発ホストを folder（対象のリポジトリ）で起動する。
- * ユーザーデータと拡張の置き場は一時ディレクトリにし、手元の VS Code の設定や拡張の影響を受けないようにする
+ * ユーザーデータ・拡張の置き場・HOME は一時ディレクトリにし、手元の VS Code の設定や拡張の影響を受けず、手元のホームにも書かないようにする
  */
 export async function launchHost(folder: string, display: Display): Promise<Host> {
   const executablePath = await ensureVSCode();
@@ -206,7 +213,9 @@ async function launchIn(
   const userDataDir = path.join(tmp, "user-data");
   const extensionsDir = path.join(tmp, "extensions");
   const binDir = path.join(tmp, "bin");
+  const homeDir = path.join(tmp, "home");
   await mkdir(path.join(userDataDir, "User"), { recursive: true });
+  await mkdir(homeDir);
   await mkdir(extensionsDir, { recursive: true });
   await mkdir(binDir);
   // 拡張は PATH の dg を execFile("dg") で引く（dg.ts）。ビルド済みの bin/dg.js を dg の名前で PATH の先頭に置く
@@ -233,6 +242,8 @@ async function launchIn(
     ],
     env: cleanEnv(process.env, display.name, {
       DEGUBOARD_USER: "vscode-test",
+      HOME: homeDir,
+      USERPROFILE: homeDir,
       PATH: `${binDir}${path.delimiter}${process.env["PATH"] ?? ""}`,
     }),
     timeout: 120_000,

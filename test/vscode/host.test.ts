@@ -7,10 +7,15 @@ import { describe, expect, it } from "vitest";
 import { cleanEnv, isCspViolation, pickDisplay, ROOT } from "./host.js";
 
 describe("cleanEnv", () => {
-  it("ELECTRON_RUN_AS_NODE・ELECTRON_*・VSCODE_*・NODE_OPTIONS を外し、DISPLAY を上書きする", () => {
+  it("ELECTRON_RUN_AS_NODE・ELECTRON_*・VSCODE_*・NODE_OPTIONS・本物のホームを指す XDG_*_HOME を外し、DISPLAY を上書きする", () => {
     const env = cleanEnv(
       {
         ELECTRON_RUN_AS_NODE: "1",
+        XDG_CONFIG_HOME: "/home/me/.config",
+        XDG_DATA_HOME: "/home/me/.local/share",
+        XDG_CACHE_HOME: "/home/me/.cache",
+        XDG_STATE_HOME: "/home/me/.local/state",
+        XDG_RUNTIME_DIR: "/run/user/1000",
         ELECTRON_NO_ATTACH_CONSOLE: "1",
         VSCODE_IPC_HOOK_CLI: "/tmp/x.sock",
         VSCODE_NLS_CONFIG: "{}",
@@ -26,6 +31,7 @@ describe("cleanEnv", () => {
     expect(env).toEqual({
       PATH: "/usr/bin",
       HOME: "/home/me",
+      XDG_RUNTIME_DIR: "/run/user/1000",
       DEGUBOARD_USER: "vscode-test",
       DISPLAY: ":99",
     });
