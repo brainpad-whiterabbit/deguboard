@@ -1,0 +1,5 @@
+id: s31
+project: default
+name: sprint31
+goal: VS Code 拡張を Marketplace と Open VSX に出し、Release の公開で両方に出るようにし、README の導入をストアからに変える
+status: planned
