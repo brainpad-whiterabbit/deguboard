@@ -8,7 +8,7 @@ AI エージェントと一緒にソフトウェアを作るための、Git リ�
 - **チームで使える**：ボードはリポジトリの専用ブランチにあるので、clone した全員が同じボードを見ます。サーバーもサービスも要りません。
 - **測って改善する**：働きごとに所要時間・トークン・やり直しを記録し、振り返りでボトルネックを次のチケットにします。
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/open-board.gif" alt="ボードを開く" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="エージェントが計画を並列に進める" width="560">
 
 deguboard は独立したプロジェクトで、Microsoft が作ったものでも、推薦・支援するものでもありません。
 
@@ -36,11 +36,15 @@ Activity Bar の deguboard のアイコンを押します。上のタブで **�
 
 ### カンバン：割り当て、計画し、並列に進める
 
-1. **割り当てる**：チケットで **エージェントに頼む** → **割り当てる**（`/dgassign`）を選び、Iteration に入れます。カンバンは Iteration のチケットを Status ごとの列に出します。
+1. **割り当てる**：チケットで **エージェントに頼む** → **割り当てる**（`/dgassign`）を選び、Iteration や Epic に入れます。いくつかのチケットをまとめて頼むには、行の左端で選んで下の **頼む** を押します。カンバンは Iteration のチケットを Status ごとの列に出します。
 2. **計画を立てる**：Iteration で **計画を立てる**（`/dgplan s3`）を選びます。エージェントが依存から進める順を決め、人の承認を待ちます。
-3. **進める**：**進める**（`/dgwork`）を選びます。待ちのないチケットを、エージェントがそれぞれの作業ブランチと worktree で同時に実装し、PR を出します。PR は品質ゲートが通ったときだけ ready・マージに進みます。カンバンの上の帯に、計画の進み具合と依存のグラフが出ます。
+3. **進める**：カンバンの上の帯の計画で **Plan を進める**（`/dgwork p3`）を選びます。待ちのないチケットを、エージェントがそれぞれの作業ブランチと worktree で同時に実装し、PR を出します。PR は品質ゲートが通ったときだけ ready・マージに進みます。カンバンの上の帯に、計画の進み具合と依存のグラフが出ます。
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/ask-agent.gif" alt="エージェントに頼む" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/assign.gif" alt="チケットを Iteration と Epic に割り当てる" width="560">
+
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="進める順を計画して承認する" width="560">
+
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="エージェントが計画を並列に進める" width="560">
 
 ### 履歴：振り返って改善する
 

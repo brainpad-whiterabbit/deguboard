@@ -152,7 +152,7 @@ VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、
 
 VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき（依存は束ねてあるので `vsce` は `--no-dependencies` で、pnpm の node_modules の形に影響されない）、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（入れられないときは手で入れるコマンドを出す。条件は `scripts/install-vsix.mjs` の冒頭。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決め、入ってよいファイルの一覧は `packages/vscode/src/vsix-files.test.ts` が `vsce ls` と照らす（一覧にないものが入ると `mise run check` が落ちる。入れるファイルを増やす PR は一覧も直す）。拡張の README（Marketplace の紹介）はルートの README.md の全文を `scripts/vscode-readme.mjs` が写して作り、git には入れない。紹介はルートの README で直し（README.ja.md は拡張の README に入らない）、README.md のリンクはすべて絶対 URL にする（相対リンクがあると作れない）。
 
-README の使い方の GIF（`packages/vscode/images/`）は、画面を変えたら `mise run gifs` で録り直す（台本は `scripts/record-gifs.mjs`）。画面は英語の表示で、1.5 倍の解像度（1140px 幅）で撮る。
+README の GIF（`packages/vscode/images/`）は、画面を変えたら `mise run gifs` で録り直す（台本は `scripts/record-gifs.mjs`）。画面は英語の表示で、1.5 倍の解像度（1140px 幅）で撮る。
 
 ## リリース
 
