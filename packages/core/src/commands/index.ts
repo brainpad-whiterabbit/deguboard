@@ -23,11 +23,15 @@ export { hooksSilentWarning, takeHookWarnings } from "./hook-sessions.js";
 export {
   buildSkills,
   findStaleSkills,
+  refreshInstalledSkills,
   skillStateOf,
   staleSkillWarnings,
   staleSkillWarningsOf,
+  writeSkillFiles,
+  type RefreshedSkills,
   type SkillFile,
   type SkillState,
+  type SkillWriteResult,
   type StaleSkills,
 } from "./skill-files.js";
 export type {

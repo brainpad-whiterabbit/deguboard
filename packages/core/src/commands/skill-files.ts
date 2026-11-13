@@ -1,12 +1,13 @@
 // dg が配る Skill の中身と、入れてある Skill が今の dg のものと違うかの判定（AG-2）。
 // dg skill install（CLI）が書くか残すかを決めるのも、dg hooks check・dg next・dg brief が古い Skill を知らせるのも、
-// VS Code 拡張が同じことを確かめるのも、ここの skillStateOf を通す（判定を 2 つ持たない）。
+// VS Code 拡張が起動時に古い Skill を更新するのも、ここの skillStateOf を通す（判定を 2 つ持たない）。
+// Skill を書くのも、dg skill install と拡張で同じ writeSkillFiles を通す。
 // 名前・説明・引数の案内は guide の frontmatter から、冒頭の 1 文は SKILL_SUMMARY の en から、本文は SKILL_TEMPLATE から作る。
 // 雛形をファイルにせず定数にするのは、束ねた配置（拡張の extension.cjs・同梱の dg.mjs）でも置き場所を合わせずに読めるようにするため
 
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { agentSkillPlaces, type AgentEnv, type SkillPlace } from "../agents/index.js";
 import { readGuide, readGuideMeta } from "../guide/guide.js";
 import { GUIDE_TOPICS, type GuideTopic } from "../guide/topics.js";
@@ -132,6 +133,91 @@ export async function findStaleSkills(query: {
     if (stale.length > 0 || edited.length > 0) found.push({ ...place, stale, edited });
   }
   return found;
+}
+
+/** 1 つの Skill のディレクトリに dg の Skill を書いた結果 */
+export interface SkillWriteResult {
+  /** 新しく書いた Skill の名前 */
+  written: string[];
+  /** 手を加えていないので最新の中身で上書きした Skill（force で上書きしたものも含む） */
+  updated: string[];
+  /** すでに最新だった Skill */
+  unchanged: string[];
+  /** 手を加えてあるので残した Skill。force で上書きする */
+  conflicts: string[];
+  /** dryRun のときは、書くことになる SKILL.md の絶対パスと中身。それ以外は空の配列 */
+  files: Array<{ name: string; path: string; content: string }>;
+}
+
+/**
+ * dir（Skill のディレクトリ）に dg の Skill を書く。dg skill install（CLI）と、VS Code 拡張が起動時に古い Skill を更新するのが、ここを通す。
+ * 手を加えていない Skill は最新の中身で上書きし、手を加えたものは force がなければ残す。
+ * names を渡すと、その名前の Skill だけを扱う（拡張は入れてある古い Skill だけを渡し、入れていない Skill を足さない）。dryRun なら書かずに中身を返す
+ */
+export async function writeSkillFiles(
+  dir: string,
+  options: { force: boolean; dryRun?: boolean; names?: readonly string[] },
+): Promise<SkillWriteResult> {
+  const result: SkillWriteResult = {
+    written: [],
+    updated: [],
+    unchanged: [],
+    conflicts: [],
+    files: [],
+  };
+  const skills = (await buildSkills()).filter(
+    (s) => options.names === undefined || options.names.includes(s.name),
+  );
+  for (const skill of skills) {
+    const path = join(dir, skill.name, "SKILL.md");
+    const current = await readFile(path, "utf8").catch(() => undefined);
+    const state = skillStateOf(current, skill);
+    if (state === "current") {
+      result.unchanged.push(skill.name);
+      continue;
+    }
+    if (state === "edited" && !options.force) {
+      result.conflicts.push(skill.name);
+      continue;
+    }
+    if (options.dryRun) result.files.push({ name: skill.name, path, content: skill.content });
+    else {
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, skill.content, "utf8");
+    }
+    (state === "missing" ? result.written : result.updated).push(skill.name);
+  }
+  return result;
+}
+
+/** 置き場所ごとの、VS Code 拡張が更新した Skill と、手を加えてあるので残した古い Skill */
+export interface RefreshedSkills extends SkillPlace {
+  /** 手を加えていない古い Skill のうち、今の dg のもので上書きした Skill の名前 */
+  updated: string[];
+  /** 手を加えてある古い Skill の名前。書き換えず、dg skill install --force で上書きできることを知らせる */
+  edited: string[];
+}
+
+/**
+ * VS Code 拡張が起動のたびに呼ぶ。入れてある dg の Skill のうち今の dg のものと違うものを findStaleSkills で見つけ、
+ * 手を加えていないものを writeSkillFiles（dg skill install と同じ処理）で上書きする。手を加えたものは書き換えずに返す。
+ * 入れていない Skill は足さず、dg の Skill のない置き場所には書かない（Skill は任意で、各自が入れる。AG-2）。
+ * 版を比べずに中身で比べるので、同じ版の拡張を入れ直しても拾う。変えるものも知らせるものもない置き場所は返さない
+ */
+export async function refreshInstalledSkills(query: {
+  topLevel?: string | undefined;
+  env: AgentEnv;
+}): Promise<RefreshedSkills[]> {
+  const refreshed: RefreshedSkills[] = [];
+  for (const found of await findStaleSkills(query)) {
+    const updated =
+      found.stale.length === 0
+        ? []
+        : (await writeSkillFiles(found.dir, { force: false, names: found.stale })).updated;
+    if (updated.length > 0 || found.edited.length > 0)
+      refreshed.push({ scope: found.scope, dir: found.dir, updated, edited: found.edited });
+  }
+  return refreshed;
 }
 
 /** 古い Skill の警告の文。手を加えていないもの（dg skill install で更新）と、手を加えたもの（--force で上書き）を分けて出す */

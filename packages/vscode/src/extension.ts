@@ -6,7 +6,7 @@
 // dg init 前は .git/deguboard/ ができるのを見張り（watchInit）、できたら見張りを張り直して画面を普段の画面に変える。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-027）。サーバーは起動しない。
 // 同梱した dg は、起動のたびに版の付かない起動ファイルと行き先を書いて外に出す（launcher.ts）。コマンドで ~/.local/bin/dg に張り、外せる。
-// PATH の dg は確かめて、コマンドを勧める（UI-11）。
+// PATH の dg は確かめて、コマンドを勧める（UI-11）。起動のたびに、入れてある dg の Skill を同梱の dg のものに更新する（skills.ts）。
 // VS Code の API に触れるのはこのファイルだけ
 
 import { randomBytes } from "node:crypto";
@@ -63,6 +63,7 @@ import {
   onPath,
   unlinkDg,
 } from "./launcher.js";
+import { refreshSkillsOf, skillRefreshNotices } from "./skills.js";
 import { pickedSide, syncNotice } from "./sync-resolve.js";
 import {
   describeTerminals,
@@ -250,6 +251,26 @@ export function activate(context: vscode.ExtensionContext): void {
   extensionContext = context;
   void refreshApprovals();
   void writeLauncher(context);
+  void refreshSkills();
+}
+
+/**
+ * 入れてある dg の Skill のうち同梱の dg のものと違うものを更新し、更新したものと手を加えたので残したものを通知する（skills.ts）。
+ * 起動のたびに中身で比べるので、同じ版の入れ直しでも拾う。確かめられなくても画面は動くので、知らせずに記録だけ残す
+ */
+async function refreshSkills(): Promise<void> {
+  try {
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+    for (const notice of skillRefreshNotices(await refreshSkillsOf(folders, process.env))) {
+      const show =
+        notice.level === "warning"
+          ? vscode.window.showWarningMessage
+          : vscode.window.showInformationMessage;
+      void show(`deguboard: ${notice.text}`);
+    }
+  } catch (error) {
+    console.warn("deguboard: could not refresh the dg Skills", error);
+  }
 }
 
 /**
