@@ -108,7 +108,7 @@ dg config set notify.approvals false --local
 - git の設定が任意のコマンドを実行させ得るため、信頼したフォルダーでだけ動きます（制限モードと仮想ワークスペースでは動きません）。
 - `dg skill install` が書く Skill は `dg guide` を読ませる文面だけで、スクリプトもツールの許可も持ちません。`--dry-run` で中身を見られます。
 - `dg hooks install` が書くフックは `dg hook <イベント>` を呼ぶだけで、Run を記録し、`~/.claude/projects/` の下の会話記録を読みます。実行の前に、`dg` を通さない `gh pr ready`・`gh pr merge`（`gh api` での同じ操作も）、`.git/deguboard/` の下に書くファイル編集のツール、`.git/deguboard` の語を含む Bash のコマンドも拒みます。そのときは `dg` のコマンドを使います。`--dry-run` で設定を見られ、`dg hooks uninstall` で外せます。
-- 脆弱性の報告先は [SECURITY.md](SECURITY.md) にあります。
+- 脆弱性の報告先は [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) にあります。
 
 ## ほかの使い方
 
