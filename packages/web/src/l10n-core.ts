@@ -1,8 +1,8 @@
 // 画面が引く core の文の訳の表（UI-11・t649）。鍵は core の文そのもの（可変の部分は {0}・{1}）で、値は表示言語ごとの訳。
 // 表示言語の訳がない言語では core の文のまま出す（l10n.ts の trCore・trCoreMessage・configDescription）。
 // CORE_LABELS の文は今は日本語なので、鍵の文に en の訳だけを持つ（英語化は e11 で進める）。CORE_MESSAGES は core のエラー・警告の英語の文を鍵に、ja に今の日本語の文を持つ（t651）。
-// CONFIG_DESCRIPTIONS は設定の項目の説明の英語の文を鍵にし、値に ja の訳を持つ（英語の表示では鍵の英語の文をそのまま出す）。
-// 鍵が core の候補の名前・エラーと警告の文・設定の項目の説明に合うことと、訳の揃いは l10n.test.ts が確かめる。
+// CONFIG_DESCRIPTIONS は設定の項目の文（説明・要約・空のときの動き・選択肢ごとの説明）の英語の文を鍵にし、値に ja の訳を持つ（英語の表示では鍵の英語の文をそのまま出す）。
+// 鍵が core の候補の名前・エラーと警告の文・設定の項目の文に合うことと、訳の揃いは l10n.test.ts が確かめる。
 // 画面のコードの文言（tr の鍵）の英訳は l10n-en.ts に置く
 
 import type { Language } from "./l10n.js";
@@ -61,8 +61,10 @@ const GUIDE_NOTES_TEXT =
   "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.";
 
 /**
- * 設定画面の項目の説明（core の configSchema の describe）の訳（configDescription）。鍵は core の説明の英語の文で、ja に今の日本語の説明を持つ。
- * core の説明と過不足なく揃うこと（説明を書き換えたら鍵も直す）は l10n.test.ts が確かめる
+ * 設定画面の項目の文の訳（configDescription）。鍵は core の英語の文で、ja に日本語の訳を持つ。
+ * 前半は詳しい説明（core の configSchema の describe。項目の要約が説明と同じ文の項目は、この 1 行が要約の訳も兼ねる）、
+ * 後半は設定画面が短く出すための文（要約 summary・空のときの動き empty・選択肢ごとの説明 option_descriptions）。例（example）は値なので訳さない。
+ * core の文と過不足なく揃うこと（文を書き換えたら鍵も直す）は l10n.test.ts が確かめる
  */
 export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   // default_project
@@ -199,6 +201,144 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   // guide.notes.*（どの項目も同じ説明）
   [GUIDE_NOTES_TEXT]: {
     ja: "guide の題名の直後（節を出すときは節の見出しの直後）に差し込む文書のパス。リポジトリの最上位からの相対パスで、リポジトリの外は読まない。空なら差し込まない。見出し（#）を含む文書は差し込まない",
+  },
+
+  // --- 要約（summary）。説明と同じ文の項目（default_project・git.*）は上の行が兼ねる ---
+  // worktree.root
+  "Where work worktrees go": { ja: "作業 worktree の置き場所" },
+  // worktree.setup
+  "Setup command run first in a new work worktree": {
+    ja: "新しい作業 worktree で最初に回す準備のコマンド",
+  },
+  // commit.mode
+  "When ticket writes are committed": { ja: "チケットの書き込みをいつコミットするか" },
+  // push.mode
+  "When commits are pushed": { ja: "コミットをいつ push するか" },
+  // metrics.read_transcripts
+  "Read conversation transcripts to fill in usage": { ja: "会話記録を読んで使用量を補う" },
+  // notify.approvals
+  "Notify in VS Code when Plans awaiting approval or tickets in review increase": {
+    ja: "承認待ちの Plan や review のチケットが増えたら VS Code で通知する",
+  },
+  // actions.shell
+  "Allow the arbitrary shell Action": { ja: "任意のシェルの Action を許す" },
+  // actions.test
+  "Command run by the quality gate's check and the test Action": {
+    ja: "品質ゲートの検査とテストの Action が回すコマンド",
+  },
+  // actions.light_test
+  "Lighter check run instead of actions.test when only light paths changed": {
+    ja: "変更が軽いパスだけのとき、actions.test の代わりに回す検査",
+  },
+  // actions.light_paths
+  "Globs of files the lighter check is enough for": {
+    ja: "軽い検査で済ませてよいファイルの glob",
+  },
+  // auto.merge
+  "Merge PRs that pass the quality gate automatically with --auto": {
+    ja: "--auto で、品質ゲートを満たした PR を自動でマージする",
+  },
+  // auto.decisions
+  "Decisions --auto chooses without asking": { ja: "--auto で聞かずに選ぶ判断" },
+  // flow.skip
+  "Stages that dg flow next skips": { ja: "dg flow next が飛ばす段階" },
+  // work.parallel
+  "Most tickets of a Plan advanced at the same time (1 to 10)": {
+    ja: "Plan のチケットを同時に進める数の上限（1〜10）",
+  },
+  // merge.method
+  "Merge method dg pr merge uses by default": { ja: "dg pr merge の既定のマージの方法" },
+  // merge.delete_branch
+  "Delete the work branch when dg pr merge merges": {
+    ja: "dg pr merge でマージしたら作業ブランチも消す",
+  },
+  // review.heavy_categories
+  "Review finding categories always treated as heavy": {
+    ja: "いつも重いとみなす見直しの指摘の category",
+  },
+  // lint.require_iteration
+  "Have dg lint flag tickets worked on outside an Iteration": {
+    ja: "Iteration に入らずに進んだチケットを dg lint が指摘する",
+  },
+  // models.light
+  "Model for Plan tier light and for research": {
+    ja: "Plan の段階 light と調べものに使うモデル",
+  },
+  // models.standard
+  "Model for Plan tier standard": { ja: "Plan の段階 standard に使うモデル" },
+  // models.heavy
+  "Model for Plan tier heavy": { ja: "Plan の段階 heavy に使うモデル" },
+  // actor.human_only
+  "Command names rejected for agents": { ja: "agent からは拒否するコマンド名" },
+  // priority.high
+  "Criteria for priority high": { ja: "優先度 high の判断基準" },
+  // priority.medium
+  "Criteria for priority medium (the default)": { ja: "優先度 medium（既定）の判断基準" },
+  // priority.low
+  "Criteria for priority low": { ja: "優先度 low の判断基準" },
+  // guide.notes.*（どの項目も同じ要約）
+  "Document inserted just after the guide title. A path relative to the repository root": {
+    ja: "guide の題名の直後に差し込む文書。リポジトリの最上位からの相対パス",
+  },
+
+  // --- 空のときの動き（empty） ---
+  // 既定が空でない文字列の項目（default_project・git.*・worktree.root・priority.*）
+  "Returns to the default (in personal settings, to the team's value)": {
+    ja: "既定に戻る（個人の設定ではチームの値に戻る）",
+  },
+  // worktree.setup
+  "Runs nothing": { ja: "何も回さない" },
+  // actions.test
+  "The gate's check does not judge, and run_tests is rejected": {
+    ja: "品質ゲートの検査を判定しない（run_tests も拒否する）",
+  },
+  // actions.light_test・actions.light_paths
+  "actions.test always runs": { ja: "いつも actions.test を回す" },
+  // auto.decisions
+  "--auto chooses nothing without asking": { ja: "--auto でも聞かずに選ぶ判断はない" },
+  // flow.skip
+  "No stage is skipped": { ja: "どの段階も飛ばさない" },
+  // review.heavy_categories
+  "The reviewer's severity is kept": { ja: "見直し役の severity のまま" },
+  // models.*
+  "The parent's model": { ja: "親のモデル" },
+  // actor.human_only
+  "Everything is allowed": { ja: "すべて許す" },
+  // guide.notes.*
+  "Inserts nothing": { ja: "差し込まない" },
+
+  // --- 選択肢ごとの説明（option_descriptions） ---
+  // commit.mode（each・batch・manual）
+  "Commit on every write": { ja: "書き込みのたびにコミットする" },
+  "Leave changes in the working tree; dg commit, dg sync, and immediate operations commit them together":
+    { ja: "作業ツリーに残し、dg commit・dg sync・即時の操作でまとめてコミットする" },
+  "Commit only on dg commit and immediate operations": {
+    ja: "dg commit と即時の操作のときだけコミットする",
+  },
+  // push.mode（auto・manual）
+  "Push on every commit": { ja: "コミットのたびに push する" },
+  "dg sync pushes (immediate operations push even in manual)": {
+    ja: "dg sync が push する（即時の操作は manual でも push する）",
+  },
+  // auto.decisions（assign・check・plan・audit・accept）。assign は flow.skip と同じ文
+  Assignment: { ja: "割り当て" },
+  "The fix line when only one fix fits": { ja: "直し方が 1 つに決まる直す行" },
+  "Plan approval": { ja: "Plan の承認" },
+  "The review findings table": { ja: "見直しの指摘の表" },
+  "Confirming acceptance criteria after reconciling": {
+    ja: "照合の後の受け入れ条件の確認",
+  },
+  // flow.skip（assign・check・plan・work・audit・release）
+  Check: { ja: "点検" },
+  Planning: { ja: "計画" },
+  Work: { ja: "作業" },
+  Audit: { ja: "リリース前の見直し" },
+  Release: { ja: "リリース" },
+  // merge.method（squash・merge・rebase）
+  "Squash the PR's commits into one commit": { ja: "PR のコミットを 1 つにまとめる" },
+  "Make a merge commit": { ja: "マージコミットを作る" },
+  "Rebase the PR's commits onto the base branch": {
+    ja: "PR のコミットを base のブランチに積み直す",
   },
 };
 

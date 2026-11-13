@@ -254,6 +254,80 @@ describe("スキーマ", () => {
     for (const f of fields) expect(f.description, f.key).not.toBe("");
   });
 
+  it("configFields はどの項目にも 1 行の要約（summary）を持ち、要約は詳しい説明（description）より長くない（t812）", () => {
+    for (const f of configFields()) {
+      expect(f.summary, f.key).not.toBe("");
+      expect(f.summary, f.key).not.toContain("\n");
+      expect(f.summary.length, f.key).toBeLessThanOrEqual(100);
+      expect(f.summary.length, f.key).toBeLessThanOrEqual(f.description.length);
+    }
+  });
+
+  it("configFields は、例のある項目に example、空にできる項目に empty、選択肢のある項目に選択肢ごとの説明を持つ（t812）", () => {
+    const fields = configFields();
+    const byKey = new Map(fields.map((f) => [f.key, f]));
+    // 例は値と同じ形（配列の項目は配列）
+    expect(byKey.get("actions.test")).toMatchObject({
+      example: ["mise", "run", "check"],
+      empty: "The gate's check does not judge, and run_tests is rejected",
+    });
+    expect(byKey.get("models.light")).toMatchObject({
+      example: "haiku",
+      empty: "The parent's model",
+    });
+    expect(byKey.get("commit.mode")?.example).toBeUndefined();
+    // 空にできるのは配列と文字列の項目。選択肢・真偽値・数は空にできないので empty を持たない
+    for (const f of fields) {
+      if (f.type === "list" || f.type === "string") expect(f.empty, f.key).toBeTruthy();
+      else expect(f.empty, f.key).toBeUndefined();
+    }
+    // 既定が空でない文字列の項目は、空にすると既定に戻る
+    for (const f of fields.filter((x) => x.clears_to_default))
+      expect(f.empty, f.key).toBe(
+        "Returns to the default (in personal settings, to the team's value)",
+      );
+    // 選択肢ごとの説明は、選択肢と過不足なく揃う（選択肢の配列の項目は、スキーマの選択肢と揃う）
+    for (const f of fields.filter((x) => x.type === "enum"))
+      expect(Object.keys(f.option_descriptions ?? {}), f.key).toEqual(f.options);
+    expect(Object.keys(byKey.get("auto.decisions")?.option_descriptions ?? {})).toEqual([
+      "assign",
+      "check",
+      "plan",
+      "audit",
+      "accept",
+    ]);
+    expect(Object.keys(byKey.get("flow.skip")?.option_descriptions ?? {})).toEqual([
+      "assign",
+      "check",
+      "plan",
+      "work",
+      "audit",
+      "release",
+    ]);
+    expect(
+      fields.filter((f) => f.option_descriptions).map((f) => f.key),
+      "選択肢ごとの説明を持つ項目",
+    ).toEqual(["commit.mode", "push.mode", "auto.decisions", "flow.skip", "merge.method"]);
+    expect(byKey.get("push.mode")?.option_descriptions).toEqual({
+      auto: "Push on every commit",
+      manual: "dg sync pushes (immediate operations push even in manual)",
+    });
+  });
+
+  it("guide.notes.* は要約・詳しい説明・例・空のときの動きを 1 つの定義で共有する（t812）", () => {
+    const notes = configFields().filter((f) => f.key.startsWith("guide.notes."));
+    expect(notes.length).toBeGreaterThan(1);
+    const texts = notes.map(({ summary, description, example, empty }) => ({
+      summary,
+      description,
+      example,
+      empty,
+    }));
+    for (const t of texts) expect(t).toEqual(texts[0]);
+    expect(texts[0]).toMatchObject({ example: "docs/notes.md", empty: "Inserts nothing" });
+    expect(texts[0]?.summary).not.toBe(texts[0]?.description);
+  });
+
   it("configFields の clears_to_default は、既定が空でない文字列の項目だけ true（config.set と設定画面が空の値の扱いをこれで決める）", () => {
     const fields = configFields();
     expect(fields.filter((f) => f.clears_to_default).map((f) => f.key)).toEqual([

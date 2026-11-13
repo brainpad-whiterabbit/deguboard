@@ -1,6 +1,8 @@
 // config.yaml のスキーマ。項目の全体はここが正本（requirements.md 5.10）。
 // 入れ子の既定は prefault で与える（Zod 4 の default は検証を短絡するため）。
-// 各項目の説明は describe に書き、configFields が設定画面（config.show の fields）に渡す。表示言語ごとの訳は web の l10n-core.ts（CONFIG_DESCRIPTIONS。鍵は説明の文）に置き、説明を書き換えたら訳の鍵も直す（web の l10n.test.ts が知らせる）。
+// 各項目の文は described に書く：description（詳しい説明。スキーマの describe になる）と、設定画面が短く出すための
+// summary（1 行の要約）・example（例の値）・empty（空のときの動き）・options（選択肢ごとの説明）。configFields が設定画面（config.show の fields）に渡す。
+// 表示言語ごとの訳は web の l10n-core.ts（CONFIG_DESCRIPTIONS。鍵は文そのもの）に置き、文を書き換えたら訳の鍵も直す（web の l10n.test.ts が知らせる）。
 // 項目ごとの範囲（scope）もここで決める：local の項目だけが、Git に入らない個人の設定（deguboard-local/config.yaml）で上書きできる
 
 import { z } from "zod";
@@ -23,217 +25,278 @@ export const FLOW_SKIPS = ["assign", "check", "plan", "work", "audit", "release"
 /** actions.test を回す時間の上限（run_tests の既定と品質ゲートの検査）。リポジトリの検査の全体（テストを含む）を回すので長めにとる */
 export const ACTIONS_TEST_TIMEOUT_MS = 30 * 60_000;
 
-const noteField = z
-  .string()
-  .default("")
-  .describe(
+/** 設定の 1 項目の文。description は CLI とスキーマ向けの詳しい説明（全文）で、ほかは設定画面が短く出すための文 */
+interface FieldTexts {
+  /** 1 行の要約 */
+  summary: string;
+  /** 詳しい説明。スキーマの describe になる */
+  description: string;
+  /** 例の値（項目の値と同じ形。配列の項目は配列） */
+  example?: unknown;
+  /** 空の値のときの動き。既定が空でない文字列の項目は書かない（EMPTY_RETURNS_TO_DEFAULT になる） */
+  empty?: string;
+  /** 選択肢ごとの説明（選択肢 → 説明） */
+  options?: Record<string, string>;
+}
+
+/** スキーマ（describe を付けた後の実体）から、その項目の文を引く表。Zod の meta に入れると JSON Schema に出てしまうので、外に持つ */
+const fieldTexts = new WeakMap<z.ZodType, FieldTexts>();
+
+/** スキーマに項目の文を付ける。description は describe に入れ、残りは configFields が読む */
+function described<T extends z.ZodType>(schema: T, texts: FieldTexts): T {
+  const out = schema.describe(texts.description);
+  fieldTexts.set(out, texts);
+  return out;
+}
+
+/** 既定が空でない文字列の項目（clears_to_default）を空にしたときの動き */
+const EMPTY_RETURNS_TO_DEFAULT =
+  "Returns to the default (in personal settings, to the team's value)";
+
+const TEST_ALWAYS_RUNS = "actions.test always runs";
+const PARENT_MODEL = "The parent's model";
+
+/** guide.notes.<topic> の項目。どの topic も同じ実体なので、要約と詳しい説明をここ 1 か所で持つ */
+const noteField = described(z.string().default(""), {
+  summary: "Document inserted just after the guide title. A path relative to the repository root",
+  description:
     "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
-  );
+  example: "docs/notes.md",
+  empty: "Inserts nothing",
+});
 
 export const configSchema = z.looseObject({
-  default_project: slugSchema.default("default").describe("Project used when none is given"),
+  default_project: described(slugSchema.default("default"), {
+    summary: "Project used when none is given",
+    description: "Project used when none is given",
+  }),
   git: z
     .looseObject({
-      remote: z
-        .string()
-        .min(1)
-        .default("origin")
-        .describe("Git remote that deguboard fetches from and pushes to"),
-      base_branch: z
-        .string()
-        .min(1)
-        .default("main")
-        .describe("Base for work branches and for deciding what is merged"),
+      remote: described(z.string().min(1).default("origin"), {
+        summary: "Git remote that deguboard fetches from and pushes to",
+        description: "Git remote that deguboard fetches from and pushes to",
+      }),
+      base_branch: described(z.string().min(1).default("main"), {
+        summary: "Base for work branches and for deciding what is merged",
+        description: "Base for work branches and for deciding what is merged",
+      }),
     })
     .prefault({}),
   worktree: z
     .looseObject({
-      root: z
-        .string()
-        .min(1)
-        .default("../<repo>.worktrees")
-        .describe("Where work worktrees go. A path relative to the repository"),
-      setup: z
-        .array(z.string().min(1))
-        .default([])
-        .describe(
+      root: described(z.string().min(1).default("../<repo>.worktrees"), {
+        summary: "Where work worktrees go",
+        description: "Where work worktrees go. A path relative to the repository",
+      }),
+      setup: described(z.array(z.string().min(1)).default([]), {
+        summary: "Setup command run first in a new work worktree",
+        description:
           "Argument array of the setup command run first in a work worktree that claim created (e.g. [mise, run, setup]). Empty runs nothing. If it fails, claim still succeeds and the warnings give the failure and the command to run by hand",
-        ),
+        example: ["mise", "run", "setup"],
+        empty: "Runs nothing",
+      }),
     })
     .prefault({}),
   commit: z
     .looseObject({
-      mode: z
-        .enum(COMMIT_MODES)
-        .default("batch")
-        .describe(
+      mode: described(z.enum(COMMIT_MODES).default("batch"), {
+        summary: "When ticket writes are committed",
+        description:
           "each: commit on every write / batch: leave changes in the working tree; dg commit, dg sync, and immediate operations commit them together / manual: only dg commit and immediate operations",
-        ),
+        options: {
+          each: "Commit on every write",
+          batch:
+            "Leave changes in the working tree; dg commit, dg sync, and immediate operations commit them together",
+          manual: "Commit only on dg commit and immediate operations",
+        },
+      }),
     })
     .prefault({}),
   push: z
     .looseObject({
-      mode: z
-        .enum(PUSH_MODES)
-        .default("auto")
-        .describe(
+      mode: described(z.enum(PUSH_MODES).default("auto"), {
+        summary: "When commits are pushed",
+        description:
           "auto: push on every commit / manual: dg sync pushes (immediate operations push even in manual)",
-        ),
+        options: {
+          auto: "Push on every commit",
+          manual: "dg sync pushes (immediate operations push even in manual)",
+        },
+      }),
     })
     .prefault({}),
   metrics: z
     .looseObject({
-      read_transcripts: z
-        .boolean()
-        .default(false)
-        .describe(
+      read_transcripts: described(z.boolean().default(false), {
+        summary: "Read conversation transcripts to fill in usage",
+        description:
           "Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true (MT-2)",
-        ),
+      }),
     })
     .prefault({}),
   notify: z
     .looseObject({
-      approvals: z
-        .boolean()
-        .default(true)
-        .describe(
+      approvals: described(z.boolean().default(true), {
+        summary: "Notify in VS Code when Plans awaiting approval or tickets in review increase",
+        description:
           "Whether the VS Code extension shows a notification when Plans awaiting approval or tickets in review increase (the count is always shown)",
-        ),
+      }),
     })
     .prefault({}),
   actions: z
     .looseObject({
-      shell: z
-        .boolean()
-        .default(false)
-        .describe(
+      shell: described(z.boolean().default(false), {
+        summary: "Allow the arbitrary shell Action",
+        description:
           "Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation (AG-7)",
-        ),
-      test: z
-        .array(z.string().min(1))
-        .default([])
-        .describe(
+      }),
+      test: described(z.array(z.string().min(1)).default([]), {
+        summary: "Command run by the quality gate's check and the test Action",
+        description:
           "Argument array of the command that the test Action (run_tests) and the quality gate's check (dg gate, dg pr ready, dg pr merge) run (e.g. [mise, run, check]). When empty, run_tests is rejected and the gate's check does not judge (the repo's own checks are confirmed instead)",
-        ),
-      light_test: z
-        .array(z.string().min(1))
-        .default([])
-        .describe(
+        example: ["mise", "run", "check"],
+        empty: "The gate's check does not judge, and run_tests is rejected",
+      }),
+      light_test: described(z.array(z.string().min(1)).default([]), {
+        summary: "Lighter check run instead of actions.test when only light paths changed",
+        description:
           "Argument array of the lighter check the quality gate's check runs instead of actions.test when every file changed since the last commit whose actions.test passed (the diff against base when there is none) falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either",
-        ),
-      light_paths: z
-        .array(z.string().min(1))
-        .default([])
-        .describe(
+        example: ["mise", "run", "check:light"],
+        empty: TEST_ALWAYS_RUNS,
+      }),
+      light_paths: described(z.array(z.string().min(1)).default([]), {
+        summary: "Globs of files the lighter check is enough for",
+        description:
           "Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file changed since the last commit whose actions.test passed (or against base, when there is none) falls outside, actions.test runs",
-        ),
+        example: ["docs/**"],
+        empty: TEST_ALWAYS_RUNS,
+      }),
     })
     .prefault({}),
   auto: z
     .looseObject({
-      merge: z
-        .boolean()
-        .default(false)
-        .describe(
+      merge: described(z.boolean().default(false), {
+        summary: "Merge PRs that pass the quality gate automatically with --auto",
+        description:
           "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges",
-        ),
-      decisions: z
-        .array(z.enum(AUTO_DECISIONS))
-        .default(["assign", "check", "plan", "audit", "accept"])
-        .describe(
-          "Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table / accept: confirming acceptance criteria after reconciling). Decisions a person makes cannot be added; PR merging is set by auto.merge",
-        ),
+      }),
+      decisions: described(
+        z.array(z.enum(AUTO_DECISIONS)).default(["assign", "check", "plan", "audit", "accept"]),
+        {
+          summary: "Decisions --auto chooses without asking",
+          description:
+            "Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table / accept: confirming acceptance criteria after reconciling). Decisions a person makes cannot be added; PR merging is set by auto.merge",
+          empty: "--auto chooses nothing without asking",
+          options: {
+            assign: "Assignment",
+            check: "The fix line when only one fix fits",
+            plan: "Plan approval",
+            audit: "The review findings table",
+            accept: "Confirming acceptance criteria after reconciling",
+          },
+        },
+      ),
     })
     .prefault({}),
   flow: z
     .looseObject({
-      skip: z
-        .array(z.enum(FLOW_SKIPS))
-        .default([])
-        .describe(
+      skip: described(z.array(z.enum(FLOW_SKIPS)).default([]), {
+        summary: "Stages that dg flow next skips",
+        description:
           "Stages that dg flow next never returns (assign, check, plan, work, audit, release). A skipped stage's rule is not read; the flow moves to the next rule",
-        ),
+        empty: "No stage is skipped",
+        options: {
+          assign: "Assignment",
+          check: "Check",
+          plan: "Planning",
+          work: "Work",
+          audit: "Audit",
+          release: "Release",
+        },
+      }),
     })
     .prefault({}),
   work: z
     .looseObject({
-      parallel: z
-        .number()
-        .int()
-        .min(1)
-        .max(10)
-        .default(3)
-        .describe(
+      parallel: described(z.number().int().min(1).max(10).default(3), {
+        summary: "Most tickets of a Plan advanced at the same time (1 to 10)",
+        description:
           "Most tickets of a Plan advanced at the same time with a subagent each (dg guide parallel). An integer from 1 to 10",
-        ),
+      }),
     })
     .prefault({}),
   merge: z
     .looseObject({
-      method: z
-        .enum(PR_MERGE_METHODS)
-        .default("squash")
-        .describe(
+      method: described(z.enum(PR_MERGE_METHODS).default("squash"), {
+        summary: "Merge method dg pr merge uses by default",
+        description:
           "Merge method dg pr merge uses when --method is omitted (squash, merge, or rebase)",
-        ),
-      delete_branch: z
-        .boolean()
-        .default(false)
-        .describe(
+        options: {
+          squash: "Squash the PR's commits into one commit",
+          merge: "Make a merge commit",
+          rebase: "Rebase the PR's commits onto the base branch",
+        },
+      }),
+      delete_branch: described(z.boolean().default(false), {
+        summary: "Delete the work branch when dg pr merge merges",
+        description:
           "Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted",
-        ),
+      }),
     })
     .prefault({}),
   review: z
     .looseObject({
-      heavy_categories: z
-        .array(z.string().min(1))
-        .default([])
-        .describe(
+      heavy_categories: described(z.array(z.string().min(1)).default([]), {
+        summary: "Review finding categories always treated as heavy",
+        description:
           "Review finding categories (run review-result --findings-file) treated as heavy regardless of severity. Empty by default, so the reviewer's severity is kept",
-        ),
+        empty: "The reviewer's severity is kept",
+      }),
     })
     .prefault({}),
   lint: z
     .looseObject({
-      require_iteration: z
-        .boolean()
-        .default(false)
-        .describe(
+      require_iteration: described(z.boolean().default(false), {
+        summary: "Have dg lint flag tickets worked on outside an Iteration",
+        description:
           "Whether dg lint flags tickets that moved past todo or abandoned without being in an Iteration (except done tickets in closed Epics). dg guide work asks to add the ticket to an Iteration before claim",
-        ),
+      }),
     })
     .prefault({}),
   models: z
     .looseObject({
-      light: z
-        .string()
-        .default("")
-        .describe(
+      light: described(z.string().default(""), {
+        summary: "Model for Plan tier light and for research",
+        description:
           "Model for Plan tier light (docs, settings, and wording only) and for research within implementation. When empty, the parent's model",
-        ),
-      standard: z
-        .string()
-        .default("")
-        .describe(
+        example: "haiku",
+        empty: PARENT_MODEL,
+      }),
+      standard: described(z.string().default(""), {
+        summary: "Model for Plan tier standard",
+        description:
           "Model for Plan tier standard (anything that is not light or heavy). When empty, the parent's model",
-        ),
-      heavy: z
-        .string()
-        .default("")
-        .describe(
+        example: "sonnet",
+        empty: PARENT_MODEL,
+      }),
+      heavy: described(z.string().default(""), {
+        summary: "Model for Plan tier heavy",
+        description:
           "Model for Plan tier heavy (design decisions, data shapes, multiple packages, bugs of unknown cause). When empty, the parent's model",
-        ),
+        example: "opus",
+        empty: PARENT_MODEL,
+      }),
     })
     .prefault({}),
   actor: z
     .looseObject({
-      human_only: z
-        .array(z.string().min(1))
-        .default([])
-        .describe(
+      human_only: described(z.array(z.string().min(1)).default([]), {
+        summary: "Command names rejected for agents",
+        description:
           "Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by",
-        ),
+        example: ["epic.close"],
+        empty: "Everything is allowed",
+      }),
     })
     .prefault({}),
   guide: z
@@ -245,28 +308,40 @@ export const configSchema = z.looseObject({
     .prefault({}),
   priority: z
     .looseObject({
-      high: z
-        .string()
-        .default(
-          "利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている",
-        )
-        .describe(
-          "Criteria for priority high. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
-        ),
-      medium: z
-        .string()
-        .default(
-          "機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存",
-        )
-        .describe(
-          "Criteria for priority medium (the default). Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
-        ),
-      low: z
-        .string()
-        .default("使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討")
-        .describe(
-          "Criteria for priority low. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
-        ),
+      high: described(
+        z
+          .string()
+          .default(
+            "利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている",
+          ),
+        {
+          summary: "Criteria for priority high",
+          description:
+            "Criteria for priority high. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
+        },
+      ),
+      medium: described(
+        z
+          .string()
+          .default(
+            "機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存",
+          ),
+        {
+          summary: "Criteria for priority medium (the default)",
+          description:
+            "Criteria for priority medium (the default). Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
+        },
+      ),
+      low: described(
+        z
+          .string()
+          .default("使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討"),
+        {
+          summary: "Criteria for priority low",
+          description:
+            "Criteria for priority low. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
+        },
+      ),
     })
     .prefault({}),
 });
@@ -317,8 +392,16 @@ export interface ConfigField {
   type: ConfigFieldType;
   /** enum のときの選択肢 */
   options?: string[] | undefined;
-  /** スキーマの describe */
+  /** 選択肢ごとの説明（選択肢 → 説明）。選択肢のある項目（enum と、選択肢の配列）が持つ */
+  option_descriptions?: Record<string, string> | undefined;
+  /** 1 行の要約。設定画面が常に出す */
+  summary: string;
+  /** スキーマの describe（詳しい説明の全文） */
   description: string;
+  /** 例の値（項目の値と同じ形）。例のある項目だけ */
+  example?: unknown;
+  /** 空の値のときの動き。空にできる項目（配列と文字列）だけ */
+  empty?: string | undefined;
   default: unknown;
   scope: ConfigScope;
   /**
@@ -338,9 +421,11 @@ function unwrap(schema: z.ZodType): z.ZodType {
 
 function fieldOf(key: string, schema: z.ZodType, fallback: unknown): ConfigField {
   const inner = unwrap(schema);
+  const texts = fieldTexts.get(schema);
   const field: ConfigField = {
     key,
     type: "string",
+    summary: texts?.summary ?? "",
     description: schema.description ?? "",
     default: fallback,
     scope: configScopeOf(key),
@@ -353,6 +438,10 @@ function fieldOf(key: string, schema: z.ZodType, fallback: unknown): ConfigField
   else if (inner instanceof z.ZodNumber) field.type = "number";
   else if (inner instanceof z.ZodArray) field.type = "list";
   else field.clears_to_default = typeof fallback === "string" && fallback !== "";
+  if (texts?.options) field.option_descriptions = texts.options;
+  if (texts?.example !== undefined) field.example = texts.example;
+  const empty = texts?.empty ?? (field.clears_to_default ? EMPTY_RETURNS_TO_DEFAULT : undefined);
+  if (empty !== undefined) field.empty = empty;
   return field;
 }
 

@@ -71,8 +71,8 @@ function lookup(table: CoreTextTable, key: string): string | undefined {
 }
 
 /**
- * 設定画面の項目の説明（core のスキーマの describe）を今の言語の文にする。
- * どの言語でも core の説明を鍵に CONFIG_DESCRIPTIONS を引き、今の言語の訳がなければ core の説明のまま出す
+ * 設定画面の項目の文（core の config.show の fields の description・summary・empty・option_descriptions の値）を今の言語の文にする。
+ * どの言語でも core の文を鍵に CONFIG_DESCRIPTIONS を引き、今の言語の訳がなければ core の文のまま出す
  */
 export function configDescription(description: string): string {
   return lookup(CONFIG_DESCRIPTIONS, description) ?? description;

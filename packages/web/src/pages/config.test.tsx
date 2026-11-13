@@ -29,116 +29,119 @@ afterEach(() => {
 
 /**
  * core の configFields と同じ形の項目（説明は短くしたもの）。scope は core と同じ：local は個人で上書きできる項目。
- * clears_to_default（空にすると既定に戻る）も core と同じで、既定が空でない文字列の項目だけ true
+ * clears_to_default（空にすると既定に戻る）も core と同じで、既定が空でない文字列の項目だけ true。
+ * 要約（summary）は説明と同じ文にする（画面はまだ説明だけを出す）
  */
-const FIELDS: ConfigField[] = [
-  {
-    key: "default_project",
-    type: "string",
-    description: "省略時の Project",
-    default: "default",
-    scope: "local",
-    clears_to_default: true,
-  },
-  {
-    key: "git.remote",
-    type: "string",
-    description: "Git remote that deguboard fetches from and pushes to",
-    default: "origin",
-    scope: "local",
-    clears_to_default: true,
-  },
-  {
-    key: "git.base_branch",
-    type: "string",
-    description: "基準",
-    default: "main",
-    scope: "team",
-    clears_to_default: true,
-  },
-  {
-    key: "worktree.root",
-    type: "string",
-    description: "置き場所",
-    default: "../<repo>.worktrees",
-    scope: "local",
-    clears_to_default: true,
-  },
-  {
-    key: "commit.mode",
-    type: "enum",
-    options: ["each", "batch", "manual"],
-    description: "each: 書き込みのたびにコミット",
-    default: "batch",
-    scope: "local",
-    clears_to_default: false,
-  },
-  {
-    key: "push.mode",
-    type: "enum",
-    options: ["auto", "manual"],
-    description: "auto: コミットのたびに push",
-    default: "auto",
-    scope: "local",
-    clears_to_default: false,
-  },
-  {
-    key: "metrics.read_transcripts",
-    type: "boolean",
-    description: "会話記録を読む",
-    default: false,
-    scope: "team",
-    clears_to_default: false,
-  },
-  {
-    key: "actions.shell",
-    type: "boolean",
-    description: "シェルを許す",
-    default: false,
-    scope: "local",
-    clears_to_default: false,
-  },
-  {
-    key: "actions.test",
-    type: "list",
-    description: "テストのコマンド",
-    default: [],
-    scope: "team",
-    clears_to_default: false,
-  },
-  {
-    key: "auto.merge",
-    type: "boolean",
-    description: "自動でマージ",
-    default: false,
-    scope: "team",
-    clears_to_default: false,
-  },
-  {
-    key: "auto.decisions",
-    type: "list",
-    description: "聞かずに選ぶ判断",
-    default: ["assign", "check", "plan", "audit", "accept"],
-    scope: "team",
-    clears_to_default: false,
-  },
-  {
-    key: "models.light",
-    type: "string",
-    description: "light のモデル",
-    default: "",
-    scope: "local",
-    clears_to_default: false,
-  },
-  {
-    key: "actor.human_only",
-    type: "list",
-    description: "人だけ",
-    default: [],
-    scope: "team",
-    clears_to_default: false,
-  },
-];
+const FIELDS: ConfigField[] = (
+  [
+    {
+      key: "default_project",
+      type: "string",
+      description: "省略時の Project",
+      default: "default",
+      scope: "local",
+      clears_to_default: true,
+    },
+    {
+      key: "git.remote",
+      type: "string",
+      description: "Git remote that deguboard fetches from and pushes to",
+      default: "origin",
+      scope: "local",
+      clears_to_default: true,
+    },
+    {
+      key: "git.base_branch",
+      type: "string",
+      description: "基準",
+      default: "main",
+      scope: "team",
+      clears_to_default: true,
+    },
+    {
+      key: "worktree.root",
+      type: "string",
+      description: "置き場所",
+      default: "../<repo>.worktrees",
+      scope: "local",
+      clears_to_default: true,
+    },
+    {
+      key: "commit.mode",
+      type: "enum",
+      options: ["each", "batch", "manual"],
+      description: "each: 書き込みのたびにコミット",
+      default: "batch",
+      scope: "local",
+      clears_to_default: false,
+    },
+    {
+      key: "push.mode",
+      type: "enum",
+      options: ["auto", "manual"],
+      description: "auto: コミットのたびに push",
+      default: "auto",
+      scope: "local",
+      clears_to_default: false,
+    },
+    {
+      key: "metrics.read_transcripts",
+      type: "boolean",
+      description: "会話記録を読む",
+      default: false,
+      scope: "team",
+      clears_to_default: false,
+    },
+    {
+      key: "actions.shell",
+      type: "boolean",
+      description: "シェルを許す",
+      default: false,
+      scope: "local",
+      clears_to_default: false,
+    },
+    {
+      key: "actions.test",
+      type: "list",
+      description: "テストのコマンド",
+      default: [],
+      scope: "team",
+      clears_to_default: false,
+    },
+    {
+      key: "auto.merge",
+      type: "boolean",
+      description: "自動でマージ",
+      default: false,
+      scope: "team",
+      clears_to_default: false,
+    },
+    {
+      key: "auto.decisions",
+      type: "list",
+      description: "聞かずに選ぶ判断",
+      default: ["assign", "check", "plan", "audit", "accept"],
+      scope: "team",
+      clears_to_default: false,
+    },
+    {
+      key: "models.light",
+      type: "string",
+      description: "light のモデル",
+      default: "",
+      scope: "local",
+      clears_to_default: false,
+    },
+    {
+      key: "actor.human_only",
+      type: "list",
+      description: "人だけ",
+      default: [],
+      scope: "team",
+      clears_to_default: false,
+    },
+  ] satisfies Omit<ConfigField, "summary">[]
+).map((f) => ({ ...f, summary: f.description }));
 
 function configClient(initialLocal: Record<string, unknown> = {}) {
   const client = mockClient();
@@ -1031,7 +1034,7 @@ describe("設定画面の部品", () => {
   });
 
   it("空にすると既定に戻るかは core の項目の定義（clears_to_default）で決め、型や既定値から判断しない", () => {
-    const base = { type: "string", description: "", scope: "local" } as const;
+    const base = { type: "string", summary: "", description: "", scope: "local" } as const;
     // 既定が空でない文字列の項目：core は true を出し、空の値（空文字・undefined・null）が外すのと同じになる
     const clears: ConfigField = { ...base, key: "a", default: "x", clears_to_default: true };
     expect(clearsToDefault(clears, "")).toBe(true);
