@@ -1,0 +1,71 @@
+id: p123
+project: default
+tickets: [t862, t865, t863, t866, t861, t859, t867, t860, t868, t871, t869, t870]
+after:
+  t859:
+    - t862
+  t860:
+    - t859
+  t868:
+    - t865
+    - t863
+  t867:
+    - t866
+  t871:
+    - t867
+  t869:
+    - t868
+    - t867
+  t870:
+    - t860
+    - t868
+pending_approval: true
+details:
+  t862:
+    scope: README.md と README.ja.md の Security and privacy の節だけ
+    approach: extension.ts と skills.ts で起動時に書く場所を確かめ、両言語の README に同じ構成で書く
+    tier: light
+  t865:
+    scope: Skill の判定・更新の core への集約と、公開・写し・テスト helper の整理。振る舞いは変えない
+    approach: refreshSkillsOf のまとめを core のコマンドに移し、buildSkills を 1 回の呼び出しで共有する
+    tier: heavy
+  t863:
+    scope: vitest と test:vscode の環境の切り離しと、そのコメント・MT-4 の確かめ
+    approach: host.ts で一時の HOME を渡し、vitest.config.ts でエージェントの環境変数を消す
+    tier: standard
+  t866:
+    scope: publish-extension.yml の約束を読むテストを test/scripts/ に足す。ワークフローは変えない
+    approach: YAML を読み、きっかけ・step・秘密・権限を確かめる
+    tier: standard
+  t861:
+    scope: GitHub の About の説明文と topics。PR は要らない
+    approach: 文面と topics を人に見せて承認を得てから gh repo edit で入れる
+    tier: light
+  t859:
+    scope: SECURITY.md の英訳と、README・ADR-001・CLAUDE.md の言語の記述
+    approach: 中身を変えずに英語にし、言語の規則に SECURITY.md を足す
+    tier: light
+  t867:
+    scope: development.md の「リリース」の初回の準備に手での VSIX のアップロードを足す
+    approach: 手順と理由（trusted publishing の前に拡張が要る等）を短く書く
+    tier: light
+  t860:
+    scope: usage.md の英訳と usage.ja.md の新設、README 両言語のリンク、ADR-001 の言語の規則
+    approach: 今の usage.md を usage.ja.md に移し、同じ節の構成で英語版を書く
+    tier: light
+  t868:
+    scope: DG_PATH_NOTE・SKILL_TEMPLATE・hooks のコメントから npx deguboard を外す
+    approach: 今の配り方で動く例だけにし、文を確かめるテストを合わせる
+    tier: standard
+  t871:
+    scope: publish-extension.yml の mise の版の 1 か所化と、tsc の dist の掃除
+    approach: ワークフローの env に版を置き mise.toml と関係を書き、build の前に dist を消す
+    tier: standard
+  t869:
+    scope: cli・core・server の private 化と npm 向け設定・ADR の重複・コメントの整理
+    approach: package.json に private を足して npm 向けの項を消し、採らなかった案を ADR-008 だけに残す
+    tier: standard
+  t870:
+    scope: guide-overview・Walkthrough・ADR-001 の食い違いと ask の雛形の言語
+    approach: 雛形は dg の出力なので英語にし、文書を今の実装に合わせる
+    tier: standard
