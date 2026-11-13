@@ -1,0 +1,5 @@
+id: s30
+project: default
+name: sprint30
+goal: カンバン・バックログ・履歴の見出しと Epic の見え方を良くし、Epic をその場で頼めるようにする
+status: planned
