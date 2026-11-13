@@ -1,0 +1,34 @@
+{
+  "id": "r20261113-143452-a4c7",
+  "ticket": "t825",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-13T14:34:52Z",
+  "finished_at": "2026-11-13T14:39:54Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "publish jobs fetch vsce and ovsx via npx without the lockfile, so transitive deps are re-resolved in a job holding publish credentials",
+    "the vsce version is duplicated in the workflow and the vscode package manifest, kept in sync only by a comment",
+    "a pre-release Release later changed to a full release does not trigger publishing and this is not documented"
+  ],
+  "usage": {
+    "input": 36,
+    "output": 10590,
+    "cache_read": 748197,
+    "cache_write": 38324
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 3,
+    "bash": 15,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "d786ae01-8a2a-4001-a115-0f3a9f558d25",
+  "review": null
+}
