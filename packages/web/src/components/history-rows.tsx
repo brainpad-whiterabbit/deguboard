@@ -14,6 +14,15 @@ import { trNode } from "../l10n-node.js";
 
 /** 一覧で最初に出す行の数。多いときは残りを「ほか N 件」のボタンで開ける */
 const HISTORY_LIST_HEAD = 8;
+/**
+ * 全体がこの件数以下の一覧は切らずに全部出す。数件を隠すためにボタンを押させるより、
+ * 全部並べたほうが速く見渡せるので
+ */
+const HISTORY_LIST_UNFOLDED_MAX = 15;
+/**
+ * 「ほか N 件」を 1 回押して開く件数。残りを一度に全部開くと、数百件の一覧で行の描画が重くなるので区切る
+ */
+const HISTORY_LIST_STEP = 50;
 
 /**
  * text の中の query に当たる部分（大文字小文字を区別しない）に印を付ける。query が空なら text のまま。
@@ -124,30 +133,43 @@ export function HistoryTicketRow({
 }
 
 /**
- * 履歴用の行の一覧。渡した順のまま出し、head 件より多いときは先頭の head 件だけ出して「ほか N 件」のボタンで残りを開ける。
+ * 履歴用の行の一覧。渡した順のまま出す。unfoldedMax 件より多いときは先頭の head 件だけ出し、
+ * 「ほか N 件」（N は残りの全件数）のボタンを押すたびに step 件ずつ開く。
  * row で行の描き方を変えられる（既定は HistoryTicketRow）。
  * 「ほか N 件」を開いた状態は tickets が変わっても戻らないので、別の一覧に切り替えるときは呼ぶ側で key を変える
  */
 export function HistoryTicketList({
   tickets,
   head = HISTORY_LIST_HEAD,
+  unfoldedMax = HISTORY_LIST_UNFOLDED_MAX,
+  step = HISTORY_LIST_STEP,
   row = (t) => <HistoryTicketRow ticket={t} />,
 }: {
   tickets: readonly Ticket[];
   head?: number | undefined;
+  /** 全体がこの件数以下なら切らない */
+  unfoldedMax?: number | undefined;
+  /** 「ほか N 件」を 1 回押して開く件数 */
+  step?: number | undefined;
   row?: ((ticket: Ticket) => ReactNode) | undefined;
 }) {
-  const [all, setAll] = useState(false);
-  const folded = !all && tickets.length > head;
-  const shown = folded ? tickets.slice(0, head) : tickets;
+  // 開いた件数（先頭の head 件に足す数）
+  const [opened, setOpened] = useState(0);
+  const limit = tickets.length <= Math.max(unfoldedMax, head) ? tickets.length : head + opened;
+  const shown = limit < tickets.length ? tickets.slice(0, limit) : tickets;
+  const rest = tickets.length - shown.length;
   return (
     <div className="rows history-list">
       {shown.map((t) => (
         <Fragment key={t.id}>{row(t)}</Fragment>
       ))}
-      {folded ? (
-        <button type="button" className="link history-more" onClick={() => setAll(true)}>
-          {trNode("ほか {0} 件", tickets.length - head)}
+      {rest > 0 ? (
+        <button
+          type="button"
+          className="link history-more"
+          onClick={() => setOpened((n) => n + step)}
+        >
+          {trNode("ほか {0} 件", rest)}
         </button>
       ) : null}
     </div>

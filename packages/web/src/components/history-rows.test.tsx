@@ -84,23 +84,51 @@ describe("履歴用の行", () => {
 });
 
 describe("履歴用の一覧", () => {
-  const tickets = Array.from({ length: 11 }, (_, n) => ticket({ id: `t${n + 1}`, status: "done" }));
+  const many = (length: number) =>
+    Array.from({ length }, (_, n) => ticket({ id: `t${n + 1}`, status: "done" }));
   const shown = () =>
     [...document.querySelectorAll(".history-list code")].map((c) => c.textContent);
 
-  it("多いときは先頭の数件だけ出し、「ほか N 件」を押すと残りを出す", async () => {
-    mount(<HistoryTicketList tickets={tickets} head={8} />);
+  it("16 件以上は先頭の 8 件だけ出し、「ほか N 件」を押すたびに 50 件ずつ開いて、ボタンに残りの件数を出す", async () => {
+    // 既定の値（先頭 8 件・15 件以下は切らない・50 件ずつ）で確かめる
+    mount(<HistoryTicketList tickets={many(120)} />);
     await screen.findByText("t1");
     expect(shown()).toEqual(["t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"]);
-    fireEvent.click(screen.getByRole("button", { name: "ほか 3 件" }));
-    expect(shown()).toHaveLength(11);
+    fireEvent.click(screen.getByRole("button", { name: "ほか 112 件" }));
+    expect(shown()).toHaveLength(58);
+    expect(shown().at(-1)).toBe("t58");
+    fireEvent.click(screen.getByRole("button", { name: "ほか 62 件" }));
+    expect(shown()).toHaveLength(108);
+    // 残りが 50 件に満たなければ残りを全部開いて、ボタンを消す
+    fireEvent.click(screen.getByRole("button", { name: "ほか 12 件" }));
+    expect(shown()).toHaveLength(120);
     expect(screen.queryByRole("button", { name: /^ほか/ })).toBeNull();
   });
 
-  it("件数が先頭の数以下なら「ほか N 件」を出さない", async () => {
-    mount(<HistoryTicketList tickets={tickets.slice(0, 8)} head={8} />);
+  it("全体が 15 件以下なら切らずに全件出し、「ほか N 件」を出さない", async () => {
+    mount(<HistoryTicketList tickets={many(15)} />);
+    await screen.findByText("t1");
+    expect(shown()).toHaveLength(15);
+    expect(screen.queryByRole("button", { name: /^ほか/ })).toBeNull();
+  });
+
+  it("16 件なら先頭の 8 件で切る", async () => {
+    mount(<HistoryTicketList tickets={many(16)} />);
     await screen.findByText("t1");
     expect(shown()).toHaveLength(8);
-    expect(screen.queryByRole("button", { name: /^ほか/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "ほか 8 件" })).toBeTruthy();
+  });
+
+  it("key を変えると開いた件数が戻る（検索や絞り込みを変えたときに呼ぶ側が key を変える）", async () => {
+    const { rerender } = mount(<HistoryTicketList key="a" tickets={many(120)} />);
+    await screen.findByText("t1");
+    fireEvent.click(screen.getByRole("button", { name: "ほか 112 件" }));
+    expect(shown()).toHaveLength(58);
+    rerender(
+      <StoreProvider client={mockClient()}>
+        <HistoryTicketList key="b" tickets={many(120)} />
+      </StoreProvider>,
+    );
+    expect(shown()).toHaveLength(8);
   });
 });
