@@ -30,7 +30,7 @@ after:
     - t812
   t815:
     - t814
-pending_approval: true
+pending_approval: false
 details:
   t807:
     scope: カンバンとバックログで、Epic の札に触れる・Tab で止まるとその Epic の行を光らせ、ほかを薄くする。絞り込みの動きは変えない
@@ -100,3 +100,5 @@ details:
     scope: 終わったチケットも持ち越しもない Iteration の行を薄く出して開けなくし、詳細へのリンクと右クリックのメニューは残す
     approach: IterationItem に EpicItem の history-empty と同じ扱いを入れてテストする
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-13T05:03:02Z
