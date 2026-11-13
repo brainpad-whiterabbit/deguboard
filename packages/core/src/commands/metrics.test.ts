@@ -1,7 +1,8 @@
-import { readdir } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
+import { resetGhCache } from "../git/facts.js";
 import { recordBaseline } from "../git/outside.js";
 import { emptyUsage } from "../model/run.js";
 import { openContext } from "./context.js";
@@ -10,7 +11,7 @@ import { epicAdd, epicCreate } from "./epic.js";
 import { findCommand } from "./index.js";
 import { iterationAdd, iterationClose, iterationCreate, iterationStart } from "./iteration.js";
 import { fakeGh } from "../../test/helpers/commands-context.js";
-import { metricsLines, metricsShow } from "./metrics.js";
+import { metricsLines, metricsShow, metricsSources } from "./metrics.js";
 import { commit, init } from "./setup.js";
 import { ticketCreate } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
@@ -489,6 +490,175 @@ describe("metrics lines", () => {
       expect(t1).toMatchObject({ pr: 21, title: "A2" });
       expect(t1?.lines).toBeUndefined();
       expect(fresh.store.tickets.get("t2")?.data.lines).toEqual({ additions: 7, deletions: 2 });
+    } finally {
+      restore();
+    }
+  });
+});
+
+describe("metrics sources", () => {
+  /**
+   * t1（PR #11 マージ済み、s1）・t2（PR #12 閉じた、s1）・t3（PR なし、s1。t1 と t2 と、チケットのない t99 を書く）・
+   * t4（PR #14 マージ済み、Iteration なし。題に t1 を書く）
+   */
+  async function tickets(): Promise<{ ctx: CommandContext; root: string }> {
+    const f = await createFixture();
+    cleanups.push(f.cleanup);
+    const actor = { kind: "human" as const, user: "eiki" };
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
+    const ctx = await openContext({ cwd: f.cloneA, actor });
+    await runCommand(ticketCreate, ctx, {
+      title: "A",
+      body: "t1 自身と、語の中の at2・t2x は参照でない",
+    });
+    await runCommand(ticketCreate, ctx, { title: "B" });
+    await runCommand(ticketCreate, ctx, {
+      title: "C",
+      body: "t2 の見直しで見つけた（t1、t2）。t99 と t0 はない。`t1-t2` の間",
+    });
+    await runCommand(ticketCreate, ctx, { title: "D（t1 の続き）" });
+    await runCommand(iterationCreate, ctx, { name: "I" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2", "t3"] });
+    await ctx.store.update("ticket", "t1", { status: "done", pr: 11 });
+    await ctx.store.update("ticket", "t2", { status: "done", pr: 12 });
+    await ctx.store.update("ticket", "t3", { status: "done" });
+    await ctx.store.update("ticket", "t4", { status: "done", pr: 14 });
+    await recordBaseline(ctx.repo);
+    await runCommand(commit, ctx, {});
+    return { ctx, root: f.root };
+  }
+
+  const mergedFiles = (number: number, paths: string[], changedFiles = paths.length) =>
+    JSON.stringify({
+      number,
+      state: "MERGED",
+      changedFiles,
+      files: paths.map((p) => ({ path: p, additions: 1, deletions: 0 })),
+    });
+
+  it("チケットごとに、マージされた PR が変えたファイルと、題と本文に書かれたほかのチケットの ID を返し、何も書かない。取れないファイルは null と理由にする", async () => {
+    const { ctx, root } = await tickets();
+    const restore = await fakeGh(root, {
+      "11": mergedFiles(11, ["src/a.ts", "docs/x.md"]),
+      "12": JSON.stringify({
+        number: 12,
+        state: "CLOSED",
+        changedFiles: 1,
+        files: [{ path: "a" }],
+      }),
+      "14": mergedFiles(14, ["src/a.ts"]),
+    });
+    try {
+      const r = await runCommand(metricsSources, ctx, { iteration: "s1" });
+      expect(r.data).toEqual({
+        tickets: [
+          {
+            id: "t1",
+            status: "done",
+            iteration: "s1",
+            epic: null,
+            pr: 11,
+            files: ["src/a.ts", "docs/x.md"],
+            files_unknown: null,
+            refs: [],
+          },
+          {
+            id: "t2",
+            status: "done",
+            iteration: "s1",
+            epic: null,
+            pr: 12,
+            files: null,
+            files_unknown: "PR #12 is not merged (closed)",
+            refs: [],
+          },
+          {
+            id: "t3",
+            status: "done",
+            iteration: "s1",
+            epic: null,
+            pr: null,
+            files: null,
+            files_unknown: "No PR is recorded on the ticket",
+            // 出た順に 1 回ずつ。自分・チケットのない t99・t0 は入らない
+            refs: ["t2", "t1"],
+          },
+        ],
+        unread: 0,
+      });
+      // PR のないチケットは警告せず、PR があるのに読めなかったものだけを知らせる
+      expect(r.warnings).toEqual([
+        "t2: the changed files are unknown (PR #12 is not merged (closed))",
+      ]);
+      expect(r.write).toBeUndefined();
+
+      // 題の ID も参照に数える。チケットで絞れる
+      const one = await runCommand(metricsSources, ctx, { ticket: "4" });
+      expect(one.data.tickets.map((t) => [t.id, t.files, t.refs])).toEqual([
+        ["t4", ["src/a.ts"], ["t1"]],
+      ]);
+    } finally {
+      restore();
+    }
+  });
+
+  it("gh が返したファイルが PR のファイルの数に足りないとき（100 件を超える PR）は、欠けた一覧を返さず null と理由にする", async () => {
+    const { ctx, root } = await tickets();
+    const restore = await fakeGh(root, { "11": mergedFiles(11, ["src/a.ts"], 120) });
+    try {
+      const r = await runCommand(metricsSources, ctx, { ticket: "t1" });
+      expect(r.data.tickets[0]).toMatchObject({
+        files: null,
+        files_unknown: "PR #11 changed 120 files and gh returned 1 of them",
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  it("gh がないマシンでは、PR のあるチケットのファイルを null と理由にし、参照は返す", async () => {
+    const { ctx, root } = await tickets();
+    // --version も失敗する gh を PATH の先頭に置く（gh がないのと同じ扱いになる）
+    const bin = path.join(root, "no-gh-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(path.join(bin, "gh"), "#!/bin/sh\nexit 127\n", { mode: 0o755 });
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    try {
+      const r = await runCommand(metricsSources, ctx, {});
+      expect(r.data.tickets.map((t) => [t.id, t.files, t.files_unknown])).toEqual([
+        ["t1", null, "Cannot read the PR with gh"],
+        ["t2", null, "Cannot read the PR with gh"],
+        ["t3", null, "No PR is recorded on the ticket"],
+        ["t4", null, "Cannot read the PR with gh"],
+      ]);
+      expect(r.data.tickets.map((t) => t.refs)).toEqual([[], [], ["t2", "t1"], ["t1"]]);
+    } finally {
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  });
+
+  it("limit までを新しいチケットから gh で読み、読まなかったチケットは null と理由にして数を返す", async () => {
+    const { ctx, root } = await tickets();
+    const restore = await fakeGh(root, {
+      "11": mergedFiles(11, ["src/a.ts"]),
+      "12": mergedFiles(12, ["src/b.ts"]),
+      "14": mergedFiles(14, ["src/c.ts"]),
+    });
+    try {
+      const r = await runCommand(metricsSources, ctx, { limit: 2 });
+      expect(r.data.tickets.map((t) => [t.id, t.files, t.files_unknown])).toEqual([
+        ["t1", null, "Not read in this call (limit)"],
+        ["t2", ["src/b.ts"], null],
+        ["t3", null, "No PR is recorded on the ticket"],
+        ["t4", ["src/c.ts"], null],
+      ]);
+      expect(r.data.unread).toBe(1);
+      expect(r.warnings).toEqual([
+        "1 tickets with a PR were not read in this call (limit), and their files are null. Raise --limit or narrow with --iteration, --epic, or --ticket",
+      ]);
     } finally {
       restore();
     }

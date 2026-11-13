@@ -94,7 +94,8 @@ const GROUP_SUMMARY: Record<string, string> = {
   epic: "Operations on Epics (groupings by purpose)",
   plan: "Operations on Plans (the order to advance tickets, and approval)",
   workflow: "Look up, validate, and rewrite Workflow definitions",
-  metrics: "Aggregate Runs (records of actual work)",
+  metrics:
+    "Aggregate Runs (records of actual work), and read the per-ticket data behind retrospective metrics",
   retro:
     "Perspectives of the retrospective and their approved metric definitions (the team's config.yaml)",
   run: "Record Runs (one AI execution each)",

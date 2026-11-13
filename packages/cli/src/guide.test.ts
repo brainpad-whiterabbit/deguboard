@@ -481,6 +481,26 @@ describe("dg guide", () => {
     expect(step(section(retro, "## Retrospective steps"), 2)).toContain("Gaps in the measurement");
   });
 
+  it("retro は PR どうしのファイルの重なりとチケットどうしの参照を metrics sources から読み、取れないファイル（null）を「ファイルなし」と読まない（t848）", async () => {
+    const retro = await readGuide("retro");
+    const sources = section(retro, "## Files and references of the tickets");
+    for (const word of [
+      "`metrics sources --iteration <S>`",
+      "`files`",
+      "`refs`",
+      "Do not count them by hand",
+      "`files_unknown`",
+      'Null is not "no files"',
+      "tells only that the ID is written, not why",
+    ])
+      expect(sources, word).toContain(word);
+    // 提案の出どころと、計測の抜けにも挙げる
+    expect(lineWith(section(retro, "## Proposing metrics"), "Propose only what")).toContain(
+      "`metrics sources`",
+    );
+    expect(section(retro, "## Gaps in the measurement")).toContain("`files_unknown`");
+  });
+
   it("retro は根拠つきの Keep / Problem / Try の表と Try の扱いを示し、承認まで書き換えず、起票は guide import に従って retro-<S> を付け、Iteration は付けない", async () => {
     const retro = await readGuide("retro");
     const table = section(retro, "## Keep / Problem / Try");

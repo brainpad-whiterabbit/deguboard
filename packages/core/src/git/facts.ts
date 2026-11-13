@@ -198,6 +198,10 @@ interface PrView {
   createdAt?: string | null;
   additions?: number | null;
   deletions?: number | null;
+  /** 変えたファイルの数（PR_FILE_FIELDS で取る） */
+  changedFiles?: number | null;
+  /** 変えたファイル（PR_FILE_FIELDS で取る。gh は先頭の 100 件までしか返さない） */
+  files?: Array<{ path?: unknown }> | null;
 }
 
 const PR_FIELDS = "number,state,isDraft,mergedAt,createdAt,additions,deletions";
@@ -238,14 +242,45 @@ export async function fetchMergedPrLines(
   return lines ? { lines } : { reason: `Cannot read the changed lines of PR #${pr}` };
 }
 
+const PR_FILE_FIELDS = "number,state,changedFiles,files";
+
+/**
+ * 記録した番号の PR が変えたファイルのパス（`dg metrics sources` が振り返りの指標の元のデータとして返す。MT-8）。
+ * 行数と同じく、マージされた PR だけを採る（開いている PR のファイルは push のたびに変わり、閉じた PR の変更は base に入っていない）。
+ * マージされていない・gh がない・読めないときは理由を返す。gh pr view の files は先頭の 100 件までなので、
+ * 件数（changedFiles）と合わないときは、欠けた一覧を返さずに理由を返す
+ */
+export async function fetchMergedPrFiles(
+  repo: GitRepo,
+  pr: number,
+): Promise<{ files: string[]; reason?: undefined } | { files?: undefined; reason: string }> {
+  const viewed = await viewPr(repo, String(pr), PR_FILE_FIELDS);
+  if (!viewed) return { reason: "Cannot read the PR with gh" };
+  if ("missing" in viewed) return { reason: `PR #${pr} not found` };
+  const { state, changedFiles, files } = viewed.data;
+  if (state !== "MERGED")
+    return { reason: `PR #${pr} is not merged (${String(state).toLowerCase()})` };
+  const paths = Array.isArray(files)
+    ? files.map((f) => f?.path).filter((p): p is string => typeof p === "string" && p !== "")
+    : undefined;
+  if (!paths || !isCount(changedFiles) || paths.length !== files?.length)
+    return { reason: `Cannot read the changed files of PR #${pr}` };
+  if (paths.length !== changedFiles)
+    return {
+      reason: `PR #${pr} changed ${changedFiles} files and gh returned ${paths.length} of them`,
+    };
+  return { files: paths };
+}
+
 /** gh pr view を番号かブランチ名で呼ぶ。PR がなければ missing、gh がない・読めないときは undefined */
 async function viewPr(
   repo: GitRepo,
   selector: string,
+  fields: string = PR_FIELDS,
 ): Promise<{ data: PrView } | { missing: true } | undefined> {
   if (!(await hasGh(repo.topLevel))) return undefined;
   try {
-    const result = await runGh(repo.topLevel, ["pr", "view", selector, "--json", PR_FIELDS], {
+    const result = await runGh(repo.topLevel, ["pr", "view", selector, "--json", fields], {
       allowFailure: true,
       timeoutMs: 30_000,
     });
