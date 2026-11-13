@@ -1,13 +1,13 @@
-# セキュリティポリシー
+# Security Policy
 
-## 脆弱性の報告
+## Reporting a vulnerability
 
-脆弱性を見つけたら、公開の Issue や PR には書かず、GitHub の非公開の報告機能で知らせてください。
+If you find a vulnerability, do not write it in a public Issue or PR. Report it through GitHub's private reporting feature.
 
-- 報告先：[脆弱性を非公開で報告する](https://github.com/brainpad-whiterabbit/deguboard/security/advisories/new)（リポジトリの Security タブ →「Report a vulnerability」）
+- Where to report: [Report a vulnerability privately](https://github.com/brainpad-whiterabbit/deguboard/security/advisories/new) (the repository's Security tab → "Report a vulnerability")
 
-報告には、再現の手順、影響を受ける版、確かめた環境を書いてください。届いた報告は、この非公開の場で確かめ、修正と公開の時期を相談します。
+Please include the steps to reproduce, the affected versions, and the environment where you confirmed the problem. We will verify reports received through this private channel and discuss the timing of the fix and its publication.
 
-## 修正の対象
+## Supported versions
 
-修正は、最新のリリースだけを対象にします。古いリリースには修正を出しません。「最新のリリース」は、GitHub Release の最新の版（VSIX を含む）を指します。
+Fixes are provided only for the latest release. We do not provide fixes for older releases. "The latest release" refers to the latest version on GitHub Release (including the VSIX).
