@@ -278,23 +278,73 @@ describe("行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
       has: page.locator('a[href="#/tickets/t1"]'),
     });
 
+  /**
+   * 行の位置と大きさが続けて 3 回同じになるまで待って返す。
+   * カンバンの見出しは目標・何日目・件数をあとから非同期に出すので、出た直後の行はまだ動くことがあり、
+   * 動く前に測った座標で帯を押すと行の本体に当たって詳細へ移る。落ち着かなければ理由を言って短い時間で落とす
+   */
+  async function settledBox(page: Page, row: Locator, timeout = 5_000) {
+    const deadline = Date.now() + timeout;
+    let last = "";
+    let same = 0;
+    for (;;) {
+      const box = await row.boundingBox();
+      const key = JSON.stringify(box);
+      same = box && key === last ? same + 1 : 0;
+      last = key;
+      if (box && same >= 2) return box;
+      if (Date.now() > deadline)
+        throw new Error(`行の位置が ${timeout}ms のあいだ落ち着かない（最後に測った位置: ${key}）`);
+      await page.waitForTimeout(50);
+    }
+  }
+
+  /** 描画が落ち着いてから行の左端の帯（6px）を押す */
+  async function clickSettledStrip(page: Page, row: Locator): Promise<void> {
+    const box = await settledBox(page, row);
+    await page.mouse.click(box.x + 6, box.y + box.height / 2);
+  }
+
   it("帯を押すと、その 1 件を選ぶ・外すの切り替えになり、詳細は開かない。行の本体を押すと詳細を開き選択を外す", async () => {
     const page = await browser.newPage({ viewport: { width: WIDTH, height: 800 } });
-    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
-    const row = todoRow(page);
-    await row.waitFor();
-    await clickStrip(page, row);
-    expect(await row.getAttribute("data-selected"), "帯を押して選ぶ").toBe("");
-    expect(new URL(page.url()).hash, "詳細は開かない").toBe("#/board");
-    await clickStrip(page, row);
-    expect(await row.getAttribute("data-selected"), "帯をもう一度押して外す").toBeNull();
-    expect(new URL(page.url()).hash).toBe("#/board");
+    // 外れたときに、テストのタイムアウト（60 秒）まで待たずに理由の分かる失敗にする
+    page.setDefaultTimeout(5_000);
+    const wait = { timeout: 5_000 };
+    const hash = () => new URL(page.url()).hash;
+    try {
+      await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+      const row = todoRow(page);
+      await row.waitFor();
+      await clickSettledStrip(page, row);
+      await expect
+        .poll(() => row.getAttribute("data-selected"), { ...wait, message: "帯を押して選ぶ" })
+        .toBe("");
+      expect(hash(), "詳細は開かない").toBe("#/board");
+      await clickSettledStrip(page, row);
+      await expect
+        .poll(() => row.getAttribute("data-selected"), {
+          ...wait,
+          message: "帯をもう一度押して外す",
+        })
+        .toBeNull();
+      expect(hash(), "詳細は開かない").toBe("#/board");
 
-    await clickStrip(page, row);
-    await row.locator('a[href="#/tickets/t1"]').first().click();
-    expect(new URL(page.url()).hash, "行の本体は詳細を開く").toBe("#/tickets/t1");
-    expect(await row.getAttribute("data-selected"), "詳細を開くと選択は外れる").toBeNull();
-    await page.close();
+      await clickSettledStrip(page, row);
+      await expect
+        .poll(() => row.getAttribute("data-selected"), { ...wait, message: "帯を押して選ぶ" })
+        .toBe("");
+      expect(hash(), "詳細は開かない").toBe("#/board");
+      await row.locator('a[href="#/tickets/t1"]').first().click();
+      await expect.poll(hash, { ...wait, message: "行の本体は詳細を開く" }).toBe("#/tickets/t1");
+      await expect
+        .poll(() => row.getAttribute("data-selected"), {
+          ...wait,
+          message: "詳細を開くと選択は外れる",
+        })
+        .toBeNull();
+    } finally {
+      await page.close();
+    }
   });
 
   it("帯は行の余白に重なり、帯の有無で行の位置・大きさと中身の位置が変わらない", async () => {
