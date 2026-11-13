@@ -359,6 +359,61 @@ describe("サイドバーの履歴", () => {
     );
   });
 
+  it("終わったチケットも持ち越しもない Iteration は薄く出して開けず、番号の詳細へのリンクと右クリックの文脈は残す。中止だけ・持ち越しだけの Iteration は開ける。検索で目標に当たっても開けない行のまま残る", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s1", name: "n1", goal: "空の目標", status: "closed", completed: 0 }),
+      iteration({ id: "s2", name: "n2", goal: "中止だけ", status: "closed", completed: 0 }),
+      iteration({
+        id: "s3",
+        name: "n3",
+        goal: "持ち越しだけ",
+        status: "closed",
+        completed: 0,
+        carried_over: 1,
+      }),
+    ];
+    client.data.tickets = [
+      ticket({ id: "t1", status: "abandoned", iteration: "s2" }),
+      // 終わっていないチケットは終わったチケットに数えない
+      ticket({ id: "t2", status: "todo", iteration: "s1" }),
+    ];
+    const opened: unknown[] = [];
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={{ ...sidebarHost(), open: (r) => opened.push(r) }}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const row = (await screen.findByText("空の目標")).closest<HTMLElement>(".history-row")!;
+    expect(row.closest("details")).toBeNull();
+    expect(row.tagName).toBe("DIV");
+    expect(row.closest(".history-item")!.classList.contains("history-empty")).toBe(true);
+    expect([...row.querySelectorAll(".counts > span")].map((b) => b.textContent)).toEqual(["0"]);
+    // 右クリックの「詳細を開く」「ID をコピー」の文脈は開ける行と同じ
+    expect(JSON.parse(row.getAttribute("data-vscode-context")!)).toEqual({
+      webviewSection: "deguboardItem",
+      id: "s1",
+      preventDefaultContextMenuItems: true,
+    });
+    // 番号を押すと詳細を開く
+    fireEvent.click(within(row).getByText("s1"));
+    expect(opened).toEqual([{ page: "iterations", id: "s1" }]);
+    for (const goal of ["中止だけ", "持ち越しだけ"]) {
+      const item = screen.getByText(goal).closest(".history-item")!;
+      expect(item.tagName).toBe("DETAILS");
+      expect(item.classList.contains("history-empty")).toBe(false);
+    }
+
+    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "空の" } });
+    const hit = document.querySelectorAll(".history-item");
+    expect(hit).toHaveLength(1);
+    expect(hit[0]!.classList.contains("history-empty")).toBe(true);
+    expect(hit[0]!.querySelector(".history-row .name mark")!.textContent).toBe("空の");
+  });
+
   it("開いた Epic の終わったチケットは番号の順の 1 本の一覧で、2 段目に Iteration（なければ Iteration なし）と PR を出し、Epic は出さない", async () => {
     window.location.hash = "#/history?view=epic";
     const client = mockClient();
