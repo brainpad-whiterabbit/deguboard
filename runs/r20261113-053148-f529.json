@@ -1,0 +1,33 @@
+{
+  "id": "r20261113-053148-f529",
+  "ticket": "t809",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-13T05:31:48Z",
+  "finished_at": "2026-11-13T05:37:46Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "view-switch の見出しのコメントが件数の札の記述のまま残っている",
+    "件数の文字に font-size がなく、要約の案（少し小さい数字）と大きさが合わない"
+  ],
+  "usage": {
+    "input": 74,
+    "output": 14748,
+    "cache_read": 1788671,
+    "cache_write": 53771
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 5,
+    "bash": 19,
+    "other": 13,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "852349dc-67c3-44d2-86f3-03d3af57eccb",
+  "review": null
+}

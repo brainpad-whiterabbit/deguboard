@@ -1,0 +1,34 @@
+{
+  "id": "r20261113-052959-80b8",
+  "ticket": "t812",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-13T05:29:59Z",
+  "finished_at": "2026-11-13T05:38:40Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "config show --fields help does not list summary, example, empty, option_descriptions",
+    "empty text of the lighter check settings says more than the description",
+    "option descriptions test compares with hard-coded arrays instead of the schema choices"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 5775,
+    "cache_read": 523097,
+    "cache_write": 32556
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 7,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 5,
+    "search_before_write": 0
+  },
+  "session": "852349dc-67c3-44d2-86f3-03d3af57eccb",
+  "review": null
+}
