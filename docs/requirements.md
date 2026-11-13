@@ -172,6 +172,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧（検査しない呼び出しは `packages/core/src/commands/define.ts`）。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。`dg next` が implement・fix の手の `model` に返す（EX-5）
+- `retro.perspectives`：振り返りの観点（MT-7）。観点ごとに名前・問い・承認した指標の定義（数え方の文と出どころのコマンド）を持つ入れ子で、チームだけが持つ。`config set` と設定画面では書かず、`dg retro` のコマンドが検査して書く（細部は `dg retro --help`、理由は [ADR-035](adr/ADR-035-retro-perspectives.md)）
 
 ## 6. 機能要件
 
@@ -226,7 +227,7 @@ updated_at: 2026-10-31T05:10:00Z
 - UI-11 VS Code 拡張は `core` と CLI を同梱して `dg` なしで動き、起動ファイルで外に出す。コマンドで `~/.local/bin/dg` に張り、外せる。PATH の `dg` がないか版のメジャーが違えば知らせる。文言は表示言語で出す（core の英語の文も訳し、チケットの中身と指示は書いたまま）。細部は `vscode/src/launcher.ts`・`vscode/src/l10n.ts`・`web/src/l10n.ts` とそのテスト
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。コード中の ID から要約と詳細を開け、コマンドで ID か題からも探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせ（設定で切れる）、`dg init` 前は始め方を出し、VS Code ではボタンで初期化を実行できる。細部は `packages/vscode/package.json`・`src/extension.ts`
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
-- UI-14 設定画面：チームの `config.yaml` の全項目（5.10）と、個人で上書きできる項目を分けて出して直せ、個人の上書きは外せる。影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない（細部は `packages/web/src/pages/config.tsx` とそのテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
+- UI-14 設定画面：チームの `config.yaml` の項目（5.10）と、個人で上書きできる項目を分けて出して直せ、個人の上書きは外せる。影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない（細部は `packages/web/src/pages/config.tsx` とそのテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 - UI-15 エージェントに頼む：行・見出しから `dg ask` の依頼文を作って頼め、データには書き込まない。VS Code では開いているターミナルにも送れる。細部は `packages/web/src/components/ask-menu.tsx`・`packages/vscode/src/terminals.ts` のテスト
 - UI-16 VS Code 拡張は、制限モードと仮想ワークスペースでは動かない（理由は `packages/vscode/package.json` の `capabilities`）
 
@@ -254,6 +255,7 @@ updated_at: 2026-10-31T05:10:00Z
 - MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけで、会話の中身・コマンドの文字列・ファイルのパスは写さない（Git に入るのは RN-1 のセッション ID まで）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
 - MT-5 `run refresh` は閉じた Run のモデル名と使用量を、finish と同じ方法と MT-2 の許可で会話記録から取り直し、取れた値だけを書き換えて、取れなかった値は残して警告する。実行中の Run は拒み、RN-3 の期間を過ぎた Run は読まずに今の値を残して警告する（細部は `dg run refresh --help`）
 - MT-6 `metrics show` の集計は、Run のチケットの変更行数（TK-11）と、output と input+cache に分けた 1 行あたりのトークンを含む。行数のないチケットは計算から外し、件数を出す。照合はマージを見たときに行数を記録し、`metrics lines` は行数のない done のチケットに後から記録する（細部は `dg metrics show --help`・`dg metrics lines --help`）
+- MT-7 振り返り（`dg guide retro`）は、チームの観点（5.10 の `retro.perspectives`）ごとに、承認した定義で対象の回と直近の回の指標を計算して傾向を出す。定義のない観点には指標を提案し、人が承認した定義だけを記録する。dg は指標を決め打ちせず、計算した値は保存しない（[ADR-035](adr/ADR-035-retro-perspectives.md)）
 
 ### 6.7 ワークフロー実行
 

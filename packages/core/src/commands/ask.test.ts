@@ -695,7 +695,7 @@ describe("頼むことの候補", () => {
     );
   });
 
-  it("振り返るは Skill の形で /dgretro <S> になり、文章だけの形は観点を選んで承認を得た改善を起票する流れを頼む", () => {
+  it("振り返るは Skill の形で /dgretro <S> になり、文章だけの形は指標の提案と計算をして承認を得た改善を起票する流れを頼む", () => {
     const at = { subjects: [iteration("closed")], action: "retro", place: "historyRow" } as const;
     // 頼みごとの 1 行は添えない（呼び出しだけで振り返る）。指示は次の行
     expect(buildAsk({ ...at, format: "skill" }).text).toBe("/dgretro s10");
@@ -704,13 +704,13 @@ describe("頼むことの候補", () => {
     );
     expect(buildAsk({ ...at, format: "text" }).text).toBe(
       [
-        "s10 を振り返ってください（数字の要約を見せてから見る観点を聞き、根拠つきの Keep / Problem / Try を示して、承認を得た改善だけを起票する）。",
+        "s10 を振り返ってください（数字の要約を見せ、定義のない観点には指標を提案して承認した定義だけを記録し、定義のある指標は直近の回と比べて傾向を出し、根拠つきの Keep / Problem / Try を示して、承認を得た改善だけを起票する）。",
         ASK_DG_USAGE,
         askGuideLine("/dgretro"),
       ].join("\n"),
     );
     const en = buildAsk({ ...at, format: "text", language: "en" }).text;
-    expect(en).toContain("ask which viewpoints to look into");
+    expect(en).toContain("record only the definitions I approve");
     expect(en).toContain("file only the improvements I approve as tickets");
   });
 

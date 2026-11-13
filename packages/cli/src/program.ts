@@ -95,6 +95,8 @@ const GROUP_SUMMARY: Record<string, string> = {
   plan: "Operations on Plans (the order to advance tickets, and approval)",
   workflow: "Look up, validate, and rewrite Workflow definitions",
   metrics: "Aggregate Runs (records of actual work)",
+  retro:
+    "Perspectives of the retrospective and their approved metric definitions (the team's config.yaml)",
   run: "Record Runs (one AI execution each)",
   pr: "Advance a PR only when it meets the quality gate (dg gate)",
   flow: "Iteration flow stages and the next step",
