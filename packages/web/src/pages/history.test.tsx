@@ -469,7 +469,8 @@ describe("サイドバーの履歴", () => {
   it("チケットの見方の「ほか N 件」は、検索や結果の絞り込みを変えると閉じた状態に戻る", async () => {
     window.location.hash = "#/history?view=ticket";
     const client = mockClient();
-    client.data.tickets = Array.from({ length: 12 }, (_, n) =>
+    // 15 件以下は切らないので、16 件以上にする
+    client.data.tickets = Array.from({ length: 70 }, (_, n) =>
       ticket({ id: `t${n + 1}`, title: `チケット ${n + 1}`, status: "done" }),
     );
     render(
@@ -479,12 +480,12 @@ describe("サイドバーの履歴", () => {
         </HostProvider>
       </StoreProvider>,
     );
-    const more = await screen.findByRole("button", { name: "ほか 4 件" });
+    const more = await screen.findByRole("button", { name: "ほか 62 件" });
     fireEvent.click(more);
-    expect(document.querySelectorAll(".history-ticket")).toHaveLength(12);
+    expect(document.querySelectorAll(".history-ticket")).toHaveLength(58);
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "チケット" } });
     expect(document.querySelectorAll(".history-ticket")).toHaveLength(8);
-    expect(screen.getByRole("button", { name: "ほか 4 件" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "ほか 62 件" })).toBeTruthy();
   });
 
   it("検索中は残った Iteration の行を開いて当たったチケットだけを印付きで出し、「すべて見る」で全件に戻せ、検索語を消すと検索前の開閉に戻る", async () => {
