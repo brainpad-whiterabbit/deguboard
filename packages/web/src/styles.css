@@ -825,9 +825,6 @@ button.link:hover {
   margin: 0;
   font-size: 1.1em;
 }
-.board-head .goal {
-  flex: 1 1 100%;
-}
 .board-head .actions {
   display: inline-flex;
   gap: 0.5rem;
@@ -1947,7 +1944,7 @@ textarea.body {
   border: 0;
   border-radius: 0;
 }
-/* 行の形（.head-line・.period・.goal）は左パネルのカンバンの見出し（.sidebar-head）と共通の規則。ここは区画に固有のものだけ */
+/* 行の形（.head-line・.period）は左パネルのカンバンの見出し（.sidebar-head）と共通の規則。ここは区画に固有のものだけ */
 .sidebar-section .head-line {
   flex: 1 1 0;
 }
@@ -2109,6 +2106,13 @@ textarea.body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* 名前・期間・何日目の段と目標の行をまとめた、Iteration を頼む場所。段の間は見出しの段の間と同じに空ける */
+.sidebar-head .head-title {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 /* カンバンの見出しの目標は名前・期間の次の行に折り返し、3 行を超える分は「…」で省く（全文はツールチップ） */
 .sidebar-head .head-goal {

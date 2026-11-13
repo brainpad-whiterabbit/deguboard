@@ -2499,7 +2499,9 @@ describe("画面", () => {
     mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     const head = document.querySelector(".sidebar-head")!;
-    expect(head.querySelectorAll(":scope > .head-line")).toHaveLength(3);
+    // 札の列・帯の段と、名前・期間の段と目標の行をまとめた頼む場所（.head-title）
+    expect(head.querySelectorAll(":scope > .head-line")).toHaveLength(2);
+    expect(head.querySelectorAll(":scope > .head-title > .head-line.sub")).toHaveLength(1);
     // 目標は名前・期間の次の行に出し、全文はツールチップで読む。planned は何日目かを出さない
     expect(head.querySelector(".head-goal")!.getAttribute("title")).toBe("左パネルを整える");
     expect(head.querySelector(".head-line.sub")!.textContent).toBe("今");
@@ -2554,7 +2556,10 @@ describe("画面", () => {
     expect(goal.textContent).toBe("e1 を仕上げ、t2・p3 と s1 を見る。step1 は ID にしない");
     const links = [...goal.querySelectorAll("a")];
     expect(links.map((a) => a.textContent)).toEqual(["e1", "t2", "p3", "s1"]);
+    // 目標の行も Iteration を頼む場所の中にあり、ID のリンクはふつうのクリックで詳細を開く（頼む一覧は出さない）
+    expect(goal.closest("[data-ask-spot]")).toBe(head.querySelector(".head-title"));
     for (const a of links) fireEvent.click(a);
+    expect(screen.queryByRole("menu")).toBeNull();
     expect(opened).toEqual([
       { page: "epics", id: "e1" },
       { page: "ticket", id: "t2" },

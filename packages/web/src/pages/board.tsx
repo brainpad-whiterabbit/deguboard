@@ -373,7 +373,8 @@ function BoardHead({
   // active だけ期間の横に何日目かを出す（planned・「すべて」は出さない）
   const day = it ? activeDay(it) : undefined;
   const goal = it?.goal.trim();
-  // 選んでいる Iteration の見出し（名前・期間・目標の段）から、その Iteration を頼む（「すべて」のときは出さない）。
+  // 選んでいる Iteration の見出し（名前・期間・何日目の段と目標の行をまとめた .head-title）から、その Iteration を頼む（「すべて」のときは出さない）。
+  // 目標の中の ID のリンクは、頼む場所の中でもふつうのクリックで詳細を開く（頼む一覧は吹き出し・右クリック・キーで出す）。
   // 右クリックで Iteration の「詳細を開く」「ID をコピー」を出す
   const spot = useAskSpot(
     it
@@ -400,19 +401,21 @@ function BoardHead({
         ) : null}
       </div>
       {epics}
-      <div className="head-line sub muted" {...(it ? { ...spot.props, tabIndex: 0 } : {})}>
-        <span className="name">
-          {it ? <DetailLink route={{ page: "iterations", id: it.id }}>{name}</DetailLink> : name}
-        </span>
-        {period ? <span className="period">{period}</span> : null}
-        {day !== undefined ? <span className="period day">{tr("{0} 日目", day)}</span> : null}
+      <div className="head-title" {...(it ? { ...spot.props, tabIndex: 0 } : {})}>
+        <div className="head-line sub muted">
+          <span className="name">
+            {it ? <DetailLink route={{ page: "iterations", id: it.id }}>{name}</DetailLink> : name}
+          </span>
+          {period ? <span className="period">{period}</span> : null}
+          {day !== undefined ? <span className="period day">{tr("{0} 日目", day)}</span> : null}
+        </div>
+        {goal ? (
+          <div className="head-goal muted" title={goal}>
+            <IdLinkedText text={goal} />
+          </div>
+        ) : null}
         {spot.overlay}
       </div>
-      {goal ? (
-        <div className="head-goal muted" title={goal}>
-          <IdLinkedText text={goal} />
-        </div>
-      ) : null}
       {epicHead}
       {open.length > 0 ? (
         <>

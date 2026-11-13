@@ -88,7 +88,7 @@ export function DetailLink({
 /** 文の中の ID（t12・e3・s2・p7）。前後が英数字に続く字（step1 の p1 など）は ID にしない */
 const TEXT_ID = /(?<![A-Za-z0-9_])([tesp][1-9]\d*)(?![A-Za-z0-9_])/;
 
-/** ID の頭の文字から詳細の画面を決める（core の id.ts の ID_PREFIX と同じ対応） */
+/** ID の頭の文字から詳細の画面を決める（core の model/id.ts の ID_PREFIX と同じ対応） */
 function idRoute(id: string): Route {
   switch (id.charAt(0)) {
     case "t":

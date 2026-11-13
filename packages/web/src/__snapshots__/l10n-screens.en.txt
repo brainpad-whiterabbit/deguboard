@@ -38,10 +38,10 @@ None
 最初の Iteration
 11/1–
 Day 4
-[title] Ask Agent (Shift+F10)
-[aria-label] Ask Agent (Iteration heading s1)
 [title] 目標データの文
 目標データの文
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Iteration heading s1)
 [title] Done 1 / Code Review 1 / In Progress 1
 1
 /
@@ -1187,10 +1187,10 @@ None
 最初の Iteration
 11/1–
 Day 4
-[title] Ask Agent (Shift+F10)
-[aria-label] Ask Agent (Iteration heading s1)
 [title] 目標データの文
 目標データの文
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Iteration heading s1)
 [title] Done 1 / Code Review 1 / In Progress 1
 1
 /
