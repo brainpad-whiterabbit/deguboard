@@ -281,6 +281,7 @@ function deniedMove(s: AskSubject, to: readonly string[]): string | undefined {
 /** 人が打つ 1 手。check のどれかが actor.human_only に入っているか、denied があれば、頼むことを人に回す */
 interface HumanStep {
   check: readonly string[];
+  /** dg の出力なので、仮の値（`<title>` など）も英語で書き、依頼文の言語（lang）に合わせない。名前は dg の引数とオプションの名前にそろえる */
   command: string;
   /** Workflow の by が人に限る遷移（`t12: todo → abandoned`）。agent も行えるなら省く */
   denied?: string;
@@ -404,7 +405,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     intent: (s, _w, lang) => createTarget(s, lang).intent ?? "",
     human(s) {
       const steps: HumanStep[] = [
-        { check: ["ticket.create", "ticket.import"], command: 'dg ticket create "<タイトル>"' },
+        { check: ["ticket.create", "ticket.import"], command: 'dg ticket create "<title>"' },
       ];
       const it = single(s, "iteration");
       if (it) steps.push({ check: ["iteration.add"], command: `dg iteration add ${it.id} "<ID>"` });
@@ -433,7 +434,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
         `${s.length > 0 ? `${idList(s, lang)} を入れる ` : ""}Iteration を作って`,
         `Create an Iteration${s.length > 0 ? ` to hold ${idList(s, lang)}` : ""}`,
       ),
-    human: () => [{ check: ["iteration.create"], command: 'dg iteration create "<名前>"' }],
+    human: () => [{ check: ["iteration.create"], command: 'dg iteration create "<name>"' }],
   },
   create_epic: {
     skill: "dgassign",
@@ -454,7 +455,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
         `${s.length > 0 ? `${idList(s, lang)} を束ねる ` : ""}Epic を作って`,
         `Create an Epic${s.length > 0 ? ` to group ${idList(s, lang)}` : ""}`,
       ),
-    human: () => [{ check: ["epic.create"], command: 'dg epic create "<題>"' }],
+    human: () => [{ check: ["epic.create"], command: 'dg epic create "<title>"' }],
   },
   split: {
     skill: "dgimport",
@@ -549,16 +550,16 @@ const ACTIONS: Record<AskAction, ActionDef> = {
         t.kind === "iteration"
           ? {
               check: ["iteration.update"],
-              command: `dg iteration update ${t.id} --name "<名前>" --goal "<目標>"`,
+              command: `dg iteration update ${t.id} --name "<name>" --goal "<goal>"`,
             }
           : t.kind === "epic"
             ? {
                 check: ["epic.update"],
-                command: `dg epic update ${t.id} --title "<題>" --body "<概要>"`,
+                command: `dg epic update ${t.id} --title "<title>" --body "<body>"`,
               }
             : {
                 check: ["ticket.update"],
-                command: `dg ticket update ${t.id} --title "<題>" --acceptance "<受け入れ条件>" --priority <優先度>`,
+                command: `dg ticket update ${t.id} --title "<title>" --acceptance "<acceptance>" --priority <priority>`,
               },
       ),
   },
@@ -896,7 +897,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     human: (s) =>
       s.map((t) => ({
         check: ["ticket.move"],
-        command: `dg ticket move ${t.id} "<戻す Status>"`,
+        command: `dg ticket move ${t.id} "<status>"`,
         ...withDenied(deniedMove(t, UNDO_DONE_TO)),
       })),
   },

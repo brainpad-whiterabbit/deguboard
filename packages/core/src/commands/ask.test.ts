@@ -345,23 +345,35 @@ describe("依頼文の組み立て", () => {
         [ticket()],
         "change",
         "ticket.update",
-        'dg ticket update t265 --title "<題>" --acceptance "<受け入れ条件>" --priority <優先度>',
+        'dg ticket update t265 --title "<title>" --acceptance "<acceptance>" --priority <priority>',
       ],
-      [[epic("open")], "change", "epic.update", 'dg epic update e9 --title "<題>" --body "<概要>"'],
+      [
+        [epic("open")],
+        "change",
+        "epic.update",
+        'dg epic update e9 --title "<title>" --body "<body>"',
+      ],
       [[iteration("active")], "close", "iteration.close", "dg iteration close s10"],
       [[epic("closed")], "reopen", "epic.reopen", "dg epic reopen e9"],
       [[ticket()], "abandon", "ticket.move", "dg ticket move t265 abandoned"],
-      [
-        [ticket({ status: "done" })],
-        "undo_done",
-        "ticket.move",
-        'dg ticket move t265 "<戻す Status>"',
-      ],
+      [[ticket({ status: "done" })], "undo_done", "ticket.move", 'dg ticket move t265 "<status>"'],
     ];
     for (const [subjects, action, op, text] of cases) {
       const view = buildAsk({ subjects, action, format: "skill", humanOnly: [op] });
       expect(view, action).toMatchObject({ kind: "command", human_only: [op], text });
       expect(view.text).not.toContain("/dgchange");
+    }
+  });
+
+  it("人が打つコマンドは dg の出力なので、依頼文の言語が ja でも仮の値まで英語で返す", () => {
+    for (const lang of ["ja", "en"] as const) {
+      const create = buildAsk({
+        subjects: [],
+        action: "create",
+        language: lang,
+        humanOnly: ["ticket.create"],
+      });
+      expect(create, lang).toMatchObject({ kind: "command", text: 'dg ticket create "<title>"' });
     }
   });
 
@@ -379,7 +391,7 @@ describe("依頼文の組み立て", () => {
       text: "dg iteration close s10",
     });
     const create = buildAsk({ subjects: [], action: "create_iteration", humanOnly });
-    expect(create.text).toBe('dg iteration create "<名前>"');
+    expect(create.text).toBe('dg iteration create "<name>"');
     const abandon = buildAsk({
       subjects: [ticket(), ticket({ id: "t266" })],
       action: "abandon",
@@ -405,7 +417,7 @@ describe("依頼文の組み立て", () => {
       humanOnly: ["epic.update"],
     });
     expect(edit).toMatchObject({ kind: "command", label: "Change title and summary" });
-    expect(edit.text).toBe(`dg epic update ${epic("open").id} --title "<題>" --body "<概要>"`);
+    expect(edit.text).toBe(`dg epic update ${epic("open").id} --title "<title>" --body "<body>"`);
     // Iteration の変えるは名前・目標を変えるので、人に回すコマンドも名前・目標を直す（予定の期間は持たない）
     const editIt = buildAsk({
       subjects: [iteration("active")],
@@ -413,7 +425,7 @@ describe("依頼文の組み立て", () => {
       humanOnly: ["iteration.update"],
     });
     expect(editIt).toMatchObject({ kind: "command", label: "Change name and goal" });
-    expect(editIt.text).toBe('dg iteration update s10 --name "<名前>" --goal "<目標>"');
+    expect(editIt.text).toBe('dg iteration update s10 --name "<name>" --goal "<goal>"');
     // 入っていない操作は依頼文のまま
     expect(buildAsk({ subjects: [epic("open")], action: "close", humanOnly }).kind).toBe("prompt");
     // Skill の手順に任せる頼むことは、拒否されたらエージェントが人に頼むので依頼文のまま
@@ -438,7 +450,7 @@ describe("依頼文の組み立て", () => {
     expect(done(["todo", "in_progress", "review"])).toMatchObject({
       kind: "command",
       workflow_by: ["t265: done → todo・in_progress・review"],
-      text: 'dg ticket move t265 "<戻す Status>"',
+      text: 'dg ticket move t265 "<status>"',
     });
     // agent も行える遷移は依頼文のまま（戻す先が 1 つでも行えればエージェントに頼む）
     expect(done(["todo", "in_progress"])).toMatchObject({ kind: "prompt", workflow_by: [] });
@@ -1212,7 +1224,7 @@ describe("ask", () => {
     expect(await run({ targets: ["t2"], action: "undo_done" })).toMatchObject({
       kind: "command",
       workflow_by: ["t2: done → todo・in_progress・review"],
-      text: 'dg ticket move t2 "<戻す Status>"',
+      text: 'dg ticket move t2 "<status>"',
     });
 
     // agent を含む遷移に変えると、依頼文に戻る
