@@ -102,7 +102,7 @@ export type AskTarget = AskSubject & {
 
 export interface AskCandidate {
   action: AskAction;
-  /** 候補の名前。dg の出力なので英語で返し（ADR-001）、画面は表示言語に訳す（web の l10n-core.ts の CORE_LABELS） */
+  /** 候補の名前。dg の出力なので英語で返し、画面は表示言語に訳す（理由は web の l10n-core.ts の先頭のコメント） */
   label: string;
   /** 1 行目の Skill（`/dgdone`）。Skill を使わない頼むことは null */
   skill: string | null;
