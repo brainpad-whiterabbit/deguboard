@@ -15,7 +15,7 @@ after:
     - t839
   t842:
     - t841
-pending_approval: true
+pending_approval: false
 details:
   t830:
     scope: このリポジトリの config の guide.notes.work を空に戻すだけ。PR は要らない
@@ -65,3 +65,5 @@ details:
     scope: guide.notes の表の印の二重と、消えた Epic の札の光りの 2 つ
     approach: CSS の印を 1 つにし、useEpicHighlight で札の消滅（アンマウント）時に光りを消し、テストで確かめる
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-13T08:00:44Z
