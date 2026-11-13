@@ -2,7 +2,7 @@
 // 行は 2 段：1 段目は状態の丸印・番号・タイトル（サイドバーでは 2 行まで）、2 段目は Epic などの付記。
 // PR はカンバンの行と同じく番号のすぐ下にリンクで出す（RowPrLink。UI-2）。
 // 優先度と担当者は出さない（終わったものを見る画面なので）。中止の行は点を塗らない輪にしてタイトルを薄くし、付記の頭に「中止」と書いて、色だけに頼らず完了と見分ける。
-// 検索中は query を渡し、当たった部分（タイトル・番号・ラベル）に印（mark）を付ける。
+// 検索中は query を渡し、当たった部分（タイトル・番号・ラベル）に印（mark）を付ける（Highlight。Iteration・Epic の行の印にも使う）。
 // 行はエージェントに頼める場所にする（右端の吹き出し・Shift+F10。ask-menu.tsx）。右クリックは「詳細を開く」「ID をコピー」
 
 import { Fragment, useState, type ReactNode } from "react";
@@ -28,7 +28,7 @@ const HISTORY_LIST_STEP = 50;
  * text の中の query に当たる部分（大文字小文字を区別しない）に印を付ける。query が空なら text のまま。
  * 小文字にすると長さの変わる文字を含むときは、位置がずれるので印を付けない
  */
-function Highlight({ text, query }: { text: string; query?: string | undefined }) {
+export function Highlight({ text, query }: { text: string; query?: string | undefined }) {
   const q = query?.trim().toLowerCase() ?? "";
   const lower = text.toLowerCase();
   if (!q || lower.length !== text.length) return <>{text}</>;
