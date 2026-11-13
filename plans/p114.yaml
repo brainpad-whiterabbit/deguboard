@@ -9,7 +9,7 @@ after:
   t810:
     - t808
     - t809
-pending_approval: true
+pending_approval: false
 details:
   t807:
     scope: カンバンとバックログで、Epic の札に触れる・Tab で止まるとその Epic の行を光らせ、ほかを薄くする。絞り込みの動きは変えない
@@ -27,3 +27,5 @@ details:
     scope: カンバンの見出しに、目標を 3 行まで・active の何日目か・状態ごとの件数を出す
     approach: BoardHead に目標の行と何日目かを足し、StatusBand の下に、帯と同じ数え方の件数の行を足す
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-13T04:28:55Z
