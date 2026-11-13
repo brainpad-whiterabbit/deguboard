@@ -156,7 +156,7 @@ README の GIF（`packages/vscode/images/`）は、画面を変えたら `mise r
 
 ## リリース
 
-利用者に届けるのは VSIX だけで（`dg` は拡張に同梱する）、npm には出さない。版は全パッケージで揃える（`release:version`。VSIX の版もここで決まる。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。`main` の clean な状態で行う：
+利用者に届けるのは VSIX だけで（`dg` は拡張に同梱する）、npm には出さない。VSIX は GitHub の Release に添付し、同じものを VS Code Marketplace と Open VSX に出す。版は全パッケージで揃える（`release:version`。VSIX の版もここで決まる。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。`main` の clean な状態で行う：
 
 ```sh
 mise run release:version -- <版>    # 版を揃え、PR で main に入れる
@@ -164,5 +164,14 @@ mise run check                       # コミット前と同じ検査
 mise run audit                       # 本番の依存の脆弱性（あれば直すか人が判断する）
 mise run test:layout && mise run test:vscode   # 画面の配置と VS Code の実機（check に入らない）
 git tag v<版> && git push origin v<版>
-mise run vsix                        # vsix を Release に添付し、出た SHA256 の文を本文に貼る
+mise run vsix                        # 出た SHA256 の文を Release の本文に貼る
+gh release create v<版> --draft --notes-file <本文> packages/vscode/deguboard-vscode.vsix   # 下書きの Release に VSIX を添付する
+gh release edit v<版> --draft=false  # 公開すると、ワークフローが Marketplace と Open VSX に出す
 ```
+
+VSIX を添付してから公開する。公開したときだけ `.github/workflows/publish-extension.yml` が走り、その Release に添付した `deguboard-vscode.vsix` を落として、版がタグと合えば Marketplace（`vsce publish --oidc`）と Open VSX（`ovsx publish`）に出す。build と検査はしないので、上の検査を通した VSIX を添付する（判断は [ADR-008](adr/ADR-008-tech-stack.md)）。pre-release の Release は出さない。片方だけ落ちたら、Actions でその job だけを再実行する。
+
+初めて出す前に、一度だけ準備する：
+
+- Marketplace：publisher `deguboard` を作り、trusted publishing の policy にこのリポジトリとワークフローのファイル `publish-extension.yml` を登録する（PAT は作らない）
+- Open VSX：namespace `deguboard` を作り（`ovsx create-namespace deguboard`）、出せるアカウントのトークンをリポジトリの Actions の secret `OVSX_PAT` に置く
