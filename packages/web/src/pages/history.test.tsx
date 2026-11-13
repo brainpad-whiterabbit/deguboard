@@ -348,7 +348,7 @@ describe("サイドバーの履歴", () => {
     ]);
     expect([...item.querySelectorAll(".history-ticket-meta")].map((m) => m.textContent)).toEqual([
       "Iteration なし ・ PR なし",
-      "Abandoned ・ s1 ・ PR なし",
+      "中止 ・ s1 ・ PR なし",
       "s1 ・ #30",
     ]);
     // 番号を押すと詳細を開く
@@ -439,7 +439,7 @@ describe("サイドバーの履歴", () => {
       "PR なし ・ 10/dd",
       "#12 ・ 10/dd",
       "PR なし ・ 09/dd",
-      "Abandoned ・ PR なし ・ ~01/dd",
+      "中止 ・ PR なし ・ ~01/dd",
     ]);
     const abandoned = document.querySelectorAll(".history-ticket")[3]!;
     expect(abandoned.classList.contains("abandoned")).toBe(true);
@@ -766,7 +766,7 @@ describe("タブを移って戻ったとき", () => {
     await waitFor(() => expect(codes()).toHaveLength(3));
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログ" } });
     fireEvent.click(
-      within(screen.getByRole("group", { name: "結果" })).getByRole("button", { name: /^Done/ }),
+      within(screen.getByRole("group", { name: "結果" })).getByRole("button", { name: /^完了/ }),
     );
     expect(codes()).toEqual(["t1"]);
     expect(window.location.hash).toBe("#/history?view=ticket&q=%E3%83%AD%E3%82%B0&result=done");
@@ -776,7 +776,7 @@ describe("タブを移って戻ったとき", () => {
     await waitFor(() => expect(codes()).toEqual(["t1"]));
     expect(screen.getByLabelText<HTMLInputElement>("チケットを探す").value).toBe("ログ");
     expect(
-      within(screen.getByRole("group", { name: "結果" })).getByRole("button", { name: /^Done/ }),
+      within(screen.getByRole("group", { name: "結果" })).getByRole("button", { name: /^完了/ }),
     ).toHaveProperty("ariaPressed", "true");
     // 見方を変えても検索語は残る
     fireEvent.click(screen.getByRole("button", { name: /^Iteration/ }));
@@ -870,7 +870,7 @@ describe("履歴のハッシュ", () => {
     expect(screen.getByLabelText<HTMLInputElement>("チケットを探す").value).toBe("ログ");
     expect(
       within(screen.getByRole("group", { name: "結果" })).getByRole("button", {
-        name: /^Abandoned/,
+        name: /^中止/,
       }),
     ).toHaveProperty("ariaPressed", "true");
   });
@@ -896,12 +896,30 @@ describe("履歴のハッシュ", () => {
       within(group)
         .getAllByRole("button")
         .map((b) => b.textContent);
-    expect(names()).toEqual(["すべて 3", "Done 2", "Abandoned 1"]);
+    // 結果の言葉は「すべて・完了・中止」（Status の表示名ではなく、見方の切り替えと同じ日本語の言葉）
+    expect(names()).toEqual(["すべて 3", "完了 2", "中止 1"]);
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "一覧" } });
-    expect(names()).toEqual(["すべて 1", "Done 1"]);
+    expect(names()).toEqual(["すべて 1", "完了 1"]);
     // 中止を選んでいるときは、検索に当たらず 0 件でも中止を残す
     window.location.hash = "#/history?view=ticket&result=abandoned&q=%E4%B8%80%E8%A6%A7";
-    await waitFor(() => expect(names()).toEqual(["すべて 1", "Done 1", "Abandoned 0"]));
+    await waitFor(() => expect(names()).toEqual(["すべて 1", "完了 1", "中止 0"]));
+  });
+
+  it("結果の切り替えと行の中止は同じ言葉（中止）を使い、Status の表示名（labelOf）は出さない", async () => {
+    window.location.hash = "#/history?view=ticket";
+    const client = mockClient();
+    client.data.tickets = [ticket({ id: "t2", title: "ログアウト", status: "abandoned" })];
+    client.handlers["history"] = () => ({ events: [], shallow: false, incomplete: [] });
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const group = await screen.findByRole("group", { name: "結果" });
+    expect(within(group).getByRole("button", { name: "中止 1" })).toBeTruthy();
+    expect(document.querySelector(".history-abandoned")!.textContent).toBe("中止");
   });
 });
 

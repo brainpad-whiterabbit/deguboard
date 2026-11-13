@@ -844,17 +844,15 @@ function TicketView({
           aria-label={tr("チケットを探す")}
         />
       </div>
-      {/* 結果の絞り込みは見方の切り替えと同じ文字の切り替え。件数は検索に当たった数で、中止が 0 件なら中止は出さない（選んでいるときは残す） */}
+      {/* 結果の絞り込みは見方の切り替えと同じ文字の切り替え。件数は検索に当たった数で、中止が 0 件なら中止は出さない（選んでいるときは残す）。
+          言葉は「すべて・完了・中止」で、Workflow で変えられる Status の表示名（labelOf）は使わない。結果は done・abandoned に固定で、
+          Iteration の行の件数（完了・中止）と履歴の行の「中止」と同じ言葉にそろえるため（英語の表示は l10n で Done・Abandoned） */}
       <span className="view-switch result-switch" role="group" aria-label={tr("結果")}>
         {(
           [
             ["", tr("すべて"), hits.length],
-            ["done", store.labelOf("done"), hits.filter((r) => r.ticket.status === "done").length],
-            [
-              "abandoned",
-              store.labelOf("abandoned"),
-              hits.filter((r) => r.ticket.status === "abandoned").length,
-            ],
+            ["done", tr("完了"), hits.filter((r) => r.ticket.status === "done").length],
+            ["abandoned", tr("中止"), hits.filter((r) => r.ticket.status === "abandoned").length],
           ] as const
         )
           .filter(([value, , n]) => value !== "abandoned" || n > 0 || result === "abandoned")

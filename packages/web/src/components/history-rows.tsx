@@ -7,7 +7,6 @@
 import { Fragment, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "./ask-menu.js";
 import { DetailLink, StatusDot, TicketLink } from "./parts.js";
-import { useStore } from "../store.js";
 import type { Ticket } from "../types.js";
 import { tr } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
@@ -65,7 +64,6 @@ export function HistoryTicketRow({
   /** 検索語。当たった部分に印を付ける */
   query?: string | undefined;
 }) {
-  const store = useStore();
   // 行から頼む（UI-15。吹き出し・Shift+F10）。右クリックでチケットの「詳細を開く」「ID をコピー」を出す
   const spot = useAskSpot({
     targets: [t.id],
@@ -78,7 +76,8 @@ export function HistoryTicketRow({
   const q = query?.trim().toLowerCase() ?? "";
   const abandoned = t.status === "abandoned";
   const parts: ReactNode[] = [];
-  if (abandoned) parts.push(<span className="history-abandoned">{store.labelOf(t.status)}</span>);
+  // 中止の表記は履歴の結果の切り替えと同じ「中止」（labelOf の表示名は使わない。理由は history.tsx の結果の切り替えの注記）
+  if (abandoned) parts.push(<span className="history-abandoned">{tr("中止")}</span>);
   if (showIteration)
     parts.push(
       t.iteration ? (
