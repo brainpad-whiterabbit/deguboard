@@ -111,14 +111,14 @@ describe("表示言語の決め方と訳し方", () => {
     expect(tr("{0} 件", 2)).toBe("2 items");
     expect(tr("{0} / {1} 件", 1, 1)).toBe("1 / 1 item");
   });
-  it("core の候補の名前は、日本語ではそのまま、英語では ID を埋めた訳で出し、頼むことで訳を分ける", () => {
-    expect(trCore("起票して s3 に入れる")).toBe("起票して s3 に入れる");
-    setLanguage("en");
-    expect(trCore("起票して s3 に入れる")).toBe("Create tickets in s3");
-    expect(trCore("Iteration・Epic から外す")).toBe("Remove from Iteration/Epic");
-    expect(trCore("再開する", "reopen")).toBe("Reopen");
-    expect(trCore("再開する", "resume")).toBe("Resume");
+  it("core の候補の名前（英語）は、日本語では ID を埋めた訳で、英語ではそのまま出す", () => {
+    expect(trCore("Create tickets in s3")).toBe("起票して s3 に入れる");
+    expect(trCore("Remove from Iteration/Epic")).toBe("Iteration・Epic から外す");
+    expect(trCore("Reopen")).toBe("再開する");
     expect(trCore("todo")).toBe("todo");
+    setLanguage("en");
+    expect(trCore("Create tickets in s3")).toBe("Create tickets in s3");
+    expect(trCore("Remove from Iteration/Epic")).toBe("Remove from Iteration/Epic");
   });
 });
 
@@ -134,7 +134,7 @@ describe("画面の文言の置き場所", () => {
       expect(placeholders(value), key).toEqual(placeholders(key));
     }
   });
-  it("core の文の訳の表は、どの文も表示言語（ja・en）の訳だけを持ち、CORE_LABELS の日本語の文には英語の訳が、英語の文の CORE_MESSAGES には日本語の訳（ja）が揃う", () => {
+  it("core の文の訳の表（CORE_LABELS・CORE_MESSAGES）は、鍵が core の英語の文で、どの文も表示言語（ja・en）の訳だけを持ち、日本語の訳（ja）が揃う", () => {
     const tables: Record<string, CoreTextTable> = {
       CORE_LABELS,
       CORE_MESSAGES,
@@ -147,17 +147,10 @@ describe("画面の文言の置き場所", () => {
           Object.keys(entry).every((l) => l === "ja" || l === "en"),
           where,
         ).toBe(true);
-        if (name === "CORE_MESSAGES") {
-          // エラー・警告の文は core の英語の文が鍵で、日本語の訳（ja）を持つ
-          expect(key, where).not.toMatch(JAPANESE);
-          expect(entry.ja, where).toBeDefined();
-        } else {
-          // CORE_LABELS の文は日本語なので、英語の訳はどの文にも要る
-          expect(entry.en, where).toBeDefined();
-          expect(entry.en, where).not.toMatch(JAPANESE);
-        }
+        expect(key, where).not.toMatch(JAPANESE);
+        expect(entry.ja, where).toBeDefined();
         for (const text of Object.values(entry)) {
-          expect(placeholders(text), where).toEqual(placeholders(key.replace(/^\w+:/, "")));
+          expect(placeholders(text), where).toEqual(placeholders(key));
         }
       }
     }
@@ -260,16 +253,42 @@ function subjectSets(): { subjects: AskSubject[]; within?: string }[] {
 }
 
 describe("core が返す決まった文の訳", () => {
-  it("エージェントに頼むの候補の名前は、どの対象でも英語に訳せる", () => {
-    setLanguage("en");
+  it("エージェントに頼むの候補の名前は、core が英語で返し、どの対象でも日本語に訳せる。CORE_LABELS の鍵は候補の名前と Plan の承認の状態に過不足なく揃う", () => {
     const untranslated = new Set<string>();
-    let count = 0;
+    // 出し尽くした候補の名前と Plan の承認の状態の、ID を {0} にした鍵
+    const reached = new Set<string>();
+    const keyOf = (text: string) => {
+      let n = 0;
+      return text.replace(/\b[tsep]\d+\b/g, () => `{${n++}}`);
+    };
+    const candidates = [
+      ...subjectSets().flatMap(({ subjects, within }) => askCandidates(subjects, within)),
+      // 振り返るは履歴の行（historyRow）の閉じた Iteration にだけ出るので、その場所の候補も足す
+      ...askCandidates(
+        [{ kind: "iteration", id: "s1", title: "x", status: "closed", complete: true }],
+        undefined,
+        "ja",
+        "historyRow",
+      ),
+    ];
+    for (const c of candidates) {
+      expect(c.label, c.action).not.toMatch(JAPANESE);
+      reached.add(keyOf(c.label));
+      if (!JAPANESE.test(trCore(c.label))) untranslated.add(`${c.action}: ${c.label}`);
+    }
+    for (const status of ["pending_approval", "approved", "closed"] as const)
+      reached.add(
+        buildAsk({
+          subjects: [{ kind: "plan", id: "p1", status, tickets: ["t1"], complete: false }],
+        }).targets[0]!.sub,
+      );
+    // 「Iteration/Epic」は外す場所がないときの既定の文で、外すの候補の名前の {0} に入る（鍵の文ではない）
+    expect(Object.keys(CORE_LABELS).sort()).toEqual([...reached, "Iteration/Epic"].sort());
+    expect([...untranslated]).toEqual([]);
+  });
+  it("札の下の 1 文と Skill の 1 文は、英語の画面では core が英語で組む", () => {
+    const untranslated = new Set<string>();
     for (const { subjects, within } of subjectSets()) {
-      for (const c of askCandidates(subjects, within)) {
-        count++;
-        const text = trCore(c.label, c.action);
-        if (JAPANESE.test(text)) untranslated.add(`${c.action}: ${c.label}`);
-      }
       // 札の下の 1 文（meaning）は core が言語ごとに組むので、英語の画面では英語の文になる
       for (const c of askCandidates(subjects, within, "en")) {
         if (JAPANESE.test(c.meaning)) untranslated.add(`${c.action}: ${c.meaning}`);
@@ -278,10 +297,9 @@ describe("core が返す決まった文の訳", () => {
           untranslated.add(`${c.action}: ${c.skill_summary}`);
       }
     }
-    expect(count).toBeGreaterThan(0);
     expect([...untranslated]).toEqual([]);
   });
-  it("札の添え字の Plan の承認の状態は、core の ask が返す sub のどれも英語に訳せる", () => {
+  it("札の添え字の Plan の承認の状態は、core の ask が英語で返し、日本語の画面ではどれも日本語に訳す", () => {
     // 添え字は core の ask の出力（targets[].sub）から取る。core の文言が変われば訳せなくなって気づく
     const subs = (["pending_approval", "approved", "closed"] as const).map(
       (status) =>
@@ -289,9 +307,12 @@ describe("core が返す決まった文の訳", () => {
           subjects: [{ kind: "plan", id: "p1", status, tickets: ["t1"], complete: false }],
         }).targets[0]!.sub,
     );
-    expect(subs.every((sub) => JAPANESE.test(sub))).toBe(true);
+    for (const sub of subs) {
+      expect(sub).not.toMatch(JAPANESE);
+      expect(trCore(sub), sub).toMatch(JAPANESE);
+    }
     setLanguage("en");
-    for (const sub of subs) expect(trCore(sub), sub).not.toMatch(JAPANESE);
+    for (const sub of subs) expect(trCore(sub)).toBe(sub);
   });
 });
 
@@ -377,15 +398,11 @@ describe("設定の項目の説明の訳", () => {
 });
 
 describe("core の文の訳の表の引き方（t649）", () => {
-  it("日本語の表示では、設定の説明は表の訳を、表にない文は core の文と同じ字で出す", () => {
+  it("日本語の表示では、設定の説明は表の訳を、表にない文は core の文と同じ字で出す。英語の表示では、候補の名前は core の文と同じ字で出す", () => {
     for (const { description } of configFields())
       expect(configDescription(description)).toBe(
         CONFIG_DESCRIPTIONS[description]?.ja ?? description,
       );
-    for (const { subjects, within } of subjectSets()) {
-      for (const c of askCandidates(subjects, within))
-        expect(trCore(c.label, c.action)).toBe(c.label);
-    }
     for (const text of [
       "priority.high は個人の設定に書けない",
       "deguboard-local/runs/r1.json: JSON を読めない",
@@ -394,9 +411,13 @@ describe("core の文の訳の表の引き方（t649）", () => {
       expect(trCoreMessage(text)).toBe(text);
       expect(trCore(text)).toBe(text);
     }
+    setLanguage("en");
+    for (const { subjects, within } of subjectSets()) {
+      for (const c of askCandidates(subjects, within)) expect(trCore(c.label)).toBe(c.label);
+    }
   });
   it("日本語の表示でも表を引き、ja の訳があれば出し、訳のない言語は core の文のまま出す", async () => {
-    // core の文が英語になったときの形（鍵が英語の文で、ja の訳を持つ）の表に差し替えて引く
+    // 訳のない鍵（Fix）を含む、鍵が英語の文で ja の訳を持つ形の表に差し替えて引く
     vi.resetModules();
     vi.doMock("./l10n-core.js", () => ({
       CORE_LABELS: {

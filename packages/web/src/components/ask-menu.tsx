@@ -571,7 +571,7 @@ function AskMenuList({
             title={candidateTitle(c, tr("Skill を使わない"))}
             onClick={() => onPick(c)}
           >
-            <span>{trCore(c.label, c.action)}</span>
+            <span>{trCore(c.label)}</span>
             {c.recommended ? <span className="ask-menu-rec">{tr("おすすめ")}</span> : null}
           </button>
         ))
