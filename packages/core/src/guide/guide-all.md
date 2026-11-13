@@ -69,7 +69,8 @@ At the end of the flow, report the result of each stage: the lines fixed in assi
 
 ## Choosing the next step
 
-When the flow stops, ask with the following choices, according to the reason it stopped. When the Iteration is closed and the flow has ended (the reason `flow next` gives for that), report the result without asking.
+When the flow stops, ask with the following choices, according to the reason it stopped. When the Iteration is closed and the flow has ended (the reason `flow next` gives for that), report the result and ask with the retrospective choice and "Stop here".
 
 - **Resume** (recommended when it stopped waiting for a merge): after the merge, read `dg guide all` again, and call `flow next` with the same target and arguments (such as `--auto`) to continue (if a Skill is available, `/dgall <S>`)
+- **Look back on the Iteration** (only when the Iteration `<S>` was closed and the flow has ended; recommended then): look back on `<S>` by the steps of `dg guide retro`. The numbers of a closed Iteration are complete at this point, and the retrospective writes nothing without approval (if a Skill is available, `/dgretro <S>`)
 - **Stop here**
