@@ -89,7 +89,7 @@ Do not fill in a value that has a gap by guessing. For a finding that depends on
 
 - File the approved rows by the steps of `dg guide import`, and attach the label `retro-<S>` (for example `retro-s3`). The next retrospective reads this label to tell whether the Try was finished, so do not add or remove it except by this procedure
 - Do not write `iteration` (`<S>` is closed). Putting the tickets into an Iteration is done with `dg guide assign`
-- For a "`ticket update <ID>`" row, add the finding with `ticket update <ID> --acceptance` or in the body, and add `retro-<S>` to its labels (`--label` replaces the whole list, so give the existing labels too)
+- For a "`ticket update <ID>`" row, read the ticket with `ticket show <ID>` first, then add the finding as an acceptance item with `ticket update <ID> --acceptance` (`--acceptance` replaces the whole acceptance criteria section, so give the existing items and the new one) or in the body (`--body` replaces the whole body, so give the existing text and the addition), and add `retro-<S>` to its labels (`--label` replaces the whole list, so give the existing labels too)
 - In the summary, write the Problem, its basis (the number or the ticket IDs), and the number that should change. Do not decide how to fix it (decide it in planning)
 
 {{choices}}

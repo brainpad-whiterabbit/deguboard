@@ -431,6 +431,16 @@ describe("dg guide", () => {
       "`dg guide assign`",
     ])
       expect(filing, word).toContain(word);
+    // ticket update の --acceptance・--body・--label はどれも丸ごと置き換える。前からある中身も渡すと書かないと、
+    // 手順のとおりに足したエージェントが、終わっていないチケットの受け入れ条件や本文を消す
+    const update = lineWith(filing, "`ticket update <ID> --acceptance`");
+    for (const word of [
+      "`ticket show <ID>` first",
+      "`--acceptance` replaces the whole acceptance criteria section, so give the existing items and the new one",
+      "`--body` replaces the whole body, so give the existing text and the addition",
+      "`--label` replaces the whole list, so give the existing labels too",
+    ])
+      expect(update, word).toContain(word);
     // 対象は閉じた Iteration だけ。振り返りはチャットで返し、データに残さない（振り返りの数字を AI に書かせて残すと正確でないため）
     expect(section(retro, "## Deciding the target")).toContain("It should be closed");
     expect(retro).toContain("is not stored in the data");
