@@ -758,6 +758,18 @@ describe("dg guide", () => {
     expect(release).not.toContain("CHANGELOG and lock file");
   });
 
+  it("release と all は閉じた Iteration の振り返り（dgretro）を次の手順の選択肢に出し、閉じていない回では出さない（t833）", async () => {
+    // 振り返りは閉じた回を読むので、閉じた直後の選択肢にする。閉じていなければ案内しない
+    const release = section(await readGuide("release"), "## Choosing the next step");
+    const retro = lineWith(release, "/dgretro <S>");
+    expect(retro).toContain("`dg guide retro`");
+    expect(retro).toContain("only when the Iteration was closed");
+    const all = section(await readGuide("all"), "## Choosing the next step");
+    const allRetro = lineWith(all, "/dgretro <S>");
+    expect(allRetro).toContain("`dg guide retro`");
+    expect(allRetro).toContain("only when the Iteration `<S>` was closed");
+  });
+
   it("discuss は議論の間は書き換えず、論点を選択肢で決め、前後の差の承認を得てから import・change の手順で反映する", async () => {
     const guide = await readGuide("discuss");
     const discussing = section(guide, "## While discussing");

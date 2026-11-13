@@ -38,6 +38,7 @@ Do not guess the version, the tag, or the CHANGELOG. Say that no release steps w
 
 After reporting the result, ask with the following choices.
 
+- **Look back on the Iteration** (only when the Iteration was closed in step 4, including the close with no release steps): look back on `<S>` by the steps of `dg guide retro` (recommended). The numbers of a closed Iteration are complete at this point, and the retrospective writes nothing without approval (if a Skill is available, `/dgretro <S>`)
 - **Make the next plan**: if todo tickets remain, make a plan by the steps of `dg guide plan` (if a Skill is available, `/dgplan next`)
 - **Assign**: assign the unassigned todos to an Iteration by the steps of `dg guide assign` (if a Skill is available, `/dgassign`)
 - **Stop here**
