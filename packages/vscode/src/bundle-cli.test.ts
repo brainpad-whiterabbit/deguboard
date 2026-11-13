@@ -22,6 +22,12 @@ const gitEnv = (): NodeJS.ProcessEnv => ({
   GIT_COMMITTER_EMAIL: "t@example.com",
 });
 
+/** dg init が見る user.name・user.email をリポジトリに書く（開発者のグローバル設定に頼らない。テストの HOME は一時ディレクトリ） */
+const setGitUser = async (repo: string): Promise<void> => {
+  await run("git", ["config", "user.name", "t"], { cwd: repo });
+  await run("git", ["config", "user.email", "t@example.com"], { cwd: repo });
+};
+
 // 同梱の dg を vite.cli.config.ts で一時ディレクトリに束ね、入口と本体の chunk の分け方と、コンパイルキャッシュが本体に効くことを確かめる（t767）
 describe("同梱の dg の束ね方（vite.cli.config.ts）", () => {
   let tmp: string;
@@ -131,6 +137,7 @@ describe("同梱の dg の束ね方（vite.cli.config.ts）", () => {
     await mkdir(repo);
     const env = gitEnv();
     await run("git", ["init", "-q", "-b", "main"], { cwd: repo });
+    await setGitUser(repo);
     await run("git", ["commit", "-q", "--allow-empty", "-m", "init"], { cwd: repo, env });
     await run(
       process.execPath,
@@ -177,6 +184,7 @@ describe("同梱の dg の束ね方（vite.cli.config.ts）", () => {
     await mkdir(repo);
     const env = gitEnv();
     await run("git", ["init", "-q", "-b", "main"], { cwd: repo });
+    await setGitUser(repo);
     await run("git", ["commit", "-q", "--allow-empty", "-m", "init"], { cwd: repo, env });
     await run(
       process.execPath,
