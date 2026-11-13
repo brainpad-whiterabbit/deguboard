@@ -116,7 +116,17 @@ mise run dg -- guide done      # マージ後の後始末
 
 core の `commands` を commander（`program.ts`）と MCP のツール（`mcp.ts`）に写す。ロジックは持たない。`bin/dg.js` と束ねた `dist/cli/dg.mjs` の入口（`bundle.ts`）は PreToolUse と Stop のフックの呼び出しを、本体を読む前に `fast-hook.ts` で処理する（ADR-033）。各ファイルの役割は冒頭のコメントが正本で、引数の型ごとの対応は `options.ts`、`--json` の形は `output.ts`、終了コードは `errors.ts`。
 
-グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は開発用（配置の確認とスクリーンショット。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）で、`@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` は `packages/core/src/guide/` にあり、ビルドで core の `dist/guide/` に、拡張の `dist/` に写す（ルートと `packages/vscode` の `build`）。`skill.md` は `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide-<トピック>.md` を置き、`packages/core/src/guide/topics.ts` の `GUIDE_TOPICS`（guide の読み込みと config の `guide.notes` が読む）・`guide-overview.md` の表・`packages/core/src/model/schema.test.ts` の `guide.notes.<トピック>` の一覧を直す。Skill を持つトピック（frontmatter に `description`）は `packages/core/src/commands/ask.ts` の `SKILL_SUMMARY` に文を足し、持たないトピックは `packages/cli/src/guide.test.ts` の Skill を持たないトピックの並びに足す。
+グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は開発用（配置の確認とスクリーンショット。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）で、`@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` は `packages/core/src/guide/` にあり、ビルドで core の `dist/guide/` に、拡張の `dist/` に写す（ルートと `packages/vscode` の `build`）。`skill.md` は `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは、次を同じ PR で直す。
+
+- `guide-<トピック>.md` を `packages/core/src/guide/` に置く。frontmatter に `description` があるトピックは Skill になる
+- `packages/core/src/guide/topics.ts` の `GUIDE_TOPICS`（guide の読み込みと config の `guide.notes` が読む）と、その直前のコメント（流れの中か外か）
+- `guide-overview.md` の表（トピックの名前・Skill の名前・いつ読むか）
+- `packages/core/src/model/schema.test.ts` の `guide.notes.<トピック>` の一覧
+- Skill を持つトピックは `packages/core/src/commands/ask.ts` の `SKILL_SUMMARY` に ja・en の文を足し、`ask.test.ts` の個数（`toHaveLength`）を合わせる。Skill を持たないトピックは `packages/cli/src/guide.test.ts` の「Skill を持つトピックは対象の決め方・選択肢で聞く節・次の手順を持ち、本文に frontmatter を残さない」のテストで、Skill を持たないトピックの並び（`topic === "overview" || …`）に足す
+- `packages/cli/src/guide.test.ts` の `ENGLISH_TOPICS`（本文が英語のトピックの集合）に足す。guide の出力の snapshot（`packages/cli/src/__snapshots__/guide.test.ts.snap`）は、意図して本文を変えたときだけ書き直す
+- Skill を持つトピックは `packages/cli/src/skill.test.ts` の Skill の名前の一覧に足す
+- `.claude/.gitignore` に `skills/dg<トピック>/` の行が `dg skill install` で足されるので、その行をコミットに含める
+- 設定の画面の表示（web）: `packages/web/src/pages/config.tsx` の `NAMES`（`guide.notes.<トピック>` の「差し込む文書（…）」）と `NOTE_LABELS`（表の行の名前）、英語の訳は `packages/web/src/l10n-en.ts`、画面の文言の snapshot（`packages/web/src/__snapshots__/l10n-screens.ja.txt`・`.en.txt`）は、`l10n-screens.test.tsx` が出す差分を読んで書き直す
 
 ### `packages/server`（`@deguboard/server`）
 
@@ -130,7 +140,7 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため）。ビルドは Vite で `dist/` に出し、`dg serve` は cli に写した `web/` を配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
 
-画面の文言は `l10n.ts` の `tr`（鍵は日本語の文。要素を挟む文は `l10n-node.tsx` の `trNode`）で書き、英語の訳は `l10n-en.ts` に置く。core が返す文（頼むの候補の名前・エラーと警告は日本語の文、設定の項目の説明・要約・空のときの動き・選択肢ごとの説明は英語の文を鍵に、表示言語ごとの訳を持つ `l10n-core.ts` の表）をどの言語でも引き、訳がなければ core の文のまま出す。言語は Webview の `<html data-language>` で決まり、ない（`dg serve`）と日本語。揃っているかは `l10n.test.ts`、日本語の文言が変わっていないかは `l10n-screens.test.tsx` のスナップショットが確かめる。
+画面の文言は `l10n.ts` の `tr`（鍵は日本語の文。要素を挟む文は `l10n-node.tsx` の `trNode`）で書き、英語の訳は `l10n-en.ts` に置く。core が返す文をどの言語でも `l10n-core.ts` の表から引き、訳がなければ core の文のまま出す。表は 3 つ：頼むの候補の名前（`CORE_LABELS`）だけ日本語の文を鍵にし、エラーと警告（`CORE_MESSAGES`）と設定の項目の文（`CONFIG_DESCRIPTIONS`：説明・要約・空のときの動き・選択肢ごとの説明）は英語の文を鍵にする。言語は Webview の `<html data-language>` で決まり、ない（`dg serve`）と日本語。揃っているかは `l10n.test.ts`、日本語の文言が変わっていないかは `l10n-screens.test.tsx` のスナップショットが確かめる。
 
 見た目は Playwright MCP（`.mcp.json`。Chromium は `mise run playwright:install`）で一時リポジトリの `dg serve` を見る。配置は `?surface=sidebar`（既定）か `panel` で選ぶ（ブラウザだけの配置はない）。Webview に固有の色・CSP・拡張ホストとのやり取りは `mise run test:vscode` で見る（「`packages/vscode`」の節）。
 
