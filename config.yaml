@@ -20,9 +20,9 @@ merge:
 actions:
   shell: false
   test:
-    - '["mise"'
-    - '"run"'
-    - '"check"]'
+    - mise
+    - run
+    - check
   light_test:
     - mise
     - run
