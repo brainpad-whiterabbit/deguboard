@@ -1,0 +1,29 @@
+id: p114
+project: default
+tickets: [t807, t809, t808, t810]
+after:
+  t808:
+    - t807
+  t809:
+    - t807
+  t810:
+    - t808
+    - t809
+pending_approval: true
+details:
+  t807:
+    scope: カンバンとバックログで、Epic の札に触れる・Tab で止まるとその Epic の行を光らせ、ほかを薄くする。絞り込みの動きは変えない
+    approach: EpicChipRow の hover と focus から、光らせる Epic を画面の状態に持ち、TicketRow がそれを見てクラスを付け、見た目は styles.css に置く
+    tier: standard
+  t809:
+    scope: 履歴の見方の切り替えと結果の絞り込みの件数を、塗りの札から説明文の色の数字にする。ほかの画面の .badge は変えない
+    approach: history.tsx の ViewSwitch の件数の要素と、styles.css の .view-switch の中の件数の見た目だけを変える
+    tier: light
+  t808:
+    scope: Epic で絞っている間、Iteration の見出しと同じ作りの Epic の見出しを出し、そこから吹き出しと Shift+F10 でその Epic を頼めるようにする。core の候補は変えない
+    approach: 今の Epic の絞り込みの札を見出しの行にまとめ、ask-menu の useAskSpot で Epic の詳細と同じ候補を出し、「なし」は複数選んだときの候補を使う
+    tier: heavy
+  t810:
+    scope: カンバンの見出しに、目標を 3 行まで・active の何日目か・状態ごとの件数を出す
+    approach: BoardHead に目標の行と何日目かを足し、StatusBand の下に、帯と同じ数え方の件数の行を足す
+    tier: standard
