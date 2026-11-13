@@ -600,6 +600,13 @@ Modified
 Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
 [title] Reset to default 
 Reset to Default
+Document inserted into retro
+guide.notes.retro
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
 Document inserted into all
 guide.notes.all
 [title] Default: 

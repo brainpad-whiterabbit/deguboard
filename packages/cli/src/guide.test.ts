@@ -95,6 +95,7 @@ const ENGLISH_TOPICS = new Set([
   "change",
   "discuss",
   "status",
+  "retro",
   "all",
 ]);
 
@@ -323,6 +324,116 @@ describe("dg guide", () => {
     const audit = await readGuide("audit");
     expect(audit).toContain('"Remove ADR details"');
     expect(section(audit, "## Not repeating the same findings")).toContain("tests or comments");
+  });
+
+  it("retro はまず数字の要約を出し、外れ値のある観点を理由つきで勧めて観点を複数選択で 1 回聞き、指示で決まっていれば聞かない", async () => {
+    const retro = await readGuide("retro");
+    const steps = section(retro, "## Retrospective steps");
+    // 要約は metrics show --by step と ticket list から。聞くより前に出す
+    for (const word of ["metrics show --iteration <S> --by step", "ticket list --iteration <S>"])
+      expect(step(steps, 1), word).toContain(word);
+    const summary = step(steps, 2);
+    expect(summary).toContain("before asking anything");
+    for (const word of [
+      "`total.runs`",
+      "Share of time per step",
+      "`total.results.failure`",
+      "`total.retries`",
+      "`total.reviews.heavy`",
+      "Carry-overs",
+    ])
+      expect(summary, word).toContain(word);
+    const ask = step(steps, 3);
+    for (const word of [
+      "once, with multiple selection",
+      "Recommend the viewpoints where a number stands out",
+      "as the reason",
+      "Do not ask when the viewpoints are already decided",
+    ])
+      expect(ask, word).toContain(word);
+    expect(section(retro, "## Deciding the target")).toContain("do not ask which viewpoints");
+    // 観点は 4 つで、それぞれ読む dg のコマンドと答える問いを持つ
+    const viewpoints = section(retro, "## Viewpoints");
+    for (const [name, command] of [
+      ["Outcome", "iteration show <S>"],
+      ["Flow", "run list --iteration <S>"],
+      ["Rework", "metrics show --iteration <S> --by ticket"],
+      ["Comparison", "ticket list --label retro-<previous S>"],
+    ] as const) {
+      const row = lineWith(viewpoints, `| ${name} `);
+      expect(row, name).toContain(command);
+      expect(row, name).toContain("?");
+    }
+  });
+
+  it("retro の手戻りの原因は retry_reasons と heavy が出た PR のレビューのコメントだけから分け、gh がなければ「わからない」と書く", async () => {
+    const causes = section(await readGuide("retro"), "## Causes of rework");
+    for (const word of [
+      "only from these two sources",
+      "Do not infer a cause",
+      "`retry_reasons`",
+      "heavy finding",
+      "gh pr view <number>",
+    ])
+      expect(causes, word).toContain(word);
+    const unknown = lineWith(causes, "If `gh` is not available");
+    expect(unknown).toContain('"unknown"');
+  });
+
+  it("retro の比較は前の Iteration の metrics に加え、retro-<前の S> のラベルのチケットの状態から前回の Try が終わったかを示す", async () => {
+    const comparison = section(
+      await readGuide("retro"),
+      "## Comparison with the previous Iteration",
+    );
+    const tries = lineWith(comparison, "retro-<previous S>");
+    for (const word of ["label", "status", "whether it was finished", "done", "todo", "abandoned"])
+      expect(tries, word).toContain(word);
+    expect(lineWith(section(await readGuide("retro"), "## Viewpoints"), "| Comparison ")).toContain(
+      "metrics show --iteration <previous S> --by step",
+    );
+  });
+
+  it("retro は計測の抜け（missing・estimated_runs・no_runs）を注意書きに添え、抜けのある値は推し量らず「わからない」と書く", async () => {
+    const retro = await readGuide("retro");
+    const gaps = section(retro, "## Gaps in the measurement");
+    for (const word of ["as notes", "`missing`", "`estimated_runs`", "`no_runs`"])
+      expect(gaps, word).toContain(word);
+    const guess = lineWith(gaps, "by guessing");
+    expect(guess).toContain("Do not fill in a value that has a gap");
+    expect(guess).toContain('"unknown"');
+    expect(step(section(retro, "## Retrospective steps"), 2)).toContain("Gaps in the measurement");
+  });
+
+  it("retro は根拠つきの Keep / Problem / Try の表と Try の扱いを示し、承認まで書き換えず、起票は guide import に従って retro-<S> を付け、Iteration は付けない", async () => {
+    const retro = await readGuide("retro");
+    const table = section(retro, "## Keep / Problem / Try");
+    expect(table).toContain("| #   | Kind | Finding | Basis | Handling |");
+    for (const word of [
+      "a number (with the command and the field it came from) or ticket IDs",
+      "Drop a finding that has neither",
+      '"File"',
+      '"`ticket update <ID>`"',
+      '"File an improvement to the rules or guide"',
+      '"Do not fix (reason)"',
+    ])
+      expect(table, word).toContain(word);
+    const approval = step(section(retro, "## Retrospective steps"), 6);
+    for (const word of [
+      "once, with multiple selection",
+      "Write nothing until approval is obtained",
+    ])
+      expect(approval, word).toContain(word);
+    const filing = section(retro, "## Filing tickets");
+    for (const word of [
+      "`dg guide import`",
+      "the label `retro-<S>`",
+      "Do not write `iteration`",
+      "`dg guide assign`",
+    ])
+      expect(filing, word).toContain(word);
+    // 対象は閉じた Iteration だけ。振り返りはチャットで返し、データに残さない（振り返りの数字を AI に書かせて残すと正確でないため）
+    expect(section(retro, "## Deciding the target")).toContain("It should be closed");
+    expect(retro).toContain("is not stored in the data");
   });
 
   it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する。claim の warnings は「claim の前後」に任せ、Iteration の選び方は書き写さず、今の設定を埋める", async () => {
