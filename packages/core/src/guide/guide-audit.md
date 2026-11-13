@@ -28,7 +28,7 @@ Below, the target's ID is written as `<S>`.
    | --- | --------- | -------- | ------ | ------- | ----- | -------- |
 
 7. **Get approval**: ask once, with multiple selection (`#`), which rows to reflect (include "Do not reflect"). Write nothing until approval is obtained
-8. **Reflect**: file the approved rows by the steps of `dg guide import` (see the "Filing tickets" section below). For overlapping tickets, add the findings with `ticket update <ID> --acceptance` or in the body
+8. **Reflect**: file the approved rows by the steps of `dg guide import` (see the "Filing tickets" section below). For overlapping tickets, add the findings as the "Filing tickets" section says
 9. **Clean up and report the result**: remove the worktree with `git worktree remove {{worktree.root}}/audit-<S>` (also when stopped). If it cannot be removed, show the changed files from `git -C <path> status --short` in the result, then remove it with `--force`. Report the viewpoints reviewed and skipped, the tickets filed, and the findings not fixed
 
 Running the review (subagents, read-only commands, the temporary worktree) proceeds without waiting for approval. Approval is asked only once, in step 7.
@@ -77,6 +77,7 @@ The place suggested for a finding is the target (fixed before release). Only fin
 - If tickets with the label `audit-<S>` exist, `<S>` counts as already reviewed. Do not add or remove this label except when filing by this procedure
 - File a mismatch between an ADR's details and the implementation with the title "Remove ADR details" (with the ADR number). Keep the decision as it is, and move the details to code, tests, and help
 - When an ADR has grown long (roughly 8,000 characters as a guideline), an ADR is no longer needed, or decisions on the same theme are scattered, file with the title "Split and organize ADRs". Gather into one ticket: splitting, merging, deleting, deleting details, matching against the implementation, and listing the decisions that can move to tests or lint
+- For a finding that goes into an existing unfinished ticket, read the ticket with `ticket show <ID>` first, then add the finding as an acceptance item with `ticket update <ID> --acceptance` (`--acceptance` replaces the whole acceptance criteria section, so give the existing items and the new one) or in the body (`--body` replaces the whole body, so give the existing text and the addition)
 - In the summary, write the viewpoint, the target, and both sides of the mismatch. Do not decide which side to match (decide it in planning)
 
 {{choices}}
