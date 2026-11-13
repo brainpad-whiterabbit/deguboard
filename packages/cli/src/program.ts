@@ -204,7 +204,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     .configureOutput(program.configureOutput())
     .command("install")
     .description(
-      "Write the Claude Code Skills that read dg guide at each stage (dgimport, dgplan, dgwork, etc.) into <repository>/.claude/skills/. Skills you have not edited are updated to the latest, and retired deguboard Skills are deleted",
+      "Write the Claude Code Skills that read dg guide at each stage (dgimport, dgplan, dgwork, etc.) into <repository>/.claude/skills/. Skills you have not edited are updated to the latest, and retired deguboard Skills are deleted. Each person installs the Skills on their own machine: it adds skills/dg*/ to <repository>/.claude/.gitignore when the line is missing (commit that .gitignore), and warns if dg Skills are already tracked by git",
     )
     .option(
       "--personal",
@@ -239,6 +239,8 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           ] as const;
           if (result.dryRun) streams.out("--dry-run: nothing was written");
           streams.out(`Skill directory: ${result.dir}`);
+          if (result.ignoreFile)
+            streams.out(`Added an ignore line for the dg Skills to ${result.ignoreFile}`);
           for (const [label, names] of lines)
             if (names.length > 0) streams.out(`${label}: ${names.join(", ")}`);
           for (const f of result.files) streams.out(`\n--- ${f.path}\n${f.content}`);
@@ -265,7 +267,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       .command(action)
       .description(
         action === "install"
-          ? "Write hooks that call dg hook into the Claude Code settings. By default they go to <repository>/.claude/settings.local.json (not tracked by git), and call the node running this dg and its dg.js by absolute paths (or, when run through the deguboard launcher of the VS Code extension, the launcher's absolute path), so they work even when the agent's PATH has no node or dg (run it again after upgrading or moving node; dg hooks check warns). Warns if that file is not ignored by git, or if the tracked .claude/settings.json also has dg hooks. With --shared, writes to the tracked .claude/settings.json and calls dg on PATH. Check whether they are installed and working with dg hooks check. Sets the actor to agent; for a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts and closes it when the step ends. Rejects gh pr merge and gh pr ready when run outside dg (dg pr merge and dg pr ready call them after dg gate passes), writes to .git/deguboard/, and Bash that contains .git/deguboard. When a response ends (Stop) and a change to the data made outside dg is found, it tells the agent to keep going and reports it. Running it again does not duplicate entries; hooks added by hand are kept"
+          ? "Write hooks that call dg hook into the Claude Code settings. By default they go to <repository>/.claude/settings.local.json (not tracked by git), and call the node running this dg and its dg.js by absolute paths (or, when run through the deguboard launcher of the VS Code extension, the launcher's absolute path), so they work even when the agent's PATH has no node or dg (run it again after upgrading or moving node; dg hooks check warns). Adds settings.local.json to <repository>/.claude/.gitignore when the line is missing (commit that .gitignore). Warns if that file is already tracked by git, or if the tracked .claude/settings.json also has dg hooks. With --shared, writes to the tracked .claude/settings.json and calls dg on PATH. Check whether they are installed and working with dg hooks check. Sets the actor to agent; for a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts and closes it when the step ends. Rejects gh pr merge and gh pr ready when run outside dg (dg pr merge and dg pr ready call them after dg gate passes), writes to .git/deguboard/, and Bash that contains .git/deguboard. When a response ends (Stop) and a change to the data made outside dg is found, it tells the agent to keep going and reports it. Running it again does not duplicate entries; hooks added by hand are kept"
           : "Remove only dg's hooks from the Claude Code settings. Hooks added by hand are kept",
       )
       .option(
@@ -313,6 +315,8 @@ export function buildProgram(options: ProgramOptions = {}): Command {
                   ? "No change"
                   : `${action === "install" ? "Installed" : "Removed"}: ${data.events.join(", ")}`,
               );
+              if (data.ignoreFile)
+                streams.out(`Added an ignore line for the settings file to ${data.ignoreFile}`);
               if (data.content) streams.out(`\n${data.content}`);
               for (const w of warnings) streams.err(`Warning: ${w}`);
             }

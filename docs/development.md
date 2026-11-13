@@ -13,11 +13,12 @@
 mise trust          # このリポジトリの mise.toml を信頼する
 mise install        # node・pnpm を mise.toml の版で入れる
 mise run install    # 依存を入れ、dist と VSIX をビルドし、VSIX を VS Code に入れる
+mise run dg -- skill install   # .claude/skills/ に Claude Code の Skill（dg*）を書く（clone ごとに一度。追跡しないので、git pull で guide が変わったらやり直す）
 mise run dg -- hooks install   # .claude/settings.local.json に、mise の node と dg.js の絶対パスでフックを書く（clone ごとに一度）
 mise run dg -- hooks check     # 新しいセッションで、フックが入っていて dg が受け取っていることを確かめる
 ```
 
-フックは追跡しない `.claude/settings.local.json` に書く。命令は node と `dg.js` の絶対パスなので、Claude Code の環境の PATH に node や `dg` がなくても動く。mise.toml の node の版を上げたら、`mise run dg -- hooks install` をやり直す（古い node のパスは `dg hooks check` が gone と警告する）。clone を移したときもやり直す。
+Skill とフックは各自のマシンで入れ、追跡しない（`.claude/.gitignore`）。フックは `.claude/settings.local.json` に書く。命令は node と `dg.js` の絶対パスなので、Claude Code の環境の PATH に node や `dg` がなくても動く。mise.toml の node の版を上げたら、`mise run dg -- hooks install` をやり直す（古い node のパスは `dg hooks check` が gone と警告する）。clone を移したときもやり直す。
 
 端末からほかのリポジトリでも `dg` を呼びたいときは、`mise run dg:link` で `~/.local/bin/dg` にリンクする（~/.local/bin が PATH になければ足す）。リンク先はこのリポジトリの `packages/cli/bin/dg.js` の絶対パスで、一度張れば `git pull` のあとの `mise run install` で更新される。clone を移したら張り直す。既存の `~/.local/bin/dg` が通常のファイルなら消さずに止まる。リンクした dg は PATH の node で動くので、node 24 以上が要る（古いと英語で止まる。このリポジトリの node を使うなら `mise run dg -- <引数>`）。
 

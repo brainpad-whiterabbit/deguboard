@@ -1,17 +1,9 @@
 import { createHash } from "node:crypto";
-import {
-  access,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  realpath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   DG_PATH_NOTE,
@@ -41,6 +33,9 @@ async function dg(cwd: string, argv: string[], env: NodeJS.ProcessEnv = {}) {
   });
   return { code, out: out.join("\n"), err: err.join("\n") };
 }
+
+const git = async (cwd: string, args: string[]) =>
+  (await promisify(execFile)("git", args, { cwd })).stdout;
 
 async function tempHome(): Promise<string> {
   const dir = await realpath(await mkdtemp(path.join(os.tmpdir(), "deguboard-home-")));
@@ -296,6 +291,75 @@ describe("dg skill install", () => {
     }
   });
 
+  it("project では実行のたびに .claude/.gitignore に skills/dg*/ がなければ足し、利用者の行を残して重ねない。入れた Skill は git の未追跡に出ない", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const ignore = path.join(local.dir, ".claude", ".gitignore");
+    const first = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
+    expect(first.data.ignoreFile).toBe(ignore);
+    expect(first.warnings).toEqual([]);
+    expect(await readFile(ignore, "utf8")).toBe("skills/dg*/\n");
+    // 2 回目は足さない
+    const second = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
+    expect(second.data.ignoreFile).toBeNull();
+    expect(await readFile(ignore, "utf8")).toBe("skills/dg*/\n");
+    // 利用者が行を消して自分の行（末尾に改行なし）を書いていれば、残して足す。Skill が最新で何も書かない実行でも足す
+    await writeFile(ignore, "# mine\nnotes.md");
+    const third = await dg(local.dir, ["skill", "install"]);
+    expect(third.out).toContain(`Added an ignore line for the dg Skills to ${ignore}`);
+    expect(await readFile(ignore, "utf8")).toBe("# mine\nnotes.md\nskills/dg*/\n");
+    await dg(local.dir, ["skill", "install"]);
+    expect(await readFile(ignore, "utf8")).toBe("# mine\nnotes.md\nskills/dg*/\n");
+    // git から見て、未追跡に出るのは .gitignore だけ（Skill は無視される）
+    const status = await git(local.dir, ["status", "--porcelain", "-uall"]);
+    expect(status.trim().split("\n")).toEqual(["?? .claude/.gitignore"]);
+  });
+
+  it("--dry-run と --personal は .gitignore を書かない", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const dry = JSON.parse((await dg(local.dir, ["--json", "skill", "install", "--dry-run"])).out);
+    expect(dry.data.ignoreFile).toBeNull();
+    expect(await exists(path.join(local.dir, ".claude"))).toBe(false);
+    const home = await tempHome();
+    const personal = JSON.parse(
+      (await dg(local.dir, ["--json", "skill", "install", "--personal"], { HOME: home })).out,
+    );
+    expect(personal.data).toMatchObject({ ignoreFile: null, tracked: [] });
+    expect(await exists(path.join(home, ".claude", ".gitignore"))).toBe(false);
+    expect(await exists(path.join(local.dir, ".claude"))).toBe(false);
+  });
+
+  it("dg の Skill がすでに追跡されていれば git rm --cached を案内し、追跡から外せば警告しない。dg でない Skill の追跡は警告しない", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    // 利用者の Skill（dg で始まらない）を追跡していても警告しない
+    const mine = skillPath(local.dir, "mine");
+    await mkdir(path.dirname(mine), { recursive: true });
+    await writeFile(mine, "mine\n");
+    await git(local.dir, ["add", "."]);
+    expect(JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out).warnings).toEqual(
+      [],
+    );
+    // 無視の行より前に追跡された dg の Skill（-f で再現する）
+    await git(local.dir, ["add", "-f", ".claude/skills"]);
+    const tracked = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
+    expect(tracked.data.tracked).toContain(".claude/skills/dgwork/SKILL.md");
+    expect(tracked.data.tracked).not.toContain(".claude/skills/mine/SKILL.md");
+    expect(tracked.warnings).toEqual([
+      expect.stringContaining("git rm -r --cached '.claude/skills/dg*'"),
+    ]);
+    // 案内のとおりに外すと、警告が消え、ファイルは残る
+    await git(local.dir, ["rm", "-r", "-q", "--cached", ".claude/skills/dg*"]);
+    const after = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
+    expect(after.data.tracked).toEqual([]);
+    expect(after.warnings).toEqual([]);
+    expect(await exists(skillPath(local.dir, "dgwork"))).toBe(true);
+    expect((await git(local.dir, ["ls-files"])).trim().split("\n")).toContain(
+      ".claude/skills/mine/SKILL.md",
+    );
+  });
+
   it("リポジトリの外で --personal なしなら失敗する", async () => {
     const home = await tempHome();
     const result = await dg(home, ["--json", "skill", "install"]);
@@ -345,12 +409,5 @@ describe("Skill の本文", () => {
     const dgimport = (await buildSkills()).find((s) => s.name === "dgimport")!;
     expect(dgimport.content).toContain("dg guide import");
     expect(await readGuide("import")).toContain("**propose** turning them into tickets");
-  });
-
-  it("このリポジトリに入れた Skill は生成した中身と同じで、廃止した deguboard Skill は残っていない", async () => {
-    const dir = fileURLToPath(new URL("../../../.claude/skills/", import.meta.url));
-    for (const s of await buildSkills())
-      expect(await readFile(path.join(dir, s.name, "SKILL.md"), "utf8"), s.name).toBe(s.content);
-    expect(await readdir(dir)).not.toContain("deguboard");
   });
 });

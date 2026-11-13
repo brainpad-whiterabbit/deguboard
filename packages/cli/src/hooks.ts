@@ -1,12 +1,12 @@
 // dg hooks install / uninstall：harness の設定に dg hook を呼ぶフックを書く・外す（AG-5、ADR-025）。
 // 書くイベントと設定のファイルは agent の Adapter の hooks が決める。手で足した他のフックは残し、dg のフックだけを入れ替える。
-// 既定は追跡しない local の設定に、動いている node と dg.js の絶対パスで書く（t698）。起動ファイル経由なら起動ファイルの絶対パスで書く（t735）。
+// 既定は追跡しない local の設定に、動いている node と dg.js の絶対パスで書き、隣の .gitignore にその設定の行を足す（t698・AG-9）。起動ファイル経由なら起動ファイルの絶対パスで書く（t735）。
 // ハーネスがフックを動かす環境の PATH は利用者のシェルと違いうる（node を mise・nvm・volta などで入れ、対話のシェルでだけ有効にしているなど）ので、PATH の dg や node に頼らない
 
 import { execFile } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual, promisify } from "node:util";
 import {
@@ -21,6 +21,7 @@ import {
   type AgentEnv,
   type HookSupport,
 } from "@deguboard/core";
+import { ensureIgnoreLine, trackedFiles } from "./gitignore.js";
 import { isLauncherPath, launcherFrom } from "./launcher-env.js";
 
 /** dg が書いたフックのコマンドの終わり。これで見分けて入れ替える（基のコマンドが変わっても重ねない） */
@@ -48,6 +49,8 @@ export interface HooksResult {
   dryRun: boolean;
   /** --dry-run のときは書くことになる設定の全体 */
   content?: string | undefined;
+  /** install がこの実行で無視の行を足した .gitignore の絶対パス。足さなかった（すでにある・local でない・--dry-run）なら null。uninstall にはない */
+  ignoreFile?: string | null;
   /** 警告。JSON では最上位の warnings に出す */
   warnings: string[];
 }
@@ -233,8 +236,9 @@ const hasOurs = (settings: Settings) =>
   );
 
 /**
- * 追跡しない設定に書くときの警告：そのファイルを git が無視していない（マシンのパスが共有されうる）、追跡する設定にも
- * dg のフックが残っている（両方が動き、追跡する方は動かないマシンで失敗する）
+ * 追跡しない設定に書くときの警告：そのファイルを git がすでに追跡している（無視の行が効かず、マシンのパスが共有される）、
+ * 追跡する設定にも dg のフックが残っている（両方が動き、追跡する方は動かないマシンで失敗する）。
+ * 無視していないことは警告しない（installHooks が .gitignore に行を足す）
  */
 async function installWarnings(
   hooks: HookSupport,
@@ -249,15 +253,11 @@ async function installWarnings(
   if (topLevel === undefined) return [];
   const warnings: string[] = [];
   if (options.scope === "local") {
-    const ignored = await execFileAsync("git", ["check-ignore", "-q", file], {
-      cwd: topLevel,
-    }).then(
-      () => true,
-      (e: { code?: unknown }) => (e.code === 1 ? false : undefined),
-    );
-    if (ignored === false)
+    const [tracked] = await trackedFiles(topLevel, file);
+    if (tracked !== undefined)
       warnings.push(
-        `${file} is not ignored by git. It holds this machine's paths to node and dg, so add it to .gitignore`,
+        `${tracked} is tracked by git, so the ignore line in .gitignore does not apply to it. It holds this machine's paths to node and dg. ` +
+          `Stop tracking it at the repository root with git rm --cached ${tracked} and commit (the file stays on disk)`,
       );
   }
   const shared = hooks.settings.project(topLevel);
@@ -293,13 +293,19 @@ export async function installHooks(options: {
     });
     next[event] = groups;
   }
-  return write(file, current, next, {
+  const dryRun = options.dryRun ?? false;
+  const result = await write(file, current, next, {
     agent,
     scope: options.scope,
     events: hooks.events.map((e) => e.event),
-    dryRun: options.dryRun ?? false,
+    dryRun,
     warnings: await installWarnings(hooks, options, file),
   });
+  // local の設定はマシンのパスを持つので、実行のたびに隣の .gitignore に自分の行がなければ足す（設定が変わらなくても）
+  const ignoreFile = join(dirname(file), ".gitignore");
+  const added =
+    options.scope === "local" && !dryRun && (await ensureIgnoreLine(ignoreFile, basename(file)));
+  return { ...result, ignoreFile: added ? ignoreFile : null };
 }
 
 /**

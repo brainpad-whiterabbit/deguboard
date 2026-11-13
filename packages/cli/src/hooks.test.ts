@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { resolveRepoPaths, setBundleLayout } from "@deguboard/core";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
@@ -33,6 +35,12 @@ async function repo(): Promise<string> {
   cleanups.push(r.cleanup);
   return r.dir;
 }
+
+const git = async (cwd: string, args: string[]) =>
+  (await promisify(execFile)("git", args, { cwd })).stdout;
+
+/** --json の hooks install の結果のうち、テストが見る部分 */
+type Installed = { data: { ignoreFile: string | null }; warnings: string[] };
 
 const settingsOf = async (file: string) =>
   JSON.parse(await readFile(file, "utf8")) as { hooks: Record<string, unknown[]> } & Record<
@@ -99,22 +107,65 @@ describe("dg hooks install / uninstall（AG-9）", () => {
     await expect(readFile(path.join(cwd, ".claude", "settings.json"), "utf8")).rejects.toThrow();
   });
 
-  it("既定の install は、書いたファイルを git が無視していなければ警告し、無視していれば警告しない（t698）", async () => {
+  it("既定の install は実行のたびに .claude/.gitignore に settings.local.json がなければ足し、利用者の行を残して重ねず、警告しない", async () => {
     const cwd = await repo();
-    const notIgnored = JSON.parse((await dg(cwd, ["--json", "hooks", "install"])).out) as {
-      warnings: string[];
-    };
-    expect(notIgnored.warnings).toContainEqual(expect.stringContaining("is not ignored by git"));
-    await writeFile(path.join(cwd, ".gitignore"), ".claude/settings.local.json\n");
-    const ignored = JSON.parse((await dg(cwd, ["--json", "hooks", "install"])).out) as {
-      warnings: string[];
-    };
-    expect(ignored.warnings).toEqual([]);
+    const ignore = path.join(cwd, ".claude", ".gitignore");
+    const first = JSON.parse((await dg(cwd, ["--json", "hooks", "install"])).out) as Installed;
+    expect(first.data.ignoreFile).toBe(ignore);
+    expect(first.warnings).toEqual([]);
+    expect(await readFile(ignore, "utf8")).toBe("settings.local.json\n");
+    const second = JSON.parse((await dg(cwd, ["--json", "hooks", "install"])).out) as Installed;
+    expect(second.data.ignoreFile).toBeNull();
+    expect(await readFile(ignore, "utf8")).toBe("settings.local.json\n");
+    // 利用者が行を消して自分の行を書いていれば、残して足す。設定が変わらない（No change）実行でも足す
+    await writeFile(ignore, "skills/dg*/\n# mine");
+    const third = await dg(cwd, ["hooks", "install"]);
+    expect(third.out).toContain("No change");
+    expect(third.out).toContain(`Added an ignore line for the settings file to ${ignore}`);
+    expect(await readFile(ignore, "utf8")).toBe("skills/dg*/\n# mine\nsettings.local.json\n");
+    // git から見て、未追跡に出るのは .gitignore だけ
+    const status = await git(cwd, ["status", "--porcelain", "-uall"]);
+    expect(status.trim().split("\n")).toEqual(["?? .claude/.gitignore"]);
+  });
+
+  it("--shared・--personal・--dry-run の install と uninstall は .gitignore を書かない", async () => {
+    const cwd = await repo();
+    const home = await tempHome();
+    const ignore = path.join(cwd, ".claude", ".gitignore");
+    for (const args of [
+      ["install", "--shared"],
+      ["install", "--personal"],
+      ["install", "--dry-run"],
+      ["uninstall"],
+    ]) {
+      const r = JSON.parse((await dg(cwd, ["--json", "hooks", ...args], { HOME: home })).out) as {
+        data: { ignoreFile?: string | null };
+      };
+      expect(r.data.ignoreFile ?? null, args.join(" ")).toBeNull();
+      await expect(readFile(ignore, "utf8"), args.join(" ")).rejects.toThrow();
+    }
+    await expect(readFile(path.join(home, ".claude", ".gitignore"), "utf8")).rejects.toThrow();
+  });
+
+  it("settings.local.json がすでに追跡されていれば git rm --cached を案内し、追跡から外せば警告しない", async () => {
+    const cwd = await repo();
+    await dg(cwd, ["hooks", "install"]);
+    // 無視の行より前に追跡された設定（-f で再現する）
+    await git(cwd, ["add", "-f", ".claude/settings.local.json"]);
+    const tracked = JSON.parse((await dg(cwd, ["--json", "hooks", "install"])).out) as Installed;
+    expect(tracked.warnings).toEqual([
+      expect.stringContaining("git rm --cached .claude/settings.local.json"),
+    ]);
+    await git(cwd, ["rm", "-q", "--cached", ".claude/settings.local.json"]);
+    const after = JSON.parse((await dg(cwd, ["--json", "hooks", "install"])).out) as Installed;
+    expect(after.warnings).toEqual([]);
+    await expect(
+      readFile(path.join(cwd, ".claude", "settings.local.json"), "utf8"),
+    ).resolves.toContain("hook SessionStart");
   });
 
   it("追跡する .claude/settings.json に dg のフックが残っていれば、既定の install が警告する。手で足したフックだけなら警告しない（t698）", async () => {
     const cwd = await repo();
-    await writeFile(path.join(cwd, ".gitignore"), ".claude/settings.local.json\n");
     const shared = path.join(cwd, ".claude", "settings.json");
     await mkdir(path.dirname(shared), { recursive: true });
     await writeFile(
