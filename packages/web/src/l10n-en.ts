@@ -96,6 +96,7 @@ export const EN: Readonly<Record<string, string>> = {
   "行 {0}": "Row {0}",
   "Iteration なし": "No Iteration",
   "ラベル{0}{1}": "Labels{0}{1}",
+  "名前{0}{1}": "Name{0}{1}",
   " ・ ": " · ",
   "ほか {0} 件": "{0} more",
   // components/inline-edit.tsx

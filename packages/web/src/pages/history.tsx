@@ -17,7 +17,9 @@
 // 絞り込みは検索と結果（完了・中止）だけ。Iteration・Epic で分けて見るのはそれぞれの見方に任せる。
 // 番号を押すと詳細を開く（拡張ホストに頼んでエディタに）。
 // 検索欄は 3 つの見方で全幅にし、チケットの見方だけその下に結果の絞り込み（すべて・完了・中止）を件数付きの文字の切り替えで出す。
-// Iteration と Epic の見方では、検索語があるあいだ残った行を開き、当たったチケットだけを印付きで出す。
+// Iteration と Epic の見方の検索は、中の終わったチケットと行そのもの（Iteration の番号・目標・名前、Epic の番号・タイトル）に当てる。
+// 検索語があるあいだ、中のチケットに当たった行は開いて当たったチケットだけを印付きで出し、行にだけ当たった行は閉じたまま
+// 行の当たった部分に印を付ける（開くと全件が出る）。
 // 「すべて見る」でその行の全件の一覧に戻せる。検索中に閉じた行や「すべて見る」は検索語を変えると捨て、検索語を消すと検索前の開閉に戻る
 
 import {
@@ -31,7 +33,7 @@ import {
 import { useCommandData } from "../command-data.js";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { DetailLink } from "../components/parts.js";
-import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
+import { Highlight, HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
 import { shortPeriod } from "../components/iteration-parts.js";
 import { useAskCurrent, useUiState } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
@@ -92,28 +94,52 @@ function CountChips({
   );
 }
 
+/** 検索を当てる行の言葉：Iteration は番号・目標・名前（名前は行に出さないが、探す人が覚えているのは名前のこともある） */
+const iterationTexts = (i: Iteration): string[] => [i.id, i.goal ?? "", i.name];
+/** 検索を当てる行の言葉：Epic は番号・タイトル */
+const epicTexts = (e: EpicRow): string[] => [e.id, e.title];
+
+/** 文字列が検索語に当たるか（チケットの検索と同じ部分一致。前後の空白は除き、大文字小文字は区別しない）。空の検索語は当たらない */
+function textMatchesQuery(text: string, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  return q !== "" && text.toLowerCase().includes(q);
+}
+
 /**
- * 検索：当たるチケットを含むものだけ残す。key はチケットの iteration か epic。
+ * 検索語に当たる終わったチケットを含む行の番号。key はチケットの iteration か epic。
  * ラベルにも当て、行を開いて当たったチケットを出すので、終わったチケット（行の中に出るもの）だけを見る
  */
-function filterHistory<T extends { id: string }>(
-  rows: readonly T[],
+function ticketHitRows(
   tickets: readonly Ticket[],
   query: string,
-  key: "iteration" | "epic" = "iteration",
-): T[] {
-  if (!query.trim()) return [...rows];
-  const hit = new Set<string>(
+  key: "iteration" | "epic",
+): Set<string> {
+  return new Set<string>(
     tickets
       .filter((t) => t[key] && isFinished(t.status) && ticketMatchesQuery(t, query))
       .map((t) => t[key]!),
   );
-  return rows.filter((r) => hit.has(r.id));
 }
 
-/** 行の開閉。open は開いているか、all は検索中に「すべて見る」にしたか（検索していなければ常に true） */
+/**
+ * 検索：当たるチケットを含む行（ticketHits）と、行そのものの言葉（texts）が当たる行を残す。
+ * 行にだけ当たったものは、中に終わったチケットがなくても残る
+ */
+function filterHistory<T extends { id: string }>(
+  rows: readonly T[],
+  ticketHits: ReadonlySet<string>,
+  query: string,
+  texts: (row: T) => readonly string[],
+): T[] {
+  if (!query.trim()) return [...rows];
+  return rows.filter(
+    (r) => ticketHits.has(r.id) || texts(r).some((text) => textMatchesQuery(text, query)),
+  );
+}
+
+/** 行の開閉。open は開いているか、all は検索中に「すべて見る」にしたか（検索で開いていなければ常に true） */
 interface RowFold {
-  /** 検索で開いているか（検索語があり、検索で開く画面のとき） */
+  /** 検索で開いているか（検索語があり、中のチケットに当たった行のとき）。行にだけ当たった行は false で、開くと全件を出す */
   searching: boolean;
   open: boolean;
   all: boolean;
@@ -125,28 +151,33 @@ const toggled = (ids: readonly string[], id: string, on: boolean): string[] =>
   on ? (ids.includes(id) ? [...ids] : [...ids, id]) : ids.filter((x) => x !== id);
 
 /**
- * 履歴の行（Iteration・Epic の番号）ごとの開閉。検索前の開いた行（opened）と、検索中だけの上書き（閉じた行・
- * 「すべて見る」にした行）を分けて持つ。検索中は既定で開き、上書きは検索語を変えると捨てるので、検索語を消すと検索前に戻る。
+ * 履歴の行（Iteration・Epic の番号）ごとの開閉。検索前の開いた行（opened）と、検索中だけの上書き（既定から開閉を変えた行・
+ * 「すべて見る」にした行）を分けて持つ。上書きは検索語を変えると捨てるので、検索語を消すと検索前に戻る。
+ * 検索中の既定は、中のチケットに当たった行（ticketHit）は開き、行にだけ当たった行は閉じたままにする。行にだけ当たった行を
+ * 開くと、絞るもののない全件の一覧が出て、どのチケットも当たったように見えるので開かない（当たったことは行の印で分かる）。
+ * 人が開けば、検索していないときと同じ全件の一覧を出す。
  * opened は番号の配列で持ち、画面の外（Webview の state）にそのまま置ける。search は検索で開くときの検索語（開かないなら空）
  */
 function useRowFolds(
   search: string,
   [opened, setOpened]: [readonly string[], (ids: readonly string[]) => void] = [[], () => {}],
-): (id: string) => RowFold {
+): (id: string, ticketHit?: boolean) => RowFold {
   const q = search.trim().toLowerCase();
   const [during, setDuring] = useState<{
     query: string;
-    closed: readonly string[];
+    /** 検索中の既定（ticketHit なら開く、行だけなら閉じる）から開閉を変えた行 */
+    flipped: readonly string[];
     all: readonly string[];
-  }>({ query: "", closed: [], all: [] });
-  const current = during.query === q ? during : { query: q, closed: [], all: [] };
-  return (id) =>
+  }>({ query: "", flipped: [], all: [] });
+  const current = during.query === q ? during : { query: q, flipped: [], all: [] };
+  return (id, ticketHit = true) =>
     q
       ? {
-          searching: true,
-          open: !current.closed.includes(id),
-          all: current.all.includes(id),
-          setOpen: (open) => setDuring({ ...current, closed: toggled(current.closed, id, !open) }),
+          searching: ticketHit,
+          open: current.flipped.includes(id) !== ticketHit,
+          all: !ticketHit || current.all.includes(id),
+          setOpen: (open) =>
+            setDuring({ ...current, flipped: toggled(current.flipped, id, open !== ticketHit) }),
           setAll: (all) => setDuring({ ...current, all: toggled(current.all, id, all) }),
         }
       : {
@@ -366,32 +397,38 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
     [store.epics],
   );
   const all: { id: string }[] = view === "epic" ? epics : iterations;
-  const rows = useMemo(
-    () => (view === "ticket" ? [] : filterHistory(all, store.tickets, query, view)),
-    [all, store.tickets, query, view],
-  );
-  // 見方ごとの件数。チケットの見方ではチケットの件数を TicketView が結果の絞り込みを含めて数え直すので、ここでは数えない
+  // 検索で残る行（中のチケットか行そのものに当たったもの）と、そのうち中のチケットに当たった行（開いて当たったチケットを出す）
+  const hits = useMemo(() => {
+    const iterationTickets = ticketHitRows(store.tickets, query, "iteration");
+    const epicTickets = ticketHitRows(store.tickets, query, "epic");
+    return {
+      iteration: {
+        rows: filterHistory(iterations, iterationTickets, query, iterationTexts),
+        tickets: iterationTickets,
+      },
+      epic: { rows: filterHistory(epics, epicTickets, query, epicTexts), tickets: epicTickets },
+    };
+  }, [iterations, epics, store.tickets, query]);
+  const shown = view === "epic" ? hits.epic : hits.iteration;
+  const rows: { id: string }[] = view === "ticket" ? [] : shown.rows;
+  const fold = (id: string) => foldOf(id, shown.tickets.has(id));
+  // 見方ごとの件数（行に当たったものも数える）。チケットの見方ではチケットの件数を TicketView が結果の絞り込みを含めて数え直すので、ここでは数えない
   const counts = useMemo<ViewCounts>(() => {
     const searching = query.trim() !== "";
-    const count = <T extends { id: string }>(list: readonly T[], key: "iteration" | "epic") => ({
-      hit: filterHistory(list, store.tickets, query, key).length,
-      total: list.length,
-      filtered: searching,
-    });
     const finished = (q: string) =>
       view === "ticket" ? 0 : finishedTickets(store.tickets, null, { query: q, result: "" }).length;
     return {
-      iteration: count(iterations, "iteration"),
-      epic: count(epics, "epic"),
+      iteration: { hit: hits.iteration.rows.length, total: iterations.length, filtered: searching },
+      epic: { hit: hits.epic.rows.length, total: epics.length, filtered: searching },
       ticket: { hit: finished(query), total: finished(""), filtered: searching },
     };
-  }, [iterations, epics, store.tickets, query, view]);
+  }, [hits, iterations, epics, store.tickets, query, view]);
   // タイトル行の吹き出しは開いている行を対象にする（UI-15）
   useAskCurrent(
     view !== "ticket"
       ? historyAskTarget(
           rows.map((r) => r.id),
-          (id) => foldOf(id).open,
+          (id) => fold(id).open,
           opened[0],
         )
       : [],
@@ -423,13 +460,13 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
         <ul className="history">
           {view === "epic"
             ? (rows as EpicRow[]).map((e) => (
-                <EpicItem key={e.id} epic={e} fold={foldOf(e.id)} query={query} />
+                <EpicItem key={e.id} epic={e} fold={fold(e.id)} query={query} />
               ))
             : (rows as Iteration[]).map((i) => (
                 <IterationItem
                   key={i.id}
                   iteration={i}
-                  fold={foldOf(i.id)}
+                  fold={fold(i.id)}
                   query={query}
                   carried={carried}
                 />
@@ -470,7 +507,11 @@ function SearchHitsBar({ hits, total, fold }: { hits: number; total: number; fol
   );
 }
 
-/** Iteration の行。開閉の印を付け、開くと中の done・abandoned のチケットを番号の順の 1 本の一覧（履歴用の行）で出す */
+/**
+ * Iteration の行。開閉の印を付け、開くと中の done・abandoned のチケットを番号の順の 1 本の一覧（履歴用の行）で出す。
+ * 検索語（query）に当たった番号・目標には印を付ける。名前は行に出さないので、名前に当たったときだけ 2 段目に「名前 …」を印付きで足す
+ * （目標と同じ文字なら目標の印で分かるので足さない）
+ */
 function IterationItem({
   iteration: i,
   fold,
@@ -493,6 +534,7 @@ function IterationItem({
   const goal = i.goal?.trim();
   // 終わったチケットがすべて Epic なしなら内訳は出さない（Epic なしだけの内訳は情報にならない）
   const showEpics = epics.some((e) => e.epic !== null);
+  const nameHit = i.name !== goal && textMatchesQuery(i.name, query);
   // 閉じた Iteration の見出しから頼む（UI-15）。履歴の見出しだから、閉じた Iteration の振り返るが候補に出る（core の ask-menu が決める）
   // 右クリックで Iteration の「詳細を開く」「ID をコピー」を出す
   const spot = useAskSpot({
@@ -507,10 +549,12 @@ function IterationItem({
       <details className="history-item fold" {...foldProps(fold)}>
         <summary className="history-row" {...spot.props}>
           <DetailLink route={{ page: "iterations", id: i.id }}>
-            <code>{i.id}</code>
+            <code>
+              <Highlight text={i.id} query={query} />
+            </code>
           </DetailLink>
           <span className={goal ? "name" : "name history-none"} title={i.name}>
-            {goal || tr("目標なし")}
+            {goal ? <Highlight text={goal} query={query} /> : tr("目標なし")}
           </span>
           {/* 完了と持ち越しは iteration.close が記録した値（core が数える）をそのまま出し、web では数え直さない。
               中止は記録がないので Iteration に入っている abandoned を数える */}
@@ -522,6 +566,12 @@ function IterationItem({
           />
           <small>
             <Period start={i.started_at} end={i.closed_at} />
+            {nameHit ? (
+              <span className="history-hit-name">
+                {tr(" ・ ")}
+                {trNode("名前{0}{1}", " ", <Highlight text={i.name} query={query} />)}
+              </span>
+            ) : null}
             {showEpics ? (
               <span className="epics">
                 {tr(" ・ ")}
@@ -689,7 +739,8 @@ function finishedOfEpic(epic: string, tickets: readonly Ticket[]): Ticket[] {
  * epic.list が返す進み（progress.by_status）の done・abandoned を読み、web では数え直さない）、2 段目に閉じた日・
  * チケットが入っていた Iteration。進捗バーは出さない。
  * 開くと中の終わったチケットを番号の順の 1 本の一覧（履歴用の行。Epic は省き Iteration を出す）で出す。
- * 終わったチケットのない Epic は薄く出し、開けない
+ * 終わったチケットのない Epic は薄く出し、開けない（検索でタイトルか番号に当たれば、開けない行のまま残る）。
+ * 検索語（query）に当たった番号・タイトルには印を付ける
  */
 function EpicItem({ epic: e, fold, query }: { epic: EpicRow; fold: RowFold; query: string }) {
   const store = useStore();
@@ -706,10 +757,12 @@ function EpicItem({ epic: e, fold, query }: { epic: EpicRow; fold: RowFold; quer
   const head = (
     <>
       <DetailLink route={{ page: "epics", id: e.id }}>
-        <code>{e.id}</code>
+        <code>
+          <Highlight text={e.id} query={query} />
+        </code>
       </DetailLink>
       <span className="name" title={e.title}>
-        {e.title}
+        <Highlight text={e.title} query={query} />
       </span>
       <CountChips
         completed={e.progress.by_status.done}
