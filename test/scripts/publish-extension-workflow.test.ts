@@ -23,8 +23,11 @@ const workflow = value as Workflow;
 function forbiddenRuns(steps: Step[]): string[] {
   const patterns = [
     /\bmise\s+run\b/, // mise run check・build・vsix などのタスク
-    /\bpnpm\s+(run\s+)?(build|check|test|lint|typecheck|vsix|package)\b/,
+    // スクリプト名の前に --filter <名前> などの option があっても見分ける
+    /\bpnpm\b(\s+-\S+(\s+[^-\s]\S*)?)*\s+(run\s+)?(build|check|test|lint|typecheck|vsix|package)\b/,
     /\bpnpm\s+(-r|--recursive)\b/,
+    /\bnpm\s+(run(-script)?|test)\b/,
+    /\bnpx\b/,
     /\bvsce\s+package\b/,
     /\b(tsc|vitest|oxlint|oxfmt)\b/,
   ];
@@ -66,6 +69,10 @@ describe("公開のワークフロー（publish-extension.yml）", () => {
       "pnpm build",
       "pnpm -r exec tsc",
       "pnpm --filter deguboard exec vsce package",
+      "pnpm --filter deguboard run build",
+      "pnpm --filter deguboard build",
+      "npm run build",
+      "npx vsce package",
     ];
     expect(forbiddenRuns(runs.map((run) => ({ run })))).toEqual(runs);
     const allowed = [
