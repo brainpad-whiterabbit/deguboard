@@ -896,6 +896,37 @@ describe("同期のマージドライバ", () => {
     expect(written.write.pushed).toBe(false);
     expect(written.write.warnings.join("\n").split(CONFLICT_REMEDY)).toHaveLength(2);
   });
+
+  it("config.yaml だけが競合したただの sync は、どちらかを選ぶ手順ではなく手で解く手順を警告に出す", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    await runCommand(configSet, a, { key: "commit.mode", value: "each" });
+    await runCommand(sync, a, {});
+    await runCommand(configSet, b, { key: "commit.mode", value: "manual" });
+    const synced = await runCommand(sync, b, {});
+    expect(synced.data.conflicts).toEqual(["config.yaml"]);
+    expect(synced.data.conflict_fields).toEqual([]);
+    const text = synced.warnings.join("\n");
+    expect(text).toContain("config.yaml");
+    expect(text).toContain(UNRESOLVABLE_REMEDY);
+    expect(text).not.toContain(CONFLICT_REMEDY);
+  });
+
+  it("config.yaml とチケットの項目が同時に競合したただの sync は、これまでどおりどちらかを選ぶ手順を出す", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    await runCommand(configSet, a, { key: "commit.mode", value: "each" });
+    await runCommand(ticketUpdate, a, { ticket: "t1", title: "A の題" });
+    await runCommand(sync, a, {});
+    await runCommand(configSet, b, { key: "commit.mode", value: "manual" });
+    await runCommand(ticketUpdate, b, { ticket: "t1", title: "B の題" });
+    const synced = await runCommand(sync, b, {});
+    expect(synced.data.conflicts).toEqual(expect.arrayContaining(["config.yaml", "tickets/t1.md"]));
+    expect(synced.data.conflict_fields).not.toEqual([]);
+    const text = synced.warnings.join("\n");
+    expect(text).toContain(CONFLICT_REMEDY);
+    expect(text).not.toContain(UNRESOLVABLE_REMEDY);
+  });
 });
 
 describe("dg sync --resolve（SY-4）", () => {
