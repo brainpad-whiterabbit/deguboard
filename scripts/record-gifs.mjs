@@ -11,6 +11,7 @@
 // 詳細を開く・コピー・読み直しを拡張と同じ通り道で受ける。ターミナルに出す数字（retro.gif の要約と Keep / Problem / Try など）は見本で、
 // 流れは dg guide retro に合わせる（振り返りはチャットで答え、報告書のファイルは書かない）。
 // 画面は英語の表示（<html data-language="en"> を入れる）で、CSS の 760x460 を 1.5 倍の解像度で撮る（GIF は 1140x690。README の表示幅 560px の 2 倍で文字がにじまない。t458）。
+// plan.gif と work.gif だけは 3 段の依存グラフが収まるように左パネルを広げ、830x460（GIF は 1245x690、README の表示幅は 612px）で撮る（PLAN_SIDE）。
 // 先に mise run build（タスクが依存する）と mise run playwright:install が要る。各 GIF が 20 秒以下・1MB 以下に収まらなければ失敗する。
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -30,13 +31,17 @@ const run = promisify(execFile);
 
 /**
  * 画面の大きさ（CSS の px）。左パネルは VS Code の既定に近い 300px。GIF の寸法は SCALE 倍になる。
- * README の表示幅（560px）の 2 倍（1120px）以上で文字がにじまないように、1.5 倍の解像度で撮る（t458）
+ * README の表示幅（560px）の 2 倍（1120px）以上で文字がにじまないように、1.5 倍の解像度で撮る（t458）。
+ * plan.gif と work.gif は 3 段の依存グラフ（324px 幅）が横に送られずに収まるように、左パネルを PLAN_SIDE に広げ、
+ * 画面の幅も同じだけ広げる（830px、GIF は 1245px。README の表示幅は 612px にして、ほかの GIF と文字の大きさを揃える）。
+ * パネルの中の余白で、グラフに使えるのは左パネルの幅より約 40px 狭い（360px では 3px 足りない。waitGraphFits が検査する）
  */
 const WIDTH = 760;
 const HEIGHT = 460;
 const SCALE = 1.5;
 const BAR = 48;
 const SIDE = 300;
+const PLAN_SIDE = 370;
 /** カーソルを動かすときの 1 コマの長さ（ミリ秒） */
 const STEP = 50;
 
@@ -131,22 +136,22 @@ async function assignRepo(dir) {
 }
 
 /**
- * plan.gif と work.gif の見本のチケット。t1 と t2 は待ちがなく並べて進められ、t3 は t1 を、t4 は t2 を待つ
- * （work.gif で並列に In Progress になるのを見せるため。段が 2 つなら依存グラフが左パネルの幅 300px に収まる）
+ * plan.gif と work.gif の見本のチケット（この順で起票して t1〜t7 になる）。段は 3 つ：t1 t2 t3 は待ちがなく、
+ * t4 は t1 を、t5 は t2 と t3 を、t6 は t3 と t4 を、t7 は t5 を待つ（work.gif で 3 件が並列に In Progress になり、
+ * 複数を待つチケットも見せるため）。3 段の依存グラフは 3×76+2×48 = 324px 幅なので、この 2 本だけ左パネルを PLAN_SIDE に広げる
  */
 const EXPORT_DRAFTS = [
-  { key: "format", title: "Decide the export columns and format", priority: "high" },
-  { key: "button", title: "Add an export button to the screen" },
-  { key: "csv", title: "Build the CSV from the list", depends_on: ["format"] },
-  {
-    key: "notice",
-    title: "Tell when the export finishes",
-    depends_on: ["button"],
-    priority: "low",
-  },
+  { key: "columns", title: "Decide the export columns", priority: "high" },
+  { key: "button", title: "Add an export button" },
+  { key: "endpoint", title: "Add a download endpoint" },
+  { key: "csv", title: "Build the CSV from the list", depends_on: ["columns"] },
+  { key: "wire", title: "Wire the button to the endpoint", depends_on: ["button", "endpoint"] },
+  { key: "stream", title: "Stream large lists", depends_on: ["endpoint", "csv"] },
+  { key: "notice", title: "Tell when the export finishes", depends_on: ["wire"], priority: "low" },
 ];
+const EXPORT_IDS = EXPORT_DRAFTS.map((_, i) => `t${i + 1}`);
 
-/** plan.gif の見本：割り当て済みの 4 件が入った、始めたばかりの Iteration（s1）。計画は台本が dg で立てる */
+/** plan.gif の見本：割り当て済みの 7 件が入った、始めたばかりの Iteration（s1）。計画は台本が dg で立てる */
 async function planRepo(dir) {
   const work = await initRepo(dir);
   await dg(work, ["iteration", "create", "Iteration 1", "--goal", "Export to CSV"]);
@@ -158,7 +163,7 @@ async function planRepo(dir) {
 /** work.gif の見本：plan.gif のあと（承認済みの Plan p1）。遷移は台本が dg で行う */
 async function workRepo(dir) {
   const work = await planRepo(dir);
-  await dg(work, ["plan", "create", "t1", "t2", "t3", "t4"]);
+  await dg(work, ["plan", "create", ...EXPORT_IDS]);
   await dg(work, ["plan", "approve", "p1"]);
   return work;
 }
@@ -275,7 +280,7 @@ function vscodeShim() {
  * VS Code の窓に見立てた外枠。左パネルの中身は iframe の実際の画面。
  * エディタの下にターミナルのエージェント（Claude Code）を模した画面を置き、詳細を開く頼みでエディタにパネルの画面（iframe）を開く
  */
-function frameHtml(appUrl, icon) {
+function frameHtml(appUrl, icon, side) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:#1f1f1f;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
@@ -286,7 +291,7 @@ function frameHtml(appUrl, icon) {
   .bar span.on::before{content:"";position:absolute;left:-12px;top:-4px;width:2px;height:32px;background:#0078d4}
   .bar svg{width:24px;height:24px;display:block}
   .side{width:0;overflow:hidden;flex:none;border-right:1px solid #2b2b2b;background:#181818}
-  .side iframe{width:${SIDE}px;height:100%;border:0;display:block}
+  .side iframe{width:${side}px;height:100%;border:0;display:block}
   .main{flex:1;min-width:0;display:flex;flex-direction:column}
   .tabs{height:35px;background:#181818;border-bottom:1px solid #2b2b2b;display:flex}
   .tabs b{font-weight:400;font-size:13px;color:#ccc;background:#1f1f1f;padding:9px 16px;border-right:1px solid #2b2b2b}
@@ -393,10 +398,12 @@ function showDoc(name) {
 /** 台本どおりに操作し、1 コマずつ撮る。shot の delay がそのコマの表示時間 */
 class Recorder {
   frames = [];
-  x = WIDTH * 0.6;
   y = HEIGHT * 0.7;
-  constructor(page) {
+  /** width は画面の幅、side は左パネルの幅（CSS の px） */
+  constructor(page, width, side) {
     this.page = page;
+    this.side = side;
+    this.x = width * 0.6;
   }
   async shot(delay) {
     this.frames.push({ png: await this.page.screenshot({ type: "png" }), delay });
@@ -462,7 +469,7 @@ async function setupAgent(rec, { file, code, term }) {
         document.querySelector(".term").style.flex = "1 1 0";
       }
     },
-    [SIDE, file, code, term],
+    [rec.side, file, code, term],
   );
   await rec.setCursor();
 }
@@ -649,20 +656,29 @@ async function assignFlow(rec, app, { work }) {
   await rec.hold(2600);
 }
 
+/** 依存グラフが開くのを待ち、左パネルの中で横に送られる（はみ出す）なら失敗する（PLAN_SIDE が足りない） */
+async function waitGraphFits(app) {
+  const graph = app.locator(".plan-graph").first();
+  await graph.waitFor();
+  const [scroll, client] = await graph.evaluate((el) => [el.scrollWidth, el.clientWidth]);
+  if (scroll > client)
+    throw new Error(`依存グラフが左パネルに収まらない（${scroll}px > ${client}px）`);
+}
+
 /** カンバンの Iteration の見出しから Plan を頼み、承認待ちの Plan の依存グラフを開いて、承認する */
 async function planFlow(rec, app, { work }) {
   await setupAgent(rec, { file: "claude", code: "", term: "auto" });
   await rec.hold(600);
   await askAndPaste(rec, app, app.locator("header.board-head .ask-bubble").first(), "Plan");
-  await termSay(rec, "dot", "● Reading s1: 4 tickets and their dependencies…", 900);
-  await dgSteps(rec, work, [["plan", "create", "t1", "t2", "t3", "t4"]]);
+  await termSay(rec, "dot", "● Reading s1: 7 tickets and their dependencies…", 900);
+  await dgSteps(rec, work, [["plan", "create", ...EXPORT_IDS]]);
   await termSay(rec, "dot", "● Plan p1 (awaiting approval)", 200);
-  await termSay(rec, "dim", "  t1 ∥ t2 can start at once", 200);
-  await termSay(rec, "dim", "  t3 after t1 · t4 after t2", 500);
+  await termSay(rec, "dim", "  t1 ∥ t2 ∥ t3 can start at once", 200);
+  await termSay(rec, "dim", "  then t4 ∥ t5, last t6 ∥ t7", 500);
   // 番号は Plan 詳細へのリンクなので、状態の文字を押してグラフを開く
   await rec.moveTo(app.locator(".plan-line .plan-state").first(), 600);
   await rec.click();
-  await app.locator(".plan-graph").waitFor();
+  await waitGraphFits(app);
   await rec.hold(1600);
   await termSay(rec, "ask", "? Approve plan p1?", 200);
   await termSay(rec, "sel", "  ❯ 1. Approve", 100);
@@ -682,11 +698,11 @@ async function workFlow(rec, app, { work }) {
   await rec.hold(500);
   await rec.moveTo(app.locator(".plan-line .plan-state").first(), 500);
   await rec.click();
-  await app.locator(".plan-graph").waitFor();
+  await waitGraphFits(app);
   await rec.hold(700);
   await askAndPaste(rec, app, app.locator(".plan-row .ask-bubble").first(), "Run Plan");
   await rec.moveTo(rec.page.locator(".term-lines"), 400, 0.5, 0.6);
-  await termSay(rec, "dot", "● Plan p1 is approved. t1 and t2 can start", 500);
+  await termSay(rec, "dot", "● Plan p1 is approved. t1, t2 and t3 can start", 500);
   await rec.page.evaluate(() => (document.querySelector(".ff").hidden = false));
   // 着手は In Progress に、マージは Review・Done と PR の番号をまとめて流す（読み直しを 1 回にする）
   const start = (...ids) =>
@@ -703,18 +719,26 @@ async function workFlow(rec, app, { work }) {
     ]);
     await termSay(rec, "ok", `✓ ${id} merged (PR #${pr}, gate passed)`, 400);
   };
-  await start("t1", "t2");
-  await termSay(rec, "dot", "● Working on t1 and t2 in parallel (worktrees)…", 1100);
+  // 3 人のエージェントで進める。待ちが済んだチケットから着手する（t4 は t1、t5 は t2 と t3、t6 は t3 と t4、t7 は t5 のあと）
+  await start("t1", "t2", "t3");
+  await termSay(rec, "dot", "● Working on t1, t2 and t3 in parallel (worktrees)…", 1000);
   await merge("t1", 1);
-  await start("t3");
-  await termSay(rec, "dot", "● t3 is unblocked. Working on t2 and t3…", 1000);
-  await merge("t2", 2);
   await start("t4");
-  await termSay(rec, "dot", "● t4 is unblocked. Working on t3 and t4…", 1000);
+  await termSay(rec, "dot", "● t4 is unblocked. Working on t2, t3 and t4…", 900);
+  await merge("t2", 2);
   await merge("t3", 3);
+  await start("t5");
+  await termSay(rec, "dot", "● t5 is unblocked. Working on t4 and t5…", 700);
   await merge("t4", 4);
+  await start("t6");
+  await termSay(rec, "dot", "● t6 is unblocked. Working on t5 and t6…", 700);
+  await merge("t5", 5);
+  await start("t7");
+  await termSay(rec, "dot", "● t7 is unblocked. Working on t6 and t7…", 700);
+  await merge("t6", 6);
+  await merge("t7", 7);
   await rec.page.evaluate(() => (document.querySelector(".ff").hidden = true));
-  await termSay(rec, "ok", "✓ Plan p1 finished: 4/4 done", 2400);
+  await termSay(rec, "ok", "✓ Plan p1 finished: 7/7 done", 2400);
 }
 
 /**
@@ -772,8 +796,10 @@ async function retroFlow(rec, app, { work }) {
  * 台本は (rec, app, ctx) で、app は左パネルの FrameLocator、ctx は一時リポジトリ（work・tmp）
  */
 async function record(browser, server, icon, job, ctx) {
+  const side = job.side ?? SIDE;
+  const width = gifWidth(job);
   const context = await browser.newContext({
-    viewport: { width: WIDTH, height: HEIGHT },
+    viewport: { width, height: HEIGHT },
     deviceScaleFactor: SCALE,
     colorScheme: "dark",
   });
@@ -787,24 +813,27 @@ async function record(browser, server, icon, job, ctx) {
   const frameUrl = `${server.url}__gif-frame.html`;
   const appUrl = `${server.url}?gif-host=sidebar${job.hash}`;
   await page.route(frameUrl, (route) =>
-    route.fulfill({ contentType: "text/html", body: frameHtml(appUrl, icon) }),
+    route.fulfill({ contentType: "text/html", body: frameHtml(appUrl, icon, side) }),
   );
   await page.goto(frameUrl, { waitUntil: "networkidle" });
   const app = page.frameLocator(".side iframe");
   await app.locator(".topbar").waitFor();
-  const rec = new Recorder(page);
+  const rec = new Recorder(page, width, side);
   await job.script(rec, app, ctx);
   await context.close();
   return rec.frames;
 }
+
+/** 画面の幅（CSS の px）。左パネルを広げた分だけ広げ、エディタとターミナルの幅は変えない */
+const gifWidth = (job) => WIDTH + (job.side ?? SIDE) - SIDE;
 
 async function main() {
   const only = process.argv.slice(2);
   const jobs = [
     { name: "import.gif", hash: "#/backlog", script: importFlow, repo: importRepo },
     { name: "assign.gif", hash: "#/backlog", script: assignFlow, repo: assignRepo },
-    { name: "plan.gif", hash: "#/board", script: planFlow, repo: planRepo },
-    { name: "work.gif", hash: "#/board", script: workFlow, repo: workRepo },
+    { name: "plan.gif", hash: "#/board", script: planFlow, repo: planRepo, side: PLAN_SIDE },
+    { name: "work.gif", hash: "#/board", script: workFlow, repo: workRepo, side: PLAN_SIDE },
     { name: "retro.gif", hash: "#/history", script: retroFlow, repo: retroRepo },
   ];
   const unknown = only.filter((name) => !jobs.some((job) => job.name === name));
@@ -841,7 +870,7 @@ async function main() {
       const kb = Math.round(bytes.length / 1024);
       const ok = checkGif({ seconds, bytes: bytes.length, range: [0, 20] });
       console.log(
-        `${job.name}: ${WIDTH * SCALE}x${HEIGHT * SCALE}、${seconds.toFixed(1)} 秒、${kb} KB、${frames.length} コマ${ok ? "" : "（20 秒以下・1MB 以下に収まらない）"}`,
+        `${job.name}: ${gifWidth(job) * SCALE}x${HEIGHT * SCALE}、${seconds.toFixed(1)} 秒、${kb} KB、${frames.length} コマ${ok ? "" : "（20 秒以下・1MB 以下に収まらない）"}`,
       );
       if (!ok) process.exitCode = 1;
     }

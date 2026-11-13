@@ -45,11 +45,11 @@ Activity Bar の deguboard のアイコンを押します。上のタブで **�
 
 2. **計画を立てる**：カンバンの見出しで **エージェントに頼む** → **計画を立てる**（`/dgplan s3`）を選びます。エージェントが依存から進める順を決め、Plan が上の帯に承認待ちで出ます。帯の状態を押すと依存のグラフが開きます。
 
-   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="進める順を計画して承認する" width="560">
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="進める順を計画して承認する" width="612">
 
 3. **進める**：帯の Plan で **エージェントに頼む** → **Plan を進める**（`/dgwork p3`）を選びます。待ちのないチケットを、エージェントがそれぞれの作業ブランチと worktree で同時に実装し、PR を出します。PR は品質ゲートが通ったときだけ ready・マージに進みます。進むにつれて、グラフの色とカンバンの列が変わります。
 
-   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="エージェントが計画を並列に進める" width="560">
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="エージェントが計画を並列に進める" width="612">
 
 ### 履歴：振り返って改善する
 
