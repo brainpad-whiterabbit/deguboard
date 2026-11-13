@@ -27,7 +27,7 @@ import {
   DetailLink,
 } from "../components/parts.js";
 import { formatShortTime } from "../components/date-time.js";
-import { EpicChipRow } from "../components/epic-chip.js";
+import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic-chip.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { PlanBand } from "../components/plan-band.js";
 import { shortPeriod } from "../components/iteration-parts.js";
@@ -186,6 +186,9 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   // 前回の描画から Status か Iteration が変わった行を点滅させる（UI-2。CLI やエージェントの書き込みに気づけるように）
   const flash = useChangeFlash(store.tickets, host.state, true);
 
+  // 札に触れている間は、その Epic の行を光らせる（UI-10。Epic で絞っている間は光らせない）
+  const epicHighlight = useEpicHighlight(query.epic ?? "");
+
   // Epic の札の列。選んだ札は Epic の絞り込みを切り替える（もう一度押すと外れる）
   const epicRow = hasOpenEpic ? (
     <EpicChipRow
@@ -193,6 +196,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
       noEpic={noEpic}
       selected={query.epic ?? ""}
       onSelect={(epic) => setFilter({ epic: query.epic === epic ? undefined : epic })}
+      onHighlight={epicHighlight.onHighlight}
     />
   ) : undefined;
   // 札が見えている Epic は、× で外す札に出さない（FilterChips）
@@ -256,27 +260,29 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         <>
           <PlanBand scope={scoped} />
           <div className="board">
-            {BOARD_STATUSES.map((status) => (
-              <Column
-                key={status}
-                status={status}
-                tickets={tickets.filter((t) => t.status === status)}
-                planMarks={planMarks}
-                flashing={flash.flashing}
-                // 完了は既定で畳む（開いた状態は useUiState が保つ）
-                defaultOpen={status !== "done"}
-              />
-            ))}
-            {/* 中止は切り替えではなく、あるときだけ最後の節に畳んで置く */}
-            {abandoned.length > 0 ? (
-              <Column
-                status="abandoned"
-                tickets={abandoned}
-                planMarks={planMarks}
-                flashing={flash.flashing}
-                defaultOpen={false}
-              />
-            ) : null}
+            <EpicHighlight.Provider value={epicHighlight.highlight}>
+              {BOARD_STATUSES.map((status) => (
+                <Column
+                  key={status}
+                  status={status}
+                  tickets={tickets.filter((t) => t.status === status)}
+                  planMarks={planMarks}
+                  flashing={flash.flashing}
+                  // 完了は既定で畳む（開いた状態は useUiState が保つ）
+                  defaultOpen={status !== "done"}
+                />
+              ))}
+              {/* 中止は切り替えではなく、あるときだけ最後の節に畳んで置く */}
+              {abandoned.length > 0 ? (
+                <Column
+                  status="abandoned"
+                  tickets={abandoned}
+                  planMarks={planMarks}
+                  flashing={flash.flashing}
+                  defaultOpen={false}
+                />
+              ) : null}
+            </EpicHighlight.Provider>
           </div>
         </>
       )}

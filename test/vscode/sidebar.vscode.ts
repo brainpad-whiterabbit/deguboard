@@ -3,7 +3,7 @@
 // - カンバンにチケットの行が出て、タブ（バックログ）に切り替えても戻しても行が出ること
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
-// - ライトとダークのテーマでスクリーンショット（カンバン・実行計画の依存グラフ・設定画面）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・Epic の札に触れて光らせた行・実行計画の依存グラフ・設定画面）を test/vscode/screenshots/ に出すこと
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
 import { access } from "node:fs/promises";
@@ -11,6 +11,7 @@ import path from "node:path";
 import type { FrameLocator } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  epicCreate,
   init,
   iterationCreate,
   iterationStart,
@@ -52,11 +53,14 @@ beforeAll(async () => {
   await runCommand(init, ctx, { template: "software-development" });
   await runCommand(iterationCreate, ctx, { name: "実機の週" });
   await runCommand(iterationStart, ctx, { iteration: "s1" });
-  // t1・t2 は s1 のカンバン、t3 はカンバンの作業中。バックログ（Iteration なし）にも行が出るよう 2 件目は入れない
+  await runCommand(epicCreate, ctx, { title: "実機の Epic" });
+  // t1・t2 は s1 のカンバン、t3 はカンバンの作業中。バックログ（Iteration なし）にも行が出るよう 2 件目は入れない。
+  // t1 だけ Epic e1 に入れ、札に触れて光らせる行と薄くする行を撮る
   await runCommand(ticketCreate, ctx, {
     title: TITLES[0],
     acceptance: ["行が出る"],
     iteration: "s1",
+    epic: "e1",
   });
   await runCommand(ticketCreate, ctx, { title: TITLES[1], acceptance: ["行が出る"] });
   await runCommand(ticketCreate, ctx, {
@@ -102,6 +106,23 @@ describe("VS Code の実機の左パネル", () => {
       await access(shot.sidebar);
     }
     console.log(`スクリーンショット: ${SCREENSHOT_DIR}`);
+  });
+
+  it("カンバンの Epic の札に触れるとその Epic の行を光らせ、ほかを薄くするところをライトとダークで撮る", async () => {
+    const chip = sidebar.locator(".epic-chips .epic-chip", { hasText: "e1" });
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      await chip.hover();
+      await sidebar.locator(".ticket-row.epic-hit", { hasText: TITLES[0] }).waitFor();
+      await sidebar.locator(".ticket-row.epic-dim", { hasText: TITLES[2] }).waitFor();
+      const shot = await host.screenshot("epic-highlight", theme);
+      await access(shot.sidebar);
+    }
+    // 札から離れると戻る
+    await sidebar.locator(".head-line.sub").hover();
+    await sidebar.locator(".ticket-row.epic-hit, .ticket-row.epic-dim").first().waitFor({
+      state: "detached",
+    });
   });
 
   it("設定画面に並列の上限（work.parallel）の数の欄が出て、ライトとダークで撮る", async () => {

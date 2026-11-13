@@ -2160,6 +2160,40 @@ describe("画面", () => {
     expect(select("Status").value).toBe("in_progress");
   });
 
+  it("サイドバーのバックログの Epic の札に触れるとその Epic の行を光らせてほかを薄くし、離れると戻る。「なし」は Epic のない行を光らせ、行に触れても絞っていても光らせない", async () => {
+    window.location.hash = "#/backlog";
+    mount(mockClient(), hostOf("sidebar"));
+    await screen.findByText("API");
+    const marks = () =>
+      ["API", "画面"].map((title) => {
+        const row = screen.getByText(title).closest(".ticket-row")!;
+        return row.classList.contains("epic-hit")
+          ? "hit"
+          : row.classList.contains("epic-dim")
+            ? "dim"
+            : "";
+      });
+    const group = screen.getByRole("group", { name: "Epic で絞る" });
+    const [e1, none] = [...group.querySelectorAll<HTMLButtonElement>(".chip")];
+    fireEvent.mouseEnter(screen.getByText("API").closest(".ticket-row")!);
+    expect(marks()).toEqual(["", ""]);
+    fireEvent.mouseEnter(e1!);
+    expect(marks()).toEqual(["hit", "dim"]);
+    fireEvent.mouseLeave(e1!);
+    expect(marks()).toEqual(["", ""]);
+    fireEvent.focus(none!);
+    expect(marks()).toEqual(["dim", "hit"]);
+    fireEvent.blur(none!);
+    expect(marks()).toEqual(["", ""]);
+    // 札を押して絞ると、触れたままでも光らせない。外すとまた光る
+    fireEvent.mouseEnter(e1!);
+    fireEvent.click(e1!);
+    expect(e1!.getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelectorAll(".epic-hit, .epic-dim").length).toBe(0);
+    fireEvent.click(e1!);
+    expect(marks()).toEqual(["hit", "dim"]);
+  });
+
   it("サイドバーのバックログの Epic の札は番号だけを出し、押すと絞り、もう一度押すと外れる。「Epic なし」は「なし」と件数で絞れる", async () => {
     window.location.hash = "#/backlog";
     mount(mockClient(), hostOf("sidebar"));
@@ -2685,6 +2719,54 @@ describe("画面", () => {
     expect(labels()).toEqual(["e1", "なし 2"]);
     fireEvent.click(document.querySelector(".iteration-chip.all")!);
     await waitFor(() => expect(labels()).toEqual(["e1", "e3", "なし 2"]));
+  });
+
+  it("カンバンの Epic の札に触れる・Tab で止まるとその Epic の行を光らせてほかを薄くし、離れると戻る。「なし」は Epic のない行を光らせ、畳んだ節は開かない", async () => {
+    mount(boardClient(), hostOf("sidebar"));
+    await screen.findByText("API");
+    const marks = () =>
+      ["ログイン", "API", "画面"].map((title) => {
+        const row = screen.getByText(title).closest(".ticket-row")!;
+        return row.classList.contains("epic-hit")
+          ? "hit"
+          : row.classList.contains("epic-dim")
+            ? "dim"
+            : "";
+      });
+    const e1 = screen.getByRole("button", { name: "e1 最初の版" });
+    const none = document.querySelector<HTMLElement>(".epic-chips .epic-chip.loose")!;
+    const done = document.querySelector<HTMLDetailsElement>(
+      '.board > details[data-status="done"]',
+    )!;
+    expect(done.open).toBe(false);
+    expect(marks()).toEqual(["", "", ""]);
+    fireEvent.mouseEnter(e1);
+    expect(marks()).toEqual(["dim", "hit", "dim"]);
+    fireEvent.mouseLeave(e1);
+    expect(marks()).toEqual(["", "", ""]);
+    // 「なし」は Epic のない行（畳んだ完了の節の行も）を光らせる。節は開かず、ハッシュも変えない
+    fireEvent.focus(none);
+    expect(marks()).toEqual(["hit", "dim", "hit"]);
+    expect(done.open).toBe(false);
+    expect(window.location.hash).not.toContain("epic");
+    fireEvent.blur(none);
+    expect(marks()).toEqual(["", "", ""]);
+  });
+
+  it("カンバンの行に触れても光らせず、Epic で絞っている間は札に触れても光らせない", async () => {
+    mount(boardClient(), hostOf("sidebar"));
+    await screen.findByText("API");
+    const lit = () => document.querySelectorAll(".epic-hit, .epic-dim").length;
+    fireEvent.mouseEnter(screen.getByText("API").closest(".ticket-row")!);
+    expect(lit()).toBe(0);
+    const e1 = () => screen.getByRole("button", { name: "e1 最初の版" });
+    fireEvent.mouseEnter(e1());
+    fireEvent.click(e1());
+    await waitFor(() => expect(window.location.hash).toBe("#/board?epic=e1"));
+    await waitFor(() => expect(screen.queryByText("画面")).toBeNull());
+    expect(lit()).toBe(0);
+    fireEvent.mouseEnter(document.querySelector<HTMLElement>(".epic-chips .epic-chip.loose")!);
+    expect(lit()).toBe(0);
   });
 
   it("カンバンの Epic の「なし」の札で Epic のないチケットに絞り、もう一度押すと外れる", async () => {
