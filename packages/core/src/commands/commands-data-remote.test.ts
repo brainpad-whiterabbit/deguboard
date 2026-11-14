@@ -1,6 +1,6 @@
 // カンバンのデータを、コードとは別のリポジトリ（git.data_remote）に置く（t904）。コード用（origin）とデータ用の 2 つの bare リモートで試す
 
-import { mkdir, rmdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, rmdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { addDataRemote, git, type Fixture } from "../../test/helpers/git-fixture.js";
@@ -361,6 +361,33 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
       expect(racer.store.tickets.get("t1")?.data.title).toBe("前からの変更");
       expect(racer.store.tickets.get("t1")?.data.priority).not.toBe("high");
       await rerunOnce(f.cloneB, dataDir);
+    });
+
+    it("自分のコミットを捨てる戻しが失敗しても、戻しの失敗ではなく止まった理由（元のエラー）を投げる", async () => {
+      // 作業ツリーの index.lock があると git reset --hard が失敗する。止める直前に置いて、戻しを失敗させる
+      let lock = "";
+      const { racer } = await rejectedThenStopped(async (ctx, hooks) => {
+        lock = path.resolve(
+          ctx.repo.dataDir,
+          (await git(ctx.repo.dataDir, ["rev-parse", "--git-path", "index.lock"])).stdout.trim(),
+        );
+        hooks.beforePush = async () => {
+          await writeFile(lock, "");
+          throw new Error("取り込み直しの後の新しいエラー");
+        };
+      });
+      const failed = await runCommand(ticketUpdate, racer, {
+        ticket: "t1",
+        priority: "high",
+      }).catch((e: unknown) => e);
+      expect(failed).toBeInstanceOf(Error);
+      expect((failed as Error).message).toBe("取り込み直しの後の新しいエラー");
+      // 戻しは失敗したので、積み直した自分のコミットが前からの手元のコミットの上に残っている
+      expect(await aheadOf(racer)).toHaveLength(2);
+      expect(
+        (await git(racer.repo.dataDir, ["show", "-s", "--format=%s", "HEAD~1"])).stdout.trim(),
+      ).toBe("Commit batched changes");
+      await rm(lock);
     });
 
     it("rebase の前に止まったら、変更の前へ戻して自分のコミットだけを捨て、前からの手元のコミットは残す", async () => {
