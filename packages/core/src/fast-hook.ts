@@ -24,7 +24,13 @@ import { hookArgv } from "./commands/hook-argv.js";
 import type { HookRunView } from "./commands/hook-records.js";
 import { runToolRequested } from "./commands/pre-tool-use.js";
 import { runTurnStopped } from "./commands/turn-stopped.js";
-import { isInitialized, resolveRepoPaths, type GitRepo, type RepoPaths } from "./git/repo.js";
+import {
+  dataRemoteRef,
+  isInitialized,
+  resolveRepoPaths,
+  type GitRepo,
+  type RepoPaths,
+} from "./git/repo.js";
 
 /** 速い経路が受け持つイベント */
 const FAST_EVENTS = [DEFAULT_TOOL_EVENT, DEFAULT_STOP_EVENT];
@@ -97,14 +103,19 @@ function withoutRemote(paths: RepoPaths): GitRepo {
     { ...paths },
     {
       dataRemote: unread("repo.dataRemote"),
+      dataBranch: unread("repo.dataBranch"),
       codeRemote: unread("repo.codeRemote"),
       baseBranch: unread("repo.baseBranch"),
     },
   ) as GitRepo;
 }
 
-/** データのリモートを今の経路の storelessContext と同じ resolveConfigDataRemote で決める。要るときだけ config を読むファイルを動的に読む */
+/**
+ * データのリモートの追跡 ref を、今の経路の storelessContext と同じ resolveConfigDataRemote で決める（データのリモートがなければ null）。
+ * 要るときだけ config を読むファイルを動的に読む
+ */
 async function remoteOf(paths: RepoPaths): Promise<string | null> {
   const { resolveConfigDataRemote } = await import("./storage/remote-name.js");
-  return resolveConfigDataRemote(paths);
+  const target = await resolveConfigDataRemote(paths);
+  return target.dataRemote ? dataRemoteRef(target) : null;
 }

@@ -15,7 +15,6 @@
   "core/src/git/rebase.ts",
   "core/src/git/repo.ts",
   "core/src/git/run.ts",
-  "core/src/git/worktree.ts",
   "core/src/errors.ts",
   "core/src/storage/atomic.ts",
   "core/src/storage/exists.ts",

@@ -89,6 +89,24 @@ dg init --data-remote git@github.com:acme/kanban.git
    git push origin --delete deguboard
    ```
 
+カンバンのデータのブランチが `deguboard` でないとき（次の節）は、1 で `git push kanban deguboard:<データのブランチ>` と push し、4 で `<データのブランチ>` を消す。
+
+## 1 つのリポジトリに複数のカンバンを置く
+
+カンバン専用のリポジトリ 1 つに、複数のコードのリポジトリのカンバンを並べられる。リポジトリごとに `git.data_branch` でデータのブランチを分け（`deguboard-<名前>` を勧める）、各クローンは自分のブランチだけを fetch・push する。カンバンはリポジトリごとに分かれ、番号・依存・Iteration・Epic はリポジトリをまたがない。
+
+```sh
+# webapp のリポジトリで
+dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-webapp
+# api のリポジトリで
+dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-api
+```
+
+- 新しいクローンも、同じ `--data-remote` と `--data-branch` で `dg init` する。ブランチ名は config の `git.data_branch` に入るが、config はデータの中にあるので、最初の init には渡す
+- ブランチ名に `/` は使えない。`deguboard/webapp` は拒まれ、`deguboard-webapp` を勧められる
+- 見る権限はリポジトリ単位でしか分けられない。専用のリポジトリを読める人は、そこのどのカンバンも読める。一部の人にだけ見せるカンバンは、別のリポジトリに置く
+- 今あるカンバンのデータのブランチ名を変えるときは、前の節の手順を同じリモートで行う。1 で `git push origin deguboard:<新しい名前>`、2 で `dg config set git.data_branch <新しい名前>` と `dg sync` を実行し、4 で元のブランチを消す。共有のリポジトリへ新しい名前で移すときは、先にブランチ名を変えてから、リポジトリへ移す（1 つずつ移す）。両方を一度に変えると、次のコマンドが新しいリポジトリの元のブランチ名へ push し、そこがほかのカンバンのブランチのこともある
+
 ## 承認待ちの通知
 
 承認待ちの Plan と review のチケットがあると、サイドバーのタイトルに件数が出て（「DEGUBOARD: 承認待ち 3」）、増えたときは通知が出る。通知の「開く」で詳細が開く。Activity Bar のアイコンの数字は別で、未 push のコミットと未取り込みのリモートの更新の合計を示す。

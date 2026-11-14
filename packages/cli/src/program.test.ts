@@ -99,6 +99,43 @@ describe("dg", () => {
     expect(missing.json().error).toMatchObject({ code: "DATA_REMOTE_MISSING" });
   });
 
+  it("init --data-branch は、データをそのブランチに置いて config に書き、/ を含む名前は理由と勧める名前を出して拒む（t905）", async () => {
+    const f = await fixture();
+    const dataDir = path.join(f.root, "data.git");
+    await git(f.root, ["init", "--quiet", "--bare", dataDir]);
+    const rejected = await dg(f.cloneA, [
+      "--json",
+      "init",
+      "--data-remote",
+      dataDir,
+      "--data-branch",
+      "deguboard/webapp",
+    ]);
+    expect(rejected.code).toBe(1);
+    expect(rejected.json().error).toMatchObject({
+      code: "VALIDATION_FAILED",
+      message: expect.stringMatching(/contains "\/".*such as deguboard-webapp/),
+    });
+    const init = await dg(f.cloneA, [
+      "--json",
+      "init",
+      "--data-remote",
+      dataDir,
+      "--data-branch",
+      "deguboard-webapp",
+    ]);
+    expect(init.json()).toMatchObject({
+      ok: true,
+      data: { worktree: "orphan", data_branch: "deguboard-webapp" },
+      write: { pushed: true },
+    });
+    const shown = await dg(f.cloneA, ["--json", "config", "show"]);
+    expect(shown.json().data.git).toMatchObject({ data_branch: "deguboard-webapp" });
+    const heads = (await git(dataDir, ["for-each-ref", "--format=%(refname:short)", "refs/heads"]))
+      .stdout;
+    expect(heads.trim()).toBe("deguboard-webapp");
+  });
+
   it("init → ticket create → claim → show が通り、--json の形が ok / data / warnings / write になる", async () => {
     const f = await fixture();
     const init = await dg(f.cloneA, ["--json", "init", "--template", "software-development"]);

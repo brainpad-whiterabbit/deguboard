@@ -8,7 +8,7 @@ import { runCommand, type CommandContext } from "../commands/define.js";
 import { hook, type HookView } from "../commands/hook.js";
 import { adopt, commit, init, sync } from "../commands/setup.js";
 import { ticketCreate, ticketList, ticketShow, ticketUpdate } from "../commands/ticket.js";
-import { readDataRemoteName } from "../storage/remote-name.js";
+import { readDataTarget } from "../storage/remote-name.js";
 import { Store } from "../storage/store.js";
 import { checkOutside, DG_COMMIT_TRAILER } from "./outside.js";
 import { markRebase, rebaseInProgress } from "./rebase.js";
@@ -267,11 +267,11 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
 
   it("config のリモートの名前は、個人の設定を重ね、スキーマに合わない個人の値は無視する（t770）", async () => {
     const { ctx } = await prepared();
-    expect(await readDataRemoteName(ctx.repo.dataDir, ctx.repo.localDir)).toBe("origin");
+    expect((await readDataTarget(ctx.repo.dataDir, ctx.repo.localDir)).remote).toBe("origin");
     await writeFile(path.join(ctx.repo.localDir, "config.yaml"), "git:\n  remote: [不正]\n");
-    expect(await readDataRemoteName(ctx.repo.dataDir, ctx.repo.localDir)).toBe("origin");
+    expect((await readDataTarget(ctx.repo.dataDir, ctx.repo.localDir)).remote).toBe("origin");
     await writeFile(path.join(ctx.repo.localDir, "config.yaml"), "git:\n  remote: upstream\n");
-    expect(await readDataRemoteName(ctx.repo.dataDir, ctx.repo.localDir)).toBe("upstream");
+    expect((await readDataTarget(ctx.repo.dataDir, ctx.repo.localDir)).remote).toBe("upstream");
   });
 
   it("dg が残した rebase の途中は、読むコマンドは外の変更でなく途中と警告し、書くコマンドは取り消してから書く（t753）", async () => {

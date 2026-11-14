@@ -9,7 +9,7 @@
 import { z } from "zod";
 import { detectableAgentNames } from "../agents/index.js";
 import { GUIDE_TOPICS } from "../guide/topics.js";
-import { slugSchema } from "./common.js";
+import { isSafeBranchName, slugSchema } from "./common.js";
 
 const COMMIT_MODES = ["each", "batch", "manual"] as const;
 export type CommitMode = (typeof COMMIT_MODES)[number];
@@ -36,6 +36,36 @@ export const ACTIONS_TEST_TIMEOUT_MS = 30 * 60_000;
 /** データ（deguboard ブランチ）を fetch・push するリモートの名前。git.data_remote を省けば（空なら）git.remote と同じ */
 export function dataRemoteNameOf(config: { git: { remote: string; data_remote: string } }): string {
   return config.git.data_remote || config.git.remote;
+}
+
+/** データのリモートでのデータのブランチ名の既定（git.data_branch を省いたとき。前からのリポジトリと同じ名前） */
+export const DEFAULT_DATA_BRANCH = "deguboard";
+
+/** config が決めるデータの置き場所：データのリモートの名前とデータのブランチ名 */
+export interface DataTarget {
+  remote: string;
+  branch: string;
+}
+
+export function dataTargetOf(config: {
+  git: { remote: string; data_remote: string; data_branch: string };
+}): DataTarget {
+  return { remote: dataRemoteNameOf(config), branch: config.git.data_branch };
+}
+
+/**
+ * データのブランチ名（git.data_branch・dg init --data-branch）が使えないときの理由と勧める名前。使えれば undefined。
+ * `/` を拒むのは、1 つのデータのリモートに置く各カンバンのブランチが ref の上でぶつからないように：`deguboard/webapp` は
+ * ほかのカンバンの `deguboard` ブランチと同じリモートに並べられない（refs/heads/deguboard がファイルとディレクトリを兼ねられない）
+ */
+export function dataBranchProblem(name: string): string | undefined {
+  if (name.includes("/")) {
+    const suggested = name.split("/").filter(Boolean).join("-") || "deguboard-<name>";
+    return `The data branch name "${name}" contains "/", which clashes in Git's refs with another board's branch in the same data repository (deguboard/webapp and deguboard cannot both exist). Use a name without "/", such as ${suggested} (deguboard-<name> is recommended)`;
+  }
+  if (!isSafeBranchName(name))
+    return `The data branch name "${name}" cannot be used as a Git branch name. Use a name like deguboard-<name> (for example deguboard-webapp)`;
+  return undefined;
 }
 
 /** 設定の 1 項目の文。description は CLI とスキーマ向けの詳しい説明（全文）で、ほかは設定画面が短く出すための文 */
@@ -194,6 +224,21 @@ export const configSchema = z.looseObject({
         example: "deguboard-data",
         empty: "Uses git.remote",
       }),
+      data_branch: described(
+        z
+          .string()
+          .superRefine((name, ctx) => {
+            const problem = dataBranchProblem(name);
+            if (problem) ctx.addIssue({ code: "custom", message: problem });
+          })
+          .default(DEFAULT_DATA_BRANCH),
+        {
+          summary: "Branch of the data remote that holds this repository's kanban",
+          description:
+            "Branch of the data remote that holds this repository's kanban. Only this branch is fetched, integrated, and pushed, so several repositories can keep separate kanbans in one dedicated data repository, each under its own branch (deguboard-<name> is recommended). A name with / is rejected. Everyone who can read the data repository can read every kanban in it. A new clone passes it to dg init --data-branch (the config is inside the data). A change to the team's value is committed and pushed to the current branch right away, so that clones still using it learn of the move. For how to move the data, see dg guide overview",
+          example: "deguboard-webapp",
+        },
+      ),
       base_branch: described(z.string().min(1).default("main"), {
         summary: "Base for work branches and for deciding what is merged",
         description: "Base for work branches and for deciding what is merged",
@@ -522,6 +567,7 @@ const LOCAL_KEYS: ReadonlySet<string> = new Set([
   "default_project",
   "git.remote",
   "git.data_remote",
+  "git.data_branch",
   "worktree.root",
   "commit.mode",
   "push.mode",

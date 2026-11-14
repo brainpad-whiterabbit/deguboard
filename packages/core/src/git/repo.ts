@@ -24,11 +24,21 @@ export interface GitRepo {
    * なければ null（同期なしで動く。SY-6。git.data_remote を設定したのにないときの扱いは missingDataRemote）
    */
   dataRemote: string | null;
+  /**
+   * データのリモートでのデータのブランチ名（config の git.data_branch。省けば deguboard）。fetch・push・外の変更の検出はこのブランチだけを見る。
+   * 手元のデータの worktree のブランチは名前によらず LOCAL_DATA_BRANCH（worktree.ts）で、push は LOCAL_DATA_BRANCH:dataBranch
+   */
+  dataBranch: string;
   baseBranch: string;
 }
 
-/** リモートと base_branch は後から決める（config を読む前に呼ぶため） */
-export type RepoPaths = Omit<GitRepo, "codeRemote" | "dataRemote" | "baseBranch">;
+/** リモート・データのブランチ名・base_branch は後から決める（config を読む前に呼ぶため） */
+export type RepoPaths = Omit<GitRepo, "codeRemote" | "dataRemote" | "dataBranch" | "baseBranch">;
+
+/** データのリモートの追跡 ref（refs/remotes/<データのリモート>/<データのブランチ名>） */
+export function dataRemoteRef(repo: Pick<GitRepo, "dataRemote" | "dataBranch">): string {
+  return `refs/remotes/${repo.dataRemote}/${repo.dataBranch}`;
+}
 
 export async function resolveRepoPaths(cwd: string): Promise<RepoPaths> {
   let topLevel: string;

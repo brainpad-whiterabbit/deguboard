@@ -1,7 +1,7 @@
 // dg の外の変更を見つける（SY-7・SY-8、ADR-026）。データのリポジトリ（.git/deguboard）を dg のコマンドを通さずに書き換えたら、
 // dg が次にコマンドを実行するとき（runCommand）と Stop のフックで見つける。フックの粗い拒否（PreToolUse）の取りこぼしを事後に補う。
 //   - コミット：dg が作るコミットはメッセージの末尾に印（DG_COMMIT_TRAILER）を持つ。基準の HEAD より後で、データのリモート（repo.dataRemote）の
-//     deguboard にまだないコミットのうち、印のないものを dg の外のコミットとする（リモートから取り込んだコミットは、書いた人の dg が確かめている）
+//     データのブランチ（repo.dataBranch）にまだないコミットのうち、印のないものを dg の外のコミットとする（リモートから取り込んだコミットは、書いた人の dg が確かめている）
 //   - 未コミットの変更：commit.mode が batch・manual なら dg 自身も作業ツリーに変更を残す。dg は書き込みのロックを放す前に、
 //     作業ツリーの変更のあるファイルとその中身のハッシュを基準に記録する。今の作業ツリーが基準と違えば、違うファイルを dg の外の変更とする
 //   基準は deguboard-local/outside-baseline.json（マシンごと）。初めて確かめるとき（基準がない）は今の状態を基準にする。
@@ -19,9 +19,8 @@ import { OperationError } from "../errors.js";
 import { writeFileAtomic } from "../storage/atomic.js";
 import { lockHeld } from "./lock.js";
 import { rebaseInProgress, rebaseLeftByDg } from "./rebase.js";
-import type { GitRepo } from "./repo.js";
+import { dataRemoteRef, type GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
-import { DATA_BRANCH } from "./worktree.js";
 
 /** dg が作るコミットのメッセージの末尾の行（git のトレーラーの形）。これのないコミットは dg の外のもの */
 export const DG_COMMIT_TRAILER = "Deguboard-Commit: dg";
@@ -120,12 +119,13 @@ export async function recordBaseline(repo: GitRepo): Promise<void> {
 }
 
 /**
- * データのリモートの名前の読み方。省けば repo.dataRemote。Stop の速い経路（fast-hook.ts）は、名前を読むのに config（yaml・zod）を読むので、
+ * データのリモートの追跡 ref（dataRemoteRef。データのリモートがなければ null）の読み方。省けば repo から。
+ * Stop の速い経路（fast-hook.ts）は、リモートの名前とデータのブランチ名を読むのに config（yaml・zod）を読むので、
  * 要るとき（基準の HEAD から HEAD が動いたとき）だけ読む関数を渡す（t786）
  */
 type RemoteOf = () => Promise<string | null>;
 
-/** 基準の HEAD より後で、データのリモートの deguboard にない、印のないコミット（新しい順） */
+/** 基準の HEAD より後で、データのリモートのデータのブランチにない、印のないコミット（新しい順） */
 async function outsideCommits(
   repo: GitRepo,
   base: string,
@@ -133,8 +133,7 @@ async function outsideCommits(
 ): Promise<OutsideCommit[]> {
   const known = await git(repo, ["cat-file", "-e", `${base}^{commit}`]);
   // 基準のコミットがない（履歴を作り直した）ときは、リモートにないコミットだけを見る。リモートもなければ見ない
-  const remoteName = await remoteOf();
-  const remote = remoteName ? `refs/remotes/${remoteName}/${DATA_BRANCH}` : undefined;
+  const remote = (await remoteOf()) ?? undefined;
   const hasRemote =
     remote !== undefined &&
     (await git(repo, ["show-ref", "--verify", "--quiet", remote])).code === 0;
@@ -204,13 +203,13 @@ async function compare(
  * dg の外の変更を確かめる。基準がなければ clean（initial）。opts.underLock は、呼び出し側が書き込みのロックを持っていること。
  * 持っていなければ、ほかの dg の書き込み（ロックを取ってから基準を記録して放すまで）と重なりうるので、比べる前後で基準とロックを確かめ、
  * 重なったら比べ直す。重なり続けたら、作業ツリーと履歴の書き換えは見ずに、印のないコミットだけを返す（並べて動く dg の書きかけを取り違えない）。
- * opts.remote はリモートの名前の読み方（RemoteOf）
+ * opts.remote はデータのリモートの追跡 ref の読み方（RemoteOf）
  */
 export async function checkOutside(
   repo: GitRepo,
   opts: { underLock?: boolean; remote?: RemoteOf } = {},
 ): Promise<OutsideCheck> {
-  const remoteOf = opts.remote ?? (async () => repo.dataRemote);
+  const remoteOf = opts.remote ?? (async () => (repo.dataRemote ? dataRemoteRef(repo) : null));
   // 生きた dg が書き込みのロックを持つ間の rebase はその dg の取り込みなので、下の比べ方（書きかけを捨てる）に任せる
   if ((await rebaseInProgress(repo)) && (opts.underLock || !(await writeLocked(repo))))
     return { kind: "rebasing", byDg: await rebaseLeftByDg(repo) };

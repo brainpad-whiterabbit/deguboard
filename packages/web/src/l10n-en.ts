@@ -346,6 +346,7 @@ export const EN: Readonly<Record<string, string>> = {
   承認待ちが増えたら通知する: "Notify when approvals are waiting",
   コードのリモート: "Code remote",
   データのリモート: "Data remote",
+  データのブランチ: "Data branch",
   基準のブランチ: "Base branch",
   "worktree の置き場所": "Worktree location",
   "worktree の準備のコマンド": "Setup command for worktrees",
@@ -387,6 +388,7 @@ export const EN: Readonly<Record<string, string>> = {
   "作業ブランチと PR の先が変わる（git.data_remote が空ならデータの同期先も）":
     "changes where work branches and pull requests go (and where the kanban data is synced, when git.data_remote is empty)",
   データの同期先が変わる: "changes where the kanban data is synced",
+  データの同期先のブランチが変わる: "changes the branch the kanban data is synced with",
   マージ済みの判定の基準が変わる: "changes the base for detecting merges",
   作業場所が変わる: "changes where work happens",
   "テストとして確認なしで実行するコマンドが変わる（シェルを許すのと同じ）":

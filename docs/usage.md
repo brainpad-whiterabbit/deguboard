@@ -89,6 +89,24 @@ To move an existing board to another repository, a person does the following in 
    git push origin --delete deguboard
    ```
 
+If the board's data branch is not `deguboard` (see the next section), push with `git push kanban deguboard:<data branch>` in step 1 and delete `<data branch>` in step 4.
+
+## Keep several kanbans in one repository
+
+One dedicated data repository can hold the kanbans of several code repositories. Give each repository its own data branch (`deguboard-<name>` is recommended) in `git.data_branch`; each clone fetches and pushes only its own branch. Each kanban stays separate: numbers, dependencies, Iterations, and Epics do not cross repositories.
+
+```sh
+# in the webapp repository
+dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-webapp
+# in the api repository
+dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-api
+```
+
+- A new clone runs `dg init` with the same `--data-remote` and `--data-branch`. The branch name is in the config's `git.data_branch`, but the config is inside the data, so the first init needs it.
+- A branch name cannot contain `/`: `deguboard/webapp` is rejected, and `deguboard-webapp` is suggested.
+- Read access can only be split by repository. Everyone who can read the dedicated repository can read every kanban in it. Keep a kanban that only some people may see in a repository of its own.
+- To rename the data branch of an existing board, follow the steps of the previous section on the same remote: in step 1 run `git push origin deguboard:<new name>`, in step 2 run `dg config set git.data_branch <new name>` and `dg sync`, and in step 4 delete the old branch. To move a board into a shared repository under a new name, rename the branch first and then move it to the repository, one move at a time. Changing both at once makes the next command push to the old branch name in the new repository, which may be another board's branch.
+
 ## Notifications
 
 When there are Plans awaiting approval or tickets in review, the count appears in the sidebar title (for example, "DEGUBOARD: Awaiting Approval/Review 3"), and a notification appears when the count goes up. Press "Open" in the notification to open the details. The number on the Activity Bar icon is separate: it is the total of unpushed commits and remote updates that have not been pulled.

@@ -480,6 +480,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           ? {
               remote: input["remote"] as string | undefined,
               dataRemote: input["data_remote"] as string | undefined,
+              dataBranch: input["data_branch"] as string | undefined,
             }
           : undefined;
 

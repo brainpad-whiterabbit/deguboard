@@ -12,6 +12,7 @@ import {
 } from "../git/repo.js";
 import { ensureDeguboardWorktree, type WorktreeOrigin } from "../git/worktree.js";
 import { actorIdOf } from "../model/actor.js";
+import { dataBranchProblem, DEFAULT_DATA_BRANCH } from "../model/config.js";
 import { STORE_CACHE_DIR } from "../storage/paths.js";
 import { resolveConfigDataRemote } from "../storage/remote-name.js";
 import { Store } from "../storage/store.js";
@@ -25,9 +26,16 @@ export interface ContextOptions {
   hooks?: CommandContext["hooks"];
   /**
    * init のとき：worktree がなければ作る。リモート名は config（データの中にある）より先に要るので受け取る。
-   * remote はコードのリモートの名前、dataRemote はデータのリモートの名前か URL（省けば remote と同じ。URL なら ensureDataRemote がリモートを足す）
+   * remote はコードのリモートの名前、dataRemote はデータのリモートの名前か URL（省けば remote と同じ。URL なら ensureDataRemote がリモートを足す）、
+   * dataBranch はデータのリモートでのデータのブランチ名（省けば config の git.data_branch。初めての init では既定の deguboard）
    */
-  initialize?: { remote?: string | undefined; dataRemote?: string | undefined } | undefined;
+  initialize?:
+    | {
+        remote?: string | undefined;
+        dataRemote?: string | undefined;
+        dataBranch?: string | undefined;
+      }
+    | undefined;
   /** マージドライバとして登録する、dg を呼ぶ argv の前置。入口（CLI）が自分の呼び方を渡す */
   mergeDriver?: readonly string[] | undefined;
   /** 環境変数。今は入口（CLI・server・vscode・MCP）は渡さず process.env を使う。テストが HOME などを差し替えるためにある */
@@ -61,7 +69,8 @@ export async function openContextFor(
  * ストアを開かない文脈（CommandContext の storeless）。git で場所だけを解決し、チケット・Plan・Epic・Iteration・config の
  * ファイルを読まない。初期化の有無は openContext と同じく確かめ（データのリポジトリの .git の有無だけを見る）、初期化していなければ
  * NOT_INITIALIZED（deguboard を使っていないリポジトリでフックが何かを拒まないように）。読めない項目は読んだときに例外を投げる（使う側の誤りを隠さない）。
- * withRemote のときは config のデータのリモートの名前だけを読み、repo.dataRemote を解決する（t770。残りの config と repo.codeRemote は読めない）
+ * withRemote のときは config のデータのリモートの名前とデータのブランチ名だけを読み、repo.dataRemote・repo.dataBranch を解決する
+ * （t770。残りの config と repo.codeRemote は読めない）
  */
 async function storelessContext(
   opts: ContextOptions,
@@ -75,16 +84,16 @@ async function storelessContext(
       throw new Error(`${name} was read in a context without an open store (storeless)`);
     },
   });
-  const dataRemote = withRemote
-    ? {
-        value: await resolveConfigDataRemote(paths),
-        enumerable: true,
-      }
-    : unread("repo.dataRemote");
+  const target = withRemote ? await resolveConfigDataRemote(paths) : undefined;
   const repo = Object.defineProperties(
     { ...paths },
     {
-      dataRemote,
+      dataRemote: target
+        ? { value: target.dataRemote, enumerable: true }
+        : unread("repo.dataRemote"),
+      dataBranch: target
+        ? { value: target.dataBranch, enumerable: true }
+        : unread("repo.dataBranch"),
       codeRemote: unread("repo.codeRemote"),
       baseBranch: unread("repo.baseBranch"),
     },
@@ -107,6 +116,10 @@ async function storelessContext(
 export async function openContext(opts: ContextOptions): Promise<CommandContext> {
   const paths = await resolveRepoPaths(opts.cwd);
   let worktree: WorktreeOrigin | undefined;
+  const initDataBranch = opts.initialize?.dataBranch;
+  const branchProblem =
+    initDataBranch === undefined ? undefined : dataBranchProblem(initDataBranch);
+  if (branchProblem) throw new OperationError("VALIDATION_FAILED", branchProblem);
   // init が受けたデータのリモート（名前か URL）。URL ならリモートを足し、ない名前ならエラー（黙って同期なしにしない）
   const initDataRemote = opts.initialize?.dataRemote
     ? await ensureDataRemote(paths, opts.initialize.dataRemote)
@@ -117,7 +130,7 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     }
     const remote =
       initDataRemote ?? (await resolveRemote(paths, opts.initialize.remote ?? "origin"));
-    worktree = await ensureDeguboardWorktree(paths, remote);
+    worktree = await ensureDeguboardWorktree(paths, remote, initDataBranch ?? DEFAULT_DATA_BRANCH);
   }
   // 個人の設定（deguboard-local/config.yaml）もここで重ねるので、CLI・HTTP・VS Code 拡張は同じ値を読む。
   // 読みの結果は deguboard-local/store-cache/ に残し、次の呼び出し（CLI は毎回別のプロセス）は変わったファイルだけを読む
@@ -134,6 +147,8 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     ...paths,
     codeRemote,
     dataRemote: dataName === codeName ? codeRemote : await resolveRemote(paths, dataName),
+    // データのブランチ名も、init が受けた値 > config の git.data_branch（省けば deguboard）の順に決める
+    dataBranch: initDataBranch ?? store.config.git.data_branch,
     baseBranch: store.config.git.base_branch,
   };
   const kind = opts.actor?.kind ?? "human";

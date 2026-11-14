@@ -77,6 +77,7 @@ describe("スキーマ", () => {
       "default_project",
       "git.remote",
       "git.data_remote",
+      "git.data_branch",
       "worktree.root",
       "commit.mode",
       "push.mode",
@@ -314,6 +315,7 @@ describe("スキーマ", () => {
       "default_project",
       "git.remote",
       "git.data_remote",
+      "git.data_branch",
       "git.base_branch",
       "worktree.root",
       "worktree.setup",
@@ -477,6 +479,7 @@ describe("スキーマ", () => {
     expect(fields.filter((f) => f.clears_to_default).map((f) => f.key)).toEqual([
       "default_project",
       "git.remote",
+      "git.data_branch",
       "git.base_branch",
       "worktree.root",
       "priority.high",

@@ -46,5 +46,19 @@ export const slugSchema = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]*$/, "A slug of lowercase letters, digits and hyphens");
 
+/**
+ * `git check-ref-format --branch` 相当の検査。先頭の `-` を拒み、git にオプションとして読まれないようにする
+ * （`--upload-pack=<コマンド>` のような注入で actions.shell を回り込ませない。AG-7）。
+ * config のスキーマ（git.data_branch）も使うので、git の層でなくモデルに置く
+ */
+export function isSafeBranchName(name: string): boolean {
+  if (name === "" || name === "@" || name.startsWith("-")) return false;
+  // 制御文字・空白・~ ^ : ? * [ \ と、`..`・`@{`・`//` を含むもの
+  // oxlint-disable-next-line no-control-regex
+  if (/[\x00-\x20\x7f~^:?*[\\]|\.\.|@\{|\/\//.test(name)) return false;
+  if (name.startsWith("/") || name.endsWith("/") || name.endsWith(".")) return false;
+  return name.split("/").every((part) => !part.startsWith(".") && !part.endsWith(".lock"));
+}
+
 // 依存のない time.ts に置き、PreToolUse の速い経路（zod を読まない）からも使う
 export { toIsoDateTime } from "./time.js";

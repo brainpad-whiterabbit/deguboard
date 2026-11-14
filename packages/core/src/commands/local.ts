@@ -1,6 +1,6 @@
 // プロセス内の CommandClient。入口（server・vscode）はこれを HTTP や postMessage に写すだけで、文脈の管理を持たない（ADR-033）。
 //   - 文脈は最初の呼び出しで開き、以後は他のプロセス（CLI）の変更を取り込むために再走査する（Store.rescan は変わったファイルだけを読み直す）。
-//     config のリモートの名前（git.remote・git.data_remote）が変わったときだけ、文脈を開き直す。
+//     config のリモートの名前とデータのブランチ名（git.remote・git.data_remote・git.data_branch）が変わったときだけ、文脈を開き直す。
 //     読み（書かないコマンドと status）は、届いた後に始まった再走査が成功して終わっていればその結果を使い回す。同じ瞬間に届いた読みは 1 回の走査に乗る。
 //     なぜ届いた後の走査だけか: 届く前に始まった走査は、要求の前に終わった変更を読み漏らしているかもしれない。「他のプロセスの変更は、
 //     要求が届く前に終わったものなら見える」という約束を保つために、それより前の走査は使わない。書き込みは毎回自分で再走査し、
@@ -58,7 +58,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
     ...(options.user ? { user: options.user, userSource: options.userSource ?? "flag" } : {}),
   };
   let ctxPromise: Promise<CommandContext> | undefined;
-  // 文脈を開いたときの config のリモートの名前（remoteNamesOf）。変わったら context が開き直す
+  // 文脈を開いたときの config のリモートの名前とデータのブランチ名（remoteNamesOf）。変わったら context が開き直す
   let openedRemotes: string | undefined;
   let queue: Promise<unknown> = Promise.resolve();
   // 経過の解析結果は deguboard ブランチの HEAD が同じあいだ使い回す（画面は詳細を開くたびに history を呼ぶ）
@@ -93,7 +93,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
           await ctx.store.rescan();
           scanned = id;
         }
-        // リモート（repo.codeRemote・repo.dataRemote）は文脈を開いたときの config で決める。その後に config のリモートの名前が
+        // リモート（repo.codeRemote・repo.dataRemote・repo.dataBranch）は文脈を開いたときの config で決める。その後に config のリモートの名前かデータのブランチ名が
         // 変わっていたら（このプロセスの config set・unset（--local を含む）、ほかのプロセスの書き込み、取り込み）、開き直して
         // 新しいリモートを使う。開き直さないと、設定を変えた後の書き込みと sync が元のリモートへ送り続ける
         if (remoteNamesOf(ctx.store.config) === openedRemotes) {
@@ -192,9 +192,9 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
   }
 }
 
-/** config が決めるコードのリモートとデータのリモートの名前（比べるための 1 つの文字列。改行はリモートの名前に入らない） */
+/** config が決めるコードのリモートとデータのリモートの名前とデータのブランチ名（比べるための 1 つの文字列。改行はリモートとブランチの名前に入らない） */
 function remoteNamesOf(config: Config): string {
-  return `${config.git.remote}\n${dataRemoteNameOf(config)}`;
+  return `${config.git.remote}\n${dataRemoteNameOf(config)}\n${config.git.data_branch}`;
 }
 
 /** 入口が失敗を data として返すための形（CLI の --json のエラーと同じ） */

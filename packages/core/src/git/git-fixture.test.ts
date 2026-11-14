@@ -131,7 +131,7 @@ describe("createFixtureFrom（setup を済ませた雛形から写す）", () =>
     await openRepo(fresh.cloneA);
     expect(await worktreeShape(copy)).toEqual(await worktreeShape(fresh));
     const paths = await resolveRepoPaths(copy.cloneA);
-    expect(await ensureDeguboardWorktree(paths, "origin")).toBe("existing");
+    expect(await ensureDeguboardWorktree(paths, "origin", "deguboard")).toBe("existing");
     expect((await git(paths.dataDir, ["rev-parse", "--abbrev-ref", "HEAD"])).stdout.trim()).toBe(
       "deguboard",
     );
