@@ -23,6 +23,7 @@ Skill は Claude Code 向けです。普通の言葉で頼むか、コマンド�
 | `dgchange`  | 人が頼んだ変更を一つ行う（直す・閉じる・再開・やめる・取り消す）     | 「s3 を閉じて」                   | `/dgchange s3`     |
 | `dgdiscuss` | チケット・Epic・Iteration の論点を、人と相談して決める               | 「t12 を検討して」                | `/dgdiscuss t12`   |
 | `dgstatus`  | 進行中のチケットの作業がどこまで進み、止まっていれば理由を教える     | 「t12 はどこまで進んだ？」        | `/dgstatus t12`    |
+| `dgexplain` | チケット・Epic・Iteration の中身を、図を入れて人に説明する           | 「t12 を説明して」                | `/dgexplain t12`   |
 
 ## 最後まで任せる
 

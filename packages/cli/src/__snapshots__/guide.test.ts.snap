@@ -487,6 +487,74 @@ After cleaning up, report the result and ask with the following choices.
 - **Stop here**"
 `;
 
+exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > explain 1`] = `
+"# Explain (explain)
+
+Explains to a human what a ticket, an Epic, or an Iteration is about: what it is for and what changes. The answer is written for a person who has not read the ticket or the code, with one or two diagrams drawn as text inside the reply. This guide only reads. It changes no data and no files: no \`dg\` write, no file (a diagram is not saved to a file or a page either), no branch, no commit, and no PR.
+
+How the work on an in_progress ticket is going (the stage, why it stopped) is \`dg guide status\`. Settling open points and then changing the ticket is \`dg guide discuss\`.
+
+## Deciding the target
+
+- The IDs after the Skill call (\`/dgexplain t12\`) are the targets: tickets in any status (\`t12\`), an Epic (\`e3\`), or an Iteration (\`s3\`), open or closed. A Plan (\`p3\`) is not a target: show its tickets and order with \`plan show\`, offer to explain those tickets, and stop
+- No target given: ask which ticket, Epic, or Iteration, with the choices below
+
+## Asking with choices
+
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
+
+- When the agent can offer choices, ask with that mechanism (for example, the AskUserQuestion tool in Claude Code). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
+
+## Reading
+
+Read with \`dg --json --actor agent\` (none of these writes), and read only what the explanation needs:
+
+- **The ticket**: \`ticket show <t12>\` gives the body (summary, acceptance criteria, references), \`status\`, \`depends_on\`, \`dependents\`, \`epic\`, \`iteration\`, \`plan\`, and \`pr\`. Read the title and status of the dependencies and of the Epic (\`epic show <e3>\`) to place the ticket among them
+- **The code and ADRs it involves**: the files, requirement IDs, and ADRs that the ticket's references and body name, and the code around them, as far as needed to say what is there today and what the ticket changes. Do not read the whole repository
+- **An Epic or an Iteration**: \`epic show <e3>\` or \`iteration show <s3>\` gives the body or goal, the progress, and the tickets in it with their status. Read each ticket's title and status; open a ticket's body only when its title does not say what it does
+- **The PR**: when \`pr\` is set and the ticket is in review or done, \`gh pr view <number> --json title,body,state,files\`, and the diff (\`gh pr diff <number>\`) where the body does not say what changed. If \`gh\` is not available, say that the PR could not be read
+
+## Answering
+
+Answer in the language the human used, in this order. Say things the way you would to a colleague from another team: short sentences, no ID or internal name without saying what it is.
+
+1. **A one-sentence summary**: what this is for and what changes, in one sentence
+2. **One or two text diagrams**: drawn with characters inside the reply. Choose the kinds that show the most for this target:
+   - **Position**: where the target sits, with its Epic, the tickets it depends on, and the tickets that wait for it
+   - **Before → after**: what a user sees or does today, and what they see or do once this is done
+   - **Path**: the packages and files the change touches, in the order the data flows through them
+3. **A concrete example**: one case with real values (a command and its output, a screen and a click, a piece of data before and after)
+4. **The terms reworded**: the project's words and abbreviations that the answer cannot avoid, each with a short plain rewording
+5. **The acceptance criteria as a plain checklist**: each criterion restated in plain words as something a person can check, in the ticket's order, with the mark it has now (checked or not). Do not add, drop, or merge criteria
+
+Add the following by the ticket's status:
+
+- **done**: what the PR changed (the files and the behavior, from the PR), after the summary
+- **abandoned**: why it was abandoned, from the reason written in the body. If the body gives no reason, say that none is written
+- **review**: how the PR meets each acceptance criterion. Put it in the checklist, one line per criterion, and say which criteria the PR does not show as met
+
+Several targets and containers:
+
+- **Several tickets**: explain them one at a time (steps 1 to 5 each, kept short), then put how they relate (dependencies, the same Epic) into one position diagram for all of them
+- **An Epic or an Iteration**: the one-sentence summary is its purpose or goal. The position diagram shows the tickets in it and how far each has got (their status, and the dependencies among them). The example and the rewording cover the whole. In place of the checklist, list the tickets with one plain line each on what it does
+
+Where the ticket does not say something (no acceptance criteria, an empty summary), say that it is not written. Do not fill it in with a guess, and do not rewrite the ticket.
+
+## Steps
+
+1. **Read the target**: \`ticket show\`, \`epic show\`, or \`iteration show\`, as in "Reading"
+2. **Read around it**: the dependencies and the Epic, the code and ADRs the ticket names, and the PR when there is one
+3. **Answer**: the five parts in order, with the additions for the status and for several targets, as in "Answering"
+
+## Choosing the next step
+
+This guide asks no choices of its own. It ends with the explanation. If the human then wants to change what the ticket says, name \`dg guide discuss\` (if a Skill is available, \`/dgdiscuss <t12>\`) in one line, and do not start it here. Without a Skill, read \`dg guide discuss\` and continue with that step when the human asks."
+`;
+
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > import 1`] = `
 "# Filing (import)
 
@@ -678,6 +746,7 @@ By default, agents can run every operation. Limits are added in the settings.
 | change   | dgchange  | Carries out one change a human asked for (edit, close, reopen, abandon, undo done): checks the preconditions, writes with one \`dg\` call per target, and hands the command to a human when refused | When asked to edit, close, reopen, abandon, or undo done |
 | discuss  | dgdiscuss | Settles the open points of tickets, an Epic, or an Iteration with a human through choices without changing data, then reflects the result after approval of before → after (writing by import or change) | When asked to discuss what a ticket, Epic, or Iteration should be |
 | status   | dgstatus  | Tells where an in-progress ticket is, why it has stopped, and the next step, from the ticket, \`next\`, Runs, and the PR, without changing data (recommends resuming, does not resume) | When asked how the work on a ticket is going |
+| explain  | dgexplain | Explains to a human what tickets, an Epic, or an Iteration are about (a one-sentence summary, text diagrams in the reply, an example, the terms reworded, the acceptance criteria as a plain checklist), from the ticket and the code and ADRs it involves, without changing data or files | When asked what a ticket, Epic, or Iteration is about |
 | retro    | dgretro   | Looks back on a closed Iteration: a summary of the numbers, metric proposals for the team's perspectives (\`retro.perspectives\`) that have no approved definition, the defined metrics with their trend, Keep / Problem / Try with a basis, and filing the approved Try with the label \`retro-<S>\` | When asked to look back on a closed Iteration |
 | all      | dgall     | Advances assign → check → plan → work → audit → release, taking the stage from the state (can resume with the same arguments)                  | When asked to "carry s3 through to the end"                        |
 

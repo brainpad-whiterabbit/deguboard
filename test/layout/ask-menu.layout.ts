@@ -207,8 +207,8 @@ describe("吹き出しの一覧（UI-15）", () => {
       await expect.poll(() => chips.count()).toBeGreaterThan(1);
       const count = await chips.count();
       // 折り返すのは札が 1 行に入らないときだけなので、折り返したことは札が確実に入らない 200px で確かめる。
-      // 300px で 1 行に収まるかは札の顔ぶれと名前で決まり、in_progress の t2 の札（再開する・様子を聞く・変える・検討する・自由に）は
-      // s25 の頼むことの変更（t670〜t679）の後は 300px の 1 行に収まる。収まるときに折り返さないのは正しい画面なので、300px では幅に収まることだけを見る
+      // 300px で 1 行に収まるかは札の顔ぶれと名前で決まる（in_progress の t2 の札は、再開する・様子を聞く・変える・検討する・説明する・自由に）。
+      // 収まるときに折り返さないのは正しい画面なので、300px では幅に収まることだけを見る
       if (width === NARROW_WIDTH) {
         const rows = new Set(
           await chips.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().y))),

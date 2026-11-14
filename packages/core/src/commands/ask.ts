@@ -46,6 +46,7 @@ export const ASK_ACTIONS = [
   "abandon",
   "undo_done",
   "status",
+  "explain",
   "retro",
   "free",
 ] as const;
@@ -189,6 +190,10 @@ export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage,
   dgstatus: {
     ja: "進んでいるチケットの様子を、今の段階・止まった理由・次の一手で、データを書き換えずに教えます。",
     en: "Tells where an in-progress ticket is, why it has stopped, and the next step, without changing any data.",
+  },
+  dgexplain: {
+    ja: "チケット・Epic・Iteration の中身を、要約・文字の図・具体例・用語の言い換えで、データもファイルも書き換えずに説明します。",
+    en: "Explains what tickets, an Epic, or an Iteration are about with a summary, text diagrams, an example, and plain words, without changing any data or files.",
   },
   dgretro: {
     ja: "閉じた Iteration を数字の要約とチームの観点の指標から振り返り、根拠つきの Keep / Problem / Try を示して、承認を得た改善を起票します。",
@@ -917,6 +922,23 @@ const ACTIONS: Record<AskAction, ActionDef> = {
             `Tell me how the work on ${idList(s, lang)} is going (do not change any data).`,
           ),
   },
+  // 読むだけで、中身を人に説明する。/dgexplain <ID> の呼び出しで頼むことが決まるので、頼みごとの 1 行は付けない
+  explain: {
+    skill: "dgexplain",
+    label: () => "Explain",
+    text: (s, _w, lang) =>
+      s.length === 0
+        ? say(
+            lang,
+            "指示の対象の中身を、文字の図を入れて平たく説明してください（データもファイルも書き換えない）。",
+            "Explain the instructed targets to me in plain words with text diagrams (do not change any data or files).",
+          )
+        : say(
+            lang,
+            `${idList(s, lang)} の中身を、文字の図を入れて平たく説明してください（データもファイルも書き換えない）。`,
+            `Explain ${idList(s, lang)} to me in plain words with text diagrams (do not change any data or files).`,
+          ),
+  },
   retro: {
     skill: "dgretro",
     label: () => "Retrospect",
@@ -1179,6 +1201,12 @@ const MEANING: Record<
       `${idList(s, lang)} の作業の様子を教えます（データは書き換えません）。`,
       `Tell how the work on ${idList(s, lang)} is going (no data changes).`,
     ),
+  explain: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} の中身を、文字の図を入れて平たく説明します（データもファイルも書き換えません）。`,
+      `Explain ${idList(s, lang)} in plain words with text diagrams (no data or file changes).`,
+    ),
   retro: (s, _w, lang) =>
     say(
       lang,
@@ -1236,6 +1264,8 @@ export function askHumanChecks(action: AskAction, s: Subjects, within?: string):
  * within（対象のチケットが入っている Iteration・Epic）を渡し、チケットがどれもそこに入っていて終わっていなければ、外すを変える（change）の後（変えるがなければ自由にの前）に足す。
  * 検討する（discuss）は、終わっていないチケット（複数可）と開いている 1 つの Iteration・Epic に、変える（外すがあればその後）の次（変えるがなければ自由にの前）に足す。
  * 答えの決まった変えると、これから決める検討するを隣に並べるため。どの並びも変えるから始まらないので、おすすめ（先頭）にはならない
+ * 説明する（explain）は読むだけなので、チケット（どの Status でも、複数可）と 1 つの Iteration・Epic（閉じたものも）に、自由にの直前に足す。
+ * どの並びも自由にで終わり、自由にだけの並びはないので、おすすめ（先頭）にはならない。Plan と種類の混ざった対象には出さない
  * place は頼む場所（ASK_PLACES）。場所によって候補が変わるものだけに使う（振り返るは historyRow の閉じた Iteration だけ）
  */
 function askActions(s: Subjects, within?: string, place?: AskPlace): AskAction[] {
@@ -1246,6 +1276,7 @@ function askActions(s: Subjects, within?: string, place?: AskPlace): AskAction[]
   const container = single(s, "iteration") ?? single(s, "epic");
   if (open || (container && container.status !== "closed"))
     actions = afterChange(actions, "discuss");
+  if (tickets || container) actions = [...actions.slice(0, -1), "explain", ...actions.slice(-1)];
   return actions;
 }
 
@@ -1268,6 +1299,7 @@ function baseActions(s: Subjects, place?: AskPlace): AskAction[] {
       "plan",
       "work",
       "status",
+      "explain",
       "all",
       "done",
       "release",
@@ -1389,6 +1421,10 @@ const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
   status: {
     ja: "進んでいるチケットの作業の様子を教えます（データは書き換えません）。",
     en: "Tell how the work on an in-progress ticket is going (no data changes).",
+  },
+  explain: {
+    ja: "チケット・Epic・Iteration の中身を、文字の図を入れて平たく説明します（データもファイルも書き換えません）。",
+    en: "Explain what a ticket, Epic, or Iteration is about in plain words with text diagrams (no data or file changes).",
   },
 };
 
@@ -1633,7 +1669,7 @@ export const ask = defineCommand({
       .array(z.string().min(1))
       .default([])
       .describe(
-        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target: the candidates are the actions that start without a target (creating a ticket, Iteration, or Epic, assigning, checking, planning, working, reading the status of work, running everything, marking done, releasing, changing, discussing, closing, reopening, abandoning, or a free instruction), and the Skill or the agent asks for the target",
+        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target: the candidates are the actions that start without a target (creating a ticket, Iteration, or Epic, assigning, checking, planning, working, reading the status of work, explaining a target, running everything, marking done, releasing, changing, discussing, closing, reopening, abandoning, or a free instruction), and the Skill or the agent asks for the target",
       ),
     action: z
       .enum(ASK_ACTIONS)

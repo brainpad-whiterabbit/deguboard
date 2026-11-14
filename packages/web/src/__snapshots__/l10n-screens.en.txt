@@ -804,6 +804,14 @@ Modified
 [placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
+[title] Document inserted into explain
+Explain
+guide.notes.explain
+[title] Default: 
+Modified
+[placeholder] e.g. docs/notes.md
+[title] Reset to default 
+Reset to Default
 [title] Document inserted into retro
 Retro
 guide.notes.retro
@@ -1348,6 +1356,8 @@ Discuss
 Close
 [title] /dgcheck: Checks tickets, Epics, Iterations, and Plans, then fixes them after showing the proposed changes and getting approval.
 Check
+[title] /dgexplain: Explains what tickets, an Epic, or an Iteration are about with a summary, text diagrams, an example, and plain words, without changing any data or files.
+Explain
 [title] No Skill
 Free-form
 ---
@@ -1504,6 +1514,8 @@ Discuss
 Close
 [title] /dgcheck: Checks tickets, Epics, Iterations, and Plans, then fixes them after showing the proposed changes and getting approval.
 Check
+[title] /dgexplain: Explains what tickets, an Epic, or an Iteration are about with a summary, text diagrams, an example, and plain words, without changing any data or files.
+Explain
 [title] No Skill
 Free-form
 [title] Close (Esc)

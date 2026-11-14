@@ -94,6 +94,7 @@ const ENGLISH_TOPICS = new Set([
   "change",
   "discuss",
   "status",
+  "explain",
   "retro",
   "all",
 ]);
@@ -916,6 +917,57 @@ describe("dg guide", () => {
     expect(next).toContain("asks no choices of its own");
     for (const word of ["Asking with choices", "AskUserQuestion", "ask which"])
       expect(next).not.toContain(word);
+  });
+
+  it("explain は読むだけで書き換えず、答えを要約・文字の図・具体例・用語の言い換え・受け入れ条件のチェックリストの順に示し、Status と対象の数と種類に合わせて添える", async () => {
+    const guide = await readGuide("explain");
+    // dg の書き込み・ファイル・ブランチ・コミットをしない。書く dg の呼び方は持たない
+    const intro = guide.split("\n## ")[0]!;
+    for (const word of ["no `dg` write", "no file", "no branch", "no commit"])
+      expect(intro, word).toContain(word);
+    for (const word of ["ticket update", "ticket move", "ticket check", "ticket create"])
+      expect(guide, word).not.toContain(word);
+    // 読む範囲はチケットと、関わるコードと ADR
+    const reading = section(guide, "## Reading");
+    for (const word of [
+      "ticket show",
+      "epic show",
+      "iteration show",
+      "code and ADRs",
+      "gh pr view",
+    ])
+      expect(reading, word).toContain(word);
+    // 答え方の順と、図の種類（位置・前後・通り道）
+    const answering = section(guide, "## Answering");
+    const parts = [
+      "1. **A one-sentence summary**",
+      "2. **One or two text diagrams**",
+      "3. **A concrete example**",
+      "4. **The terms reworded**",
+      "5. **The acceptance criteria as a plain checklist**",
+    ];
+    for (const part of parts) expect(answering, part).toContain(part);
+    expect(parts.map((p) => answering.indexOf(p))).toEqual(
+      parts.map((p) => answering.indexOf(p)).sort((a, b) => a - b),
+    );
+    for (const kind of ["**Position**", "**Before → after**", "**Path**"])
+      expect(step(answering, 2), kind).toContain(kind);
+    // Status ごとに添えるもの
+    expect(bullet(answering, "done")).toContain("what the PR changed");
+    expect(bullet(answering, "abandoned")).toContain("why it was abandoned");
+    expect(bullet(answering, "review")).toContain("how the PR meets each acceptance criterion");
+    // 複数のチケットは 1 件ずつ説明して関係を 1 枚の位置の図に、Epic・Iteration は中のチケットと進みを位置の図に
+    const several = bullet(answering, "Several tickets");
+    for (const word of ["one at a time", "dependencies, the same Epic", "one position diagram"])
+      expect(several, word).toContain(word);
+    const container = bullet(answering, "An Epic or an Iteration");
+    for (const word of ["position diagram", "the tickets in it", "how far each has got"])
+      expect(container, word).toContain(word);
+    // 対象は選択肢で聞き、Plan は対象にしない。次の手順は選択肢で聞かない
+    const target = section(guide, "## Deciding the target");
+    expect(target).toContain("No target given: ask which ticket, Epic, or Iteration");
+    expect(target).toContain("A Plan (`p3`) is not a target");
+    expect(section(guide, "## Choosing the next step")).toContain("asks no choices of its own");
   });
 
   it("change は操作ごとの前提を確かめ、当たるときだけ前後を示して承認を得て、dg を 1 回呼び、拒否されたら人にコマンドを渡す", async () => {

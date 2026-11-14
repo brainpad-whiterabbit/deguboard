@@ -730,7 +730,7 @@ describe("頼むことの候補", () => {
     expect(en).toContain("file only the improvements I approve as tickets");
   });
 
-  it("対象なしの候補は、Skill を持つ頼むことを流れの順にすべて出し、先頭は起票（discuss は change の直後、status は work の直後）", () => {
+  it("対象なしの候補は、Skill を持つ頼むことを流れの順にすべて出し、先頭は起票（discuss は change の直後、status は work の直後、explain は status の直後）", () => {
     expect(askActions([])).toEqual([
       "create",
       "create_iteration",
@@ -740,6 +740,7 @@ describe("頼むことの候補", () => {
       "plan",
       "work",
       "status",
+      "explain",
       "all",
       "done",
       "release",
@@ -873,6 +874,7 @@ describe("頼むことの候補", () => {
       "split",
       "check",
       "abandon",
+      "explain",
       "free",
     ]);
     // in_progress で実行中でも、変えるの後（検討するは外すの後）
@@ -881,6 +883,7 @@ describe("頼むことの候補", () => {
       "change",
       "remove",
       "discuss",
+      "explain",
       "free",
     ]);
     expect(askActions([ticket({ epic: "e9" })], "e9")).toContain("remove");
@@ -925,13 +928,13 @@ describe("頼むことの候補", () => {
     next([iteration("active")], "change");
     next([iteration("planned")], "change");
     next([epic("open")], "change");
-    // 変えるのない並び（複数の todo・Status の混ざったチケット）でも出て、自由にの前に置く
+    // 変えるのない並び（複数の todo・Status の混ざったチケット）でも出て、説明すると自由にの前に置く
     for (const s of [
       [ticket(), ticket({ id: "t266" })],
       [ticket(), ticket({ id: "t266", status: "review" })],
     ]) {
       const actions = askActions(s);
-      expect(actions.indexOf("discuss")).toBe(actions.indexOf("free") - 1);
+      expect(actions.slice(-3)).toEqual(["discuss", "explain", "free"]);
       expect(actions[0]).not.toBe("discuss");
     }
     // どの対象でも先頭（おすすめ）にならない
@@ -971,6 +974,101 @@ describe("頼むことの候補", () => {
     expect(text.split("\n")[0]).toContain("t265");
     expect(text).toContain("議論の間はファイルとデータを変えない");
     expect(text).toContain(askGuideLine("/dgdiscuss"));
+  });
+
+  it("説明するは、どの Status のチケット（複数可）と開いた・閉じた Iteration・Epic に、自由にの直前に出て、おすすめにならない。Plan と種類の混ざった対象には出ない", () => {
+    const shown: AskSubject[][] = [
+      [ticket()],
+      [ticket({ iteration: null, iteration_status: null })],
+      [ticket({ deps_done: false })],
+      [ticket({ status: "in_progress" })],
+      [ticket({ status: "in_progress", running: true })],
+      [ticket({ status: "review" })],
+      [ticket({ status: "done" })],
+      [ticket({ status: "abandoned" })],
+      [ticket(), ticket({ id: "t266" })],
+      [ticket(), ticket({ id: "t266", status: "done" })],
+      [iteration("planned")],
+      [iteration("active")],
+      [iteration("active", true)],
+      [iteration("closed")],
+      [epic("open")],
+      [epic("closed")],
+    ];
+    for (const s of shown) {
+      const actions = askActions(s);
+      expect(actions.slice(-2), JSON.stringify(s)).toEqual(["explain", "free"]);
+      expect(actions.filter((a) => a === "explain")).toHaveLength(1);
+      expect(askCandidates(s).find((c) => c.action === "explain")).toMatchObject({
+        label: "Explain",
+        skill: "/dgexplain",
+        recommended: false,
+      });
+    }
+    // 履歴の見出しの閉じた Iteration でも、振り返るの後ろの、自由にの直前
+    expect(askActions([iteration("closed")], undefined, "historyRow")).toEqual([
+      "retro",
+      "assign",
+      "reopen",
+      "explain",
+      "free",
+    ]);
+    // どの対象でも先頭（おすすめ）にならない
+    for (const [s, within] of SAMPLES) expect(askActions(s, within)[0]).not.toBe("explain");
+    for (const s of [
+      [planOf("pending_approval")],
+      [planOf("approved")],
+      [planOf("closed")],
+      [ticket(), epic("open")],
+      [iteration("active"), { ...iteration("planned"), id: "s11" }],
+    ])
+      expect(askActions(s), JSON.stringify(s)).not.toContain("explain");
+  });
+
+  it("説明するは Skill の形で /dgexplain <ID> になり、文章だけの形は頼む 1 文と dg の呼び方と guide の一文になる", () => {
+    // 頼みごとの 1 行は添えない（呼び出しだけで説明を頼む）。指示は次の行
+    expect(
+      buildAsk({ subjects: [ticket({ status: "done" })], action: "explain", format: "skill" }),
+    ).toMatchObject({ kind: "prompt", skill: "/dgexplain", text: "/dgexplain t265" });
+    expect(
+      buildAsk({
+        subjects: [ticket(), ticket({ id: "t266" })],
+        action: "explain",
+        note: "画面の変更を中心に",
+      }).text,
+    ).toBe("/dgexplain t265 t266\n画面の変更を中心に");
+    expect(buildAsk({ subjects: [epic("closed")], action: "explain" }).text).toBe("/dgexplain e9");
+    expect(buildAsk({ subjects: [iteration("closed")], action: "explain" }).text).toBe(
+      "/dgexplain s10",
+    );
+    // 対象なしは ID のない呼び出し（Skill が対象を聞く）
+    expect(buildAsk({ subjects: [], action: "explain", format: "skill" }).text).toBe("/dgexplain");
+    expect(buildAsk({ subjects: [ticket()], action: "explain", format: "text" }).text).toBe(
+      [
+        "t265 の中身を、文字の図を入れて平たく説明してください（データもファイルも書き換えない）。",
+        ASK_DG_USAGE,
+        askGuideLine("/dgexplain"),
+      ].join("\n"),
+    );
+    expect(askGuideLine("/dgexplain")).toContain("`dg guide explain`");
+    expect(
+      buildAsk({ subjects: [epic("open")], action: "explain", format: "text", language: "en" })
+        .text,
+    ).toBe(
+      [
+        "Explain e9 to me in plain words with text diagrams (do not change any data or files).",
+        ASK_DG_USAGE_EN,
+        askGuideLine("/dgexplain", "en"),
+      ].join("\n"),
+    );
+    expect(
+      buildAsk({ subjects: [], action: "explain", format: "text" }).text.split("\n").slice(0, 2),
+    ).toEqual([
+      ASK_FIRST,
+      "指示の対象の中身を、文字の図を入れて平たく説明してください（データもファイルも書き換えない）。",
+    ]);
+    // 読むだけなので、人に限った操作に当たらない
+    expect(askHumanChecks("explain", [ticket()])).toEqual([]);
   });
 
   it("止まったものの再開は、1 行目に実行中の Run のないチケットだけを並べる", () => {
@@ -1274,7 +1372,7 @@ describe("Skill の 1 文（skill_summary・UI-15）", () => {
 
   it("Skill の名前に文がなければ例外", () => {
     expect(() => skillSummary("dgnone")).toThrow();
-    expect(Object.keys(SKILL_SUMMARY)).toHaveLength(13);
+    expect(Object.keys(SKILL_SUMMARY)).toHaveLength(14);
     expect(skillSummary("dgretro", "ja")).toMatch(/[぀-ヿ一-鿿]/);
     expect(skillSummary("dgretro", "en")).not.toMatch(/[぀-ヿ一-鿿]/);
   });

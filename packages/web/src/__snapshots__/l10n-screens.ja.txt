@@ -806,6 +806,14 @@ guide.notes.status
 [placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
+[title] 差し込む文書（説明）
+説明
+guide.notes.explain
+[title] 既定は 
+変更あり
+[placeholder] 例 docs/notes.md
+[title] 既定の  に戻す
+既定に戻す
 [title] 差し込む文書（振り返り）
 振り返り
 guide.notes.retro
@@ -1350,6 +1358,8 @@ Iteration の見出し s1
 閉じる
 [title] /dgcheck: チケット・Epic・Iteration・Plan を点検し、直す案を示して承認を得てから直します。
 点検する
+[title] /dgexplain: チケット・Epic・Iteration の中身を、要約・文字の図・具体例・用語の言い換えで、データもファイルも書き換えずに説明します。
+説明する
 [title] Skill を使わない
 自由に
 ---
@@ -1506,6 +1516,8 @@ t1
 閉じる
 [title] /dgcheck: チケット・Epic・Iteration・Plan を点検し、直す案を示して承認を得てから直します。
 点検する
+[title] /dgexplain: チケット・Epic・Iteration の中身を、要約・文字の図・具体例・用語の言い換えで、データもファイルも書き換えずに説明します。
+説明する
 [title] Skill を使わない
 自由に
 [title] 閉じる（Esc）

@@ -369,6 +369,7 @@ export const EN: Readonly<Record<string, string>> = {
   "差し込む文書（書き換え）": "Document inserted into change",
   "差し込む文書（検討）": "Document inserted into discuss",
   "差し込む文書（様子）": "Document inserted into status",
+  "差し込む文書（説明）": "Document inserted into explain",
   "差し込む文書（振り返り）": "Document inserted into retro",
   "差し込む文書（一気通し）": "Document inserted into all",
   概要: "Overview",
@@ -382,6 +383,7 @@ export const EN: Readonly<Record<string, string>> = {
   書き換え: "Change",
   検討: "Discuss",
   様子: "Status",
+  説明: "Explain",
   振り返り: "Retro",
   一気通し: "All",
   "作業ブランチと PR の先が変わる（git.data_remote が空ならデータの同期先も）":

@@ -417,6 +417,7 @@ describe("Skill の本文", () => {
       "dgchange",
       "dgdiscuss",
       "dgstatus",
+      "dgexplain",
       "dgretro",
       "dgall",
     ]);
