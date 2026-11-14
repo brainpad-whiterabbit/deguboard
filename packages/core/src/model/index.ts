@@ -2,6 +2,7 @@ export * from "./id.js";
 export * from "./actor.js";
 export * from "./common.js";
 export * from "./config.js";
+export * from "./retro-recommended.js";
 export * from "./ticket.js";
 export * from "./epic.js";
 export * from "./iteration.js";

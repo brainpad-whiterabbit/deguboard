@@ -2,6 +2,7 @@
 // 「チーム」と「自分」のタブで書き分ける。値を変えるたびに 1 項目ずつ保存する。
 // 振り返りの観点（retro.perspectives）は観点ごとの入れ子で 1 つの欄に収まらず fields に入らないので、チームのタブの「振り返り」の節に
 // view.team から読むだけで出す（入力欄は置かない。書くのは振り返りの dg retro。観点はチームだけが持つので自分のタブには出さない）。
+// 名前と問いが既定（view.defaults）のままの観点は表示言語の訳で出し、書き換えた観点は書いたまま出す（shownRetroPerspectives）。
 // 最初は観点の行（名前・問い・指標の数）だけを出し、観点を開くと指標の ID と要約（数え方の最初の文）、指標を開くと全文・出どころ・測れないものを出す。
 // 検索は観点の名前・問いと、指標の ID・数え方・出どころ・測れないものに当て、当たった観点と指標を開いて出す。
 // 項目の文は短く出す：要約（summary）1 行をいつも出し、詳しい説明（description）の全文は「詳しく」に畳む。例（example）は入力欄のプレースホルダに、
@@ -536,9 +537,18 @@ export function ConfigPage() {
     return { groups, detailHits };
   }, [view, tab, query]);
 
-  /** 振り返りの節に出す観点（チームのタブだけ）。検索に当たらなければ空 */
+  /** 振り返りの節に出す観点（チームのタブだけ）。既定のままの観点は表示言語の訳にしてから検索する。検索に当たらなければ空 */
   const retro = useMemo(
-    () => (view && tab === "team" ? retroMatches(view.team.retro?.perspectives ?? {}, query) : []),
+    () =>
+      view && tab === "team"
+        ? retroMatches(
+            shownRetroPerspectives(
+              view.team.retro?.perspectives ?? {},
+              view.defaults?.retro?.perspectives ?? {},
+            ),
+            query,
+          )
+        : [],
     [view, tab, query],
   );
   const hasRetro = tab === "team" && view?.team.retro?.perspectives !== undefined;
@@ -913,6 +923,31 @@ function NotesTable({
 export function metricSummary(definition: string): string {
   const end = definition.indexOf("。");
   return end < 0 ? definition : definition.slice(0, end + 1);
+}
+
+/**
+ * 振り返りの観点を画面に出す形にする。名前と問いの両方が既定（config.show の defaults の同じ ID の観点）と同じ観点だけを
+ * 既定のままとみなし、名前と問いを表示言語の訳で出す（shownDefault。UI-11）。片方でも書き換えた観点と、既定にない観点は書いたまま出す
+ * （観点ごとに決める。名前だけ訳して問いが別の言語になるのを避ける）。指標の定義は訳さない
+ */
+export function shownRetroPerspectives(
+  perspectives: Record<string, RetroPerspective>,
+  defaults: Record<string, RetroPerspective>,
+): Record<string, RetroPerspective> {
+  return Object.fromEntries(
+    Object.entries(perspectives).map(([id, p]) => {
+      const d = Object.hasOwn(defaults, id) ? defaults[id] : undefined;
+      if (d === undefined || p.name !== d.name || p.question !== d.question) return [id, p];
+      return [
+        id,
+        {
+          ...p,
+          name: String(shownDefault(p.name, d.name)),
+          question: String(shownDefault(p.question, d.question)),
+        },
+      ];
+    }),
+  );
 }
 
 /** 振り返りの節に出す観点 1 つ。open は検索に当たったので開いて出す */

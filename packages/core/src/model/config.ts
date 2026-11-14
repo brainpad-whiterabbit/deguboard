@@ -171,43 +171,46 @@ export type RetroPerspective = z.output<typeof retroPerspectiveSchema>;
 
 /**
  * 振り返りの観点の既定。Agentic-Agile の評価の枠組み（microsoft/agentic-agile-template の docs/evaluation-framework.md）にもとづく 7 つで、
- * どれも指標の定義は空（測りたいものと測れるものは利用者ごとに違うので、指標は決め打ちしない）。
- * 名前と問いは priority.* の既定と同じく、今は日本語で持つ（既定の値は英語で持つ決まり（CL-8）に合わせて英語に替えるまで、画面は訳さずに出す）
+ * どれも指標の定義は空（測りたいものと測れるものは利用者ごとに違うので、指標は決め打ちしない。推薦の指標は retro-recommended.ts）。
+ * 名前と問いは英語で持ち、画面は既定のままの観点だけを表示言語に訳す（web の DEFAULT_VALUES）
  */
 const DEFAULT_RETRO_PERSPECTIVES: Record<string, RetroPerspective> = {
   outcome: {
-    name: "成果",
-    question: "目標は達成できたか。終えたもの・やめたもの・持ち越したものは何か",
+    name: "Outcome",
+    question: "Was the goal met? What was finished, dropped, and carried over?",
     metrics: {},
   },
   review: {
-    name: "見直しの効き目",
-    question: "見直しは不具合をマージの前に見つけ、少ない回数で収束したか",
+    name: "Review effectiveness",
+    question: "Did the review find defects before the merge and converge in few rounds?",
     metrics: {},
   },
   spec: {
-    name: "仕様の質",
-    question: "チケット（受け入れ条件と範囲）は、作り直しなしで通る成果を引き出せたか",
+    name: "Spec quality",
+    question:
+      "Did the tickets (acceptance criteria and scope) draw out a deliverable that passes without rework?",
     metrics: {},
   },
   slicing: {
-    name: "分け方",
-    question: "作業は、互いにぶつからずに並べて進められる大きさと境目に分けられたか",
+    name: "Slicing",
+    question:
+      "Was the work divided into sizes and boundaries that can advance side by side without colliding?",
     metrics: {},
   },
   stability: {
-    name: "エージェントの安定",
-    question: "エージェントの働きは、失敗・中断・やり直しなく安定して終わったか",
+    name: "Agent stability",
+    question: "Did the agents' work finish stably, without failures, interruptions, or retries?",
     metrics: {},
   },
   cost: {
-    name: "コスト",
-    question: "時間とトークンはどこに使われ、成果に見合っていたか",
+    name: "Cost",
+    question: "Where were time and tokens spent, and were they worth the outcome?",
     metrics: {},
   },
   improvement: {
-    name: "改善の追跡",
-    question: "前の振り返りの Try は終わり、ねらった数字は動いたか",
+    name: "Improvement tracking",
+    question:
+      "Was the Try of the previous retrospective finished, and did the numbers it aimed at move?",
     metrics: {},
   },
 };

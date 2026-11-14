@@ -95,7 +95,8 @@ describe("振り返りの観点と指標の定義", () => {
     const renamed = await runCommand(retroPerspective, ctx, { id: "spec", name: "チケットの質" });
     expect(renamed.data.perspectives["spec"]).toMatchObject({
       name: "チケットの質",
-      question: "チケット（受け入れ条件と範囲）は、作り直しなしで通る成果を引き出せたか",
+      question:
+        "Did the tickets (acceptance criteria and scope) draw out a deliverable that passes without rework?",
     });
     expect(Object.keys(renamed.data.perspectives["spec"]?.metrics ?? {})).toEqual([
       "first-pass-rate",

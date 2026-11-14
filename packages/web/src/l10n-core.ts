@@ -491,8 +491,10 @@ export const CORE_MESSAGES: CoreTextTable = {
  * dg の既定の値の訳（shownDefault・storedDefault。UI-11）。鍵は core が持つ既定の文そのもので、値は表示言語ごとの訳。
  * 画面は値が既定と同じときだけここを引くので、書き換えた値は鍵と同じ文でない限り訳さず、訳のない言語では既定の文のまま出す。
  * 既定の値を訳して出す項目は、ここに鍵を足すだけでよい（判定と引き方は l10n.ts の 1 か所）。
- * 今あるのは優先度の判断基準（config の priority.*）で、core が日本語で持つので英語の訳を置く
- * （意味は dg guide import の「Priority criteria」と揃える）。鍵が core の既定の文にあることは l10n.test.ts が確かめる
+ * 優先度の判断基準（config の priority.*）は core が日本語で持つので英語の訳を置く（意味は dg guide import の「Priority criteria」と揃える）。
+ * 振り返りの既定の観点（retro.perspectives）の名前と問いは core が英語で持つので日本語の訳を置く
+ * （名前と問いの両方が既定のままの観点だけを訳す。判定は設定画面の shownRetroPerspectives）。
+ * 鍵が core の既定の文にあることは l10n.test.ts が確かめる
  */
 export const DEFAULT_VALUES: CoreTextTable = {
   // priority.high
@@ -508,5 +510,42 @@ export const DEFAULT_VALUES: CoreTextTable = {
   // priority.low
   "使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討": {
     en: "Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent",
+  },
+  // retro.perspectives.outcome（名前・問い）
+  Outcome: { ja: "成果" },
+  "Was the goal met? What was finished, dropped, and carried over?": {
+    ja: "目標は達成できたか。終えたもの・やめたもの・持ち越したものは何か",
+  },
+  // retro.perspectives.review
+  "Review effectiveness": { ja: "見直しの効き目" },
+  "Did the review find defects before the merge and converge in few rounds?": {
+    ja: "見直しは不具合をマージの前に見つけ、少ない回数で収束したか",
+  },
+  // retro.perspectives.spec
+  "Spec quality": { ja: "仕様の質" },
+  "Did the tickets (acceptance criteria and scope) draw out a deliverable that passes without rework?":
+    {
+      ja: "チケット（受け入れ条件と範囲）は、作り直しなしで通る成果を引き出せたか",
+    },
+  // retro.perspectives.slicing
+  Slicing: { ja: "分け方" },
+  "Was the work divided into sizes and boundaries that can advance side by side without colliding?":
+    {
+      ja: "作業は、互いにぶつからずに並べて進められる大きさと境目に分けられたか",
+    },
+  // retro.perspectives.stability
+  "Agent stability": { ja: "エージェントの安定" },
+  "Did the agents' work finish stably, without failures, interruptions, or retries?": {
+    ja: "エージェントの働きは、失敗・中断・やり直しなく安定して終わったか",
+  },
+  // retro.perspectives.cost
+  Cost: { ja: "コスト" },
+  "Where were time and tokens spent, and were they worth the outcome?": {
+    ja: "時間とトークンはどこに使われ、成果に見合っていたか",
+  },
+  // retro.perspectives.improvement
+  "Improvement tracking": { ja: "改善の追跡" },
+  "Was the Try of the previous retrospective finished, and did the numbers it aimed at move?": {
+    ja: "前の振り返りの Try は終わり、ねらった数字は動いたか",
   },
 };
