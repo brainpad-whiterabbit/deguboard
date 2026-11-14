@@ -3,8 +3,20 @@
 
 import type { ReviewFinding } from "../model/run.js";
 
+/**
+ * 指摘の文と同一性に使う部分（原因の種類を除く）。原因の種類は Run の数にだけ使い、手直しの文・PR の本文・照合には入れない。
+ * cause のできる前に置いた一覧の指摘と、run handoff に cause なしで渡した指摘も同じ関数で扱う
+ */
+export type FindingBody = Omit<ReviewFinding, "cause">;
+
+/**
+ * 置いた一覧（record.ts の ReviewRound の findings・handed）の指摘の 1 件。cause のできる前に置いた一覧の指摘は cause を持たない。
+ * 置いた一覧の cause は読まない（原因ごとの数は、結果を書くときに数えて Run の review に入れる）
+ */
+export type StoredFinding = FindingBody & Partial<Pick<ReviewFinding, "cause">>;
+
 /** 重い指摘（reviewOfFindings と同じ判定）：severity が heavy か、category がリポジトリの重いとみなす種類 */
-export function isHeavyFinding(f: ReviewFinding, heavyCategories: readonly string[]): boolean {
+export function isHeavyFinding(f: FindingBody, heavyCategories: readonly string[]): boolean {
   return f.severity === "heavy" || heavyCategories.includes(f.category);
 }
 
@@ -14,7 +26,7 @@ export function isHeavyFinding(f: ReviewFinding, heavyCategories: readonly strin
  * 英語の guide を読んだ見直し役も同じ語で書くので、guide の言語によらず見分ける（t489）。
  * category で決めるので、どの回の一覧でも同じ規則で決まり、dg が後から印を付け直さなくてすむ
  */
-export function isAcceptanceFinding(f: ReviewFinding): boolean {
+export function isAcceptanceFinding(f: FindingBody): boolean {
   // "acceptance criteri" は criteria と criterion の両方に当たる。"acceptance test" など受け入れ条件でない語は拾わない
   return /受け入れ条件|acceptance criteri/i.test(f.category);
 }
@@ -25,12 +37,12 @@ export function isAcceptanceFinding(f: ReviewFinding): boolean {
  * unfixedLight は残りの軽い指摘（参考節との食い違いを含む）。親が手直しに渡す軽い指摘は run handoff で dg に伝える（t639）ので、
  * dg pr ready は伝えられなかった残りを PR の本文に書く（「直さなかった軽い指摘」。直す役が直したかは見分けられないので、渡したものは直したかによらず外す）
  */
-export function splitFindings(
-  findings: readonly ReviewFinding[],
+export function splitFindings<F extends FindingBody>(
+  findings: readonly F[],
   heavyCategories: readonly string[],
-): { fix: ReviewFinding[]; unfixedLight: ReviewFinding[] } {
-  const fix: ReviewFinding[] = [];
-  const unfixedLight: ReviewFinding[] = [];
+): { fix: F[]; unfixedLight: F[] } {
+  const fix: F[] = [];
+  const unfixedLight: F[] = [];
   for (const f of findings) {
     if (isHeavyFinding(f, heavyCategories) || isAcceptanceFinding(f)) fix.push(f);
     else unfixedLight.push(f);
@@ -42,7 +54,7 @@ export function splitFindings(
  * 指摘の 1 件を 1 行の文にする（箇条書きの記号は付けない）。場所・種類・理由・直し方を入れる。
  * 改行は空白にそろえ、1 件が 1 行に収まるようにする
  */
-export function findingText(f: ReviewFinding): string {
+export function findingText(f: FindingBody): string {
   const sev = f.severity === "heavy" ? "heavy" : "light";
   const loc = f.file === null ? undefined : f.line === null ? f.file : `${f.file}:${f.line}`;
   const head = loc ? `[${sev}] ${loc} (${f.category})` : `[${sev}] ${f.category}`;
@@ -53,17 +65,17 @@ export function findingText(f: ReviewFinding): string {
 /**
  * 指摘の同一性（手直しに渡した指摘と見直しの一覧の照合に使う）。severity は見ない（親が写した JSON の severity の揺れで外れないように）
  */
-export function findingKey(f: ReviewFinding): string {
+export function findingKey(f: FindingBody): string {
   return JSON.stringify([f.file, f.line, f.category, f.reason, f.fix]);
 }
 
 /**
  * 手直しに渡す指摘の一覧を、見直しの一覧と照合する。一覧にない指摘は unmatched に返す（dg run handoff は使い方の誤りにする）
  */
-export function matchFindings(
-  list: readonly ReviewFinding[],
-  handed: readonly ReviewFinding[],
-): { matched: ReviewFinding[]; unmatched: ReviewFinding[] } {
+export function matchFindings<L extends FindingBody, H extends FindingBody>(
+  list: readonly L[],
+  handed: readonly H[],
+): { matched: L[]; unmatched: H[] } {
   const keys = new Set(handed.map(findingKey));
   const listed = new Set(list.map(findingKey));
   return {
@@ -75,9 +87,9 @@ export function matchFindings(
 /** 見直しの 1 回分の、指摘の部分（record.ts の ReviewRound のうち読む側が使う形） */
 export interface ReviewRoundLike {
   at: string;
-  findings: readonly ReviewFinding[] | null;
+  findings: readonly StoredFinding[] | null;
   /** 親が手直しに渡した軽い指摘（dg run handoff。なければ空） */
-  handed?: readonly ReviewFinding[] | undefined;
+  handed?: readonly StoredFinding[] | undefined;
 }
 
 /**

@@ -43,7 +43,7 @@ import {
   TRANSCRIPT_RETENTION_DAYS,
 } from "../run/record.js";
 import { recordBaseline } from "../git/outside.js";
-import type { ReviewFinding, Run } from "../model/run.js";
+import { emptyCauseCounts, FINDING_CAUSES, type ReviewFinding, type Run } from "../model/run.js";
 
 declare module "vitest" {
   /** vitest.config.ts の provide。HOME を一時ディレクトリにする前の、開発者の本物のホーム */
@@ -1028,21 +1028,55 @@ describe("run review-result（見直しの結果。RN-9）", () => {
     ]);
     const shown = await runCommand(metricsShow, ctx, { ticket: "t1", by: "step" });
     const view = shown.data as {
-      total: { reviews: unknown };
+      total: { reviews: unknown; missing: { review_causes: number } };
       groups: Array<{ key: string; reviews: unknown }>;
     };
-    expect(view.total.reviews).toEqual({ recorded: 2, passed: 1, heavy: 2, light: 2 });
+    // 数だけを渡した結果には原因の数がないので、足さずに missing に数える（t915）
+    expect(view.total.reviews).toEqual({
+      recorded: 2,
+      passed: 1,
+      heavy: 2,
+      light: 2,
+      causes: null,
+    });
+    expect(view.total.missing.review_causes).toBe(2);
     expect(view.groups.find((g) => g.key === "implement")!.reviews).toEqual({
       recorded: 0,
       passed: 0,
       heavy: 0,
       light: 0,
+      causes: null,
     });
+    // 一覧で渡した見直しの原因ごとの数は合計に入る
+    laterBy(ctx, 20);
+    const third = await start(ctx, "t1", "review");
+    await runCommand(runReviewResult, ctx, {
+      ticket: "t1",
+      findings: [
+        finding({ severity: "heavy", cause: "ticket" }),
+        finding({ severity: "heavy", cause: "ticket" }),
+        finding({ cause: "documents" }),
+      ],
+    });
+    await runCommand(runFinish, ctx, { run: third.id, result: "success" });
+    const total = (await runCommand(metricsShow, ctx, { ticket: "t1" })).data.total;
+    expect(total.reviews).toEqual({
+      recorded: 3,
+      passed: 1,
+      heavy: 4,
+      light: 3,
+      causes: {
+        heavy: { ...emptyCauseCounts(), ticket: 2 },
+        light: { ...emptyCauseCounts(), documents: 1 },
+      },
+    });
+    expect(total.missing.review_causes).toBe(2);
   });
 
   const finding = (over: Partial<ReviewFinding> = {}) => ({
     severity: "light" as const,
     category: "言い回し",
+    cause: "implementation" as const,
     file: "docs/a.md",
     line: 3,
     reason: "読みにくい",
@@ -1054,30 +1088,44 @@ describe("run review-result（見直しの結果。RN-9）", () => {
     const ctx = await prepared();
     const run = await start(ctx, "t1", "review");
     const findings = [
-      finding({ severity: "heavy", category: "不具合" }),
+      finding({ severity: "heavy", category: "不具合", cause: "ticket" }),
       finding(),
       // file・line・fix を省けば null にそろえる
-      { severity: "light" as const, category: "参考節との食い違い", reason: "広がり" },
+      {
+        severity: "light" as const,
+        category: "参考節との食い違い",
+        cause: "plan" as const,
+        reason: "広がり",
+      },
     ];
     const written = await runCommand(runReviewResult, ctx, { ticket: "t1", findings });
-    expect(written.data).toMatchObject({
-      id: run.id,
-      review: { heavy: 1, light: 2, passed: false },
-    });
+    // 原因ごとの数は重い・軽いに分けて数え、指摘のない原因も 0 で持つ（t915）
+    const causes = {
+      heavy: { ...emptyCauseCounts(), ticket: 1 },
+      light: { ...emptyCauseCounts(), implementation: 1, plan: 1 },
+    };
+    expect(written.data).toMatchObject({ id: run.id });
+    expect((written.data as Run).review).toEqual({ heavy: 1, light: 2, passed: false, causes });
     expect(written.warnings).toEqual([]);
     const stored = (await readReviewFindings(ctx.repo, "t1"))!.rounds.at(-1)!;
     expect(stored).toMatchObject({ run: run.id, review: { heavy: 1, light: 2 } });
     expect(stored.findings![2]).toEqual({
       severity: "light",
       category: "参考節との食い違い",
+      cause: "plan",
       file: null,
       line: null,
       reason: "広がり",
       fix: null,
     });
-    // 一覧は Git の Run に入れない
+    // 一覧は Git の Run に入れない。入るのは数と原因ごとの数だけで、指摘の文は入らない
     const closed = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
     expect(Object.keys(closed.data as Run)).not.toContain("findings");
+    expect((closed.data as Run).review).toEqual({ heavy: 1, light: 2, passed: false, causes });
+    const committed = await readFile(path.join(ctx.repo.dataDir, "runs", `${run.id}.json`), "utf8");
+    expect(JSON.parse(committed).review).toEqual({ heavy: 1, light: 2, passed: false, causes });
+    expect(committed).not.toContain("広がり");
+    expect(committed).not.toContain("読みにくい");
     // 空の一覧は通った（重い指摘なし）
     const again = await start(ctx, "t2", "review");
     const empty = await runCommand(runReviewResult, ctx, { ticket: "t2", findings: [] });
@@ -1100,11 +1148,49 @@ describe("run review-result（見直しの結果。RN-9）", () => {
       findings: [finding({ category: "参考節との食い違い" }), finding()],
     });
     expect(written.data).toMatchObject({ review: { heavy: 1, light: 1, passed: false } });
-    expect(reviewOfFindings([finding({ category: "x" })], ["x"])).toEqual({
+    // 原因ごとの数も同じ判定で重い側に数える（それぞれの合計が heavy・light と合う）
+    expect(reviewOfFindings([finding({ category: "x", cause: "tests" })], ["x"])).toEqual({
       heavy: 1,
       light: 0,
       passed: false,
+      causes: { heavy: { ...emptyCauseCounts(), tests: 1 }, light: emptyCauseCounts() },
     });
+  });
+
+  it("cause のない指摘と 7 種類にない cause は INVALID_INPUT で拒否し、何も書かない（t915）", async () => {
+    const ctx = await prepared();
+    await start(ctx, "t1", "review");
+    const { cause: _cause, ...without } = finding();
+    for (const bad of [without, { ...finding(), cause: "reviewer" }, { ...finding(), cause: "" }]) {
+      const rejected = runCommand(runReviewResult, ctx, {
+        ticket: "t1",
+        findings: [finding(), bad] as never,
+      });
+      await expect(rejected).rejects.toMatchObject({ code: "INVALID_INPUT" });
+      const detail = String(
+        ((await rejected.catch((e: unknown) => e)) as { detail?: unknown }).detail,
+      );
+      expect(detail).toContain("findings[1].cause");
+    }
+    expect(await readReviewFindings(ctx.repo, "t1")).toBeUndefined();
+    expect((await peekRunningRuns(ctx.repo))[0]!.review).toBeNull();
+    expect(FINDING_CAUSES).toEqual([
+      "ticket",
+      "plan",
+      "implementation",
+      "tests",
+      "documents",
+      "environment",
+      "unknown",
+    ]);
+    // どの種類も受け付ける
+    const all = await runCommand(runReviewResult, ctx, {
+      ticket: "t1",
+      findings: FINDING_CAUSES.map((cause) => finding({ cause })),
+    });
+    expect((all.data as Run).review!.causes!.light).toEqual(
+      Object.fromEntries(FINDING_CAUSES.map((c) => [c, 1])),
+    );
   });
 
   it("一覧の誤りは場所（何件目のどの項目か）を示して INVALID_INPUT で拒否し、何も書かない", async () => {

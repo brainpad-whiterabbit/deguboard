@@ -6,7 +6,13 @@ import { createFixture, git } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { runGit } from "../git/run.js";
 import { toIsoDateTime } from "../model/common.js";
-import { runSchema, type Run, type RunReview } from "../model/run.js";
+import {
+  emptyCauseCounts,
+  runSchema,
+  type FindingCause,
+  type Run,
+  type RunReview,
+} from "../model/run.js";
 import {
   amendRunning,
   bindTranscript,
@@ -34,6 +40,11 @@ afterEach(async () => {
 
 const passed: RunReview = { heavy: 0, light: 0, passed: true };
 const heavy: RunReview = { heavy: 1, light: 0, passed: false };
+/** 空の一覧で書いた通った結果（一覧から数えるので、原因ごとの数が 0 で入る） */
+const passedByList: RunReview = {
+  ...passed,
+  causes: { heavy: emptyCauseCounts(), light: emptyCauseCounts() },
+};
 
 describe("持ち主のない保留から見直しの記録を作る（orphanReviewsOf。t699）", () => {
   const round = (at: string, review: RunReview, run: Run["id"] | null = null) => ({
@@ -201,7 +212,13 @@ async function prepared() {
 }
 
 /** Run のないまま見直しの結果を書く（保留になる）。at は書いた時刻 */
-async function hold(ctx: CommandContext, at: Date, withHeavy: boolean, lightReason?: string) {
+async function hold(
+  ctx: CommandContext,
+  at: Date,
+  withHeavy: boolean,
+  lightReason?: string,
+  heavyCause: FindingCause = "implementation",
+) {
   ctx.now = () => at;
   const out = await runCommand(runReviewResult, ctx, {
     ticket: "t1",
@@ -211,6 +228,7 @@ async function hold(ctx: CommandContext, at: Date, withHeavy: boolean, lightReas
             {
               severity: "heavy" as const,
               category: "不具合",
+              cause: heavyCause,
               file: null,
               line: null,
               reason: "壊れる",
@@ -223,6 +241,7 @@ async function hold(ctx: CommandContext, at: Date, withHeavy: boolean, lightReas
             {
               severity: "light" as const,
               category: "言い回し",
+              cause: "implementation" as const,
               file: null,
               line: null,
               reason: lightReason,
@@ -421,7 +440,7 @@ describe("dg sync と dg pr ready が持ち主のない保留を見直しの記�
     const before = await judgment(ctx);
     await runCommand(sync, ctx, {});
     const runs = await rawRuns(ctx);
-    expect(runs.map((r) => r["review"])).toEqual([passed]);
+    expect(runs.map((r) => r["review"])).toEqual([passedByList]);
     expect((await readReviewFindings(ctx.repo, "t1"))?.rounds).toHaveLength(1);
     expect(await judgment(ctx)).toEqual(before);
   });
@@ -646,7 +665,7 @@ describe("前景の見直し役が返ったとき、起動のフックが先に�
     const rounds = (await readReviewFindings(ctx.repo, "t1"))?.rounds ?? [];
     // 記録の回（置き換えられた古い結果）は外し、1 つの Run の回は 1 つに保つ
     expect(rounds.map((r) => r.run)).toEqual([record!.id]);
-    expect(rounds.at(-1)?.review).toEqual(passed);
+    expect(rounds.at(-1)?.review).toEqual(passedByList);
     // 置き換えられた古い結果の軽い指摘は、直さなかった軽い指摘として PR の本文に出ない
     expect(unfixedLightLines(rounds, undefined, [])).toEqual([]);
     expect((await judge(ctx)).passed).toBe(true);
@@ -664,8 +683,32 @@ describe("前景の見直し役が返ったとき、起動のフックが先に�
     expect(reviewRuns(ctx)[0]).toMatchObject({ id: record!.id, review: passed });
     const rounds = (await readReviewFindings(ctx.repo, "t1"))?.rounds ?? [];
     expect(rounds.map((r) => r.run)).toEqual([record!.id]);
-    expect(rounds[0]?.review).toEqual(passed);
+    expect(rounds[0]?.review).toEqual(passedByList);
     expect((await judge(ctx)).passed).toBe(true);
+  });
+
+  it("記録の元の結果と同じ秒に、数は同じで原因だけが違う結果で呼び直していても、記録の結果と回を置き換える", async () => {
+    const { ctx, parent } = await withTranscripts();
+    // 時刻は 1 回だけ読み、2 つの結果を確かに同じ秒に置く（読み直すと sync の間に秒が進み、時刻で見分けがついてしまう）
+    const at = later(2);
+    await hold(ctx, at, true);
+    await runCommand(sync, ctx, {});
+    const [record] = reviewRuns(ctx);
+    expect(record?.review?.causes?.heavy).toMatchObject({ implementation: 1, tests: 0 });
+    await hold(ctx, at, true, undefined, "tests");
+
+    await returned(ctx, parent, later(3), 90_000);
+    const newer = {
+      ...heavy,
+      causes: { heavy: { ...emptyCauseCounts(), tests: 1 }, light: emptyCauseCounts() },
+    };
+    const runs = reviewRuns(ctx);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ id: record!.id });
+    expect(runs[0]?.review).toEqual(newer);
+    const rounds = (await readReviewFindings(ctx.repo, "t1"))?.rounds ?? [];
+    expect(rounds.map((r) => r.run)).toEqual([record!.id]);
+    expect(rounds[0]?.review).toEqual(newer);
   });
 
   it("引き取りでも、開いたままの前の手直しの Run を起動の時刻を区切りに閉じる（RN-6）", async () => {

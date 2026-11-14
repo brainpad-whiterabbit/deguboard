@@ -2,7 +2,14 @@
 
 import { isAgentActorId } from "./actor.js";
 import { idNumber } from "./id.js";
-import { TOOL_KINDS, type Run, type RunTools } from "./run.js";
+import {
+  emptyCauseCounts,
+  FINDING_CAUSES,
+  TOOL_KINDS,
+  type CauseCounts,
+  type Run,
+  type RunTools,
+} from "./run.js";
 import type { Ticket } from "./ticket.js";
 
 /** 集計と絞り込みの単位。Agent/Model は agent と model に分けて持つ。step は Run の step（implement・review など） */
@@ -36,15 +43,26 @@ export interface RunMetrics {
   cache_write: number | null;
   /** ツールの回数の合計。値のある Run がなければ null */
   tools: RunTools | null;
-  /** 値が欠けていて足さなかった Run の数。tools はツールの回数（tools）が null の Run */
-  missing: Record<MetricValue | "tools", number>;
+  /**
+   * 値が欠けていて足さなかった Run の数。tools はツールの回数（tools）が null の Run、
+   * review_causes は見直しの結果はあるが原因ごとの数（review.causes）のない Run（この項目より前の Run と、数だけを渡した結果）
+   */
+  missing: Record<MetricValue | "tools" | "review_causes", number>;
   /** 推定の値（usage.estimated）を含む Run の数。0 でなければ合計も推定を含む */
   estimated_runs: number;
   /**
    * 見直しの結果（review。RN-9）。recorded は結果のある Run の数、passed はそのうち通った数、heavy・light は指摘の数の合計。
-   * 結果のない Run（見直し以外の step と、結果を記録せずに終わった見直し）は数えない
+   * 結果のない Run（見直し以外の step と、結果を記録せずに終わった見直し）は数えない。
+   * causes は重い・軽い指摘の原因ごとの数の合計。原因の数のない Run は足さずに missing.review_causes に数え、
+   * 0 で補わない（その Run の指摘は heavy・light には入るので、causes の合計は heavy・light より小さくなりうる）。原因の数のある Run がなければ null
    */
-  reviews: { recorded: number; passed: number; heavy: number; light: number };
+  reviews: {
+    recorded: number;
+    passed: number;
+    heavy: number;
+    light: number;
+    causes: { heavy: CauseCounts; light: CauseCounts } | null;
+  };
   lines: LineMetrics;
 }
 
@@ -150,25 +168,40 @@ export function summarizeRuns(
     cache_read: null,
     cache_write: null,
   };
-  const missing: Record<MetricValue | "tools", number> = {
+  const missing: RunMetrics["missing"] = {
     duration_seconds: 0,
     input: 0,
     output: 0,
     cache_read: 0,
     cache_write: 0,
     tools: 0,
+    review_causes: 0,
   };
   let tools: RunTools | null = null;
   const results = { success: 0, failure: 0, interrupted: 0, unfinished: 0 };
   let retries = 0;
   let estimated = 0;
-  const reviews = { recorded: 0, passed: 0, heavy: 0, light: 0 };
+  const reviews: RunMetrics["reviews"] = {
+    recorded: 0,
+    passed: 0,
+    heavy: 0,
+    light: 0,
+    causes: null,
+  };
   for (const run of runs) {
     if (run.review !== null) {
       reviews.recorded += 1;
       if (run.review.passed) reviews.passed += 1;
       reviews.heavy += run.review.heavy;
       reviews.light += run.review.light;
+      // 原因の数は capture: none の記録（保留から書いた見直し）にも入るので、使用量と違い、ここで足す
+      if (run.review.causes === undefined) missing.review_causes += 1;
+      else {
+        const sum = (reviews.causes ??= { heavy: emptyCauseCounts(), light: emptyCauseCounts() });
+        for (const weight of ["heavy", "light"] as const)
+          for (const cause of FINDING_CAUSES)
+            sum[weight][cause] += run.review.causes[weight][cause];
+      }
     }
     results[run.result ?? "unfinished"] += 1;
     retries += run.retries;

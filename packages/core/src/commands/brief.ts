@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { findBranchWorktree } from "../git/worktree.js";
 import { composeGuide } from "../guide/guide.js";
-import { REVIEW_STEP } from "../model/run.js";
+import { FINDING_CAUSES, REVIEW_STEP } from "../model/run.js";
 import {
   type AcceptanceItem,
   gateLevelOf,
@@ -157,7 +157,7 @@ export function composeBrief(role: BriefRole, f: BriefFacts, findings?: string):
       ),
       item(
         "Record",
-        `Before returning the list, write the findings as a JSON array (each with severity (heavy or light), category, file, line, reason, and fix; the shape is in \`dg run review-result --help\`) to a temporary file outside the repository, and record it once with \`dg --json --actor agent run review-result ${id} --findings-file <file>\`. Use \`[]\` if there are no findings. dg works out the counts and whether the review passed.`,
+        `Before returning the list, write the findings as a JSON array (each with severity (heavy or light), category, cause (${FINDING_CAUSES.join(", ")}), file, line, reason, and fix; the shape and the meaning of each cause are in \`dg run review-result --help\`) to a temporary file outside the repository, and record it once with \`dg --json --actor agent run review-result ${id} --findings-file <file>\`. Use \`[]\` if there are no findings. dg works out the counts and whether the review passed.`,
       ),
       never(
         "change files in the repository, commit, push, write anything to dg other than the Run, or look at other tickets.",

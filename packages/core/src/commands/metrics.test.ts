@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { recordBaseline } from "../git/outside.js";
-import { emptyUsage } from "../model/run.js";
+import { emptyCauseCounts, emptyUsage } from "../model/run.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { epicAdd, epicCreate } from "./epic.js";
@@ -114,6 +114,7 @@ describe("metrics show", () => {
           cache_read: 2,
           cache_write: 3,
           tools: 2,
+          review_causes: 0,
         },
         estimated_runs: 1,
       },
@@ -124,6 +125,11 @@ describe("metrics show", () => {
   it("フックが結ばなかった見直しの記録（capture: none）は見直しの回に数え、使用量・時間・ツールの集計からは外す（t702）", async () => {
     const ctx = await scenario();
     const before = (await runCommand(metricsShow, ctx, {})).data.total;
+    // 原因ごとの数は見直しの結果の一部なので、capture: none の記録からも合計に入る（t915）
+    const causes = {
+      heavy: { ...emptyCauseCounts(), ticket: 1 },
+      light: { ...emptyCauseCounts(), implementation: 2 },
+    };
     await ctx.store.create("run", {
       id: "r20261031-070000-0004",
       ticket: "t1",
@@ -137,7 +143,7 @@ describe("metrics show", () => {
       retries: 0,
       usage: emptyUsage(),
       tools: null,
-      review: { heavy: 1, light: 2, passed: false },
+      review: { heavy: 1, light: 2, passed: false, causes },
       capture: "none",
     });
     // ストアに直に置いた Run を dg の書き込みとみなしてから、コミットする（scenario と同じ）
@@ -148,7 +154,7 @@ describe("metrics show", () => {
       ...before,
       runs: before.runs + 1,
       results: { ...before.results, success: before.results.success + 1 },
-      reviews: { recorded: 1, passed: 0, heavy: 1, light: 2 },
+      reviews: { recorded: 1, passed: 0, heavy: 1, light: 2, causes },
     });
   });
 

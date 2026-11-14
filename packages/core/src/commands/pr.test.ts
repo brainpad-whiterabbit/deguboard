@@ -209,7 +209,11 @@ async function reviewRound(
   const run = (
     await runCommand(runStart, ctx, { ticket: "t1", step: "review", agent: "claude-code" })
   ).data as Run;
-  await runCommand(runReviewResult, ctx, { ticket: "t1", findings });
+  // 原因の種類は本文に出ないので、どの指摘も同じ値にそろえる
+  await runCommand(runReviewResult, ctx, {
+    ticket: "t1",
+    findings: findings.map((f) => ({ ...f, cause: "implementation" as const })),
+  });
   await runCommand(runFinish, ctx, { run: run.id, result: "success" });
 }
 
@@ -687,10 +691,16 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     await runCommand(runReviewResult, ctx, {
       ticket: "t1",
       findings: [
-        { severity: "light", category: "受け入れ条件の漏れ", reason: "1 つめが足りない" },
+        {
+          severity: "light",
+          category: "受け入れ条件の漏れ",
+          cause: "implementation",
+          reason: "1 つめが足りない",
+        },
         {
           severity: "light",
           category: "参考節との食い違い",
+          cause: "plan",
           file: "src/b.ts",
           reason: "広がり",
           fix: "節に足す",

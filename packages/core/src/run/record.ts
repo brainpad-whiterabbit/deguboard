@@ -24,7 +24,6 @@ import {
   type Run,
   type RunId,
   type RunResult,
-  type ReviewFinding,
   type RunReview,
   type RunTools,
   type RunUsage,
@@ -35,7 +34,7 @@ import { pathExists } from "../storage/exists.js";
 import type { Issue } from "../storage/issue.js";
 import { DIRS, runPath, TRANSCRIPTS_DIR, transcriptPath } from "../storage/paths.js";
 import type { Store } from "../storage/store.js";
-import { latestRoundSince } from "./findings.js";
+import { latestRoundSince, type StoredFinding } from "./findings.js";
 
 /**
  * 書く先の見直しの Run がまだないときに置く、保留の見直しの結果（deguboard-local/reviews/<ticket>.json。RN-9）。
@@ -112,7 +111,7 @@ export interface ReviewRound {
   /** 置いた時刻（ISO） */
   at: string;
   review: RunReview;
-  findings: ReviewFinding[] | null;
+  findings: StoredFinding[] | null;
   /**
    * 結果を書いたセッション（run review-result の sessionOf）。保留から書く見直しの記録の session に写し、前景の見直し役が返ったときに
    * 起動のフックが同じセッションの記録だけを引き取る（t701）。分からなければ省く。この項目より前の回にもない
@@ -127,7 +126,7 @@ export interface ReviewRound {
    * 親が手直しに渡した指摘（run handoff）。直さなかった軽い指摘の節から外し、手直しの文の直す指摘に入れる。
    * 呼び直すと置き換える。渡さなかった回は省く（読む側は空として扱う）
    */
-  handed?: ReviewFinding[];
+  handed?: StoredFinding[];
 }
 
 export interface StoredReviewFindings {
@@ -164,7 +163,7 @@ export async function setHandedFindings(
   repo: Pick<GitRepo, "localDir">,
   ticket: TicketId,
   since: string | undefined,
-  handed: ReviewFinding[],
+  handed: StoredFinding[],
 ): Promise<boolean> {
   const stored = await readReviewFindings(repo, ticket);
   const round = stored && latestRoundSince(stored.rounds, since);
