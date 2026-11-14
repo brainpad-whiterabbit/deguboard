@@ -34,7 +34,7 @@ import {
 afterEach(runCleanups);
 
 describe("init", () => {
-  it("worktree・config・テンプレート・default プロジェクトを置いて push し、2 回目は何も作らない", async () => {
+  it("worktree・config・テンプレートを置いて push し、--template を config の default_workflow に書き、2 回目は何も作らない", async () => {
     const f = await fixture();
     const ctx = await openContext({ cwd: f.cloneA, initialize: {} });
     const r = await runCommand(init, ctx, { template: "software-development" });
@@ -45,10 +45,14 @@ describe("init", () => {
       ".gitattributes",
       "workflows/software-development.yaml",
       "workflows/general.yaml",
-      "projects/default.yaml",
     ]);
     expect(r.write).toMatchObject({ committed: true, pushed: true });
-    expect(ctx.store.projects.get("default")?.data.workflow).toBe("software-development");
+    // Project は置かない。既定の Workflow は config の default_workflow で決める
+    expect(ctx.store.config.default_workflow).toBe("software-development");
+    const config = await readFile(path.join(ctx.repo.dataDir, "config.yaml"), "utf8");
+    expect(config).toContain("default_workflow: software-development");
+    expect(config).not.toContain("default_project");
+    expect((await git(ctx.repo.dataDir, ["ls-files", "projects"])).stdout).toBe("");
     const again = await openContext({ cwd: f.cloneA, initialize: {} });
     const r2 = await runCommand(init, again, {});
     expect(r2.data.worktree).toBe("existing");
@@ -226,7 +230,7 @@ describe("用意", () => {
     // 空の扱いは項目の定義の clears_to_default で決まる（既定が空でない文字列の項目だけ true）
     const byKey = new Map(configFields().map((x) => [x.key, x]));
     expect(byKey.get("priority.high")?.clears_to_default).toBe(true);
-    expect(byKey.get("default_project")?.clears_to_default).toBe(true);
+    expect(byKey.get("default_workflow")?.clears_to_default).toBe(true);
     expect(byKey.get("models.light")?.clears_to_default).toBe(false);
     expect(byKey.get("actor.human_only")?.clears_to_default).toBe(false);
     // priority.* を書き換えてから空にすると、Core の既定の文に戻る
@@ -236,10 +240,10 @@ describe("用意", () => {
     // 読み直しても既定のまま。キーを消すので config.yaml には書かれない
     const shown = (await runCommand(configShow, ctx, {})).data as ConfigShowView["config"];
     expect(shown.priority.high).toBe(defaults.priority.high);
-    // 最上位の文字列の項目（既定 "default"）も空で既定に戻る
-    await runCommand(configSet, ctx, { key: "default_project", value: "other" });
-    const proj = await runCommand(configSet, ctx, { key: "default_project", value: "" });
-    expect(proj.data.default_project).toBe("default");
+    // 最上位の文字列の項目（既定 "general"）も空で既定に戻る
+    await runCommand(configSet, ctx, { key: "default_workflow", value: "software-development" });
+    const wf = await runCommand(configSet, ctx, { key: "default_workflow", value: "" });
+    expect(wf.data.default_workflow).toBe("general");
     // 既定が空の項目（models.*）は空のまま
     await runCommand(configSet, ctx, { key: "models.light", value: "sonnet" });
     const light = await runCommand(configSet, ctx, { key: "models.light", value: "" });
@@ -290,16 +294,16 @@ describe("用意", () => {
     const other = await openContext({ cwd: f.cloneB, initialize: {} });
     expect(other.store.localConfig).toEqual({});
     expect(other.config.models.light).not.toBe("my-light");
-    // 文字列の項目に空文字を入れると個人の上書きを外す（既定が空でない default_project）
-    await runCommand(configSet, ctx, { key: "default_project", value: "mine", local: true });
-    expect(ctx.store.config.default_project).toBe("mine");
+    // 文字列の項目に空文字を入れると個人の上書きを外す（既定が空でない git.remote）
+    await runCommand(configSet, ctx, { key: "git.remote", value: "mine", local: true });
+    expect(ctx.store.config.git.remote).toBe("mine");
     const cleared = await runCommand(configSet, ctx, {
-      key: "default_project",
+      key: "git.remote",
       value: "",
       local: true,
     });
-    expect(cleared.data.default_project).toBe("default");
-    expect(await readFile(localFile, "utf8")).not.toContain("default_project");
+    expect(cleared.data.git.remote).toBe("origin");
+    expect(await readFile(localFile, "utf8")).not.toContain("remote");
   });
 
   it("config.set --local はチーム専用・未知の項目と不正な値を VALIDATION_FAILED で拒み、個人のファイルに書かない", async () => {

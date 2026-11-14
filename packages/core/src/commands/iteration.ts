@@ -4,7 +4,7 @@ import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { readHistory, type HistoryEvent, type HistoryReader } from "../git/history.js";
 import { withWrite } from "../git/write.js";
-import { isFinishedSet, isTerminal, slugSchema, type Status } from "../model/common.js";
+import { isFinishedSet, isTerminal, type Status } from "../model/common.js";
 import type { TicketId } from "../model/id.js";
 import {
   ITERATION_STATUSES,
@@ -18,16 +18,9 @@ import type { Store } from "../storage/store.js";
 import { defineCommand, ok } from "./define.js";
 import { plansContaining, type PlanBrief } from "./plan.js";
 import type { AskAction } from "./ask.js";
-import {
-  iterationRef,
-  nowIso,
-  projectOf,
-  sortedDocs,
-  ticketRef,
-  ticketsInIteration,
-} from "./helpers.js";
+import { iterationRef, nowIso, sortedDocs, ticketRef, ticketsInIteration } from "./helpers.js";
 
-/** active の Iteration は Project に 1 つ（IT-1）。ほかに active があれば拒否する */
+/** active の Iteration はカンバンに 1 つ（IT-1）。ほかに active があれば拒否する */
 function rejectIfOtherActive(store: Store, it: Doc<Iteration>, verb: string): void {
   const other = otherActiveOf(
     [...store.iterations.values()].map((i) => i.data),
@@ -43,9 +36,6 @@ export const iterationCreate = defineCommand({
   summary: "Create an Iteration",
   input: z.object({
     name: z.string().min(1).describe("Name"),
-    project: slugSchema
-      .optional()
-      .describe("Project. Defaults to config's default_project when omitted"),
     goal: z.string().optional().describe("Goal"),
   }),
   write: true,
@@ -54,12 +44,9 @@ export const iterationCreate = defineCommand({
     const result = await withWrite(
       ctx,
       async () => {
-        const project = projectOf(ctx, input.project);
-        ctx.store.requireProject(project);
         const id = ctx.store.nextId("iteration");
         return ctx.store.create("iteration", {
           id,
-          project,
           name: input.name,
           goal: input.goal ?? "",
           status: "planned",
@@ -76,7 +63,6 @@ export const iterationList = defineCommand({
   group: "iteration",
   summary: "List Iterations in number order",
   input: z.object({
-    project: z.string().optional().describe("Filter by Project. Omit for all"),
     status: z
       .array(z.enum(ITERATION_STATUSES))
       .optional()
@@ -86,9 +72,7 @@ export const iterationList = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const docs = sortedDocs(ctx.store.iterations.values()).filter(
-      (d) =>
-        (!input.project || d.data.project === input.project) &&
-        (!input.status || input.status.includes(d.data.status)),
+      (d) => !input.status || input.status.includes(d.data.status),
     );
     return ok(docs.map((d) => d.data));
   },
@@ -264,8 +248,6 @@ export const iterationAdd = defineCommand({
         const ids: string[] = [];
         for (const ref of input.tickets) {
           const t = ctx.store.require("ticket", ref);
-          if (t.data.project !== it.data.project)
-            throw new OperationError("REJECTED", `${t.id} is in a different Project from ${it.id}`);
           await ctx.store.update("ticket", t.id, { iteration: it.id, updated_at: nowIso(ctx) });
           ids.push(t.id);
         }
@@ -311,7 +293,7 @@ export const iterationStart = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Start an Iteration (make it active). Records the time it started (started_at). Rejected if another Iteration in the same Project is active",
+    "Start an Iteration (make it active). Records the time it started (started_at). Rejected if another Iteration is active",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -378,7 +360,7 @@ export const iterationReopen = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Reopen a closed Iteration and make it active again (rejected if another Iteration in the same Project is active). Clears closed_at and the completed and carried-over counts. The start time (started_at) is not changed. Carried-over tickets do not come back, so add them again with iteration add",
+    "Reopen a closed Iteration and make it active again (rejected if another Iteration is active). Clears closed_at and the completed and carried-over counts. The start time (started_at) is not changed. Carried-over tickets do not come back, so add them again with iteration add",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",

@@ -206,9 +206,10 @@ const DEFAULT_RETRO_PERSPECTIVES: Record<string, RetroPerspective> = {
 };
 
 export const configSchema = z.looseObject({
-  default_project: described(slugSchema.default("default"), {
-    summary: "Project used when none is given",
-    description: "Project used when none is given",
+  default_workflow: described(slugSchema.default("general"), {
+    summary: "Workflow of tickets that name none",
+    description:
+      "Workflow of tickets that have no workflow of their own (a ticket's workflow overrides it)",
   }),
   git: z
     .looseObject({
@@ -564,7 +565,6 @@ export type ConfigScope = "team" | "local";
  * 個人で外せると、同じチームでも PR の流れと記録の形が人ごとに変わり、チームで揃わなくなるため
  */
 const LOCAL_KEYS: ReadonlySet<string> = new Set([
-  "default_project",
   "git.remote",
   "git.data_remote",
   "git.data_branch",

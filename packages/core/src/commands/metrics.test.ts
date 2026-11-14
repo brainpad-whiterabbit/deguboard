@@ -160,7 +160,6 @@ describe("metrics show", () => {
     expect(await runsOf({ ticket: "1" })).toBe(2);
     expect(await runsOf({ epic: "e1" })).toBe(2);
     expect(await runsOf({ iteration: "s1" })).toBe(0);
-    expect(await runsOf({ project: "default" })).toBe(3);
     expect(await runsOf({ agent: "codex" })).toBe(1);
     expect(await runsOf({ model: "opus" })).toBe(1);
     expect(await runsOf({ step: "review" })).toBe(1);
@@ -218,9 +217,10 @@ describe("metrics show", () => {
     });
     await recordBaseline(ctx.repo);
     expect((await runCommand(metricsShow, ctx, {})).warnings).toEqual([]);
-    const r = await runCommand(metricsShow, ctx, { by: "project" });
+    const r = await runCommand(metricsShow, ctx, { by: "epic" });
     expect(r.warnings[0]).toContain("t9");
-    expect(r.data.groups.at(-1)).toMatchObject({ key: null, runs: 1 });
+    // Epic の分からない Run（Epic のない t2 と、見つからない t9）は null にまとまる
+    expect(r.data.groups.at(-1)).toMatchObject({ key: null, runs: 2 });
     // 絞り込みで外れた Run のチケットは警告しない
     expect((await runCommand(metricsShow, ctx, { ticket: "t1", by: "epic" })).warnings).toEqual([]);
     expect((await runCommand(metricsShow, ctx, { epic: "e1" })).warnings).toEqual([]);
@@ -251,9 +251,6 @@ describe("metrics show", () => {
     ]);
     expect((await runCommand(metricsShow, ctx, { ticket: "t1" })).data.no_runs).toEqual([]);
     expect((await runCommand(metricsShow, ctx, { epic: "e1" })).data.no_runs).toEqual([]);
-    expect((await runCommand(metricsShow, ctx, { project: "default" })).data.no_runs).toEqual([
-      "t3",
-    ]);
     // Run の条件で絞ったときは、Run のないチケットはどれにも合わないので示さない
     expect((await runCommand(metricsShow, ctx, { step: "implement" })).data.no_runs).toEqual([]);
     expect((await runCommand(metricsShow, ctx, { agent: "codex" })).data.no_runs).toEqual([]);
@@ -267,11 +264,11 @@ describe("metrics show", () => {
 
   it("実装の Run の step は Workflow の claim が開く step の名前で探す（RN-5）", async () => {
     const ctx = await scenario();
-    const projectWorkflow = [...ctx.store.projects.values()][0]?.data.workflow as string;
+    const defaultWorkflow = ctx.store.config.default_workflow;
     await runCommand(workflowSet, ctx, {
-      workflow: projectWorkflow,
+      workflow: defaultWorkflow,
       definition: {
-        id: projectWorkflow,
+        id: defaultWorkflow,
         name: "renamed",
         transitions: [],
         steps: [{ id: "build", opens_on: "claim" }],

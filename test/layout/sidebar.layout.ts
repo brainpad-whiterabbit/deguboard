@@ -109,7 +109,7 @@ beforeAll(async () => {
   await call("iteration.create", { name: "終わった週" });
   await call("iteration.start", { iteration: "s1" });
   await call("iteration.close", { iteration: "s1" });
-  // s2 は作るだけにし、s8 を閉じた後に始める（active の Iteration は Project に 1 つ。IT-1）。
+  // s2 は作るだけにし、s8 を閉じた後に始める（active の Iteration はカンバンに 1 つ。IT-1）。
   // 目標はサイドバーの幅で 3 行を超える長さにし、カンバンの見出しが 3 行で切るかを確かめる
   await call("iteration.create", {
     name: "今週",

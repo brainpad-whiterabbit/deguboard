@@ -168,7 +168,7 @@ describe("workflow set", () => {
     expect(ctx.store.workflows.get("my-dev")?.resolved.reconcile.length).toBeGreaterThan(0);
   });
 
-  it("使っている Project の Workflow を置き換えても既存のチケットが読め、新しい制約で遷移する", async () => {
+  it("使っている既定の Workflow を置き換えても既存のチケットが読め、新しい制約で遷移する", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     const a = await runCommand(ticketCreate, ctx, { title: "A" });

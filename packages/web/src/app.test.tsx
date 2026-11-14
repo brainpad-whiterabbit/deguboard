@@ -274,23 +274,11 @@ describe("画面", () => {
   });
 
   /**
-   * Project の既定（遷移の制約なし）と別に、todo → done を誰にも許さない Workflow strict を持つチケット t9 の client。
-   * otherProject なら t9 は workflow を持たず、既定の Workflow が strict の別の Project に入る
+   * 既定の Workflow（遷移の制約なし）と別に、todo → done を誰にも許さない Workflow strict を持つチケット t9 の client
    */
-  function ownWorkflowClient({ otherProject = false } = {}) {
+  function ownWorkflowClient() {
     const data = fixture({
-      tickets: [
-        otherProject
-          ? ticket({ id: "t9", title: "別の流れ", project: "other" })
-          : ticket({ id: "t9", title: "別の流れ", workflow: "strict" }),
-      ],
-    });
-    data.projects.push({
-      id: "other",
-      name: "Other",
-      description: "",
-      workflow: "strict",
-      status: "active",
+      tickets: [ticket({ id: "t9", title: "別の流れ", workflow: "strict" })],
     });
     const client = mockClient(data);
     client.handlers["workflow.show"] = (input) =>
@@ -335,17 +323,6 @@ describe("画面", () => {
     ).toBe(true);
   });
 
-  it("workflow のないチケットが別の Project にあれば、その Project の既定の Workflow でパネルの Status の選択を絞る", async () => {
-    window.location.hash = "#/tickets/t9";
-    const client = ownWorkflowClient({ otherProject: true });
-    mount(client, hostOf("panel"));
-    await screen.findByRole("heading", { level: 1, name: "別の流れ" });
-    await waitFor(() =>
-      expect(statusOptions()).toEqual(["todo", "in_progress", "review", "abandoned"]),
-    );
-    expect(document.querySelector(".detail-meta-status")!.textContent).toBe("未着手");
-  });
-
   it("チケットの Workflow が読めなければ理由を通知に出し、パネルの Status の選択は今の Status だけにする", async () => {
     window.location.hash = "#/tickets/t9";
     const client = ownWorkflowClient();
@@ -361,14 +338,24 @@ describe("画面", () => {
     expect(statusOptions()).toEqual(["todo"]);
   });
 
-  it("チケットの Workflow が Project の既定と同じなら、チケット詳細で Workflow を引き直さない", async () => {
-    window.location.hash = "#/tickets/t3";
-    const client = mockClient();
-    mount(client, hostOf("panel"));
-    await screen.findByRole("heading", { level: 1, name: "画面" });
-    expect(statusOptions()).toEqual(["todo", "in_progress", "review", "done", "abandoned"]);
-    expect(client.calls.filter((c) => c.name === "workflow.show")).toHaveLength(1);
-  });
+  it.each([
+    ["workflow を持たない", undefined],
+    ["既定と同じ workflow を持つ", "software-development"],
+  ])(
+    "%sチケットは既定の Workflow（config の default_workflow）で出し、チケット詳細で Workflow を引き直さない",
+    async (_, workflow) => {
+      window.location.hash = "#/tickets/t3";
+      const client = mockClient();
+      if (workflow) client.data.tickets[2]!.workflow = workflow;
+      mount(client, hostOf("panel"));
+      await screen.findByRole("heading", { level: 1, name: "画面" });
+      expect(statusOptions()).toEqual(["todo", "in_progress", "review", "done", "abandoned"]);
+      // 一覧と一緒に、config の default_workflow の Workflow を 1 度だけ読む
+      expect(client.calls.filter((c) => c.name === "workflow.show").map((c) => c.input)).toEqual([
+        { workflow: "software-development" },
+      ]);
+    },
+  );
 
   it("エディタのパネルのチケット詳細は、編集のボタンを出し、作成・更新を手元時刻で今年なら年を省いて出し、値のない属性を「なし」の 1 行にまとめる", async () => {
     // 作成（2026-01-01）が今年になるよう、今を 2026 年にする
@@ -484,9 +471,9 @@ describe("画面", () => {
     expect(document.querySelector(".deps-band")).toBeNull();
   });
 
-  it("エディタのパネルの依存先の帯と右の列の依存先の丸印・薄くする判定は pending_deps に合わせ、一覧にない別の Project の依存先も同じに扱う", async () => {
+  it("エディタのパネルの依存先の帯と右の列の依存先の丸印・薄くする判定は pending_deps に合わせ、一覧にない依存先も同じに扱う", async () => {
     window.location.hash = "#/tickets/t9";
-    // t5 は別の Project で done、t7 は別の Project で review（どちらも今の Project の ticket.list には出ない）。t6 は見つからない依存先
+    // t5 は done、t7 は review（どちらも一覧を読んだ後に増えて、読んである ticket.list には出ない）。t6 は見つからない依存先
     const data = fixture({
       tickets: [
         ticket({ id: "t1", title: "済み", status: "done" }),
@@ -520,7 +507,7 @@ describe("画面", () => {
     expect(dot("t2")).toContain("status-in_progress");
     expect(dot("t6")).toBeNull();
     expect(dot("t7")).toContain("status-review");
-    // 帯は ticket.show の pending_deps だけを出し、一覧にない別の Project の終わった依存先 t5 は出さない
+    // 帯は ticket.show の pending_deps だけを出し、一覧にない終わった依存先 t5 は出さない
     const band = document.querySelector(".deps-band")!;
     expect(band.querySelector('a[href="#/tickets/t5"]')).toBeNull();
     // 帯は pending_deps の順に、終わっていない依存先の ID だけを並べる（t6 は Status がなく丸印なし）
@@ -728,7 +715,7 @@ describe("画面", () => {
     it("優先度の判断基準が読めていないときは、選択の説明（hint）が空になる", async () => {
       window.location.hash = "#/tickets/t3";
       const client = mockClient();
-      client.handlers["config.show"] = () => ({ default_project: "default" });
+      client.handlers["config.show"] = () => ({ default_workflow: "software-development" });
       mount(client, hostOf("panel"));
       await screen.findByRole("heading", { level: 1, name: "画面" });
       fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
@@ -1110,8 +1097,8 @@ describe("画面", () => {
     const notInitialized = () => {
       throw new ClientError({ code: "NOT_INITIALIZED", message: "初期化されていない" });
     };
-    const original = client.handlers["project.list"]!;
-    client.handlers["project.list"] = notInitialized;
+    const original = client.handlers["config.show"]!;
+    client.handlers["config.show"] = notInitialized;
     const send = mountWithBridge(client, { readRunning: false });
     expect(await screen.findByRole("heading", { name: "deguboard を始める" })).toBeTruthy();
     // dg init のコマンドが出て、押すとコピーする（データには何も書かない）
@@ -1119,7 +1106,7 @@ describe("画面", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(client.calls.some((c) => c.name === "sync" || c.name.endsWith(".create"))).toBe(false);
 
-    client.handlers["project.list"] = original;
+    client.handlers["config.show"] = original;
     act(() => send()({ kind: "event", name: "reload" }));
     expect(await screen.findByText("ログイン")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "deguboard を始める" })).toBeNull();
@@ -1128,7 +1115,7 @@ describe("画面", () => {
   it("拡張ホストから toggle の event が来ると、設定画面と来る前の画面を切り替える（ビューのタイトル行の歯車）", async () => {
     const client = mockClient();
     client.handlers["config.show"] = () => {
-      const config = { default_project: "default" };
+      const config = { default_workflow: "software-development" };
       return { config, team: config, local: {}, fields: [] };
     };
     window.location.hash = "#/backlog";
@@ -1591,9 +1578,7 @@ describe("画面", () => {
     client.handlers["run.recent"] = () => recent;
     const send = mountWithBridge(client);
     await waitFor(() => expect(kanbanRowOf("API").querySelector(".run-pips")).toBeTruthy());
-    expect(client.calls.find((c) => c.name === "run.recent")!.input).toEqual({
-      project: "default",
-    });
+    expect(client.calls.find((c) => c.name === "run.recent")!.input).toEqual({});
     const api = kanbanRowOf("API");
     // 行の頭には印を出さず、番号から始める。優先度の印と Plan の番号は上の段
     expect(api.firstElementChild!.tagName).toBe("CODE");
@@ -2775,16 +2760,14 @@ describe("画面", () => {
     expect(document.querySelector(".iteration-chip.active")!.textContent).toBe("s10/1");
   });
 
-  it("サイドバーでは Project が 1 つなら Project の段を出さず、2 つ以上なら出す", async () => {
-    mount(boardClient(), hostOf("sidebar"));
-    await screen.findByText("ログイン");
-    expect(document.querySelector(".project-select")).toBeNull();
-    cleanup();
+  it("上のバーに Project の切り替えを出さず、一覧は Project で絞らずに読む", async () => {
     const client = boardClient();
-    client.data.projects.push({ ...client.data.projects[0]!, id: "other", name: "Other" });
     mount(client, hostOf("sidebar"));
     await screen.findByText("ログイン");
-    expect(document.querySelector(".project-select")).toBeTruthy();
+    expect(document.querySelector(".topbar select")).toBeNull();
+    expect(screen.queryByLabelText("Project")).toBeNull();
+    expect(client.calls.some((c) => c.name === "project.list")).toBe(false);
+    for (const c of client.calls) expect(c.input ?? {}, c.name).not.toHaveProperty("project");
   });
 
   it("サイドバーのカンバンの Epic・担当の欄は漏斗で開き（開閉は host.state）、絞っている間は値の札を出して漏斗を色付きにし、× で外せる", async () => {
@@ -3082,12 +3065,12 @@ describe("上のタブの行き先", () => {
     ["閉じた Epic を指すカンバン", "nav.board", "#/board?epic=e9", "#/board"],
   ])("残したハッシュが%sなら、タブは既定の行き先を指す", async (_, key, href, fallback) => {
     window.location.hash = "#/backlog";
-    mount(navClient(), hostWith({ [key]: { project: "default", href } }));
+    mount(navClient(), hostWith({ [key]: { href } }));
     await screen.findByText("API");
     expect(tab("カンバン").getAttribute("href")).toBe(fallback);
   });
 
-  it("残したハッシュが別の Project のもの、または前の版の文字列なら、タブは既定の行き先を指す", async () => {
+  it("前の版が Project と一緒に残したハッシュはそのまま使い、前の版の文字列なら、タブは既定の行き先を指す", async () => {
     window.location.hash = "#/backlog";
     mount(
       navClient(),
@@ -3097,58 +3080,7 @@ describe("上のタブの行き先", () => {
       }),
     );
     await screen.findByText("API");
-    expect(tab("カンバン").getAttribute("href")).toBe("#/board");
-    expect(tab("履歴").getAttribute("href")).toBe("#/history");
-  });
-
-  it("Project を切り替えると、カンバン・履歴のタブは既定の行き先に戻る", async () => {
-    window.location.hash = "#/backlog";
-    const client = navClient();
-    client.data.projects.push({ ...client.data.projects[0]!, id: "other", name: "Other" });
-    mount(
-      client,
-      hostWith({
-        "nav.board": { project: "default", href: "#/board?iteration=s2" },
-        "nav.history": { project: "default", href: "#/history?view=ticket" },
-      }),
-    );
-    await screen.findByText("API");
     expect(tab("カンバン").getAttribute("href")).toBe("#/board?iteration=s2");
-    expect(tab("履歴").getAttribute("href")).toBe("#/history?view=ticket");
-    fireEvent.change(screen.getByLabelText("Project"), { target: { value: "other" } });
-    await waitFor(() => expect(tab("カンバン").getAttribute("href")).toBe("#/board"));
     expect(tab("履歴").getAttribute("href")).toBe("#/history");
-    // 元の Project に戻っても、切り替えの前のハッシュには戻らない
-    fireEvent.change(screen.getByLabelText("Project"), { target: { value: "default" } });
-    await waitFor(() =>
-      expect(screen.getByLabelText<HTMLSelectElement>("Project").value).toBe("default"),
-    );
-    expect(tab("カンバン").getAttribute("href")).toBe("#/board");
   });
-
-  it.each([["カンバン", "#/board?iteration=s2&epic=e1", "#/board"]])(
-    "%sの画面にいるまま Project を切り替えると、前の Project の絞り込みを残さず、タブは既定の行き先を指す。絞り直せばまた残す",
-    async (name, href, fallback) => {
-      window.location.hash = href;
-      const client = navClient();
-      client.data.projects.push({ ...client.data.projects[0]!, id: "other", name: "Other" });
-      mount(client, hostOf("sidebar"));
-      await waitFor(() => expect(tab(name).getAttribute("href")).toBe(href));
-      fireEvent.change(screen.getByLabelText("Project"), { target: { value: "other" } });
-      await waitFor(() => expect(tab(name).getAttribute("href")).toBe(fallback));
-      // 他のタブへ移って戻っても、前の Project の絞り込みに戻らない
-      fireEvent.click(tab("バックログ"));
-      await waitFor(() => expect(window.location.hash).toBe("#/backlog"));
-      expect(tab(name).getAttribute("href")).toBe(fallback);
-      // 新しい Project で絞り直したハッシュはまた残す
-      const again = "#/board?iteration=s1";
-      act(() => {
-        window.location.hash = again;
-        window.dispatchEvent(new HashChangeEvent("hashchange"));
-      });
-      await waitFor(() => expect(tab(name).getAttribute("aria-current")).toBe("page"));
-      fireEvent.click(tab("バックログ"));
-      await waitFor(() => expect(tab(name).getAttribute("href")).toBe(again));
-    },
-  );
 });

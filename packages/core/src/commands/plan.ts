@@ -4,14 +4,14 @@ import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { withWrite } from "../git/write.js";
 import type { TicketId } from "../model/id.js";
-import { isTerminal, slugSchema } from "../model/common.js";
+import { isTerminal } from "../model/common.js";
 import { PLAN_TIERS, type Plan, type PlanTier } from "../model/plan.js";
 import { pendingDeps, progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
 import { cyclePath, findCrossingCycle, findCycle, type WaitEdge } from "../storage/wait-cycle.js";
 import { defineCommand, ok } from "./define.js";
-import { nowIso, openPlanOf, planRef, projectOf, sortedDocs, ticketRef } from "./helpers.js";
+import { nowIso, openPlanOf, planRef, sortedDocs, ticketRef } from "./helpers.js";
 
 /** 1 つの値（CLI の `--after t3=t1,t2`）でも配列（HTTP）でも受ける */
 const refList = z.union([z.string(), z.number(), z.array(z.union([z.string(), z.number()]))]);
@@ -36,9 +36,6 @@ export const planCreate = defineCommand({
       .array(ticketRef)
       .min(1)
       .describe("Tickets to advance (the order listed is a guide to the run order)"),
-    project: slugSchema
-      .optional()
-      .describe("Project. Defaults to config's default_project when omitted"),
     after: z
       .record(z.string(), refList)
       .optional()
@@ -63,14 +60,10 @@ export const planCreate = defineCommand({
     const result = await withWrite(
       ctx,
       async () => {
-        const project = projectOf(ctx, input.project);
-        ctx.store.requireProject(project);
         const tickets: TicketId[] = [];
         for (const ref of input.tickets) {
           const t = ctx.store.require("ticket", ref);
           if (tickets.includes(t.data.id)) continue;
-          if (t.data.project !== project)
-            throw new OperationError("REJECTED", `${t.id} is not a ticket of Project ${project}`);
           if (isTerminal(t.data.status))
             throw new OperationError(
               "REJECTED",
@@ -128,7 +121,6 @@ export const planCreate = defineCommand({
         const id = ctx.store.nextId("plan");
         return ctx.store.create("plan", {
           id,
-          project,
           tickets,
           after,
           pending_approval: true,
@@ -243,7 +235,6 @@ export const planList = defineCommand({
   summary:
     "List Plans in number order, with status (pending, approved, closed), progress, each ticket's waiting-on (waiting), tickets that can be started (ready), and next. --status open limits the list to open Plans (awaiting approval and approved)",
   input: z.object({
-    project: slugSchema.optional().describe("Filter by Project"),
     status: z
       .enum(PLAN_FILTERS)
       .optional()
@@ -257,7 +248,6 @@ export const planList = defineCommand({
     const match = (status: PlanStatus): boolean =>
       !input.status || (input.status === "open" ? status !== "closed" : input.status === status);
     const rows = sortedDocs(ctx.store.plans.values())
-      .filter((d) => !input.project || d.data.project === input.project)
       .map((d) => ({ doc: d, status: planStatus(d.data) }))
       .filter((r) => match(r.status))
       .map(({ doc, status }): PlanRow => ({

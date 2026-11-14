@@ -32,8 +32,8 @@ const GROUPS: { id: string; label: string; tops: string[] }[] = [
   },
   { id: "metrics", label: msg("計測"), tops: ["metrics"] },
   { id: "notify", label: msg("通知"), tops: ["notify"] },
-  { id: "git", label: "Git", tops: ["git", "worktree", "default_project"] },
-  { id: "ticket", label: msg("チケット"), tops: ["priority"] },
+  { id: "git", label: "Git", tops: ["git", "worktree"] },
+  { id: "ticket", label: msg("チケット"), tops: ["default_workflow", "priority"] },
   { id: "guide", label: msg("ガイドの差し込み"), tops: ["guide"] },
 ];
 /** GROUPS に入っていない項目（スキーマに足したばかりのもの）の受け皿 */
@@ -75,7 +75,7 @@ const NAMES: Record<string, string> = {
   "git.base_branch": msg("基準のブランチ"),
   "worktree.root": msg("worktree の置き場所"),
   "worktree.setup": msg("worktree の準備のコマンド"),
-  default_project: msg("既定の Project"),
+  default_workflow: msg("既定の Workflow"),
   "priority.high": msg("優先度 high の判断基準"),
   "priority.medium": msg("優先度 medium の判断基準"),
   "priority.low": msg("優先度 low の判断基準"),

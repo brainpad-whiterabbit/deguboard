@@ -68,8 +68,10 @@ const GUIDE_NOTES_TEXT =
  * core の文と過不足なく揃うこと（文を書き換えたら鍵も直す）は l10n.test.ts が確かめる
  */
 export const CONFIG_DESCRIPTIONS: CoreTextTable = {
-  // default_project
-  "Project used when none is given": { ja: "省略時の Project" },
+  // default_workflow
+  "Workflow of tickets that have no workflow of their own (a ticket's workflow overrides it)": {
+    ja: "自分の workflow を持たないチケットの Workflow（チケットの workflow が優先する）",
+  },
   // git.remote
   "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set":
     {
@@ -237,7 +239,9 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     ja: "guide の題名の直後（節を出すときは節の見出しの直後）に差し込む文書のパス。リポジトリの最上位からの相対パスで、リポジトリの外は読まない。空なら差し込まない。見出し（#）を含む文書は差し込まない",
   },
 
-  // --- 要約（summary）。説明と同じ文の項目（default_project・git.base_branch）は上の行が兼ねる ---
+  // --- 要約（summary）。説明と同じ文の項目（git.base_branch）は上の行が兼ねる ---
+  // default_workflow
+  "Workflow of tickets that name none": { ja: "workflow を持たないチケットの Workflow" },
   // git.remote
   "Git remote of the code (work branches and pull requests)": {
     ja: "コードのリモート（作業ブランチと PR）",
@@ -342,7 +346,7 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   },
 
   // --- 空のときの動き（empty） ---
-  // 既定が空でない文字列の項目（default_project・git.*・worktree.root・priority.*）
+  // 既定が空でない文字列の項目（default_workflow・git.*・worktree.root・priority.*）
   "Returns to the default (in personal settings, to the team's value)": {
     ja: "既定に戻る（個人の設定ではチームの値に戻る）",
   },
@@ -452,8 +456,8 @@ export const CORE_MESSAGES: CoreTextTable = {
   "{0} not found (deleted)": { ja: "{0} が見つからない（削除された）" },
   // Run の警告（run.list・metrics.show）
   "deguboard-local/{0}: {1}": { ja: "deguboard-local/{0}: {1}" },
-  "Tickets {0} not found, so the Epic, Iteration and Project of those Runs are unknown": {
-    ja: "チケット {0} が見つからないので、その Run の Epic・Iteration・Project は分からない",
+  "Tickets {0} not found, so the Epic and Iteration of those Runs are unknown": {
+    ja: "チケット {0} が見つからないので、その Run の Epic・Iteration は分からない",
   },
   // 読めないファイルの理由（readDoc）
   "Cannot read the file": { ja: "ファイルを読めない" },

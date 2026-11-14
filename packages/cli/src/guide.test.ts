@@ -924,9 +924,7 @@ describe("dg guide", () => {
     const pre = step(steps, 2);
     expect(lineWith(pre, "**close**")).toContain("not done or abandoned");
     expect(lineWith(pre, "**close**")).toContain("Close without releasing");
-    expect(lineWith(pre, "**reopen**")).toContain(
-      "another Iteration in the same Project is active",
-    );
+    expect(lineWith(pre, "**reopen**")).toContain("another Iteration is active");
     expect(lineWith(pre, "**abandon**")).toContain("reason");
     for (const word of ["Status to return to", "reason"])
       expect(lineWith(pre, "**undo done**")).toContain(word);

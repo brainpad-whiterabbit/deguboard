@@ -590,11 +590,6 @@ Reset to Default
 Details
 Whether the VS Code extension shows a notification when Plans awaiting approval or tickets in review increase (the count is always shown)
 Git
-Default Project
-default_project
-Project used when none is given
-[value] default
-When empty: Returns to the default (in personal settings, to the team's value)
 Code remote
 git.remote
 Git remote of the code (work branches and pull requests)
@@ -647,6 +642,13 @@ When empty: Runs nothing
 Details
 Argument array of the setup command run first in a work worktree that claim created (e.g. [mise, run, setup]). Empty runs nothing. If it fails, claim still succeeds and the warnings give the failure and the command to run by hand
 Tickets
+Default Workflow
+default_workflow
+Workflow of tickets that name none
+[value] general
+When empty: Returns to the default (in personal settings, to the team's value)
+Details
+Workflow of tickets that have no workflow of their own (a ticket's workflow overrides it)
 Criteria for priority high
 priority.high
 [title] Default: User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets

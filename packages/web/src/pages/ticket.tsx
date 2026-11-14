@@ -1,6 +1,6 @@
 // チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧と、経過（deguboard ブランチの履歴）。
 // 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。
-// Status の選択・表示名と任意フィールドは、チケット自身の Workflow（なければ Project の既定）で決める。
+// Status の選択・表示名と任意フィールドは、チケット自身の Workflow（なければ config の default_workflow）で決める。
 // VS Code のパネルに出し、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
 // 依存先が終わっていなければ本文の上の帯で知らせる（右の列の下の知らせは見落とす）。
 // 右の列（属性）は components/ticket-props-panel.tsx（値を押してその場で直す）。編集のボタンはタイトルと本文だけを入力欄にする。
@@ -22,16 +22,14 @@ import { tr } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
 /**
- * チケットの Workflow。チケットの workflow、なければ Project の既定で、core の requireWorkflowFor と同じ解決にする。
- * 一覧が読んだ Project の既定（store.workflow）と同じなら引き直さない。別の Workflow は読み終えるまで null。
+ * チケットの Workflow。チケットの workflow、なければ既定の Workflow で、core の requireWorkflowFor と同じ解決にする。
+ * 一覧が読んだ既定の Workflow（store.workflow。config の default_workflow）と同じなら引き直さない。別の Workflow は読み終えるまで null。
  * 読めなければ理由を通知に出し、null のまま（パネルの Status の選択は今の Status だけで、任意フィールドも出さない）。
  * useCommandData は使わない：失敗を画面のエラーでなく通知に出し、一覧の読み直しでは引き直さない（Workflow の定義はチケットの書き込みで変わらない）
  */
 function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowView | null {
-  const id = ticket
-    ? (ticket.workflow ?? store.projects.find((p) => p.id === ticket.project)?.workflow)
-    : undefined;
-  const other = id !== undefined && id !== store.project?.workflow ? id : null;
+  const id = ticket?.workflow;
+  const other = id !== undefined && id !== store.workflow?.definition.id ? id : null;
   const [loaded, setLoaded] = useState<{ id: string; view: WorkflowView } | null>(null);
   const { client, notify } = store;
   useEffect(() => {

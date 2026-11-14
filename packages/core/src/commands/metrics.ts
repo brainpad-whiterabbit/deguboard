@@ -5,7 +5,6 @@
 import { z } from "zod";
 import { fetchMergedPrFiles, fetchMergedPrLines } from "../git/facts.js";
 import { withWrite } from "../git/write.js";
-import { slugSchema } from "../model/common.js";
 import { idNumber, type TicketId } from "../model/id.js";
 import {
   METRIC_UNITS,
@@ -36,13 +35,12 @@ export const metricsShow = defineCommand({
   name: "metrics.show",
   group: "metrics",
   summary:
-    "Aggregate Runs. Filter by Run, ticket, Epic, Iteration, Project, Agent, Model, or Step (Epic, Iteration, and Project follow each ticket's current value). Values that could not be read are not added and are counted in missing; Runs with estimated values are counted in estimated_runs. Tool counts (tools) are also added up per kind, and Runs without them are counted in missing.tools. Reviews recorded with no Run from a hook (capture: none) are counted as reviews only, and are left out of usage, time, and tools. lines gives the changed lines of the tickets of the Runs (additions and deletions of each ticket's merged PR, recorded on the ticket by dg sync or dg metrics lines; a ticket is counted once however many Runs it has) and the tokens per changed line (per_line), split into output and input_cache (input + cache_read + cache_write), not divided as one total because cache_read is most of the tokens. per_line divides the tokens of the Runs on tickets that have lines by the lines (additions + deletions) of those tickets with at least one Run that has the value, rounded to one decimal place; it is null when there is nothing to divide by. Tickets with no lines (work with no PR, a PR not merged yet) are left out of per_line and counted in lines.missing. Use --by iteration to compare Iterations, and --by step or --by ticket to see where the tokens per line are high. Done tickets claimed by an agent that match the ticket-level filters (ticket, epic, iteration, project) and have no implement Run are listed in no_runs. Aggregates are not stored",
+    "Aggregate Runs. Filter by Run, ticket, Epic, Iteration, Agent, Model, or Step (Epic and Iteration follow each ticket's current value). Values that could not be read are not added and are counted in missing; Runs with estimated values are counted in estimated_runs. Tool counts (tools) are also added up per kind, and Runs without them are counted in missing.tools. Reviews recorded with no Run from a hook (capture: none) are counted as reviews only, and are left out of usage, time, and tools. lines gives the changed lines of the tickets of the Runs (additions and deletions of each ticket's merged PR, recorded on the ticket by dg sync or dg metrics lines; a ticket is counted once however many Runs it has) and the tokens per changed line (per_line), split into output and input_cache (input + cache_read + cache_write), not divided as one total because cache_read is most of the tokens. per_line divides the tokens of the Runs on tickets that have lines by the lines (additions + deletions) of those tickets with at least one Run that has the value, rounded to one decimal place; it is null when there is nothing to divide by. Tickets with no lines (work with no PR, a PR not merged yet) are left out of per_line and counted in lines.missing. Use --by iteration to compare Iterations, and --by step or --by ticket to see where the tokens per line are high. Done tickets claimed by an agent that match the ticket-level filters (ticket, epic, iteration) and have no implement Run are listed in no_runs. Aggregates are not stored",
   input: z.object({
     run: runIdSchema.optional().describe("Only this Run"),
     ticket: ticketRef.optional().describe("Only Runs of this ticket"),
     epic: epicRef.optional().describe("Only Runs of tickets in this Epic"),
     iteration: iterationRef.optional().describe("Only Runs of tickets in this Iteration"),
-    project: slugSchema.optional().describe("Only Runs of tickets in this Project"),
     agent: z.string().min(1).optional().describe("Only Runs of this agent"),
     model: z.string().min(1).optional().describe("Only Runs of this model"),
     step: z
@@ -62,7 +60,6 @@ export const metricsShow = defineCommand({
         ticket: idShapeOf(input.ticket, "ticket"),
         epic: idShapeOf(input.epic, "epic"),
         iteration: idShapeOf(input.iteration, "iteration"),
-        project: input.project,
         agent: input.agent,
         model: input.model,
         step: input.step,
@@ -88,9 +85,9 @@ export const metricsShow = defineCommand({
       ),
     ];
     const warnings =
-      lost.length > 0 && (filter.epic || filter.iteration || filter.project || input.by)
+      lost.length > 0 && (filter.epic || filter.iteration || input.by)
         ? [
-            `Tickets ${lost.join(", ")} not found, so the Epic, Iteration and Project of those Runs are unknown`,
+            `Tickets ${lost.join(", ")} not found, so the Epic and Iteration of those Runs are unknown`,
           ]
         : [];
     // done なのに実装の Run がないチケットは、Run の集計には現れないので別に示す（MT-3）。

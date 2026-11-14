@@ -160,7 +160,7 @@ describe("プロセス内の CommandClient", () => {
     const lastScan = () => (rescan.mock.contexts.at(-1) as Store).lastScan;
     // 一度読み直して覚えたあとは、どのコマンドも読み直さない
     await client.run("ticket.list");
-    for (const name of ["project.list", "config.show", "ticket.list", "epic.list", "plan.list"]) {
+    for (const name of ["iteration.list", "config.show", "ticket.list", "epic.list", "plan.list"]) {
       await client.run(name);
       expect(lastScan()).toMatchObject({ read: 0 });
     }
@@ -261,7 +261,7 @@ describe("プロセス内の CommandClient", () => {
     const results = await Promise.all([
       client.run<{ id: string }[]>("ticket.list"),
       client.run("epic.list"),
-      client.run("project.list"),
+      client.run("iteration.list"),
       client.run("config.show", { fields: true }),
       client.status(),
     ]);

@@ -41,7 +41,13 @@ export function isForward(from: Status, to: Status): boolean {
 /** 日時は ISO 8601 の文字列のまま持つ。Date にしない（YAML の往復で形を変えないため） */
 export const isoDateTime = z.iso.datetime({ offset: true });
 
-/** Project や Workflow の ID に使う slug */
+/**
+ * チケット・Epic・Iteration・Plan が前に持っていた Project のキー（カンバンの中の区切りはやめた。理由は storage/retired-projects.ts の先頭）。
+ * 読むときは値に出さず、書くたびにファイルから消す（Store の retired）
+ */
+export const RETIRED_PROJECT_KEYS = ["project"] as const;
+
+/** Workflow の ID に使う slug */
 export const slugSchema = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]*$/, "A slug of lowercase letters, digits and hyphens");

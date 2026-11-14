@@ -72,7 +72,7 @@ function isVisible(): boolean {
 }
 
 /**
- * tickets（Project のすべてのチケット）の変化を見て、点滅させるチケットの ID の集合を返す。enabled が false なら何もしない。
+ * tickets（カンバンのすべてのチケット）の変化を見て、点滅させるチケットの ID の集合を返す。enabled が false なら何もしない。
  * 比べるのは Iteration で絞る前のすべてのチケットなので、絞り込みを変えただけでは点滅しない
  */
 export function useChangeFlash(

@@ -12,7 +12,7 @@ import {
   sessionFromEnv,
   type RunSpan,
 } from "../agents/index.js";
-import { slugSchema, toIsoDateTime, type Status } from "../model/common.js";
+import { toIsoDateTime, type Status } from "../model/common.js";
 import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
 import { compareIds } from "../model/id.js";
@@ -1107,7 +1107,7 @@ export const runHandoff = defineCommand({
 /** run.list と run.recent の記録の置き場所・絞り込み・警告を揃える */
 async function collectRuns(
   ctx: CommandContext,
-  input: { iteration?: string | undefined; project?: string | undefined },
+  input: { iteration?: string | undefined },
   ticket?: string,
   runningOnly = false,
 ) {
@@ -1128,7 +1128,6 @@ async function collectRuns(
   const filter: MetricFilter = {
     ...(ticket ? { ticket } : {}),
     ...(iteration ? { iteration } : {}),
-    ...(input.project ? { project: input.project } : {}),
   };
   return {
     runs: filterRuns(placed, filter),
@@ -1140,7 +1139,7 @@ export const runList = defineCommand({
   name: "run.list",
   group: "run",
   summary:
-    "List Runs in start order. Also lists unfinished Runs (running: true, from deguboard-local/runs/ on this machine). Iteration and Project follow each ticket's current value (same as metrics.show). duration_seconds is the run time (null if unfinished)",
+    "List Runs in start order. Also lists unfinished Runs (running: true, from deguboard-local/runs/ on this machine). Iteration follows each ticket's current value (same as metrics.show). duration_seconds is the run time (null if unfinished)",
   input: z.object({
     ticket: ticketRef.optional().describe("Only Runs of this ticket"),
     iteration: iterationRef
@@ -1148,7 +1147,6 @@ export const runList = defineCommand({
       .describe(
         "Only Runs of tickets in this Iteration. An Iteration that does not exist now (a typo, or a document deleted directly) returns an empty list rather than an error. As with the ticket.list and metrics.show filters, existence is not checked",
       ),
-    project: slugSchema.optional().describe("Only Runs of tickets in this Project"),
     running: z.boolean().optional().describe("Only unfinished Runs"),
   }),
   write: false,
@@ -1204,14 +1202,13 @@ function runSummary(run: Run, running: boolean): RunSummary {
 export const runRecent = defineCommand({
   name: "run.recent",
   group: "run",
-  summary: `Summarize the Runs of each ticket: total (the number of all its Runs), running (whether any of its Runs is unfinished, including ones older than runs), and runs (the newest ${RECENT_RUN_LIMIT}, newest first). One summary has id, step, result, started_at, finished_at, review, retries (the number of findings fixed), error, and running; an unfinished Run (running: true, from deguboard-local/runs/ on this machine) also has waiting_since and settling_since. Tickets with no Run are left out. Iteration and Project follow each ticket's current value (same as run.list). Read the usage and the full list with run.list`,
+  summary: `Summarize the Runs of each ticket: total (the number of all its Runs), running (whether any of its Runs is unfinished, including ones older than runs), and runs (the newest ${RECENT_RUN_LIMIT}, newest first). One summary has id, step, result, started_at, finished_at, review, retries (the number of findings fixed), error, and running; an unfinished Run (running: true, from deguboard-local/runs/ on this machine) also has waiting_since and settling_since. Tickets with no Run are left out. Iteration follows each ticket's current value (same as run.list). Read the usage and the full list with run.list`,
   input: z.object({
     iteration: iterationRef
       .optional()
       .describe(
         "Only tickets in this Iteration. An Iteration that does not exist now returns an empty list rather than an error (same as run.list)",
       ),
-    project: slugSchema.optional().describe("Only tickets in this Project"),
   }),
   write: false,
   needs: "store",

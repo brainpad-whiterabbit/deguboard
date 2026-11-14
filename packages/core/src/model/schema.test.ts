@@ -24,7 +24,6 @@ describe("スキーマ", () => {
   it("チケットの必須項目が揃えば読め、既定値が入る", () => {
     const t = ticketSchema.parse({
       id: "t1",
-      project: "default",
       title: "x",
       status: "todo",
       created_at: "2026-10-31T04:00:00Z",
@@ -35,7 +34,7 @@ describe("スキーマ", () => {
     expect(t.depends_on).toEqual([]);
   });
 
-  it("スキーマにないキーは残る（DT-2）", () => {
+  it("スキーマにないキーは残り、やめた project は読めて値に出ない（DT-2）", () => {
     const t = ticketSchema.parse({
       id: "t1",
       project: "default",
@@ -46,12 +45,12 @@ describe("スキーマ", () => {
       updated_at: "2026-10-31T04:00:00Z",
     });
     expect(t["estimate"]).toBe(3);
+    expect(t).not.toHaveProperty("project");
   });
 
   it("日時は文字列のまま保つ", () => {
     const t = ticketSchema.parse({
       id: "t1",
-      project: "default",
       title: "x",
       status: "todo",
       created_at: "2026-10-31T13:00:00+09:00",
@@ -74,7 +73,6 @@ describe("スキーマ", () => {
       .filter((f) => f.scope === "local")
       .map((f) => f.key);
     expect(local).toEqual([
-      "default_project",
       "git.remote",
       "git.data_remote",
       "git.data_branch",
@@ -312,7 +310,7 @@ describe("スキーマ", () => {
   it("configFields は config の葉の項目を既定値・型・説明つきで出す", () => {
     const fields = configFields();
     expect(fields.map((f) => f.key)).toEqual([
-      "default_project",
+      "default_workflow",
       "git.remote",
       "git.data_remote",
       "git.data_branch",
@@ -477,7 +475,7 @@ describe("スキーマ", () => {
   it("configFields の clears_to_default は、既定が空でない文字列の項目だけ true（config.set と設定画面が空の値の扱いをこれで決める）", () => {
     const fields = configFields();
     expect(fields.filter((f) => f.clears_to_default).map((f) => f.key)).toEqual([
-      "default_project",
+      "default_workflow",
       "git.remote",
       "git.data_branch",
       "git.base_branch",
@@ -493,7 +491,7 @@ describe("スキーマ", () => {
   });
 
   it("Plan の details.<ticket>.tier は light / standard / heavy だけを受け、それ以外は読む側でも拒否する（PL-1）", () => {
-    const base = { id: "p1", project: "default", tickets: ["t1"] };
+    const base = { id: "p1", tickets: ["t1"] };
     for (const tier of ["light", "standard", "heavy"]) {
       const p = planSchema.parse({ ...base, details: { t1: { tier } } });
       expect(p.details["t1"]?.tier).toBe(tier);

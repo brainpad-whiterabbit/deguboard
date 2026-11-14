@@ -1,6 +1,6 @@
 // チケット詳細（pages/ticket.tsx）と右の列（属性。ticket-props-panel.tsx）が使う部品。
 // 編集のボタンで直している間の値（Draft）、属性の 1 行、Status の選択、依存先・依存元の行、Epic・Iteration の選択の項目、読むだけの属性の値と、PR のリンク。
-// 依存先が終わったかは ticket.show の pending_deps で決める（別の Project の依存先も見る。パネルの帯と同じ判定）
+// 依存先が終わったかは ticket.show の pending_deps で決める（パネルの帯と同じ判定）
 
 import { Fragment, type ReactNode } from "react";
 import type { Store } from "../store.js";

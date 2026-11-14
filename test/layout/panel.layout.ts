@@ -303,7 +303,7 @@ describe.each(SCHEMES)("パネルの Plan 詳細の配置（%s）", (scheme) => 
             ),
           ];
           return {
-            // パネルは詳細だけを出し、タブ・Project・同期のヘッダーを出さない（UI-12）
+            // パネルは詳細だけを出し、タブ・同期のヘッダーを出さない（UI-12）
             topbar: document.querySelector(".topbar") !== null,
             dts: [...document.querySelectorAll(".plan-summary dt")].map((dt) => dt.textContent),
             nodes: document.querySelectorAll(".plan-graph a.plan-node").length,

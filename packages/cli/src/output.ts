@@ -108,9 +108,8 @@ const COLUMNS: Record<string, string[]> = {
   ticket: ["id", "status", "priority", "title", "labels", "iteration", "epic", "assignee"],
   epic: ["id", "status", "title", "progress"],
   iteration: ["id", "status", "name", "started_at", "closed_at"],
-  project: ["id", "status", "name", "workflow"],
   workflow: ["id", "name", "path"],
-  plan: ["id", "status", "project", "tickets", "progress"],
+  plan: ["id", "status", "tickets", "progress"],
   // dg metrics show の単位ごとの集計
   groups: [
     "key",

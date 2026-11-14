@@ -44,8 +44,6 @@ describe("前回の一覧の cache", () => {
     const state = createUiState(memoryBackend());
     const before = boardFixture();
     state.set(SNAPSHOT_KEY, {
-      projectId: "default",
-      projects: before.projects,
       tickets: [ticket({ id: "t9", title: "前回の題", iteration: "s0" })],
       epics: before.epics,
       iterations: before.iterations,
@@ -63,13 +61,18 @@ describe("前回の一覧の cache", () => {
     expect(saved.tickets.map((t) => t.id)).toEqual(["t1", "t2", "t3"]);
   });
 
-  it("読み直しで cache を書くとき、前の版の鍵（store.snapshot.v1）を消す", async () => {
-    const backend = memoryBackend({ "store.snapshot.v1": { tickets: [] }, other: 1 });
+  it("読み直しで cache を書くとき、前の版の鍵（store.snapshot.v1 と、Project を持っていた v3）を消す", async () => {
+    const backend = memoryBackend({
+      "store.snapshot.v1": { tickets: [] },
+      "store.snapshot.v3": { projectId: "default", projects: [], tickets: [] },
+      other: 1,
+    });
     const state = createUiState(backend);
     mount(mockClient(boardFixture()), state, state);
     await screen.findByText("ログイン");
     const saved = backend.getState() as Record<string, unknown>;
     expect("store.snapshot.v1" in saved).toBe(false);
+    expect("store.snapshot.v3" in saved).toBe(false);
     expect(saved[SNAPSHOT_KEY]).toBeTruthy();
     expect(saved["other"]).toBe(1);
   });
@@ -79,8 +82,6 @@ describe("前回の一覧の cache", () => {
     const state = createUiState(memoryBackend());
     const before = fixture();
     state.set(SNAPSHOT_KEY, {
-      projectId: "default",
-      projects: before.projects,
       tickets: before.tickets,
       epics: before.epics,
       iterations: before.iterations,

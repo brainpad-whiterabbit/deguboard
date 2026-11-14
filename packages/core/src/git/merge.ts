@@ -1,4 +1,4 @@
-// deguboard ブランチのマージドライバ（SY-4、ADR-034）。チケットと Epic の frontmatter と、Plan・Iteration・Project の YAML をフィールド単位で 3-way マージする。
+// deguboard ブランチのマージドライバ（SY-4、ADR-034）。チケットと Epic の frontmatter と、Plan・Iteration の YAML をフィールド単位で 3-way マージする。
 // git が rebase の中で `<dg> merge-driver %O %A %B %P` として呼ぶ。登録は ensureMergeDriver（init と sync）が行う
 
 import { isDeepStrictEqual } from "node:util";
@@ -20,7 +20,7 @@ import { runGit } from "./run.js";
 const MERGE_DRIVER_NAME = "deguboard";
 
 /**
- * ドライバを当てるパス。frontmatter を持つ Markdown（チケット・墓標・Epic）と、素の YAML（Plan・Iteration・Project）。
+ * ドライバを当てるパス。frontmatter を持つ Markdown（チケット・墓標・Epic）と、素の YAML（Plan・Iteration）。
  * config.yaml と workflows は人が手で書く設定なので外し、行単位のマージのままにする
  */
 const ATTRIBUTE_LINES = [
@@ -29,7 +29,6 @@ const ATTRIBUTE_LINES = [
   `epics/*.md merge=${MERGE_DRIVER_NAME}`,
   `plans/*.yaml merge=${MERGE_DRIVER_NAME}`,
   `iterations/*.yaml merge=${MERGE_DRIVER_NAME}`,
-  `projects/*.yaml merge=${MERGE_DRIVER_NAME}`,
 ];
 
 /** ATTRIBUTE_LINES のパターン（`*` は / を含まない）に当たるか。マージドライバと同じ判定を git の外で回すファイルを選ぶ */
@@ -102,7 +101,7 @@ export type MergeOutcome =
 
 interface Parsed {
   text: string;
-  /** frontmatter つき Markdown なら本文。素の YAML（Plan・Iteration・Project）なら undefined */
+  /** frontmatter つき Markdown なら本文。素の YAML（Plan・Iteration）なら undefined */
   body: string | undefined;
   doc: YamlDocument;
   data: Record<string, unknown>;

@@ -6,7 +6,6 @@ export const LOCAL_CONFIG_FILE = "config.yaml";
 /** 個人の設定を指摘（Issue）で指すときの名前。worktree の外なので相対パスにはならない */
 export const LOCAL_CONFIG_LABEL = "deguboard-local/config.yaml";
 export const DIRS = {
-  projects: "projects",
   tickets: "tickets",
   deletedTickets: "tickets/deleted",
   epics: "epics",
@@ -16,7 +15,6 @@ export const DIRS = {
   runs: "runs",
 } as const;
 
-export const projectPath = (slug: string): string => `${DIRS.projects}/${slug}.yaml`;
 export const ticketPath = (id: string): string => `${DIRS.tickets}/${id}.md`;
 export const deletedTicketPath = (id: string): string => `${DIRS.deletedTickets}/${id}.md`;
 export const epicPath = (id: string): string => `${DIRS.epics}/${id}.md`;

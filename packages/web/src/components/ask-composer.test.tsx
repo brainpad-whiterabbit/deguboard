@@ -20,7 +20,6 @@ afterEach(() => {
 
 /** 読むだけのコマンド。入力欄はこれ以外を呼ばない（データに書き込まない） */
 const READS = new Set([
-  "project.list",
   "config.show",
   "whoami",
   "ticket.list",

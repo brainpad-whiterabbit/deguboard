@@ -8,6 +8,7 @@ import type { Store } from "../storage/store.js";
 import { withLock } from "./lock.js";
 import { checkOutside, outsideError, recordBaseline } from "./outside.js";
 import { settleRebase } from "./rebase.js";
+import { retireProjects } from "./retire-projects.js";
 import {
   dataRemoteMissingError,
   missingDataRemote,
@@ -185,6 +186,9 @@ async function writeLocked<T>(
     repo.dataRemote !== null &&
     (opts.immediate === true || config.push.mode === "auto");
   const maxAttempts = opts.maxAttempts ?? 3;
+
+  // やめた Project の残り（projects/）は、書く前に印付きのコミットで一度だけ消す（retire-projects.ts）
+  await retireProjects(repo, ctx.store);
 
   if (!shouldCommit) {
     // batch / manual：作業ツリーに残す。コミットは dg commit・dg sync・即時の操作が行う

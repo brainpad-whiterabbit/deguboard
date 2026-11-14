@@ -32,10 +32,6 @@ export const epicRef = z.string().min(1).describe("Epic ID (e3 or 3)");
 export const iterationRef = z.string().min(1).describe("Iteration ID (s3 or 3)");
 export const planRef = z.string().min(1).describe("Plan ID (p7 or 7)");
 
-export function projectOf(ctx: CommandContext, project: string | undefined): string {
-  return project ?? ctx.config.default_project;
-}
-
 export function sortedDocs<T extends { id: string }>(docs: Iterable<Doc<T>>): Doc<T>[] {
   return [...docs].sort((a, b) => compareIds(a.id, b.id));
 }

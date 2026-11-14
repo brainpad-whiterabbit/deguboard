@@ -460,7 +460,6 @@ export function flowFactsOf(
   const all = sortedDocs(store.tickets.values()).map((d) => d.data);
   const ids = new Set(target.tickets.map((t) => t.id));
   const iteration = s ? store.iterations.get(s as IterationId)?.data : undefined;
-  const project = iteration?.project;
   // 閉じた Iteration には入れられないので、割り当ての候補はない
   const candidates =
     iteration?.status === "closed"
@@ -470,7 +469,6 @@ export function flowFactsOf(
             (t) =>
               t.status === "todo" &&
               t.iteration === undefined &&
-              t.project === project &&
               !(auditLabel && t.labels.includes(auditLabel)),
           )
         : target.tickets.filter((t) => t.status === "todo" && t.iteration === undefined);

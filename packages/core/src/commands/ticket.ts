@@ -37,15 +37,7 @@ import { parseDraftSource } from "./draft-source.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
 import { hooksReachSession, hooksSilentWarning, selfRunWarning } from "./hook-sessions.js";
 import { stageFactsOf, stageOf, type Stage } from "./next.js";
-import {
-  dependents,
-  nowIso,
-  openPlanOf,
-  projectOf,
-  sortedDocs,
-  ticketRef,
-  withBody,
-} from "./helpers.js";
+import { dependents, nowIso, openPlanOf, sortedDocs, ticketRef, withBody } from "./helpers.js";
 import {
   agentFromEnv,
   closeOpenedRunUnlessClosed,
@@ -131,7 +123,7 @@ const ticketAttributes = {
   depends_on: z.array(z.string()).optional().describe("IDs of tickets this one depends on"),
   workflow: slugSchema
     .optional()
-    .describe("Workflow. Defaults to the Project's default when omitted"),
+    .describe("Workflow. Defaults to config's default_workflow when omitted"),
   assignee: actorRef
     .optional()
     .describe("Assignee. human for yourself, agent for your own AI, otherwise the ID as-is"),
@@ -162,9 +154,6 @@ const acceptanceItems = z
 
 const createInput = z.object({
   title: z.string().min(1).describe("Title"),
-  project: slugSchema
-    .optional()
-    .describe("Project. Defaults to config's default_project when omitted"),
   summary: z.string().optional().describe("Summary. Goes into the body template"),
   acceptance: acceptanceItems
     .optional()
@@ -192,22 +181,18 @@ function buildTicket(
   resolveDep: (ref: string) => TicketId,
 ): Record<string, unknown> {
   const store = ctx.store;
-  const project = projectOf(ctx, input.project);
-  const projectDoc = store.requireProject(project);
-  if (projectDoc.data.status !== "active")
-    throw new OperationError("REJECTED", `Project ${project} is archived`);
-  const workflowId = input.workflow ?? projectDoc.data.workflow;
+  // 既定の Workflow は、書き込みの中で取り込み直したストアの値で決める（store.workflowFor と同じ値）
+  const workflowId = input.workflow ?? store.config.default_workflow;
   const workflow = store.workflows.get(workflowId);
   if (!workflow)
     throw new OperationError("NOT_FOUND", `Workflow ${workflowId} not found or cannot be read`);
-  const epic = input.epic === undefined ? undefined : requireOpenEpic(store, input.epic, project);
+  const epic = input.epic === undefined ? undefined : requireOpenEpic(store, input.epic);
   const iteration =
-    input.iteration === undefined ? undefined : requireIteration(store, input.iteration, project);
+    input.iteration === undefined ? undefined : requireIteration(store, input.iteration);
   const depends_on = (input.depends_on ?? []).map(resolveDep);
   const fields = validateFields(workflow, input.fields);
   const now = nowIso(ctx);
   return {
-    project,
     title: input.title,
     status: "todo",
     priority: input.priority ?? "medium",
@@ -225,22 +210,15 @@ function buildTicket(
   };
 }
 
-function requireOpenEpic(store: Store, ref: string, project: string) {
+function requireOpenEpic(store: Store, ref: string) {
   const epic = store.require("epic", ref);
-  if (epic.data.project !== project)
-    throw new OperationError("REJECTED", `Epic ${epic.id} does not belong to Project ${project}`);
   if (epic.data.status === "closed")
     throw new OperationError("REJECTED", `Epic ${epic.id} is closed, so tickets cannot be added`);
   return epic.id;
 }
 
-function requireIteration(store: Store, ref: string, project: string) {
+function requireIteration(store: Store, ref: string) {
   const it = store.require("iteration", ref);
-  if (it.data.project !== project)
-    throw new OperationError(
-      "REJECTED",
-      `Iteration ${it.id} does not belong to Project ${project}`,
-    );
   if (it.data.status === "closed")
     throw new OperationError("REJECTED", `Iteration ${it.id} is closed`);
   return it.id;
@@ -456,7 +434,7 @@ export const ticketImport = defineCommand({
 });
 
 /**
- * ticket.list の 1 行。deps_done は依存先がすべて done か abandoned か（WF-2。別の Project の依存先も見る）。
+ * ticket.list の 1 行。deps_done は依存先がすべて done か abandoned か（WF-2）。
  * run_agent はチケットの Run の agent（実行中の Run があればその agent、なければ最後の Run の agent。Run がなければ null。RN-1）
  */
 export type TicketRow = Ticket & { deps_done: boolean; run_agent: string | null };
@@ -467,7 +445,7 @@ export type TicketDetail = Ticket & {
   acceptance: AcceptanceItem[];
   dependents: TicketId[];
   deps_done: boolean;
-  /** 終わっていない依存先（WF-2。deps_done と同じ判定で、別の Project も見る）。見つからない依存先の status は null */
+  /** 終わっていない依存先（WF-2。deps_done と同じ判定）。見つからない依存先の status は null */
   pending_deps: { id: TicketId; status: Status | null }[];
   /** 入っている開いた Plan の ID */
   plan: string | null;
@@ -500,7 +478,7 @@ export const ticketList = defineCommand({
       running,
       [...ctx.store.runs.values()].map((r) => r.data),
     );
-    // deps_done は Project で絞る前の全チケットから求める（別の Project の依存先も見る。WF-2）
+    // deps_done は絞り込む前の全チケットから求める（絞り込みに合わない依存先も見る。WF-2）
     return ok(
       docs.map((d): TicketRow => ({
         ...d.data,
@@ -583,7 +561,7 @@ export const ticketUpdate = defineCommand({
     workflow: slugSchema
       .nullable()
       .optional()
-      .describe("Workflow. Removing it returns to the Project's default"),
+      .describe("Workflow. Removing it returns to config's default_workflow"),
     pr: z
       .number()
       .int()
@@ -656,13 +634,10 @@ export const ticketUpdate = defineCommand({
           patch["claimed_by"] = undefined;
         }
         if (input.epic !== undefined)
-          patch["epic"] =
-            input.epic === null ? undefined : requireOpenEpic(store, input.epic, t.project);
+          patch["epic"] = input.epic === null ? undefined : requireOpenEpic(store, input.epic);
         if (input.iteration !== undefined) {
           patch["iteration"] =
-            input.iteration === null
-              ? undefined
-              : requireIteration(store, input.iteration, t.project);
+            input.iteration === null ? undefined : requireIteration(store, input.iteration);
         }
         if (input.workflow !== undefined) {
           if (input.workflow !== null && !store.workflows.has(input.workflow)) {
@@ -681,7 +656,7 @@ export const ticketUpdate = defineCommand({
         if (input.fields) {
           const wfId =
             (input.workflow === undefined ? t.workflow : (input.workflow ?? undefined)) ??
-            store.requireProject(t.project).data.workflow;
+            store.config.default_workflow;
           const wf = store.workflows.get(wfId);
           if (!wf) throw new OperationError("NOT_FOUND", `Workflow ${wfId} not found`);
           Object.assign(patch, validateFields(wf, input.fields));
@@ -1114,7 +1089,7 @@ export const ticketClaim = defineCommand({
   group: "ticket",
   summary:
     "Start work on a ticket. Sets the assignee to yourself, records the branch and its start commit (branch_base: the tip of base, so that reconcile does not treat a branch with no commits as merged), and sets in_progress. Winning the push gives exclusive access. Follows any todo → in_progress constraint (such as requires: [deps_done]). If the ticket is in a Plan awaiting approval, claim still succeeds and the warnings say to ask a person to approve it first. " +
-    "If lint.require_iteration is true and the ticket has no Iteration, it goes into the Project's active Iteration (or else the planned one, if there is only one). If there is no target, or there is no active one and several are planned, it goes into none and the warnings say to ask a person. If the ticket's Iteration is planned, it becomes active; if that fails (another active one, or actor.human_only), the failure goes into the warnings and claim still succeeds. Both are pushed in the same write as the claim. " +
+    "If lint.require_iteration is true and the ticket has no Iteration, it goes into the active Iteration (or else the planned one, if there is only one). If there is no target, or there is no active one and several are planned, it goes into none and the warnings say to ask a person. If the ticket's Iteration is planned, it becomes active; if that fails (another active one, or actor.human_only), the failure goes into the warnings and claim still succeeds. Both are pushed in the same write as the claim. " +
     "After the push, it creates the work branch's worktree at worktree.root/<branch name> (change with --worktree-path) from that start commit, and puts its path in worktree. If a worktree for that branch already exists, it uses that; if only the local branch exists, it checks it out. If it cannot be created, the failure goes into the warnings and claim still succeeds. In a worktree it created (not an existing one), it runs config's worktree.setup commands; a failure goes into the warnings and claim still succeeds. That setup can take several minutes, such as pnpm install (limit 10 minutes), and claim does not return until it finishes. It creates no worktree with --no-worktree or --without-branch. " +
     "For an agent, it then opens an implementation Run (the step in the Workflow's steps with opens_on: claim, or else implement) and prints its ID as run (on the last line of stdout in human output). The Run opens before the setup commands run. If it cannot be opened, only a warning is given and claim still succeeds. " +
     "In a session that dg hooks have reached, an agent's claim without --no-run (other than --without-branch, and including claiming again) still opens the Run, and warns to ask a sub-agent to implement or fix with the marker instead. " +

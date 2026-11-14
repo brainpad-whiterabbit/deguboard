@@ -92,7 +92,7 @@ export function boardSelection(
   remembered: string | undefined,
 ): Selection {
   const pick = (id: string | undefined): Selection | undefined => boardIterationSelection(open, id);
-  // active は Project に 1 つ（IT-1）なので、札で選んでいなければそれを選ぶ
+  // active はカンバンに 1 つ（IT-1）なので、札で選んでいなければそれを選ぶ
   const fallback = open.find((i) => i.status === "active") ?? open[0];
   return (
     pick(query) ??

@@ -25,7 +25,7 @@ deguboard は、Agentic-Agile の考え方（[マニフェスト](https://github
 
 ## 3. 用語
 
-- **Project**：チケットを束ねる単位。1 リポジトリに複数置ける
+- **カンバン**：1 つのデータのブランチに置くチケットの集まり。1 つのカンバンが 1 つの区切りで、中を分ける単位は持たない（5.3）
 - **Ticket**：最小の作業単位。`t12`
 - **Epic**：目的ごとにチケットを束ねる単位。Iteration をまたぐ。`e3`
 - **Iteration**：期間の計画（スプリント）。`s3`。`sprint` はエイリアス
@@ -58,7 +58,6 @@ deguboard は、Agentic-Agile の考え方（[マニフェスト](https://github
 ```
 config.yaml
 .gitattributes              # マージドライバを当てるパス（SY-4）
-projects/<slug>.yaml
 tickets/t12.md              # 1 チケット 1 ファイル。ファイル名は ID そのまま
 tickets/deleted/t9.md       # 墓標。番号を再利用しない
 epics/e3.md
@@ -69,7 +68,7 @@ runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開�
 ```
 
 - DT-1 書き込みは一時ファイルへ書いてから rename する。読み込みは Zod のスキーマで検証し、読めないファイルは止めずに `dg validate` と画面で報告する
-- DT-2 スキーマにない項目は読み書きで残す（版の違う `dg` が消さない）。`dg` がやめた項目（Iteration の `start`・`end`）は書くときに消す（[ADR-009](adr/ADR-009-epic-and-iteration.md)）
+- DT-2 スキーマにない項目は読み書きで残す（版の違う `dg` が消さない）。`dg` がやめた項目（Iteration の `start`・`end`、チケット・Epic・Iteration・Plan の `project`）は書くときに消す（[ADR-009](adr/ADR-009-epic-and-iteration.md)、5.3）
 
 ### 5.2 ID と番号
 
@@ -78,16 +77,17 @@ runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開�
 - DT-5 チケットの起票は、push 先に届かないときに `provisional: true`（仮番号）を付けてローカルに commit し、push が済んだ `dg sync` で外す（ほかの作成は SY-3）。仮番号のチケットは claim できない。仮番号がリモートの番号と衝突したら、`dg sync` が次の空き番号に振り直して push する（範囲は `packages/core/src/git/renumber.ts`）。ほかの競合は報告する（SY-4）
 - DT-6 CLI と UI は `t12` でも `12` でも受け付ける
 
-### 5.3 Project（`projects/<slug>.yaml`）
+### 5.3 カンバンの区切り
 
-`workflow`（既定のワークフロー）と `status`（`active` / `archived`）を持つ（項目は `packages/core/src/model/project.ts`）。`dg init` は `default` を作る。`archived` の Project にはチケットを作れない。
+1 つのカンバンが 1 つの区切りで、カンバンの中を分ける単位（Project）は持たない。チケットは Epic・Iteration・ラベルで束ね、別の区切りが要るときはカンバンを分ける（5.1。理由は [ADR-034](adr/ADR-034-storage-and-id.md)）。
+
+前の版が書いた `project` の項目は読めて、書くときに消える（DT-2）。前の版の `projects/` と config の `default_project` は、`dg` が同期か書き込みのときに印を付けたコミットで一度だけ消し、既定の Project の Workflow を `default_workflow`（5.10）に移す（細部は `packages/core/src/git/retire-projects.ts`）。
 
 ### 5.4 Ticket（`tickets/t12.md`）
 
 ```markdown
 ---
 id: t12
-project: webapp
 title: ログイン画面のバリデーション
 status: in_progress
 depends_on: [t9]
@@ -104,12 +104,12 @@ updated_at: 2026-10-31T05:10:00Z
 - [ ] …
 ```
 
-- TK-1 必須は `id`・`project`・`title`・`status`・`created_at`・`updated_at`。`workflow` を省くと Project の既定を使う
+- TK-1 必須は `id`・`title`・`status`・`created_at`・`updated_at`。`workflow` を省くと config の `default_workflow`（5.10）を使う
 - TK-2 `depends_on` は同じリポジトリのチケットの ID。循環は作成・更新時に拒否する
 - TK-3 本文は Markdown。`## Summary` と `## Acceptance criteria`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` が雛形を作り、受け入れ条件は `ticket check` が番号で印を付ける。空か空白だけの本文は拒む。節の欠けや状態の食い違い、実装と手直しの Run の抜け（RN-5・RN-6）は `dg lint` が指摘する（項目は `dg lint --help`）
 - TK-4 Workflow の `fields` で定義した任意フィールドを frontmatter に持てる
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが確認できたときに付ける。deguboard は自動で付けず、照合で done にしたチケットに未チェックが残れば `sync` が警告する（遷移は止めない。理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）
-- TK-6 `epic` は同じ Project の Epic の ID。閉じた Epic には付けられない
+- TK-6 `epic` は Epic の ID。閉じた Epic には付けられない
 - TK-7 `created_by`（起票者）と `assignee`（担当者）は主体の ID。`created_by` の既定は操作した主体で、エージェントが人の指示・承認で起票するときはユーザ本人を指定する。`assignee` は `claim` と `update` で付ける。旧名 `claimed_by` は `assignee` と読む
 - TK-8 `priority` は `low`・`medium`（既定）・`high`。値ごとの判断基準は Core が既定を持ち、`config.yaml`（5.10）で書き換えられる
 - TK-9 `gate`（品質ゲートの段）は `high`（既定）・`low`・`free` で、`create`・`import`・`update` で付ける。`dg gate` が判定する条件は段で変わる（EX-6。条件は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
@@ -120,23 +120,23 @@ updated_at: 2026-10-31T05:10:00Z
 
 目的ごとにチケットを束ねる単位。Iteration（期間）・Plan（実行順）とは別の軸で、Iteration をまたぐ。Ticket と同じく frontmatter と Markdown の本文を持ち、`status` は `open` / `closed`。
 
-- EP-1 必須は `id`・`project`・`title`・`status`・`created_at`・`updated_at`。閉じたときに `closed_at` を書く。本文は Markdown で、`## Summary` を推奨する（日本語の `## 概要` も読む）
-- EP-2 所属はチケットの `epic` で表し、Epic 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけ。Epic は入れ子にしない
+- EP-1 必須は `id`・`title`・`status`・`created_at`・`updated_at`。閉じたときに `closed_at` を書く。本文は Markdown で、`## Summary` を推奨する（日本語の `## 概要` も読む）
+- EP-2 所属はチケットの `epic` で表し、Epic 側にチケットの一覧は持たない。Epic は入れ子にしない
 - EP-3 進捗は保存しない。done の件数と abandoned を除く件数をチケットから都度求める。`epic show` と `iteration show` は同じ形の `progress` を返す
 - EP-4 閉じる・再開するのは既定で誰でも行える（人に限るなら `actor.human_only`、5.10）。done・abandoned 以外のチケットが残るときは、強制の指定がなければ閉じない。閉じた Epic にはチケットを足せない（TK-6）
 - EP-5 Epic の状態はチケットの遷移を縛らない。Epic に削除はない（閉じて残す）
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `status` は `planned` / `active` / `closed` で、予定の期間は持たず、実績の期間として active になったときに `started_at`、閉じたときに `closed_at` と完了・持ち越しの件数を書く（細部は `iteration start / close / reopen --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
-- IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）
+- IT-1 `status` は `planned` / `active` / `closed` で、予定の期間は持たず、実績の期間として active になったときに `started_at`、閉じたときに `closed_at` と完了・持ち越しの件数を書く（細部は `iteration start / close / reopen --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active はカンバンに 1 つに保つ
+- IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。閉じた Iteration には入れられない。閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）
 - IT-3 `iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形は `packages/core/src/commands/iteration.ts`、並びは `commands/helpers.ts` の `ticketsInIteration`）
 
 ### 5.7 Plan（`plans/p7.yaml`）
 
 - PL-1 入れるチケット `tickets`、計画内だけの待ち `after`（チケットの依存とは別）、チケットごとの範囲・方針・難しさの段階 `details.<ticket>.{scope, approach, tier}` を持つ。`tier` は `light` / `standard` / `heavy` で、モデル名は書かない（対応は 5.10 の `models.*`）
 - PL-2 進捗は Plan に書かない。チケットの状態から都度求める。Plan を書くのは作成・承認・終了のときだけ
-- PL-3 1 つのチケットは同時に 1 つの開いた Plan にしか入らず、done・abandoned・存在しない・Plan と別の Project のチケットは入れられない。`after` と `details` は Plan のチケットだけを指す。`after` を含む循環は、Plan の作成と `depends_on` の書き込みで拒否する。そのほかの後からできた循環は lint が指摘する（`wait-cycle.ts`）
+- PL-3 1 つのチケットは同時に 1 つの開いた Plan にしか入らず、done・abandoned・存在しないチケットは入れられない。`after` と `details` は Plan のチケットだけを指す。`after` を含む循環は、Plan の作成と `depends_on` の書き込みで拒否する。そのほかの後からできた循環は lint が指摘する（`wait-cycle.ts`）
 - PL-4 `plan create` は承認待ち（`pending_approval: true`）で作る。`plan approve` は `approved_by`・`approved_at` を書いて `pending_approval` を外す。`plan close` は `closed_at` を書き、終わっていないチケットが残れば警告する。閉じた Plan は承認も閉じ直しもできない。承認と終了は既定で誰でも行える（EP-4 と同じ）
 - PL-5 Plan の状態は保存せず、`pending_approval` と `closed_at` から求める（pending・approved・closed）。`plan list` と `plan show` は `status` に返し、画面はこれを読む。承認待ちの Plan のチケットは、`dg next` が承認を待つ段を返し、`claim` は警告する
 - PL-6 `plan list` と `plan show` は着手できるかを求めて返す。`waiting` はチケットごとの待ちの相手（終わっていない `after` と `depends_on`）、`ready` は todo で待ちのないもの、`next` は次に進めるもの。画面と手順はこれを読み、求め直さない（求め方は `packages/core/src/commands/plan.ts`）
@@ -148,7 +148,7 @@ updated_at: 2026-10-31T05:10:00Z
 - WF-1 Status は全ワークフロー共通の 5 つ（3. 用語）で、増やせず、変えられるのは表示名だけ。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。`transitions` は遷移に主体 `by`（`[]` で禁止）と条件 `requires`（AND）の制約を足すだけ（検査は ST-2、理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`・`branch_exists`・`branch_pushed`・`branch_merged`・`pr_open`・`pr_draft`・`pr_merged`）とその否定（`!pr_draft`）だけで、利用者のスクリプトは実行しない。`deps_done` は `depends_on` がすべて done か abandoned のとき真
 - WF-3 存在しない Status・未知の条件と Action・重複などの誤りは、読み込み時と `dg workflow validate` で指摘する（検査の項目は `packages/core/src/workflow/validate.ts`）
-- WF-4 `software-development`・`general` のテンプレートを同梱し、`dg init` が 2 つとも置く（既にある Workflow は書き換えない）。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
+- WF-4 `software-development`・`general` のテンプレートを同梱し、`dg init` が 2 つとも置く（既にある Workflow は書き換えない）。既定の Workflow（`default_workflow`、5.10）は `dg init --template` でそのどれかを選べ、省けば `general`
 - WF-5 `steps` は Run の step の語彙（`opens_on` は RN-5）で、`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは YAML に書かず、既定の手続きは Core が（EX-3）、各手のやり方は `dg guide` が持つ
 - WF-6 `dg workflow set` は Workflow を 1 つ作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す（細部は `dg workflow set --help`）
 
@@ -172,6 +172,7 @@ updated_at: 2026-10-31T05:10:00Z
 - チームの `config.yaml` は deguboard ブランチで全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）
 - 値は「個人 > チーム > 既定」の順に読み、どの入口も Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する（細部は `dg config set --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 
+- `default_workflow`：自分の `workflow` を持たないチケットの Workflow（省けば `general`。TK-1）。チームだけが持つ
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧（検査しない呼び出しは `packages/core/src/commands/define.ts`）。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないとき（`DATA_REMOTE_MISSING`）と、取り込んだ config でこの値が変わったとき（`DATA_REMOTE_CHANGED`）は、push する操作は push せずに止まって次の手を示し、ほかの操作は警告して続く（戻し方は `dg guide overview`、細部は `commands-data-remote.test.ts`）
 - `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push し、`/` を含む名前は拒む。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく止まる（細部は `commands-data-branch.test.ts`）
@@ -205,7 +206,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 6.3 Git 同期と排他
 
-- SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く。データを別のリポジトリに置くとき（5.1）は、`--data-remote <名前か URL>` で取り込む先を、`--data-branch <名前>` でデータのブランチを渡す（URL ならリモートを足す。細部は `dg init --help`）
+- SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、config とテンプレートのワークフローを置く。データを別のリポジトリに置くとき（5.1）は、`--data-remote <名前か URL>` で取り込む先を、`--data-branch <名前>` でデータのブランチを渡す（URL ならリモートを足す。細部は `dg init --help`）
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
 - SY-3 claim・作成・`iteration start / reopen` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す。届かなければ（fetch・push の時間切れを含む）コミットを捨てて失敗する（チケットの起票だけは DT-5 の仮番号で残す）
 - SY-4 同期は rebase で取り込み、チケット等の属性はマージドライバがフィールド単位で解く（規則は `git/merge.ts`）。同じ状態で時刻だけ違えば早い方を採り警告に出す。解けない競合は rebase を中止してコミットを残し、競合したフィールドと両側の値を報告して、解くまで push・照合と即時の操作（CL-3）を止める。人が選べば `dg sync --resolve` が競合したフィールドだけその側で揃える（戻し方は `dg guide overview`）
@@ -219,7 +220,6 @@ updated_at: 2026-10-31T05:10:00Z
 
 画面は VS Code 拡張だけで、`dg serve` は同じ画面を配信する開発用で、利用者は使わない（理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。
 
-- UI-1 プロジェクトの切り替え
 - UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」（planned・active の全部）のチケットを Status ごとの列に出し、Epic は見出しの Epic の札で、担当者は漏斗の欄で絞れる。PR の番号があるチケットは行の番号の下に PR へのリンクを出し、押すと詳細を開かずに PR を開く。In Progress と Review の行の右端に、Run を 1 回 1 つの丸で並べ、最後の手と経過を出す
 - UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に出し、検索と絞り込みができる。PR の番号があるチケットは行の番号の下に PR へのリンクを出す（UI-2 と同じ）
 - UI-4 チケット詳細：本文・属性・依存・作業ブランチと worktree・PR・Run・経過（CL-7）を出す。属性と本文を編集でき、受け入れ条件の印を本文のチェックボックスで付け外しできる。編集を保存するとき、読んだ後に本文が書き換わっていれば上書きせず知らせる。細部は `dg ticket show --help`

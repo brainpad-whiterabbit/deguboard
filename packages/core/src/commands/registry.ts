@@ -8,7 +8,6 @@ import { historyCommands } from "./history.js";
 import { iterationCommands } from "./iteration.js";
 import { metricsCommands } from "./metrics.js";
 import { planCommands } from "./plan.js";
-import { projectCommands } from "./project.js";
 import { retroCommands } from "./retro.js";
 import { runCommands } from "./run.js";
 import { setupCommands } from "./setup.js";
@@ -22,7 +21,6 @@ import { prCommands } from "./pr.js";
 
 export const commands: readonly AnyCommand[] = [
   ...setupCommands,
-  ...projectCommands,
   ...ticketCommands,
   ...iterationCommands,
   ...epicCommands,
