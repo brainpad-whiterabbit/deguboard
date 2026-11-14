@@ -1,9 +1,11 @@
 id: p134
 tickets: [t922]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t922:
     scope: 頼むこと explain をチケット・Epic・Iteration と対象なしの候補に足し、手順の dg guide explain と Skill の dgexplain を配る。図をページで出すことは含めない
     approach: core の ask.ts の ASK_ACTIONS・ACTIONS・meaning・SKILL_SUMMARY・baseActions に足して ask.test.ts で並びを確かめ、guide-status.md を手本に読み取りだけの guide-explain.md を書き、web の訳と docs/usage.md・usage.ja.md を合わせる
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-14T17:46:23Z
