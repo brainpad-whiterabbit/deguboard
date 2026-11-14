@@ -1,0 +1,16 @@
+id: p130
+project: default
+tickets: [t901, t902]
+after:
+  t902:
+    - t901
+pending_approval: true
+details:
+  t901:
+    scope: 設定の 2 項目（metrics.read_transcripts・actions.shell）の説明と画面の訳から要件番号を外す。ほかの dg の文は t902
+    approach: config.ts の description から番号を外して定義の直前のコメントへ移し、l10n-core.ts の鍵と ja を同じ文に直す
+    tier: light
+  t902:
+    scope: dg のヘルプ・エラー・警告の文の要件番号を外し、check:docs の検査と ADR-001 の表の追記で再発を防ぐ
+    approach: commands の文字列の番号を定義の直前のコメントへ移し、check-docs.mjs にテスト以外の文字列の要件 ID の検査を足す
+    tier: standard
