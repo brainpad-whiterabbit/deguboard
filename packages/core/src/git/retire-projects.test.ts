@@ -293,6 +293,65 @@ describe("やめた Project の残りを消す", () => {
     expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
   });
 
+  it("見送った後の sync --resolve が仮番号を振り直しても、振り直した後の中身で消す：既定でない Project のチケットの参照は新しい番号のまま workflow が書かれる", async () => {
+    const { f, ctx } = await legacy("batch", async (first) => {
+      // t2 は Project web（既定の Workflow は general）のチケット
+      await writeFile(
+        path.join(first.repo.dataDir, "projects/web.yaml"),
+        "id: web\nname: Web\nworkflow: general\nstatus: active\n",
+      );
+      const t2 = path.join(first.repo.dataDir, "tickets/t2.md");
+      await writeFile(t2, (await readFile(t2, "utf8")).replace("project: default", "project: web"));
+    });
+    const b = await openContext({
+      cwd: f.cloneB,
+      initialize: {},
+      actor: { kind: "human", user: "eiki" },
+    });
+    // 前の dg が残したまとめ待ちの変更（config.yaml）で、消すのを見送らせる
+    const config = path.join(ctx.repo.dataDir, "config.yaml");
+    const pend = async (line: string) => {
+      await writeFile(config, `${await readFile(config, "utf8")}${line}\n`);
+      await recordBaseline(ctx.repo);
+    };
+    await pend("# まとめ待ちの変更 1");
+    // オフラインで t3 を起票する（仮番号。起票は即時の操作なので、まとめ待ちを先にコミットする）
+    await git(f.cloneA, ["remote", "set-url", "origin", path.join(f.root, "nonexistent.git")]);
+    const created = await runCommand(ticketCreate, ctx, { title: "C" });
+    expect(created.data.id).toBe("t3");
+    expect(created.write).toMatchObject({ provisional: true });
+    // もう一度見送らせて、Project web の t2 から仮番号の t3 を参照する（まとめ待ち。project は残る）
+    await pend("# まとめ待ちの変更 2");
+    await runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t3"] });
+    expect(await subjects(ctx.repo.dataDir)).not.toContain(REMOVAL);
+    expect(await read(ctx, "tickets/t2.md")).toContain("project: web");
+    // その間に、まだ消していない別の clone が t3 を push する（前の dg のコミット）
+    const other = (await read(b, "tickets/t1.md")).replace(/^id: t1$/m, "id: t3");
+    await writeFile(path.join(b.repo.dataDir, "tickets/t3.md"), other);
+    await git(b.repo.dataDir, ["add", "-A"]);
+    await git(b.repo.dataDir, ["commit", "-q", "-m", "File t3: A", "-m", DG_COMMIT_TRAILER]);
+    expect(await push(b.repo)).toEqual({ ok: true });
+    await git(f.cloneA, ["remote", "set-url", "origin", f.remoteDir]);
+
+    const synced = await runCommand(sync, ctx, { resolve: "local" });
+    expect(synced.data.renumbered).toEqual([{ from: "t3", to: "t4" }]);
+    expect(synced.data.conflicts).toEqual([]);
+    expect(synced.data.pushed).toBe(true);
+    // 同じ同期で消える。t2 は workflow を持ち、参照は振り直した後の番号（t4）のまま
+    expect(await pathExists(path.join(ctx.repo.dataDir, "projects"))).toBe(false);
+    expect(await subjects(ctx.repo.dataDir)).toContain(REMOVAL);
+    const t2 = await read(ctx, "tickets/t2.md");
+    expect(t2).toContain("workflow: general");
+    expect(t2).not.toContain("project:");
+    expect((await runCommand(ticketShow, ctx, { ticket: "t2" })).data.depends_on).toEqual(["t4"]);
+    expect((await runCommand(ticketShow, ctx, { ticket: "t4" })).data.title).toBe("C");
+    expect(await workflowOf(ctx, "t2")).toBe("general");
+    expect(await remoteFiles(f)).not.toContain("projects/");
+    expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+    expect(await checkOutside(ctx.repo)).toEqual({ kind: "clean", initial: false });
+    expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
+  });
+
   it("まだ消していない clone の同期は、消してから取り込み、相手が先に消していても競合しない", async () => {
     const { f, ctx: a } = await legacy("each");
     const b = await openContext({

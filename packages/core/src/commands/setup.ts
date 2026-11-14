@@ -719,8 +719,6 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
   }
   const dirty = await isDirty(repo);
   if (dirty && ctx.config.commit.mode !== "manual") flushed = await flushPending(ctx);
-  // まとめ待ちの変更があって上で消すのを見送ったときは、まとめ待ちをコミットした後のここで消す（同じ同期で projects/ をなくす）
-  if (flushed) await retireProjects(repo, ctx.store);
 
   let conflicts: string[] = [];
   let integrated = renumbered.length > 0;
@@ -768,6 +766,13 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
     await ctx.store.rescan();
     // 取り込んだ config でデータのリモートが変わった（データを別のリポジトリへ移す途中）：元のリモートへ push せずに止める
     stopIfDataRemoteChanged(ctx, nameBefore);
+  }
+  // まとめ待ちの変更があって上で消すのを見送ったときは、まとめ待ちをコミットした後のここで消す（同じ同期で projects/ をなくして push する）。
+  // 振り直しと取り込みはファイルを書き換えるので、その後のストアで消す：前のストアで消すと、workflow を書くチケットが
+  // 書き換わる前の中身（振り直す前の番号への参照など）に戻る
+  if (flushed) {
+    if (!integrated) await ctx.store.rescan();
+    await retireProjects(repo, ctx.store);
   }
 
   let pushed = false;
