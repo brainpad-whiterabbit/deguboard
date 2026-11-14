@@ -222,6 +222,7 @@ The place suggested for a finding is the target (fixed before release). Only fin
 - When an ADR has grown long (roughly 8,000 characters as a guideline), an ADR is no longer needed, or decisions on the same theme are scattered, file with the title "Split and organize ADRs". Gather into one ticket: splitting, merging, deleting, deleting details, matching against the implementation, and listing the decisions that can move to tests or lint
 - For a finding that goes into an existing unfinished ticket, read the ticket with \`ticket show <ID>\` first, then add the finding as an acceptance item with \`ticket update <ID> --acceptance\` (\`--acceptance\` replaces the whole acceptance criteria section, so give the existing items and the new one) or in the body (\`--body\` replaces the whole body, so give the existing text and the addition)
 - In the summary, write the viewpoint, the target, and both sides of the mismatch. Do not decide which side to match (decide it in planning)
+- A defect that a merged ticket's change caused (wrong behavior, or document drift that should have been fixed in that change) gets \`origin\` and \`origin_cause\`, as the "Origin of a defect" section of \`dg guide import\` says. Drift from before the change gets neither
 
 ## Asking with choices
 
@@ -501,7 +502,7 @@ Turns the requirements, research results, and review findings settled in the con
 ## Flow
 
 1. When the requirements are settled, **propose** turning them into tickets. Do not file on your own. Show the decomposition (title, summary, acceptance criteria, dependencies, Epic) in a table, and get approval with the choices "File after approval", "Revise", and "Cancel"
-2. For one ticket: \`dg --json --actor agent ticket create "<title>" --created-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--gate high] [--assignee agent]\`
+2. For one ticket: \`dg --json --actor agent ticket create "<title>" --created-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--gate high] [--assignee agent] [--origin t9] [--origin-cause tests]\`
 3. For several: write a YAML draft to one file and run \`dg --json --actor agent ticket import <file>\`. IDs are assigned together in one commit
 4. Read the IDs from the result's \`data\` and report them to a human
 
@@ -509,6 +510,12 @@ Turns the requirements, research results, and review findings settled in the con
 
 - The creator (\`created_by\`) is the person who instructed or approved the filing, or the AI that filed without a human's check. When filing on a human's instruction or approval, pass \`--created-by human\` so the user is the creator. In an automatic step that files without a human's check, do not pass it (it becomes \`<user>/agent\`)
 - The assignee (\`assignee\`) is optional. If you will continue advancing it, use \`--assignee agent\`. If a human will advance it, use \`--assignee human\`. Claim overwrites it with the claiming actor
+
+## Origin of a defect
+
+- A ticket that fixes a defect which got past a merged ticket's review (wrong behavior, or documents that should have been fixed in that same change) gets \`origin\` (the IDs of those merged tickets) and \`origin_cause\` (the cause kind, one of the kinds of a review finding's \`cause\`; their meaning is in \`dg run review-result --help\`). Use \`unknown\` when you cannot tell
+- \`origin\` takes existing tickets only. The temporary keys of the same draft are refused
+- Leave both out for findings the review judged out of scope, cleanup of light findings a review left, drift from before the change, retro Tries, and feature additions
 
 ## Draft format (import)
 
@@ -522,6 +529,8 @@ Turns the requirements, research results, and review findings settled in the con
   priority: high # low / medium / high. Default is medium
   gate: high # Quality gate level: high / low / free. Default is high. Lower it only on a human's instruction
   labels: [backend]
+  origin: [t9] # Existing tickets whose merged change caused the defect. Optional, for a defect fix only (see "Origin of a defect")
+  origin_cause: tests # Cause kind of the defect. Give it with origin. Optional
   created_by: human # Creator. If omitted, the acting actor (for you, <user>/agent)
   assignee: agent # Assignee. Optional
   fields: { estimate: 3 } # Optional fields defined by the Workflow's fields
@@ -1061,7 +1070,7 @@ The fixer does the following for each finding in "Findings to fix" in the text.
 - **Unfixed light findings** (including mismatches with the references section): \`dg pr ready\` adds them to the PR body as the "Unfixed light findings" section (## Unfixed light findings). The original body stays, and the parent does not write them. What is added is the reviewer's text (reason and how to fix) for the light findings that were not passed to the fix. Findings passed to the fix (\`run handoff\`) are left out whether they were fixed or not. dg cannot write the findings that the fixer returned without fixing, and their reasons, so the parent writes them in the report. Mismatches with the references section do not count toward the limit
 - **After fixing**: the parent runs \`dg --json --actor agent gate <id> --only check\` on the latest commit (the fixing subagent's push is the same commit, so a result it remembered is reused) and confirms the acceptance criteria again. When a heavy finding was fixed, or when only light findings remain and \`review\` of \`dg gate\` asks for it, have a reviewer (it may be newly started) review the difference from the last review. If no heavy finding comes up, it does not count toward the limit. Do not call \`dg next\` until the fixing subagent returns (a push in the middle and the push after the fix is done cannot be told apart)
 - **Limit**: dg counts the fix rounds (\`fix_rounds\` of \`dg gate\`). When the count goes over, \`dg next\` returns \`wait_human\` (see "How to finish" below). If a human gives a number, follow it. If a human chooses "keep fixing" after the limit is exceeded, run the rounds with the \`brief <id> --role fix\` and \`--role review\` texts, not \`dg next\`. \`fix_rounds\` of \`dg gate\` does not pass ready, so have a human run \`gh pr ready\`
-- **Findings outside the scope**: do not fix them in this ticket. Show them to a human as candidates for filing with \`dg guide import\`
+- **Findings outside the scope**: do not fix them in this ticket. Show them to a human as candidates for filing with \`dg guide import\`. The review judged them out of scope, so the change did not miss them: file them without \`origin\` (see the "Origin of a defect" section of \`dg guide import\`)
 
 ## How to finish
 

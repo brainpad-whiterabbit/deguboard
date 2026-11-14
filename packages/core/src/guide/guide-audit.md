@@ -79,6 +79,7 @@ The place suggested for a finding is the target (fixed before release). Only fin
 - When an ADR has grown long (roughly 8,000 characters as a guideline), an ADR is no longer needed, or decisions on the same theme are scattered, file with the title "Split and organize ADRs". Gather into one ticket: splitting, merging, deleting, deleting details, matching against the implementation, and listing the decisions that can move to tests or lint
 - For a finding that goes into an existing unfinished ticket, read the ticket with `ticket show <ID>` first, then add the finding as an acceptance item with `ticket update <ID> --acceptance` (`--acceptance` replaces the whole acceptance criteria section, so give the existing items and the new one) or in the body (`--body` replaces the whole body, so give the existing text and the addition)
 - In the summary, write the viewpoint, the target, and both sides of the mismatch. Do not decide which side to match (decide it in planning)
+- A defect that a merged ticket's change caused (wrong behavior, or document drift that should have been fixed in that change) gets `origin` and `origin_cause`, as the "Origin of a defect" section of `dg guide import` says. Drift from before the change gets neither
 
 {{choices}}
 
