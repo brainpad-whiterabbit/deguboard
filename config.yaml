@@ -118,7 +118,12 @@ retro:
     cost:
       name: コスト
       question: 時間とトークンはどこに使われ、成果に見合っていたか
-      metrics: {}
+      metrics:
+        tokens-per-line:
+          definition: 変更行 1 行あたりのトークン。output と input_cache を分けて示し、足し合わせない。変更行のないチケットの数（lines.missing）を添える
+          sources:
+            - dg metrics show --iteration <S> (total.lines.per_line, total.lines.missing)
+          unmeasured: 成果の値打ちに見合っていたか
     improvement:
       name: 改善の追跡
       question: 前の振り返りの Try は終わり、ねらった数字は動いたか
