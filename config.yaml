@@ -68,3 +68,38 @@ commit:
   mode: each
 work:
   parallel: 5
+retro:
+  perspectives:
+    outcome:
+      name: 成果
+      question: 目標は達成できたか。終えたもの・やめたもの・持ち越したものは何か
+      metrics:
+        done-rate:
+          definition: 閉じた時点で Iteration にあったチケットのうち、done の割合（completed ÷ (completed + carried_over)）
+          sources:
+            - dg iteration show <S> (completed, carried_over)
+          unmeasured: 目標の文そのものを達成できたか
+    review:
+      name: 見直しの効き目
+      question: 見直しは不具合をマージの前に見つけ、少ない回数で収束したか
+      metrics: {}
+    spec:
+      name: 仕様の質
+      question: チケット（受け入れ条件と範囲）は、作り直しなしで通る成果を引き出せたか
+      metrics: {}
+    slicing:
+      name: 分け方
+      question: 作業は、互いにぶつからずに並べて進められる大きさと境目に分けられたか
+      metrics: {}
+    stability:
+      name: エージェントの安定
+      question: エージェントの働きは、失敗・中断・やり直しなく安定して終わったか
+      metrics: {}
+    cost:
+      name: コスト
+      question: 時間とトークンはどこに使われ、成果に見合っていたか
+      metrics: {}
+    improvement:
+      name: 改善の追跡
+      question: 前の振り返りの Try は終わり、ねらった数字は動いたか
+      metrics: {}
