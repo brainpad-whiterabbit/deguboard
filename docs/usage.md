@@ -81,6 +81,17 @@ dg --help                     # the list of commands
 
 For an agent that does not have the Skill installed, paste the text made by `dg ask --format text` and ask with it.
 
+## Use other agents
+
+deguboard's hooks record Runs and guard the data and the merges without the agent's cooperation. At present, the hooks reach only Claude Code. Run `dg hooks check` in the repository to see whether the hooks reach the agent you use; it warns about the ones that are missing, and it can be run again after you install or change them.
+
+Where the hooks do not reach the agent:
+
+- Runs are recorded only from the agent's own `dg run` calls. Sub-agents' Runs are not opened and closed automatically, so the parent agent may implement and fix the ticket itself, and it opens and closes the Run with `dg run`. The guides say so.
+- The guard against direct edits to the data and against ready or merge without `dg` does not work. Nothing stops a direct edit of `.git/deguboard/` or a `gh pr merge` that skips `dg pr merge`, and at the end of a response, a change made outside `dg` is not reported.
+- Tokens are counted only for agents that can read their conversation records: Claude Code, Codex, and Copilot CLI today. Set `metrics.read_transcripts` to count them (see the README).
+- An agent that cannot start a reviewer asks a person to review the PR, and writes in the PR body that the PR was not reviewed by a reviewer.
+
 ## Use it from Claude Desktop (MCP)
 
 `dg mcp` is an MCP server over stdio that offers the `dg` commands as tools. In `claude_desktop_config.json`, set `command` to the absolute path of the launcher `~/.local/share/deguboard/dg` that the extension installs (JSON does not expand `~`, so use `/Users/<you>/...` on macOS and `/home/<you>/...` on Linux), and pass `-C <target repository>` and `mcp` as `args`. Claude Code can call `dg` through Bash, so it needs no registration.
