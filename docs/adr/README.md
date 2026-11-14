@@ -6,22 +6,23 @@
 
 ## 有効な ADR
 
-最後に使った番号：ADR-035
+最後に使った番号：ADR-036
 
-| 番号                                                | タイトル                                                                                                | テーマ             |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------ |
-| [ADR-001](ADR-001-doc-strategy.md)                  | 文書の方針                                                                                              | 文書               |
-| [ADR-003](ADR-003-status-and-workflow.md)           | ステータスとワークフロー                                                                                | ワークフロー       |
-| [ADR-008](ADR-008-tech-stack.md)                    | 技術構成と開発環境                                                                                      | 技術構成           |
-| [ADR-009](ADR-009-epic-and-iteration.md)            | Epic と Iteration                                                                                       | チケットのまとまり |
-| [ADR-011](ADR-011-procedure-in-code.md)             | 既定の手続きは dg のコードが持つ                                                                        | ワークフロー       |
-| [ADR-025](ADR-025-runs-by-hooks.md)                 | Run は harness のフックが印で開け閉めし、step を終えた事実で閉じる                                      | エージェント       |
-| [ADR-026](ADR-026-guard-pr-and-data.md)             | PR とデータを守る正しい道は dg のコマンドにし、フックは語の有無で粗く止め、すり抜けは事後に見つける     | エージェント       |
-| [ADR-027](ADR-027-screen-vscode-writes-and-asks.md) | 人の画面は VS Code 拡張にし、画面から書くのはチケット詳細と設定だけで、ほかはエージェントに頼む         | UI                 |
-| [ADR-028](ADR-028-agents-and-state.md)              | ツールはエージェントを動かさず、状態はブランチの事実で進め、排他は claim の push で決める               | エージェントと照合 |
-| [ADR-029](ADR-029-work-metrics.md)                  | 作業の使用量は Run ごとに公式の記録から実測し、数だけを Git に写す                                      | 作業の実績         |
-| [ADR-030](ADR-030-flow-and-guide-in-core.md)        | Iteration の流れもコードが判定し、guide の節は Core が返し、カスタマイズは config と guide.notes に限る | ワークフロー       |
-| [ADR-031](ADR-031-claim-prepares-work.md)           | claim が Iteration への追加と開始、作業ブランチの worktree の作成まで行う                               | ワークフロー       |
-| [ADR-033](ADR-033-architecture.md)                  | アーキテクチャ（索引は印で確かめる読みの結果をディスクに残す）                                          | アーキテクチャ     |
-| [ADR-034](ADR-034-storage-and-id.md)                | チケットの保存と ID                                                                                     | データ             |
-| [ADR-035](ADR-035-retro-perspectives.md)            | 振り返りの観点と承認した指標の定義はチームの config.yaml に置き、数字は毎回計算して保存しない           | 作業の実績         |
+| 番号                                                | タイトル                                                                                                                                    | テーマ             |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| [ADR-001](ADR-001-doc-strategy.md)                  | 文書の方針                                                                                                                                  | 文書               |
+| [ADR-003](ADR-003-status-and-workflow.md)           | ステータスとワークフロー                                                                                                                    | ワークフロー       |
+| [ADR-008](ADR-008-tech-stack.md)                    | 技術構成と開発環境                                                                                                                          | 技術構成           |
+| [ADR-009](ADR-009-epic-and-iteration.md)            | Epic と Iteration                                                                                                                           | チケットのまとまり |
+| [ADR-011](ADR-011-procedure-in-code.md)             | 既定の手続きは dg のコードが持つ                                                                                                            | ワークフロー       |
+| [ADR-025](ADR-025-runs-by-hooks.md)                 | Run は harness のフックが印で開け閉めし、step を終えた事実で閉じる                                                                          | エージェント       |
+| [ADR-026](ADR-026-guard-pr-and-data.md)             | PR とデータを守る正しい道は dg のコマンドにし、フックは語の有無で粗く止め、すり抜けは事後に見つける                                         | エージェント       |
+| [ADR-027](ADR-027-screen-vscode-writes-and-asks.md) | 人の画面は VS Code 拡張にし、画面から書くのはチケット詳細と設定だけで、ほかはエージェントに頼む                                             | UI                 |
+| [ADR-028](ADR-028-agents-and-state.md)              | ツールはエージェントを動かさず、状態はブランチの事実で進め、排他は claim の push で決める                                                   | エージェントと照合 |
+| [ADR-029](ADR-029-work-metrics.md)                  | 作業の使用量とツールの回数（失敗した数を含む）は Run ごとに公式の記録から実測し、数だけを Git に写す                                        | 作業の実績         |
+| [ADR-030](ADR-030-flow-and-guide-in-core.md)        | Iteration の流れもコードが判定し、guide の節は Core が返し、カスタマイズは config と guide.notes に限る                                     | ワークフロー       |
+| [ADR-031](ADR-031-claim-prepares-work.md)           | claim が Iteration への追加と開始、作業ブランチの worktree の作成まで行う                                                                   | ワークフロー       |
+| [ADR-033](ADR-033-architecture.md)                  | アーキテクチャ（索引は印で確かめる読みの結果をディスクに残す）                                                                              | アーキテクチャ     |
+| [ADR-034](ADR-034-storage-and-id.md)                | チケットの保存と ID                                                                                                                         | データ             |
+| [ADR-035](ADR-035-retro-perspectives.md)            | 振り返りの観点と承認した指標の定義はチームの config.yaml に置き、数字は毎回計算して保存しない                                               | 作業の実績         |
+| [ADR-036](ADR-036-rework-causes-and-origin.md)      | 手戻りの原因（cause）は見直しの指摘に固定の種類で付け、見つけ損ねた不具合は直すチケットに元のチケット（origin）と原因（origin_cause）を残す | 手戻り             |

@@ -291,20 +291,20 @@ describe("check-docs の最後に使った番号（t634）", () => {
   });
 
   it("実在の最大より小さい番号を書くと、その ADR を出して落ちる", async () => {
-    await rewrite("docs/adr/README.md", /最後に使った番号：ADR-035/, "最後に使った番号：ADR-034");
+    await rewrite("docs/adr/README.md", /最後に使った番号：ADR-036/, "最後に使った番号：ADR-035");
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toMatch(
-      /「最後に使った番号」が ADR-034 だが、ADR-035-retro-perspectives\.md はそれより大きい/,
+      /「最後に使った番号」が ADR-035 だが、ADR-036-rework-causes-and-origin\.md はそれより大きい/,
     );
   });
 
   it("最後に使った番号より大きい番号の ADR を足すと、その ADR を出して落ちる", async () => {
-    await writeFile(join(dir, "docs/adr/ADR-036-probe.md"), "# 確かめ\n");
+    await writeFile(join(dir, "docs/adr/ADR-037-probe.md"), "# 確かめ\n");
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toContain(
-      "docs/adr/README.md: 「最後に使った番号」が ADR-035 だが、ADR-036-probe.md はそれより大きい",
+      "docs/adr/README.md: 「最後に使った番号」が ADR-036 だが、ADR-037-probe.md はそれより大きい",
     );
   });
 
