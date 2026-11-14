@@ -30,7 +30,7 @@ Claude Code では、「s3 を計画して」のように普通の言葉で言�
 
 1. **起票する**：作りたいものを思いついたままの言葉で「この思いつきをチケットにして」のように頼みます（**エージェントに頼む** → **起票する**）。エージェントがコードを調べ、受け入れ条件と依存の付いた小さなチケットの案を出します。承認するとバックログに並びます。
 
-   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/import.gif" alt="雑な指示からチケットを起票する" width="560">
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/import.ja.gif" alt="雑な指示からチケットを起票する" width="560">
 
 2. **詳細を読む**：行を押すとチケットが開きます。本文と属性はそこで直せます。
 3. **検討する**：まだ曖昧なチケットは、**エージェントに頼む** → **検討する** を選ぶか、「t12 を検討して」と言います。エージェントが論点を選択肢で相談して決め、変更を承認するとチケットに反映します。
@@ -41,21 +41,21 @@ Claude Code では、「s3 を計画して」のように普通の言葉で言�
 
 1. **割り当てる**：バックログで行の左端を押してチケットを選び、下の **頼む** → **割り当てる** を選びます（1 件なら行の **エージェントに頼む** から）。エージェントが Iteration や Epic に入れる案を出し、承認するとカンバンの Todo に並びます。
 
-   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/assign.gif" alt="チケットを Iteration と Epic に割り当てる" width="560">
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/assign.ja.gif" alt="チケットを Iteration と Epic に割り当てる" width="560">
 
 2. **計画を立てる**：カンバンの見出しで **エージェントに頼む** → **計画を立てる** を選びます。エージェントが依存から進める順を決め、Plan が上の帯に承認待ちで出ます。帯の状態を押すと依存のグラフが開きます。
 
-   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="進める順を計画して承認する" width="612">
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.ja.gif" alt="進める順を計画して承認する" width="612">
 
 3. **進める**：帯の Plan で **エージェントに頼む** → **Plan を進める** を選びます。待ちのないチケットを、エージェントがそれぞれの作業ブランチと worktree で同時に実装し、PR を出します。PR は品質ゲートが通ったときだけ ready・マージに進みます。進むにつれて、グラフの色とカンバンの列が変わります。
 
-   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="エージェントが計画を並列に進める" width="612">
+   <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.ja.gif" alt="エージェントが計画を並列に進める" width="612">
 
 ### 履歴：振り返って改善する
 
 終わった Iteration で **エージェントに頼む** → **振り返る** を選びます。エージェントが実績（工程ごとの所要時間とトークン、失敗、やり直し）を見せ、チームが承認した観点ごとの指標を傾向つきで計算して、承認した改善を起票します。
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="ボトルネックを調べる" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.ja.gif" alt="ボトルネックを調べる" width="560">
 
 トークンは、会話記録から使用量を取り込む設定を有効にしたときだけ集計されます（Claude Code・Codex・Copilot CLI）。設定するには次のとおりにします。
 
