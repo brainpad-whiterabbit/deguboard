@@ -565,9 +565,11 @@ function withoutComments(text) {
   let prev = ""; // 直前のコメントと空白でない字（正規表現か割り算かを決める）
   let word = ""; // 直前の語（return /re/ などのキーワード）
   let i = 0;
+  // > は => と比較の後の /re/ のために含める（JSX の <p>/… の地の文より多い）。
+  // < は含めない。</p> の / を正規表現と読むと、同じ行の後ろの // コメントを外と読み違えるため
   const regexAfter = (ch, w) =>
     ch === "" ||
-    "(,=:[!&|?{};+-*%~^".includes(ch) ||
+    "(,=:[!&|?{};+-*%~^>".includes(ch) ||
     /^(?:return|typeof|case|in|of|new|delete|void|throw|yield|await|else|do)$/.test(w);
   const template = () => {
     // ` の次から、閉じる ` か ${ まで進める

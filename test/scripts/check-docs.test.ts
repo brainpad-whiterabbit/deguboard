@@ -506,6 +506,9 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
         `export const re = /\\/\\//; // 要件 ${KNOWN_ID}`,
         `export const t = \`a \${{ b: 1 }.b} c\`; // 要件 ${KNOWN_ID}`,
         `export const v = <p>{/* 要件 ${KNOWN_ID} */}text</p>;`,
+        "export const f = (s: string) => /[`]/.test(s) || 1 > /\\/\\//.source.length;",
+        `// 要件 ${KNOWN_ID}`,
+        `export const w = <p>x</p>; // 要件 ${KNOWN_ID}`,
       ].join("\n"),
     );
     await writeFile(
