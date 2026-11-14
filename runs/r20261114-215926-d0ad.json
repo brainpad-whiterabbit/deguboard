@@ -1,0 +1,36 @@
+{
+  "id": "r20261114-215926-d0ad",
+  "ticket": "t936",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-14T21:59:26Z",
+  "finished_at": "2026-11-14T22:10:16Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "承認で条件を外す経路を、PR の受け入れ条件を確かめたあとに限る案内が、2 つの手順で食い違って読める",
+    "リリースの 2 つ目のチケットの起票に、承認の要否と --created-by の指定がない",
+    "development.md のリリース節が guide-release の分割の規則を重複して書いている",
+    "development.md の「Iteration の確認」が guide-release のどの手順か示していない"
+  ],
+  "usage": {
+    "input": 370,
+    "output": 36362,
+    "cache_read": 15504729,
+    "cache_write": 111547
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 5,
+    "bash": 44,
+    "other": 138,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 3
+  },
+  "session": "2ca0961d-cdbb-4232-9597-25eaec87b355",
+  "review": null
+}
