@@ -121,7 +121,7 @@ function requireOriginForCause(origin: readonly string[] | undefined, cause: unk
   if (cause !== undefined && (origin ?? []).length === 0)
     throw new OperationError(
       "REJECTED",
-      "origin_cause needs origin (it is the cause of the origin tickets' change). Give origin with it, or remove origin_cause as well (on the CLI, --origin-cause none)",
+      "origin_cause needs origin (it is the cause of the origin tickets' change). Give origin with it, or leave origin_cause out (on update, --origin-cause none removes it)",
     );
 }
 
