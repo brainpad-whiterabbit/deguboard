@@ -16,7 +16,7 @@ Turns the requirements, research results, and review findings settled in the con
 ## Flow
 
 1. When the requirements are settled, **propose** turning them into tickets. Do not file on your own. Show the decomposition (title, summary, acceptance criteria, dependencies, Epic) in a table, and get approval with the choices "File after approval", "Revise", and "Cancel"
-2. For one ticket: `dg --json --actor agent ticket create "<title>" --created-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--gate high] [--assignee agent]`
+2. For one ticket: `dg --json --actor agent ticket create "<title>" --created-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--gate high] [--assignee agent] [--origin t9] [--origin-cause tests]`
 3. For several: write a YAML draft to one file and run `dg --json --actor agent ticket import <file>`. IDs are assigned together in one commit
 4. Read the IDs from the result's `data` and report them to a human
 
@@ -24,6 +24,12 @@ Turns the requirements, research results, and review findings settled in the con
 
 - The creator (`created_by`) is the person who instructed or approved the filing, or the AI that filed without a human's check. When filing on a human's instruction or approval, pass `--created-by human` so the user is the creator. In an automatic step that files without a human's check, do not pass it (it becomes `<user>/agent`)
 - The assignee (`assignee`) is optional. If you will continue advancing it, use `--assignee agent`. If a human will advance it, use `--assignee human`. Claim overwrites it with the claiming actor
+
+## Origin of a defect
+
+- A ticket that fixes a defect which got past a merged ticket's review (wrong behavior, or documents that should have been fixed in that same change) gets `origin` (the IDs of those merged tickets) and `origin_cause` (the cause kind, one of the kinds of a review finding's `cause`; their meaning is in `dg run review-result --help`). Use `unknown` when you cannot tell
+- `origin` takes existing tickets only. The temporary keys of the same draft are refused
+- Leave both out for findings the review judged out of scope, cleanup of light findings a review left, drift from before the change, retro Tries, and feature additions
 
 ## Draft format (import)
 
@@ -37,6 +43,8 @@ Turns the requirements, research results, and review findings settled in the con
   priority: high # low / medium / high. Default is medium
   gate: high # Quality gate level: high / low / free. Default is high. Lower it only on a human's instruction
   labels: [backend]
+  origin: [t9] # Existing tickets whose merged change caused the defect. Optional, for a defect fix only (see "Origin of a defect")
+  origin_cause: tests # Cause kind of the defect. Give it with origin. Optional
   created_by: human # Creator. If omitted, the acting actor (for you, <user>/agent)
   assignee: agent # Assignee. Optional
   fields: { estimate: 3 } # Optional fields defined by the Workflow's fields
