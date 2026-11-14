@@ -87,6 +87,13 @@ export function heavyReviewRounds(runs: readonly Run[], branchAt: string | undef
 }
 
 /**
+ * ほかの条件を満たさないので検査を回さなかったときの、検査（check）の理由。回して落ちた検査と見分けるのに使う
+ * （dg pr merge の案内は、回さなかった検査を「承認で越えられない条件」に数えない。t884）
+ */
+export const CHECK_NOT_RUN =
+  "The other conditions are not met, so the check (actions.test) was not run";
+
+/**
  * チケットの品質ゲートを判定する。gh・Git が読めない条件は満たさないとする（判定できないものを通さない）。
  * 判定する条件はチケットの段（gate。TK-9）で決まる。high はすべて、low は見直し（review・fix_rounds）を除き、
  * free は pr と（マージの前の）mergeable だけ。判定しない条件は conditions に出さず、その材料（見直しの Run・push の時刻と
@@ -186,12 +193,7 @@ export async function judgeGate(
     if (ctx.config.actions.test.length === 0 || conditions.every((c) => c.ok || waived.has(c.id))) {
       const check = await judgeCheck(ctx, ticket);
       add("check", check.ok, check.detail);
-    } else
-      add(
-        "check",
-        false,
-        "The other conditions are not met, so the check (actions.test) was not run",
-      );
+    } else add("check", false, CHECK_NOT_RUN);
   }
 
   return {

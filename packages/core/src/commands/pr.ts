@@ -23,7 +23,13 @@ import {
 } from "./branch-cleanup.js";
 import { setupFailureIn } from "./claim-setup.js";
 import { defineCommand, ok, outsideWarning, rebaseWarning, type CommandContext } from "./define.js";
-import { judgeGate, type GateConditionId, type GateStage, type GateView } from "./gate.js";
+import {
+  CHECK_NOT_RUN,
+  judgeGate,
+  type GateConditionId,
+  type GateStage,
+  type GateView,
+} from "./gate.js";
 import { ticketRef } from "./helpers.js";
 import {
   linkOrphanRounds,
@@ -112,13 +118,15 @@ async function noteApprover(
 /**
  * GATE_FAILED の detail の、満たさないまま進める道の案内。ready は人が gh を打つ。merge は人に聞き、承認されたら agent が
  * --approved-by でマージする（越えられるのは config の merge.approval_overrides の条件だけ。t884）。
- * blocking は、承認があっても越えられない満たさない条件
+ * blocking は、承認があっても越えられない満たさない条件。checkPending は、一覧にない検査を回していないとき
+ * （ほかの条件を満たさないので回さなかった。承認の後のマージで回るので、越えられない条件には数えず、通る必要があることを伝える）
  */
 function proceedHint(
   ctx: CommandContext,
   ticketId: string,
   stage: GateStage,
   blocking: readonly string[],
+  checkPending: boolean,
 ): string {
   if (stage === "ready")
     return "Proceeding without meeting it (the review cannot be started, the fix loop went past its limit, or a human set the count) is a human decision, so ask a human to run gh pr ready (dg guide review)";
@@ -126,7 +134,10 @@ function proceedHint(
   const list = listed.length > 0 ? listed.join(", ") : "none";
   if (blocking.length > 0)
     return `A person's approval does not override ${blocking.join(", ")} (config's merge.approval_overrides lists: ${list}; pr, mergeable, and head are never overridden), so resolve them first. Do not ask a person to run gh pr merge`;
-  return `Merging without meeting it is a human decision: show a person these unmet conditions and ask whether to merge anyway. Only when the person approves, run dg pr merge ${ticketId} --approved-by human (the approval overrides the conditions in config's merge.approval_overrides: ${list}). Do not ask a person to run gh pr merge, and never pass --approved-by without a person's approval`;
+  const pending = checkPending
+    ? ". The check was not run yet and is not in that list: the approved merge runs it, and it must pass (if it fails, the merge stays GATE_FAILED)"
+    : "";
+  return `Merging without meeting it is a human decision: show a person these unmet conditions and ask whether to merge anyway. Only when the person approves, run dg pr merge ${ticketId} --approved-by human (the approval overrides the conditions in config's merge.approval_overrides: ${list})${pending}. Do not ask a person to run gh pr merge, and never pass --approved-by without a person's approval`;
 }
 
 /**
@@ -157,7 +168,15 @@ async function passGate(
     const failed = unmet.map((c) => `${c.id}: ${c.detail}`);
     // 承認があっても越えられない条件（承認がないときは、承認を得ても残る条件を案内に出す）
     const overridable = new Set<GateConditionId>(ctx.config.merge.approval_overrides);
-    const blocking: string[] = unmet.filter((c) => !overridable.has(c.id)).map((c) => c.id);
+    // 一覧にない検査でも、回さなかっただけ（ほかの条件を満たさないため）なら越えられない条件に数えない。
+    // 数えると、承認の後のマージで検査が回って通るはずの PR でも「先に解消する」と案内し、
+    // 検査を回す手段のないエージェントが人に聞けなくなる（ほかの満たさない条件が残るかぎり、検査は回らない）
+    const notRun = (c: { id: GateConditionId; detail: string }) =>
+      c.id === "check" && c.detail === CHECK_NOT_RUN;
+    const checkPending = unmet.some((c) => notRun(c) && !overridable.has(c.id));
+    const blocking: string[] = unmet
+      .filter((c) => !overridable.has(c.id) && !notRun(c))
+      .map((c) => c.id);
     // free は head の条件を判定しないので、先端が読めなかったときは理由を足す（落とした理由が空にならないように）
     if (stage === "merge" && gate.sha === null && !gate.conditions.some((c) => c.id === "head")) {
       failed.push(
@@ -168,7 +187,7 @@ async function passGate(
     throw new OperationError(
       "GATE_FAILED",
       `${ticket.id} does not meet the quality gate (dg gate ${ticket.id} --for ${stage}), so gh pr ${stage} is not called`,
-      `${failed.join("\n")}\n${proceedHint(ctx, ticket.id, stage, blocking)}. If the level of the ticket does not fit the change, change it with dg ticket update ${ticket.id} --gate <level> (lowering it is a human's instruction), then run dg pr ${stage} again`,
+      `${failed.join("\n")}\n${proceedHint(ctx, ticket.id, stage, blocking, checkPending)}. If the level of the ticket does not fit the change, change it with dg ticket update ${ticket.id} --gate <level> (lowering it is a human's instruction), then run dg pr ${stage} again`,
     );
   }
   return { ticket, gate, pr: gate.pr, sha: gate.sha, overridden };

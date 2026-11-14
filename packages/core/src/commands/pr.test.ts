@@ -400,14 +400,45 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     });
     const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
     await undraft();
-    // 承認がなければ、ほかの条件を満たさないので検査は回さない
+    // 承認がなければ、ほかの条件を満たさないので検査は回さない。回さなかった検査は越えられない条件に数えず、人に聞く道を案内する
     const unapproved = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
     expect(unapproved!.detail).toContain("the check (actions.test) was not run");
+    expect(unapproved!.detail).toContain("ask whether to merge anyway");
+    expect(unapproved!.detail).toContain("the approved merge runs it, and it must pass");
+    expect(unapproved!.detail).not.toContain("does not override");
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
     expect(err!.code).toBe("GATE_FAILED");
     expect(err!.detail).toContain("落ちたテスト");
     expect(err!.detail).toContain("A person's approval does not override check");
     expect(await calls()).toEqual([]);
+  });
+
+  it("検査が一覧になくても、回さなかっただけの検査は人に聞く道をふさがず、承認の後のマージで検査が回って通ればマージする（t884）", async () => {
+    const { ctx: first, calls, undraft } = await prepared();
+    const script = path.join(path.dirname(first.repo.topLevel), "passing-override-check.sh");
+    await writeFile(script, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    await runCommand(configSet, first, { key: "actions.test", value: `sh, ${script}` });
+    await runCommand(configSet, first, {
+      key: "merge.approval_overrides",
+      value: "review, fix_rounds, acceptance",
+    });
+    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
+    await undraft();
+    // 見直しがなく受け入れ条件に印がないので、承認がなければ検査は回らない（エージェントは検査を回して解消できない）
+    const unapproved = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
+    expect(unapproved!.code).toBe("GATE_FAILED");
+    expect(unapproved!.detail).toContain("the check (actions.test) was not run");
+    expect(unapproved!.detail).toContain("ask whether to merge anyway");
+    expect(unapproved!.detail).toContain("dg pr merge t1 --approved-by human");
+    expect(unapproved!.detail).not.toContain("does not override");
+    expect(await calls()).toEqual([]);
+    const merged = await runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" });
+    expect(merged.data).toMatchObject({
+      action: "merge",
+      approved_by: "eiki",
+      overridden: ["acceptance", "review"],
+    });
+    expect((await calls()).length).toBe(2);
   });
 
   it("書く保留がないときに rebase の途中を見つけたら、外の変更と報告せず rebase の警告を出して ready にする（t753）", async () => {

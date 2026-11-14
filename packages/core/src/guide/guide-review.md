@@ -26,7 +26,7 @@ A PR that does not meet `dg gate <id> --for merge` is merged only when a human a
 
 - **Ask**: show the unmet conditions with their reasons, and ask with the choices "Merge anyway" and "Not yet". Do not ask a human to run `gh pr merge`
 - **When approved**: run `dg --json --actor agent pr merge <id> --approved-by human`. The approval overrides only the unmet conditions listed in config's `merge.approval_overrides` (current setting: `{{merge.approval_overrides}}`). `overridden` in the result gives the conditions it overrode, and the comment on the PR records them with the approver
-- **What an approval cannot override**: an unmet condition outside the list keeps the merge at `GATE_FAILED`, so do not ask while one is unmet, and resolve it first. `pr` (open and not a draft), `mergeable`, and `head` can never be listed
+- **What an approval cannot override**: an unmet condition outside the list keeps the merge at `GATE_FAILED`, so do not ask while one is unmet, and resolve it first. A `check` that "was not run" (the gate runs it only when the other conditions are met) does not count as one: ask, and the approved merge runs the check, which must pass when `check` is outside the list. `pr` (open and not a draft), `mergeable`, and `head` can never be listed
 - **Without an approval**: nothing is overridden. Never pass `--approved-by` when no human approved, and when declined or not answered, do not merge
 
 ## Starting the review (parent)
