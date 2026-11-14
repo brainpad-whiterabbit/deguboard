@@ -8,7 +8,7 @@ import { ClientError } from "../client/http.js";
 import { toggleRoute } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
-import type { ConfigField, ConfigShowView } from "../types.js";
+import type { ConfigField, ConfigShowView, RetroPerspective } from "../types.js";
 import { configFields, GUIDE_TOPICS } from "@deguboard/core";
 import {
   CONFIRM_KEYS,
@@ -17,6 +17,7 @@ import {
   groupOf,
   isModified,
   fieldMatch,
+  metricSummary,
   nameOf,
   valueAt,
 } from "./config.js";
@@ -1349,6 +1350,161 @@ describe("優先度の判断基準の英語の表示と保存（UI-11）", () =>
         return el!;
       });
       expect(saved.textContent).not.toContain(DEFAULT_HIGH);
+    } finally {
+      setLanguage("ja");
+    }
+  });
+});
+
+describe("設定画面の振り返りの節（retro.perspectives を読むだけで出す）", () => {
+  /** 指標を 2 つ持つ観点と、定義のない観点。core の retroPerspectiveSchema と同じ形 */
+  const RETRO: Record<string, RetroPerspective> = {
+    review: {
+      name: "見直しの効き目",
+      question: "見直しは不具合をマージの前に見つけたか",
+      metrics: {
+        "first-pass-rate": {
+          definition: "最初の見直しで通ったチケットの割合。手直しの Run を数える",
+          sources: ["dg metrics show --iteration <S>"],
+          unmeasured: "見逃した不具合",
+        },
+        "fix-rounds": {
+          definition: "手直しの回数の平均",
+          sources: ["dg run list --ticket <id>", "gh pr view <n>"],
+        },
+      },
+    },
+    cost: { name: "コスト", question: "時間とトークンはどこに使われたか", metrics: {} },
+  };
+  const retroClient = () => {
+    const { client, config } = configClient();
+    Object.assign(config, { retro: { perspectives: structuredClone(RETRO) } });
+    return client;
+  };
+  const section = () => screen.getByRole("region", { name: "振り返り" });
+  const perspectiveOf = (id: string) =>
+    document.querySelector<HTMLDetailsElement>(`[data-perspective="${id}"]`)!;
+  const metricOf = (key: string) =>
+    document.querySelector<HTMLDetailsElement>(`[data-metric="${key}"]`)!;
+  const summaryOf = (el: Element) => el.querySelector(":scope > summary")!;
+
+  it("チームのタブに観点ごとに名前・問い・指標の数（ないときは「定義なし」）の 1 行を閉じて出し、入力欄を置かない", async () => {
+    mount(retroClient());
+    await screen.findByText("コミットの仕方");
+    const s = section();
+    expect(within(s).getByText("dg retro metric")).toBeTruthy();
+    expect(
+      [...s.querySelectorAll("[data-perspective] > summary")].map((e) => e.textContent),
+    ).toEqual([
+      "見直しの効き目見直しは不具合をマージの前に見つけたか指標 2",
+      "コスト時間とトークンはどこに使われたか定義なし",
+    ]);
+    expect(perspectiveOf("review").open).toBe(false);
+    expect(perspectiveOf("cost").open).toBe(false);
+    expect(s.querySelectorAll("input, select, textarea, button")).toHaveLength(0);
+  });
+
+  it("観点を開くと指標の ID と要約（数え方の最初の文）を 1 行ずつ出し、指標を開くと全文・出どころ・測れないものを出す", async () => {
+    mount(retroClient());
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(summaryOf(perspectiveOf("review")));
+    expect(perspectiveOf("review").open).toBe(true);
+    expect(
+      [...perspectiveOf("review").querySelectorAll("[data-metric] > summary")].map(
+        (e) => e.textContent,
+      ),
+    ).toEqual([
+      "first-pass-rate最初の見直しで通ったチケットの割合。",
+      "fix-rounds手直しの回数の平均",
+    ]);
+    const metric = metricOf("review.first-pass-rate");
+    expect(metric.open).toBe(false);
+    fireEvent.click(summaryOf(metric));
+    expect(metric.open).toBe(true);
+    const dl = within(metric.querySelector("dl")!);
+    expect(dl.getByText("最初の見直しで通ったチケットの割合。手直しの Run を数える")).toBeTruthy();
+    expect(dl.getByText("dg metrics show --iteration <S>")).toBeTruthy();
+    expect(dl.getByText("見逃した不具合")).toBeTruthy();
+    // 測れないものがない指標はその見出しを出さない
+    expect(within(metricOf("review.fix-rounds")).queryByText("この指標で測れないもの")).toBeNull();
+    // 定義のない観点は、開くと定義がまだないことを出す
+    fireEvent.click(summaryOf(perspectiveOf("cost")));
+    expect(within(perspectiveOf("cost")).getByText(/指標の定義はまだない/)).toBeTruthy();
+    // 閉じられる
+    fireEvent.click(summaryOf(perspectiveOf("review")));
+    expect(perspectiveOf("review").open).toBe(false);
+  });
+
+  it("自分のタブには出さない", async () => {
+    mount(retroClient());
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(tabOf("自分"));
+    expect(screen.queryByRole("region", { name: "振り返り" })).toBeNull();
+  });
+
+  it("検索は観点の名前・問いと指標の ID・数え方・出どころ・測れないものに当たり、当たった観点と指標を開いて出す", async () => {
+    mount(retroClient());
+    await screen.findByText("コミットの仕方");
+    const search = screen.getByLabelText("設定を検索");
+    const shown = () => ({
+      perspectives: [...document.querySelectorAll("[data-perspective]")].map((e) =>
+        e.getAttribute("data-perspective"),
+      ),
+      metrics: [...document.querySelectorAll("[data-metric]")].map((e) =>
+        e.getAttribute("data-metric"),
+      ),
+    });
+    // 観点の問いに当たる：観点を開いて指標をすべて出し、指標は閉じたまま
+    fireEvent.change(search, { target: { value: "マージの前" } });
+    expect(shown()).toEqual({
+      perspectives: ["review"],
+      metrics: ["review.first-pass-rate", "review.fix-rounds"],
+    });
+    expect(perspectiveOf("review").open).toBe(true);
+    expect(metricOf("review.first-pass-rate").open).toBe(false);
+    // 観点の名前（定義のない観点）
+    fireEvent.change(search, { target: { value: "コスト" } });
+    expect(shown()).toEqual({ perspectives: ["cost"], metrics: [] });
+    expect(perspectiveOf("cost").open).toBe(true);
+    // 指標の出どころ・ID・数え方の 2 文目・測れないものに当たる：当たった指標だけを開いて出す
+    for (const [query, key] of [
+      ["GH PR", "review.fix-rounds"],
+      ["first-pass", "review.first-pass-rate"],
+      ["Run を数える", "review.first-pass-rate"],
+      ["見逃した", "review.first-pass-rate"],
+    ] as const) {
+      fireEvent.change(search, { target: { value: query } });
+      expect(shown()).toEqual({ perspectives: ["review"], metrics: [key] });
+      expect(perspectiveOf("review").open).toBe(true);
+      expect(metricOf(key).open).toBe(true);
+    }
+    // どれにも当たらなければ節を出さない
+    fireEvent.change(search, { target: { value: "見つからない" } });
+    expect(screen.queryByRole("region", { name: "振り返り" })).toBeNull();
+    expect(screen.getByText("該当する設定がない")).toBeTruthy();
+    // 設定の項目に当たらず振り返りだけに当たるときは「該当する設定がない」を出さない
+    fireEvent.change(search, { target: { value: "見逃した" } });
+    expect(screen.queryByText("該当する設定がない")).toBeNull();
+    // 検索を消すと畳む
+    fireEvent.change(search, { target: { value: "" } });
+    expect(perspectiveOf("review").open).toBe(false);
+    expect(metricOf("review.first-pass-rate").open).toBe(false);
+  });
+
+  it("要約は数え方の最初の「。」まで、「。」がなければ全文", () => {
+    expect(metricSummary("一文目。二文目。")).toBe("一文目。");
+    expect(metricSummary("句点のない文")).toBe("句点のない文");
+  });
+
+  it("英語の表示では節の文字列を英語の訳で出す（観点の名前と問いは書いたまま）", async () => {
+    setLanguage("en");
+    try {
+      mount(retroClient());
+      await screen.findByText("Commit mode");
+      const s = screen.getByRole("region", { name: "Retro" });
+      expect(within(s).getByText("Metrics: 2")).toBeTruthy();
+      expect(within(s).getByText("No definitions")).toBeTruthy();
+      expect(within(s).getByText("コスト")).toBeTruthy();
     } finally {
       setLanguage("ja");
     }

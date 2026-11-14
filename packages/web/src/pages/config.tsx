@@ -1,6 +1,9 @@
 // 設定画面（#/config）。config.show の fields で葉の項目を既定値・文（configDescription で表示言語の訳にする）・範囲（scope）つきで読み、
 // 「チーム」と「自分」のタブで書き分ける。値を変えるたびに 1 項目ずつ保存する。
-// 振り返りの観点（retro.perspectives）は観点ごとの入れ子で 1 つの欄に収まらず fields に入らないので、この画面には出さない（dg retro が書く）。
+// 振り返りの観点（retro.perspectives）は観点ごとの入れ子で 1 つの欄に収まらず fields に入らないので、チームのタブの「振り返り」の節に
+// view.team から読むだけで出す（入力欄は置かない。書くのは振り返りの dg retro。観点はチームだけが持つので自分のタブには出さない）。
+// 最初は観点の行（名前・問い・指標の数）だけを出し、観点を開くと指標の ID と要約（数え方の最初の文）、指標を開くと全文・出どころ・測れないものを出す。
+// 検索は観点の名前・問いと、指標の ID・数え方・出どころ・測れないものに当て、当たった観点と指標を開いて出す。
 // 項目の文は短く出す：要約（summary）1 行をいつも出し、詳しい説明（description）の全文は「詳しく」に畳む。例（example）は入力欄のプレースホルダに、
 // 空のときの動き（empty）は欄の下の 1 行に、選択肢のある項目は選んでいる値の説明（option_descriptions）だけを出す。
 // guide.notes.* は同じ説明の項目なので、説明を 1 つだけ出し、差し込む先ごとの行の表にする。
@@ -18,7 +21,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { failureOf } from "../client/http.js";
 import { useStore } from "../store.js";
-import type { ConfigField, ConfigScope, ConfigShowView } from "../types.js";
+import type {
+  ConfigField,
+  ConfigScope,
+  ConfigShowView,
+  RetroMetric,
+  RetroPerspective,
+} from "../types.js";
 import { configDescription, shownConfigValue, storedConfigValue, tr, msg } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
@@ -525,6 +534,13 @@ export function ConfigPage() {
     return { groups, detailHits };
   }, [view, tab, query]);
 
+  /** 振り返りの節に出す観点（チームのタブだけ）。検索に当たらなければ空 */
+  const retro = useMemo(
+    () => (view && tab === "team" ? retroMatches(view.team.retro?.perspectives ?? {}, query) : []),
+    [view, tab, query],
+  );
+  const hasRetro = tab === "team" && view?.team.retro?.perspectives !== undefined;
+
   const overrides = view ? Object.keys(view.local).length : 0;
 
   return (
@@ -595,7 +611,9 @@ export function ConfigPage() {
         </p>
         {loadError ? <p className="error">{trNode("設定を読めない: {0}", loadError)}</p> : null}
         {!view && !loadError ? <p className="muted">{tr("読み込み中…")}</p> : null}
-        {view && groups.length === 0 ? <p className="empty">{tr("該当する設定がない")}</p> : null}
+        {view && groups.length === 0 && retro.length === 0 ? (
+          <p className="empty">{tr("該当する設定がない")}</p>
+        ) : null}
         {groups.map((g) => {
           const notes = g.fields.filter((f) => isNoteKey(f.key));
           return (
@@ -610,6 +628,9 @@ export function ConfigPage() {
             </section>
           );
         })}
+        {hasRetro && (retro.length > 0 || !query.trim()) ? (
+          <RetroSection perspectives={retro} />
+        ) : null}
       </div>
     </div>
   );
@@ -883,6 +904,127 @@ function NotesTable({
         <tbody>{children}</tbody>
       </table>
     </div>
+  );
+}
+
+/** 指標の 1 行の要約：数え方の最初の文（最初の「。」まで）。「。」がなければ全文 */
+export function metricSummary(definition: string): string {
+  const end = definition.indexOf("。");
+  return end < 0 ? definition : definition.slice(0, end + 1);
+}
+
+/** 振り返りの節に出す観点 1 つ。open は検索に当たったので開いて出す */
+export interface RetroMatch {
+  id: string;
+  perspective: RetroPerspective;
+  open: boolean;
+  metrics: { id: string; metric: RetroMetric; open: boolean }[];
+}
+
+/**
+ * 振り返りの節に出す観点と指標。検索語が空ならすべてを閉じて出す。検索語があれば、名前・問いに当たった観点は指標をすべて、
+ * 指標の ID・数え方・出どころ・測れないものに当たった観点はその指標だけを出し、出す観点と当たった指標を開く（大文字小文字は区別しない）
+ */
+export function retroMatches(
+  perspectives: Record<string, RetroPerspective>,
+  query: string,
+): RetroMatch[] {
+  const q = query.trim().toLowerCase();
+  const hit = (s: string | undefined) => s !== undefined && s.toLowerCase().includes(q);
+  const out: RetroMatch[] = [];
+  for (const [id, perspective] of Object.entries(perspectives)) {
+    const metrics = Object.entries(perspective.metrics).map(([mid, metric]) => ({
+      id: mid,
+      metric,
+      open:
+        q !== "" &&
+        [mid, metric.definition, metric.unmeasured, ...metric.sources].some((s) => hit(s)),
+    }));
+    if (!q) {
+      out.push({ id, perspective, open: false, metrics });
+      continue;
+    }
+    const own = hit(perspective.name) || hit(perspective.question);
+    const shown = own ? metrics : metrics.filter((m) => m.open);
+    if (own || shown.length > 0) out.push({ id, perspective, open: true, metrics: shown });
+  }
+  return out;
+}
+
+/**
+ * チームのタブの「振り返り」の節。読むだけで入力欄は置かない（観点と定義は振り返りの dg retro が検査して書く）。
+ * 観点 → 指標の 2 段で畳み、検索で当たったものは開いて出す（開いた後は利用者が開け閉めできる。FieldDetail と同じ）
+ */
+function RetroSection({ perspectives }: { perspectives: RetroMatch[] }) {
+  return (
+    <section className="config-group config-retro" aria-labelledby="config-group-retro">
+      <h3 id="config-group-retro">{tr("振り返り")}</h3>
+      <p className="config-summary muted">
+        {trNode(
+          "振り返りの観点と、人が承認した指標の定義。ここでは読むだけで、定義は振り返りで承認したものを {0} が書く",
+          <code>dg retro metric</code>,
+        )}
+      </p>
+      {perspectives.length === 0 ? <p className="empty">{tr("観点がない")}</p> : null}
+      {perspectives.map(({ id, perspective, open, metrics }) => {
+        const count = Object.keys(perspective.metrics).length;
+        return (
+          <details key={id} className="config-retro-perspective" data-perspective={id} open={open}>
+            <summary>
+              <strong className="config-name">{perspective.name}</strong>
+              <span className="config-retro-question muted">{perspective.question}</span>
+              {count > 0 ? (
+                <span className="badge">{tr("指標 {0}", count)}</span>
+              ) : (
+                <span className="badge config-retro-none">{tr("定義なし")}</span>
+              )}
+            </summary>
+            <div className="config-retro-metrics">
+              {count === 0 ? (
+                <p className="muted">
+                  {tr("指標の定義はまだない。振り返りで提案し、人が承認するとここに出る")}
+                </p>
+              ) : null}
+              {metrics.map((m) => (
+                <details
+                  key={m.id}
+                  className="config-retro-metric"
+                  data-metric={`${id}.${m.id}`}
+                  open={m.open}
+                >
+                  <summary>
+                    <code>{m.id}</code>
+                    <span className="config-retro-summary">
+                      {metricSummary(m.metric.definition)}
+                    </span>
+                  </summary>
+                  <dl className="config-detail">
+                    <dt>{tr("数え方")}</dt>
+                    <dd>{m.metric.definition}</dd>
+                    <dt>{tr("数字の出どころ")}</dt>
+                    <dd>
+                      <ul>
+                        {m.metric.sources.map((s, i) => (
+                          <li key={`${i}-${s}`}>
+                            <code>{s}</code>
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                    {m.metric.unmeasured !== undefined ? (
+                      <>
+                        <dt>{tr("この指標で測れないもの")}</dt>
+                        <dd>{m.metric.unmeasured}</dd>
+                      </>
+                    ) : null}
+                  </dl>
+                </details>
+              ))}
+            </div>
+          </details>
+        );
+      })}
+    </section>
   );
 }
 

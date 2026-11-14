@@ -458,6 +458,16 @@ export const EN: Readonly<Record<string, string>> = {
     "Set {0} to {1}. This {2}. It applies only to you. Save?",
   保存する: "Save",
   やめる: "Cancel",
+  "振り返りの観点と、人が承認した指標の定義。ここでは読むだけで、定義は振り返りで承認したものを {0} が書く":
+    "Perspectives of the retrospective and the metric definitions a person approved. Read-only here: {0} writes the definitions approved in a retrospective",
+  観点がない: "No perspectives",
+  "指標 {0}": "Metrics: {0}",
+  定義なし: "No definitions",
+  "指標の定義はまだない。振り返りで提案し、人が承認するとここに出る":
+    "No metric definitions yet. They are proposed in a retrospective and appear here once a person approves them",
+  数え方: "How to count",
+  数字の出どころ: "Where the numbers come from",
+  この指標で測れないもの: "What this metric cannot measure",
   // pages/epics.tsx
   "タイトル {0}": "Title {0}",
   "この Epic でカンバンを見る": "View this Epic on the board",

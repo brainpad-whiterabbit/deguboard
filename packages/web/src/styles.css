@@ -2847,6 +2847,60 @@ textarea.body {
 .config-note .config-text {
   width: 100%;
 }
+/* 振り返りの節（読むだけ）。観点の行（名前・問い・指標の数）を畳み、開くと指標の ID と要約の行、指標を開くと全文を出す */
+.config-retro > .config-summary {
+  padding: 0 0.6rem;
+}
+.config-retro-perspective {
+  padding: 0.35rem 0.6rem;
+}
+.config-retro-perspective + .config-retro-perspective {
+  border-top: 1px solid color-mix(in srgb, var(--dg-border) 60%, transparent);
+}
+.config-retro-perspective > summary,
+.config-retro-metric > summary {
+  cursor: pointer;
+}
+.config-retro-perspective > summary > * + *,
+.config-retro-metric > summary > * + * {
+  margin-left: 0.5rem;
+}
+.config-retro-question {
+  font-size: 0.92em;
+}
+.config-retro-none {
+  background: transparent;
+  border-color: var(--dg-border);
+  color: var(--vscode-descriptionForeground);
+}
+.config-retro-metrics {
+  margin: 0.3rem 0 0.2rem 1.1rem;
+}
+.config-retro-metrics > p {
+  margin: 0.2rem 0;
+  font-size: 0.92em;
+}
+.config-retro-metric {
+  padding: 0.2rem 0;
+}
+.config-retro-summary {
+  font-size: 0.92em;
+}
+.config-retro-metric dl {
+  margin: 0.3rem 0 0.2rem;
+  font-size: 0.92em;
+}
+.config-retro-metric dt {
+  font-weight: 600;
+}
+.config-retro-metric dd {
+  margin: 0 0 0.3rem;
+}
+.config-retro-metric dd ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 .config-control {
   display: flex;
   flex-wrap: wrap;
