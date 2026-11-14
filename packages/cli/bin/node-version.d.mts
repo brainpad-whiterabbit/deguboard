@@ -3,4 +3,8 @@
 export const REQUIRED_NODE_MAJOR: number;
 export function isPreToolUseHookArgv(argv: readonly string[]): boolean;
 export function nodeVersionExitCodeOf(argv: readonly string[]): 1 | 2;
-export function nodeVersionProblemOf(version: string, argv?: readonly string[]): string | undefined;
+export function nodeVersionProblemOf(
+  version: string,
+  argv?: readonly string[],
+  execPath?: string,
+): string | undefined;
