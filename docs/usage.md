@@ -136,7 +136,7 @@ For an agent that does not have the Skill installed, paste the text made by `dg 
 
 ## Use other agents
 
-deguboard's hooks record Runs and guard the data and the merges without the agent's cooperation. At present, the hooks reach only Claude Code. To see whether the hooks reach the session, run `dg hooks check` in the repository. It reads only Claude Code's settings and the records the hooks received, so for an agent without hooks it warns that they are missing, and it can be run again after you install or change them.
+deguboard's hooks record Runs and guard the data and the merges without the agent's cooperation. At present, the hooks reach only Claude Code. To see whether the hooks reach the session, run `dg hooks check` in the repository. It checks that the hooks are in Claude Code's settings, runs each hook's dg command with `--version` to confirm that it works, and checks the records of the hooks that dg received. For an agent without hooks it warns that they are missing, and it can be run again after you install or change them.
 
 Where the hooks do not reach the agent:
 

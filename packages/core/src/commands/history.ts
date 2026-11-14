@@ -52,7 +52,7 @@ export const history = defineCommand({
   name: "history",
   group: "history",
   summary:
-    "From the history of the deguboard branch, print creation, Status changes, entries to and exits from Iterations and Epics, assignee, and PR number changes in time order. A shallow clone shows what is missing",
+    "From the history of the data branch (deguboard by default), print creation, Status changes, entries to and exits from Iterations and Epics, assignee, and PR number changes in time order. A shallow clone shows what is missing",
   input: z.object({
     ticket: ticketRef.optional().describe("Only the history of this ticket"),
     epic: epicRef.optional().describe("This Epic, and the history of tickets that were ever in it"),

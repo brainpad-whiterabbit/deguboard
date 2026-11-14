@@ -54,7 +54,7 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 - Core の汎用部分は actions に依存しない（AG-6。検出は `.oxlintrc.json`）
 - Workflow の `steps` は Action を名前（文字列）で持ち、名前の検証は入口が名前の一覧を渡して行う（ADR-003）
 - `dg` のコマンド・MCP のツール・画面には出さず、core の公開も名前の一覧だけにする。エージェントは `dg guide` の手順に従って git・gh・テストを自分で呼ぶ（EX-1）
-- `run_tests` は `actions.test` に書いた引数配列だけを確認なしで実行する。config.yaml は Git で共有されるので、deguboard ブランチに push できる人はここに任意のコマンドを書ける。その権限をシェルの許可と同等とみなす前提に立つ。`shell` は `actions.shell` が true で、呼び出し側の確認が通ったときだけ実行する（AG-7）
+- `run_tests` は `actions.test` に書いた引数配列だけを確認なしで実行する。config.yaml は Git で共有されるので、データのブランチ（既定は `deguboard`）に push できる人はここに任意のコマンドを書ける。その権限をシェルの許可と同等とみなす前提に立つ。`shell` は `actions.shell` が true で、呼び出し側の確認が通ったときだけ実行する（AG-7）
 - worktree・ブランチの操作は ADR-031 のとおり
 
 ### 索引はメモリ上に持ち、読みの結果をディスクに残す
