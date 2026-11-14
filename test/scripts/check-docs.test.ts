@@ -9,6 +9,7 @@
 // その参照が packages の .ts・.tsx の文字列とコメントにあっても落ちる（t562）。
 // 英語の形「the "<節>" section of `dg guide <topic>`」の参照も同じ照らし方で落ちる（t563）。
 // 要件の 1 項が上限の 250 字を超えたときと、コードとテストが置き換え済みの ADR を指したときも落ちる（t580）。
+// packages のテスト以外の文字列に要件 ID があると落ち、コメントとテストのファイルの ID は落とさないことも確かめる（t902）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
@@ -46,6 +47,8 @@ const ANCHOR = "#security-and-privacy";
 const UNKNOWN_ID = ["TK", "999"].join("-");
 // 定義をすべて消す接頭辞（一覧には残す）の ID。組み立てて書くのは UNKNOWN_ID と同じ理由
 const GONE_ID = ["SY", "1"].join("-");
+// 定義のある要件 ID。文字列に置いたときの位置の指摘だけを出すために使う。組み立てて書くのは UNKNOWN_ID と同じ理由
+const KNOWN_ID = ["TK", "9"].join("-");
 // 置き換え済みの ADR（ADR-028 に置き換えた 004 番の架空のファイル）。本リポジトリのテストが置き換え済みの ADR を指すと検査が落ちるので組み立てて書く
 const OLD_ADR = ["ADR", "004"].join("-");
 const OLD_FILE = "ADR-004-old-agents-and-state.md";
@@ -474,6 +477,43 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toContain("docs/requirements.md: 「要件の ID の接頭辞：」の一覧の行がない");
+  });
+
+  it("packages のテスト以外の文字列（引用符・テンプレート）にある要件 ID は、ファイルと行を出して落ちる（t902）", async () => {
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.ts"),
+      [
+        "// 確かめ",
+        `export const a = "Quality gate level (${KNOWN_ID})";`,
+        "export const b = `x ${a} y",
+        `(${KNOWN_ID})\`;`,
+      ].join("\n"),
+    );
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    const placed = `${KNOWN_ID} がコメントの外にある（文字列から外し、定義の直前のコメントに書く）`;
+    expect(stderr).toContain(`packages/cli/src/zz-probe.ts:2: 要件 ID ${placed}`);
+    expect(stderr).toContain(`packages/cli/src/zz-probe.ts:4: 要件 ID ${placed}`);
+  });
+
+  it("コメント（//・/* */・JSX の {/* */}）とテストのファイルの要件 ID は、位置の指摘を出さない（t902）", async () => {
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.tsx"),
+      [
+        `// 要件 ${KNOWN_ID}`,
+        `/* 要件 ${KNOWN_ID} */`,
+        `export const url = "https://example.com"; // 要件 ${KNOWN_ID}`,
+        `export const re = /\\/\\//; // 要件 ${KNOWN_ID}`,
+        `export const t = \`a \${{ b: 1 }.b} c\`; // 要件 ${KNOWN_ID}`,
+        `export const v = <p>{/* 要件 ${KNOWN_ID} */}text</p>;`,
+      ].join("\n"),
+    );
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.test.ts"),
+      `it("要件 ${KNOWN_ID} のとおり", () => { expect("${KNOWN_ID}").toBe("${KNOWN_ID}"); });\n`,
+    );
+    const { stderr } = await run();
+    expect(stderr).not.toContain("コメントの外にある");
   });
 
   it("先頭コメントが指す節・ADR・docs のパスと見出し・guide が存在しないと落ちる", async () => {

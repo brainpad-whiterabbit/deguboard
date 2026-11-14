@@ -97,12 +97,13 @@ function changedKeys(before: WorkflowDefinition | null, after: WorkflowDefinitio
   );
 }
 
+// 要件 WF-3（読み込みと同じ誤りなら書かない）
 export const workflowSet = defineCommand({
   name: "workflow.set",
   positionals: ["workflow"],
   group: "workflow",
   summary:
-    "Write a Workflow definition (create it if missing, replace it if present). Pass either a definition or a bundled template. If there is an error the same as on load (WF-3), nothing is written (an unknown Action is only a warning)",
+    "Write a Workflow definition (create it if missing, replace it if present). Pass either a definition or a bundled template. If there is an error the same as on load, nothing is written (an unknown Action is only a warning)",
   input: z.object({
     workflow: slugSchema.describe("ID of the Workflow to write (workflows/<id>.yaml)"),
     definition: z

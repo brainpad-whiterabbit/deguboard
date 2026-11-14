@@ -1,4 +1,4 @@
-// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・packages・scripts・test の ADR 番号が先頭のコメントの外にあること（ファイルと行を出す）と、先頭のコメントの異なる番号が 2 つ以上ないこと・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
+// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・packages・scripts・test の ADR 番号が先頭のコメントの外にあること（ファイルと行を出す）と、先頭のコメントの異なる番号が 2 つ以上ないこと・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・packages のテスト以外の文字列（コメントの外）にある要件 ID（ファイルと行を出す）・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行（CSS などは先頭の /* の塊）で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
 // 要件の 1 項は「- XX-N」の項目とその下の字下げした行を、行のまま（記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える（節の前文は数えない）。置き換え済みかは各 ADR のステータスの「置き換え（ADR-0xx）」から読み、packages・scripts・test のコードの ADR-0xx の参照すべて（コメント・テスト名・文字列）を照らし、置き換えの先を置き換え済みでなくなるまでたどって今の判断を出す。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、判断と理由を書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
@@ -192,6 +192,27 @@ for (const rel of sources) {
       if (!requirementIds.has(id)) {
         errors.push(`${rel}:${i + 1}: 要件 ID ${id} が docs/requirements.md にない`);
       }
+    }
+  }
+}
+
+// 要件 ID の位置：packages のテスト以外のコードは、要件 ID をコメントにだけ書く。文字列（ヘルプ・エラー・警告など dg の出力と画面の文）には書かない（先頭の ADR の「正本と各文書の書く範囲」）。
+// コメント（//・/* */・JSX の {/* */}）を除いた残りに要件 ID があれば、ファイルと行を出して落とす。テストのファイル（*.test.*・__snapshots__・packages/*/test）は見ない（テスト名と期待する文に ID を書く）
+const requirementPlacementFiles = sources.filter(
+  (f) =>
+    f.startsWith("packages/") &&
+    !/\.test\.[cm]?[jt]sx?$/.test(f) &&
+    !f.split("/").includes("__snapshots__") &&
+    !/^packages\/[^/]+\/test\//.test(f),
+);
+for (const rel of requirementPlacementFiles) {
+  const lines = withoutComments(await readFile(path.join(root, rel), "utf8"));
+  for (const [i, line] of lines.entries()) {
+    for (const m of line.matchAll(/(?<![A-Za-z0-9])([A-Z]{2,3})-(\d+)(?![0-9A-Za-z])/g)) {
+      if (!requirementPrefixes.has(m[1])) continue;
+      errors.push(
+        `${rel}:${i + 1}: 要件 ID ${m[1]}-${m[2]} がコメントの外にある（文字列から外し、定義の直前のコメントに書く）`,
+      );
     }
   }
 }
@@ -505,7 +526,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(
-  `check:docs: ADR ${adrFiles.length} 件（最後に使った番号 ADR-${lastUsed} 以内、${ADR_WARN_CHARS} 字超の警告 ${warnings.length} 件）、ADR 番号の参照 ${adrRefFileCount} 件が実在、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、要件 ${requirementItemCount} 項が ${REQUIREMENT_ITEM_MAX_CHARS} 字以内、コードとテストの ADR の参照 ${adrRefCount} 件に置き換え済みなし、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし`,
+  `check:docs: ADR ${adrFiles.length} 件（最後に使った番号 ADR-${lastUsed} 以内、${ADR_WARN_CHARS} 字超の警告 ${warnings.length} 件）、ADR 番号の参照 ${adrRefFileCount} 件が実在、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、packages のコード ${requirementPlacementFiles.length} 件の文字列に要件 ID なし、要件 ${requirementItemCount} 項が ${REQUIREMENT_ITEM_MAX_CHARS} 字以内、コードとテストの ADR の参照 ${adrRefCount} 件に置き換え済みなし、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし`,
 );
 
 /** ファイルの先頭のコメント（shebang を除く）。// の行と、先頭の /* … *\/ の塊（CSS の先頭コメント）を行ごとに返す。それ以外の行で止める */
@@ -527,6 +548,118 @@ function topComment(text) {
     }
   }
   return out;
+}
+
+/**
+ * JS・TS のコードを行ごとの配列にし、コメント（//・/* *\/）を空白にする（行番号は保つ）。文字列・テンプレート文字列（${} の入れ子を含む）・正規表現のリテラルの中の // と /* はコメントにしない。
+ * 正規表現か割り算かは、直前の記号かキーワードで決める。引用符の文字列は行末で閉じる（JSX の地の文の ' で後ろの行を読み違えないため）
+ */
+function withoutComments(text) {
+  const out = [...text];
+  const blank = (from, to) => {
+    for (let k = from; k < to; k++) if (out[k] !== "\n") out[k] = " ";
+  };
+  const chars = out.slice();
+  const n = chars.length;
+  const braces = []; // テンプレートの ${ の中で数える { の深さ。末尾が今のテンプレートの式
+  let prev = ""; // 直前のコメントと空白でない字（正規表現か割り算かを決める）
+  let word = ""; // 直前の語（return /re/ などのキーワード）
+  let i = 0;
+  const regexAfter = (ch, w) =>
+    ch === "" ||
+    "(,=:[!&|?{};+-*%~^".includes(ch) ||
+    /^(?:return|typeof|case|in|of|new|delete|void|throw|yield|await|else|do)$/.test(w);
+  const template = () => {
+    // ` の次から、閉じる ` か ${ まで進める
+    while (i < n) {
+      const c = chars[i];
+      if (c === "\\") i += 2;
+      else if (c === "`") {
+        i++;
+        return;
+      } else if (c === "$" && chars[i + 1] === "{") {
+        i += 2;
+        braces.push(0);
+        return;
+      } else i++;
+    }
+  };
+  while (i < n) {
+    const c = chars[i];
+    if (/\s/.test(c)) {
+      i++;
+      continue;
+    }
+    if (c === "/" && chars[i + 1] === "/") {
+      const start = i;
+      while (i < n && chars[i] !== "\n") i++;
+      blank(start, i);
+      continue;
+    }
+    if (c === "/" && chars[i + 1] === "*") {
+      const start = i;
+      i += 2;
+      while (i < n && !(chars[i] === "*" && chars[i + 1] === "/")) i++;
+      i = Math.min(n, i + 2);
+      blank(start, i);
+      continue;
+    }
+    if (c === "'" || c === '"') {
+      i++;
+      while (i < n && chars[i] !== c && chars[i] !== "\n") i += chars[i] === "\\" ? 2 : 1;
+      i++;
+      prev = c;
+      word = "";
+      continue;
+    }
+    if (c === "`") {
+      i++;
+      template();
+      prev = "`";
+      word = "";
+      continue;
+    }
+    if (c === "/" && regexAfter(prev, word)) {
+      i++;
+      let inClass = false;
+      while (i < n && chars[i] !== "\n") {
+        const r = chars[i];
+        if (r === "\\") i += 2;
+        else if (r === "[") ((inClass = true), i++);
+        else if (r === "]") ((inClass = false), i++);
+        else if (r === "/" && !inClass) break;
+        else i++;
+      }
+      i++;
+      while (i < n && /[a-z]/.test(chars[i])) i++;
+      prev = "/";
+      word = "";
+      continue;
+    }
+    if (braces.length > 0 && c === "{") braces[braces.length - 1]++;
+    if (braces.length > 0 && c === "}") {
+      if (braces[braces.length - 1] === 0) {
+        braces.pop();
+        i++;
+        template();
+        prev = "`";
+        word = "";
+        continue;
+      }
+      braces[braces.length - 1]--;
+    }
+    if (/[\w$]/.test(c)) {
+      const start = i;
+      while (i < n && /[\w$]/.test(chars[i])) i++;
+      word = chars.slice(start, i).join("");
+      prev = "a";
+      continue;
+    }
+    prev = c;
+    word = "";
+    i++;
+  }
+  return out.join("").split("\n");
 }
 
 /** 文書の本文を節と段落に分ける。frontmatter と ``` の中は除く。段落は空行・見出し・表・コードで切り、箇条書きの 1 項目ごとに切る。段落は最初の行の行番号をつける */

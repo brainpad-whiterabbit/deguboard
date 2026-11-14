@@ -290,14 +290,15 @@ export async function briefOf(
   };
 }
 
+// 要件 EX-3（brief は deguboard-local の報告済みの印のほかは書かない）・TK-9（段が low・free の見直しの警告）
 export const brief = defineCommand({
   name: "brief",
   positionals: ["ticket"],
   group: "brief",
   summary:
-    "Compose the text to hand to a sub-agent (EX-3; it writes nothing but the mark of reported hook warnings in deguboard-local). For each role (implement, review, fix), returns text whose first line is the marker `deguboard: ticket=<id> step=<step>` (the hook opens and closes the Run from the marker). " +
+    "Compose the text to hand to a sub-agent (it writes nothing but the mark of reported hook warnings in deguboard-local). For each role (implement, review, fix), returns text whose first line is the marker `deguboard: ticket=<id> step=<step>` (the hook opens and closes the Run from the marker). " +
     "The text includes the location (worktree and branch), the Plan's scope and approach, conventions, the role's steps (the body of the guide section), the acceptance criteria, tools (Read and Edit), how to treat the Run, what not to do, and what to return. For review it includes the call that records the result; for fix it includes the findings to fix (from the latest review record: the heavy findings and the light findings that match acceptance criteria wording; findings passed in are used instead) and the call that writes the reasons for the retry (run retry-reason). " +
-    "For a review of a ticket whose gate level is low or free (TK-9), it warns that the flow skips the review (it still returns the text). " +
+    "For a review of a ticket whose gate level is low or free, it warns that the flow skips the review (it still returns the text). " +
     "It also warns with the dg hook warnings not reported yet, and marks them reported in deguboard-local (see dg hook --help), and with the installed dg Skills that are older than this dg, or that a dg of the same version wrote with different contents (update them with dg skill install; Skills written by a newer dg are not reported). " +
     "The fixed text is in English. Ticket content stays in the words it was written in. It is the same text as the brief for dg next's implement, review, and fix steps",
   input: z.object({

@@ -497,17 +497,18 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
   }
 }
 
+// 要件 EX-3・EX-5（次の一手と段階）・TK-9（段が low・free の見直しの省略）
 export const next = defineCommand({
   name: "next",
   positionals: ["ticket"],
   group: "next",
   summary:
-    "Return the next step for a ticket (EX-3, EX-5). The stage (same as ticket show) is one of: todo (can be started), blocked (waiting on a Plan or on unfinished dependencies), " +
+    "Return the next step for a ticket. The stage (same as ticket show) is one of: todo (can be started), blocked (waiting on a Plan or on unfinished dependencies), " +
     "awaiting_approval (a todo ticket in a Plan awaiting approval; the step is wait_human and plan gives the Plan), " +
     "claimed (no PR), implemented (PR exists, no review), reviewing (a review is running), reviewed (the review of the last push has closed, judged the same way as review of dg gate; review_passed says whether it passed), " +
     "fixed (a push after the last review, or the last review has no result), ready (the review passed and a PR was opened), merged (done), closed (abandoned), " +
     `waiting_human (a Run is waiting for a person, the fix after the last review closed with failure or interrupted, or reviews that raised heavy findings went past ${FIX_ROUNDS_LIMIT} times). Whether the PR is a draft is seen in status (a PR with in_progress is a draft). ` +
-    "For a ticket whose gate level is low or free (TK-9), a PR skips the review: a draft is reviewed with review_passed (the ready step), otherwise ready (wait_merge). " +
+    "For a ticket whose gate level is low or free, a PR skips the review: a draft is reviewed with review_passed (the ready step), otherwise ready (wait_merge). " +
     "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
     "A review result held with no review Run counts as a review the same way as in dg gate. " +
     "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another. For implement, review, and fix steps it does not wait for a Run left over from a crashed session: a Run opened by a sub-agent of a different session whose record has not been written for 30 minutes. It returns the steps to ask again with the mark, and says that asking again closes that Run as interrupted. A newer record, an unknown session, and a Run the parent opened itself are still waited for), and the questions to ask a person (ask_human). " +
