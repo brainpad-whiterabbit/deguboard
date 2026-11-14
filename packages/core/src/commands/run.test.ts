@@ -216,6 +216,7 @@ describe("run", () => {
       run: failed.id,
       result: "failure",
       error: "テストが落ちた",
+      retries: 2,
     });
     const waiting = await startLater("t1", "review");
     const waitingSince = "2026-11-14T00:00:00Z";
@@ -229,6 +230,7 @@ describe("run", () => {
       {
         ticket: "t1",
         total: 4,
+        running: true,
         runs: [
           {
             id: waiting.id,
@@ -237,6 +239,7 @@ describe("run", () => {
             started_at: waiting.started_at,
             finished_at: null,
             review: null,
+            retries: 0,
             error: null,
             running: true,
             waiting_since: waitingSince,
@@ -250,6 +253,7 @@ describe("run", () => {
             started_at: failed.started_at,
             finished_at: closed.get(failed.id)!.data.finished_at,
             review: null,
+            retries: 2,
             error: "テストが落ちた",
             running: false,
           },
@@ -260,6 +264,7 @@ describe("run", () => {
             started_at: reviewed.started_at,
             finished_at: closed.get(reviewed.id)!.data.finished_at,
             review: { heavy: 1, light: 0, passed: false },
+            retries: 0,
             error: null,
             running: false,
           },
@@ -268,6 +273,7 @@ describe("run", () => {
       {
         ticket: "t2",
         total: 1,
+        running: true,
         runs: [
           {
             id: other.id,
@@ -276,6 +282,7 @@ describe("run", () => {
             started_at: other.started_at,
             finished_at: null,
             review: null,
+            retries: 0,
             error: null,
             running: true,
             waiting_since: null,
@@ -285,6 +292,31 @@ describe("run", () => {
       },
     ]);
     expect(closed.get(failed.id)!.data.finished_at).not.toBeNull();
+  });
+
+  it("recent の running は、新しい 3 件の外にある実行中の Run も数える（並行の Run が後から 3 件閉じた場合）", async () => {
+    const ctx = await prepared();
+    let seconds = 0;
+    const startLater = (ticket: string, step: string) => {
+      const at = Date.now() + (seconds += 5) * 1000;
+      ctx.now = () => new Date(at);
+      return start(ctx, ticket, step);
+    };
+    const long = await startLater("t1", "implement");
+    for (let i = 0; i < 3; i++) {
+      const r = await startLater("t1", "review");
+      await runCommand(runFinish, ctx, { run: r.id, result: "success" });
+    }
+    const [t1] = (await runCommand(runRecent, ctx, {})).data as TicketRunsView[];
+    expect(t1).toMatchObject({ ticket: "t1", total: 4, running: true });
+    expect(t1!.runs.map((r) => [r.step, r.running])).toEqual([
+      ["review", false],
+      ["review", false],
+      ["review", false],
+    ]);
+    await runCommand(runFinish, ctx, { run: long.id, result: "success" });
+    const [after] = (await runCommand(runRecent, ctx, {})).data as TicketRunsView[];
+    expect(after).toMatchObject({ total: 4, running: false });
   });
 
   it("recent は Iteration と Project（チケットの今の値）で絞れ、Run のないチケットは返さない", async () => {

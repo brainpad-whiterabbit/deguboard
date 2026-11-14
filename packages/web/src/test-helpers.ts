@@ -19,6 +19,7 @@ import type {
   IterationDetail,
   PlanRow,
   Project,
+  RunSummary,
   Ticket,
   TicketRow,
   WorkflowView,
@@ -50,6 +51,27 @@ export function ticket(partial: Partial<TicketRow> & { id: string }): TicketRow 
     depends_on: [],
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
+    ...partial,
+  };
+}
+
+/**
+ * run.recent の Run の要約の 1 件。省けば閉じた implement の Run で、結果はなし（未完了）。
+ * running を真にすると実行中の Run として waiting_since・settling_since を null で置く（core と同じく閉じた Run には置かない）
+ */
+export function runSummary(partial: Partial<RunSummary> = {}): RunSummary {
+  const running = partial.running ?? false;
+  return {
+    id: "r20261114-010000-aaaa",
+    step: "implement",
+    result: null,
+    started_at: "2026-11-14T01:00:00Z",
+    finished_at: running ? null : "2026-11-14T01:10:00Z",
+    review: null,
+    retries: 0,
+    error: null,
+    running,
+    ...(running ? { waiting_since: null, settling_since: null } : {}),
     ...partial,
   };
 }
@@ -259,6 +281,7 @@ export function mockClient(data = fixture()): MockClient {
     "workflow.show": () => data.workflow,
     history: () => ({ events: [], shallow: false, incomplete: [] }),
     "run.list": () => [],
+    "run.recent": () => [],
     // core の ask と同じく、対象を fixture から引いて buildAsk で依頼文を作る（チケットと Iteration だけ。実行中の Run はない）
     ask: (input) => {
       const { targets = [], ...rest } = input as { targets?: string[] } & Record<string, unknown>;

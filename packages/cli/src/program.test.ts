@@ -233,6 +233,7 @@ describe("dg", () => {
         {
           ticket: "t1",
           total: 1,
+          running: false,
           runs: [
             {
               id: closed.id,
@@ -241,6 +242,7 @@ describe("dg", () => {
               started_at: closed.started_at,
               finished_at: finished.json().data.finished_at,
               review: null,
+              retries: 0,
               error: "tests failed",
               running: false,
             },
@@ -249,6 +251,7 @@ describe("dg", () => {
         {
           ticket: "t2",
           total: 1,
+          running: true,
           runs: [
             {
               id: running.id,
@@ -257,6 +260,7 @@ describe("dg", () => {
               started_at: running.started_at,
               finished_at: null,
               review: null,
+              retries: 0,
               error: null,
               running: true,
               waiting_since: null,

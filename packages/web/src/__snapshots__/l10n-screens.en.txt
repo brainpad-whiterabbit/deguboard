@@ -80,8 +80,6 @@ In Progress
 1
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Status section In Progress)
-[title] A run is in progress
-[aria-label] A run is in progress
 t2
 [title] API
 API
@@ -92,8 +90,20 @@ high
 E
 [title] Plan p1
 p1
-[title] A run is in progress on this machine
-Running
+[aria-label] 3 runs. Latest: implement · 3d
+[aria-label] implement · Success, 2026-11-01 00:00 · 30m 0s, Fixed findings 1
+implement · Success
+2026-11-01 00:00 · 30m 0s
+Fixed findings 1
+[aria-label] implement · Failure, 2026-11-01 00:00 · 30m 0s, テストが落ちた
+implement · Failure
+2026-11-01 00:00 · 30m 0s
+テストが落ちた
+[aria-label] implement · Running, 2026-11-01 00:00 · 84h 0m, Fixed findings 1
+implement · Running
+2026-11-01 00:00 · 84h 0m
+Fixed findings 1
+implement · 3d
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Row t2)
 [aria-label] Code Review
@@ -1329,8 +1339,6 @@ In Progress
 1
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Status section In Progress)
-[title] A run is in progress
-[aria-label] A run is in progress
 t2
 [title] API
 API
@@ -1341,8 +1349,20 @@ high
 E
 [title] Plan p1
 p1
-[title] A run is in progress on this machine
-Running
+[aria-label] 3 runs. Latest: implement · 3d
+[aria-label] implement · Success, 2026-11-01 00:00 · 30m 0s, Fixed findings 1
+implement · Success
+2026-11-01 00:00 · 30m 0s
+Fixed findings 1
+[aria-label] implement · Failure, 2026-11-01 00:00 · 30m 0s, テストが落ちた
+implement · Failure
+2026-11-01 00:00 · 30m 0s
+テストが落ちた
+[aria-label] implement · Running, 2026-11-01 00:00 · 84h 0m, Fixed findings 1
+implement · Running
+2026-11-01 00:00 · 84h 0m
+Fixed findings 1
+implement · 3d
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Row t2)
 [aria-label] Code Review

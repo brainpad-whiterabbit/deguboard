@@ -19,7 +19,7 @@ import {
   ticket,
   type MockClient,
 } from "./test-helpers.js";
-import type { RunView } from "./types.js";
+import type { RunView, TicketRunsView } from "./types.js";
 import { createUiState, memoryBackend } from "./ui-state.js";
 import { language, setLanguage, type Language } from "./l10n.js";
 
@@ -162,6 +162,26 @@ function richClient(): MockClient {
     }),
   ];
   client.handlers["run.list"] = () => runs;
+  // カンバンの行の Run の並び：同じ Run を新しい順に要約する（run.recent）
+  client.handlers["run.recent"] = (): TicketRunsView[] => [
+    {
+      ticket: "t2",
+      total: runs.length,
+      running: runs.some((r) => r.running),
+      runs: [...runs].reverse().map((r) => ({
+        id: r.id,
+        step: r.step,
+        result: r.result,
+        started_at: r.started_at,
+        finished_at: r.finished_at,
+        review: r.review ?? null,
+        retries: r.retries,
+        error: r.error,
+        running: r.running,
+        ...(r.running ? { waiting_since: null, settling_since: null } : {}),
+      })),
+    },
+  ];
   const config = {
     default_project: "default",
     git: { remote: "origin", base_branch: "main" },

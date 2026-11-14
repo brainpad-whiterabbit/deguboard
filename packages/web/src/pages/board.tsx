@@ -10,7 +10,8 @@
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
 // 待ちと承認待ちの行（実行中の Run がないもの）はタイトルを説明文の色で薄く出す。
-// 左パネルの行の頭には、実行中の Run があるチケットなら回るリング（右端の下の段に「実行中」）を、実行中の Run のない in_progress なら止まった半分塗りの丸を出す。
+// In Progress と Review の行（ほかの状態は実行中の Run があるとき）の右端の下の段には、チケットの Run を 1 回 1 つの丸で並べ（row-end.tsx の RunPips）、
+// 最後の Run が返事待ちか失敗・中断の行は地の色を変える。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 左パネルの行・状態の節の見出し・Iteration の見出し・選んでいる Epic の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
@@ -19,15 +20,7 @@
 
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
-import {
-  ActivityMark,
-  AskRow,
-  type RowActivity,
-  StatusBand,
-  StatusCounts,
-  StatusDot,
-  DetailLink,
-} from "../components/parts.js";
+import { AskRow, StatusBand, StatusCounts, StatusDot, DetailLink } from "../components/parts.js";
 import { formatShortTime } from "../components/date-time.js";
 import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic-chip.js";
 import { EpicFilterHead } from "../components/epic-head.js";
@@ -42,6 +35,9 @@ import {
   kanbanReadiness,
   needsPlanSlot,
   type PlanMark,
+  runTone,
+  showRunPips,
+  stepLabelOf,
 } from "../components/row-end.js";
 import { useChangeFlash } from "../components/change-flash.js";
 import { useAskCurrent, useHost, useUiState } from "../host.js";
@@ -617,6 +613,8 @@ function Column({
   const store = useStore();
   const [open, setOpen] = useUiState(`board.section.${status}`, defaultOpen);
   const empty = tickets.length === 0;
+  const definition = store.workflow?.definition;
+  const stepLabel = (step: string) => stepLabelOf(definition, step);
   // 節の見出しから、節のチケットをまとめて頼む（空の節は頼む対象がないので出さない）
   const spot = useAskSpot(
     !empty
@@ -648,25 +646,27 @@ function Column({
         <div className="rows">
           {tickets.map((t) => {
             const mark = planMarks.get(t.id);
-            const activity = rowActivity(t, store.runningTickets);
-            const running = activity === "running";
+            const found = store.ticketRuns?.get(t.id);
+            const runs = showRunPips(t, found) ? found : undefined;
+            // 新しい 3 件の外にある実行中の Run も見る（並行の Run が後から閉じて押し出しても実行中と分かる）
+            const running = !!found?.running;
             return (
               <AskRow
                 key={t.id}
                 ticket={t}
-                // 実行中の Run を読み終えるまで（null）は薄くしない（読み終えて実行中とわかった行が一瞬薄く出ないように）
+                // Run の要約を読み終えるまで（null）は薄くしない（読み終えて実行中とわかった行が一瞬薄く出ないように）
                 dimmed={
-                  store.runningTickets !== null &&
+                  store.ticketRuns !== null &&
                   !running &&
                   isWaitingReadiness(kanbanReadiness(t, mark))
                 }
+                tone={runs ? runTone(runs) : null}
                 flash={flashing.has(t.id)}
                 variant="kanban"
                 ask={ASK_SECTIONS.boardTicket}
-                head={activity ? <ActivityMark activity={activity} /> : undefined}
                 end={
-                  mark || running || t.assignee || needsPlanSlot(t, mark) ? (
-                    <KanbanRowEnd ticket={t} mark={mark} running={running} />
+                  mark || runs || t.assignee || needsPlanSlot(t, mark) ? (
+                    <KanbanRowEnd ticket={t} mark={mark} runs={runs} stepLabel={stepLabel} />
                   ) : undefined
                 }
               />
@@ -676,17 +676,4 @@ function Column({
       )}
     </details>
   );
-}
-
-/**
- * 左パネルのカンバンの行の頭の印：実行中の Run があれば running（Status によらない）、なければ in_progress だけ idle、ほかは出さない。
- * 実行中の Run を読み終えるまで（null）は出さない（開いた直後に実行中のチケットへ反対の意味の idle を出さないように）
- */
-export function rowActivity(
-  ticket: Pick<Ticket, "id" | "status">,
-  runningTickets: ReadonlySet<string> | null,
-): RowActivity | undefined {
-  if (!runningTickets) return undefined;
-  if (runningTickets.has(ticket.id)) return "running";
-  return ticket.status === "in_progress" ? "idle" : undefined;
 }
