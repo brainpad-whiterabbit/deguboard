@@ -183,8 +183,7 @@ export const configSchema = z.looseObject({
   git: z
     .looseObject({
       remote: described(z.string().min(1).default("origin"), {
-        summary:
-          "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set",
+        summary: "Git remote of the code (work branches and pull requests)",
         description:
           "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set",
       }),

@@ -232,7 +232,11 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     ja: "guide の題名の直後（節を出すときは節の見出しの直後）に差し込む文書のパス。リポジトリの最上位からの相対パスで、リポジトリの外は読まない。空なら差し込まない。見出し（#）を含む文書は差し込まない",
   },
 
-  // --- 要約（summary）。説明と同じ文の項目（default_project・git.remote・git.base_branch）は上の行が兼ねる ---
+  // --- 要約（summary）。説明と同じ文の項目（default_project・git.base_branch）は上の行が兼ねる ---
+  // git.remote
+  "Git remote of the code (work branches and pull requests)": {
+    ja: "コードのリモート（作業ブランチと PR）",
+  },
   // git.data_remote
   "Git remote that the kanban data is fetched from and pushed to": {
     ja: "カンバンのデータを fetch・push するリモート",

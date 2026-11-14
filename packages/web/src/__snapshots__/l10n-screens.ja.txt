@@ -599,7 +599,7 @@ default_project
 default_project
 コードのリモート
 git.remote
-コードのリモート（作業ブランチと PR）。git.data_remote を設定しなければ、カンバンのデータもここと同期する
+コードのリモート（作業ブランチと PR）
 [value] origin
 空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
 詳しく
