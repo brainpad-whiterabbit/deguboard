@@ -1,6 +1,6 @@
 // 各自のマシンで入れるファイル（dg の Skill・追跡しない設定）を git に追跡させない行を .gitignore に足す（AG-2・AG-9）。
 // dg skill install・dg hooks install（CLI）と、VS Code 拡張の足りない Skill の案内の Install（commands/skill-files.ts）が使う。
-// 入れたファイルの親のディレクトリ（Claude Code は .claude/）の .gitignore に足し、この .gitignore はコミットして共有する
+// 入れたファイルの親のディレクトリ（agent の設定のディレクトリ）の .gitignore に足し、この .gitignore はコミットして共有する
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";

@@ -278,7 +278,7 @@ export async function writeSkillFiles(
 }
 
 /**
- * リポジトリの置き場所（dir）の親の .gitignore（Claude Code は .claude/.gitignore）に、names の Skill ごとの無視の行（skills/<名前>/）がなければ足す。
+ * リポジトリの置き場所（dir）の親の .gitignore（agent の設定のディレクトリの .gitignore）に、names の Skill ごとの無視の行（skills/<名前>/）がなければ足す。
  * Skill は各自が入れるものなので、リポジトリに書いたら追跡させない（AG-2）。dg skill install と、拡張の案内の Install（installMissingSkills）が通す。
  * dg で始まる名前で括らず名前ごとに書くのは、利用者が自分で作った dg で始まる Skill まで無視しないため（t804）。足した .gitignore の絶対パスを返し、足さなければ null
  */
