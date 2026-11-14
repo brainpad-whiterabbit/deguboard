@@ -133,7 +133,7 @@ const TEXT = {
       reading: "● Reading s1: 7 tickets and their dependencies…",
       created: "● Plan p1 (awaiting approval)",
       first: "  t1 ∥ t2 ∥ t3 can start at once",
-      then: "  then t4 ∥ t5, last t6 ∥ t7",
+      later: "  then t4 ∥ t5, last t6 ∥ t7",
       ask: "? Approve plan p1?",
       approve: "Approve",
       approved: "✓ Approved p1. Start it with /dgwork",
@@ -263,7 +263,7 @@ const TEXT = {
       reading: "● s1 の 7 件のチケットと依存を読んでいます…",
       created: "● Plan p1（承認待ち）",
       first: "  t1 ∥ t2 ∥ t3 は同時に始められます",
-      then: "  次に t4 ∥ t5、最後に t6 ∥ t7",
+      later: "  次に t4 ∥ t5、最後に t6 ∥ t7",
       ask: "? Plan p1 を承認しますか？",
       approve: "承認する",
       approved: "✓ p1 を承認しました。/dgwork で始められます",
@@ -913,7 +913,7 @@ async function planFlow(rec, app, { work, t }) {
   await dgSteps(rec, work, [["plan", "create", ...EXPORT_IDS]]);
   await termSay(rec, "dot", t.plan.created, 200);
   await termSay(rec, "dim", t.plan.first, 200);
-  await termSay(rec, "dim", t.plan.then, 500);
+  await termSay(rec, "dim", t.plan.later, 500);
   // 番号は Plan 詳細へのリンクなので、状態の文字を押してグラフを開く
   await rec.moveTo(app.locator(".plan-line .plan-state").first(), 600);
   await rec.click();
