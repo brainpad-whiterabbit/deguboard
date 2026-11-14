@@ -124,6 +124,13 @@ retro:
           sources:
             - dg metrics show --iteration <S> --by ticket (lines.additions, lines.deletions)
           unmeasured: PR どうしがぶつかったか
+        concurrent-overlap-rate:
+          definition: PR が変えたファイルを読めた <S> のチケットのうち、変えたファイルが 1 つ以上重なり、かつ作業の期間（チケットの branch_at から PR の mergedAt まで）が重なる別の <S> のチケットを持つものの割合。files が null のチケットは除き、その数を添える。重なった組と、重なったファイルの数を添える
+          sources:
+            - dg metrics sources --iteration <S> (tickets[].files, files_unknown)
+            - dg ticket list --iteration <S> --include-abandoned (branch_at, pr)
+            - gh pr view <PR> --json mergedAt
+          unmeasured: 重なった組が実際に競合したか（CONFLICTING になったか、競合を解くコミットが要ったか）。重なりが同じ行かどうか
     stability:
       name: エージェントの安定
       question: エージェントの働きは、失敗・中断・やり直しなく安定して終わったか
