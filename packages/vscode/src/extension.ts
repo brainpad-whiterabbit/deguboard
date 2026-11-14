@@ -401,9 +401,9 @@ async function resolveSidebar(
   context: vscode.ExtensionContext,
   view: vscode.WebviewView,
 ): Promise<void> {
-  void adviseAboutDg();
   const folders = vscode.workspace.workspaceFolders ?? [];
   const folder = folders[0];
+  void adviseAboutDg(folder);
   if (!folder) {
     view.webview.options = {};
     view.webview.html = renderMessageHtml(
@@ -715,7 +715,7 @@ async function openPanel(
   folder: vscode.WorkspaceFolder,
   options: { column: vscode.ViewColumn; route: string; preserveFocus?: boolean },
 ): Promise<void> {
-  void adviseAboutDg();
+  void adviseAboutDg(folder);
   const key = folder.uri.toString();
   const existing = panels.get(key);
   const { route } = options;
@@ -1119,12 +1119,22 @@ function panelTitle(folder: vscode.WorkspaceFolder): string {
     : "deguboard";
 }
 
-/** 最初の使用時に 1 回、PATH の dg を確かめて知らせる。画面は dg なしで動くので止めない */
-async function adviseAboutDg(): Promise<void> {
-  // 起動時ではなく、サイドバーかパネルを最初に使うときに 1 回だけ出す（deguboard を使わないウィンドウでは出さない）
+/**
+ * 最初の使用時に 1 回、PATH の dg を確かめて知らせる。画面は dg なしで動くので止めない。
+ * folder は最初に使ったフォルダ（サイドバーは最初の作業フォルダ、パネルは開くフォルダ）で、そこを cwd にして
+ * 確かめる（理由は resolveDg）。フォルダがなければ cwd を渡さない
+ */
+async function adviseAboutDg(folder?: vscode.WorkspaceFolder): Promise<void> {
+  // 起動時ではなく、サイドバーかパネルを最初に使うときに 1 回だけ出す（deguboard を使わないウィンドウでは出さない）。
+  // フォルダごとには確かめない（確かめの遅れと通知を増やさない）
   if (advised) return;
   advised = true;
-  const advice = dgAdvice(await resolveDg(), __CORE_VERSION__);
+  const cwd = folder?.uri.scheme === "file" ? folder.uri.fsPath : undefined;
+  const checked =
+    folder && cwd
+      ? { name: folder.name, folderCount: vscode.workspace.workspaceFolders?.length ?? 0 }
+      : undefined;
+  const advice = dgAdvice(await resolveDg(cwd), __CORE_VERSION__, checked);
   if (!advice) return;
   const show =
     advice.level === "warning"
