@@ -6,7 +6,7 @@ after:
     - t907
   t910:
     - t909
-pending_approval: true
+pending_approval: false
 details:
   t908:
     scope: データのリモートの決め方・データの ref の名前・既定のリモート名を 1 か所にまとめる。振る舞いは変えない
@@ -28,3 +28,5 @@ details:
     scope: データのブランチを既定の名前と断る言い回し、hooks check の説明、README の Tips の英文を直す
     approach: 挙げられた箇所の文言だけを直し、usage と README は英日を揃える
     tier: light
+approved_by: maji/agent
+approved_at: 2026-11-14T15:01:59Z
