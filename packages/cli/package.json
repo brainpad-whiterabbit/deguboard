@@ -1,6 +1,6 @@
 {
   "name": "@deguboard/cli",
-  "version": "0.28.0",
+  "version": "0.29.0",
   "private": true,
   "description": "deguboard の CLI（dg）。core のコマンド定義をコマンドラインに写す。npm には出さず、VS Code 拡張に束ねて同梱する",
   "license": "MIT",
