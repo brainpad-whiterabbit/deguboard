@@ -33,7 +33,7 @@ Agentic-Agile を実践するための、Git リポジトリの中で動くカ�
 
 - このリポジトリのチケットは deguboard 自身で管理する。`mise run dg -- <引数>` で読み書きし、`.git/deguboard/` のファイルを直接編集しない。Issue は使わない。手順は [development.md の「チケットと作業の流れ」](docs/development.md#チケットと作業の流れ)
 - Skill（`dg*`）の手順の中の `dg` も、PATH に `dg` があっても `mise run dg --` で呼ぶ
-- 人に頼まれた作業はチケットに紐づける。`claim` してから着手し、PR の本文に ID（`t12`）を書く。PR の要らない作業（チケットのデータの整備・確認）は `claim --without-branch` で着手し、受け入れ条件をすべて確かめたら agent が done にする。確かめられない項目は review に置いて人に報告する
+- 作業は人に頼まれた範囲に限り、チケットに紐づける。`claim` してから着手し、PR の本文に ID（`t12`）を書く。PR の要らない作業（チケットのデータの整備・確認）は `claim --without-branch` で着手し、受け入れ条件をすべて確かめたら agent が done にする。確かめられない項目は review に置いて人に報告する
 - Claude は `DEGUBOARD_ACTOR=agent` を付けて `dg` を呼ぶ。人の指示や承認で起票するときは `--created-by human` を付ける（起票者はユーザ本人）。拒否された操作（`TRANSITION_REJECTED`）は人に頼む。abandoned・done の取り消し・段（`gate`）を下げる・Epic や Iteration を閉じる・再開するのは、人の指示があるときだけ行う
 - 利用者への約束を変える変更は、同じ PR で requirements.md の項を直す（細部は書き足さない）。判断を変える変更は、同じ PR でその ADR の本文を直接書き換える（番号は変えない。判断が ADR を書く場面に当たらなくなったら削除する。書き方は ADR-001）。新しく ADR を書くのは、ADR を書く場面に当たる判断だけ。当たらない変更は ADR を書かず、テストとコメントで示す
 
