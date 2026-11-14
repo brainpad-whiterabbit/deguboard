@@ -266,7 +266,7 @@ updated_at: 2026-10-31T05:10:00Z
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 - EX-5 `dg next` は読み取りだけで、次の 1 手・開く step・呼ぶコマンド・人に聞くことを返す。サブエージェントに渡す手（implement・review・fix）は役の手順の本文と、手直しなら直す指摘を入れた文（brief）を返す。モデル（`model`）は implement・fix の手が返す。low・free の段（TK-9）は見直しを飛ばし、人の判断が要るものは人を待つ手になる。着手順は PL-6 と `ticket list --ready` に従う（EX-3）
 - EX-6 `dg pr ready`・`dg pr merge` は段（TK-9）の条件を満たすときだけ gh を呼び、ほかは `GATE_FAILED` で返す。出す前に直さなかった軽い指摘を本文に足す。merge は判定したコミットに固定し、gh が失敗してもマージ済みなら成功。段の条件の外は人が gh を打つ（AG-10。細部は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
-- EX-7 `--auto` は `auto.decisions` に入る戻せる判断を自動で選ぶ（`approved_by` は agent）。品質ゲートを通った PR は、人に聞いて承認されたら agent が承認者を残してマージし、聞かずにマージするのは `--auto` で `auto.merge` が true のときだけ。リリース・abandoned・done の取り消し・閉じるは人が決め、`auto.decisions` に入れられない（やり方は `dg guide all`）
+- EX-7 `--auto` は `auto.decisions` の戻せる判断を自動で選ぶ（`approved_by` は agent）。品質ゲートを通った PR は、人に聞いて承認されたら agent が承認者を残してマージし、聞かないのは `--auto` で `auto.merge` が true のときだけ。リリース・abandoned・done の取り消し・Epic・Iteration を閉じるは人が決め、`auto.decisions` に足せない（`dg guide all`）
 - EX-8 `dg flow next` は読み取りだけで、Iteration・Plan・チケットの流れの段階と、その手のやり方の節・呼ぶコマンド・承認の要否・`resume` を返す。`resume` を写して渡すと前に返した割り当て・点検・見直しを終えたものとして進め、なければ割り当てと点検からやり直す。config の `flow.skip` に入れた段階は返さず、同じ段階が事実も変わらずに続けば止まる手を返す（規則は `dg flow next --help`、EX-3）
 - EX-9 `dg gate <id> --only check` は、作業ブランチの worktree の HEAD（push の前のコミットも）を品質ゲートの検査と同じ判定で検査し、結果を同じコミットの `dg pr ready`・`dg pr merge` が回し直さずに使う（細部は `dg gate --help`）
 

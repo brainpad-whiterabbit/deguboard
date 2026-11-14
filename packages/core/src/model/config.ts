@@ -254,7 +254,7 @@ export const configSchema = z.looseObject({
       merge: described(z.boolean().default(false), {
         summary: "Merge PRs that pass the quality gate automatically with --auto",
         description:
-          "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges",
+          "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) without asking. Otherwise the agent asks a person and merges only when approved",
       }),
       decisions: described(
         z.array(z.enum(AUTO_DECISIONS)).default(["assign", "check", "plan", "audit", "accept"]),

@@ -131,9 +131,9 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
       ja: "Plan のチケットを、1 件ずつサブエージェントで同時に進める数の上限（dg guide parallel）。1〜10 の整数",
     },
   // auto.merge
-  "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges":
+  "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) without asking. Otherwise the agent asks a person and merges only when approved":
     {
-      ja: "dg guide all --auto で、品質ゲート（dg gate --for merge）を満たした PR を自動でマージするか。既定は人がマージする",
+      ja: "dg guide all --auto で、品質ゲート（dg gate --for merge）を満たした PR を聞かずにマージするか。それ以外は、agent が人に聞き、承認されたときだけマージする",
     },
   // auto.decisions
   "Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table / accept: confirming acceptance criteria after reconciling). Decisions a person makes cannot be added; PR merging is set by auto.merge":
