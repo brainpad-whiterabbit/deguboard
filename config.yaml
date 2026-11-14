@@ -87,6 +87,11 @@ retro:
           sources:
             - dg metrics show --iteration <S> --by ticket (reviews.heavy, reviews.recorded)
           unmeasured: マージの後に見つかった不具合
+        first-pass-rate:
+          definition: 見直しの記録が 1 件以上あるチケットのうち、見直しが 1 回だけで通ったもの（reviews.recorded が 1 で reviews.passed が 1）の割合
+          sources:
+            - dg metrics show --iteration <S> --by ticket (reviews.recorded, reviews.passed)
+          unmeasured: 通った見直しが不具合を見落としていなかったか
     spec:
       name: 仕様の質
       question: チケット（受け入れ条件と範囲）は、作り直しなしで通る成果を引き出せたか
