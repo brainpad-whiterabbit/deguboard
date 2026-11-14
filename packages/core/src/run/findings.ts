@@ -3,6 +3,12 @@
 
 import type { ReviewFinding } from "../model/run.js";
 
+/**
+ * 指摘の文と同一性に使う部分（原因の種類を除く）。原因の種類は Run の数にだけ使い、手直しの文・PR の本文・照合には入れない。
+ * cause のできる前に置いた一覧の指摘と、run handoff に cause なしで渡した指摘も同じ関数で扱う
+ */
+export type FindingBody = Omit<ReviewFinding, "cause">;
+
 /** 重い指摘（reviewOfFindings と同じ判定）：severity が heavy か、category がリポジトリの重いとみなす種類 */
 export function isHeavyFinding(f: ReviewFinding, heavyCategories: readonly string[]): boolean {
   return f.severity === "heavy" || heavyCategories.includes(f.category);
@@ -42,7 +48,7 @@ export function splitFindings(
  * 指摘の 1 件を 1 行の文にする（箇条書きの記号は付けない）。場所・種類・理由・直し方を入れる。
  * 改行は空白にそろえ、1 件が 1 行に収まるようにする
  */
-export function findingText(f: ReviewFinding): string {
+export function findingText(f: FindingBody): string {
   const sev = f.severity === "heavy" ? "heavy" : "light";
   const loc = f.file === null ? undefined : f.line === null ? f.file : `${f.file}:${f.line}`;
   const head = loc ? `[${sev}] ${loc} (${f.category})` : `[${sev}] ${f.category}`;
@@ -53,17 +59,17 @@ export function findingText(f: ReviewFinding): string {
 /**
  * 指摘の同一性（手直しに渡した指摘と見直しの一覧の照合に使う）。severity は見ない（親が写した JSON の severity の揺れで外れないように）
  */
-export function findingKey(f: ReviewFinding): string {
+export function findingKey(f: FindingBody): string {
   return JSON.stringify([f.file, f.line, f.category, f.reason, f.fix]);
 }
 
 /**
  * 手直しに渡す指摘の一覧を、見直しの一覧と照合する。一覧にない指摘は unmatched に返す（dg run handoff は使い方の誤りにする）
  */
-export function matchFindings(
+export function matchFindings<H extends FindingBody>(
   list: readonly ReviewFinding[],
-  handed: readonly ReviewFinding[],
-): { matched: ReviewFinding[]; unmatched: ReviewFinding[] } {
+  handed: readonly H[],
+): { matched: ReviewFinding[]; unmatched: H[] } {
   const keys = new Set(handed.map(findingKey));
   const listed = new Set(list.map(findingKey));
   return {

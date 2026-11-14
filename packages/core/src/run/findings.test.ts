@@ -14,6 +14,7 @@ import {
 const finding = (over: Partial<ReviewFinding>): ReviewFinding => ({
   severity: "light",
   category: "言い回し",
+  cause: "implementation",
   file: null,
   line: null,
   reason: "理由",

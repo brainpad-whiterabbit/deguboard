@@ -17,6 +17,8 @@ import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../
 import { OperationError, UsageError } from "../errors.js";
 import { compareIds } from "../model/id.js";
 import {
+  emptyCauseCounts,
+  FINDING_CAUSES,
   isRunId,
   REVIEW_STEP,
   RUN_RESULTS,
@@ -816,15 +818,23 @@ const findingCount = z.number().int().nonnegative();
 
 /**
  * 指摘の一覧から見直しの結果を求める。重いのは severity が heavy か、category がリポジトリの重いとみなす種類（review.heavy_categories）のもの。
- * 通ったかは重い指摘が残っていないこと（見直し役の自己申告にしない）
+ * 通ったかは重い指摘が残っていないこと（見直し役の自己申告にしない）。
+ * 原因ごとの数（causes）は、重い・軽いを同じ判定で分けて数える（それぞれの合計が heavy・light と合う）。
+ * Git の Run に残すのはこの数だけで、指摘の文は残さない（振り返りの指標が原因の種類を数えられれば足りる。ADR-029）
  */
 export function reviewOfFindings(
   findings: readonly ReviewFinding[],
   heavyCategories: readonly string[],
 ): RunReview {
+  const causes = { heavy: emptyCauseCounts(), light: emptyCauseCounts() };
+  for (const f of findings)
+    causes[isHeavyFinding(f, heavyCategories) ? "heavy" : "light"][f.cause] += 1;
   const heavy = findings.filter((f) => isHeavyFinding(f, heavyCategories)).length;
-  return { heavy, light: findings.length - heavy, passed: heavy === 0 };
+  return { heavy, light: findings.length - heavy, passed: heavy === 0, causes };
 }
+
+/** 原因の種類の一覧（ヘルプの文に入れる） */
+const CAUSE_LIST = FINDING_CAUSES.join(", ");
 
 export const runReviewResult = defineCommand({
   name: "run.review-result",
@@ -833,8 +843,10 @@ export const runReviewResult = defineCommand({
   summary:
     "Write the review result (the counts of heavy and light findings, and whether it passed) to the Run of the ticket's review step. Call it once before the reviewer returns its list of findings. If a review Run is running on this machine, the result is written to it (calling again replaces it); otherwise it is written to the ticket's latest Run only when that is a closed review Run with no result yet (committed per commit.mode. If a later Run such as a fix has started, or a result already exists, it belongs to an earlier review and is not written). " +
     "A closed Run that closed with failure and no result record is changed to success. If neither applies (a reviewer started in the foreground), the result is held (pending: true), and the hook links it when it closes the review Run. A held result the hook does not link (no hook) is counted as a review by dg next and dg gate, and dg sync and dg pr ready write it as a closed review Run marked capture: none, with the session that wrote the result. If that happens while the foreground reviewer is still running, the hook takes that record over when the reviewer returns instead of opening a new Run. " +
-    "Findings are passed with --findings-file (a JSON or YAML array; each item has severity, category, file, line, reason, and fix). dg validates them against the schema (an error shows its location, as INVALID_INPUT); heavy is the findings with severity heavy or a category in review.heavy_categories, light is the rest, and passed means no heavy findings. The list is kept in deguboard-local, and only the counts are written to the Run in Git. " +
-    "The form that passes only counts with --heavy, --light, and --passed remains for an earlier version of the reviewer, but counts are self-reported, so it warns. It cannot be used with --findings-file; giving --passed when there are heavy findings is a usage error",
+    "Findings are passed with --findings-file (a JSON or YAML array; each item has severity, category, cause, file, line, reason, and fix). dg validates them against the schema (an error shows its location, as INVALID_INPUT); heavy is the findings with severity heavy or a category in review.heavy_categories, light is the rest, and passed means no heavy findings. " +
+    `cause is required and says why the finding came about, apart from category (what is wrong in the deliverable). It is one of ${CAUSE_LIST}: ticket (the acceptance criteria or scope of the ticket did not cover the case; this is not a PR that fails the acceptance criteria), plan (the scope or approach of the Plan led to it), implementation (the ticket and the Plan covered it, and the implementation got it wrong or left it out), tests (missing or wrong tests let it through), documents (the requirements, ADRs, guides, or conventions were wrong, stale, or unclear), environment (tools, checks, dependencies, or the machine), unknown (cannot tell; do not guess). ` +
+    "The list is kept in deguboard-local, and only the counts are written to the Run in Git: heavy, light, and causes (the number of heavy findings and of light findings for each cause). " +
+    "The form that passes only counts with --heavy, --light, and --passed remains for an earlier version of the reviewer, but counts are self-reported and causes are not recorded, so it warns. It cannot be used with --findings-file; giving --passed when there are heavy findings is a usage error",
   input: z.object({
     ticket: ticketRef,
     findings: z
@@ -880,7 +892,7 @@ export const runReviewResult = defineCommand({
         throw new UsageError(`There are ${input.heavy} heavy findings, but --passed was given`);
       review = { heavy: input.heavy, light: input.light, passed };
       warnings.push(
-        "A call with counts only makes the counts self-reported. If the findings list is passed with --findings-file, dg works out the counts and whether the review passed",
+        "A call with counts only makes the counts self-reported and records no causes. If the findings list is passed with --findings-file, dg works out the counts, the counts for each cause, and whether the review passed",
       );
     }
     const ticket = ctx.store.require("ticket", input.ticket).data;
@@ -1073,7 +1085,9 @@ export const runHandoff = defineCommand({
   input: z.object({
     ticket: ticketRef,
     findings: z
-      .array(reviewFindingSchema)
+      // cause は省いてよい。照合は cause を見ず（findingKey）、記録するのは一覧の側の指摘なので、
+      // cause のできる前に置いた一覧から写した指摘も渡せるようにする
+      .array(reviewFindingSchema.partial({ cause: true }))
       .min(1)
       .meta({ cliFile: "findings-file" })
       .describe(

@@ -1119,6 +1119,7 @@ describe("バックグラウンドで起動した見直し役（t638）", () => 
   const finding = (reason: string) => ({
     severity: "light" as const,
     category: "言い回し",
+    cause: "implementation" as const,
     file: "a.ts",
     line: 1,
     reason,

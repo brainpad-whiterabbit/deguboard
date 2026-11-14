@@ -70,6 +70,36 @@ export type RunTools = z.output<typeof runToolsSchema>;
 export const REVIEW_STEP = "review";
 
 /**
+ * 見直しの指摘の、手戻りの原因の種類（ADR-029）。成果物のどこが悪いか（category）とは別に、なぜそうなったかを見直し役が 1 件ごとに付ける。
+ * ticket は受け入れ条件か範囲がその場面を書いていなかったもので、PR が受け入れ条件を満たしていない category の「受け入れ条件の漏れ」とは別。
+ * 種類を固定するのは、Run をまたいで数を足せるようにするため（自由な文では数えられない）。分からないときは unknown にし、推し量らせない
+ */
+export const FINDING_CAUSES = [
+  "ticket",
+  "plan",
+  "implementation",
+  "tests",
+  "documents",
+  "environment",
+  "unknown",
+] as const;
+export type FindingCause = (typeof FINDING_CAUSES)[number];
+
+/** 原因ごとの指摘の数。指摘のない原因も 0 で持つ（足し合わせる側がキーの有無を見なくてすむ） */
+const causeCountsSchema = z.looseObject(
+  Object.fromEntries(FINDING_CAUSES.map((c) => [c, toolCount])) as Record<
+    FindingCause,
+    typeof toolCount
+  >,
+);
+export type CauseCounts = z.output<typeof causeCountsSchema>;
+
+/** どの原因も 0 の数 */
+export function emptyCauseCounts(): CauseCounts {
+  return Object.fromEntries(FINDING_CAUSES.map((c) => [c, 0])) as CauseCounts;
+}
+
+/**
  * 見直しの結果（RN-9）。重い・軽い指摘の数と、通ったか（重い指摘が残っていない）。
  * 見直し役が `run review-result` で見直しの Run に書く。見直し以外の Run と、書かれていない Run は null
  */
@@ -77,6 +107,11 @@ const runReviewSchema = z.looseObject({
   heavy: toolCount,
   light: toolCount,
   passed: z.boolean(),
+  /**
+   * 重い指摘と軽い指摘のそれぞれの、原因ごとの数（それぞれの合計は heavy・light と同じ）。指摘の一覧から dg が数える。
+   * この項目より前の Run と、数だけを渡す前の形の結果にはキーを書かない（省けば原因は測れていない。集計は missing に数える）
+   */
+  causes: z.looseObject({ heavy: causeCountsSchema, light: causeCountsSchema }).optional(),
 });
 export type RunReview = z.output<typeof runReviewSchema>;
 
@@ -94,6 +129,11 @@ export const reviewFindingSchema = z.strictObject({
     .min(1)
     .describe(
       "指摘の種類（受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反・参考節との食い違いなど）",
+    ),
+  cause: z
+    .enum(FINDING_CAUSES)
+    .describe(
+      "手戻りの原因の種類（ticket・plan・implementation・tests・documents・environment・unknown）",
     ),
   file: z
     .string()

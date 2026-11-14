@@ -69,7 +69,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       --- End of steps ---
       - Tools: read files with Read. Do not write source with Bash cat, heredoc, or sed -i.
       - Run: the marker on the first line makes the hook open and close the review Run. Do not open or close a Run.
-      - Record: Before returning the list, write the findings as a JSON array (each with severity (heavy or light), category, file, line, reason, and fix; the shape is in \`dg run review-result --help\`) to a temporary file outside the repository, and record it once with \`dg --json --actor agent run review-result t12 --findings-file <file>\`. Use \`[]\` if there are no findings. dg works out the counts and whether the review passed.
+      - Record: Before returning the list, write the findings as a JSON array (each with severity (heavy or light), category, cause (ticket, plan, implementation, tests, documents, environment, unknown), file, line, reason, and fix; the shape and the meaning of each cause are in \`dg run review-result --help\`) to a temporary file outside the repository, and record it once with \`dg --json --actor agent run review-result t12 --findings-file <file>\`. Use \`[]\` if there are no findings. dg works out the counts and whether the review passed.
       - Do not: change files in the repository, commit, push, write anything to dg other than the Run, or look at other tickets.
       - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a promise, procedure, or rule this PR changed, details added to an ADR or requirements, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the result of \`dg gate t12 --only check\` on the latest commit (passed or not, light or full, and the SHA). Report mismatches with the references section (\`## References\` or \`## 参考\` in the body) under the light findings, and do not count them as heavy."
     `);
@@ -222,13 +222,25 @@ describe("dg brief と dg next の文（EX-3）", () => {
         {
           severity: "heavy",
           category: "不具合",
+          cause: "implementation",
           file: "src/a.ts",
           line: 3,
           reason: "型が違う",
           fix: "型を直す",
         },
-        { severity: "light", category: "受け入れ条件の漏れ", reason: "1 つめが足りない" },
-        { severity: "light", category: "参考節との食い違い", file: "src/b.ts", reason: "広がり" },
+        {
+          severity: "light",
+          category: "受け入れ条件の漏れ",
+          cause: "ticket",
+          reason: "1 つめが足りない",
+        },
+        {
+          severity: "light",
+          category: "参考節との食い違い",
+          cause: "plan",
+          file: "src/b.ts",
+          reason: "広がり",
+        },
       ],
     });
     const fix = (await runCommand(brief, ctx, { ticket: "t1", role: "fix" })).data;

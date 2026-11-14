@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { measureRuns, placeRun, runDurationSeconds, summarizeRuns } from "./metrics.js";
-import { emptyUsage, type Run } from "./run.js";
+import { emptyCauseCounts, emptyUsage, type CauseCounts, type Run } from "./run.js";
 import type { Ticket } from "./ticket.js";
 
 function run(id: string, over: Partial<Run> = {}): Run {
@@ -80,6 +80,54 @@ describe("Run の集計", () => {
     ]);
     expect(m.estimated_runs).toBe(1);
     expect(m.input).toBe(101);
+  });
+
+  it("見直しの原因ごとの数は重い・軽いに分けて足し、原因の数のない見直しは足さずに missing.review_causes に数える。すべて欠ければ null（t915）", () => {
+    const counts = (over: Partial<CauseCounts>) => ({ ...emptyCauseCounts(), ...over });
+    const m = summarizeRuns([
+      run("00", {
+        step: "review",
+        review: {
+          heavy: 2,
+          light: 1,
+          passed: false,
+          causes: {
+            heavy: counts({ ticket: 1, implementation: 1 }),
+            light: counts({ documents: 1 }),
+          },
+        },
+      }),
+      // 原因の数ができる前の Run（キーがない）
+      run("01", { step: "review", review: { heavy: 3, light: 0, passed: false } }),
+      run("02", {
+        step: "review",
+        review: {
+          heavy: 1,
+          light: 2,
+          passed: false,
+          causes: { heavy: counts({ ticket: 1 }), light: counts({ unknown: 2 }) },
+        },
+      }),
+      // 見直しの結果のない Run は、原因の欠けにも数えない
+      run("03"),
+    ]);
+    expect(m.reviews).toEqual({
+      recorded: 3,
+      passed: 0,
+      heavy: 6,
+      light: 3,
+      causes: {
+        heavy: counts({ ticket: 2, implementation: 1 }),
+        light: counts({ documents: 1, unknown: 2 }),
+      },
+    });
+    expect(m.missing.review_causes).toBe(1);
+    const none = summarizeRuns([
+      run("04", { step: "review", review: { heavy: 0, light: 0, passed: true } }),
+    ]);
+    expect(none.reviews.causes).toBeNull();
+    expect(none.missing.review_causes).toBe(1);
+    expect(summarizeRuns([run("05")]).missing.review_causes).toBe(0);
   });
 
   it("実行時間は終わっていないか日時が前後していれば欠けたものとする", () => {

@@ -162,7 +162,7 @@ updated_at: 2026-10-31T05:10:00Z
 - RN-6 実装の Run は PR の記録（照合を含む）と PR なしで終えた作業の前進で `success`。手直しの Run は次の Run の開始・前進・チケットの終了で `success`。落ちたセッションの残りは次の開始が `interrupted`。`unclaim`・`abandoned` の Run と、照合で戻った・取られたチケットの実装の Run は `failure`。照合は残りも閉じる。先に閉じられた Run は警告だけで止めない。細部は各 `--help` とテスト
 - RN-7 印 `deguboard: ticket=<id> step=<step>` で頼んだサブエージェントの Run は、フック（AG-9）が起動で開き、step を終えた事実で閉じ、なければ止まって待っている印を付け、セッションの終わりに残りを閉じる。動く間は `run finish` が中断でしか閉じない。`dg next` は落ちた残りを待たない。細部は `dg hook --help`、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
 - RN-8 `dg run retry-reason` は、実行中の手直しの Run の `retry_reasons` に直した指摘を書き足し、回数を理由の数にする。書く先がなければ保留し、フックが手直しの Run を閉じるときに結び付ける（細部は `dg run retry-reason --help`）
-- RN-9 `dg run review-result` は指摘の一覧をスキーマで検証し、重い・軽い指摘の数と通ったかを dg が求めて見直しの Run に書く（形と重さの決め方は `dg run review-result --help`）。フックが結び付けない保留の結果は `dg next`・`dg gate` が見直しに数え、`dg sync`・`dg pr ready` が見直しの Run として書く（[ADR-025](adr/ADR-025-runs-by-hooks.md)）
+- RN-9 `dg run review-result` は指摘の一覧をスキーマで検証し、重い・軽い指摘の数とその原因ごとの数、通ったかを dg が求めて見直しの Run に書く（形と重さ・原因は `dg run review-result --help`）。フックが結び付けない保留の結果は `dg next`・`dg gate` が見直しに数え、`dg sync`・`dg pr ready` が見直しの Run として書く（[ADR-025](adr/ADR-025-runs-by-hooks.md)）
 - RN-10 見直しの Run と保留の見直しの結果は、見直した作業ブランチのローカルの先端の SHA を記録し、`dg next`・`dg gate` はそれがリモートの先端と同じかで見直しの新しさを判定する（SHA のない前の Run は時刻で比べる。細部は `dg gate --help`）
 
 ### 5.10 設定（`config.yaml`）
@@ -255,7 +255,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - MT-1 Run の使用量とツールの回数は Adapter が取り込む。エージェントの自己申告の数字は書かない
 - MT-2 `metrics.read_transcripts` が true なら、Run を閉じる操作が Adapter で会話記録から使用量とツールの回数を補う。Run の記録のパスかセッションの記録がこのマシンになければ、推測に落とさず null で残して警告する。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない（探し方は `packages/core/src/agents/agents.test.ts`）
-- MT-3 `metrics show` は Run を絞り込んで集計する（軸は `dg metrics show --help`）。null は足さず欠けた数を出す。絞り込みに合う done のチケットのうちエージェントが claim し、実装の Run が 1 件もないものは、ID を示す。`capture: none` の見直しの記録は見直しの回にだけ数え、使用量・時間・欠けた数には入れない。集計値は保存しない
+- MT-3 `metrics show` は Run を絞り込んで集計する（軸は `dg metrics show --help`）。null は足さず欠けた数を出す。絞り込みに合う done のチケットのうちエージェントが claim し、実装の Run が 1 件もないものは、ID を示す。`capture: none` の見直しの記録は見直しの回にだけ数え、使用量・時間とその欠けた数には入れない。集計値は保存しない
 - MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけで、会話の中身・コマンドの文字列・ファイルのパスは写さない（Git に入るのは RN-1 のセッション ID まで）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
 - MT-5 `run refresh` は閉じた Run のモデル名と使用量を、finish と同じ方法と MT-2 の許可で会話記録から取り直し、取れた値だけを書き換えて、取れなかった値は残して警告する。実行中の Run は拒み、RN-3 の期間を過ぎた Run は読まずに今の値を残して警告する（細部は `dg run refresh --help`）
 - MT-6 `metrics show` の集計は、Run のチケットの変更行数（TK-11）と、output と input+cache に分けた 1 行あたりのトークンを含む。行数のないチケットは計算から外し、件数を出す。照合はマージを見たときに行数を記録し、`metrics lines` は行数のない done のチケットに後から記録する（細部は `dg metrics show --help`・`dg metrics lines --help`）
