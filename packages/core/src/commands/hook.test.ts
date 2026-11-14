@@ -1574,7 +1574,10 @@ describe("PreToolUse（AG-10・t532）", () => {
         }
       ).hookSpecificOutput.permissionDecisionReason;
       expect(reason, command).toContain("dg pr merge <ticket>");
-      expect(reason, command).toContain("ask a person to run gh pr ready or gh pr merge");
+      // 満たさないままのマージは、人に聞いて承認者を渡した dg pr merge で行う（人に gh pr merge を打ってもらわない。t884）
+      expect(reason, command).toContain("dg pr merge <ticket> --approved-by human");
+      expect(reason, command).toContain("do not ask a person to run gh pr merge");
+      expect(reason, command).toContain("For ready, ask a person to run gh pr ready");
     }
     // 取り消し（--undo）と、ほかの gh のコマンドと dg pr は通す
     for (const command of [

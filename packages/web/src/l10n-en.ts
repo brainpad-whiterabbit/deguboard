@@ -329,6 +329,7 @@ export const EN: Readonly<Record<string, string>> = {
   同時に進めるチケットの上限: "Most tickets advanced at the same time",
   マージの方法: "Merge method",
   マージしたら作業ブランチを消す: "Delete the work branch after merging",
+  人の承認で越えてよい品質ゲートの条件: "Gate conditions an approval may override",
   "Iteration に入れてから進める": "Require an Iteration before starting",
   重いとみなす見直しの指摘の種類: "Review finding categories treated as heavy",
   "段階 light のモデル": "Model for tier light",
@@ -391,6 +392,8 @@ export const EN: Readonly<Record<string, string>> = {
   "エージェントが PR を自動でマージするかが変わる":
     "changes whether agents merge PRs automatically",
   エージェントが聞かずに選ぶ判断が変わる: "changes which decisions agents make without asking",
+  人の承認で越えられる品質ゲートの条件が変わる:
+    "changes which quality gate conditions a person's approval can override",
   空: "Empty",
   "{0} を {1} にした": "Set {0} to {1}",
   "（{0}）": " ({0})",

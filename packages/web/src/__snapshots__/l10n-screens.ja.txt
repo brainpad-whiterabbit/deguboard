@@ -422,6 +422,20 @@ dg pr merge でマージしたら作業ブランチも消す
 既定に戻す
 詳しく
 merge.delete_branch
+人の承認で越えてよい品質ゲートの条件
+merge.approval_overrides
+[title] 既定は [check, review, fix_rounds, acceptance]
+変更あり
+人がマージを承認したときに越えてよい品質ゲートの条件
+空
+[aria-label] 項目
+[placeholder] 項目を足す
+足す
+[title] 既定の [check, review, fix_rounds, acceptance] に戻す
+既定に戻す
+空のとき: 承認があっても何も越えない（品質ゲートの条件をすべて満たす必要がある）
+詳しく
+merge.approval_overrides
 重いとみなす見直しの指摘の種類
 review.heavy_categories
 [title] 既定は 空

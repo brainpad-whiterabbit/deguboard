@@ -272,6 +272,7 @@ describe("スキーマ", () => {
       "work.parallel",
       "merge.method",
       "merge.delete_branch",
+      "merge.approval_overrides",
       "review.heavy_categories",
       "lint.require_iteration",
       "models.light",
@@ -312,6 +313,23 @@ describe("スキーマ", () => {
     expect(byKey.get("actions.light_test")).toMatchObject({ type: "list", default: [] });
     expect(byKey.get("actions.light_paths")).toMatchObject({ type: "list", default: [] });
     expect(byKey.get("git.remote")).toMatchObject({ type: "string", default: "origin" });
+    // 人の承認で越えてよい品質ゲートの条件は、既定で越えられる条件すべて。チームで揃える（個人では上書きできない。t884）
+    expect(byKey.get("merge.approval_overrides")).toMatchObject({
+      type: "list",
+      default: ["check", "review", "fix_rounds", "acceptance"],
+      scope: "team",
+    });
+    // 衝突（mergeable）・先端（head）・PR（pr）は選択肢にない（config でも越えられない）
+    expect(Object.keys(byKey.get("merge.approval_overrides")?.option_descriptions ?? {})).toEqual([
+      "check",
+      "review",
+      "fix_rounds",
+      "acceptance",
+    ]);
+    for (const id of ["mergeable", "head", "pr"])
+      expect(configSchema.safeParse({ merge: { approval_overrides: [id] } }).success, id).toBe(
+        false,
+      );
     // 並列の上限は数の項目で、既定 3・個人で上書きできる（t685）
     expect(byKey.get("work.parallel")).toMatchObject({
       type: "number",
@@ -366,7 +384,14 @@ describe("スキーマ", () => {
     expect(
       fields.filter((f) => f.option_descriptions).map((f) => f.key),
       "選択肢ごとの説明を持つ項目",
-    ).toEqual(["commit.mode", "push.mode", "auto.decisions", "flow.skip", "merge.method"]);
+    ).toEqual([
+      "commit.mode",
+      "push.mode",
+      "auto.decisions",
+      "flow.skip",
+      "merge.method",
+      "merge.approval_overrides",
+    ]);
     expect(byKey.get("push.mode")?.option_descriptions).toEqual({
       auto: "Push on every commit",
       manual: "dg sync pushes (immediate operations push even in manual)",
