@@ -156,7 +156,7 @@ README の GIF（`packages/vscode/images/`）は、画面を変えたら `mise r
 
 ## guide.notes の文書（docs/guide-notes/）
 
-このリポジトリの作業の補足（判断・止める条件）は、`dg guide` に差し込む文書として `docs/guide-notes/<トピック>.md` に置く。差し込むのは config の項目 `guide.notes.<トピック>` で、値はリポジトリの最上位からの相対パス（既定は空で、何も差し込まない）。`dg guide <トピック>` の題名の直後に入り、節だけを出すときは節の見出しの直後に入る。このリポジトリでは `guide.notes.plan` が `docs/guide-notes/plan.md` を指す。文書は英語で書き（[ADR-001](adr/ADR-001-doc-strategy.md)）、見出し（#）を含む文書と 64 KiB を超える文書は差し込まれず、警告が出る。項目は `packages/core/src/model/config.ts` の `noteField`、読み込みは `packages/core/src/guide/guide.ts` の `readGuideNotes` が正本。
+このリポジトリの作業の補足（判断・止める条件）は、`dg guide` に差し込む文書として `docs/guide-notes/<トピック>.md` に置く。差し込むのは config の項目 `guide.notes.<トピック>` で、このリポジトリでは `guide.notes.plan` が `docs/guide-notes/plan.md` を指す。文書は英語で書く（[ADR-001](adr/ADR-001-doc-strategy.md)）。項目は `packages/core/src/model/config.ts` の `noteField`、読み込みは `packages/core/src/guide/guide.ts` の `readGuideNotes` が正本。
 
 ## リリース
 
