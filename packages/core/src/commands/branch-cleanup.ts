@@ -66,10 +66,10 @@ async function remoteBranchTip(
   ctx: CommandContext,
   branch: string,
 ): Promise<string | null | undefined> {
-  if (!ctx.repo.remote) return undefined;
+  if (!ctx.repo.codeRemote) return undefined;
   const listed = await runGit(
     ctx.repo.topLevel,
-    ["ls-remote", "--heads", ctx.repo.remote, `refs/heads/${branch}`],
+    ["ls-remote", "--heads", ctx.repo.codeRemote, `refs/heads/${branch}`],
     { allowFailure: true, timeoutMs: 30_000 },
   );
   if (listed.code !== 0) return undefined;
@@ -103,7 +103,7 @@ export function removedByMerge(
     local_branch: before.local !== undefined && after.local === undefined ? branch : null,
     remote_branch:
       typeof before.remote === "string" && after.remote === null
-        ? `${ctx.repo.remote}/${branch}`
+        ? `${ctx.repo.codeRemote}/${branch}`
         : null,
   };
 }
@@ -123,7 +123,7 @@ export async function removeMergedWork(
   warnings: string[],
 ): Promise<RemovedWork> {
   const { id, branch } = work;
-  const remote = ctx.repo.remote;
+  const remote = ctx.repo.codeRemote;
   const removed: RemovedWork = { worktree: null, local_branch: null, remote_branch: null };
   const dir = await findBranchWorktree(ctx.repo, branch);
   const tips = await branchTips(ctx, branch);

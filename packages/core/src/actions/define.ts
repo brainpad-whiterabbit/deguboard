@@ -15,7 +15,7 @@ export interface ConfirmRequest {
 
 export interface ActionContext {
   /** リモート・base・worktree の置き場所の解決に使う。openContext の repo をそのまま渡せる */
-  repo: Pick<GitRepo, "topLevel" | "commonDir" | "remote" | "baseBranch">;
+  repo: Pick<GitRepo, "topLevel" | "commonDir" | "codeRemote" | "baseBranch">;
   config: Config;
   /** Action を実行する作業ディレクトリ（作業 worktree）。省略時は repo.topLevel */
   cwd?: string | undefined;

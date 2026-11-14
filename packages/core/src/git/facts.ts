@@ -73,8 +73,11 @@ async function sha(repo: GitRepo, ref: string): Promise<string> {
 
 /** 照合の base。リモートの追跡ブランチがあればそれ、なければローカルのもの */
 async function baseRef(repo: GitRepo): Promise<string | undefined> {
-  if (repo.remote && (await refExists(repo, `refs/remotes/${repo.remote}/${repo.baseBranch}`)))
-    return `refs/remotes/${repo.remote}/${repo.baseBranch}`;
+  if (
+    repo.codeRemote &&
+    (await refExists(repo, `refs/remotes/${repo.codeRemote}/${repo.baseBranch}`))
+  )
+    return `refs/remotes/${repo.codeRemote}/${repo.baseBranch}`;
   if (await refExists(repo, `refs/heads/${repo.baseBranch}`))
     return `refs/heads/${repo.baseBranch}`;
   return undefined;
@@ -100,24 +103,28 @@ export async function findMergedLeftover(
   branch: string,
 ): Promise<string | undefined> {
   const refs = [`refs/heads/${branch}`];
-  if (repo.remote) {
-    const remoteRef = `refs/remotes/${repo.remote}/${branch}`;
+  if (repo.codeRemote) {
+    const remoteRef = `refs/remotes/${repo.codeRemote}/${branch}`;
     const baseFetch = await runGit(
       repo.dataDir,
       [
         "fetch",
-        repo.remote,
-        `+refs/heads/${repo.baseBranch}:refs/remotes/${repo.remote}/${repo.baseBranch}`,
+        repo.codeRemote,
+        `+refs/heads/${repo.baseBranch}:refs/remotes/${repo.codeRemote}/${repo.baseBranch}`,
       ],
       { allowFailure: true, timeoutMs: 60_000 },
     );
     // base に届かなければリモートに届かないとみなし、ブランチの取り込みで待たない
     const fetched =
       baseFetch.code === 0
-        ? await runGit(repo.dataDir, ["fetch", repo.remote, `+refs/heads/${branch}:${remoteRef}`], {
-            allowFailure: true,
-            timeoutMs: 60_000,
-          })
+        ? await runGit(
+            repo.dataDir,
+            ["fetch", repo.codeRemote, `+refs/heads/${branch}:${remoteRef}`],
+            {
+              allowFailure: true,
+              timeoutMs: 60_000,
+            },
+          )
         : undefined;
     // リモートで消えたブランチの追跡 ref は古い名残なので見ない
     if (!fetched || !/couldn't find remote ref/i.test(fetched.stderr)) refs.push(remoteRef);
@@ -143,11 +150,11 @@ export async function collectBranchFacts(
 ): Promise<BranchFacts> {
   const facts: Facts = {};
   const localRef = `refs/heads/${branch}`;
-  const remoteRef = repo.remote ? `refs/remotes/${repo.remote}/${branch}` : undefined;
+  const remoteRef = repo.codeRemote ? `refs/remotes/${repo.codeRemote}/${branch}` : undefined;
   const local = await refExists(repo, localRef);
   const remote = remoteRef ? await refExists(repo, remoteRef) : false;
   facts.branch_exists = local || remote;
-  if (repo.remote) facts.branch_pushed = remote;
+  if (repo.codeRemote) facts.branch_pushed = remote;
 
   const tip = remote ? remoteRef : local ? localRef : undefined;
   const base = await baseRef(repo);
@@ -445,8 +452,8 @@ export async function branchCommitTimes(
   repo: GitRepo,
   branch: string,
 ): Promise<{ sha: string; at: string }[] | undefined> {
-  if (!repo.remote) return undefined;
-  const ref = `refs/remotes/${repo.remote}/${branch}`;
+  if (!repo.codeRemote) return undefined;
+  const ref = `refs/remotes/${repo.codeRemote}/${branch}`;
   if (!(await refExists(repo, ref))) return undefined;
   const base = await baseRef(repo);
   if (!base) return undefined;
@@ -495,12 +502,12 @@ export async function remoteTip(
   branch: string,
   opts: { fetch?: boolean } = {},
 ): Promise<BranchTip | undefined> {
-  if (!repo.remote) return undefined;
-  const ref = `refs/remotes/${repo.remote}/${branch}`;
+  if (!repo.codeRemote) return undefined;
+  const ref = `refs/remotes/${repo.codeRemote}/${branch}`;
   if (opts.fetch) {
     const fetched = await runGit(
       repo.dataDir,
-      ["fetch", repo.remote, `+refs/heads/${branch}:${ref}`],
+      ["fetch", repo.codeRemote, `+refs/heads/${branch}:${ref}`],
       { allowFailure: true, timeoutMs: 60_000 },
     );
     // リモートで消えたブランチの追跡 ref は古い名残なので見ない

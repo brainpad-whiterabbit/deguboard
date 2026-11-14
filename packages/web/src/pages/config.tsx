@@ -70,6 +70,7 @@ const NAMES: Record<string, string> = {
   "metrics.read_transcripts": msg("会話記録から使用量を読む"),
   "notify.approvals": msg("承認待ちが増えたら通知する"),
   "git.remote": msg("同期先のリモート"),
+  "git.data_remote": msg("データのリモート"),
   "git.base_branch": msg("基準のブランチ"),
   "worktree.root": msg("worktree の置き場所"),
   "worktree.setup": msg("worktree の準備のコマンド"),
@@ -142,6 +143,7 @@ function noteLabel(key: string): string {
  */
 export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   ["git.remote", msg("同期先が変わる")],
+  ["git.data_remote", msg("データの同期先が変わる")],
   ["git.base_branch", msg("マージ済みの判定の基準が変わる")],
   ["worktree.root", msg("作業場所が変わる")],
   ["worktree.setup", msg("claim のたびに確認なしで回すコマンドが変わる（シェルを許すのと同じ）")],

@@ -14,7 +14,7 @@ type TurnStopped = Extract<HookEvent, { kind: "turn_stopped" }>;
  * Stop の全体：記録の流れは PreToolUse と同じ recordAroundHook（入力の項目の有無・セッションに届いたこと・警告）。
  * データのリポジトリに dg の外の変更（SY-7）があれば、止まらずに続けさせてファイルと戻し方を伝える。
  * 続けさせた後の Stop（continued）では伝えない（直せないときに続けさせ続けない。次の dg のコマンドが書き込みを止めて同じことを伝える）。
- * ストアを開かない（t770）。remote はリモートの名前の読み方で、省けば repo.remote（checkOutside の opts.remote）。
+ * ストアを開かない（t770）。remote はデータのリモートの名前の読み方で、省けば repo.dataRemote（checkOutside の opts.remote）。
  * 失敗は警告にし、例外を投げない（フックで作業を止めない）
  */
 export async function runTurnStopped(args: {

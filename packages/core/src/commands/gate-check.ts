@@ -83,8 +83,8 @@ export async function latestCommit(
   ctx: CommandContext,
   branch: string,
 ): Promise<string | undefined> {
-  const ref = ctx.repo.remote
-    ? `refs/remotes/${ctx.repo.remote}/${branch}`
+  const ref = ctx.repo.codeRemote
+    ? `refs/remotes/${ctx.repo.codeRemote}/${branch}`
     : `refs/heads/${branch}`;
   const out = await runGit(ctx.repo.topLevel, ["rev-parse", "--verify", "--quiet", ref], {
     allowFailure: true,
@@ -207,8 +207,8 @@ export function chooseCheckSince(
 
 /** base（リモートがあればリモートの base_branch）と sha の分岐点からの差分のファイル。改名は元と先の両方を数える。読めなければ undefined */
 async function changedFiles(ctx: CommandContext, sha: string): Promise<string[] | undefined> {
-  const base = ctx.repo.remote
-    ? `refs/remotes/${ctx.repo.remote}/${ctx.repo.baseBranch}`
+  const base = ctx.repo.codeRemote
+    ? `refs/remotes/${ctx.repo.codeRemote}/${ctx.repo.baseBranch}`
     : `refs/heads/${ctx.repo.baseBranch}`;
   const out = await runGit(
     ctx.repo.topLevel,

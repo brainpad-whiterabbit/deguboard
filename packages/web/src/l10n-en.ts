@@ -345,6 +345,7 @@ export const EN: Readonly<Record<string, string>> = {
   会話記録から使用量を読む: "Read usage from transcripts",
   承認待ちが増えたら通知する: "Notify when approvals are waiting",
   同期先のリモート: "Remote to sync with",
+  データのリモート: "Data remote",
   基準のブランチ: "Base branch",
   "worktree の置き場所": "Worktree location",
   "worktree の準備のコマンド": "Setup command for worktrees",
@@ -384,6 +385,7 @@ export const EN: Readonly<Record<string, string>> = {
   振り返り: "Retro",
   一気通し: "All",
   同期先が変わる: "changes where data is synced",
+  データの同期先が変わる: "changes where the kanban data is synced",
   マージ済みの判定の基準が変わる: "changes the base for detecting merges",
   作業場所が変わる: "changes where work happens",
   "テストとして確認なしで実行するコマンドが変わる（シェルを許すのと同じ）":

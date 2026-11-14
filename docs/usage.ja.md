@@ -55,6 +55,40 @@ PR を ready にする・マージするときに判定する条件は、チケ�
 
 エージェント向けの手順は `dg guide overview` の「When sync stops」、細部は `dg sync --help`。
 
+## データを別のリポジトリに置く
+
+カンバンのデータ（`deguboard` ブランチ）は、既定ではコードと同じリモートに fetch・push する。コードとは別のリポジトリに置くには、そのリポジトリを指す git のリモートの名前を、config の `git.data_remote` に書く。作業ブランチと PR はコードのリモート（`git.remote`）のままで、クローンの中のデータの置き場所も変わらない。
+
+新しくカンバンを始めるときと、新しいクローンから加わるときは、`dg init` にデータのリポジトリを渡す（リモートの名前か URL。URL なら dg がリモートを足す）。
+
+```sh
+dg init --data-remote git@github.com:acme/kanban.git
+```
+
+今あるカンバンを別のリポジトリへ移すときは、人が次の順に行う。
+
+1. `dg sync` を実行し、新しいリポジトリをリモートに足して、データを push する
+
+   ```sh
+   dg sync
+   git remote add kanban git@github.com:acme/kanban.git
+   git push kanban deguboard
+   ```
+
+2. config を変えてから同期する。`dg config set` は変更をすぐ元のリモートへ push し、続く `dg sync` が新しいリモートへ push するので、両方に変更が入る
+
+   ```sh
+   dg config set git.data_remote kanban
+   dg sync
+   ```
+
+3. ほかのクローンは、同じ名前でリモートを足し（`git remote add kanban <URL>`）、`dg sync` を実行する。config の変更を取り込んだ最初のコマンドは、push せずに止まってもう一度の実行を求め、それ以降そのクローンは新しいリモートを使う。リモートを足していないクローンは止まり、`git remote add` のコマンドを示す。そのクローンだけ別の名前のリモートを使うなら、`dg config set git.data_remote <名前> --local` を実行する
+4. すべてのクローンが移ってから、元のリモートのブランチを消す。移っていないクローンは元のリモートへデータを push し直すので、最後に行う
+
+   ```sh
+   git push origin --delete deguboard
+   ```
+
 ## 承認待ちの通知
 
 承認待ちの Plan と review のチケットがあると、サイドバーのタイトルに件数が出て（「DEGUBOARD: 承認待ち 3」）、増えたときは通知が出る。通知の「開く」で詳細が開く。Activity Bar のアイコンの数字は別で、未 push のコミットと未取り込みのリモートの更新の合計を示す。

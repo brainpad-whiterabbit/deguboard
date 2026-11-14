@@ -126,6 +126,12 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       return serialized(!def.write, async (arrivedAt) => {
         try {
           return (await runCommand(def, await context(arrivedAt), input)) as CommandResult<O>;
+        } catch (error) {
+          // 取り込んだ config でデータのリモートが変わった：リモートは文脈を開いたときに決めるので、次の呼び出しで開き直す
+          // （開き直さないと、もう一度の実行も元のリモートを使い続ける）
+          if (error instanceof OperationError && error.code === "DATA_REMOTE_CHANGED")
+            ctxPromise = undefined;
+          throw error;
         } finally {
           // 成否に関わらず、後に続く読みは新しく走査する
           if (def.write) scanned = 0;
@@ -162,7 +168,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
    */
   async function backgroundFetch(): Promise<void> {
     const ctx = await ctxPromise;
-    if (!ctx?.repo.remote) return;
+    if (!ctx?.repo.dataRemote) return;
     const repo = ctx.repo;
     await withLock(repo.localDir, "write", () => fetchData(repo, STATUS_FETCH_TIMEOUT_MS), {
       waitMs: 0,

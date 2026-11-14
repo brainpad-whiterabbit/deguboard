@@ -72,6 +72,7 @@ dg config set metrics.read_transcripts true
 - [最後まで任せる](docs/usage.ja.md#最後まで任せる)：「s3 を自動でリリースまで進めて」と頼むと、Iteration を割り当てからリリースまで続けて進めます。
 - [品質ゲートの段](docs/usage.ja.md#品質ゲートの段)：チケットごとに `high`（既定）・`low`・`free` を選べます。
 - [同期の競合を解く](docs/usage.ja.md#同期の競合を解く)：二人が同じ項目を変えたときの解き方です。
+- [データを別のリポジトリに置く](docs/usage.ja.md#データを別のリポジトリに置く)：カンバンのデータを、コードとは別のリポジトリに置けます。
 - [承認待ちの通知](docs/usage.ja.md#承認待ちの通知)：承認待ちの Plan と review のチケットを知らせます。
 - [チケットへ移動する](docs/usage.ja.md#チケットへ移動する)：ID かタイトルから詳細を開きます。
 - [CLI で使う](docs/usage.ja.md#cli-で使う)・[Claude Desktop から使う（MCP）](docs/usage.ja.md#claude-desktop-から使う)

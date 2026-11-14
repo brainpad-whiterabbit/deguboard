@@ -55,6 +55,40 @@ When two people change the same field of a ticket to different values, sync stop
 
 For agents, see the "When sync stops" section of `dg guide overview`. For details, see `dg sync --help`.
 
+## Keep the data in another repository
+
+By default, the kanban data (the `deguboard` branch) is fetched from and pushed to the same remote as the code. To keep it in a repository other than the code's, name that repository's git remote in `git.data_remote` in the config. Work branches and pull requests still use the code's remote (`git.remote`), and where the data sits in your clone does not change.
+
+To start a new board, or to join one from a new clone, pass the data repository to `dg init` (a remote name or a URL; for a URL, dg adds the remote):
+
+```sh
+dg init --data-remote git@github.com:acme/kanban.git
+```
+
+To move an existing board to another repository, a person does the following in order:
+
+1. Run `dg sync`, add the new repository as a remote, and push the data to it.
+
+   ```sh
+   dg sync
+   git remote add kanban git@github.com:acme/kanban.git
+   git push kanban deguboard
+   ```
+
+2. Change the config, then sync. `dg config set` pushes the change to the old remote right away, and `dg sync` then pushes it to the new one, so both have it.
+
+   ```sh
+   dg config set git.data_remote kanban
+   dg sync
+   ```
+
+3. In every other clone, add the remote under the same name (`git remote add kanban <URL>`) and run `dg sync`. The first command that takes in the config change stops without pushing and asks you to run it again; from then on that clone uses the new remote. A clone that does not have the remote stops and shows the `git remote add` command. To use another remote name in one clone, run `dg config set git.data_remote <name> --local`.
+4. After every clone has moved, delete the branch from the old remote. A clone that has not moved would push its data to the old remote again, so do this last.
+
+   ```sh
+   git push origin --delete deguboard
+   ```
+
 ## Notifications
 
 When there are Plans awaiting approval or tickets in review, the count appears in the sidebar title (for example, "DEGUBOARD: Awaiting Approval/Review 3"), and a notification appears when the count goes up. Press "Open" in the notification to open the details. The number on the Activity Bar icon is separate: it is the total of unpushed commits and remote updates that have not been pulled.

@@ -33,6 +33,11 @@ export const FLOW_SKIPS = ["assign", "check", "plan", "work", "audit", "release"
 /** actions.test を回す時間の上限（run_tests の既定と品質ゲートの検査）。リポジトリの検査の全体（テストを含む）を回すので長めにとる */
 export const ACTIONS_TEST_TIMEOUT_MS = 30 * 60_000;
 
+/** データ（deguboard ブランチ）を fetch・push するリモートの名前。git.data_remote を省けば（空なら）git.remote と同じ */
+export function dataRemoteNameOf(config: { git: { remote: string; data_remote: string } }): string {
+  return config.git.data_remote || config.git.remote;
+}
+
 /** 設定の 1 項目の文。description は CLI とスキーマ向けの詳しい説明（全文）で、ほかは設定画面が短く出すための文 */
 interface FieldTexts {
   /** 1 行の要約 */
@@ -180,6 +185,13 @@ export const configSchema = z.looseObject({
       remote: described(z.string().min(1).default("origin"), {
         summary: "Git remote that deguboard fetches from and pushes to",
         description: "Git remote that deguboard fetches from and pushes to",
+      }),
+      data_remote: described(z.string().default(""), {
+        summary: "Git remote that the kanban data is fetched from and pushed to",
+        description:
+          "Git remote that the kanban data (the deguboard branch) is fetched from and pushed to, when the data is kept in a repository other than the code's. A remote name, not a URL (dg init --data-remote <URL> adds the remote). Empty uses git.remote. When the named remote is not in a clone, commands that push stop and tell how to add it. A change to the team's value is committed and pushed to the current data remote right away, so that clones still using it learn of the move. For how to move the data to another repository, see dg guide overview",
+        example: "deguboard-data",
+        empty: "Uses git.remote",
       }),
       base_branch: described(z.string().min(1).default("main"), {
         summary: "Base for work branches and for deciding what is merged",
@@ -508,6 +520,7 @@ export type ConfigScope = "team" | "local";
 const LOCAL_KEYS: ReadonlySet<string> = new Set([
   "default_project",
   "git.remote",
+  "git.data_remote",
   "worktree.root",
   "commit.mode",
   "push.mode",

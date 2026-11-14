@@ -10,6 +10,7 @@ import {
   type OutsideChanges,
 } from "../git/outside.js";
 import { REBASE_REMEDY } from "../git/rebase.js";
+import { missingDataRemote } from "../git/repo.js";
 import type { ActorKind, UserSource } from "../model/actor.js";
 import type { WriteContext, WriteOutcome } from "../git/write.js";
 import type { WorktreeOrigin } from "../git/worktree.js";
@@ -37,7 +38,7 @@ export interface CommandContext extends WriteContext {
   env?: Readonly<Record<string, string | undefined>> | undefined;
   /**
    * ストアを開いていない文脈（コマンドの storeless が真のとき openContextFor が作る）。repo の場所（topLevel・commonDir・dataDir・localDir）と
-   * now・env だけを持ち、store・config・actor・repo.baseBranch を読むと例外になる。repo.remote は storelessRemote が真のときだけ読める
+   * now・env だけを持ち、store・config・actor・repo.baseBranch を読むと例外になる。repo.dataRemote は storelessRemote が真のときだけ読める（repo.codeRemote は読めない）
    */
   storeless?: boolean | undefined;
   /** 経過の読み手。プロセス内の CommandClient が HEAD で使い回す読み手を入れる（local.ts）。省けば毎回 git log を読む readHistory */
@@ -68,8 +69,8 @@ export interface CommandDef<I extends z.ZodType, O> {
    */
   storeless?(input: z.output<I>, env: Readonly<Record<string, string | undefined>>): boolean;
   /**
-   * storeless が真の入力のうち、config のリモートの名前（git.remote）だけを読む文脈で動かすもの（t770）。真なら repo.remote を読める。
-   * dg の外の変更を Stop で確かめる（checkOutside が repo.remote を使う）ために、ストアを開かずに済ませる。ほかの config の項目は読めない
+   * storeless が真の入力のうち、config のデータのリモートの名前（git.data_remote。省けば git.remote）だけを読む文脈で動かすもの（t770）。真なら repo.dataRemote を読める。
+   * dg の外の変更を Stop で確かめる（checkOutside が repo.dataRemote を使う）ために、ストアを開かずに済ませる。ほかの config の項目は読めない
    */
   storelessRemote?(input: z.output<I>, env: Readonly<Record<string, string | undefined>>): boolean;
   /**
@@ -105,6 +106,7 @@ export function deniedToAgent(ctx: CommandContext, command: string): boolean {
  * ストアを開いていない文脈（storeless）では config がないので検査しない。
  * データのリポジトリに dg の外の変更（SY-7）があれば、書くコマンドは OUTSIDE_CHANGES で止め、読むだけのコマンドは警告を足す
  * （ストアを開かない文脈・初期化の前に動く needs: repo・検査を自分で扱うコマンドでは見ない）。
+ * config が名指ししたデータのリモート（git.data_remote）がこのクローンになければ、済んだ操作に警告を足す（push の要る操作は書く前にエラーになる）。
  * ここはロックの外なので、書く前の決め手はデータに書くときの書き込みのロックの中の検査（withWriteLock）で、ここは早く知らせるだけ
  */
 export async function runCommand<I extends z.ZodType, O>(
@@ -129,12 +131,23 @@ export async function runCommand<I extends z.ZodType, O>(
       : await checkOutside(ctx.repo);
   if (check?.kind === "found" && def.write) throw outsideError(check.changes, def.name);
   // rebase の途中は外の変更と報告しない。書くコマンドは書き込みのロックの中（settleRebase）が取り消すか止める（t753）
-  const result = await def.run(ctx, parsed.data);
+  const ran = await def.run(ctx, parsed.data);
+  // 名指ししたデータのリモートがこのクローンにない：push の要る操作はエラーで止まっている（requireDataRemote）。
+  // ここまで来た操作（読むだけ・手元にだけ書く）は続け、同期していないことを警告で知らせる
+  const missing = ctx.storeless ? undefined : missingDataRemote(ctx.repo, ctx.config);
+  const result = missing
+    ? { ...ran, warnings: [...ran.warnings, dataRemoteMissingWarning(missing)] }
+    : ran;
   if (check?.kind === "found")
     return { ...result, warnings: [...result.warnings, outsideWarning(check.changes)] };
   if (check?.kind === "rebasing" && !def.write)
     return { ...result, warnings: [...result.warnings, rebaseWarning(check.byDg)] };
   return result;
+}
+
+/** 名指ししたデータのリモートがこのクローンにないまま済んだ操作の警告（読んだのは手元のデータで、取り込みも push もしていない） */
+export function dataRemoteMissingWarning(name: string): string {
+  return `The data remote ${name} (config's git.data_remote) is not in this clone, so the data here is not synced (nothing is fetched or pushed, and commands that push stop). Add it with git remote add ${name} <URL of the data repository>`;
 }
 
 /** 読むだけのコマンドが rebase の途中を見つけたときの警告（読んだデータは途中の状態） */

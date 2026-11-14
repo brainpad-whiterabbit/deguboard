@@ -212,7 +212,23 @@ export interface OpenedRepo {
   store: Store;
 }
 
-/** worktree を用意して Store を開く。init コマンドを通さずに git モジュールを単体で試すため */
+/**
+ * データ用の bare リモート（コードのリモート origin とは別のリポジトリ）を f.root に作り、clones にリモート name として足す。
+ * 返すのは bare リモートの場所（データを別のリポジトリに置くテスト用）
+ */
+export async function addDataRemote(
+  f: Pick<Fixture, "root">,
+  clones: readonly string[],
+  name = "data",
+): Promise<string> {
+  const dir = path.join(f.root, "data.git");
+  await runGit(f.root, ["init", "--quiet", "--bare", "-b", "main", dir]);
+  await disableBackgroundOnRemote(dir);
+  for (const clone of clones) await runGit(clone, ["remote", "add", name, dir]);
+  return dir;
+}
+
+/** worktree を用意して Store を開く。init コマンドを通さずに git モジュールを単体で試すため。remote はコードとデータの両方のリモート */
 export async function openRepo(
   dir: string,
   opts: { remote?: string | null; baseBranch?: string } = {},
@@ -220,7 +236,12 @@ export async function openRepo(
   const paths = await resolveRepoPaths(dir);
   const remote = opts.remote === undefined ? await resolveRemote(paths, "origin") : opts.remote;
   await ensureDeguboardWorktree(paths, remote);
-  const repo: GitRepo = { ...paths, remote, baseBranch: opts.baseBranch ?? "main" };
+  const repo: GitRepo = {
+    ...paths,
+    codeRemote: remote,
+    dataRemote: remote,
+    baseBranch: opts.baseBranch ?? "main",
+  };
   const store = await Store.open(repo.dataDir, { localDir: repo.localDir });
   return { repo, store };
 }

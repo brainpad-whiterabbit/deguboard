@@ -3,12 +3,17 @@
 // 届かなければ自分のコミットを捨てて失敗する（チケットの起票だけは仮番号でローカルに残す）
 
 import { OperationError } from "../errors.js";
-import type { Config } from "../model/config.js";
+import { dataRemoteNameOf, type Config } from "../model/config.js";
 import type { Store } from "../storage/store.js";
 import { withLock } from "./lock.js";
 import { checkOutside, outsideError, recordBaseline } from "./outside.js";
 import { settleRebase } from "./rebase.js";
-import { requireIdentity, type GitRepo } from "./repo.js";
+import {
+  dataRemoteMissingError,
+  missingDataRemote,
+  requireIdentity,
+  type GitRepo,
+} from "./repo.js";
 import {
   amendAll,
   commitAll,
@@ -42,6 +47,35 @@ export const UNRESOLVABLE_REMEDY =
 function autoResolvedWarnings(resolved: readonly ResolvedFile[]): string[] {
   const text = describeAutoResolved(resolved, false);
   return text ? [text] : [];
+}
+
+/**
+ * push の要る操作の入口で呼ぶ。config が名指ししたデータのリモート（git.data_remote）がこのクローンになければ、
+ * オフライン（SY-6）とみなして手元にだけ書かずに、エラーで足し方を案内する（データが別のリポジトリにあるのに、手元だけが進むのを防ぐ）
+ */
+export function requireDataRemote(ctx: Pick<WriteContext, "repo" | "config">): void {
+  const missing = missingDataRemote(ctx.repo, ctx.config);
+  if (missing) throw dataRemoteMissingError(missing);
+}
+
+/**
+ * 取り込みの後（store を読み直した後）、push の前に呼ぶ。取り込んだ config でデータのリモートが、このコマンドが使っているものから
+ * 変わっていたら、push せずに止めてもう一度の実行を案内する（データを別のリポジトリへ移す途中。元のリモートへ push すると、
+ * 移した先に届かず取りこぼす）。手元のコミットは残り、次の実行が新しいリモートから取り込んで送る。
+ * before は取り込む前の config のデータのリモートの名前（dataRemoteNameOf）。取り込みで変わったときだけ止めるので、
+ * このコマンド自身が変えた値（dg config set git.data_remote。元のリモートへ push して知らせる）では止めない
+ */
+export function stopIfDataRemoteChanged(
+  ctx: Pick<WriteContext, "repo" | "store">,
+  before: string,
+): void {
+  const used = ctx.repo.dataRemote;
+  const now = dataRemoteNameOf(ctx.store.config);
+  if (used === null || now === before || now === used) return;
+  throw new OperationError(
+    "DATA_REMOTE_CHANGED",
+    `The config just fetched from ${used} changed the data remote to ${now} (the data is moving to another repository), so nothing was pushed to ${used}. Run the command again: it fetches from and pushes to ${now}. Local commits are kept and are sent then`,
+  );
 }
 
 export interface WriteContext {
@@ -131,9 +165,12 @@ async function writeLocked<T>(
   const { repo, config } = ctx;
   const warnings: string[] = [];
   const shouldCommit = opts.immediate === true || config.commit.mode === "each";
+  // push する操作は、名指ししたデータのリモートがなければ書く前に止める（リモートを名指ししていなければ、今までどおり手元に書く）
+  if (shouldCommit && (opts.immediate === true || config.push.mode === "auto"))
+    requireDataRemote(ctx);
   const shouldPush =
     shouldCommit &&
-    repo.remote !== null &&
+    repo.dataRemote !== null &&
     (opts.immediate === true || config.push.mode === "auto");
   const maxAttempts = opts.maxAttempts ?? 3;
 
@@ -154,11 +191,12 @@ async function writeLocked<T>(
   let attempts = 0;
   for (;;) {
     attempts += 1;
-    if (repo.remote) {
+    if (repo.dataRemote) {
       const fetched = await fetchData(repo);
       if (!fetched.ok) {
         warnings.push(`Cannot fetch from the remote: ${fetched.detail}`);
       } else if (fetched.remoteBranch) {
+        const nameBefore = dataRemoteNameOf(ctx.store.config);
         const { result: integrated, resolved } = await integrateLogged(repo);
         warnings.push(...autoResolvedWarnings(resolved));
         if (!integrated.ok) {
@@ -173,7 +211,10 @@ async function writeLocked<T>(
             `Conflicts with remote changes. The local commit is kept (${detail}). ${CONFLICT_REMEDY}`,
           );
         }
-        if (integrated.ok && integrated.changed) await ctx.store.rescan();
+        if (integrated.ok && integrated.changed) {
+          await ctx.store.rescan();
+          stopIfDataRemoteChanged(ctx, nameBefore);
+        }
       }
     }
 
@@ -257,6 +298,7 @@ async function writeLocked<T>(
       };
     }
     // 自分のコミットは残したまま次の周回で rebase して再 push する
+    const nameBefore = dataRemoteNameOf(ctx.store.config);
     const fetchedAgain = await fetchData(repo);
     const { result: integrated, resolved } =
       fetchedAgain.ok && fetchedAgain.remoteBranch
@@ -277,6 +319,7 @@ async function writeLocked<T>(
       };
     }
     await ctx.store.rescan();
+    stopIfDataRemoteChanged(ctx, nameBefore);
     await ctx.hooks?.beforePush?.();
     const again = await push(repo);
     if (again.ok)

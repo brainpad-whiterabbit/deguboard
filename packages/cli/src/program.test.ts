@@ -61,6 +61,44 @@ async function dg(cwd: string, argv: string[], env: NodeJS.ProcessEnv = {}): Pro
 }
 
 describe("dg", () => {
+  it("init --data-remote に URL を渡すと、リモートを足してデータをそこへ送り、別の clone は同じ URL で取り込む（t904）", async () => {
+    const f = await fixture();
+    const dataDir = path.join(f.root, "data.git");
+    await git(f.root, ["init", "--quiet", "--bare", dataDir]);
+    const init = await dg(f.cloneA, ["--json", "init", "--data-remote", dataDir]);
+    expect(init.json()).toMatchObject({
+      ok: true,
+      data: { worktree: "orphan", remote: "origin", data_remote: "deguboard-data" },
+      write: { pushed: true },
+    });
+    expect((await git(f.cloneA, ["remote", "get-url", "deguboard-data"])).stdout.trim()).toBe(
+      dataDir,
+    );
+    expect((await dg(f.cloneA, ["--json", "ticket", "create", "A"])).json().write).toMatchObject({
+      pushed: true,
+    });
+    // データはデータのリポジトリにだけ入る
+    const heads = async (bare: string) =>
+      (await git(bare, ["for-each-ref", "--format=%(refname:short)", "refs/heads"])).stdout
+        .trim()
+        .split("\n");
+    expect(await heads(dataDir)).toEqual(["deguboard"]);
+    expect(await heads(f.remoteDir)).toEqual(["main"]);
+
+    const joined = await dg(f.cloneB, ["--json", "init", "--data-remote", dataDir]);
+    expect(joined.json()).toMatchObject({
+      ok: true,
+      data: { worktree: "from_remote", data_remote: "deguboard-data", created: [] },
+    });
+    const listed = await dg(f.cloneB, ["--json", "ticket", "list"]);
+    expect(listed.json().data.map((t: { id: string }) => t.id)).toEqual(["t1"]);
+    // ない名前は、同期なしで始めずに使い方を示して失敗する
+    const g = await fixture();
+    const missing = await dg(g.cloneA, ["--json", "init", "--data-remote", "nowhere"]);
+    expect(missing.code).toBe(1);
+    expect(missing.json().error).toMatchObject({ code: "DATA_REMOTE_MISSING" });
+  });
+
   it("init → ticket create → claim → show が通り、--json の形が ok / data / warnings / write になる", async () => {
     const f = await fixture();
     const init = await dg(f.cloneA, ["--json", "init", "--template", "software-development"]);

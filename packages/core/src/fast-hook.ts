@@ -10,8 +10,8 @@
 // 最初の記録の前だけ。記録を始めた後（recordAroundHook の中）の失敗は警告になり、例外にならない。
 // エージェントとイベントの名前は agents/fast-hooks.ts が決める（AG-5）。
 // このファイルから静的に読むのは node の組み込みと依存の軽いファイルだけ（cli の fast-hook.test.ts が確かめる）。
-// ただ 1 つの例外として、Stop で config のリモートの名前が要るとき（データのリポジトリの HEAD が基準から動いたとき）だけ、
-// リモートの決め方（storage/remote-name.ts の resolveConfigRemote。今の経路の storelessContext と同じもの）を動的に読む
+// ただ 1 つの例外として、Stop で config のデータのリモートの名前が要るとき（データのリポジトリの HEAD が基準から動いたとき）だけ、
+// リモートの決め方（storage/remote-name.ts の resolveConfigDataRemote。今の経路の storelessContext と同じもの）を動的に読む
 // （config を読むので yaml・zod を読む）
 
 import {
@@ -86,7 +86,7 @@ export async function fastHook(opts: {
   return run(paths, opts.now ?? (() => new Date()));
 }
 
-/** 場所だけの repo。リモートの名前と基準のブランチは config を読まないと分からないので、読むと例外を投げる（runTurnStopped には remote を渡す） */
+/** 場所だけの repo。リモート（データ・コード）の名前と基準のブランチは config を読まないと分からないので、読むと例外を投げる（runTurnStopped には remote を渡す） */
 function withoutRemote(paths: RepoPaths): GitRepo {
   const unread = (name: string) => ({
     get(): never {
@@ -95,12 +95,16 @@ function withoutRemote(paths: RepoPaths): GitRepo {
   });
   return Object.defineProperties(
     { ...paths },
-    { remote: unread("repo.remote"), baseBranch: unread("repo.baseBranch") },
+    {
+      dataRemote: unread("repo.dataRemote"),
+      codeRemote: unread("repo.codeRemote"),
+      baseBranch: unread("repo.baseBranch"),
+    },
   ) as GitRepo;
 }
 
-/** リモートを今の経路の storelessContext と同じ resolveConfigRemote で決める。要るときだけ config を読むファイルを動的に読む */
+/** データのリモートを今の経路の storelessContext と同じ resolveConfigDataRemote で決める。要るときだけ config を読むファイルを動的に読む */
 async function remoteOf(paths: RepoPaths): Promise<string | null> {
-  const { resolveConfigRemote } = await import("./storage/remote-name.js");
-  return resolveConfigRemote(paths);
+  const { resolveConfigDataRemote } = await import("./storage/remote-name.js");
+  return resolveConfigDataRemote(paths);
 }

@@ -4,6 +4,7 @@ import path from "node:path";
 import { OperationError } from "../errors.js";
 import {
   defaultUser,
+  ensureDataRemote,
   isInitialized,
   resolveRemote,
   resolveRepoPaths,
@@ -12,7 +13,7 @@ import {
 import { ensureDeguboardWorktree, type WorktreeOrigin } from "../git/worktree.js";
 import { actorIdOf } from "../model/actor.js";
 import { STORE_CACHE_DIR } from "../storage/paths.js";
-import { resolveConfigRemote } from "../storage/remote-name.js";
+import { resolveConfigDataRemote } from "../storage/remote-name.js";
 import { Store } from "../storage/store.js";
 import type { ActorInfo, AnyCommand, CommandContext } from "./define.js";
 
@@ -22,8 +23,11 @@ export interface ContextOptions {
   actor?: Partial<Pick<ActorInfo, "kind" | "user" | "userSource">> | undefined;
   now?: (() => Date) | undefined;
   hooks?: CommandContext["hooks"];
-  /** init のとき：worktree がなければ作る。リモート名は config より先に要るので受け取る */
-  initialize?: { remote?: string | undefined } | undefined;
+  /**
+   * init のとき：worktree がなければ作る。リモート名は config（データの中にある）より先に要るので受け取る。
+   * remote はコードのリモートの名前、dataRemote はデータのリモートの名前か URL（省けば remote と同じ。URL なら ensureDataRemote がリモートを足す）
+   */
+  initialize?: { remote?: string | undefined; dataRemote?: string | undefined } | undefined;
   /** マージドライバとして登録する、dg を呼ぶ argv の前置。入口（CLI）が自分の呼び方を渡す */
   mergeDriver?: readonly string[] | undefined;
   /** 環境変数。今は入口（CLI・server・vscode・MCP）は渡さず process.env を使う。テストが HOME などを差し替えるためにある */
@@ -57,7 +61,7 @@ export async function openContextFor(
  * ストアを開かない文脈（CommandContext の storeless）。git で場所だけを解決し、チケット・Plan・Epic・Iteration・config の
  * ファイルを読まない。初期化の有無は openContext と同じく確かめ（データのリポジトリの .git の有無だけを見る）、初期化していなければ
  * NOT_INITIALIZED（deguboard を使っていないリポジトリでフックが何かを拒まないように）。読めない項目は読んだときに例外を投げる（使う側の誤りを隠さない）。
- * withRemote のときは config のリモートの名前だけを読み、repo.remote を解決する（t770。残りの config は読めない）
+ * withRemote のときは config のデータのリモートの名前だけを読み、repo.dataRemote を解決する（t770。残りの config と repo.codeRemote は読めない）
  */
 async function storelessContext(
   opts: ContextOptions,
@@ -71,15 +75,19 @@ async function storelessContext(
       throw new Error(`${name} was read in a context without an open store (storeless)`);
     },
   });
-  const remote = withRemote
+  const dataRemote = withRemote
     ? {
-        value: await resolveConfigRemote(paths),
+        value: await resolveConfigDataRemote(paths),
         enumerable: true,
       }
-    : unread("repo.remote");
+    : unread("repo.dataRemote");
   const repo = Object.defineProperties(
     { ...paths },
-    { remote, baseBranch: unread("repo.baseBranch") },
+    {
+      dataRemote,
+      codeRemote: unread("repo.codeRemote"),
+      baseBranch: unread("repo.baseBranch"),
+    },
   ) as GitRepo;
   const ctx = {
     repo,
@@ -99,11 +107,16 @@ async function storelessContext(
 export async function openContext(opts: ContextOptions): Promise<CommandContext> {
   const paths = await resolveRepoPaths(opts.cwd);
   let worktree: WorktreeOrigin | undefined;
+  // init が受けたデータのリモート（名前か URL）。URL ならリモートを足し、ない名前ならエラー（黙って同期なしにしない）
+  const initDataRemote = opts.initialize?.dataRemote
+    ? await ensureDataRemote(paths, opts.initialize.dataRemote)
+    : undefined;
   if (!(await isInitialized(paths))) {
     if (!opts.initialize) {
       throw new OperationError("NOT_INITIALIZED", "deguboard is not initialized. Run dg init");
     }
-    const remote = await resolveRemote(paths, opts.initialize.remote ?? "origin");
+    const remote =
+      initDataRemote ?? (await resolveRemote(paths, opts.initialize.remote ?? "origin"));
     worktree = await ensureDeguboardWorktree(paths, remote);
   }
   // 個人の設定（deguboard-local/config.yaml）もここで重ねるので、CLI・HTTP・VS Code 拡張は同じ値を読む。
@@ -113,10 +126,14 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     localDir: paths.localDir,
     cacheDir: path.join(paths.localDir, STORE_CACHE_DIR),
   });
-  const remoteName = opts.initialize?.remote ?? store.config.git.remote;
+  // データのリモートは、init が受けた値 > config の git.data_remote > コードのリモートと同じ、の順に決める
+  const codeName = opts.initialize?.remote ?? store.config.git.remote;
+  const dataName = initDataRemote ?? (store.config.git.data_remote || codeName);
+  const codeRemote = await resolveRemote(paths, codeName);
   const repo: GitRepo = {
     ...paths,
-    remote: await resolveRemote(paths, remoteName),
+    codeRemote,
+    dataRemote: dataName === codeName ? codeRemote : await resolveRemote(paths, dataName),
     baseBranch: store.config.git.base_branch,
   };
   const kind = opts.actor?.kind ?? "human";

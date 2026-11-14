@@ -17,13 +17,18 @@ export interface GitRepo {
   dataDir: string;
   /** Git 管理外の置き場所（ロック・hooks 無効化・索引） */
   localDir: string;
-  /** 使えるリモート。なければ null（同期なしで動く。SY-6） */
-  remote: string | null;
+  /** コードのリモート（作業ブランチ・PR の照合・gh の先。config の git.remote）。なければ null */
+  codeRemote: string | null;
+  /**
+   * データ（deguboard ブランチ）を fetch・push するリモート（config の git.data_remote。省けば git.remote と同じ）。
+   * なければ null（同期なしで動く。SY-6。git.data_remote を設定したのにないときの扱いは missingDataRemote）
+   */
+  dataRemote: string | null;
   baseBranch: string;
 }
 
 /** リモートと base_branch は後から決める（config を読む前に呼ぶため） */
-export type RepoPaths = Omit<GitRepo, "remote" | "baseBranch">;
+export type RepoPaths = Omit<GitRepo, "codeRemote" | "dataRemote" | "baseBranch">;
 
 export async function resolveRepoPaths(cwd: string): Promise<RepoPaths> {
   let topLevel: string;
@@ -61,6 +66,55 @@ export async function resolveRemote(paths: RepoPaths, name: string): Promise<str
   return result.code === 0 ? name : null;
 }
 
+/** `dg init --data-remote` に URL を渡したときに dg が足すリモートの名前 */
+export const DATA_REMOTE_NAME = "deguboard-data";
+
+/** 設定したデータのリモートがこのクローンにないときのエラー。オフライン（SY-6）とみなさず、足し方を案内する */
+export function dataRemoteMissingError(name: string): OperationError {
+  return new OperationError(
+    "DATA_REMOTE_MISSING",
+    `The data remote ${name} (config's git.data_remote) is not in this clone, so the data cannot be fetched or pushed. Add it with git remote add ${name} <URL of the data repository>, then run the command again`,
+  );
+}
+
+/**
+ * config が git.data_remote で名指ししたデータのリモートが、このクローンにないときのその名前。あるか、名指ししていなければ undefined。
+ * git.data_remote を省いたリポジトリは、リモートがなくても今までどおり同期なしで動く（SY-6）
+ */
+export function missingDataRemote(
+  repo: Pick<GitRepo, "dataRemote">,
+  config: { git: { data_remote: string } },
+): string | undefined {
+  return repo.dataRemote === null && config.git.data_remote ? config.git.data_remote : undefined;
+}
+
+/**
+ * `dg init --data-remote` の値（リモートの名前か URL）を、データのリモートの名前にする。
+ * その名前のリモートがあればそのまま。URL（かパス）なら、同じ URL のリモートがあればその名前、なければ DATA_REMOTE_NAME で足す。
+ * どちらでもなければ（ない名前）、黙って同期なしにせずエラーにする
+ */
+export async function ensureDataRemote(paths: RepoPaths, nameOrUrl: string): Promise<string> {
+  if (await resolveRemote(paths, nameOrUrl)) return nameOrUrl;
+  const looksLikeUrl = !nameOrUrl.startsWith("-") && /[/:]/.test(nameOrUrl);
+  if (!looksLikeUrl) throw dataRemoteMissingError(nameOrUrl);
+  const listed = await runGit(paths.topLevel, ["config", "--get-regexp", "^remote\\..*\\.url$"], {
+    allowFailure: true,
+  });
+  for (const line of listed.stdout.split("\n")) {
+    const at = line.indexOf(" ");
+    if (at > 0 && line.slice(at + 1) === nameOrUrl)
+      return line.slice("remote.".length, at - ".url".length);
+  }
+  if (await resolveRemote(paths, DATA_REMOTE_NAME)) {
+    throw new OperationError(
+      "GIT_ERROR",
+      `The remote ${DATA_REMOTE_NAME} already exists with another URL, so ${nameOrUrl} cannot be added under that name. Add it under another name with git remote add <name> ${nameOrUrl}, then pass that name to --data-remote`,
+    );
+  }
+  await runGit(paths.topLevel, ["remote", "add", DATA_REMOTE_NAME, nameOrUrl]);
+  return DATA_REMOTE_NAME;
+}
+
 /**
  * リモートの URL を Web で開ける URL（https://github.com/owner/repo）に直す。PR へのリンクに使う（UI-4）。
  * https・ssh:// と scp 形式（git@host:owner/repo）だけを直し、認証情報・ポート・末尾の .git は落とす。ローカルのパスなどは null
@@ -89,12 +143,12 @@ export function webUrlOf(url: string): string | null {
   return `https://${host}/${repoPath}`;
 }
 
-/** リモートの Web の URL。リモートがない・直せなければ null */
+/** コードのリモートの Web の URL（PR へのリンクの元）。リモートがない・直せなければ null */
 export async function remoteWebUrl(
-  repo: Pick<GitRepo, "topLevel" | "remote">,
+  repo: Pick<GitRepo, "topLevel" | "codeRemote">,
 ): Promise<string | null> {
-  if (!repo.remote) return null;
-  const result = await runGit(repo.topLevel, ["remote", "get-url", repo.remote], {
+  if (!repo.codeRemote) return null;
+  const result = await runGit(repo.topLevel, ["remote", "get-url", repo.codeRemote], {
     allowFailure: true,
   });
   return result.code === 0 ? webUrlOf(result.stdout) : null;
