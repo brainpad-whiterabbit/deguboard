@@ -204,6 +204,77 @@ describe("dg", () => {
     ]);
   });
 
+  it("run recent の --json は、チケットごとの { ticket, total, runs } を返し、実行中の Run の要約にだけ waiting_since・settling_since が入る", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    await dg(f.cloneA, ["ticket", "create", "A"]);
+    await dg(f.cloneA, ["ticket", "create", "B"]);
+    const startRun = async (ticket: string) =>
+      (
+        await dg(f.cloneA, ["--json", "run", "start", ticket, "implement", "--agent", "codex"])
+      ).json().data;
+    const closed = await startRun("1");
+    const finished = await dg(f.cloneA, [
+      "--json",
+      "run",
+      "finish",
+      closed.id,
+      "--result",
+      "failure",
+      "--error",
+      "tests failed",
+    ]);
+    const running = await startRun("2");
+    const recent = await dg(f.cloneA, ["--json", "run", "recent", "--project", "default"]);
+    expect(recent.code).toBe(0);
+    expect(recent.json()).toEqual({
+      ok: true,
+      data: [
+        {
+          ticket: "t1",
+          total: 1,
+          runs: [
+            {
+              id: closed.id,
+              step: "implement",
+              result: "failure",
+              started_at: closed.started_at,
+              finished_at: finished.json().data.finished_at,
+              review: null,
+              error: "tests failed",
+              running: false,
+            },
+          ],
+        },
+        {
+          ticket: "t2",
+          total: 1,
+          runs: [
+            {
+              id: running.id,
+              step: "implement",
+              result: null,
+              started_at: running.started_at,
+              finished_at: null,
+              review: null,
+              error: null,
+              running: true,
+              waiting_since: null,
+              settling_since: null,
+            },
+          ],
+        },
+      ],
+      warnings: [],
+      write: null,
+    });
+    expect(finished.json().data.finished_at).toEqual(expect.any(String));
+    // 絞り込みは run list と同じ（今ない Iteration は空）
+    expect(
+      (await dg(f.cloneA, ["--json", "run", "recent", "--iteration", "s9"])).json().data,
+    ).toEqual([]);
+  });
+
   it("拒否された遷移は終了コード 1 と error.code、入力の誤りと未知のコマンドは 2", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
