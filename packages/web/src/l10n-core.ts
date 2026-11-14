@@ -96,9 +96,9 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
       ja: "auto: コミットのたびに push / manual: dg sync が push する（即時の操作は manual でも push する）",
     },
   // metrics.read_transcripts
-  "Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true (MT-2)":
+  "Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true":
     {
-      ja: "run finish・run refresh が Adapter で会話記録を読んで使用量を補うか。DEGUBOARD_NO_TRANSCRIPTS のマシンでは true でも読まない（MT-2）",
+      ja: "run finish・run refresh が Adapter で会話記録を読んで使用量を補うか。DEGUBOARD_NO_TRANSCRIPTS のマシンでは true でも読まない",
     },
   // notify.approvals
   "Whether the VS Code extension shows a notification when Plans awaiting approval or tickets in review increase (the count is always shown)":
@@ -106,9 +106,9 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
       ja: "承認待ちの Plan や review のチケットが増えたとき、VS Code 拡張が通知を出すか（件数の表示は常に出る）",
     },
   // actions.shell
-  "Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation (AG-7)":
+  "Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation":
     {
-      ja: "任意のシェルの Action（shell）を許すか。許しても実行のたびに確認する（AG-7）",
+      ja: "任意のシェルの Action（shell）を許すか。許しても実行のたびに確認する",
     },
   // actions.test
   "Argument array of the command that the test Action (run_tests) and the quality gate's check (dg gate, dg pr ready, dg pr merge) run (e.g. [mise, run, check]). When empty, run_tests is rejected and the gate's check does not judge (the repo's own checks are confirmed instead)":
