@@ -14,7 +14,7 @@ The Skills are for Claude Code. Say the request in plain words, or type the comm
 | `dgassign`  | Puts tickets into an Iteration or an Epic, after approval                       | "Assign these tickets to a sprint"          | `/dgassign s3`     |
 | `dgcheck`   | Finds mismatches among tickets, Epics, Iterations, and Plans, and fixes them    | "Check the tickets of s3"                   | `/dgcheck s3`      |
 | `dgplan`    | Decides the order of tickets and records it in a Plan awaiting approval         | "Plan the tickets of s3"                    | `/dgplan s3`       |
-| `dgwork`    | Advances the tickets of an approved Plan to draft PRs                           | "Run plan p3"                               | `/dgwork p3`       |
+| `dgwork`    | Advances an approved Plan through ready PRs, merges after approval, and cleanup | "Run plan p3"                               | `/dgwork p3`       |
 | `dgall`     | Carries an Iteration or tickets from assignment to release in one flow          | "Carry s3 through to release automatically" | `/dgall s3 --auto` |
 | `dgaudit`   | Reviews the whole repository by viewpoint before release, and files findings    | "Review the repository before the release"  | `/dgaudit s3`      |
 | `dgrelease` | Checks that an Iteration is done, then releases it after approval               | "Release s3"                                | `/dgrelease s3`    |
@@ -29,7 +29,7 @@ The Skills are for Claude Code. Say the request in plain words, or type the comm
 In Claude Code, pass an Iteration or tickets such as `/dgall s3 --auto`, and the agent carries on through assignment, planning, implementation, review, and release. It does not create tickets for what you want to build, so first turn your ideas into tickets with `/dgimport`.
 
 - With `--auto`, the decisions listed in `auto.decisions` in the config proceed with the suggested option. Decisions that people make, such as release, abandoning or deleting a ticket, and closing an Epic or Iteration, stop and ask. The full list is in `dg guide all`.
-- For a PR that passed the quality gate, the agent asks you whether to merge it, and merges it only when you approve (your approval is recorded on the PR). It is merged without asking only with `--auto` when `auto.merge` in the config is true. For a PR that does not meet the gate, the agent shows the unmet conditions and asks whether to merge it anyway; your approval overrides only the conditions listed in `merge.approval_overrides` in the config, and never a conflict.
+- For a PR that passed the quality gate, the agent asks you whether to merge it, and merges it only when you approve (your approval is recorded on the PR). It is merged without asking only with `--auto` when `auto.merge` in the config is true. For a PR that does not meet the gate, the agent shows the unmet conditions and asks whether to merge it anyway; your approval overrides only the conditions listed in `merge.approval_overrides` in the config, but it cannot override a PR that is closed or still a draft, a conflict with the base, or the requirement to merge the commit that was judged.
 - You can follow the progress on the Board. Press the Plan band to show the dependency graph.
 - For agents other than Claude Code, ask them to "read `dg guide all` and carry on to the end with `--auto`."
 

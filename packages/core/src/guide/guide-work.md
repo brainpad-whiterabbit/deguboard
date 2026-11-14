@@ -5,7 +5,7 @@ argument-hint: "<Plan ID|ticket ID> [--gate-high|--gate-low|--gate-free]"
 
 # Work (work)
 
-Advances tickets to draft PRs. `dg next` decides the steps and their order. This guide describes only how to do each step.
+Advances tickets through implementation and review to ready PRs, merges them after human approval, and cleans up after the merge. `dg next` decides the steps and their order. This guide describes only how to do each step.
 
 The tickets of an approved Plan are advanced in parallel when two or more of them in `ready` can be started and subagents can be started (`dg guide parallel` is the default). A single ticket, or a Plan with only one ready ticket, is advanced one at a time by the steps below.
 
