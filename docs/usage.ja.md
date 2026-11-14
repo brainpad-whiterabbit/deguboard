@@ -29,7 +29,7 @@ PR を ready にする・マージするときに判定する条件は、チケ�
 
 同じチケットの同じ項目を二人が違う値に変えると、同期は push の前で止まり、通知に競合した項目の remote と local の値が並ぶ。
 
-- 通知の「Take remote」か「Take local」を押すと、競合した項目だけがその側の値になる（ほかの変更は残る）。ターミナルでは `dg sync --resolve remote` か `dg sync --resolve local`
+- 通知の「remote を採る」か「local を採る」を押すと、競合した項目だけがその側の値になる（ほかの変更は残る）。ターミナルでは `dg sync --resolve remote` か `dg sync --resolve local`
 - 解くまで、push と、起票・claim のようにすぐ push する書き込みは待つ
 - `config.yaml` やワークフローの競合にはボタンが出ない。`dg sync` の警告にある手順で、人が手で解く
 
