@@ -46,11 +46,9 @@ Iteration の流れ（段階・次の 1 手・止まる判定・自動で選ん�
 
 ### Skill の印は書いた dg の版を持ち、自動の更新と警告は版で新旧を比べる
 
-- SKILL.md は frontmatter の直後に印 `<!-- dg skill v<書いた dg の版> sha256:<印の行を除いた中身のハッシュ> -->` を持つ。ハッシュで手を加えたかを、版で今の dg より古いか新しいかを見分ける。版のない印は版を書く前の dg が書いたもので、古いとみなす
-- 自動で書き換える VS Code 拡張は、自分より古い版の Skill だけを更新する。`dg hooks check`・`next`・`brief` は、自分より古い版の Skill だけを「older」と警告する（AG-2）。自分より新しい版の Skill には、どちらも何もしない
-- 同じ版で中身が違う Skill（版を上げる前に Skill を変えた開発中の dg）は新旧が分からないので、拡張は触らず、dg は「differ」と警告する。本文が同じで印の版だけが違う Skill は、今のものとして扱う
-- `dg skill install` は人が打つ操作なので、版によらず、手を加えていない Skill を打った dg のものにする
-- 細部の正本は `packages/core/src/commands/skill-files.ts` とそのテスト
+- SKILL.md は frontmatter の直後に印 `<!-- dg skill v<書いた dg の版> sha256:<印の行を除いた中身のハッシュ> -->` を持つ。ハッシュで手を加えたかを、版で今の dg より古いか新しいかを見分ける
+- 自動の更新と警告は版で新旧を比べ、新しい dg が書いた Skill を古いものに戻さない
+- 更新・警告の出し分けと手動のインストールの細部は、`packages/core/src/commands/skill-files.ts` とそのテストを正本にする
 
 ## 理由
 
