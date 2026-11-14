@@ -100,7 +100,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 | モジュール  | 役割                                                                                                                                                                                                                    |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `model/`    | Zod のスキーマ（config・Project・Ticket・Epic・Iteration・Plan・Workflow・Run）、ID の解析と採番、Status と前進の順、Run の集計の純粋関数（`metrics.ts`）                                                               |
+| `model/`    | Zod のスキーマ（config・Ticket・Epic・Iteration・Plan・Workflow・Run）、ID の解析と採番、Status と前進の順、Run の集計の純粋関数（`metrics.ts`）                                                                        |
 | `storage/`  | frontmatter と YAML の読み書き（コメントとキー順を保つ）、原子的書き込み、`Store`（開くときに走査してメモリ上に索引を作る。読みの結果は `deguboard-local/store-cache/` に残し、変わったファイルだけを読む）、参照の整合 |
 | `workflow/` | 遷移の制約の合成と検査、条件の評価、`reconcile` の評価、定義の検証、同梱テンプレート                                                                                                                                    |
 | `git/`      | deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`、仮番号の振り直し、事実の収集、frontmatter と YAML のマージドライバ（`merge.ts`。SY-4）、経過の読み取り（`history.ts`。CL-7）                 |

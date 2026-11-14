@@ -19,7 +19,6 @@ import {
   iterationShow,
   iterationStart,
 } from "./iteration.js";
-import { projectCreate } from "./project.js";
 import { configSet, lint, sync, whoami } from "./setup.js";
 import {
   ticketCheck,
@@ -102,23 +101,56 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(claimed.data.status).toBe("in_progress");
   });
 
-  it("list は各行に deps_done を載せ、show と同じく別の Project の依存先も見る", async () => {
+  it("workflow を持たないチケットの Workflow は config の default_workflow で決まり、チケットの workflow が優先する", async () => {
+    const f = await initializedFixture();
+    const human = await reopenInitialized(f);
+    await writeStrictWorkflow(human);
+    // 既定（general）：todo → done が通る。作ったチケットは project も workflow も持たない
+    const created = await runCommand(ticketCreate, human, { title: "A" });
+    expect(created.data).not.toHaveProperty("project");
+    expect(created.data.workflow).toBeUndefined();
+    expect(await readFile(path.join(human.repo.dataDir, "tickets/t1.md"), "utf8")).not.toMatch(
+      /^(project|workflow):/m,
+    );
+    await runCommand(ticketCreate, human, { title: "B" });
+    await runCommand(ticketCreate, human, { title: "C", workflow: "general" });
+    expect(
+      (await runCommand(ticketMove, human, { ticket: "t1", status: "done" })).data.status,
+    ).toBe("done");
+    // 既定を strict にすると、workflow を持たないチケット（t2）は strict の制約（todo → done は誰にも許さない）に従い、
+    // workflow を持つチケット（t3）は自分の Workflow のまま
+    await runCommand(configSet, human, { key: "default_workflow", value: "strict" });
+    await expect(
+      runCommand(ticketMove, human, { ticket: "t2", status: "done" }),
+    ).rejects.toMatchObject({ code: "TRANSITION_REJECTED" });
+    expect(
+      (await runCommand(ticketMove, human, { ticket: "t3", status: "done" })).data.status,
+    ).toBe("done");
+    // 定義のない Workflow を既定にすると、workflow を省いた起票を断る（workflow を指定すれば作れる）
+    await runCommand(configSet, human, { key: "default_workflow", value: "nothing" });
+    await expect(runCommand(ticketCreate, human, { title: "D" })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(
+      (await runCommand(ticketCreate, human, { title: "D", workflow: "general" })).data.id,
+    ).toBe("t4");
+  });
+
+  it("list は各行に deps_done を載せ、show と同じく絞り込みに合わない依存先も見る", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
-    await runCommand(projectCreate, ctx, { id: "other" });
-    await runCommand(ticketCreate, ctx, { title: "別の Project", project: "other" });
-    await runCommand(ticketCreate, ctx, { title: "B", depends_on: ["t1"] });
-    await runCommand(ticketCreate, ctx, { title: "C", depends_on: ["t2"] });
+    await runCommand(ticketCreate, ctx, { title: "絞り込みの外", labels: ["other"] });
+    await runCommand(ticketCreate, ctx, { title: "B", labels: ["mine"], depends_on: ["t1"] });
+    await runCommand(ticketCreate, ctx, { title: "C", labels: ["mine"], depends_on: ["t2"] });
     const depsDone = async () =>
-      (await runCommand(ticketList, ctx, { project: "default" })).data.map((t) => [
-        t.id,
-        t.deps_done,
-      ]);
+      (await runCommand(ticketList, ctx, { label: ["mine"], include_abandoned: true })).data.map(
+        (t) => [t.id, t.deps_done],
+      );
     expect(await depsDone()).toEqual([
       ["t2", false],
       ["t3", false],
     ]);
-    // 依存先は default の一覧に出ないが、done になれば deps_done は真になる
+    // 依存先は絞り込んだ一覧に出ないが、done になれば deps_done は真になる
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
     expect(await depsDone()).toEqual([
       ["t2", true],
@@ -129,12 +161,11 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(shown.data.pending_deps).toEqual([]);
   });
 
-  it("show は終わっていない依存先を ID と Status で出し、別の Project の終わった依存先は出さず、見つからない依存先は Status を null で出す", async () => {
+  it("show は終わっていない依存先を ID と Status で出し、終わった依存先は出さず、見つからない依存先は Status を null で出す", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
-    await runCommand(projectCreate, ctx, { id: "other" });
-    await runCommand(ticketCreate, ctx, { title: "別の Project・済み", project: "other" });
-    await runCommand(ticketCreate, ctx, { title: "別の Project・途中", project: "other" });
+    await runCommand(ticketCreate, ctx, { title: "済み" });
+    await runCommand(ticketCreate, ctx, { title: "途中" });
     await runCommand(ticketCreate, ctx, { title: "やめた" });
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "in_progress" });
@@ -944,13 +975,17 @@ describe("Epic と Iteration", () => {
     expect(again.warnings).toEqual(["Committed the pending changes first"]);
   });
 
-  it("active の Iteration は Project に 1 つで、ほかに active があれば start と reopen を拒否する（IT-1）", async () => {
+  it("active の Iteration はカンバンに 1 つで、ほかに active があれば start と reopen を拒否する（IT-1）", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
-    await runCommand(projectCreate, ctx, { id: "other" });
     for (const name of ["Sprint 1", "Sprint 2", "Sprint 3"])
       await runCommand(iterationCreate, ctx, { name });
-    await runCommand(iterationCreate, ctx, { name: "別の Project", project: "other" });
+    // 前の版が別の Project に作った Iteration（project を持つファイル）も、同じカンバンの 1 つとして数える
+    await runCommand(iterationCreate, ctx, { name: "前の版の別の Project" });
+    const legacy = path.join(ctx.repo.dataDir, "iterations/s4.yaml");
+    await writeFile(legacy, `${await readFile(legacy, "utf8")}project: other\n`);
+    await recordBaseline(ctx.repo);
+    await ctx.store.rescan();
     await runCommand(iterationStart, ctx, { iteration: "s1" });
     // 拒否のメッセージに今 active の Iteration を出し、記録は変えない
     await expect(runCommand(iterationStart, ctx, { iteration: "s2" })).rejects.toMatchObject({
@@ -958,8 +993,10 @@ describe("Epic と Iteration", () => {
       message: expect.stringContaining("s1 is active"),
     });
     expect(ctx.store.iterations.get("s2")?.data.status).toBe("planned");
-    // 別の Project の Iteration は数えない
-    expect((await runCommand(iterationStart, ctx, { iteration: "s4" })).data.status).toBe("active");
+    await expect(runCommand(iterationStart, ctx, { iteration: "s4" })).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("s1 is active"),
+    });
     // 閉じれば次を始められ、閉じた方を再開するのは今の active を閉じてから
     await runCommand(iterationClose, ctx, { iteration: "s1" });
     await runCommand(iterationStart, ctx, { iteration: "s2" });
@@ -1056,15 +1093,12 @@ describe("Epic と Iteration", () => {
     expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
   });
 
-  it("lint は同じ Project に 2 つ以上ある active の Iteration を指摘し、別の Project の active は数えない", async () => {
+  it("lint は 2 つ以上ある active の Iteration を指摘する", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
-    await runCommand(projectCreate, ctx, { id: "other" });
     for (const name of ["Sprint 1", "Sprint 2", "Sprint 3"])
       await runCommand(iterationCreate, ctx, { name });
-    await runCommand(iterationCreate, ctx, { name: "別の Project", project: "other" });
     await runCommand(iterationStart, ctx, { iteration: "s1" });
-    await runCommand(iterationStart, ctx, { iteration: "s4" });
     const multiple = async () =>
       (await runCommand(lint, ctx, {})).data.issues
         .filter((i) => i.code === "lint_iteration_multiple_active")
@@ -1072,15 +1106,10 @@ describe("Epic と Iteration", () => {
     expect(await multiple()).toEqual([]);
     // 手の編集やマージで 2 つ目の active ができた場合（start の検査を通らない）
     await ctx.store.update("iteration", "s3", { status: "active" });
-    const message = "The same Project has 2 active Iterations (s1, s3)";
+    const message = "There are 2 active Iterations (s1, s3)";
     expect(await multiple()).toEqual([
       ["s1", message],
       ["s3", message],
     ]);
-    expect(
-      (await runCommand(lint, ctx, { project: "other" })).data.issues.filter(
-        (i) => i.code === "lint_iteration_multiple_active",
-      ),
-    ).toEqual([]);
   });
 });

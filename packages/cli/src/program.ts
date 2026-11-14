@@ -88,7 +88,6 @@ export interface ProgramOptions {
 }
 
 const GROUP_SUMMARY: Record<string, string> = {
-  project: "Operations on Projects (groups of tickets)",
   ticket: "Operations on tickets",
   iteration: "Operations on Iterations (time-boxed plans). sprint is an alias",
   epic: "Operations on Epics (groupings by purpose)",

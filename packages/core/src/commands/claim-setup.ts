@@ -13,17 +13,16 @@ import { deniedToAgent, type CommandContext } from "./define.js";
 import { nowIso } from "./helpers.js";
 
 /**
- * Iteration の空いたチケットを入れる先：Project の active の Iteration、なければ planned がただ 1 つのときのそれ。
+ * Iteration の空いたチケットを入れる先：active の Iteration、なければ planned がただ 1 つのときのそれ。
  * planned が複数なら、どれを先にするかは予定の期間を持たないので決めず、候補を ID の順に返す。閉じた Iteration には入れない
  */
 export function iterationTargetFor(
   iterations: Iterable<Doc<Iteration>>,
-  project: string,
 ): { target: Doc<Iteration> } | { candidates: Doc<Iteration>[] } {
-  const inProject = [...iterations].filter((i) => i.data.project === project);
-  const active = inProject.find((i) => i.data.status === "active");
+  const all = [...iterations];
+  const active = all.find((i) => i.data.status === "active");
   if (active) return { target: active };
-  const planned = inProject
+  const planned = all
     .filter((i) => i.data.status === "planned")
     .sort((a, b) => compareIds(a.id, b.id));
   const [only] = planned;
@@ -42,7 +41,7 @@ export async function prepareIterationForClaim(
 ): Promise<Ticket["iteration"]> {
   let iterationId = ticket.data.iteration;
   if (!iterationId && ctx.config.lint.require_iteration) {
-    const found = iterationTargetFor(ctx.store.iterations.values(), ticket.data.project);
+    const found = iterationTargetFor(ctx.store.iterations.values());
     const target = "target" in found ? found.target : undefined;
     if (!target && "candidates" in found && found.candidates.length > 0) {
       warnings.push(

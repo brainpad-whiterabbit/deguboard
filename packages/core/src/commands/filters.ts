@@ -7,7 +7,6 @@ import { PRIORITIES, type Ticket } from "../model/ticket.js";
 import type { Store } from "../storage/store.js";
 
 export const ticketFilterSchema = z.object({
-  project: z.string().optional().describe("Filter by Project. Omit for all"),
   status: z.array(z.enum(STATUSES)).optional().describe("Filter by Status"),
   priority: z.array(z.enum(PRIORITIES)).optional().describe("Filter by priority"),
   iteration: z.string().optional().describe("Filter by Iteration ID"),
@@ -40,7 +39,6 @@ function isReady(store: Store, t: Ticket): boolean {
 }
 
 export function matchesFilter(store: Store, t: Ticket, f: TicketFilter): boolean {
-  if (f.project && t.project !== f.project) return false;
   if (f.status) {
     if (!f.status.includes(t.status)) return false;
   } else if (t.status === "abandoned" && !f.include_abandoned) return false;

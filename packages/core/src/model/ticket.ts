@@ -52,7 +52,6 @@ export function gateScopeOf(level: GateLevel): GateScope {
 // スキーマにないキーは looseObject で残す（DT-2）。Workflow の fields の値もここを通る
 const ticketFrontmatter = z.looseObject({
   id: ticketIdSchema,
-  project: slugSchema,
   title: z.string().min(1),
   status: statusSchema,
   priority: z.enum(PRIORITIES).default("medium"),
@@ -92,10 +91,13 @@ const ticketFrontmatter = z.looseObject({
   created_at: isoDateTime,
   updated_at: isoDateTime,
 });
-export const ticketSchema = ticketFrontmatter.transform(({ claimed_by, ...t }) => {
-  const assignee = t.assignee ?? claimed_by;
-  return assignee === undefined ? t : { ...t, assignee };
-});
+// やめた project は値に出さない（common.ts の RETIRED_PROJECT_KEYS）
+export const ticketSchema = ticketFrontmatter.transform(
+  ({ claimed_by, project: _project, ...t }) => {
+    const assignee = t.assignee ?? claimed_by;
+    return assignee === undefined ? t : { ...t, assignee };
+  },
+);
 export type Ticket = z.output<typeof ticketSchema>;
 
 /** チケットの集まりの進み（Epic・Plan の進捗、カンバンの見出し）。done の件数、abandoned を除く件数、Status ごとの件数（EP-3） */

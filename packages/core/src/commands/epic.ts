@@ -3,19 +3,11 @@
 import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { withWrite } from "../git/write.js";
-import { isTerminal, slugSchema } from "../model/common.js";
+import { isTerminal } from "../model/common.js";
 import { EPIC_STATUSES, epicBodyTemplate, type Epic } from "../model/epic.js";
 import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import { defineCommand, ok } from "./define.js";
-import {
-  epicRef,
-  nowIso,
-  projectOf,
-  sortedDocs,
-  ticketRef,
-  ticketsInEpic,
-  withBody,
-} from "./helpers.js";
+import { epicRef, nowIso, sortedDocs, ticketRef, ticketsInEpic, withBody } from "./helpers.js";
 
 export const epicCreate = defineCommand({
   name: "epic.create",
@@ -24,9 +16,6 @@ export const epicCreate = defineCommand({
   summary: "Create an Epic",
   input: z.object({
     title: z.string().min(1).describe("Title"),
-    project: slugSchema
-      .optional()
-      .describe("Project. Defaults to config's default_project when omitted"),
     labels: z.array(z.string()).optional().describe("Labels"),
     summary: z.string().optional().describe("Summary. Goes into the body template"),
     body: z.string().optional().describe("Full body. Takes precedence over summary"),
@@ -37,15 +26,12 @@ export const epicCreate = defineCommand({
     const result = await withWrite(
       ctx,
       async () => {
-        const project = projectOf(ctx, input.project);
-        ctx.store.requireProject(project);
         const now = nowIso(ctx);
         const id = ctx.store.nextId("epic");
         return ctx.store.create(
           "epic",
           {
             id,
-            project,
             title: input.title,
             status: "open",
             labels: input.labels ?? [],
@@ -72,16 +58,13 @@ export const epicList = defineCommand({
   summary:
     "List Epics in number order, with progress (the done count and the count excluding abandoned)",
   input: z.object({
-    project: z.string().optional().describe("Filter by Project. Omit for all"),
     status: z.array(z.enum(EPIC_STATUSES)).optional().describe("Filter by Status. Omit for all"),
   }),
   write: false,
   needs: "store",
   async run(ctx, input) {
     const docs = sortedDocs(ctx.store.epics.values()).filter(
-      (d) =>
-        (!input.project || d.data.project === input.project) &&
-        (!input.status || input.status.includes(d.data.status)),
+      (d) => !input.status || input.status.includes(d.data.status),
     );
     return ok(
       docs.map((d): EpicRow => ({
@@ -152,8 +135,7 @@ export const epicAdd = defineCommand({
   name: "epic.add",
   positionals: ["epic", "tickets"],
   group: "epic",
-  summary:
-    "Add tickets to an Epic. Only tickets in the same Project; tickets cannot be added to a closed Epic",
+  summary: "Add tickets to an Epic. Tickets cannot be added to a closed Epic",
   input: membership,
   write: true,
   needs: "store",
@@ -167,11 +149,6 @@ export const epicAdd = defineCommand({
         const ids: string[] = [];
         for (const ref of input.tickets) {
           const t = ctx.store.require("ticket", ref);
-          if (t.data.project !== epic.data.project)
-            throw new OperationError(
-              "REJECTED",
-              `${t.id} is in a different Project from ${epic.id}`,
-            );
           await ctx.store.update("ticket", t.id, { epic: epic.id, updated_at: nowIso(ctx) });
           ids.push(t.id);
         }

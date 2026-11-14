@@ -19,7 +19,7 @@ describe("watchTargets", () => {
       "iterations/s1.yaml",
       "plans/p1.yaml",
       "workflows/default.yaml",
-      "projects/default.yml",
+      "workflows/other.yml",
       "config.yaml",
     ]) {
       expect(isWatched(targets, path.join(dataDir, rel)), rel).toBe(true);

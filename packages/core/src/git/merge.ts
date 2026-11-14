@@ -1,4 +1,4 @@
-// deguboard ブランチのマージドライバ（SY-4、ADR-034）。チケットと Epic の frontmatter と、Plan・Iteration・Project の YAML をフィールド単位で 3-way マージする。
+// deguboard ブランチのマージドライバ（SY-4、ADR-034）。チケットと Epic の frontmatter と、Plan・Iteration の YAML をフィールド単位で 3-way マージする。
 // git が rebase の中で `<dg> merge-driver %O %A %B %P` として呼ぶ。登録は ensureMergeDriver（init と sync）が行う
 
 import { isDeepStrictEqual } from "node:util";
@@ -20,7 +20,7 @@ import { runGit } from "./run.js";
 const MERGE_DRIVER_NAME = "deguboard";
 
 /**
- * ドライバを当てるパス。frontmatter を持つ Markdown（チケット・墓標・Epic）と、素の YAML（Plan・Iteration・Project）。
+ * ドライバを当てるパス。frontmatter を持つ Markdown（チケット・墓標・Epic）と、素の YAML（Plan・Iteration）。
  * config.yaml と workflows は人が手で書く設定なので外し、行単位のマージのままにする
  */
 const ATTRIBUTE_LINES = [
@@ -29,7 +29,6 @@ const ATTRIBUTE_LINES = [
   `epics/*.md merge=${MERGE_DRIVER_NAME}`,
   `plans/*.yaml merge=${MERGE_DRIVER_NAME}`,
   `iterations/*.yaml merge=${MERGE_DRIVER_NAME}`,
-  `projects/*.yaml merge=${MERGE_DRIVER_NAME}`,
 ];
 
 /** ATTRIBUTE_LINES のパターン（`*` は / を含まない）に当たるか。マージドライバと同じ判定を git の外で回すファイルを選ぶ */
@@ -102,7 +101,7 @@ export type MergeOutcome =
 
 interface Parsed {
   text: string;
-  /** frontmatter つき Markdown なら本文。素の YAML（Plan・Iteration・Project）なら undefined */
+  /** frontmatter つき Markdown なら本文。素の YAML（Plan・Iteration）なら undefined */
   body: string | undefined;
   doc: YamlDocument;
   data: Record<string, unknown>;
@@ -441,6 +440,23 @@ export async function ensureGitattributes(dataDir: string): Promise<boolean> {
   if (missing.length === 0) return false;
   const sep = current.length === 0 || current.endsWith("\n") ? "" : "\n";
   await writeFile(file, `${current}${sep}${missing.join("\n")}\n`);
+  return true;
+}
+
+/**
+ * deguboard worktree の .gitattributes から、ドライバを当てなくなったパターン（やめた projects/*.yaml など）の行を消す。
+ * ensureGitattributes は足りない行を足すだけなので、なくなったパスの行は呼び手（retire-projects.ts）がこれで消す。
+ * 書き換えたら true（コミットは呼び手）。行がない・ファイルがなければ何もしない
+ */
+export async function dropGitattributesPattern(dataDir: string, pattern: string): Promise<boolean> {
+  const file = path.join(dataDir, ".gitattributes");
+  const current = await readOr(file);
+  if (current === undefined) return false;
+  const stale = `${pattern} merge=${MERGE_DRIVER_NAME}`;
+  const lines = current.split("\n");
+  const kept = lines.filter((l) => l.trim() !== stale);
+  if (kept.length === lines.length) return false;
+  await writeFile(file, kept.join("\n"));
   return true;
 }
 

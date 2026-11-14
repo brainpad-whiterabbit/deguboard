@@ -16,17 +16,12 @@ afterEach(async () => {
 
 const ts = "2026-10-31T04:00:00Z";
 const ticketText = (id: string, extra = "") =>
-  `---\nid: ${id}\nproject: default\ntitle: ${id} のタイトル\nstatus: todo\npriority: medium # low | medium | high\nlabels: [frontend]\n${extra}created_at: ${ts}\nupdated_at: ${ts}\n---\n\n## 概要\n\n本文\n`;
+  `---\nid: ${id}\ntitle: ${id} のタイトル\nstatus: todo\npriority: medium # low | medium | high\nlabels: [frontend]\n${extra}created_at: ${ts}\nupdated_at: ${ts}\n---\n\n## 概要\n\n本文\n`;
 
 async function fixture(files: Record<string, string>): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "deguboard-store-"));
   dirs.push(root);
-  await writeFile(path.join(root, "config.yaml"), "default_project: default\n");
-  await mkdir(path.join(root, "projects"), { recursive: true });
-  await writeFile(
-    path.join(root, "projects/default.yaml"),
-    "id: default\nname: Default\nworkflow: general\n",
-  );
+  await writeFile(path.join(root, "config.yaml"), "default_workflow: general\n");
   for (const [rel, text] of Object.entries(files)) {
     await mkdir(path.dirname(path.join(root, rel)), { recursive: true });
     await writeFile(path.join(root, rel), text);
@@ -67,7 +62,6 @@ describe("Store", () => {
     // 次の番号で作ると、読めないファイルは変わらない
     await store.create("ticket", {
       id: "t11",
-      project: "default",
       title: "新規",
       status: "todo",
       depends_on: [],
@@ -76,7 +70,6 @@ describe("Store", () => {
     });
     await store.create("epic", {
       id: "e11",
-      project: "default",
       title: "新規",
       status: "open",
       labels: [],
@@ -85,14 +78,12 @@ describe("Store", () => {
     });
     await store.create("iteration", {
       id: "s11",
-      project: "default",
       name: "新規",
       goal: "",
       status: "planned",
     });
     await store.create("plan", {
       id: "p11",
-      project: "default",
       tickets: [],
       after: {},
       pending_approval: true,
@@ -105,7 +96,6 @@ describe("Store", () => {
 
     // 読めないファイルと同じ番号では作れず、中身も変わらない
     const dup = {
-      project: "default",
       title: "重複",
       status: "todo",
       created_at: ts,
@@ -117,12 +107,12 @@ describe("Store", () => {
     await expect(store.create("epic", { ...dup, id: "e10", status: "open" })).rejects.toMatchObject(
       { code: "ALREADY_EXISTS" },
     );
-    await expect(
-      store.create("iteration", { id: "s10", project: "default", name: "重複" }),
-    ).rejects.toMatchObject({ code: "ALREADY_EXISTS" });
-    await expect(
-      store.create("plan", { id: "p10", project: "default", tickets: [] }),
-    ).rejects.toMatchObject({ code: "ALREADY_EXISTS" });
+    await expect(store.create("iteration", { id: "s10", name: "重複" })).rejects.toMatchObject({
+      code: "ALREADY_EXISTS",
+    });
+    await expect(store.create("plan", { id: "p10", tickets: [] })).rejects.toMatchObject({
+      code: "ALREADY_EXISTS",
+    });
     for (const [rel, text] of Object.entries(files)) {
       expect(await readFile(path.join(root, rel), "utf8")).toBe(text);
     }
@@ -137,7 +127,6 @@ describe("Store", () => {
     await expect(
       store.create("ticket", {
         id: "t3",
-        project: "default",
         title: "新規",
         status: "todo",
         created_at: ts,
@@ -177,7 +166,6 @@ describe("Store", () => {
       .map((l) => l.split(":")[0]);
     expect(keys).toEqual([
       "id",
-      "project",
       "title",
       "status",
       "priority",
@@ -209,7 +197,7 @@ describe("Store", () => {
       "tickets/t1.md": ticketText("t1"),
       "tickets/t2.md": "---\nid: t2\ntitle: [\n---\n",
       "tickets/t3.md":
-        "---\nid: t4\nproject: default\ntitle: x\nstatus: todo\ncreated_at: " +
+        "---\nid: t4\ntitle: x\nstatus: todo\ncreated_at: " +
         ts +
         "\nupdated_at: " +
         ts +
@@ -244,7 +232,6 @@ describe("Store", () => {
       "ticket",
       {
         id,
-        project: "default",
         title: "新規",
         status: "todo",
         depends_on: [],
@@ -260,7 +247,6 @@ describe("Store", () => {
     await expect(
       store.create("ticket", {
         id,
-        project: "default",
         title: "重複",
         status: "todo",
         created_at: ts,
@@ -294,9 +280,121 @@ describe("Store", () => {
     expect(store.config.commit.mode).toBe("each");
     expect(
       (await readFile(path.join(root, "config.yaml"), "utf8")).startsWith(
-        "default_project: default\n",
+        "default_workflow: general\n",
       ),
     ).toBe(true);
+  });
+
+  it("project を持たないチケット・Epic・Iteration・Plan を作成・読み書きでき、project を持つ前のファイルは読めて、書くときに project が消える", async () => {
+    // 前の dg が書いた形（どれも project: default を持つ）。コメントとスキーマにないキーも置く
+    const legacy = {
+      "tickets/t1.md": `---\nid: t1\nproject: default # 前の版のキー\ntitle: 前のチケット\nstatus: todo\nestimate: 3\ncreated_at: ${ts}\nupdated_at: ${ts}\n---\n\n本文\n`,
+      "epics/e1.md": `---\nid: e1\nproject: default\ntitle: 前の Epic\nstatus: open\ncreated_at: ${ts}\nupdated_at: ${ts}\n---\n\n本文\n`,
+      "iterations/s1.yaml": "id: s1\nproject: default\nname: 前の Iteration\nstatus: planned\n",
+      "plans/p1.yaml": "id: p1\nproject: default\ntickets:\n  - t1\n",
+    };
+    const root = await fixture(legacy);
+    const store = await Store.open(root);
+    // 読める。値には project を出さない
+    expect(store.issues).toEqual([]);
+    for (const doc of [
+      store.tickets.get("t1"),
+      store.epics.get("e1"),
+      store.iterations.get("s1"),
+      store.plans.get("p1"),
+    ]) {
+      expect(doc).toBeDefined();
+      expect(doc?.data).not.toHaveProperty("project");
+    }
+    // 読むだけではファイルを変えない
+    for (const [rel, text] of Object.entries(legacy))
+      expect(await readFile(path.join(root, rel), "utf8")).toBe(text);
+    // 書くと project だけが消え、ほかのキーは残る
+    await store.update("ticket", "t1", { title: "直した" });
+    await store.update("epic", "e1", { title: "直した" });
+    await store.update("iteration", "s1", { goal: "目標" });
+    await store.update("plan", "p1", { pending_approval: false });
+    const written = async (rel: string) => readFile(path.join(root, rel), "utf8");
+    for (const rel of Object.keys(legacy)) expect(await written(rel)).not.toContain("project");
+    expect(await written("tickets/t1.md")).toBe(
+      `---\nid: t1\ntitle: 直した\nstatus: todo\nestimate: 3\ncreated_at: ${ts}\nupdated_at: ${ts}\n---\n\n本文\n`,
+    );
+    expect(await written("iterations/s1.yaml")).toBe(
+      "id: s1\nname: 前の Iteration\nstatus: planned\ngoal: 目標\n",
+    );
+
+    // project を持たない文書を作って、読み直して、書ける
+    await store.create("ticket", {
+      id: "t2",
+      title: "新規",
+      status: "todo",
+      created_at: ts,
+      updated_at: ts,
+    });
+    await store.create("epic", {
+      id: "e2",
+      title: "新規",
+      status: "open",
+      created_at: ts,
+      updated_at: ts,
+    });
+    await store.create("iteration", { id: "s2", name: "新規" });
+    await store.create("plan", { id: "p2", tickets: ["t2"] });
+    const reopened = await Store.open(root);
+    expect(reopened.issues).toEqual([]);
+    expect(reopened.tickets.get("t2")?.data.title).toBe("新規");
+    expect(reopened.epics.get("e2")?.data.title).toBe("新規");
+    expect(reopened.iterations.get("s2")?.data.name).toBe("新規");
+    expect(reopened.plans.get("p2")?.data.tickets).toEqual(["t2"]);
+    await reopened.update("ticket", "t2", { status: "in_progress" });
+    await reopened.update("plan", "p2", { pending_approval: false });
+    for (const rel of ["tickets/t2.md", "epics/e2.md", "iterations/s2.yaml", "plans/p2.yaml"])
+      expect(await written(rel)).not.toContain("project");
+  });
+
+  it("既定の Workflow は config の default_workflow で決まり、チケットの workflow が優先する", async () => {
+    const root = await fixture({
+      "tickets/t1.md": ticketText("t1"),
+      "tickets/t2.md": ticketText("t2", "workflow: general\n"),
+      "workflows/general.yaml": "id: general\nname: General\n",
+      "workflows/custom.yaml": "id: custom\nname: Custom\n",
+    });
+    const store = await Store.open(root);
+    const workflowOf = (id: "t1" | "t2") =>
+      store.workflowFor(store.tickets.get(id)!.data)?.definition.id;
+    expect(store.config.default_workflow).toBe("general");
+    expect(workflowOf("t1")).toBe("general");
+    await store.writeConfig({ default_workflow: "custom" });
+    expect(workflowOf("t1")).toBe("custom");
+    expect(workflowOf("t2")).toBe("general");
+    expect(checkReferences(store)).toEqual([]);
+    // 定義のない Workflow を既定にすると、config と、既定に頼るチケットを指摘する
+    await store.writeConfig({ default_workflow: "nothing" });
+    expect(checkReferences(store).map((i) => [i.path, i.code])).toEqual([
+      ["config.yaml", "workflow_missing"],
+      ["tickets/t1.md", "workflow_missing"],
+    ]);
+  });
+
+  it("projects/ が残る間は、既定の Project の Workflow を default_workflow として読み、default_project は値に出さない", async () => {
+    const root = await fixture({
+      "projects/default.yaml": "id: default\nname: Default\nworkflow: software-development\n",
+      "projects/web.yaml": "id: web\nname: Web\nworkflow: general\n",
+    });
+    const config = path.join(root, "config.yaml");
+    // default_project を省いた config は、既定の Project（default）の Workflow を読む
+    await writeFile(config, "commit:\n  mode: each\n");
+    const implied = await Store.open(root);
+    expect(implied.issues).toEqual([]);
+    expect(implied.config.default_workflow).toBe("software-development");
+    // default_project が指す Project の Workflow を読む
+    await writeFile(config, "default_project: web\n");
+    const named = await Store.open(root);
+    expect(named.config.default_workflow).toBe("general");
+    expect(named.config).not.toHaveProperty("default_project");
+    // default_workflow を書いた config はそれを使う
+    await writeFile(config, "default_project: web\ndefault_workflow: custom\n");
+    expect((await Store.open(root)).config.default_workflow).toBe("custom");
   });
 
   it("参照の整合を検査し、依存の循環を見つける", async () => {
@@ -535,7 +633,6 @@ describe("ディスクに残した読みの結果", () => {
   /** 比べる索引の中身。キャッシュの有無で同じになることを確かめる */
   const contents = (store: Store) => ({
     tickets: [...store.tickets.values()],
-    projects: [...store.projects.values()],
     workflows: [...store.workflows.entries()],
     config: store.config,
     issues: store.issues,

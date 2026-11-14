@@ -34,7 +34,6 @@ import { commit, configSet, init, validate } from "./setup.js";
 import { workflowValidate } from "./workflow.js";
 import { metricsShow } from "./metrics.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
-import { projectCreate } from "./project.js";
 import { ticketClaim, ticketCreate, ticketList, type TicketRow } from "./ticket.js";
 import {
   amendRunning,
@@ -152,10 +151,9 @@ describe("run", () => {
     await expect(start(ctx, "t1")).resolves.toMatchObject({ step: "implement" });
   });
 
-  it("list は Project（チケットの今の値）で絞れ、実行時間 duration_seconds を返す（実行中は null）", async () => {
+  it("list はチケットで絞れ、実行時間 duration_seconds を返す（実行中は null）", async () => {
     const ctx = await prepared();
-    await runCommand(projectCreate, ctx, { id: "other" });
-    await runCommand(ticketCreate, ctx, { title: "C", project: "other" });
+    await runCommand(ticketCreate, ctx, { title: "C" });
     const t1 = await start(ctx, "t1");
     const t3 = await start(ctx, "t3");
     await finishRun(ctx, t1.id, {
@@ -165,15 +163,15 @@ describe("run", () => {
     const listed = async (input: Record<string, unknown>) =>
       (await runCommand(runList, ctx, input)).data as RunView[];
     expect(
-      (await listed({ project: "default" })).map((r) => [r.id, r.running, r.duration_seconds]),
+      (await listed({ ticket: "t1" })).map((r) => [r.id, r.running, r.duration_seconds]),
     ).toEqual([[t1.id, false, 90]]);
     expect(
-      (await listed({ project: "other" })).map((r) => [r.id, r.running, r.duration_seconds]),
+      (await listed({ ticket: "t3" })).map((r) => [r.id, r.running, r.duration_seconds]),
     ).toEqual([[t3.id, true, null]]);
-    expect(await listed({ project: "nothing" })).toEqual([]);
+    expect(await listed({ ticket: "t2" })).toEqual([]);
     // ほかの絞り込みと重ねられる
-    expect(await listed({ project: "other", ticket: "t1" })).toEqual([]);
-    expect((await listed({ project: "default", running: true })).map((r) => r.id)).toEqual([]);
+    expect((await listed({ ticket: "t1", running: true })).map((r) => r.id)).toEqual([]);
+    expect((await listed({ running: true })).map((r) => r.id)).toEqual([t3.id]);
   });
 
   it("list は Iteration（チケットの今の値）で絞れ、番号だけの指定も読む", async () => {
@@ -319,10 +317,9 @@ describe("run", () => {
     expect(after).toMatchObject({ total: 4, running: false });
   });
 
-  it("recent は Iteration と Project（チケットの今の値）で絞れ、Run のないチケットは返さない", async () => {
+  it("recent は Iteration（チケットの今の値）で絞れ、Run のないチケットは返さない", async () => {
     const ctx = await prepared();
-    await runCommand(projectCreate, ctx, { id: "other" });
-    await runCommand(ticketCreate, ctx, { title: "C", project: "other" });
+    await runCommand(ticketCreate, ctx, { title: "C" });
     await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2"] });
     const t1 = await start(ctx, "t1");
@@ -341,8 +338,6 @@ describe("run", () => {
     // t2 は s1 にあるが Run がないので出ない
     expect(await recent({ iteration: "s1" })).toEqual([["t1", 1, [false]]]);
     expect(await recent({ iteration: "1" })).toEqual([["t1", 1, [false]]]);
-    expect(await recent({ project: "other" })).toEqual([["t3", 1, [true]]]);
-    expect(await recent({ project: "other", iteration: "s1" })).toEqual([]);
     // 今ない Iteration はエラーにせず空で返す（run.list と同じ）
     expect(await recent({ iteration: "s9" })).toEqual([]);
     await expect(runCommand(runRecent, ctx, { iteration: "x" })).rejects.toMatchObject({

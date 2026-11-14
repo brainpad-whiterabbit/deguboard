@@ -26,8 +26,7 @@ function run(id: string, over: Partial<Run> = {}): Run {
   };
 }
 
-const ticket = (id: string, over: Partial<Ticket> = {}) =>
-  ({ id, project: "default", ...over }) as unknown as Ticket;
+const ticket = (id: string, over: Partial<Ticket> = {}) => ({ id, ...over }) as unknown as Ticket;
 
 describe("Run の集計", () => {
   it("null の値は 0 として足さず、欠けた Run の数を missing に数える。すべて欠ければ合計も null", () => {
@@ -89,10 +88,10 @@ describe("Run の集計", () => {
     expect(runDurationSeconds(run("00", { finished_at: "2026-10-31T03:00:00Z" }))).toBeNull();
   });
 
-  it("すべての単位（Run・Ticket・Epic・Iteration・Project・Agent/Model・Step）で絞り込み、単位ごとに集計する", () => {
+  it("すべての単位（Run・Ticket・Epic・Iteration・Agent/Model・Step）で絞り込み、単位ごとに集計する", () => {
     const tickets: Record<string, Ticket> = {
       t1: ticket("t1", { epic: "e1", iteration: "s1" }),
-      t2: ticket("t2", { epic: "e1", project: "web" }),
+      t2: ticket("t2", { epic: "e1" }),
       t10: ticket("t10", { iteration: "s1" }),
     };
     const runs = [
@@ -111,8 +110,6 @@ describe("Run の集計", () => {
     expect(count({ ticket: "t1" })).toBe(1);
     expect(count({ epic: "e1" })).toBe(2);
     expect(count({ iteration: "s1" })).toBe(2);
-    expect(count({ project: "default" })).toBe(2);
-    expect(count({ project: "web" })).toBe(1);
     expect(count({ agent: "claude-code" })).toBe(3);
     expect(count({ model: "opus" })).toBe(2);
     expect(count({ agent: "claude-code", model: "sonnet" })).toBe(1);
@@ -135,11 +132,6 @@ describe("Run の集計", () => {
     expect(keys("iteration")).toEqual([
       ["s1", 2],
       [null, 2],
-    ]);
-    expect(keys("project")).toEqual([
-      ["default", 2],
-      ["web", 1],
-      [null, 1],
     ]);
     expect(keys("agent")).toEqual([
       ["claude-code", 3],

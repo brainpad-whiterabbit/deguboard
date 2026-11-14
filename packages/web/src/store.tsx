@@ -1,4 +1,4 @@
-// 画面の状態。選んだ Project のチケット・Epic・Iteration・Plan・Workflow と同期の状態を CommandClient から読み、書き込みのあとに読み直す。
+// 画面の状態。カンバンのチケット・Epic・Iteration・Plan・既定の Workflow と同期の状態を CommandClient から読み、書き込みのあとに読み直す。
 // 状態管理のライブラリは入れず、React の context だけで持つ。
 // cache を渡すと（VS Code の Webview）、読み終えた一覧を残しておき、次に開いたときはそれをすぐ描いてから読み直して差し替える。
 // 最初の読み込みは core の中で 1 本ずつ処理されるコマンドが 7 本並び、サイドバーとパネルが同じ列を使うので、その間を空の画面にしない。
@@ -25,7 +25,6 @@ import type {
   Iteration,
   PlanRow,
   Priority,
-  Project,
   Status,
   TicketRow,
   TicketRunsView,
@@ -56,8 +55,6 @@ function priorityCriteriaOf(view: ConfigShowView): Record<Priority, string> {
 
 /** cache に残す一覧。読み直しが終わるたびに書き換える */
 interface Snapshot {
-  projectId: string | null;
-  projects: Project[];
   tickets: TicketRow[];
   epics: EpicRow[];
   iterations: Iteration[];
@@ -68,9 +65,9 @@ interface Snapshot {
 }
 
 /** cache の置き場の鍵。形が変わったら番号を上げて古いものを読まない */
-export const SNAPSHOT_KEY = "store.snapshot.v3";
+export const SNAPSHOT_KEY = "store.snapshot.v4";
 /** 前の版の鍵。読み直しの書き込みのときに消し、保存量を増やさない */
-const OLD_SNAPSHOT_KEYS = ["store.snapshot.v1", "store.snapshot.v2"];
+const OLD_SNAPSHOT_KEYS = ["store.snapshot.v1", "store.snapshot.v2", "store.snapshot.v3"];
 
 export interface Notice {
   kind: "error" | "info";
@@ -84,12 +81,11 @@ export type RunResult<O> =
 
 export interface Store {
   client: CommandClient;
-  projects: Project[];
-  project: Project | null;
   tickets: TicketRow[];
   epics: EpicRow[];
   iterations: Iteration[];
   plans: PlanRow[];
+  /** 既定の Workflow（config の default_workflow）。自分の workflow を持つチケットの Workflow は詳細が引き直す */
   workflow: WorkflowView | null;
   /**
    * 操作している人（core の whoami の出力）。担当者が自分か自分の agent かは isOwnAssignee（own_ids に含まれるか）で決める。
@@ -107,7 +103,6 @@ export interface Store {
   /** データ worktree がまだない（dg init 前。core が NOT_INITIALIZED を返した）。画面は一覧の代わりに始め方を出す */
   notInitialized: boolean;
   notice: Notice | null;
-  selectProject(id: string): void;
   /** すべて読み直す */
   reload(): Promise<void>;
   /** コマンドを実行し、成功したら読み直す。失敗は通知に出して ok: false で返す（画面側で戻す） */
@@ -135,8 +130,6 @@ export function StoreProvider({
   children: ReactNode;
 }) {
   const [cached] = useState(() => cache?.get<Snapshot>(SNAPSHOT_KEY));
-  const [projects, setProjects] = useState<Project[]>(cached?.projects ?? []);
-  const [projectId, setProjectId] = useState<string | null>(cached?.projectId ?? null);
   const [tickets, setTickets] = useState<TicketRow[]>(cached?.tickets ?? []);
   const [epics, setEpics] = useState<EpicRow[]>(cached?.epics ?? []);
   const [iterations, setIterations] = useState<Iteration[]>(cached?.iterations ?? []);
@@ -154,8 +147,6 @@ export function StoreProvider({
   const [loaded, setLoaded] = useState(!!cached);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [notInitialized, setNotInitialized] = useState(false);
-  // 読み直しが見る選択中の Project。描画中に ref を書かない（react/refs）ので、setProjectId と一緒に書く
-  const projectRef = useRef<string | null>(cached?.projectId ?? null);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -168,39 +159,21 @@ export function StoreProvider({
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const [projectList, config, whoami] = await Promise.all([
-        client.run<Project[]>("project.list"),
+      const [config, whoami] = await Promise.all([
         client.run<ConfigShowView>("config.show", { fields: true }),
         client.run<WhoamiView>("whoami"),
       ]);
       setNotInitialized(false);
-      setProjects(projectList.data);
       setMe(whoami.data);
       if (config.data.config?.priority) setPriorityCriteria(priorityCriteriaOf(config.data));
-      const current =
-        projectList.data.find((p) => p.id === projectRef.current) ??
-        projectList.data.find((p) => p.id === config.data.config?.default_project) ??
-        projectList.data[0] ??
-        null;
-      if (!current) {
-        projectRef.current = null;
-        setProjectId(null);
-        setTickets([]);
-        setEpics([]);
-        setIterations([]);
-        setPlans([]);
-        setWorkflow(null);
-        return;
-      }
-      projectRef.current = current.id;
-      setProjectId(current.id);
-      const project = current.id;
       const [t, e, i, p, w] = await Promise.all([
-        client.run<TicketRow[]>("ticket.list", { project, include_abandoned: true }),
-        client.run<EpicRow[]>("epic.list", { project }),
-        client.run<Iteration[]>("iteration.list", { project }),
-        client.run<PlanRow[]>("plan.list", { project }),
-        client.run<WorkflowView>("workflow.show", { workflow: current.workflow }),
+        client.run<TicketRow[]>("ticket.list", { include_abandoned: true }),
+        client.run<EpicRow[]>("epic.list"),
+        client.run<Iteration[]>("iteration.list"),
+        client.run<PlanRow[]>("plan.list"),
+        client.run<WorkflowView>("workflow.show", {
+          workflow: config.data.config?.default_workflow,
+        }),
       ]);
       setTickets(t.data);
       setEpics(e.data);
@@ -208,8 +181,6 @@ export function StoreProvider({
       setPlans(p.data);
       setWorkflow(w.data);
       cache?.set(SNAPSHOT_KEY, {
-        projectId: project,
-        projects: projectList.data,
         tickets: t.data,
         epics: e.data,
         iterations: i.data,
@@ -223,7 +194,7 @@ export function StoreProvider({
         // 行の Run の並び（UI-2）のためだけなので、ほかの一覧を描くのを待たせない。読めなければ前の値のまま（最初なら並びを出さない）
         const seq = ++runningSeq.current;
         void client
-          .run<TicketRunsView[]>("run.recent", { project })
+          .run<TicketRunsView[]>("run.recent")
           .then((res) => {
             if (seq === runningSeq.current)
               setTicketRuns(new Map(res.data.map((r) => [r.ticket, r])));
@@ -268,20 +239,9 @@ export function StoreProvider({
     [client, reload],
   );
 
-  const selectProject = useCallback(
-    (id: string) => {
-      projectRef.current = id;
-      setProjectId(id);
-      void reload();
-    },
-    [reload],
-  );
-
   const value = useMemo<Store>(
     () => ({
       client,
-      projects,
-      project: projects.find((p) => p.id === projectId) ?? null,
       tickets,
       epics,
       iterations,
@@ -295,7 +255,6 @@ export function StoreProvider({
       loaded,
       notInitialized,
       notice,
-      selectProject,
       reload,
       run,
       notify: setNotice,
@@ -303,8 +262,6 @@ export function StoreProvider({
     }),
     [
       client,
-      projects,
-      projectId,
       tickets,
       epics,
       iterations,
@@ -318,7 +275,6 @@ export function StoreProvider({
       loaded,
       notInitialized,
       notice,
-      selectProject,
       reload,
       run,
     ],

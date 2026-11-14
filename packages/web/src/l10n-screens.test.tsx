@@ -183,7 +183,7 @@ function richClient(): MockClient {
     },
   ];
   const config = {
-    default_project: "default",
+    default_workflow: "general",
     git: { remote: "origin", data_remote: "", data_branch: "deguboard", base_branch: "main" },
     commit: { mode: "each" },
   };
@@ -294,7 +294,7 @@ const SCENES: Scene[] = [
     hash: "#/board",
     client: () => {
       const client = mockClient();
-      client.handlers["project.list"] = () => {
+      client.handlers["config.show"] = () => {
         throw new ClientError({ code: "NOT_INITIALIZED", message: "初期化されていない" });
       };
       return client;

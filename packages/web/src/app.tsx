@@ -1,4 +1,4 @@
-// 画面の骨組み：左パネルの上のバー（画面の切り替えと、Project が 2 つ以上なら Project の切り替え）と、ハッシュで選んだページ。
+// 画面の骨組み：左パネルの上のバー（画面の切り替え）と、ハッシュで選んだページ。
 // 画面はカンバン・バックログ・履歴の 3 つで、Epic の画面は置かない（計画を立てるときに Iteration・Epic・未割り当てのチケットが 3 つの画面に分かれる。
 // open の Epic はバックログの欄に進捗つきで並べて絞り込みを兼ねる）。設定はたまにしか開かないので画面の切り替えに入れず、歯車で開く。
 // 同期のボタンと印・設定の歯車・エージェントに頼む吹き出しはビューのタイトル行のボタンとバッジにある（拡張の view/title。UI-12）。
@@ -6,7 +6,7 @@
 // エディタのパネルは詳細だけを出し、上のバーを出さない。
 // エージェントに頼む入力欄（UI-15）は、開いていればページの下に出す。左パネルでは初めて開いたときに 1 度だけ、行の吹き出しの案内を出す
 
-import { useEffect, useRef, type MouseEvent } from "react";
+import { useEffect, type MouseEvent } from "react";
 import { AskComposer } from "./components/ask-composer.js";
 import { AskHint, AskMenuProvider, SelectionBar } from "./components/ask-menu.js";
 import { Onboarding } from "./components/onboarding.js";
@@ -35,18 +35,16 @@ const NAV: { page: Route["page"]; label: string }[] = [
 /** タブの行き先を最後に見たハッシュにする画面。バックログは絞り込みをハッシュに持たないので固定 */
 type LastHashPage = "board" | "history";
 
-/** nav.<page> に残す、最後に見たハッシュとそのときの Project */
+/** nav.<page> に残す、最後に見たハッシュ（前の版が一緒に残した Project は読まない） */
 interface LastHash {
-  project: string | null;
   href: string;
 }
 
 /**
- * 残したハッシュを今も使えるか。Project が違う、今の Project にない Iteration・Epic を指す、
+ * 残したハッシュを今も使えるか。今はない Iteration・Epic を指す、
  * 閉じた Iteration・Epic を指すときは使えない（既定の行き先に戻す）
  */
 function lastHashUsable(saved: LastHash, store: Store): boolean {
-  if (saved.project !== (store.project?.id ?? null)) return false;
   const route = parseRoute(saved.href);
   if (route.page === "board") {
     if (route.iteration && !boardIterationSelection(store.iterations, route.iteration))
@@ -58,30 +56,18 @@ function lastHashUsable(saved: LastHash, store: Store): boolean {
 }
 
 /**
- * タブの行き先（最後に見たハッシュ）を nav.<page> に残して返す。その画面にいる間は今のハッシュを残し、
- * Project を切り替えたら既定の行き先に戻す。残したハッシュが使えなければ既定の行き先を返す。
- * Project の切り替えはハッシュを変えないので、切り替えたときのハッシュは前の Project の絞り込みとみなし、
- * ハッシュが変わるまではそれを残さず既定の行き先を残す（そのハッシュの Iteration・Epic は前の Project のもので、新しい Project の絞り込みではない）
+ * タブの行き先（最後に見たハッシュ）を nav.<page> に残して返す。その画面にいる間は今のハッシュを残す。
+ * 残したハッシュが使えなければ既定の行き先を返す
  */
 function useLastHref(page: LastHashPage, route: Route, store: Store): string {
   const fallback = hrefOf({ page } as Route);
-  const project = store.project?.id ?? null;
   const [saved, setSaved] = useUiState<LastHash | null>(`nav.${page}`, null);
   const current = route.page === page ? hrefOf(route) : null;
-  const previousProject = useRef(project);
-  // 切り替えたときのハッシュ（undefined は切り替えの後でないとき）
-  const hrefAtSwitch = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    const switched = previousProject.current !== null && previousProject.current !== project;
-    previousProject.current = project;
-    if (switched) hrefAtSwitch.current = current;
-    else if (hrefAtSwitch.current !== undefined && hrefAtSwitch.current !== current)
-      hrefAtSwitch.current = undefined;
-    const stale = hrefAtSwitch.current !== undefined;
-    const next = stale ? fallback : current;
-    if (next === null || project === null) return;
-    if (saved?.href !== next || saved.project !== project) setSaved({ project, href: next });
-  }, [current, project, fallback, saved, setSaved]);
+    // 一覧を読み終えるまでは残さない（初期化前の画面のハッシュを残さない）
+    if (current === null || !store.loaded || store.notInitialized) return;
+    if (saved?.href !== current) setSaved({ href: current });
+  }, [current, store.loaded, store.notInitialized, saved, setSaved]);
   // 前の版は履歴のハッシュを文字列で残していた。形の違うものは使わない。消しには行かない（履歴の画面を開けば新しい形で上書きされ、
   // 残っても既定の行き先になるだけなので害がない）
   if (!saved || typeof saved !== "object" || typeof saved.href !== "string") return fallback;
@@ -107,7 +93,7 @@ export function App() {
       : shown.page === "iterations" || shown.page === "plans"
         ? "board"
         : shown.page;
-  // エディタのパネルは詳細（チケット・Iteration・Epic・Plan）だけを出し、1 枚で完結するので、タブと Project のヘッダーを出さない（UI-12）
+  // エディタのパネルは詳細（チケット・Iteration・Epic・Plan）だけを出し、1 枚で完結するので、タブのヘッダーを出さない（UI-12）
   const panel = !sidebar;
   // サイドバーの行を ↑↓・Enter・Space・a で操作する（roving tabindex。components/row-nav.tsx）
   const { ref: rowNavRef, ...rowNav } = useRowNav(sidebar);
@@ -133,24 +119,6 @@ export function App() {
           </nav>
           <div className="spacer" />
           {host.extension ? null : <SyncMark />}
-          {/* Project が 1 つなら切り替えの段を出さない（幅を節約する。hidden 属性は .project-select の display に負けるので描かない） */}
-          {store.projects.length <= 1 ? null : (
-            <label className="project-select">
-              Project
-              <select
-                value={store.project?.id ?? ""}
-                onChange={(e) => store.selectProject(e.target.value)}
-                disabled={store.projects.length === 0}
-              >
-                {store.projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.status === "archived" ? tr("（アーカイブ）") : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
         </header>
       )}
       <NoticeBar />

@@ -1,7 +1,8 @@
-// 参照の整合（存在しない依存先・Epic・Iteration・Project・Workflow・Run のチケット）を指摘する。dg validate が使う
+// 参照の整合（存在しない依存先・Epic・Iteration・Workflow・Run のチケット）を指摘する。dg validate が使う
 
 import { idNumber } from "../model/id.js";
 import type { Issue } from "./issue.js";
+import { CONFIG_FILE } from "./paths.js";
 import type { Store } from "./store.js";
 import { cyclePath, eachCycle, type WaitEdge } from "./wait-cycle.js";
 
@@ -10,26 +11,23 @@ export function checkReferences(store: Store): Issue[] {
   const push = (path: string, id: string, code: string, message: string) =>
     issues.push({ severity: "error", code, path, id, message });
 
-  for (const doc of store.projects.values()) {
-    if (!store.workflows.has(doc.data.workflow)) {
-      push(
-        doc.path,
-        doc.id,
-        "workflow_missing",
-        `The default Workflow ${doc.data.workflow} is missing`,
-      );
-    }
+  const defaultWorkflow = store.config.default_workflow;
+  if (!store.workflows.has(defaultWorkflow)) {
+    push(
+      CONFIG_FILE,
+      defaultWorkflow,
+      "workflow_missing",
+      `The default Workflow ${defaultWorkflow} (default_workflow) is missing`,
+    );
   }
   for (const doc of store.tickets.values()) {
     const t = doc.data;
-    if (!store.projects.has(t.project))
-      push(doc.path, t.id, "project_missing", `Project ${t.project} is missing`);
     if (!store.workflowFor(t))
       push(
         doc.path,
         t.id,
         "workflow_missing",
-        `Workflow ${t.workflow ?? "(the Project default)"} is missing`,
+        `Workflow ${t.workflow ?? `${defaultWorkflow} (default_workflow)`} is missing`,
       );
     for (const dep of t.depends_on) {
       if (dep === t.id) push(doc.path, t.id, "depends_on_self", "Depends on itself");
@@ -39,28 +37,11 @@ export function checkReferences(store: Store): Issue[] {
     if (t.epic) {
       const epic = store.epics.get(t.epic);
       if (!epic) push(doc.path, t.id, "epic_missing", `Epic ${t.epic} is missing`);
-      else if (epic.data.project !== t.project)
-        push(doc.path, t.id, "epic_project", `Epic ${t.epic} belongs to another Project`);
     }
     if (t.iteration) {
       const it = store.iterations.get(t.iteration);
       if (!it) push(doc.path, t.id, "iteration_missing", `Iteration ${t.iteration} is missing`);
-      else if (it.data.project !== t.project)
-        push(
-          doc.path,
-          t.id,
-          "iteration_project",
-          `Iteration ${t.iteration} belongs to another Project`,
-        );
     }
-  }
-  for (const doc of store.epics.values()) {
-    if (!store.projects.has(doc.data.project))
-      push(doc.path, doc.id, "project_missing", `Project ${doc.data.project} is missing`);
-  }
-  for (const doc of store.iterations.values()) {
-    if (!store.projects.has(doc.data.project))
-      push(doc.path, doc.id, "project_missing", `Project ${doc.data.project} is missing`);
   }
   for (const doc of store.runs.values()) {
     const t = doc.data.ticket;

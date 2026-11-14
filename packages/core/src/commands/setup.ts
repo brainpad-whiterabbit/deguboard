@@ -16,6 +16,7 @@ import { withLock } from "../git/lock.js";
 import { checkOutside, describeOutside, dirtyFiles, recordBaseline } from "../git/outside.js";
 import { settleRebase } from "../git/rebase.js";
 import { DATA_REMOTE_NAME } from "../git/repo.js";
+import { retireProjects } from "../git/retire-projects.js";
 import { renumberCollisions, renumberProvisional, type Renumbered } from "../git/renumber.js";
 import { ensureGitattributes, ensureMergeDriver, mergeDriverProblem } from "../git/merge.js";
 import {
@@ -55,11 +56,11 @@ import {
   dataRemoteNameOf,
   dataTargetOf,
   DEFAULT_DATA_BRANCH,
+  defaultConfig,
   nestedConfigValue,
   type Config,
   type ConfigField,
 } from "../model/config.js";
-import type { Iteration } from "../model/iteration.js";
 import { REVIEW_STEP, type Run, type RunId, type RunResult } from "../model/run.js";
 import type { StepOpener } from "../model/workflow.js";
 import { hasBodySection, parseAcceptance, type Ticket } from "../model/ticket.js";
@@ -98,12 +99,14 @@ export const init = defineCommand({
   name: "init",
   group: "setup",
   summary:
-    "Set up the deguboard branch and its dedicated worktree, and put in the default Project and the template Workflow",
+    "Set up the deguboard branch and its dedicated worktree, and put in the config and the template Workflows",
   input: z.object({
     template: z
       .enum(TEMPLATE_IDS)
       .optional()
-      .describe("Workflow of the default Project. Defaults to general when omitted"),
+      .describe(
+        "Default Workflow of a new board (config's default_workflow). Defaults to general when omitted",
+      ),
     remote: z
       .string()
       .optional()
@@ -141,7 +144,10 @@ export const init = defineCommand({
         const configPath = path.join(store.root, CONFIG_FILE);
         if (!(await pathExists(configPath))) {
           await store.writeConfig({
-            default_project: "default",
+            // 既定（general）のときは書かない（スキーマの既定で読む）
+            ...(input.template && input.template !== defaultConfig().default_workflow
+              ? { default_workflow: input.template }
+              : {}),
             git: {
               remote: input.remote ?? "origin",
               ...(input.data_remote && ctx.repo.dataRemote
@@ -171,16 +177,6 @@ export const init = defineCommand({
             `${t.name} のワークフロー。dg init が同梱のテンプレートから置いた`,
           );
           created.push(workflowPath(t.id));
-        }
-        if (!store.projects.has("default")) {
-          await store.create("project", {
-            id: "default",
-            name: "Default",
-            description: "",
-            workflow: input.template ?? "general",
-            status: "active",
-          });
-          created.push("projects/default.yaml");
         }
         return created;
       },
@@ -708,6 +704,8 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
   if (driverProblem) warnings.push(driverProblem);
   if (await ensureGitattributes(repo.dataDir))
     await commitPaths(repo, [".gitattributes"], "Add .gitattributes for the merge driver");
+  // やめた Project の残り（projects/）は、印付きのコミットで一度だけ消す（git/retire-projects.ts）
+  await retireProjects(repo, ctx.store);
   const fetched = await fetchAll(repo);
   if (fetched.ok && fetched.codeDetail)
     warnings.push(
@@ -768,6 +766,13 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
     await ctx.store.rescan();
     // 取り込んだ config でデータのリモートが変わった（データを別のリポジトリへ移す途中）：元のリモートへ push せずに止める
     stopIfDataRemoteChanged(ctx, nameBefore);
+  }
+  // まとめ待ちの変更があって上で消すのを見送ったときは、まとめ待ちをコミットした後のここで消す（同じ同期で projects/ をなくして push する）。
+  // 振り直しと取り込みはファイルを書き換えるので、その後のストアで消す：前のストアで消すと、workflow を書くチケットが
+  // 書き換わる前の中身（振り直す前の番号への参照など）に戻る
+  if (flushed) {
+    if (!integrated) await ctx.store.rescan();
+    await retireProjects(repo, ctx.store);
   }
 
   let pushed = false;
@@ -954,7 +959,10 @@ export const commit = defineCommand({
     return withWriteLock(ctx.repo, async () => {
       const warnings: string[] = [];
       if (ctx.config.push.mode === "auto") requireDataRemote(ctx);
-      const committed = await flushPending(ctx, input.message);
+      // やめた Project の残り（projects/）は、まとめ待ちの変更とは別のコミットで消す（git/retire-projects.ts）。
+      // 先にまとめ待ちをコミットする：消すときに書き換えるファイルにまとめ待ちの変更があると消すのを見送るので、ここで必ず消せるようにする
+      const flushed = await flushPending(ctx, input.message);
+      const committed = (await retireProjects(ctx.repo, ctx.store)) || flushed;
       let pushed = false;
       if (committed && ctx.repo.dataRemote && ctx.config.push.mode === "auto") {
         const r = await push(ctx.repo);
@@ -1015,18 +1023,15 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "Point out missing or empty recommended body sections (## Summary and ## Acceptance criteria; the Japanese headings ## 概要 and ## 受け入れ条件 are also read), values that do not fit the Workflow's fields, unfinished tickets left in a closed Epic, tickets that moved past todo or abandoned without being in an Iteration when lint.require_iteration is true (except done tickets in closed Epics), open Epics and Plans whose tickets are all finished, cycles across an open Plan's after and depends_on, and two or more active Iterations in the same Project. Gaps in implementation and fix Runs (an agent got to a PR with no implementation Run, a commit after a closed implementation Run that falls within no Run's window, or a commit after a review with no fix Run) only look at unfinished tickets and done tickets in Iterations that are not closed. Unchecked acceptance criteria on done tickets are not flagged",
-  input: z.object({
-    project: z.string().optional().describe("Filter by Project. Omit for all"),
-  }),
+    "Point out missing or empty recommended body sections (## Summary and ## Acceptance criteria; the Japanese headings ## 概要 and ## 受け入れ条件 are also read), values that do not fit the Workflow's fields, unfinished tickets left in a closed Epic, tickets that moved past todo or abandoned without being in an Iteration when lint.require_iteration is true (except done tickets in closed Epics), open Epics and Plans whose tickets are all finished, cycles across an open Plan's after and depends_on, and two or more active Iterations. Gaps in implementation and fix Runs (an agent got to a PR with no implementation Run, a commit after a closed implementation Run that falls within no Run's window, or a commit after a review with no fix Run) only look at unfinished tickets and done tickets in Iterations that are not closed. Unchecked acceptance criteria on done tickets are not flagged",
+  input: z.object({}),
   write: false,
   needs: "store",
-  async run(ctx, input) {
+  async run(ctx) {
     const issues: Issue[] = [];
     const warn = (path: string, id: string, code: string, message: string) =>
       issues.push({ severity: "warning", code, path, id, message });
     for (const doc of ctx.store.tickets.values()) {
-      if (input.project && doc.data.project !== input.project) continue;
       if (!hasBodySection(doc.body, "summary"))
         warn(doc.path, doc.id, "lint_summary_missing", "The body has no ## Summary (or ## 概要)");
       const acceptance = parseAcceptance(doc.body);
@@ -1076,14 +1081,11 @@ export const lint = defineCommand({
       }
     }
     for (const doc of ctx.store.epics.values()) {
-      if (input.project && doc.data.project !== input.project) continue;
       if (!hasBodySection(doc.body, "summary"))
         warn(doc.path, doc.id, "lint_summary_missing", "The body has no ## Summary (or ## 概要)");
     }
     // Epic・Plan の状態と、所属するチケットの状態の食い違い。Iteration は閉じると終わっていないチケットを外すので見ない
-    const tickets = [...ctx.store.tickets.values()].filter(
-      (t) => !input.project || t.data.project === input.project,
-    );
+    const tickets = [...ctx.store.tickets.values()];
     const finished = (t: Doc<Ticket>) => isTerminal(t.data.status);
     const unfinished = (members: Doc<Ticket>[]) =>
       members
@@ -1091,7 +1093,6 @@ export const lint = defineCommand({
         .map((t) => t.id)
         .join(", ");
     for (const doc of ctx.store.epics.values()) {
-      if (input.project && doc.data.project !== input.project) continue;
       const members = tickets.filter((t) => t.data.epic === doc.id);
       const left = unfinished(members);
       if (doc.data.status === "closed" && left)
@@ -1110,7 +1111,6 @@ export const lint = defineCommand({
         );
     }
     for (const doc of ctx.store.plans.values()) {
-      if (input.project && doc.data.project !== input.project) continue;
       if (doc.data.closed_at !== undefined || doc.data.tickets.length === 0) continue;
       if (isFinishedSet(doc.data.tickets.map((id) => ctx.store.tickets.get(id)?.data.status)))
         warn(
@@ -1122,7 +1122,6 @@ export const lint = defineCommand({
     }
     // 開いた Plan の after と depends_on をまたぐ循環（PL-3）。直接の編集や、終わったチケットを戻したことでできたものを拾う
     for (const doc of ctx.store.plans.values()) {
-      if (input.project && doc.data.project !== input.project) continue;
       if (doc.data.closed_at !== undefined) continue;
       const crossing = findCrossingCycle(ctx.store, doc.data.tickets, doc.data.after);
       if (crossing)
@@ -1133,25 +1132,18 @@ export const lint = defineCommand({
           `after and depends_on form a cycle: ${cyclePath(crossing, true)}`,
         );
     }
-    // active の Iteration は Project に 1 つ（IT-1）。同時の start や直接の編集・マージで 2 つになったものを拾う
-    const activeByProject = new Map<string, Doc<Iteration>[]>();
-    for (const doc of sortedDocs([...ctx.store.iterations.values()])) {
-      if (input.project && doc.data.project !== input.project) continue;
-      if (doc.data.status !== "active") continue;
-      activeByProject.set(doc.data.project, [
-        ...(activeByProject.get(doc.data.project) ?? []),
-        doc,
-      ]);
-    }
-    for (const docs of activeByProject.values()) {
-      if (docs.length < 2) continue;
-      const ids = docs.map((d) => d.id).join(", ");
-      for (const doc of docs)
+    // active の Iteration はカンバンに 1 つ（IT-1）。同時の start や直接の編集・マージで 2 つになったものを拾う
+    const active = sortedDocs([...ctx.store.iterations.values()]).filter(
+      (doc) => doc.data.status === "active",
+    );
+    if (active.length >= 2) {
+      const ids = active.map((d) => d.id).join(", ");
+      for (const doc of active)
         warn(
           doc.path,
           doc.id,
           "lint_iteration_multiple_active",
-          `The same Project has ${docs.length} active Iterations (${ids})`,
+          `There are ${active.length} active Iterations (${ids})`,
         );
     }
     // 実装の Run の抜け（RN-5・RN-6）。Run を開けなかった環境や手順の抜けで、agent の PR があるのに実装の Run がないもの、

@@ -305,7 +305,7 @@ describe("frontmatter の 3-way マージ", () => {
       .filter(([, v]) => v !== undefined)
       .map(([k, v]) => `${k}: ${v}\n`)
       .join("");
-    return `id: p1\nproject: default\ntickets:\n  - t1\n${rest}`;
+    return `id: p1\ntickets:\n  - t1\n${rest}`;
   }
 
   it("Plan の両側が承認した・閉じた時刻を持ち、その値だけが違うなら、status がなくても早い方を採って auto として返す（SY-4）", async () => {
@@ -768,7 +768,7 @@ describe("同期のマージドライバ", () => {
     );
   });
 
-  it("前の版の .gitattributes には、sync が Plan・Iteration・Project の行を足してコミットする", async () => {
+  it("前の版の .gitattributes には、sync が Plan・Iteration の行を足してコミットする", async () => {
     const f = await fixture();
     const { a } = await twoClones(f);
     const file = path.join(a.repo.dataDir, ".gitattributes");
@@ -787,7 +787,7 @@ describe("同期のマージドライバ", () => {
     expect(text.startsWith(old)).toBe(true);
     // .gitattributes がまだリモートにないときに rebase へ渡すローカルの属性ファイルにも入る
     const local = await readFile(attributesFile(a.repo), "utf8");
-    for (const p of ["plans/p1.yaml", "iterations/s1.yaml", "projects/default.yaml"]) {
+    for (const p of ["plans/p1.yaml", "iterations/s1.yaml"]) {
       const line = `${p.split("/")[0]}/*.yaml merge=deguboard`;
       expect(text).toContain(line);
       expect(local).toContain(line);

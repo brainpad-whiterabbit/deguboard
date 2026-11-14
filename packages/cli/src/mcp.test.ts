@@ -125,6 +125,15 @@ describe("dg mcp", () => {
     expect(tools.find((t) => t.name === "run_prune-transcripts")?.annotations?.readOnlyHint).toBe(
       false,
     );
+    // Project はやめたので、Project のツールも、Project で絞る・指定する入力もない
+    expect(names.filter((n) => n.startsWith("project"))).toEqual([]);
+    const shipped = toTools([...commands]);
+    expect(
+      shipped
+        .filter((t) => "project" in ((t.inputSchema.properties ?? {}) as object))
+        .map((t) => t.name),
+    ).toEqual([]);
+    expect(JSON.stringify(shipped)).not.toMatch(/\bProjects?\b/);
   });
 
   it("stdio で起動してツールを呼び、結果は CLI の --json と同じ形で、書き込みの主体は <ユーザ>/agent", async () => {
@@ -305,7 +314,7 @@ describe("dg mcp", () => {
     expect(all.data).toMatchObject([{ id: started.data.id, running: false }]);
     expect(typeof all.data[0].duration_seconds).toBe("number");
 
-    // Project の絞り込みは CLI と MCP で同じ結果を返す
+    // チケットと Iteration の絞り込みは CLI と MCP で同じ結果を返す
     const cli = async (argv: string[]) => {
       const out: string[] = [];
       await run(["-C", f.cloneA, "--json", ...argv], {
@@ -314,11 +323,11 @@ describe("dg mcp", () => {
       });
       return JSON.parse(out.join(""));
     };
-    expect((await cli(["run", "list", "--project", "default"])).data).toEqual(all.data);
-    expect((await cli(["run", "list", "--project", "other"])).data).toEqual([]);
+    expect((await cli(["run", "list", "--ticket", "t1"])).data).toEqual(all.data);
+    expect((await cli(["run", "list", "--iteration", "s9"])).data).toEqual([]);
     const third = await session(
       ["-C", f.cloneA],
-      [call("run_list", { project: "default" }), call("run_list", { project: "other" })],
+      [call("run_list", { ticket: "t1" }), call("run_list", { iteration: "s9" })],
     );
     const [mine, others] = third.results.map(body);
     expect(mine.data).toEqual(all.data);

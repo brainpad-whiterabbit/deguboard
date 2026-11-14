@@ -590,13 +590,6 @@ notify.approvals
 詳しく
 notify.approvals
 Git
-既定の Project
-default_project
-省略時の Project
-[value] default
-空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
-詳しく
-default_project
 コードのリモート
 git.remote
 コードのリモート（作業ブランチと PR）
@@ -651,6 +644,13 @@ worktree.setup
 詳しく
 worktree.setup
 チケット
+既定の Workflow
+default_workflow
+workflow を持たないチケットの Workflow
+[value] general
+空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
+詳しく
+default_workflow
 優先度 high の判断基準
 priority.high
 [title] 既定は 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている

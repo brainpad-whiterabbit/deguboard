@@ -1,16 +1,15 @@
 // Plan（plans/p7.yaml。requirements.md 5.7）。操作は commands/plan.ts
 
 import { z } from "zod";
-import { isoDateTime, slugSchema } from "./common.js";
+import { isoDateTime } from "./common.js";
 import { planIdSchema, ticketIdSchema } from "./id.js";
 
 /** チケットの難しさの段階。config の models.* でモデル名に対応させる（モデル名は Plan に書かない） */
 export const PLAN_TIERS = ["light", "standard", "heavy"] as const;
 export type PlanTier = (typeof PLAN_TIERS)[number];
 
-export const planSchema = z.looseObject({
+const planFields = z.looseObject({
   id: planIdSchema,
-  project: slugSchema,
   tickets: z.array(ticketIdSchema).default([]),
   // 計画内だけの待ち。キーのチケットは値のチケットの後に進める
   after: z.record(ticketIdSchema, z.array(ticketIdSchema)).default({}),
@@ -29,4 +28,6 @@ export const planSchema = z.looseObject({
     .default({}),
   closed_at: isoDateTime.optional(),
 });
+// やめた project は値に出さない（common.ts の RETIRED_PROJECT_KEYS）
+export const planSchema = planFields.transform(({ project: _project, ...p }) => p);
 export type Plan = z.output<typeof planSchema>;

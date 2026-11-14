@@ -8,6 +8,7 @@ import { readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
+import { RETIRED_PROJECT_KEYS } from "../model/common.js";
 import {
   configSchema,
   nestedConfigValue,
@@ -29,7 +30,6 @@ import {
 } from "../model/id.js";
 import { iterationSchema, RETIRED_ITERATION_KEYS, type Iteration } from "../model/iteration.js";
 import { planSchema, type Plan } from "../model/plan.js";
-import { projectSchema, type Project } from "../model/project.js";
 import { isRunId, runSchema, type Run, type RunId } from "../model/run.js";
 import { pendingDeps, ticketSchema, type Ticket } from "../model/ticket.js";
 import type { WorkflowDefinition } from "../model/workflow.js";
@@ -38,6 +38,7 @@ import { validateWorkflow, type WorkflowValidationOptions } from "../workflow/va
 import { writeFileAtomic } from "./atomic.js";
 import { loadLocalConfig, loadTeamConfig, readYamlFile } from "./config-file.js";
 import { createDoc, readDoc, writeDoc, type Doc, type DocFormat } from "./documents.js";
+import { pathExists } from "./exists.js";
 import { formatIssue, type Issue } from "./issue.js";
 import {
   CONFIG_FILE,
@@ -48,11 +49,11 @@ import {
   epicPath,
   iterationPath,
   planPath,
-  projectPath,
   runPath,
   ticketPath,
   workflowPath,
 } from "./paths.js";
+import { RETIRED_PROJECTS_DIR } from "./retired-projects.js";
 import {
   loadStoreCache,
   saveStoreCache,
@@ -83,19 +84,14 @@ interface Collection<T extends { id: string }> {
 }
 
 const collections = {
-  project: {
-    dir: DIRS.projects,
-    format: "yaml",
-    schema: projectSchema,
-    idOf: (f) => (f.endsWith(".yaml") ? f.slice(0, -5) : undefined),
-    pathOf: projectPath,
-  } satisfies Collection<Project>,
   ticket: {
     dir: DIRS.tickets,
     format: "markdown",
     schema: ticketSchema,
     idOf: (f) => idFromFileName(f, "ticket"),
     pathOf: ticketPath,
+    // Project はやめた（カンバンの中の区切りを持たない）
+    retired: RETIRED_PROJECT_KEYS,
   } satisfies Collection<Ticket>,
   epic: {
     dir: DIRS.epics,
@@ -103,6 +99,7 @@ const collections = {
     schema: epicSchema,
     idOf: (f) => idFromFileName(f, "epic"),
     pathOf: epicPath,
+    retired: RETIRED_PROJECT_KEYS,
   } satisfies Collection<Epic>,
   iteration: {
     dir: DIRS.iterations,
@@ -110,7 +107,7 @@ const collections = {
     schema: iterationSchema,
     idOf: (f) => idFromFileName(f, "iteration"),
     pathOf: iterationPath,
-    // 予定の期間はやめた（期間は実績の started_at・closed_at だけ）
+    // 予定の期間（期間は実績の started_at・closed_at だけ）と Project はやめた
     retired: RETIRED_ITERATION_KEYS,
   } satisfies Collection<Iteration>,
   plan: {
@@ -119,6 +116,7 @@ const collections = {
     schema: planSchema,
     idOf: (f) => idFromFileName(f, "plan"),
     pathOf: planPath,
+    retired: RETIRED_PROJECT_KEYS,
   } satisfies Collection<Plan>,
   // 完了時の集計だけ。実行中の詳細ログ（deguboard-local/runs/）は索引に入れない
   run: {
@@ -174,7 +172,6 @@ export class Store {
   private localRaw: unknown = undefined;
   /** 走査で見つかった、読めないファイルや定義の誤り */
   issues: Issue[] = [];
-  readonly projects = new Map<string, Doc<Project>>();
   readonly tickets = new Map<TicketId, Doc<Ticket>>();
   /** 墓標（tickets/deleted/）の番号。採番で再利用しないために読む */
   readonly deletedTicketNumbers = new Set<number>();
@@ -252,7 +249,6 @@ export class Store {
     // Issue の順は並びの順に固定する（読み直すファイルの数で順が揺れないように）
     const issues = await Promise.all([
       this.readConfig(cached),
-      this.readCollection("project", this.projects, cached),
       this.readCollection("ticket", this.tickets, cached),
       this.readDeletedTickets(),
       this.readCollection("epic", this.epics, cached),
@@ -311,16 +307,9 @@ export class Store {
     return doc;
   }
 
-  requireProject(slug: string): Doc<Project> {
-    const doc = this.projects.get(slug);
-    if (!doc) throw new OperationError("NOT_FOUND", `project ${slug} not found`);
-    return doc;
-  }
-
-  /** チケットの Workflow（省略時は Project の既定）。定義が読めていなければ undefined */
+  /** チケットの Workflow（省略時は config の default_workflow）。定義が読めていなければ undefined */
   workflowFor(ticket: Ticket): WorkflowEntry | undefined {
-    const id = ticket.workflow ?? this.projects.get(ticket.project)?.data.workflow;
-    return id ? this.workflows.get(id) : undefined;
+    return this.workflows.get(ticket.workflow ?? this.config.default_workflow);
   }
 
   requireWorkflowFor(ticket: Ticket): WorkflowEntry {
@@ -341,7 +330,7 @@ export class Store {
     return `${{ ticket: "t", epic: "e", iteration: "s", plan: "p" }[kind]}${nextNumber(used)}` as IdOf<K>;
   }
 
-  /** 終わっていない依存先（WF-2）。done・abandoned でない依存先を depends_on の順で返す。別の Project も見て、見つからない依存先も含める */
+  /** 終わっていない依存先（WF-2）。done・abandoned でない依存先を depends_on の順で返す。見つからない依存先も含める */
   pendingDeps(ticket: Ticket): TicketId[] {
     return pendingDeps(ticket, (id) => this.tickets.get(id)?.data.status);
   }
@@ -377,7 +366,16 @@ export class Store {
     const c = collections[kind] as unknown as Collection<EntityOf<K>>;
     const doc = this.map(kind).get(id);
     if (!doc) throw new OperationError("NOT_FOUND", `${kind} ${id} not found`);
-    const retired = Object.fromEntries((c.retired ?? []).map((k) => [k, undefined]));
+    // チケットの project は、projects/ が残る間は消さない：消すのを見送った間（git/retire-projects.ts）に書いたチケットから
+    // project が先に消えると、後で消すときにその Project の Workflow を workflow に書けず、Workflow が default_workflow に変わる。
+    // projects/ を消すとき（retireProjects）は workflow を書くのと同じ書き込みで project を明示して消す
+    const keepProject =
+      kind === "ticket" && (await pathExists(path.join(this.root, RETIRED_PROJECTS_DIR)));
+    const retired = Object.fromEntries(
+      (c.retired ?? [])
+        .filter((k) => !(keepProject && (RETIRED_PROJECT_KEYS as readonly string[]).includes(k)))
+        .map((k) => [k, undefined]),
+    );
     const next = await writeDoc(this.root, doc, c.schema, { ...retired, ...patch }, body);
     this.map(kind).set(id, next);
     return next;
@@ -392,6 +390,12 @@ export class Store {
     await rename(path.join(this.root, doc.path), to);
     this.tickets.delete(id);
     this.deletedTicketNumbers.add(idNumber(id));
+  }
+
+  /** チームの config.yaml の中身（読めたとおり。既定で補わない）。ファイルがなければ空 */
+  async readTeamConfigRaw(): Promise<Record<string, unknown>> {
+    const { doc } = await this.readConfigDocument();
+    return (doc.toJS() ?? {}) as Record<string, unknown>;
   }
 
   /** チームの config.yaml を書き換える（最上位の項目ごと。undefined は消す）。返すのは書いたチームの値（個人の上書きを重ねない。画面と CLI が書いた値をそのまま見せるため） */

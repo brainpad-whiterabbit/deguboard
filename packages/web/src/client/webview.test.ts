@@ -34,10 +34,10 @@ describe("postMessage の CommandClient", () => {
   it("run は kind: run の要求を送り、同じ id の応答を結果にする。順番が入れ替わっても対応づく", async () => {
     const h = host();
     const client = createWebviewClient(h);
-    const first = client.run("ticket.list", { project: "default" });
+    const first = client.run("ticket.list", { epic: "e1" });
     const second = client.status();
     expect(h.requests).toEqual([
-      { id: 1, kind: "run", name: "ticket.list", input: { project: "default" } },
+      { id: 1, kind: "run", name: "ticket.list", input: { epic: "e1" } },
       { id: 2, kind: "status" },
     ]);
     h.reply({

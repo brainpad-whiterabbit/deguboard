@@ -18,7 +18,6 @@ import type {
   Iteration,
   IterationDetail,
   PlanRow,
-  Project,
   RunSummary,
   Ticket,
   TicketRow,
@@ -26,7 +25,6 @@ import type {
 } from "./types.js";
 
 export interface Fixture {
-  projects: Project[];
   tickets: TicketRow[];
   epics: EpicRow[];
   iterations: Iteration[];
@@ -43,7 +41,6 @@ export function ticket(partial: Partial<TicketRow> & { id: string }): TicketRow 
   return {
     deps_done: (partial.depends_on ?? []).length === 0,
     run_agent: null,
-    project: "default",
     title: `題 ${partial.id}`,
     status: "todo",
     priority: "medium",
@@ -77,7 +74,7 @@ export function runSummary(partial: Partial<RunSummary> = {}): RunSummary {
 }
 
 export function iteration(partial: Partial<Iteration> & { id: string; name: string }): Iteration {
-  return { project: "default", goal: "", status: "planned", ...partial };
+  return { goal: "", status: "planned", ...partial };
 }
 
 /** iteration.show の応答。進捗は core と同じく中のチケットから求める */
@@ -91,7 +88,6 @@ const BOARD_ITERATION = iteration({ id: "s0", name: "既定", status: "active" }
 /** plan.list の 1 行。progress・waiting・ready・next は空のまま（fixture の plan.list は withPlanFacts でチケットから求めて載せる） */
 export function plan(partial: Partial<PlanRow> & { id: string; tickets: string[] }): PlanRow {
   return {
-    project: "default",
     after: {},
     pending_approval: false,
     details: {},
@@ -129,15 +125,6 @@ export function boardFixture(partial: Partial<Fixture> = {}): Fixture {
 
 export function fixture(partial: Partial<Fixture> = {}): Fixture {
   return {
-    projects: [
-      {
-        id: "default",
-        name: "Default",
-        description: "",
-        workflow: "software-development",
-        status: "active",
-      },
-    ],
     tickets: [
       ticket({ id: "t1", title: "ログイン", status: "done" }),
       ticket({ id: "t2", title: "API", status: "in_progress", priority: "high", epic: "e1" }),
@@ -146,7 +133,6 @@ export function fixture(partial: Partial<Fixture> = {}): Fixture {
     epics: [
       {
         id: "e1",
-        project: "default",
         title: "最初の版",
         status: "open",
         labels: [],
@@ -235,10 +221,10 @@ export function mockClient(data = fixture()): MockClient {
   /** ticket.check で書き換えた本文。ticket.show はこれを返し、なければ TICKET_BODY */
   const bodies: Record<string, string> = {};
   const handlers: MockClient["handlers"] = {
-    "project.list": () => data.projects,
     "config.show": (input) => {
       const config = {
-        default_project: "default",
+        // fixture の既定の Workflow（data.workflow）の ID
+        default_workflow: data.workflow.definition.id,
         priority: {
           high: "利用者に見える不具合・ほかのチケットを止めている",
           medium: "機能の追加と改善・テストの抜け",

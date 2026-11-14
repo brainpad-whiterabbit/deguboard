@@ -11,7 +11,7 @@ Finds mismatches among tickets, Epics, Iterations, and Plans, and fixes them aft
 
 - Iteration (`s3`) and Epic (`e3`): targets the tickets in it, and the findings on that Iteration or Epic itself
 - Ticket ID: targets the findings on that ticket
-- No target given: targets the whole Project (`--project {{default_project}}`)
+- No target given: targets the whole kanban
 
 ## Check steps
 
@@ -22,7 +22,7 @@ Finds mismatches among tickets, Epics, Iterations, and Plans, and fixes them aft
    - All tickets are finished, but the Epic or Plan is still open: propose closing it (`epic close` / `plan close`)
    - Not in an Iteration (`lint_iteration_missing`, when `lint.require_iteration` is true. Current setting: `{{lint.require_iteration}}`): choose an Iteration by the same rule as claim (see `ticket claim --help`) and propose adding it with `iteration add <S> <id>`. If there is no place to add it (a closed Iteration cannot take it, as with done tickets), ask a human whether to create an Iteration or change the setting
    - The open Plan's `after` and `depends_on` form a cycle (`lint_plan_wait_cycle`): propose one of removing the edge with `ticket update --depends-on`, closing the Plan and recreating it with a different `after`, or making the waiting ticket abandoned. Ask a human whether to close the Plan or make the ticket abandoned
-   - Two or more active Iterations in the same Project (`lint_iteration_multiple_active`): ask a human which one to close (closing is done only on a human's instruction)
+   - Two or more active Iterations (`lint_iteration_multiple_active`): ask a human which one to close (closing is done only on a human's instruction)
    - PR is made but there is no implementation Run (`lint_run_implement_missing`): this is a gap in Run recording, so do not fix the ticket. Report it to a human. There is no way to create the Run afterward. The target is unfinished tickets, and done tickets in an Iteration that is not closed
    - A commit after a closed implementation Run is not in any Run's period (`lint_commit_outside_run`), or a commit after review has no fix Run (`lint_run_fix_missing`): do not rewrite the Run record. As the message says, check the content of the commit and tell a human. `lint_run_fix_missing` may be ignored if that commit is not a fix. If one commit raises both `lint_commit_outside_run` and `lint_run_fix_missing`, follow the remedy for `lint_run_fix_missing`
    - `sync` warnings (cannot reconcile, or done with unchecked acceptance criteria left): propose confirming with the steps of `dg guide done`

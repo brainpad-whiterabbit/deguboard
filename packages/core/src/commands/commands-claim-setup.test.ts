@@ -90,19 +90,14 @@ describe("claim の Iteration の準備", () => {
     expect(s1).toMatchObject({ status: "active", started_at: "2026-11-09T03:00:00Z" });
     expect(s1).not.toHaveProperty("start");
     expect(s1).not.toHaveProperty("end");
-    // 規則だけの確かめ：閉じたものと別の Project のものは数えず、残る planned が 1 つならそれ
-    const doc = (id: string, data: object) =>
-      ({ id, data: { project: "default", ...data } }) as never;
+    // 規則だけの確かめ：閉じたものは数えず、残る planned が 1 つならそれ。active があればそれ
+    const doc = (id: string, data: object) => ({ id, data }) as never;
     expect(
-      iterationTargetFor(
-        [
-          doc("s9", { status: "planned" }),
-          doc("s2", { status: "closed" }),
-          doc("s1", { status: "active", project: "other" }),
-        ],
-        "default",
-      ),
+      iterationTargetFor([doc("s9", { status: "planned" }), doc("s2", { status: "closed" })]),
     ).toMatchObject({ target: { id: "s9" } });
+    expect(
+      iterationTargetFor([doc("s9", { status: "planned" }), doc("s1", { status: "active" })]),
+    ).toMatchObject({ target: { id: "s1" } });
   });
 
   it("active がなく planned が複数なら、どれにも入れず開始もせず、warnings で入れる先を人に頼む", async () => {

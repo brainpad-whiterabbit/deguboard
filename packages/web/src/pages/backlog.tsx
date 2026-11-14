@@ -1,6 +1,6 @@
 // バックログ（UI-3）。done と abandoned 以外を Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は優先度と番号で出す。
 // 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。
-// Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの一覧で出す。
+// Iteration が 1 つもない（planned・active がない）カンバンでは区画に分けず 1 つの一覧で出す。
 // 表示だけで書き込まない。Iteration の移動・作成・閉じると Epic の作成は、吹き出しからエージェントに頼む（ADR-027）。
 // Iteration の開始は着手（claim）の手順が行う。
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。札に触れている間はその Epic の行を光らせる（useEpicHighlight）。

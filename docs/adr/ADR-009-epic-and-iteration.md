@@ -4,7 +4,7 @@
 
 ## 要約
 
-Epic は目的ごとにチケットを束ねる独立したエンティティで、期間の目標は Milestone を置かず Iteration で表す。Epic と Iteration の閉じる・再開は Workflow の外に置き、既定では誰でも行える。active な Iteration は Project に 1 つに限る。Iteration の期間は予定を持たず、実績（始めた日時と閉じた日時）だけを記録する。
+Epic は目的ごとにチケットを束ねる独立したエンティティで、期間の目標は Milestone を置かず Iteration で表す。Epic と Iteration の閉じる・再開は Workflow の外に置き、既定では誰でも行える。active な Iteration はカンバンに 1 つに限る。Iteration の期間は予定を持たず、実績（始めた日時と閉じた日時）だけを記録する。
 
 ## 背景
 
@@ -22,9 +22,9 @@ Epic は目的ごとにチケットを束ねる独立したエンティティで
 
 - Epic と Iteration を閉じる・再開するのは Workflow の外で、既定では誰でも行える。人に限るなら config の `actor.human_only` にコマンド名を書く。再開の細部は EP-4・IT-1
 
-### active の Iteration は Project に 1 つ
+### active の Iteration はカンバンに 1 つ
 
-- active の Iteration は Project に 1 つに限り、`start`・`reopen` はほかに active があれば拒否する。claim と同じく即座に push して排他にし、それでも 2 つになったもの（直接の編集・マージ）は `lint` が指摘する（IT-1）
+- active の Iteration はカンバンに 1 つに限り（カンバンの中を分ける単位は持たない。[ADR-034](ADR-034-storage-and-id.md)）、`start`・`reopen` はほかに active があれば拒否する。claim と同じく即座に push して排他にし、それでも 2 つになったもの（直接の編集・マージ）は `lint` が指摘する（IT-1）
 
 ### 期間は実績だけを記録する
 

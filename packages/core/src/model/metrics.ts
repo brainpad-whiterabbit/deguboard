@@ -11,7 +11,6 @@ export const METRIC_UNITS = [
   "ticket",
   "epic",
   "iteration",
-  "project",
   "agent",
   "model",
   "step",
@@ -117,7 +116,7 @@ function summarizeLines(
   };
 }
 
-/** Run の各単位の値。Epic・Iteration・Project はチケットの今の値からたどる。チケットがなければ null */
+/** Run の各単位の値。Epic・Iteration はチケットの今の値からたどる。チケットがなければ null */
 export type RunPlacement = Record<MetricUnit, string | null>;
 
 export function placeRun(run: Run, ticket: Ticket | undefined): RunPlacement {
@@ -126,7 +125,6 @@ export function placeRun(run: Run, ticket: Ticket | undefined): RunPlacement {
     ticket: run.ticket,
     epic: ticket?.epic ?? null,
     iteration: ticket?.iteration ?? null,
-    project: ticket?.project ?? null,
     agent: run.agent,
     model: run.model,
     step: run.step,
@@ -250,7 +248,7 @@ export function filterRuns<P extends { at: RunPlacement }>(
  * 絞り込みに合う done のチケットのうち、エージェントが claim して、実装の Run（implementStepOf が返す step）が
  * 1 件もないもの（MT-3）。人の claim と --no-run は Run を開かない（RN-5）ので、欠けたものには数えない。
  * Run の条件（run・agent・model・step）があれば、Run のないチケットはどれにも合わないので示さない。
- * 絞り込みは チケットの今の値（ticket・Epic・Iteration・Project）で見る。欠けたのは Run なので、Run の数は足さない
+ * 絞り込みは チケットの今の値（ticket・Epic・Iteration）で見る。欠けたのは Run なので、Run の数は足さない
  */
 export function doneTicketsWithoutImplementRun(
   tickets: readonly Ticket[],
@@ -277,8 +275,7 @@ export function doneTicketsWithoutImplementRun(
       (t) =>
         (filter.ticket === undefined || filter.ticket === t.id) &&
         (filter.epic === undefined || filter.epic === (t.epic ?? null)) &&
-        (filter.iteration === undefined || filter.iteration === (t.iteration ?? null)) &&
-        (filter.project === undefined || filter.project === t.project),
+        (filter.iteration === undefined || filter.iteration === (t.iteration ?? null)),
     )
     .map((t) => t.id)
     .sort((a, b) => idNumber(a) - idNumber(b));

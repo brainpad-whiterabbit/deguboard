@@ -300,7 +300,7 @@ describe("dg", () => {
       "tests failed",
     ]);
     const running = await startRun("2");
-    const recent = await dg(f.cloneA, ["--json", "run", "recent", "--project", "default"]);
+    const recent = await dg(f.cloneA, ["--json", "run", "recent"]);
     expect(recent.code).toBe(0);
     expect(recent.json()).toEqual({
       ok: true,
@@ -536,6 +536,58 @@ describe("dg", () => {
     const rejected = await dg(f.cloneA, ["iteration", "create", "Sprint 1", "--end", "2026-11-14"]);
     expect(rejected.code).toBe(2);
     expect((await dg(f.cloneA, ["--json", "iteration", "list"])).json().data).toEqual([]);
+  });
+
+  it("Project はやめたので、dg project・--project・default_project はなく、ヘルプにも出ず、渡すと使い方の誤り", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    // 群の一覧に project がない
+    const top = await dg(f.cloneA, ["--help"]);
+    expect(top.out).not.toMatch(/^\s+project\b/m);
+    expect((await dg(f.cloneA, ["--json", "project", "list"])).code).toBe(2);
+    // どのコマンドのヘルプにも --project がなく、Project の語も出ない
+    for (const argv of [
+      ["ticket", "create"],
+      ["ticket", "list"],
+      ["ticket", "update"],
+      ["ticket", "claim"],
+      ["epic", "create"],
+      ["epic", "list"],
+      ["epic", "add"],
+      ["iteration", "create"],
+      ["iteration", "list"],
+      ["iteration", "start"],
+      ["iteration", "reopen"],
+      ["plan", "create"],
+      ["plan", "list"],
+      ["run", "list"],
+      ["run", "recent"],
+      ["metrics", "show"],
+      ["lint"],
+      ["init"],
+    ]) {
+      const help = await dg(f.cloneA, [...argv, "--help"]);
+      expect(help.code, argv.join(" ")).toBe(0);
+      expect(help.out, argv.join(" ")).not.toMatch(/--project|\bProjects?\b/);
+    }
+    for (const argv of [
+      ["ticket", "create", "A", "--project", "default"],
+      ["ticket", "list", "--project", "default"],
+      ["iteration", "create", "S", "--project", "default"],
+      ["metrics", "show", "--by", "project"],
+    ])
+      expect((await dg(f.cloneA, ["--json", ...argv])).code, argv.join(" ")).toBe(2);
+    // config の項目は default_workflow に替わった
+    const fields = (await dg(f.cloneA, ["--json", "config", "show", "--fields"])).json().data;
+    const keys = (fields.fields as { key: string }[]).map((x) => x.key);
+    expect(keys).toContain("default_workflow");
+    expect(keys).not.toContain("default_project");
+    expect(fields.config).not.toHaveProperty("default_project");
+    // 作ったチケットは project を持たない
+    const created = (await dg(f.cloneA, ["--json", "ticket", "create", "A"])).json().data;
+    expect(created).not.toHaveProperty("project");
+    const shown = await dg(f.cloneA, ["ticket", "show", "t1"]);
+    expect(shown.out).not.toMatch(/^project:/m);
   });
 
   it("plan create は --after・--scope・--approach・--tier を key=value で受け、段階の誤りは終了コード 2、開いた Plan と同じチケットは 1", async () => {

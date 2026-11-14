@@ -5,7 +5,6 @@ import { EMPTY_FILTER, filterBacklog, sectionsOf } from "./backlog.js";
 
 function ticket(partial: Partial<Ticket> & { id: string }): Ticket {
   return {
-    project: "default",
     title: partial.id,
     status: "todo",
     priority: "medium",

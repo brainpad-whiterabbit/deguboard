@@ -5,7 +5,6 @@ export * from "./define.js";
 export * from "./context.js";
 export * from "./filters.js";
 export * from "./setup.js";
-export * from "./project.js";
 export * from "./ticket.js";
 export * from "./iteration.js";
 export * from "./epic.js";

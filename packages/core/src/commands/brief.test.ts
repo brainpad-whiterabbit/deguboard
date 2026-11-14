@@ -301,11 +301,11 @@ describe("dg brief と dg next の文（EX-3）", () => {
 
   it("Workflow で実装と手直しの step の名前を変えても、印と文の step はその名前になる", async () => {
     const ctx = await prepared();
-    const projectWorkflow = [...ctx.store.projects.values()][0]?.data.workflow as string;
+    const defaultWorkflow = ctx.store.config.default_workflow;
     await runCommand(workflowSet, ctx, {
-      workflow: projectWorkflow,
+      workflow: defaultWorkflow,
       definition: {
-        id: projectWorkflow,
+        id: defaultWorkflow,
         name: "renamed",
         transitions: [],
         steps: [

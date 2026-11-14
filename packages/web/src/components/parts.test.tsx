@@ -192,7 +192,7 @@ describe("優先度の印", () => {
     const defaults = configFields().filter((f) => f.key.startsWith("priority."));
     const client = mockClient();
     const config = {
-      default_project: "default",
+      default_workflow: "software-development",
       priority: { high: "独自の基準", medium: "", low: "" },
     };
     const shown = {
