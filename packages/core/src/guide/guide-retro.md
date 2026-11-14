@@ -128,7 +128,7 @@ Do not fill in a value that has a gap by guessing. For a metric or a finding tha
 - Only Try rows have a handling, one of:
   - "File": a new ticket
   - "`ticket update <ID>`": when an unfinished ticket with the same aim exists
-  - "File an improvement to the rules or guide": a ticket that changes the repository's rules (CLAUDE.md, development docs), `guide.notes`, or a guide, when the Try is about how the work is done
+  - "File an improvement to the rules or guide": a ticket that changes the repository's rules (the agent instructions such as CLAUDE.md or AGENTS.md, development docs), `guide.notes`, or a guide, when the Try is about how the work is done
   - "Do not fix (reason)"
 - Write a Try so that it is one change whose effect can be seen in a number of the next Iteration, a defined metric where one fits. Keep the rows few (up to about 5 Try rows); put small ones into one row
 
