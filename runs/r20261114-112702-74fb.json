@@ -1,0 +1,34 @@
+{
+  "id": "r20261114-112702-74fb",
+  "ticket": "t906",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-14T11:27:02Z",
+  "finished_at": "2026-11-14T11:35:05Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "batch/manual で config や書き換えるチケットに未コミットの変更があると、Project をなくすコミットに混ざる",
+    "既存のデータブランチの .gitattributes に projects の merge 行が残る",
+    "設定画面のテストのモックが default_workflow を local にしていて core の形と合わない"
+  ],
+  "usage": {
+    "input": 38,
+    "output": 21657,
+    "cache_read": 1344403,
+    "cache_write": 81197
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 22,
+    "bash": 15,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "3051aa7a-6a9a-4ce9-9958-f1577f6df56a",
+  "review": null
+}
