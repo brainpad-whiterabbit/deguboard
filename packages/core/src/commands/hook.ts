@@ -35,7 +35,14 @@ import { collectBranchFacts, lastPushedAt } from "../git/facts.js";
 import { withWrite } from "../git/write.js";
 import { toIsoDateTime } from "../model/common.js";
 import { ticketIdSchema, type TicketId } from "../model/id.js";
-import { REVIEW_STEP, type Run, type RunId, type RunResult, type RunReview } from "../model/run.js";
+import {
+  FINDING_CAUSES,
+  REVIEW_STEP,
+  type Run,
+  type RunId,
+  type RunResult,
+  type RunReview,
+} from "../model/run.js";
 import type { Ticket } from "../model/ticket.js";
 import {
   adoptPendingRounds,
@@ -366,9 +373,22 @@ async function subagentLaunched(
   else await bindTranscript(ctx.repo, run.id, event.transcript, true);
 }
 
-/** 見直しの結果が同じか（数と通ったか）。記録と同じ秒に置いた保留の結果が呼び直しかを見分ける */
+/** 原因ごとの数が同じか。どちらにもなければ同じ、片方にだけあれば違う（キーの並びによらないよう、原因の種類ごとに比べる） */
+const sameCauses = (a: RunReview["causes"], b: RunReview["causes"]) =>
+  a === undefined || b === undefined
+    ? a === b
+    : (["heavy", "light"] as const).every((s) => FINDING_CAUSES.every((c) => a[s][c] === b[s][c]));
+
+/**
+ * 見直しの結果が同じか（数と通ったか、原因ごとの数）。記録と同じ秒に置いた保留の結果が呼び直しかを見分ける。
+ * 原因ごとの数も比べるのは、数が同じで原因だけを直した呼び直しを古い結果のまま残さないため
+ */
 const sameReview = (a: RunReview, b: RunReview | null) =>
-  b !== null && a.heavy === b.heavy && a.light === b.light && a.passed === b.passed;
+  b !== null &&
+  a.heavy === b.heavy &&
+  a.light === b.light &&
+  a.passed === b.passed &&
+  sameCauses(a.causes, b.causes);
 
 /**
  * 前景の見直し役が返ったとき、その結果から先に書かれた見直しの記録（capture: none）を引き取る（t701。どの記録かは adoptableReviewRecord）。

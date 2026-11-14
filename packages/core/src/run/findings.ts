@@ -9,8 +9,14 @@ import type { ReviewFinding } from "../model/run.js";
  */
 export type FindingBody = Omit<ReviewFinding, "cause">;
 
+/**
+ * 置いた一覧（record.ts の ReviewRound の findings・handed）の指摘の 1 件。cause のできる前に置いた一覧の指摘は cause を持たない。
+ * 置いた一覧の cause は読まない（原因ごとの数は、結果を書くときに数えて Run の review に入れる）
+ */
+export type StoredFinding = FindingBody & Partial<Pick<ReviewFinding, "cause">>;
+
 /** 重い指摘（reviewOfFindings と同じ判定）：severity が heavy か、category がリポジトリの重いとみなす種類 */
-export function isHeavyFinding(f: ReviewFinding, heavyCategories: readonly string[]): boolean {
+export function isHeavyFinding(f: FindingBody, heavyCategories: readonly string[]): boolean {
   return f.severity === "heavy" || heavyCategories.includes(f.category);
 }
 
@@ -20,7 +26,7 @@ export function isHeavyFinding(f: ReviewFinding, heavyCategories: readonly strin
  * 英語の guide を読んだ見直し役も同じ語で書くので、guide の言語によらず見分ける（t489）。
  * category で決めるので、どの回の一覧でも同じ規則で決まり、dg が後から印を付け直さなくてすむ
  */
-export function isAcceptanceFinding(f: ReviewFinding): boolean {
+export function isAcceptanceFinding(f: FindingBody): boolean {
   // "acceptance criteri" は criteria と criterion の両方に当たる。"acceptance test" など受け入れ条件でない語は拾わない
   return /受け入れ条件|acceptance criteri/i.test(f.category);
 }
@@ -31,12 +37,12 @@ export function isAcceptanceFinding(f: ReviewFinding): boolean {
  * unfixedLight は残りの軽い指摘（参考節との食い違いを含む）。親が手直しに渡す軽い指摘は run handoff で dg に伝える（t639）ので、
  * dg pr ready は伝えられなかった残りを PR の本文に書く（「直さなかった軽い指摘」。直す役が直したかは見分けられないので、渡したものは直したかによらず外す）
  */
-export function splitFindings(
-  findings: readonly ReviewFinding[],
+export function splitFindings<F extends FindingBody>(
+  findings: readonly F[],
   heavyCategories: readonly string[],
-): { fix: ReviewFinding[]; unfixedLight: ReviewFinding[] } {
-  const fix: ReviewFinding[] = [];
-  const unfixedLight: ReviewFinding[] = [];
+): { fix: F[]; unfixedLight: F[] } {
+  const fix: F[] = [];
+  const unfixedLight: F[] = [];
   for (const f of findings) {
     if (isHeavyFinding(f, heavyCategories) || isAcceptanceFinding(f)) fix.push(f);
     else unfixedLight.push(f);
@@ -66,10 +72,10 @@ export function findingKey(f: FindingBody): string {
 /**
  * 手直しに渡す指摘の一覧を、見直しの一覧と照合する。一覧にない指摘は unmatched に返す（dg run handoff は使い方の誤りにする）
  */
-export function matchFindings<H extends FindingBody>(
-  list: readonly ReviewFinding[],
+export function matchFindings<L extends FindingBody, H extends FindingBody>(
+  list: readonly L[],
   handed: readonly H[],
-): { matched: ReviewFinding[]; unmatched: H[] } {
+): { matched: L[]; unmatched: H[] } {
   const keys = new Set(handed.map(findingKey));
   const listed = new Set(list.map(findingKey));
   return {
@@ -81,9 +87,9 @@ export function matchFindings<H extends FindingBody>(
 /** 見直しの 1 回分の、指摘の部分（record.ts の ReviewRound のうち読む側が使う形） */
 export interface ReviewRoundLike {
   at: string;
-  findings: readonly ReviewFinding[] | null;
+  findings: readonly StoredFinding[] | null;
   /** 親が手直しに渡した軽い指摘（dg run handoff。なければ空） */
-  handed?: readonly ReviewFinding[] | undefined;
+  handed?: readonly StoredFinding[] | undefined;
 }
 
 /**
