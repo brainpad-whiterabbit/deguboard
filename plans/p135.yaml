@@ -3,7 +3,7 @@ tickets: [t924, t925, t923]
 after:
   t923:
     - t924
-pending_approval: true
+pending_approval: false
 details:
   t924:
     scope: 拡張の dg --version の確かめを、最初に使ったフォルダを cwd にして動かし、複数フォルダのときだけ警告にフォルダ名を入れる。フォルダごとの確かめはしない
@@ -17,3 +17,5 @@ details:
     scope: 拡張の起動時に、dg の Skill を入れてある置き場所ごとに足りない同梱の Skill を info 通知で案内し、Install で足りない分だけ書く。dg next・brief・hooks check は変えない
     approach: core に置き場所ごとの足りない Skill を求める関数を足し、extension.ts の起動時の Skill の更新の後で通知と globalState の Don't show again を扱い、AG-2 と skill-files.ts のコメントを直す
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-14T18:38:06Z
