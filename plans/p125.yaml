@@ -7,7 +7,7 @@ after:
   t879:
     - t878
     - t881
-pending_approval: true
+pending_approval: false
 details:
   t878:
     scope: README.md・README.ja.md の Usage と Tips を普通の言葉の頼み方にし、全 Skill の表を usage.md・usage.ja.md に移す。Skill の description と雛形は変えない
@@ -25,3 +25,5 @@ details:
     scope: GIF の台本を英語と日本語で録れるようにし、5 つの *.ja.gif を README.ja.md から引く
     approach: t878 の README の頼み方と t881 の新しい行の見た目に合わせて録る
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-14T04:22:28Z
