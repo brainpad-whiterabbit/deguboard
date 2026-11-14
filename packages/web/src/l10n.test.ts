@@ -32,6 +32,8 @@ const JAPANESE = /[　-ヿ一-鿿＀-￯]/;
 const NOT_MESSAGES = [
   // 受け入れ条件の節の日本語の名前（core の本文の書式と同じ語で探す）
   'markdown.tsx: ja: "受け入れ条件",',
+  // 設定画面の振り返りの節で、指標の数え方の最初の文を要約として切り出す区切り（画面に出す文言ではない）
+  'pages/config.tsx: const end = definition.indexOf("。");',
 ];
 
 /** 鍵を書く関数の呼び出しの、最初の引数の文字列リテラル */

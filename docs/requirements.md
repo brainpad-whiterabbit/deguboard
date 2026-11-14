@@ -177,7 +177,7 @@ updated_at: 2026-10-31T05:10:00Z
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないとき（`DATA_REMOTE_MISSING`）と、取り込んだ config でこの値が変わったとき（`DATA_REMOTE_CHANGED`）は、push する操作は push せずに止まって次の手を示し、ほかの操作は警告して続く（戻し方は `dg guide overview`、細部は `commands-data-remote.test.ts`）
 - `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push し、`/` を含む名前は拒む。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく止まり、別のカンバンのブランチを指したとき（`DATA_HISTORY_UNRELATED`）は取り込まずに止まる（戻し方は `dg guide overview`、細部は `commands-data-branch.test.ts`）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。`dg next` が implement・fix の手の `model` に返す（EX-5）。`models.<agent>.<tier>` があれば、呼んだ agent ではそれを先に使う（引く順は `dg next --help`）
-- `retro.perspectives`：振り返りの観点（MT-7）。観点ごとに名前・問い・承認した指標の定義（数え方の文と出どころのコマンド）を持つ入れ子で、チームだけが持つ。`config set` と設定画面では書かず、`dg retro` のコマンドが検査して書く（細部は `dg retro --help`、理由は [ADR-035](adr/ADR-035-retro-perspectives.md)）
+- `retro.perspectives`：振り返りの観点（MT-7）。観点ごとに名前・問い・承認した指標の定義（数え方の文と出どころのコマンド）を持つ入れ子で、チームだけが持つ。`config set` と設定画面では書かず、`dg retro` のコマンドが検査して書く。設定画面は読むだけで出す（UI-14。細部は `dg retro --help`、理由は [ADR-035](adr/ADR-035-retro-perspectives.md)）
 
 ## 6. 機能要件
 
@@ -231,7 +231,7 @@ updated_at: 2026-10-31T05:10:00Z
 - UI-11 VS Code 拡張は `core` と CLI を同梱して `dg` なしで動き、起動ファイルで外に出す。コマンドで `~/.local/bin/dg` に張り、外せる。PATH の `dg` がないか版のメジャーが違えば知らせる。文言は表示言語で出す（core の英語の文も訳し、チケットの中身と指示は書いたまま）。細部は `vscode/src/launcher.ts`・`vscode/src/l10n.ts`・`web/src/l10n.ts` とそのテスト
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。コード中の ID から要約と詳細を開け、コマンドで ID か題からも探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせ（設定で切れる）、`dg init` 前は始め方を出し、VS Code ではボタンで初期化を実行できる。細部は `packages/vscode/package.json`・`src/extension.ts`
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
-- UI-14 設定画面：チームの `config.yaml` の項目（5.10）と、個人で上書きできる項目を分けて出して直せ、個人の上書きは外せる。影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない（細部は `packages/web/src/pages/config.tsx` とそのテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
+- UI-14 設定画面：チームの `config.yaml` の項目（5.10）と個人で上書きできる項目を分けて直せ、上書きは外せる。影響の大きい項目は保存前に確かめ、`retro.perspectives` は読むだけ。VS Code の settings.json は使わない（細部は `packages/web/src/pages/config.tsx` とそのテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 - UI-15 エージェントに頼む：行・見出しから `dg ask` の依頼文を作って頼め、データには書き込まない。VS Code では開いているターミナルにも送れる。細部は `packages/web/src/components/ask-menu.tsx`・`packages/vscode/src/terminals.ts` のテスト
 - UI-16 VS Code 拡張は、制限モードと仮想ワークスペースでは動かない（理由は `packages/vscode/package.json` の `capabilities`）
 
