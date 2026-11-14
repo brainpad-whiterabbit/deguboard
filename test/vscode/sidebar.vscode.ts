@@ -212,8 +212,15 @@ describe("VS Code の実機の左パネル", () => {
     await toggle.click();
     const graph = sidebar.locator(".plan-graph");
     await graph.waitFor();
+    // ticketMove（t4 → done）が画面に届く前の描画では 5 本とも待ち中に見えるので、t4 の箱が done になった描画を待ってから、
+    // 待ちの線が 2 本になるまで画面を見て数える（t873）
+    await sidebar
+      .locator(".plan-graph-canvas .plan-node.status-done", { hasText: /^t4$/ })
+      .waitFor({ timeout: 60_000 });
     expect(await sidebar.locator(".plan-graph-canvas .plan-graph-edge").count()).toBe(5);
-    expect(await sidebar.locator(".plan-graph-canvas .plan-graph-edge-pending").count()).toBe(2);
+    await expect
+      .poll(() => sidebar.locator(".plan-graph-canvas .plan-graph-edge-pending").count())
+      .toBe(2);
     await graph.scrollIntoViewIfNeeded();
     for (const theme of ["dark", "light"] as const) {
       await host.setTheme(theme);
