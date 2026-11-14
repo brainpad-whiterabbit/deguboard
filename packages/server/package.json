@@ -1,6 +1,6 @@
 {
   "name": "@deguboard/server",
-  "version": "0.29.0",
+  "version": "0.30.0",
   "private": true,
   "description": "deguboard の HTTP サーバー。core のコマンド定義を HTTP に写し、web を配信する",
   "license": "MIT",
