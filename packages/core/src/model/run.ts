@@ -126,33 +126,39 @@ export const FINDING_SEVERITIES = ["heavy", "light"] as const;
  * 知らない項目は誤りにする（書き間違えた項目名で reason や fix が落ちないように）
  */
 export const reviewFindingSchema = z.strictObject({
-  severity: z.enum(FINDING_SEVERITIES).describe("heavy か light"),
+  severity: z.enum(FINDING_SEVERITIES).describe("heavy or light"),
   category: z
     .string()
     .min(1)
     .describe(
-      "指摘の種類（受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反・参考節との食い違いなど）",
+      "What is wrong in the deliverable (a missed acceptance criterion, a bug, a mismatch with the documents, a convention violation, a mismatch with a reference section, and so on)",
     ),
+  // 種類の一覧と意味は run review-result のヘルプ（commands/run.ts）が正本。ここは値の一覧だけを書き、意味はヘルプに任せる
   cause: z
     .enum(FINDING_CAUSES)
     .describe(
-      "手戻りの原因の種類（ticket・plan・implementation・tests・documents・environment・unknown）",
+      `Why the finding came about, apart from category: one of ${FINDING_CAUSES.join(", ")} (the meaning of each is in dg run review-result --help)`,
     ),
   file: z
     .string()
     .min(1)
     .nullable()
     .default(null)
-    .describe("リポジトリのルートからのパス。なければ null"),
+    .describe("Path from the repository root, or null if there is none"),
   line: z
     .number()
     .int()
     .positive()
     .nullable()
     .default(null)
-    .describe("1 始まりの行。なければ null"),
-  reason: z.string().min(1).describe("なぜ指摘するか"),
-  fix: z.string().min(1).nullable().default(null).describe("直し方。なければ null"),
+    .describe("Line number starting at 1, or null if there is none"),
+  reason: z.string().min(1).describe("Why this is a finding"),
+  fix: z
+    .string()
+    .min(1)
+    .nullable()
+    .default(null)
+    .describe("How to fix it, or null if there is none"),
 });
 export type ReviewFinding = z.output<typeof reviewFindingSchema>;
 

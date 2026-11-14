@@ -87,6 +87,36 @@ describe("HTTP サーバー", () => {
     expect(describeCommands(commands).some((c) => c.name === "init")).toBe(false);
   });
 
+  it("store の要るコマンドの入力の JSON Schema の説明（.describe）に日本語の文字が出ない", () => {
+    // MCP のツール定義と GET /api/commands はこの JSON Schema をそのまま出す。説明はエージェントが読む文字列なので英語にする
+    const japanese = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
+    // 本文で dg が読む見出しの名そのもの（データの値）は説明の中に出てよい
+    const dataLiterals = ["## 受け入れ条件"];
+    const found: string[] = [];
+    const walk = (node: unknown, where: string): void => {
+      if (Array.isArray(node)) {
+        node.forEach((n, i) => walk(n, `${where}[${i}]`));
+        return;
+      }
+      if (node === null || typeof node !== "object") return;
+      for (const [key, value] of Object.entries(node)) {
+        if (
+          key === "description" &&
+          typeof value === "string" &&
+          japanese.test(dataLiterals.reduce((text, literal) => text.replaceAll(literal, ""), value))
+        ) {
+          found.push(`${where}: ${value}`);
+        }
+        walk(value, `${where}.${key}`);
+      }
+    };
+    const descriptors = describeCommands(commands);
+    // 見直しの指摘のスキーマ（reviewFindingSchema）を入力に含むコマンドが範囲に入っていることを確かめる
+    expect(descriptors.some((d) => d.name === "run.handoff")).toBe(true);
+    for (const d of descriptors) walk(d.input, d.name);
+    expect(found).toEqual([]);
+  });
+
   it("POST /api/commands/<name> がコマンドを実行し、CLI の --json と同じ形を返す", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
