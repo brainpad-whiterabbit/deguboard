@@ -5,12 +5,12 @@
 // 警告と拡張は、そのうえで印の版を比べ（skillAgeOf）、今の dg より新しい版の dg が書いた Skill を古いと言わず、戻さない（ADR-030）。
 // Skill を書くのも、dg skill install と拡張で同じ writeSkillFiles を通し、リポジトリに書いた Skill の無視の行も同じ ignoreSkills で足す。
 // 公開（commands/index.ts）は入口が呼ぶものだけにする。判定の部品（skillStateOf・skillAgeOf・findStaleSkills・staleSkillWarnings）はここのテストが直接引く。
-// Skill の組み立て（buildSkills）は guide を読むので、1 回の操作で 1 回にし、組み立てたものを部品に渡して使い回す。
+// Skill の組み立て（buildSkills）は guide を読むので、1 回の操作で 1 回にし、組み立てたものを部品に渡して使い回す（拡張の起動時の更新と案内も 1 回）。
 // 名前・説明・引数の案内は guide の frontmatter から、冒頭の 1 文は SKILL_SUMMARY の en から、本文は SKILL_TEMPLATE から作る。
 // 雛形をファイルにせず定数にするのは、束ねた配置（拡張の extension.cjs・同梱の dg.mjs）でも置き場所を合わせずに読めるようにするため
 
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import {
   agentSkillPlaceGroups,
@@ -168,6 +168,25 @@ function uniquePlaces(places: readonly SkillPlace[]): SkillPlace[] {
 }
 
 /**
+ * 置き場所（dir）に入れてある、names の Skill の SKILL.md の中身（名前から中身へ）。読めないものは入っていないとみなして入れない。
+ * 古い Skill（staleSkillsIn）と足りない Skill（findMissingSkills）は、どちらもここで置き場所を読む（読み方を 2 つ持たない）
+ */
+async function readInstalledSkills(
+  dir: string,
+  names: readonly string[],
+): Promise<Map<string, string>> {
+  const read = await Promise.all(
+    names.map((name) =>
+      readFile(join(dir, name, "SKILL.md"), "utf8").then(
+        (text) => [name, text] as const,
+        () => undefined,
+      ),
+    ),
+  );
+  return new Map(read.filter((r) => r !== undefined));
+}
+
+/**
  * 置き場所ごとに、入れてある dg の Skill のうち今の dg のもの（skills）と違うものを返す。
  * 違うものがない置き場所は返さない。入れていない Skill は数えない（足りない Skill は VS Code 拡張だけが案内する。findMissingSkills）。
  * 今の本文をもとに手を加えた Skill（印のハッシュが今の dg のものと同じ）も数えない。古くはなく、知らせても毎回同じ警告が出続けるだけになる。
@@ -186,10 +205,12 @@ async function staleSkillsIn(
       sameVersion: [],
       sameVersionEdited: [],
     };
+    const installed = await readInstalledSkills(
+      place.dir,
+      skills.map((s) => s.name),
+    );
     for (const skill of skills) {
-      const current = await readFile(join(place.dir, skill.name, "SKILL.md"), "utf8").catch(
-        () => undefined,
-      );
+      const current = installed.get(skill.name);
       const state = skillStateOf(current, skill);
       if (current === undefined || (state !== "stale" && state !== "edited")) continue;
       if (state === "edited" && hasCurrentBody(current, skill)) continue;
@@ -359,17 +380,19 @@ export async function removeRetiredSkills(
  * 新しい版の dg が書いた Skill と、同じ版の dg が書いた中身の違う Skill には触れず、知らせもしない。
  * 中身の違いだけで同梱のものに揃えると、PATH の dg（ソースから動かす dg）が拡張より新しいときに、拡張は起動のたびに Skill を古い同梱のものに戻し、
  * dg hooks check・next・brief はそれを古いと警告して、互いに書き換え合う。ソースの dg は版を上げる前に Skill を変えるので、同じ版でも止める。
- * version は印に書く今の dg の版（束ねた拡張はビルドで埋めた版を渡す。省くと core の版）
+ * version は印に書く今の dg の版（束ねた拡張はビルドで埋めた版を渡す。省くと core の版）。
+ * skills は呼び出し側がすでに組み立てた Skill で、渡すと version は見ない（拡張は起動時に 1 回組み立てて findMissingSkills と使い回す）
  */
 export async function refreshInstalledSkills(query: {
   folders: readonly string[];
   env: AgentEnv;
   version?: string;
+  skills?: readonly SkillFile[];
 }): Promise<RefreshedSkills[]> {
   const places = (await topLevelsOf(query.folders)).flatMap((topLevel) =>
     agentSkillPlaces({ topLevel, env: query.env }),
   );
-  const skills = await buildSkills(query.version);
+  const skills = query.skills ?? (await buildSkills(query.version));
   const refreshed: RefreshedSkills[] = [];
   for (const found of await staleSkillsIn(places, skills)) {
     const updated =
@@ -410,26 +433,21 @@ export interface MissingSkills extends SkillPlace {
  * 個人の置き場所を複数のフォルダから見るときは、どのフォルダから見ても足りないものだけを返す。
  * dg が配らない Skill（利用者が自分で作ったもの）は見ない。入れてある Skill が古いか・手を加えたかは問わない（それは refreshInstalledSkills が扱う）。
  * 足りないことは知らせるだけで、書くのは人が選んでから（拡張が writeSkillFiles に missing を names で渡す）。
- * dg hooks check・next・brief は足りない Skill を知らせない（エージェントの作業のたびに、入れないと決めた人に出し続けることになる）
+ * dg hooks check・next・brief は足りない Skill を知らせない（エージェントの作業のたびに、入れないと決めた人に出し続けることになる）。
+ * skills は呼び出し側がすでに組み立てた Skill で、渡すと version は見ない（refreshInstalledSkills と同じ）
  */
 export async function findMissingSkills(query: {
   folders: readonly string[];
   env: AgentEnv;
   version?: string;
+  skills?: readonly SkillFile[];
 }): Promise<MissingSkills[]> {
-  const names = (await buildSkills(query.version)).map((s) => s.name);
-  const installed = new Map<string, Promise<Set<string>>>();
+  const names = (query.skills ?? (await buildSkills(query.version))).map((s) => s.name);
+  const installed = new Map<string, Promise<Map<string, string>>>();
   const installedIn = (dir: string) => {
     let found = installed.get(dir);
     if (!found) {
-      found = Promise.all(
-        names.map((name) =>
-          stat(join(dir, name, "SKILL.md")).then(
-            () => name,
-            () => undefined,
-          ),
-        ),
-      ).then((hit) => new Set(hit.filter((n) => n !== undefined)));
+      found = readInstalledSkills(dir, names);
       installed.set(dir, found);
     }
     return found;

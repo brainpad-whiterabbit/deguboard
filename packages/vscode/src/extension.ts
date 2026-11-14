@@ -26,6 +26,7 @@ import {
   WEBVIEW_CONTRACT,
   type CommandClient,
   type ResolveSide,
+  type SkillFile,
   type StatusView,
   type TerminalChoice,
   type TerminalSendResult,
@@ -268,17 +269,20 @@ export function activate(context: vscode.ExtensionContext): void {
 /**
  * 入れてある dg の Skill のうち、この拡張より古い版の dg が書いたものを core の refreshInstalledSkills で更新し、更新したものと手を加えたので残したものを通知する（文は skills.ts）。
  * 新しい版の dg（PATH の dg など）が書いた Skill は戻さない。束ねた拡張では core が自分の版を読めないので、ビルドで埋めた版を渡す。
- * 更新の後で、足りない同梱の Skill を案内する（suggestMissingSkills）。
+ * 更新の後で、足りない同梱の Skill を案内する（suggestMissingSkills）。Skill の組み立て（guide を読む）は起動時に 1 回にし、更新・案内・Install で使い回す。
  * 確かめられなくても画面は動くので、知らせずに記録だけ残す
  */
 async function refreshSkills(context: vscode.ExtensionContext): Promise<void> {
   const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  let skills: SkillFile[];
   try {
-    const refreshed = await refreshInstalledSkills({
-      folders,
-      env: process.env,
-      version: __CORE_VERSION__,
-    });
+    skills = await buildSkills(__CORE_VERSION__);
+  } catch (error) {
+    console.warn("deguboard: could not build the dg Skills", error);
+    return;
+  }
+  try {
+    const refreshed = await refreshInstalledSkills({ folders, env: process.env, skills });
     for (const notice of skillRefreshNotices(refreshed)) {
       const show =
         notice.level === "warning"
@@ -289,7 +293,7 @@ async function refreshSkills(context: vscode.ExtensionContext): Promise<void> {
   } catch (error) {
     console.warn("deguboard: could not refresh the dg Skills", error);
   }
-  await suggestMissingSkills(context, folders);
+  await suggestMissingSkills(context, folders, skills);
 }
 
 /**
@@ -301,16 +305,13 @@ async function refreshSkills(context: vscode.ExtensionContext): Promise<void> {
 async function suggestMissingSkills(
   context: vscode.ExtensionContext,
   folders: readonly string[],
+  skills: readonly SkillFile[],
 ): Promise<void> {
   try {
-    const found = await findMissingSkills({
-      folders,
-      env: process.env,
-      version: __CORE_VERSION__,
-    });
+    const found = await findMissingSkills({ folders, env: process.env, skills });
     const dismissed = dismissedSkillsOf(context.globalState.get(DISMISSED_SKILLS_KEY));
     for (const notice of missingSkillNotices(found, dismissed))
-      void askToInstallSkills(context, notice);
+      void askToInstallSkills(context, notice, skills);
   } catch (error) {
     console.warn("deguboard: could not check the missing dg Skills", error);
   }
@@ -319,6 +320,7 @@ async function suggestMissingSkills(
 async function askToInstallSkills(
   context: vscode.ExtensionContext,
   notice: MissingSkillNotice,
+  skills: readonly SkillFile[],
 ): Promise<void> {
   const install = t("Install");
   const never = t("Don't show again");
@@ -339,10 +341,7 @@ async function askToInstallSkills(
   }
   if (action.kind !== "install") return;
   try {
-    const result = await installMissingSkills(notice, {
-      names: action.names,
-      skills: await buildSkills(__CORE_VERSION__),
-    });
+    const result = await installMissingSkills(notice, { names: action.names, skills });
     if (result.written.length > 0)
       void vscode.window.showInformationMessage(
         `deguboard: ${t("Installed the dg Skills in {0}: {1}", notice.dir, result.written.join(", "))}`,
