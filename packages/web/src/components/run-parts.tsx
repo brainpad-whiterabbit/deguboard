@@ -2,7 +2,15 @@
 // 取れなかった値（null）は 0 と見せず「—」で出し（RN-2）、推定を含む値には「~」を前に付ける
 
 import type { RunView } from "../types.js";
-import { tr, msg } from "../l10n.js";
+import { tr, msg, trCoreMessage } from "../l10n.js";
+
+/**
+ * 失敗・中断の理由（Run の error）の表示。dg が書いた決まった英語の文は表示言語に訳し、人やエージェントが書いた文と、
+ * 前の版が日本語で書いた文は書いたまま出す（UI-11。表にない文は trCoreMessage がそのまま返す）
+ */
+export function runErrorText(run: { error: string | null }): string | null {
+  return run.error ? trCoreMessage(run.error) : null;
+}
 
 /** 値がないときの表示 */
 export const NO_VALUE = "—";
@@ -28,7 +36,7 @@ export function runResultKey(run: Pick<RunView, "running" | "result">): RunResul
 export function RunResult({ run }: { run: RunView }) {
   const key = runResultKey(run);
   return (
-    <span className={`run-result run-${key}`} title={run.error ?? undefined}>
+    <span className={`run-result run-${key}`} title={runErrorText(run) ?? undefined}>
       {tr(RESULT_LABELS[key])}
     </span>
   );
@@ -38,12 +46,13 @@ export function RunResult({ run }: { run: RunView }) {
 export function RunResultDot({ run }: { run: RunView }) {
   const key = runResultKey(run);
   const label = tr(RESULT_LABELS[key]);
+  const error = runErrorText(run);
   return (
     <span
       className={`run-dot run-${key}`}
       role="img"
       aria-label={label}
-      title={run.error ? tr("{0}：{1}", label, run.error) : label}
+      title={error ? tr("{0}：{1}", label, error) : label}
     />
   );
 }

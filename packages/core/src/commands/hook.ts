@@ -72,6 +72,9 @@ import {
   closePreviousFixRunOrWarn,
   crashedSubagentRunAt,
   isSubagentTranscript,
+  NO_FIX_PUSH_ERROR,
+  NO_PR_ERROR,
+  OPEN_AT_SESSION_END_ERROR,
   openedInOtherSession,
   openedStepOf,
   openRun,
@@ -899,8 +902,7 @@ async function resultOf(
   const fixStep = openedStepOf(ctx, ticket, "reclaim");
   if (run.step === claimStep) {
     if (ticket.pr !== undefined) return { result: "success" };
-    if (!ticket.branch)
-      return { result: "failure", error: "サブエージェントが終わったとき PR がない" };
+    if (!ticket.branch) return { result: "failure", error: NO_PR_ERROR };
     const facts = await collectBranchFacts(ctx.repo, ticket.branch, {
       needPr: true,
       status: ticket.status,
@@ -908,7 +910,7 @@ async function resultOf(
     }).catch(() => undefined);
     return facts?.pr !== undefined
       ? { result: "success" }
-      : { result: "failure", error: "サブエージェントが終わったとき PR がない" };
+      : { result: "failure", error: NO_PR_ERROR };
   }
   if (run.step === fixStep) {
     const pushed = ticket.branch
@@ -916,7 +918,7 @@ async function resultOf(
       : undefined;
     return pushed !== undefined && pushed >= run.started_at
       ? { result: "success" }
-      : { result: "failure", error: "サブエージェントが終わったとき手直しの push がない" };
+      : { result: "failure", error: NO_FIX_PUSH_ERROR };
   }
   if (run.step === REVIEW_STEP) return reviewResultOf(run);
   return { result: "success" };
@@ -957,7 +959,7 @@ async function sessionEnd(
       const closing =
         decided.result === "success" || run.step === claimStep
           ? decided
-          : { result: "interrupted" as const, error: "セッションが終わったとき開いたままだった" };
+          : { result: "interrupted" as const, error: OPEN_AT_SESSION_END_ERROR };
       await closeSubagentRun(ctx, current, transcript!, closing, view, warnings);
     } catch (e) {
       warnings.push(

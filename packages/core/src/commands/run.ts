@@ -261,9 +261,24 @@ export function openedInOtherSession(run: Run, session: string | undefined): boo
   return run.session !== null && session !== undefined && run.session !== session;
 }
 
+// dg とフックが Run を閉じるときに書く error。dg の出力なので英語で書き（CL-8）、画面は web の CORE_MESSAGES で表示言語に訳す（UI-11）。
+// 前の版が日本語で書いた Run の error は、書き換えずにそのまま出す
+
 /** 別のセッションで開いたままだった Run を interrupted で閉じるときのエラー（RN-6） */
 export const STALE_SESSION_ERROR =
-  "別のセッションで開いたままだった（落ちたセッションの残りとみなして閉じた）";
+  "Left open in another session (closed as left over from a session that ended)";
+
+/** フックが実装の Run を閉じるとき、PR がなかったエラー（RN-7） */
+export const NO_PR_ERROR = "No PR when the sub-agent ended";
+
+/** フックが手直しの Run を閉じるとき、開始より後の push がなかったエラー（RN-7） */
+export const NO_FIX_PUSH_ERROR = "No fix push when the sub-agent ended";
+
+/** セッションの終わりに、step を終えた事実のないサブエージェントの Run を interrupted で閉じるときのエラー（RN-7） */
+export const OPEN_AT_SESSION_END_ERROR = "Still open when the session ended";
+
+/** ticket unclaim が開いたままの実装・手直しの Run を閉じるときのエラー（RN-6） */
+export const UNCLAIMED_ERROR = "Returned to todo by ticket unclaim";
 
 /** 記録のパスがサブエージェントの記録（<session>/subagents/ の下）か。印で頼んだサブエージェントの Run の見分けに使う */
 export const isSubagentTranscript = (p: string | undefined): p is string =>
@@ -812,7 +827,16 @@ export interface PendingReviewView {
 
 /** フックが見直しの Run を結果の記録なしに閉じたときの error（RN-4）。後から結果を書けば success に直す */
 export const REVIEW_UNRECORDED =
+  "The reviewer ended without recording a result (write it with dg run review-result)";
+
+/**
+ * 前の版が日本語で書いた REVIEW_UNRECORDED。その Run に後から結果を書いたときも success に直すために見分ける（error の文はそのまま出す）
+ */
+const LEGACY_REVIEW_UNRECORDED =
   "見直し役が結果を記録せずに終わった（dg run review-result で書く）";
+
+const isReviewUnrecorded = (error: string | null): boolean =>
+  error === REVIEW_UNRECORDED || error === LEGACY_REVIEW_UNRECORDED;
 
 const findingCount = z.number().int().nonnegative();
 
@@ -983,7 +1007,7 @@ export const runReviewResult = defineCommand({
             "REJECTED",
             `A result was written to the closed review Run ${doc.id} during the write (the result of a closed Run is not rewritten)`,
           );
-        const unrecorded = doc.data.result === "failure" && doc.data.error === REVIEW_UNRECORDED;
+        const unrecorded = doc.data.result === "failure" && isReviewUnrecorded(doc.data.error);
         return (
           await ctx.store.update("run", doc.id, {
             review,

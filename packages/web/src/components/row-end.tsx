@@ -7,7 +7,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AssigneeMark } from "./assignee-mark.js";
 import { RowPriority } from "./parts.js";
 import { openPlanByTicket, planColor, waitsOf } from "./plan-graph.js";
-import { formatDuration, RESULT_LABELS, runResultKey, type RunResultKey } from "./run-parts.js";
+import {
+  formatDuration,
+  RESULT_LABELS,
+  runErrorText,
+  runResultKey,
+  type RunResultKey,
+} from "./run-parts.js";
 import { formatTime } from "./timeline.js";
 import {
   isOwnAssignee,
@@ -206,7 +212,8 @@ export function runPipDetails(
   ];
   if (run.retries > 0) lines.push(tr("直した指摘 {0}", run.retries));
   if (run.review) lines.push(tr("指摘 重い {0} / 軽い {1}", run.review.heavy, run.review.light));
-  if (run.error) lines.push(run.error);
+  const error = runErrorText(run);
+  if (error) lines.push(error);
   return lines;
 }
 

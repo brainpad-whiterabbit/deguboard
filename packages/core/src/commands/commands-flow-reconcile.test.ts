@@ -1500,7 +1500,7 @@ describe("チケットの流れ（照合と claim）", () => {
     expect(unclaimed.warnings[0]).toMatch(/^Closed the implementation Run r\S+ of t1 with failure/);
     expect(agent.store.runs.get(runs.t1)!.data).toMatchObject({
       result: "failure",
-      error: "ticket unclaim で todo に戻した",
+      error: "Returned to todo by ticket unclaim",
       finished_at: "2026-11-06T05:00:00Z",
     });
 

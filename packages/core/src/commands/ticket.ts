@@ -48,6 +48,7 @@ import {
   runsClosedByMove,
   token,
   transcriptFields,
+  UNCLAIMED_ERROR,
   type ClosedOpenedRun,
   type TranscriptInput,
 } from "./run.js";
@@ -179,7 +180,7 @@ const acceptanceItems = z
     z
       .string()
       .min(1)
-      .regex(/^[^\r\n]+$/, "1 項目は 1 行で書く"),
+      .regex(/^[^\r\n]+$/, "Write each item on one line"),
   )
   .meta({ freeText: true });
 
@@ -1421,7 +1422,7 @@ export const ticketUnclaim = defineCommand({
           ctx,
           doc.data,
           ["claim", "reclaim"],
-          { result: "failure", error: "ticket unclaim で todo に戻した" },
+          { result: "failure", error: UNCLAIMED_ERROR },
           warnings,
         );
         const updated = await ctx.store.update("ticket", doc.id, {
