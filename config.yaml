@@ -91,7 +91,12 @@ retro:
     spec:
       name: 仕様の質
       question: チケット（受け入れ条件と範囲）は、作り直しなしで通る成果を引き出せたか
-      metrics: {}
+      metrics:
+        clean-ticket-rate:
+          definition: Run のあるチケットのうち、retries が 0 で reviews.heavy も 0 のものの割合
+          sources:
+            - dg metrics show --iteration <S> --by ticket (retries, reviews.heavy)
+          unmeasured: 手戻りの原因がチケットにあったか
     slicing:
       name: 分け方
       question: 作業は、互いにぶつからずに並べて進められる大きさと境目に分けられたか
