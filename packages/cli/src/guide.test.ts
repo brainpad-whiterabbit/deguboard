@@ -446,18 +446,49 @@ describe("dg guide", () => {
     expect(retro).toContain("Approval is asked at most twice");
   });
 
-  it("retro の手戻りの原因は retry_reasons と heavy が出た PR のレビューのコメントだけから分け、gh がなければ「未計測」と書く", async () => {
+  it("retro の手戻りの原因は metrics show の原因ごとの数を読み、原因の数のない Run は未計測として数える", async () => {
     const causes = section(await readGuide("retro"), "## Causes of rework");
     for (const word of [
-      "only from these two sources",
       "Do not infer a cause",
-      "`retry_reasons`",
-      "heavy finding",
-      "gh pr view <number>",
+      "`metrics show --iteration <S> --by ticket`",
+      "`reviews.causes.heavy`",
+      "`total.reviews.causes`",
+      "over the sum of `reviews.causes.heavy`",
+      "not over `reviews.heavy`",
+      "`missing.review_causes`",
+      "Do not make them 0",
+      "`reviews.causes` is null",
     ])
       expect(causes, word).toContain(word);
-    const unknown = lineWith(causes, "If `gh` is not available");
-    expect(unknown).toContain('"unmeasured"');
+    expect(lineWith(causes, "**Unmeasured**")).toContain('"unmeasured"');
+    // 原因を文や PR のコメントから読み直す旧い手順は残さない
+    expect(causes).not.toContain("gh pr view");
+  });
+
+  it("review の Return は 7 種類の原因の見分け方を並べ、受け入れ条件の漏れの category と ticket の原因を別にする", async () => {
+    const review = await readGuide("review");
+    const kinds = section(review, "## Review");
+    for (const kind of [
+      "`ticket`:",
+      "`plan`:",
+      "`implementation`:",
+      "`tests`:",
+      "`documents`:",
+      "`environment`:",
+      "`unknown`:",
+    ])
+      expect(kinds, kind).toContain(kind);
+    const separate = lineWith(kinds, "**Ticket cause and the acceptance-criteria category**");
+    for (const word of [
+      '"missing acceptance criteria"',
+      '"missed acceptance criteria"',
+      "never `ticket`",
+    ])
+      expect(separate, word).toContain(word);
+    // 「テストがなければ implementation」の言い回しは、テストの有る無しで種類が決まるように読めるので残さない
+    const tests = lineWith(kinds, "`tests`:");
+    expect(tests).toContain("the tests that were there were adequate");
+    expect(kinds).not.toContain("If no test was there to miss");
   });
 
   it("retro の改善の追跡の候補は、retro-<前の S> のラベルのチケットの状態から前回の Try が終わったかを数える", async () => {

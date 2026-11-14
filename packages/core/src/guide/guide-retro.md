@@ -61,7 +61,7 @@ Candidates for the default perspectives (starting points; propose what fits the 
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `outcome`     | The done tickets over the tickets that were in the Iteration when it closed (`iteration show <S>`: `completed`, `carried_over`; `ticket list --iteration <S> --include-abandoned`)                                                                                                                        |
 | `review`      | The heavy findings per reviewed ticket, and the share of the reviews that passed (`metrics show --iteration <S>`: `total.reviews.heavy`, `passed`, `recorded`)                                                                                                                                            |
-| `spec`        | The share of the tickets with no retry and no heavy finding (`metrics show --iteration <S> --by ticket`: `retries`, `reviews.heavy`). When the cause matters, the share of the rework whose cause is the ticket (see "Causes of rework")                                                                  |
+| `spec`        | The share of the tickets with no retry and no heavy finding (`metrics show --iteration <S> --by ticket`: `retries`, `reviews.heavy`). When the cause matters, the share of the heavy findings whose cause is `ticket` (see "Causes of rework")                                                                  |
 | `slicing`     | The spread of the changed lines and of the time per ticket (`metrics show --iteration <S> --by ticket`: `lines`, `duration_seconds`), such as the largest over the median. The share of the tickets whose PR changed a file that another ticket's PR of the Iteration also changed (`metrics sources --iteration <S>`: `files`; see "Files and references of the tickets") |
 | `stability`   | The share of the Runs that failed or were interrupted (`metrics show --iteration <S>`: `total.results`), and the retries per ticket (`total.retries`)                                                                                                                                                     |
 | `cost`        | The tokens per changed line, `output` and `input_cache` read separately and never added into one number (`metrics show --iteration <S>`: `total.lines.per_line`, with `lines.missing`); the share of time and of tokens per step (`--by step`). See "Tokens per changed line"                             |
@@ -81,14 +81,11 @@ Candidates for the default perspectives (starting points; propose what fits the 
 
 ## Causes of rework
 
-When a metric or a finding needs the cause of rework, divide the causes into kinds only from these two sources. Do not infer a cause from the diff, the title, or the size of a ticket.
+Each finding of a review has a `cause`, one of seven kinds (their meanings are in `dg run review-result --help`). The review Run keeps only the count of each kind, for heavy and for light findings, and `metrics show` adds them up. Read the causes from those counts. Do not infer a cause from the diff, the title, the size of a ticket, or the `retry_reasons` of the fix Runs.
 
-- `retry_reasons` of the fix Runs (`run list --ticket <t12>`): one line for each finding that was fixed
-- The review comments of the PR where a heavy finding was recorded (`review.heavy` of the review Runs; the PR number is `pr` of `ticket show <t12>`): read them with `gh pr view <number> --json reviews,comments`
-
-The kinds are: the ticket (acceptance criteria or scope that were unclear or missing), the plan (order, dependencies, or overlap), the implementation (a defect or a missed case), tests (missing or unstable), documents (not fixed with the change), and the environment and tools (checks, hooks, the gate). Show the count of each kind with the ticket IDs.
-
-If `gh` is not available or the comments cannot be read, write the cause of that heavy finding as "unmeasured", and say that it could not be read. A retry with no `retry_reasons` is also "unmeasured".
+- **Counts**: `metrics show --iteration <S> --by ticket` gives each ticket's `reviews.causes.heavy` and `reviews.causes.light`, the number of findings for each kind (`ticket`, `plan`, `implementation`, `tests`, `documents`, `environment`, and `unknown`). `total.reviews.causes` is the sum over the Iteration. Show the count of each kind with the ticket IDs of the groups that have it
+- **Share**: heavy findings are the rework, and light findings are reported apart. The share of a kind is over the sum of `reviews.causes.heavy` (all kinds), not over `reviews.heavy`, because `reviews.heavy` also counts the findings of Runs with no cause counts
+- **Unmeasured**: a review Run with results but no cause counts is not measured. `missing.review_causes` counts them (Runs from before causes were recorded, and results passed as counts only). Their findings are in `reviews.heavy` and `reviews.light` but not in the causes, so write their causes as "unmeasured" with that count. Do not make them 0, and do not read their causes from another source. When `reviews.causes` is null, no Run has cause counts, and every cause is "unmeasured"
 
 ## Files and references of the tickets
 
