@@ -104,7 +104,12 @@ retro:
     stability:
       name: エージェントの安定
       question: エージェントの働きは、失敗・中断・やり直しなく安定して終わったか
-      metrics: {}
+      metrics:
+        failed-run-rate:
+          definition: Run のうち、failure か interrupted で終わったものの割合（(results.failure + results.interrupted) ÷ runs）
+          sources:
+            - dg metrics show --iteration <S> (total.results, total.runs)
+          unmeasured: 失敗のない Run の中で起きた遠回り
     cost:
       name: コスト
       question: 時間とトークンはどこに使われ、成果に見合っていたか
