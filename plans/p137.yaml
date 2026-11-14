@@ -1,0 +1,57 @@
+id: p137
+tickets: [t940, t935, t936, t939, t943, t942, t941, t938, t929]
+after:
+  t939:
+    - t940
+    - t935
+  t943:
+    - t940
+  t942:
+    - t940
+    - t943
+  t941:
+    - t940
+    - t939
+  t938:
+    - t939
+  t929:
+    - t940
+    - t936
+pending_approval: true
+details:
+  t940:
+    scope: config.show が葉の項目と retro.perspectives の既定を返し、画面の既定のままの判定と訳を 1 か所にまとめ、ADR-001 と CL-8・UI-11 に決まりを書く。優先度の既定の言語は変えない（t941）
+    approach: core の config.show に既定を足し、web の shownConfigValue・storedConfigValue を既定の値の一般の仕組みに広げて、優先度をその上に載せ替える
+    tier: heavy
+  t935:
+    scope: guide-audit と guide-retro の起票の手順に References の案内を足す。guide-import の書き方は変えない
+    approach: guide の 2 つの起票の節から guide-import の該当の節を指し、スナップショットを更新する
+    tier: light
+  t936:
+    scope: リリースの手順（development.md と guide-release）で、タグと公開をリリースの PR の受け入れ条件から外す扱いを決めて書く
+    approach: リリースのチケットを PR の中身で確かめられる条件だけにし、タグと公開は PR の要らない別のチケットにする形を手順に書く
+    tier: light
+  t939:
+    scope: 既定の 7 観点を英語で持ち、11 指標を英語の推薦の指標として core に持ち、guide-retro の候補の表を作り、MT-7 を直す。設定画面は既定のままの観点の訳だけ
+    approach: 推薦の指標を core のデータにし、guide の差し込み（{{…}}）で候補の表を作り、観点の訳は t940 の仕組みに表を足す
+    tier: heavy
+  t943:
+    scope: core に日本語で残る dg の文がどこに出るかを確かめ、出るものを英語にし、画面に出るものは訳を足す。dg ask の組は外す
+    approach: 候補の文字列を一つずつ出る所まで追い、出るものだけを英語にしてテストとスナップショットを直す
+    tier: standard
+  t942:
+    scope: Workflow の雛形の名前とラベルを、雛形と同じ文なら画面で訳す。雛形の中身は変えない
+    approach: 雛形の名前とラベルを t940 の仕組みで既定と比べ、訳の表を足す
+    tier: standard
+  t941:
+    scope: priority.* の既定を英語にし、日本語の訳を画面に移す。guide-import の判断基準も英語で出る
+    approach: core の既定を英語に置き換え、PRIORITY_CRITERIA_EN を日本語の訳の表に替えて t940 の仕組みに載せる
+    tier: standard
+  t938:
+    scope: 設定画面の振り返りの節を、ほかの項目と同じ部品の行と子の行で読むだけのまま出し、変更ありを付ける。入力欄は置かない
+    approach: RetroSection を FieldRow・FieldDetail と同じ部品で組み直し、変更ありは t940 の既定と比べる。スクリーンショットを PR に載せる
+    tier: standard
+  t929:
+    scope: ADR-001 の文書の配置の表と development.md に docs/guide-notes の役目・書く範囲・言語を書き、plan.md を合わせる
+    approach: t940 で決めた言語の決まりに沿って、guide-notes の文書の書く範囲と言語を決めて表に足す
+    tier: light
