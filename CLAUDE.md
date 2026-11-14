@@ -44,7 +44,7 @@ Agentic-Agile に着想を得た、開発の流れを備えた Git リポジト�
 - 変更は `main` から切った作業ブランチを git worktree に checkout して行う。`main` に直接コミットせず、`main` の worktree で作業しない
 - コミットメッセージと PR のタイトルは日本語で、要約を 1 行目に書く
 - 画面の見た目を変える PR は、変えた画面のスクリーンショットを本文に載せる。画像は orphan ブランチ `pr-screenshots` に置き、作業ブランチに入れない
-- PR は `main` に向ける。マージはローカルの検査の通過と人の承認を原則とし、品質ゲートを満たさない PR も、人が承認すれば config の `merge.approval_overrides` の条件に限って越えてよい。検査は、チケットの作業では品質ゲートの検査（`dg gate <id> --only check`）、チケットの外の作業では `mise run check`（軽い検査で済む変更は `mise run check:light`）（段（`gate`）が free のチケットは、この条件を外す）。CI で検査はしない（[ADR-008](docs/adr/ADR-008-tech-stack.md)）
+- PR は `main` に向ける。ローカルの検査の通過と人の承認をマージの条件にする。検査は、チケットの作業では品質ゲートの検査（`dg gate <id> --only check`）、チケットの外の作業では `mise run check`（軽い検査で済む変更は `mise run check:light`）（段（`gate`）が free のチケットは、この条件を外す）。品質ゲートを満たさない PR も、人が承認すれば、満たさない条件が config の `merge.approval_overrides` にあるものだけならマージしてよい。CI で検査はしない（[ADR-008](docs/adr/ADR-008-tech-stack.md)）
 - マージは squash で行い、リモートとローカルのブランチと worktree を消す
 - PR の見直しで疑いを確かめるために動かすのは 1 回までにし、引数や回数を変えて回し直さない
 - 競合のように確率でしか起きない不具合は、再現を試さずにコードの根拠（どの順序で何が起きるか）で重い指摘にし、再現するテストは手直しに任せる
