@@ -53,6 +53,8 @@ import {
   configFields,
   configSchema,
   dataRemoteNameOf,
+  dataTargetOf,
+  DEFAULT_DATA_BRANCH,
   nestedConfigValue,
   type Config,
   type ConfigField,
@@ -115,6 +117,13 @@ export const init = defineCommand({
       .describe(
         `Remote that the kanban data (the deguboard branch) is fetched from and pushed to, when the data is kept in a repository other than the code's. A remote name or a URL: for a URL, dg uses the remote that already has that URL, or adds it as ${DATA_REMOTE_NAME}, and then takes the data in from it. A new board records the name in config's git.data_remote; when the board already exists and its config names another remote, the name is recorded in this clone's personal settings. Every clone passes this on its first init (the config is inside the data, so it cannot be read before the data is fetched)`,
       ),
+    data_branch: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        `Branch of the data remote that holds this repository's kanban. Defaults to ${DEFAULT_DATA_BRANCH}. Give each repository its own branch (deguboard-<name> is recommended) to keep several kanbans in one dedicated data repository: only this branch is fetched and pushed. A name with / is rejected. A new board records it in config's git.data_branch; when the board already exists and its config names another branch, the name is recorded in this clone's personal settings. Every clone passes this on its first init, as with --data-remote`,
+      ),
     base_branch: z
       .string()
       .optional()
@@ -137,6 +146,9 @@ export const init = defineCommand({
               remote: input.remote ?? "origin",
               ...(input.data_remote && ctx.repo.dataRemote
                 ? { data_remote: ctx.repo.dataRemote }
+                : {}),
+              ...(input.data_branch && input.data_branch !== DEFAULT_DATA_BRANCH
+                ? { data_branch: input.data_branch }
                 : {}),
               base_branch: input.base_branch ?? "main",
             },
@@ -182,12 +194,16 @@ export const init = defineCommand({
       dataRemoteNameOf(ctx.store.config) !== ctx.repo.dataRemote
     )
       await ctx.store.writeLocalConfig("git.data_remote", ctx.repo.dataRemote);
+    // データのブランチ名も同じ：取り込んだ config が別の名前を指すときは、--data-branch の名前をこのクローンの個人の設定に書く
+    if (input.data_branch && ctx.store.config.git.data_branch !== ctx.repo.dataBranch)
+      await ctx.store.writeLocalConfig("git.data_branch", ctx.repo.dataBranch);
     return ok(
       {
         data_dir: ctx.repo.dataDir,
         worktree: ctx.worktree ?? "existing",
         remote: ctx.repo.codeRemote,
         data_remote: ctx.repo.dataRemote,
+        data_branch: ctx.repo.dataBranch,
         created: result.value,
       },
       // 何も書かなかった init（2 回目や、リモートから取り込んだ 2 人目の clone）は書き込みの結果を返さない。
@@ -599,7 +615,7 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches. The data is fetched from and pushed to the data remote (config's git.data_remote, or git.remote when it is empty), and the work branches are fetched from git.remote. When the config names a data remote that this clone does not have, sync fails with DATA_REMOTE_MISSING and tells how to add it; when the config just fetched changed the data remote, sync stops with DATA_REMOTE_CHANGED before pushing, and running it again uses the new remote. When config's merge.delete_branch is true and a ticket becomes done, the worktree and the local and remote work branch that remain are deleted, and each data.reconciled entry gets removed: { worktree, local_branch, remote_branch } (null for what was not deleted or did not exist). Nothing is deleted when the worktree has uncommitted changes, when sync is called from that worktree, or when a branch tip is neither the head of the merged PR nor in the base branch; the reason and the commands to delete by hand are in warnings. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). When the PR is merged, its added and deleted lines are recorded on the ticket as lines (data.lines_recorded; a ticket that already has lines is not rewritten; done tickets with no lines are filled by dg metrics lines). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
+    "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches. The data is fetched from and pushed to the data branch (config's git.data_branch, deguboard by default) of the data remote (config's git.data_remote, or git.remote when it is empty); other branches of that remote, such as other repositories' kanbans, are not taken in. The work branches are fetched from git.remote. When the config names a data remote that this clone does not have, sync fails with DATA_REMOTE_MISSING and tells how to add it; when the config just fetched changed the data remote or the data branch, sync stops with DATA_REMOTE_CHANGED before pushing, and running it again uses the new one. When config's merge.delete_branch is true and a ticket becomes done, the worktree and the local and remote work branch that remain are deleted, and each data.reconciled entry gets removed: { worktree, local_branch, remote_branch } (null for what was not deleted or did not exist). Nothing is deleted when the worktree has uncommitted changes, when sync is called from that worktree, or when a branch tip is neither the head of the merged PR nor in the base branch; the reason and the commands to delete by hand are in warnings. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). When the PR is merged, its added and deleted lines are recorded on the ticket as lines (data.lines_recorded; a ticket that already has lines is not rewritten; done tickets with no lines are filled by dg metrics lines). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
     "A review result held with no Run (run review-result with no review Run, left by an environment the hook does not reach) that dg next and dg gate count as a review is written as a closed review Run marked capture: none (started and finished at the time the result was written, usage null), and the held result is linked to it (data.reviews_recorded). " +
     "A sub-agent Run left open because its record was not finished being written (one with a settling_since mark) is also closed once it has finished writing. Review Runs from a session other than the sync's are not closed; the next review start closes them. " +
     "When the import stops on a conflict, data.conflicts lists the files and data.conflict_fields lists each conflicting field as { file, field, base, local, remote }, found by running the merge driver's rule on the fork point, the local head, and the remote head (so it includes conflicts in commits after the one the rebase stopped at). For a body, field is body and each colliding block of lines is one entry. Files outside the merge driver (config.yaml and workflows) appear only in data.conflicts. " +
@@ -697,7 +713,7 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
     warnings.push(
       `Cannot fetch from the code remote, so the work branches are reconciled from what is already fetched: ${fetched.codeDetail}`,
     );
-  const nameBefore = dataRemoteNameOf(ctx.store.config);
+  const nameBefore = dataTargetOf(ctx.store.config);
   let renumbered: Renumbered[] = [];
   if (resolve && fetched.ok && fetched.remoteBranch) {
     renumbered = await renumberCollisions(repo);
@@ -1378,11 +1394,11 @@ const LOCAL_SET_DESCRIPTION = `Write to personal settings instead of the team's 
 const LOCAL_UNSET_DESCRIPTION = `Remove the personal override and return to the team's value. ${LOCAL_FILE_NOTE}`;
 
 /**
- * チームのデータのリモート（git.data_remote）を変える書き込みは、commit.mode によらずすぐコミットして、今のデータのリモートへ push する。
- * まとめ待ちに残すと、次のコマンドは新しいリモートを使うので、元のリモートに変更が届かず、元のリモートを使うクローンが移ったことを知れない
+ * チームのデータの置き場所（git.data_remote・git.data_branch）を変える書き込みは、commit.mode によらずすぐコミットして、今の置き場所へ push する。
+ * まとめ待ちに残すと、次のコマンドは新しい置き場所を使うので、元の置き場所に変更が届かず、元の置き場所を使うクローンが移ったことを知れない
  */
 function moveOptions(key: string): { immediate?: true } {
-  return key === "git.data_remote" ? { immediate: true } : {};
+  return key === "git.data_remote" || key === "git.data_branch" ? { immediate: true } : {};
 }
 
 export const configSet = defineCommand({

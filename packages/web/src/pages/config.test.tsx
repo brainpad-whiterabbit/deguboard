@@ -1178,6 +1178,7 @@ describe("設定画面の部品", () => {
       "auto.decisions",
       "auto.merge",
       "git.base_branch",
+      "git.data_branch",
       "git.data_remote",
       "git.remote",
       "merge.approval_overrides",

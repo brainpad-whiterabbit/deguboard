@@ -6,19 +6,9 @@ import { OperationError } from "../errors.js";
 import type { GitRepo, RepoPaths } from "./repo.js";
 import { runGit } from "./run.js";
 import { findBranchWorktree } from "./worktree.js";
+import { isSafeBranchName } from "../model/common.js";
 
-/**
- * `git check-ref-format --branch` 相当の検査。先頭の `-` を拒み、git にオプションとして読まれないようにする
- * （`--upload-pack=<コマンド>` のような注入で actions.shell を回り込ませない。AG-7）
- */
-export function isSafeBranchName(name: string): boolean {
-  if (name === "" || name === "@" || name.startsWith("-")) return false;
-  // 制御文字・空白・~ ^ : ? * [ \ と、`..`・`@{`・`//` を含むもの
-  // oxlint-disable-next-line no-control-regex
-  if (/[\x00-\x20\x7f~^:?*[\\]|\.\.|@\{|\/\//.test(name)) return false;
-  if (name.startsWith("/") || name.endsWith("/") || name.endsWith(".")) return false;
-  return name.split("/").every((part) => !part.startsWith(".") && !part.endsWith(".lock"));
-}
+export { isSafeBranchName };
 
 /** worktree.root（`<repo>` を置き換え、メインの作業ツリーからの相対）にブランチ名をつないだ場所 */
 export function defaultWorktreePath(

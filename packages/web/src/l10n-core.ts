@@ -80,6 +80,11 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     {
       ja: "カンバンのデータ（deguboard ブランチ）を fetch・push するリモート。データをコードとは別のリポジトリに置くときに書く。URL でなくリモートの名前（dg init --data-remote <URL> がリモートを足す）。空なら git.remote を使う。名指ししたリモートがクローンにないと、push するコマンドは止まって足し方を示す。チームの値の変更は、すぐコミットして今のデータのリモートへ push する（そのリモートを使うクローンに移ったことを知らせるため）。別のリポジトリへ移す手順は dg guide overview",
     },
+  // git.data_branch
+  "Branch of the data remote that holds this repository's kanban. Only this branch is fetched, integrated, and pushed, so several repositories can keep separate kanbans in one dedicated data repository, each under its own branch (deguboard-<name> is recommended). A name with / is rejected. Everyone who can read the data repository can read every kanban in it. A new clone passes it to dg init --data-branch (the config is inside the data). A change to the team's value is committed and pushed to the current branch right away, so that clones still using it learn of the move. For how to move the data, see dg guide overview":
+    {
+      ja: "データのリモートで、このリポジトリのカンバンを置くブランチ。このブランチだけを fetch・取り込み・push するので、1 つの専用のデータのリポジトリに、リポジトリごとのブランチで別々のカンバンを置ける（deguboard-<名前> を勧める）。/ を含む名前は拒む。データのリポジトリを読める人は、そこのどのカンバンも読める。新しいクローンは dg init --data-branch で渡す（config はデータの中にある）。チームの値の変更は、すぐコミットして今のブランチへ push する（そのブランチを使うクローンに移ったことを知らせるため）。移す手順は dg guide overview",
+    },
   // git.base_branch
   "Base for work branches and for deciding what is merged": {
     ja: "作業ブランチの元と「マージ済み」の判定の基準",
@@ -240,6 +245,10 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   // git.data_remote
   "Git remote that the kanban data is fetched from and pushed to": {
     ja: "カンバンのデータを fetch・push するリモート",
+  },
+  // git.data_branch
+  "Branch of the data remote that holds this repository's kanban": {
+    ja: "データのリモートで、このリポジトリのカンバンを置くブランチ",
   },
   // worktree.root
   "Where work worktrees go": { ja: "作業 worktree の置き場所" },

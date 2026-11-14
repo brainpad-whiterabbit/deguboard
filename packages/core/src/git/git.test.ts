@@ -14,7 +14,7 @@ import { checkOutside } from "./outside.js";
 import { markRebase, rebaseInProgress, rebaseLeftByDg } from "./rebase.js";
 import { GitError, runGit } from "./run.js";
 import { fetchData, integrate, push, syncStatus } from "./sync.js";
-import { DATA_BRANCH, ensureDeguboardWorktree } from "./worktree.js";
+import { LOCAL_DATA_BRANCH, ensureDeguboardWorktree } from "./worktree.js";
 import { resolveRepoPaths } from "./repo.js";
 import { flushPending, withWrite, type WriteContext } from "./write.js";
 
@@ -45,14 +45,14 @@ describe("worktree の用意", () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);
     const paths = await resolveRepoPaths(local.dir);
-    expect(await ensureDeguboardWorktree(paths, null)).toBe("orphan");
+    expect(await ensureDeguboardWorktree(paths, null, "deguboard")).toBe("orphan");
     expect(paths.dataDir).toBe(path.join(local.dir, ".git", "deguboard"));
     const head = await git(paths.dataDir, ["rev-parse", "--abbrev-ref", "HEAD"]);
-    expect(head.stdout.trim()).toBe(DATA_BRANCH);
+    expect(head.stdout.trim()).toBe(LOCAL_DATA_BRANCH);
     // main 側には何も入らない
     const mainFiles = await git(local.dir, ["ls-files"]);
     expect(mainFiles.stdout).toBe("");
-    expect(await ensureDeguboardWorktree(paths, null)).toBe("existing");
+    expect(await ensureDeguboardWorktree(paths, null, "deguboard")).toBe("existing");
   });
 
   it("リモートに deguboard ブランチがあれば取り込んで worktree にする", async () => {
@@ -64,7 +64,7 @@ describe("worktree の用意", () => {
     expect(await push(a.repo)).toEqual({ ok: true });
 
     const pathsB = await resolveRepoPaths(f.cloneB);
-    expect(await ensureDeguboardWorktree(pathsB, "origin")).toBe("from_remote");
+    expect(await ensureDeguboardWorktree(pathsB, "origin", "deguboard")).toBe("from_remote");
     expect(await readFile(path.join(pathsB.dataDir, "config.yaml"), "utf8")).toBe(
       "default_project: default\n",
     );

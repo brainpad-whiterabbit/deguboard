@@ -13,9 +13,9 @@ import {
 } from "./merge.js";
 import { DG_COMMIT_TRAILER } from "./outside.js";
 import { abortRebase, markRebase, unmarkRebase } from "./rebase.js";
-import type { GitRepo } from "./repo.js";
+import { dataRemoteRef, type GitRepo } from "./repo.js";
 import { type ExecResult, GitError, runGit } from "./run.js";
-import { DATA_BRANCH } from "./worktree.js";
+import { LOCAL_DATA_BRANCH } from "./worktree.js";
 
 export interface SyncStatus {
   /** 未 push のコミット数 */
@@ -42,15 +42,18 @@ const git = (repo: GitRepo, args: string[], opts: Parameters<typeof runGit>[2] =
   runGit(repo.dataDir, args, { localDir: repo.localDir, ...opts });
 
 export function remoteRef(repo: GitRepo): string {
-  return `refs/remotes/${repo.dataRemote}/${DATA_BRANCH}`;
+  return dataRemoteRef(repo);
 }
 
-/** deguboard ブランチだけを取り込む。リモートにまだなければ remoteBranch: false。timeoutMs を過ぎたら届かないときと同じ失敗 */
+/**
+ * データのブランチ（repo.dataBranch）だけを取り込む。同じリモートのほかのブランチ（ほかのカンバンのデータ）は取り込まない。
+ * リモートにまだなければ remoteBranch: false。timeoutMs を過ぎたら届かないときと同じ失敗
+ */
 export async function fetchData(repo: GitRepo, timeoutMs = 60_000): Promise<FetchResult> {
   if (!repo.dataRemote) return { ok: true, remoteBranch: false };
   const result = await remoteGit(
     repo,
-    ["fetch", repo.dataRemote, `${DATA_BRANCH}:${remoteRef(repo)}`],
+    ["fetch", repo.dataRemote, `refs/heads/${repo.dataBranch}:${remoteRef(repo)}`],
     timeoutMs,
   );
   if (result.code === 0) return { ok: true, remoteBranch: true };
@@ -68,8 +71,8 @@ export async function fetchCode(
 }
 
 /**
- * sync の取得：データ（deguboard ブランチ）をデータのリモートから、作業ブランチをコードのリモートから取り込む。
- * 2 つが同じリモートなら 1 回の fetch で済ませる。別のリモートのとき、結果はデータの取得のもので、
+ * sync の取得：データ（データのブランチ）をデータのリモートから、作業ブランチをコードのリモートから取り込む。
+ * 2 つが同じリモートなら 1 回の fetch で済ませる（ほかのカンバンのデータのブランチも追跡 ref には入るが、取り込むのは remoteRef だけ）。別のリモートのとき、結果はデータの取得のもので、
  * コードの取得だけが失敗したら codeDetail に理由を入れる（データの取り込みと push は続け、照合は手元の ref で行う）
  */
 export async function fetchAll(repo: GitRepo): Promise<FetchResult & { codeDetail?: string }> {
@@ -95,7 +98,7 @@ export async function isDirty(repo: GitRepo): Promise<boolean> {
 }
 
 /**
- * リモートの deguboard に rebase する。競合したら中止してローカルのコミットを残す（SY-4）。
+ * データのリモートのデータのブランチ（remoteRef）に rebase する。競合したら中止してローカルのコミットを残す（SY-4）。
  * frontmatter の別々のフィールドの変更はマージドライバ（merge.ts）が解く。.gitattributes がまだリモートにない間も効くよう、
  * deguboard-local/ の属性ファイルを core.attributesFile で渡す。
  * 空のコミットは落とす（--no-keep-empty）：別々に作った orphan の根（空のツリー）を積み直して履歴に割り込ませないため。
@@ -294,12 +297,18 @@ async function remoteGit(repo: GitRepo, args: string[], timeoutMs: number): Prom
   }
 }
 
-/** push の結果を --porcelain の行で判定する（文言に依存しない） */
+/** 手元の deguboard ブランチをデータのリモートのデータのブランチへ送る。結果は --porcelain の行で判定する（文言に依存しない） */
 export async function push(repo: GitRepo): Promise<PushResult> {
   if (!repo.dataRemote) return { ok: false, reason: "unreachable", detail: "No remote" };
   const result = await remoteGit(
     repo,
-    ["push", "--porcelain", "-u", repo.dataRemote, `${DATA_BRANCH}:${DATA_BRANCH}`],
+    [
+      "push",
+      "--porcelain",
+      "-u",
+      repo.dataRemote,
+      `refs/heads/${LOCAL_DATA_BRANCH}:refs/heads/${repo.dataBranch}`,
+    ],
     60_000,
   );
   if (result.code === 0) return { ok: true };

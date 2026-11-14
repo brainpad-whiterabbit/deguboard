@@ -52,6 +52,7 @@ deguboard は、Agentic-Agile の考え方（[マニフェスト](https://github
 
 - データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用 worktree として checkout する。読み書きはすべてここで行い、作業ブランチにはデータを置かない（理由は [ADR-034](adr/ADR-034-storage-and-id.md)）
 - データを fetch・push するリモートは、既定でコードのリモート（`git.remote`）と同じ。`git.data_remote`（5.10）で、コードとは別のリポジトリのリモートにできる。作業ブランチと PR の照合はコードのリモートのままで、手元の置き場所も変わらない（別のリポジトリへ移す手順は [usage.ja.md](usage.ja.md#データを別のリポジトリに置く)）
+- データのリモートでのブランチ名は `git.data_branch`（5.10）で変えられ、1 つの専用のリポジトリに、リポジトリごとのブランチで別々のカンバンを置ける。見る権限はリポジトリ単位なので、カンバンごとには分けられない（使い方は [usage.ja.md](usage.ja.md#1-つのリポジトリに複数のカンバンを置く)）
 - Git 管理外のもの（ローカルロック、実行中の Run の記録、マージドライバの属性ファイル、個人の設定 `config.yaml`（5.10）、消してよい読みのキャッシュ `store-cache/`（[ADR-033](adr/ADR-033-architecture.md)））は `<git-common-dir>/deguboard-local/` に置く
 
 ```
@@ -173,6 +174,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧（検査しない呼び出しは `packages/core/src/commands/define.ts`）。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないとき（`DATA_REMOTE_MISSING`）と、取り込んだ config でこの値が変わったとき（`DATA_REMOTE_CHANGED`）は、push する操作は push せずに止まって次の手を示し、ほかの操作は警告して続く（戻し方は `dg guide overview`、細部は `commands-data-remote.test.ts`）
+- `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push し、`/` を含む名前は拒む。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく止まる（細部は `commands-data-branch.test.ts`）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。`dg next` が implement・fix の手の `model` に返す（EX-5）。`models.<agent>.<tier>` があれば、呼んだ agent ではそれを先に使う（引く順は `dg next --help`）
 - `retro.perspectives`：振り返りの観点（MT-7）。観点ごとに名前・問い・承認した指標の定義（数え方の文と出どころのコマンド）を持つ入れ子で、チームだけが持つ。`config set` と設定画面では書かず、`dg retro` のコマンドが検査して書く（細部は `dg retro --help`、理由は [ADR-035](adr/ADR-035-retro-perspectives.md)）
 
@@ -203,7 +205,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 6.3 Git 同期と排他
 
-- SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く。データを別のリポジトリに置くとき（5.1）は、`--data-remote <名前か URL>` で取り込む先を渡す（URL ならリモートを足す。細部は `dg init --help`）
+- SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く。データを別のリポジトリに置くとき（5.1）は、`--data-remote <名前か URL>` で取り込む先を、`--data-branch <名前>` でデータのブランチを渡す（URL ならリモートを足す。細部は `dg init --help`）
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
 - SY-3 claim・作成・`iteration start / reopen` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す。届かなければ（fetch・push の時間切れを含む）コミットを捨てて失敗する（チケットの起票だけは DT-5 の仮番号で残す）
 - SY-4 同期は rebase で取り込み、チケット等の属性はマージドライバがフィールド単位で解く（規則は `git/merge.ts`）。同じ状態で時刻だけ違えば早い方を採り警告に出す。解けない競合は rebase を中止してコミットを残し、競合したフィールドと両側の値を報告して、解くまで push・照合と即時の操作（CL-3）を止める。人が選べば `dg sync --resolve` が競合したフィールドだけその側で揃える（戻し方は `dg guide overview`）
@@ -293,4 +295,5 @@ updated_at: 2026-10-31T05:10:00Z
 - 複数 PC 間の排他（claim の push で足りる）
 - Webhook によるリアルタイム同期、外部への通知
 - 権限管理などのチーム運用の機能
+- 1 つのカンバンで複数のリポジトリを扱うこと（カンバンはリポジトリごとに分け、番号・依存・Iteration・Epic はまたがない）
 - Windows

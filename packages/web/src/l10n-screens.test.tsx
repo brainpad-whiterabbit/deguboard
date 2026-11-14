@@ -184,7 +184,7 @@ function richClient(): MockClient {
   ];
   const config = {
     default_project: "default",
-    git: { remote: "origin", data_remote: "", base_branch: "main" },
+    git: { remote: "origin", data_remote: "", data_branch: "deguboard", base_branch: "main" },
     commit: { mode: "each" },
   };
   // 項目の説明は、core の説明を鍵に表示言語の訳を引き、訳がなければ core の説明のまま出す（UI-11・t649）。

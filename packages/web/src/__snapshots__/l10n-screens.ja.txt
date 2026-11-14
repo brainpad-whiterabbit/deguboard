@@ -611,6 +611,14 @@ git.data_remote
 空のとき: git.remote を使う
 詳しく
 git.data_remote
+データのブランチ
+git.data_branch
+データのリモートで、このリポジトリのカンバンを置くブランチ
+[placeholder] 例 deguboard-webapp
+[value] deguboard
+空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
+詳しく
+git.data_branch
 基準のブランチ
 git.base_branch
 作業ブランチの元と「マージ済み」の判定の基準

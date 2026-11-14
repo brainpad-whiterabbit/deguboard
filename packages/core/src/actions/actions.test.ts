@@ -37,6 +37,7 @@ async function contextOf(
     ...paths,
     codeRemote: "origin",
     dataRemote: "origin",
+    dataBranch: "deguboard",
     baseBranch: "main",
   };
   return { repo, config: configSchema.parse(config) as Config, ...extra };

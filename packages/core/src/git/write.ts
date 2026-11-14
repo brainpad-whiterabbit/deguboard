@@ -3,7 +3,7 @@
 // 届かなければ自分のコミットを捨てて失敗する（チケットの起票だけは仮番号でローカルに残す）
 
 import { OperationError } from "../errors.js";
-import { dataRemoteNameOf, type Config } from "../model/config.js";
+import { dataTargetOf, type Config, type DataTarget } from "../model/config.js";
 import type { Store } from "../storage/store.js";
 import { withLock } from "./lock.js";
 import { checkOutside, outsideError, recordBaseline } from "./outside.js";
@@ -60,23 +60,33 @@ export function requireDataRemote(ctx: Pick<WriteContext, "repo" | "config">): v
 }
 
 /**
- * 取り込みの後（store を読み直した後）、push の前に呼ぶ。取り込んだ config でデータのリモートが、このコマンドが使っているものから
- * 変わっていたら、push せずに止めてもう一度の実行を案内する（データを別のリポジトリへ移す途中。元のリモートへ push すると、
- * 移した先に届かず取りこぼす）。このコマンドの変更は書かない（push が拒否された後の取り込み直しで見つけたときは、呼び出し側が
+ * 取り込みの後（store を読み直した後）、push の前に呼ぶ。取り込んだ config でデータのリモートかデータのブランチ名が、このコマンドが
+ * 使っているものから変わっていたら、push せずに止めてもう一度の実行を案内する（データを別のリポジトリ・別のブランチへ移す途中。
+ * 元の置き場所へ push すると、移した先に届かず取りこぼす）。このコマンドの変更は書かない（push が拒否された後の取り込み直しで見つけたときは、呼び出し側が
  * 自分のコミットを捨てる）ので、もう一度の実行で二重にならない。前からある手元のコミットは残り、次の実行が新しいリモートから取り込んで送る。
- * before は取り込む前の config のデータのリモートの名前（dataRemoteNameOf）。取り込みで変わったときだけ止めるので、
- * このコマンド自身が変えた値（dg config set git.data_remote。元のリモートへ push して知らせる）では止めない
+ * before は取り込む前の config のデータの置き場所（dataTargetOf）。取り込みで変わったときだけ止めるので、
+ * このコマンド自身が変えた値（dg config set git.data_remote・git.data_branch。元の置き場所へ push して知らせる）では止めない
  */
 export function stopIfDataRemoteChanged(
   ctx: Pick<WriteContext, "repo" | "store">,
-  before: string,
+  before: DataTarget,
 ): void {
   const used = ctx.repo.dataRemote;
-  const now = dataRemoteNameOf(ctx.store.config);
-  if (used === null || now === before || now === used) return;
+  if (used === null) return;
+  const now = dataTargetOf(ctx.store.config);
+  const remoteMoved = now.remote !== before.remote && now.remote !== used;
+  const branchMoved = now.branch !== before.branch && now.branch !== ctx.repo.dataBranch;
+  if (!remoteMoved && !branchMoved) return;
+  const from = `${used}/${ctx.repo.dataBranch}`;
+  const to = `${remoteMoved ? now.remote : used}/${branchMoved ? now.branch : ctx.repo.dataBranch}`;
+  const moved = remoteMoved
+    ? branchMoved
+      ? "the data remote and the data branch"
+      : "the data remote"
+    : "the data branch";
   throw new OperationError(
     "DATA_REMOTE_CHANGED",
-    `The config just fetched from ${used} changed the data remote to ${now} (the data is moving to another repository), so nothing was pushed to ${used}. Run the command again: it fetches from and pushes to ${now}. Local commits are kept and are sent then`,
+    `The config just fetched from ${from} changed ${moved} to ${to} (the data is moving), so nothing was pushed to ${from}. Run the command again: it fetches from and pushes to ${to}. Local commits are kept and are sent then`,
   );
 }
 
@@ -198,7 +208,7 @@ async function writeLocked<T>(
       if (!fetched.ok) {
         warnings.push(`Cannot fetch from the remote: ${fetched.detail}`);
       } else if (fetched.remoteBranch) {
-        const nameBefore = dataRemoteNameOf(ctx.store.config);
+        const nameBefore = dataTargetOf(ctx.store.config);
         const { result: integrated, resolved } = await integrateLogged(repo);
         warnings.push(...autoResolvedWarnings(resolved));
         if (!integrated.ok) {
@@ -300,7 +310,7 @@ async function writeLocked<T>(
       };
     }
     // 自分のコミットは残したまま次の周回で rebase して再 push する
-    const nameBefore = dataRemoteNameOf(ctx.store.config);
+    const nameBefore = dataTargetOf(ctx.store.config);
     const mine = await headSha(repo);
     const fetchedAgain = await fetchData(repo);
     const { result: integrated, resolved } =

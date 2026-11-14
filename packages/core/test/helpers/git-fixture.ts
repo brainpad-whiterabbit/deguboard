@@ -235,11 +235,12 @@ export async function openRepo(
 ): Promise<OpenedRepo> {
   const paths = await resolveRepoPaths(dir);
   const remote = opts.remote === undefined ? await resolveRemote(paths, "origin") : opts.remote;
-  await ensureDeguboardWorktree(paths, remote);
+  await ensureDeguboardWorktree(paths, remote, "deguboard");
   const repo: GitRepo = {
     ...paths,
     codeRemote: remote,
     dataRemote: remote,
+    dataBranch: "deguboard",
     baseBranch: opts.baseBranch ?? "main",
   };
   const store = await Store.open(repo.dataDir, { localDir: repo.localDir });
