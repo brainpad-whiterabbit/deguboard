@@ -97,6 +97,13 @@ retro:
           sources:
             - dg metrics show --iteration <S> --by ticket (reviews.recorded)
           unmeasured: 回数が多かった原因（チケット・実装・見直しのどれか）
+        escaped-defect-rate:
+          definition: 見直しの記録が 1 件以上ある <S> のチケットのうち、後から起票されたチケット（refs にそのチケットの ID があり、ID がそれより大きいもの）の本文が、そのチケットのマージした変更の振る舞いの誤り（不具合・不安定なテストを含む）を直すと書いているものが 1 件以上あるチケットの割合。見直しで残した軽い指摘の片付け・前からの文書のずれ・振り返りの Try・見直しの中で範囲の外とされた指摘・機能の追加は数えない。数えたチケットの組を添える
+          sources:
+            - dg metrics sources --limit 1 (tickets[].refs。files は読まない)
+            - dg ticket show <t> (body)
+            - dg metrics show --iteration <S> --by ticket (reviews.recorded)
+          unmeasured: まだ見つかっていない不具合（後の Iteration ほど数が増えうるので、新しい回は少なめに出る）と、チケットにされずに直された不具合
     spec:
       name: 仕様の質
       question: チケット（受け入れ条件と範囲）は、作り直しなしで通る成果を引き出せたか
