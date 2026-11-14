@@ -2,6 +2,7 @@
 
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { OperationError } from "../errors.js";
 import {
   attributesFile,
   BODY_FIELD,
@@ -94,7 +95,34 @@ export async function isDirty(repo: GitRepo): Promise<boolean> {
 }
 
 /**
+ * 取り込みの前に呼ぶ。手元の先頭とデータのリモートのデータのブランチに共通の祖先がなく、両側がデータ（空でないツリー）を持つときは、
+ * rebase を始めずに DATA_HISTORY_UNRELATED で止める。データのリモートかブランチ名が別のカンバンのブランチを指している
+ * （共有の専用リポジトリの既定の deguboard が別のカンバンのものだった、など）。rebase すると、別のカンバンの履歴の上に手元のカンバンを
+ * 積もうとして、config.yaml や同じ番号のチケットの add/add の競合という意味の分かりにくい形で止まる。
+ * 片側が空（作ったばかりの orphan の根だけ）なら、今までどおり取り込む（根は integrate が落とす）。
+ * 追跡 ref がまだないとき（リモートにデータのブランチがない）は何もしない
+ */
+export async function requireRelatedHistory(repo: GitRepo): Promise<void> {
+  if (!repo.dataRemote) return;
+  const remote = dataRemoteRef(repo);
+  const has = await git(repo, ["show-ref", "--verify", "--quiet", remote], { allowFailure: true });
+  if (has.code !== 0) return;
+  // merge-base は、共通の祖先がないときだけ 1 で終わる（ほかの失敗は rebase に任せる）
+  const base = await git(repo, ["merge-base", "HEAD", remote], { allowFailure: true });
+  if (base.code !== 1) return;
+  const empty = async (rev: string) =>
+    (await git(repo, ["ls-tree", "--name-only", rev])).stdout.trim().length === 0;
+  if ((await empty("HEAD")) || (await empty(remote))) return;
+  const target = `${repo.dataRemote}/${repo.dataBranch}`;
+  throw new OperationError(
+    "DATA_HISTORY_UNRELATED",
+    `The local kanban and ${target} share no history, and both hold data: ${target} holds another kanban (for example, another repository's kanban in a shared data repository). Nothing was taken in or pushed, and the local commits are kept. Do not merge the two yourself; tell the human. To give this kanban its own branch on ${repo.dataRemote}, the human runs dg init --data-branch <name> (deguboard-<name> is recommended; it points this clone at that branch), then dg sync, then dg config set git.data_branch <name> to record it for the team (see "Data in another repository" in dg guide overview)`,
+  );
+}
+
+/**
  * データのリモートのデータのブランチ（dataRemoteRef）に rebase する。競合したら中止してローカルのコミットを残す（SY-4）。
+ * 共通の祖先がなく両側がデータを持つときは、rebase の前に requireRelatedHistory が止める。
  * frontmatter の別々のフィールドの変更はマージドライバ（merge.ts）が解く。.gitattributes がまだリモートにない間も効くよう、
  * deguboard-local/ の属性ファイルを core.attributesFile で渡す。
  * 空のコミットは落とす（--no-keep-empty）：別々に作った orphan の根（空のツリー）を積み直して履歴に割り込ませないため。
@@ -109,6 +137,7 @@ export async function integrate(
     allowFailure: true,
   });
   if (has.code !== 0) return { ok: true, changed: false };
+  await requireRelatedHistory(repo);
   const before = await headSha(repo);
   const args = [
     "-c",

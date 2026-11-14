@@ -1,5 +1,7 @@
 // データのブランチ名を設定で変える（git.data_branch、t905）。1 つのデータのリモートに、リポジトリごとのブランチでカンバンを並べる
 
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { addDataRemote, git } from "../../test/helpers/git-fixture.js";
 import { fixture, runCleanups } from "../../test/helpers/commands-context.js";
@@ -335,5 +337,95 @@ describe("データのブランチ名を変える（git.data_branch）", () => {
     });
     expect(await tipOf(dataDir, "deguboard-webapp")).toBe(before);
     expect(await tipOf(dataDir, "deguboard-x")).toBeDefined();
+  });
+});
+
+describe("データのリモートやブランチが別のカンバンの履歴を指す（DATA_HISTORY_UNRELATED）", () => {
+  /**
+   * B が共有のデータのリポジトリの既定のブランチ（data/deguboard）に別のカンバンを置き、A はコードのリモートに自分のカンバンを持つ。
+   * A が git.data_remote を data に変えると、A のカンバンは共通の祖先のない B のカンバンのブランチを指す
+   */
+  async function pointedAtOther() {
+    const f = await fixture();
+    const dataDir = await addDataRemote(f, [f.cloneA, f.cloneB]);
+    // orphan の根は作者と秒が同じだと同じ SHA になり、共通の祖先になる。別の人が作ったカンバンにして、根を必ず別にする
+    await git(f.cloneA, ["config", "user.name", "別の人"]);
+    const other = await initWith(f.cloneB, "data", "deguboard");
+    await runCommand(ticketCreate, other, { title: "ほかのカンバン" });
+    const first = await initWith(f.cloneA, "origin", "deguboard");
+    await runCommand(ticketCreate, first, { title: "自分のカンバン" });
+    await runCommand(configSet, first, { key: "git.data_remote", value: "data" });
+    const a = await openContext({ cwd: f.cloneA, actor });
+    expect(a.repo).toMatchObject({ dataRemote: "data", dataBranch: "deguboard" });
+    return { f, dataDir, a, otherTip: await tipOf(dataDir, "deguboard") };
+  }
+
+  const unrelated = {
+    code: "DATA_HISTORY_UNRELATED",
+    message: expect.stringMatching(
+      /data\/deguboard share no history, and both hold data.*another kanban.*Nothing was taken in or pushed.*dg init --data-branch <name>.*git\.data_branch.*dg guide overview/,
+    ),
+  };
+
+  /** rebase を始めていない（途中の rebase も、dg の置く印もない）ことと、手元が動いていないこと */
+  async function expectUntouched(ctx: CommandContext, head: string) {
+    expect(await headOf(ctx)).toBe(head);
+    const status = await git(ctx.repo.dataDir, ["status", "--porcelain"]);
+    expect(status.stdout.trim()).toBe("");
+    for (const dir of ["rebase-merge", "rebase-apply"]) {
+      const p = (await git(ctx.repo.dataDir, ["rev-parse", "--git-path", dir])).stdout.trim();
+      expect(existsSync(path.resolve(ctx.repo.dataDir, p))).toBe(false);
+    }
+    expect(titlesOf(ctx)).toEqual(["t1:自分のカンバン"]);
+  }
+
+  it("sync と書き込みは rebase を始めずに専用のエラーで止まり、案内どおり dg init --data-branch で自分のブランチに分けると送れる", async () => {
+    const { f, dataDir, a, otherTip } = await pointedAtOther();
+    const head = await headOf(a);
+
+    await expect(runCommand(sync, a, {})).rejects.toMatchObject(unrelated);
+    await expectUntouched(a, head);
+    await expect(runCommand(sync, a, { resolve: "local" })).rejects.toMatchObject(unrelated);
+    await expectUntouched(a, head);
+    // 即時の書き込み（起票）も、変更を書く前に止まる
+    await expect(runCommand(ticketCreate, a, { title: "止まる" })).rejects.toMatchObject(unrelated);
+    await expectUntouched(a, head);
+    expect(await tipOf(dataDir, "deguboard")).toBe(otherTip);
+
+    // 戻し方：このクローンを自分のブランチに向け、sync で送り、チームの config に書く
+    const a2 = await initWith(f.cloneA, "data", "deguboard-webapp");
+    expect(a2.repo).toMatchObject({ dataRemote: "data", dataBranch: "deguboard-webapp" });
+    const synced = await runCommand(sync, a2, {});
+    expect(synced.data).toMatchObject({ pushed: true });
+    const set = await runCommand(configSet, a2, {
+      key: "git.data_branch",
+      value: "deguboard-webapp",
+    });
+    expect(set.write).toMatchObject({ pushed: true });
+    expect(await tipOf(dataDir, "deguboard-webapp")).toBe(await headOf(a2));
+    expect(a2.store.teamConfig.git).toMatchObject({ data_branch: "deguboard-webapp" });
+    expect(titlesOf(a2)).toEqual(["t1:自分のカンバン"]);
+    // 別のカンバンのブランチは動かない
+    expect(await tipOf(dataDir, "deguboard")).toBe(otherTip);
+  });
+
+  it("手元が作ったばかりで空（orphan の根だけ）のときは止めず、今までどおりリモートのカンバンを取り込む", async () => {
+    const f = await fixture();
+    await addDataRemote(f, [f.cloneA, f.cloneB]);
+    await git(f.cloneA, ["config", "user.name", "別の人"]);
+    // A は data/deguboard がまだないうちに手元のブランチ（空の根）を作る。その後に B が同じブランチへカンバンを置く
+    const first = await openContext({
+      cwd: f.cloneA,
+      initialize: { dataRemote: "data", dataBranch: "deguboard" },
+      actor,
+    });
+    expect(first.worktree).toBe("orphan");
+    const other = await initWith(f.cloneB, "data", "deguboard");
+    await runCommand(ticketCreate, other, { title: "先にあるカンバン" });
+    await runCommand(init, first, { template: "software-development", data_remote: "data" });
+    const a = await openContext({ cwd: f.cloneA, actor });
+    await runCommand(sync, a, {});
+    expect(titlesOf(a)).toEqual(["t1:先にあるカンバン"]);
+    expect(await headOf(a)).toBe(await headOf(other));
   });
 });

@@ -104,6 +104,7 @@ dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-api
 
 - 新しいクローンも、同じ `--data-remote` と `--data-branch` で `dg init` する。ブランチ名は config の `git.data_branch` に入るが、config はデータの中にあるので、最初の init には渡す
 - ブランチ名に `/` は使えない。`deguboard/webapp` は拒まれ、`deguboard-webapp` を勧められる
+- データのリモートかデータのブランチが、ほかのカンバンのブランチを指したとき（共通の履歴がなく、両方がデータを持つ）は、`dg sync` と書き込みは取り込む前に `DATA_HISTORY_UNRELATED` で止まる。このカンバンに自分のブランチを与える：`dg init --data-branch <名前>`、`dg sync`、`dg config set git.data_branch <名前>` の順に実行する
 - 見る権限はリポジトリ単位でしか分けられない。専用のリポジトリを読める人は、そこのどのカンバンも読める。一部の人にだけ見せるカンバンは、別のリポジトリに置く
 - 今あるカンバンのデータのブランチ名を変えるときは、前の節の手順を同じリモートで行う。1 で `git push <データのリモート> deguboard:<新しい名前>`、2 で `dg config set git.data_branch <新しい名前>` と `dg sync` を実行し、4 で元のブランチを消す。共有のリポジトリへ新しい名前で移すときは、先にブランチ名を変えてから、リポジトリへ移す（1 つずつ移す）。両方を一度に変えると、次のコマンドが新しいリポジトリの元のブランチ名へ push し、そこがほかのカンバンのブランチのこともある
 
