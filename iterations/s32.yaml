@@ -1,6 +1,6 @@
 id: s32
 project: default
 name: sprint32
-goal: ""
+goal: 人の承認で agent がマージできるようにし、カンバンの行に Run を並べ、README を頼み方と Agentic-Agile の紹介で書き直す。あわせて s31 の見直しの指摘とテストの揺れを直す
 status: active
 started_at: 2026-11-13T20:03:14Z
