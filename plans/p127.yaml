@@ -1,0 +1,10 @@
+id: p127
+project: default
+tickets: [t885]
+after: {}
+pending_approval: true
+details:
+  t885:
+    scope: README 2 つの冒頭と Microsoft の文、箇条書きの重なり、README 以外の一言の紹介文（requirements.md・CLAUDE.md・拡張の description・dg --help・package.json）を揃える。ADR-035 などの評価の枠組みの出典は変えない
+    approach: 合意した文案で英日の README を同じ構成で直し、拡張の description を変えるので l10n.test.ts の期待の値も直す
+    tier: light
