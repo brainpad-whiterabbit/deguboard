@@ -28,7 +28,11 @@ const boardClient = () => mockClient(boardFixture());
 import type { RunSummary, RunView, TicketRunsView } from "./types.js";
 
 /** run.recent の 1 件（runs は新しい順）。total を省けば runs の件数 */
-function ticketRuns(ticketId: string, runs: RunSummary[], total = runs.length): TicketRunsView {
+function ticketRuns(
+  ticketId: TicketRunsView["ticket"],
+  runs: RunSummary[],
+  total = runs.length,
+): TicketRunsView {
   return { ticket: ticketId, total, runs };
 }
 
@@ -37,7 +41,7 @@ const runningSummary = (partial: Partial<RunSummary> = {}) =>
   runSummary({ running: true, started_at: "2026-11-04T11:48:00Z", ...partial });
 
 /** 実行中の Run が 1 回だけあるチケットの run.recent の 1 件 */
-const runningOf = (ticketId: string) => ticketRuns(ticketId, [runningSummary()]);
+const runningOf = (ticketId: TicketRunsView["ticket"]) => ticketRuns(ticketId, [runningSummary()]);
 import { createUiState, memoryBackend } from "./ui-state.js";
 
 // 履歴の日付の書き方は今に依るので、今を固定する（Date だけ。個別に timer を使う試験は自分で入れ替える）

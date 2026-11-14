@@ -2,6 +2,7 @@
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runSummary } from "../test-helpers.js";
+import type { TicketRunsView } from "../types.js";
 import { RunPips } from "./row-end.js";
 
 afterEach(() => {
@@ -12,7 +13,7 @@ afterEach(() => {
 describe("カンバンの行の Run の並び（RunPips）", () => {
   it("最後の丸の経過の文字を 1 分ごとに描き直す", () => {
     vi.useFakeTimers({ now: new Date("2026-11-14T03:00:00Z") });
-    const runs = {
+    const runs: TicketRunsView = {
       ticket: "t1",
       total: 1,
       runs: [runSummary({ running: true, started_at: "2026-11-14T02:48:00Z" })],
@@ -27,7 +28,7 @@ describe("カンバンの行の Run の並び（RunPips）", () => {
   });
 
   it("Run が 3 回以下なら「+n」を出さない", () => {
-    const runs = {
+    const runs: TicketRunsView = {
       ticket: "t1",
       total: 2,
       runs: [runSummary({ id: "r2" }), runSummary({ id: "r1" })],

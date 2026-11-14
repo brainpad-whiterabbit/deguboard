@@ -133,7 +133,7 @@ describe("カンバンの行の Run の並び", () => {
     started_at: "2026-11-14T02:48:00Z",
   });
   const views = (...runs: ReturnType<typeof runSummary>[]) => ({
-    ticket: "t1",
+    ticket: "t1" as const,
     total: runs.length,
     runs,
   });
