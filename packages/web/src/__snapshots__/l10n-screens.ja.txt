@@ -493,6 +493,66 @@ Plan の段階 heavy に使うモデル
 空のとき: 親のモデル
 詳しく
 models.heavy
+段階 light のモデル（Claude Code）
+models.claude-code.light
+[title] 既定は 
+変更あり
+この agent が dg next を呼んだときに、Plan の段階 light に使うモデル
+[title] 既定の  に戻す
+既定に戻す
+空のとき: models.light を使う
+詳しく
+models.claude-code.light
+段階 standard のモデル（Claude Code）
+models.claude-code.standard
+[title] 既定は 
+変更あり
+この agent が dg next を呼んだときに、Plan の段階 standard に使うモデル
+[title] 既定の  に戻す
+既定に戻す
+空のとき: models.standard を使う
+詳しく
+models.claude-code.standard
+段階 heavy のモデル（Claude Code）
+models.claude-code.heavy
+[title] 既定は 
+変更あり
+この agent が dg next を呼んだときに、Plan の段階 heavy に使うモデル
+[title] 既定の  に戻す
+既定に戻す
+空のとき: models.heavy を使う
+詳しく
+models.claude-code.heavy
+段階 light のモデル（Codex）
+models.codex.light
+[title] 既定は 
+変更あり
+この agent が dg next を呼んだときに、Plan の段階 light に使うモデル
+[title] 既定の  に戻す
+既定に戻す
+空のとき: models.light を使う
+詳しく
+models.codex.light
+段階 standard のモデル（Codex）
+models.codex.standard
+[title] 既定は 
+変更あり
+この agent が dg next を呼んだときに、Plan の段階 standard に使うモデル
+[title] 既定の  に戻す
+既定に戻す
+空のとき: models.standard を使う
+詳しく
+models.codex.standard
+段階 heavy のモデル（Codex）
+models.codex.heavy
+[title] 既定は 
+変更あり
+この agent が dg next を呼んだときに、Plan の段階 heavy に使うモデル
+[title] 既定の  に戻す
+既定に戻す
+空のとき: models.heavy を使う
+詳しく
+models.codex.heavy
 人だけに許すコマンド
 actor.human_only
 [title] 既定は 空

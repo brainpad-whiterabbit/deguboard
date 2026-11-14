@@ -24,6 +24,14 @@ export function agentNames(): string[] {
   return ADAPTERS.map((a) => a.name);
 }
 
+/**
+ * dg を呼んだプロセスから判定できる agent の名前（detect を持つ Adapter）。agent ごとの設定（models.<agent>.*）の鍵に使う。
+ * 判定できない agent の鍵は決して効かないので、設定の項目に出さない
+ */
+export function detectableAgentNames(): string[] {
+  return ADAPTERS.filter((a) => a.detect).map((a) => a.name);
+}
+
 /** Adapter が Skill を読むディレクトリをまとめたもの。ask が形式の既定を決めるのに使う（AG-8） */
 export function agentSkillDirs(query: SkillQuery): string[] {
   return agentSkillPlaces(query).map((p) => p.dir);

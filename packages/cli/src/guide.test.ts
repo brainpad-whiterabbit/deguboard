@@ -649,12 +649,15 @@ describe("dg guide", () => {
     ).toContain("Current setting: `true`");
   });
 
-  it("work は段階のモデルを dg next の model に任せ、調べものは models.light。{{models.*}} は埋めない。見直し役は親のモデル", async () => {
+  it("work は段階のモデルを dg next の model に任せ、調べものは呼んだ agent の models.<agent>.light、空なら models.light。{{models.*}} は埋めない。見直し役は親のモデル", async () => {
     const work = await readGuide("work");
     expect(work).not.toContain("{{models.");
     expect(work).not.toContain("implement` のモデル");
     expect(work).toContain("If `model` is not empty");
-    expect(work).toContain("uses `models.light` (the parent's model if it is empty)");
+    // Codex の親が Claude 向けのモデル名で調べものを起動しないよう、agent ごとの対応を先に引く（t898）
+    expect(work).toContain(
+      "uses the calling agent's `models.<agent>.light`, or `models.light` if that is empty (the parent's model if both are empty)",
+    );
     expect(await readGuide("review")).toContain("regardless of the stage");
     expect(await readGuide("plan")).toContain("--tier");
   });

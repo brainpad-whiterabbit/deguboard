@@ -59,6 +59,13 @@ const NAMES: Record<string, string> = {
   "models.light": msg("段階 light のモデル"),
   "models.standard": msg("段階 standard のモデル"),
   "models.heavy": msg("段階 heavy のモデル"),
+  // agent ごとの上書き。core の、呼んだ agent を判定できる Adapter の一覧を写すので、そういう Adapter を足したらここにも足す（どの項目にも名前があることをテストが確かめる）
+  "models.claude-code.light": msg("段階 light のモデル（Claude Code）"),
+  "models.claude-code.standard": msg("段階 standard のモデル（Claude Code）"),
+  "models.claude-code.heavy": msg("段階 heavy のモデル（Claude Code）"),
+  "models.codex.light": msg("段階 light のモデル（Codex）"),
+  "models.codex.standard": msg("段階 standard のモデル（Codex）"),
+  "models.codex.heavy": msg("段階 heavy のモデル（Codex）"),
   "actor.human_only": msg("人だけに許すコマンド"),
   "metrics.read_transcripts": msg("会話記録から使用量を読む"),
   "notify.approvals": msg("承認待ちが増えたら通知する"),

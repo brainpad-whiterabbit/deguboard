@@ -184,6 +184,21 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     {
       ja: "Plan の段階 heavy（設計の判断・データの形・複数パッケージ・原因の分からない不具合）に使うモデル。空なら親のモデル",
     },
+  // models.<agent>.light（どの agent も同じ説明）
+  "Model for Plan tier light when the agent in this key calls dg next (it overrides models.light for that agent). When empty, models.light":
+    {
+      ja: "この鍵の agent が dg next を呼んだときに、Plan の段階 light に使うモデル（その agent では models.light より優先する）。空なら models.light",
+    },
+  // models.<agent>.standard
+  "Model for Plan tier standard when the agent in this key calls dg next (it overrides models.standard for that agent). When empty, models.standard":
+    {
+      ja: "この鍵の agent が dg next を呼んだときに、Plan の段階 standard に使うモデル（その agent では models.standard より優先する）。空なら models.standard",
+    },
+  // models.<agent>.heavy
+  "Model for Plan tier heavy when the agent in this key calls dg next (it overrides models.heavy for that agent). When empty, models.heavy":
+    {
+      ja: "この鍵の agent が dg next を呼んだときに、Plan の段階 heavy に使うモデル（その agent では models.heavy より優先する）。空なら models.heavy",
+    },
   // actor.human_only
   "Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by":
     {
@@ -278,6 +293,16 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "Model for Plan tier standard": { ja: "Plan の段階 standard に使うモデル" },
   // models.heavy
   "Model for Plan tier heavy": { ja: "Plan の段階 heavy に使うモデル" },
+  // models.<agent>.*
+  "Model for Plan tier light when this agent calls dg next": {
+    ja: "この agent が dg next を呼んだときに、Plan の段階 light に使うモデル",
+  },
+  "Model for Plan tier standard when this agent calls dg next": {
+    ja: "この agent が dg next を呼んだときに、Plan の段階 standard に使うモデル",
+  },
+  "Model for Plan tier heavy when this agent calls dg next": {
+    ja: "この agent が dg next を呼んだときに、Plan の段階 heavy に使うモデル",
+  },
   // actor.human_only
   "Command names rejected for agents": { ja: "agent からは拒否するコマンド名" },
   // priority.high
@@ -318,6 +343,10 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "The reviewer's severity is kept": { ja: "見直し役の severity のまま" },
   // models.*
   "The parent's model": { ja: "親のモデル" },
+  // models.<agent>.*
+  "models.light is used": { ja: "models.light を使う" },
+  "models.standard is used": { ja: "models.standard を使う" },
+  "models.heavy is used": { ja: "models.heavy を使う" },
   // actor.human_only
   "Every command is allowed. Ticket transitions are still restricted with the Workflow's by": {
     ja: "すべてのコマンドを許す。チケットの遷移は Workflow の by で縛る",

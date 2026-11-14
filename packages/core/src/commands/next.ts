@@ -2,6 +2,7 @@
 // 段階を返すだけで、エージェントを起動も監視もしない（EX-1）。親は dg next の 1 手を行い、終えたらもう一度 dg next を呼ぶ
 
 import { z } from "zod";
+import { detectAgent } from "../agents/index.js";
 import { remoteTip } from "../git/facts.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
 import { gateLevelOf, gateScopeOf, type Ticket } from "../model/ticket.js";
@@ -74,7 +75,7 @@ export interface NextStep {
   pr: number | null;
   /** Plan の段階・範囲・方針（開いた Plan に入っていれば） */
   plan: { id: string; tier: string | null; scope: string | null; approach: string | null } | null;
-  /** サブエージェントを起動するモデル（implement・fix の手。plan.tier を config の models.* に対応させ、空なら null は親のモデル）。ほかの手は null */
+  /** サブエージェントを起動するモデル（implement・fix の手。plan.tier を、呼んだ agent の models.<agent>.<tier>、なければ models.<tier> に対応させ、空なら null は親のモデル）。ほかの手は null */
   model: string | null;
   /** この手で、親かエージェントが呼ぶ dg・gh のコマンド（順に） */
   commands: string[];
@@ -99,13 +100,20 @@ const MODEL_KINDS: readonly NextKind[] = ["implement", "fix"];
 
 /**
  * plan.tier を config の models.* のモデル名に対応させる。tier を省いた段階は standard（guide-plan の `--tier` と同じ）。
- * 対応の値が空なら null（親のモデル）
+ * モデル名は製品ごとに違うので、dg next を呼んだ agent の models.<agent>.<tier> を先に引き、空なら models.<tier>。
+ * agent を判定できないとき（null）は models.<tier> だけを引く。どちらも空なら null（親のモデル）
  */
 export function modelOf(
   tier: PlanTier | null | undefined,
   models: Config["models"],
+  agent: string | null = null,
 ): string | null {
-  return models[tier ?? "standard"] || null;
+  const key = tier ?? "standard";
+  // 鍵は判定できる Adapter の一覧から作るので、型には agent の名前が出ない
+  const own = agent ? (models as Record<string, unknown>)[agent] : undefined;
+  const ownModel =
+    typeof own === "object" && own !== null ? (own as Record<string, unknown>)[key] : undefined;
+  return (typeof ownModel === "string" && ownModel) || models[key] || null;
 }
 
 /** 実行中の Run を待つ（新しく起動しない）手。ほかの手（done・wait_deps・wait_merge など）は待たない */
@@ -316,6 +324,8 @@ export interface NextOptions {
    * 印で頼む手（implement・review・fix）はこれを待たず、印で頼み直す（起動のフックが interrupted で閉じる。t765）
    */
   crashed?: ReadonlyMap<string, string>;
+  /** dg next を呼んだ agent（detectAgent）。モデル名を models.<agent>.<tier> から引く。判定できなければ null で、models.<tier> を引く */
+  agent?: string | null;
 }
 
 /** 印で頼む手。落ちたセッションの残りの Run は、頼み直せばフックが閉じるので待たない */
@@ -398,7 +408,9 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
             `Wait for the running Run ${awaited} to end (do not start another. For a sub-agent asked with the mark, wait for its completion notice. The hook closes the Run, so do not close it with run finish)`,
           ]
         : [...leftNotes, ...commands],
-      model: MODEL_KINDS.includes(kind) ? modelOf(details?.tier, ctx.config.models) : null,
+      model: MODEL_KINDS.includes(kind)
+        ? modelOf(details?.tier, ctx.config.models, opts.agent ?? null)
+        : null,
       ask_human: ask,
       brief: null,
     };
@@ -513,7 +525,7 @@ export const next = defineCommand({
     "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another. For implement, review, and fix steps it does not wait for a Run left over from a crashed session: a Run opened by a sub-agent of a different session whose record has not been written for 30 minutes. It returns the steps to ask again with the mark, and says that asking again closes that Run as interrupted. A newer record, an unknown session, and a Run the parent opened itself are still waited for), and the questions to ask a person (ask_human). " +
     "For wait_merge, whatever auto.merge is, ask_human asks whether to merge the PR, and commands give the gate judgment and the dg pr merge <id> --approved-by human to run only after a person approves (when declined, do not merge; a PR that does not meet the gate is merged only when a person approves it anyway and every unmet condition is in config's merge.approval_overrides; merging without asking is only for --auto of dg guide all with auto.merge true). " +
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
-    "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
+    "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.<agent>.<tier> of the agent that called dg, detected from the environment, and when that is empty or the agent cannot be detected, to models.<tier>; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
     "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. A ticket in the awaiting_approval stage is wait_human too (a person approves its Plan). " +
     "It also warns with the dg hook warnings not reported yet (see dg hook --help), and with the installed dg Skills that are older than this dg, or that a dg of the same version wrote with different contents (update them with dg skill install; Skills written by a newer dg are not reported). It writes nothing but the mark of the reported hook warnings in deguboard-local",
   input: z.object({
@@ -527,6 +539,7 @@ export const next = defineCommand({
     const env = ctx.env ?? process.env;
     const step = nextOf(ctx, facts, {
       hooksReach: await hooksReachSession(ctx.repo.localDir, env),
+      agent: detectAgent(env).agent,
       crashed: await crashedSubagentRuns(ctx, facts.runs, sessionOf(ctx, undefined)),
     });
     const role = BRIEF_ROLE_OF[step.kind];

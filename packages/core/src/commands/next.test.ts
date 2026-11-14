@@ -6,7 +6,7 @@ import { runCommand } from "./define.js";
 import { next, nextOf, stageOf, type NextStep, type StageFacts } from "./next.js";
 import { planApprove, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
-import { init } from "./setup.js";
+import { configSet, init } from "./setup.js";
 import { ticketCreate, ticketShow, ticketUpdate, type TicketDetail } from "./ticket.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -615,6 +615,75 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     // 既定の config（models.* は空）の dg next も model を返す
     const step = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
     expect(step).toMatchObject({ kind: "implement", model: null, plan: { tier: "heavy" } });
+  });
+
+  it("model は呼んだ agent の models.<agent>.<tier> を先に引き、指定がなければ models.<tier>、agent を判定できなければ models.<tier> を使う（t898）", async () => {
+    const ctx = await prepared();
+    const created = await runCommand(planCreate, ctx, {
+      tickets: ["t1", "t2"],
+      tier: { t1: "heavy", t2: "light" },
+    });
+    await runCommand(planApprove, ctx, { plan: created.data.id });
+    const models = {
+      ...ctx.config.models,
+      light: "haiku",
+      standard: "sonnet",
+      heavy: "opus",
+      codex: { light: "", standard: "", heavy: "gpt-heavy" },
+    };
+    const withModels = { ...ctx, config: { ...ctx.config, models } };
+    const todo = (id: string) =>
+      facts({ ticket: { id: id as TicketFacts["id"], status: "todo", pr: undefined } });
+    const modelFor = (id: string, agent?: string | null) =>
+      nextOf(withModels, todo(id), agent === undefined ? {} : { agent }).model;
+    // 呼んだ agent の指定があればそれを返す。手直しも同じ
+    expect(modelFor("t1", "codex")).toBe("gpt-heavy");
+    expect(
+      nextOf(withModels, facts({ runs: [review(6, heavy)] }), { agent: "codex" }),
+    ).toMatchObject({ kind: "fix", model: "gpt-heavy" });
+    // その agent の段階の指定が空なら models.<tier>
+    expect(modelFor("t2", "codex")).toBe("haiku");
+    // 指定のない agent は models.<tier>
+    expect(modelFor("t1", "claude-code")).toBe("opus");
+    // agent を判定できない（Copilot CLI のように判定の手がかりがない、2 つ以上が当たった）ときは models.<tier>
+    expect(modelFor("t1", null)).toBe("opus");
+    expect(modelFor("t1")).toBe("opus");
+    // Adapter のない名前や、段階と同じ名前を agent に渡しても、models.<tier> に落ちる
+    expect(modelFor("t1", "unknown")).toBe("opus");
+    expect(modelFor("t1", "light")).toBe("opus");
+    // agent の指定だけがあり models.<tier> が空でも、その agent には返す。ほかは親のモデル（null）
+    const onlyAgent = {
+      ...ctx,
+      config: {
+        ...ctx.config,
+        models: { ...ctx.config.models, codex: { light: "", standard: "", heavy: "gpt-heavy" } },
+      },
+    };
+    expect(nextOf(onlyAgent, todo("t1"), { agent: "codex" }).model).toBe("gpt-heavy");
+    expect(nextOf(onlyAgent, todo("t1"), { agent: null }).model).toBeNull();
+
+    // dg next は、呼んだプロセスの環境変数から agent を判定して引く（個人の設定の上書きも効く）
+    await runCommand(configSet, ctx, { key: "models.heavy", value: "opus" });
+    await runCommand(configSet, ctx, { key: "models.codex.heavy", value: "gpt-team" });
+    // 文脈の config は開いたときの値なので、書いた後は開き直す
+    const asked = async (env: NodeJS.ProcessEnv) => {
+      const fresh = await openContext({
+        cwd: ctx.repo.topLevel,
+        actor: { kind: "agent", user: "eiki" },
+      });
+      return ((await runCommand(next, { ...fresh, env }, { ticket: "t1" })).data as NextStep).model;
+    };
+    expect(await asked({ CODEX_THREAD_ID: "0199a213-81c0-7800-8aa1-bbab2a035a53" })).toBe(
+      "gpt-team",
+    );
+    expect(await asked({ CLAUDECODE: "1" })).toBe("opus");
+    // 判定できない環境（Copilot CLI など）と、2 つ以上が当たった環境は models.<tier>
+    expect(await asked({})).toBe("opus");
+    expect(await asked({ CLAUDECODE: "1", CODEX_THREAD_ID: "t" })).toBe("opus");
+    await runCommand(configSet, ctx, { key: "models.codex.heavy", value: "gpt-mine", local: true });
+    expect(await asked({ CODEX_THREAD_ID: "0199a213-81c0-7800-8aa1-bbab2a035a53" })).toBe(
+      "gpt-mine",
+    );
   });
 
   it("承認待ちの Plan に入った todo は、dg next が着手ではなく人の承認を待つ手（wait_human）と Plan を返し、ticket show も同じ段階を出す。承認すると implement に戻る（PL-5）", async () => {

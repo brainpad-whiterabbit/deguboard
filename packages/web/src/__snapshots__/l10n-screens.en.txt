@@ -493,6 +493,66 @@ Reset to Default
 When empty: The parent's model
 Details
 Model for Plan tier heavy (design decisions, data shapes, multiple packages, bugs of unknown cause). When empty, the parent's model
+Model for tier light (Claude Code)
+models.claude-code.light
+[title] Default: 
+Modified
+Model for Plan tier light when this agent calls dg next
+[title] Reset to default 
+Reset to Default
+When empty: models.light is used
+Details
+Model for Plan tier light when the agent in this key calls dg next (it overrides models.light for that agent). When empty, models.light
+Model for tier standard (Claude Code)
+models.claude-code.standard
+[title] Default: 
+Modified
+Model for Plan tier standard when this agent calls dg next
+[title] Reset to default 
+Reset to Default
+When empty: models.standard is used
+Details
+Model for Plan tier standard when the agent in this key calls dg next (it overrides models.standard for that agent). When empty, models.standard
+Model for tier heavy (Claude Code)
+models.claude-code.heavy
+[title] Default: 
+Modified
+Model for Plan tier heavy when this agent calls dg next
+[title] Reset to default 
+Reset to Default
+When empty: models.heavy is used
+Details
+Model for Plan tier heavy when the agent in this key calls dg next (it overrides models.heavy for that agent). When empty, models.heavy
+Model for tier light (Codex)
+models.codex.light
+[title] Default: 
+Modified
+Model for Plan tier light when this agent calls dg next
+[title] Reset to default 
+Reset to Default
+When empty: models.light is used
+Details
+Model for Plan tier light when the agent in this key calls dg next (it overrides models.light for that agent). When empty, models.light
+Model for tier standard (Codex)
+models.codex.standard
+[title] Default: 
+Modified
+Model for Plan tier standard when this agent calls dg next
+[title] Reset to default 
+Reset to Default
+When empty: models.standard is used
+Details
+Model for Plan tier standard when the agent in this key calls dg next (it overrides models.standard for that agent). When empty, models.standard
+Model for tier heavy (Codex)
+models.codex.heavy
+[title] Default: 
+Modified
+Model for Plan tier heavy when this agent calls dg next
+[title] Reset to default 
+Reset to Default
+When empty: models.heavy is used
+Details
+Model for Plan tier heavy when the agent in this key calls dg next (it overrides models.heavy for that agent). When empty, models.heavy
 Commands limited to people
 actor.human_only
 [title] Default: Empty
