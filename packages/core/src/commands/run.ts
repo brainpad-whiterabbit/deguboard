@@ -1104,6 +1104,38 @@ export const runHandoff = defineCommand({
   },
 });
 
+/** run.list と run.recent の記録の置き場所・絞り込み・警告を揃える */
+async function collectRuns(
+  ctx: CommandContext,
+  input: { iteration?: string | undefined; project?: string | undefined },
+  ticket?: string,
+  runningOnly = false,
+) {
+  // 存在は確かめず、ID の形だけ整える（run.list の入力の説明を見る）
+  const iteration = idShapeOf(input.iteration, "iteration");
+  const local = await readRunningRuns(ctx.repo);
+  const runs: Array<{ run: Run; running: boolean }> = [
+    // runs/ に集計がある実行中の記録（記録を消す前に止まった finish の残り）は readRunningRuns が消す
+    ...local.runs.map((d) => ({ run: d.data, running: true })),
+    ...(runningOnly
+      ? []
+      : [...ctx.store.runs.values()].map((d) => ({ run: d.data, running: false }))),
+  ];
+  const placed = runs.map((r) => ({
+    ...r,
+    at: placeRun(r.run, ctx.store.tickets.get(r.run.ticket)?.data),
+  }));
+  const filter: MetricFilter = {
+    ...(ticket ? { ticket } : {}),
+    ...(iteration ? { iteration } : {}),
+    ...(input.project ? { project: input.project } : {}),
+  };
+  return {
+    runs: filterRuns(placed, filter),
+    warnings: local.issues.map((i) => `deguboard-local/${i.path}: ${i.message}`),
+  };
+}
+
 export const runList = defineCommand({
   name: "run.list",
   group: "run",
@@ -1123,29 +1155,10 @@ export const runList = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const ticket = input.ticket ? ctx.store.require("ticket", input.ticket).data.id : undefined;
-    // ticket.list・metrics.show と同じく、今あるかは確かめず ID の形だけ整える（入力の説明を見る）
-    const iteration = idShapeOf(input.iteration, "iteration");
-    const local = await readRunningRuns(ctx.repo);
-    const runs: Array<{ run: Run; running: boolean }> = [
-      // runs/ に集計がある実行中の記録（記録を消す前に止まった finish の残り）は readRunningRuns が消す
-      ...local.runs.map((d) => ({ run: d.data, running: true })),
-      ...(input.running
-        ? []
-        : [...ctx.store.runs.values()].map((d) => ({ run: d.data, running: false }))),
-    ];
-    const placed = runs.map((r) => ({
-      ...r,
-      at: placeRun(r.run, ctx.store.tickets.get(r.run.ticket)?.data),
-    }));
-    const filter: MetricFilter = {
-      ...(ticket ? { ticket } : {}),
-      ...(iteration ? { iteration } : {}),
-      ...(input.project ? { project: input.project } : {}),
-    };
-    const items: RunView[] = filterRuns(placed, filter)
+    const { runs, warnings } = await collectRuns(ctx, input, ticket, input.running);
+    const items: RunView[] = runs
       .map(({ run, running }) => ({ ...run, running, duration_seconds: runDurationSeconds(run) }))
       .sort((a, b) => a.id.localeCompare(b.id));
-    const warnings = local.issues.map((i) => `deguboard-local/${i.path}: ${i.message}`);
     return ok(items, undefined, warnings);
   },
 });
@@ -1203,19 +1216,9 @@ export const runRecent = defineCommand({
   write: false,
   needs: "store",
   async run(ctx, input) {
-    // run.list と同じく、今あるかは確かめず ID の形だけ整える
-    const iteration = idShapeOf(input.iteration, "iteration");
-    const local = await readRunningRuns(ctx.repo);
-    const placed = [
-      ...local.runs.map((d) => ({ run: d.data, running: true })),
-      ...[...ctx.store.runs.values()].map((d) => ({ run: d.data, running: false })),
-    ].map((r) => ({ ...r, at: placeRun(r.run, ctx.store.tickets.get(r.run.ticket)?.data) }));
-    const filter: MetricFilter = {
-      ...(iteration ? { iteration } : {}),
-      ...(input.project ? { project: input.project } : {}),
-    };
+    const { runs: collected, warnings } = await collectRuns(ctx, input);
     const byTicket = new Map<Run["ticket"], Array<{ run: Run; running: boolean }>>();
-    for (const r of filterRuns(placed, filter)) {
+    for (const r of collected) {
       const runs = byTicket.get(r.run.ticket);
       if (runs) runs.push(r);
       else byTicket.set(r.run.ticket, [r]);
@@ -1232,7 +1235,6 @@ export const runRecent = defineCommand({
           .slice(0, RECENT_RUN_LIMIT)
           .map(({ run, running }) => runSummary(run, running)),
       }));
-    const warnings = local.issues.map((i) => `deguboard-local/${i.path}: ${i.message}`);
     return ok(items, undefined, warnings);
   },
 });

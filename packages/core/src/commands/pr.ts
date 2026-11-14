@@ -1,6 +1,7 @@
 // PR を進めるコマンド（EX-6・AG-10、ADR-026）。品質ゲート（gate.ts の judgeGate）を満たすときだけ gh を呼ぶ。
 // エージェントが PR を ready にする・マージする正しい道で、フックは dg を経由しない gh pr ready・merge を拒む（hook.ts）
 
+import { NEVER_OVERRIDDEN } from "./pr-approval.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { z } from "zod";
@@ -24,7 +25,7 @@ import {
 import { setupFailureIn } from "./claim-setup.js";
 import { defineCommand, ok, outsideWarning, rebaseWarning, type CommandContext } from "./define.js";
 import {
-  CHECK_NOT_RUN,
+  type GateCondition,
   judgeGate,
   type GateConditionId,
   type GateStage,
@@ -133,7 +134,7 @@ function proceedHint(
   const listed = ctx.config.merge.approval_overrides;
   const list = listed.length > 0 ? listed.join(", ") : "none";
   if (blocking.length > 0)
-    return `A person's approval does not override ${blocking.join(", ")} (config's merge.approval_overrides lists: ${list}; pr, mergeable, and head are never overridden), so resolve them first. Do not ask a person to run gh pr merge`;
+    return `A person's approval does not override ${blocking.join(", ")} (config's merge.approval_overrides lists: ${list}; ${NEVER_OVERRIDDEN}), so resolve them first. Do not ask a person to run gh pr merge`;
   const pending = checkPending
     ? ". The check was not run yet and is not in that list: the approved merge runs it, and it must pass (if it fails, the merge stays GATE_FAILED)"
     : "";
@@ -171,8 +172,7 @@ async function passGate(
     // 一覧にない検査でも、回さなかっただけ（ほかの条件を満たさないため）なら越えられない条件に数えない。
     // 数えると、承認の後のマージで検査が回って通るはずの PR でも「先に解消する」と案内し、
     // 検査を回す手段のないエージェントが人に聞けなくなる（ほかの満たさない条件が残るかぎり、検査は回らない）
-    const notRun = (c: { id: GateConditionId; detail: string }) =>
-      c.id === "check" && c.detail === CHECK_NOT_RUN;
+    const notRun = (c: GateCondition) => c.id === "check" && c.not_run === true;
     const checkPending = unmet.some((c) => notRun(c) && !overridable.has(c.id));
     const blocking: string[] = unmet
       .filter((c) => !overridable.has(c.id) && !notRun(c))
@@ -339,7 +339,9 @@ export const prMerge = defineCommand({
   positionals: ["ticket"],
   group: "pr",
   summary:
-    "Merge a ticket's PR with gh pr merge (squash by default), only when it meets the quality gate (dg gate <ticket> --for merge). It pins the merge to the commit the gate judged (sha in the gate's output, passed as --match-head-commit), so a commit pushed after the judgment is not merged. The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to merge (the steps decide whether a merge is allowed; dg guide all): after a person approved the merge, with --approved-by, which records the approver as a comment on the PR after the merge (data.approved_by; if the comment cannot be written, the merge stands and warnings say so); or without asking and without --approved-by, only under --auto of dg guide all with auto.merge true (data.approved_by is null and nothing is recorded). gh pr merge run outside dg is rejected by the hook. Merging outside the conditions of the level is a person's decision: ask a person, and only when approved, pass --approved-by, which lets the merge go ahead with unmet conditions listed in config's merge.approval_overrides (check, review, fix_rounds, acceptance by default; data.overridden gives the ones overridden, and the comment on the PR records them). An unmet condition that is not listed stays GATE_FAILED even with --approved-by, and pr, mergeable, and head (the merge is always pinned to the judged commit) are never overridden. Without --approved-by nothing is overridden. When the other unmet conditions are all overridden, the check still runs, so that its result is a fact. When it also deletes the work branch, data.removed shows what was deleted (worktree, local_branch, remote_branch; null for what was not deleted or did not exist), so do not delete them again. It does not write ticket data (moving to done happens at the next sync, which also deletes what remains when merge.delete_branch is true)",
+    "Merge a ticket's PR with gh pr merge (squash by default), only when it meets the quality gate (dg gate <ticket> --for merge). It pins the merge to the commit the gate judged (sha in the gate's output, passed as --match-head-commit), so a commit pushed after the judgment is not merged. The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to merge (the steps decide whether a merge is allowed; dg guide all): after a person approved the merge, with --approved-by, which records the approver as a comment on the PR after the merge (data.approved_by; if the comment cannot be written, the merge stands and warnings say so); or without asking and without --approved-by, only under --auto of dg guide all with auto.merge true (data.approved_by is null and nothing is recorded). gh pr merge run outside dg is rejected by the hook. Merging outside the conditions of the level is a person's decision: ask a person, and only when approved, pass --approved-by, which lets the merge go ahead with unmet conditions listed in config's merge.approval_overrides (check, review, fix_rounds, acceptance by default; data.overridden gives the ones overridden, and the comment on the PR records them). An unmet condition that is not listed stays GATE_FAILED even with --approved-by, and " +
+    NEVER_OVERRIDDEN +
+    " (the merge is always pinned to the judged commit). Without --approved-by nothing is overridden. When the other unmet conditions are all overridden, the check still runs, so that its result is a fact. When it also deletes the work branch, data.removed shows what was deleted (worktree, local_branch, remote_branch; null for what was not deleted or did not exist), so do not delete them again. It does not write ticket data (moving to done happens at the next sync, which also deletes what remains when merge.delete_branch is true)",
   input: z.object({
     ticket: ticketRef,
     method: z

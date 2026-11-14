@@ -1550,6 +1550,11 @@ describe("deguboard-local/runs/ の壊れた記録", () => {
       `deguboard-local/runs/${files.schema}.json: Does not match the schema`,
       `deguboard-local/runs/${files.mismatch}.json: The ID ${files.mismatch} in the file name differs from the id r20261101-999999-9999 inside`,
     ]);
+    const recent = await runCommand(runRecent, ctx, {});
+    expect(recent.warnings).toEqual(r.warnings);
+    expect(
+      (recent.data as TicketRunsView[]).flatMap((v) => v.runs.map((run) => run.id)).sort(),
+    ).toEqual((r.data as RunView[]).map((run) => run.id).sort());
     for (const id of Object.values(files))
       expect(await exists(path.join(dir, `${id}.json`))).toBe(true);
   });

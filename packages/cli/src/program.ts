@@ -104,7 +104,11 @@ const GROUP_SUMMARY: Record<string, string> = {
   config: "Look up and change settings (the team's config.yaml and personal overrides)",
 };
 
-/** dg の版。束ねた dg.mjs には package.json がないので、束ねたときに埋めた版を使う */
+/**
+ * dg の版。束ねた dg.mjs には package.json がないので、束ねたときに埋めた版を使う。
+ * coreVersion は core の package.json を非同期で読むが、buildProgram は同期で CLI の版を要るため、
+ * clone した配置では CLI 自身の package.json を同期で読む。core と CLI は版を揃えてリリースする。
+ */
 function version(): string {
   const bundled = bundleLayout()?.version;
   if (bundled !== undefined) return bundled;

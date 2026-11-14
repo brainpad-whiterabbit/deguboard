@@ -1,6 +1,7 @@
 // 品質ゲート（EX-3、ADR-011）。the "Quality gate" section of `dg guide review` のうち、記録と Git・PR の事実で判定できるものをコードで判定する。
 // 判定は保存せず、呼ぶたびに事実から求める。dg pr ready・dg pr merge が gh を呼ぶ前に呼ぶ（pr.ts。EX-6）
 
+import { NEVER_OVERRIDDEN } from "./pr-approval.js";
 import { z } from "zod";
 import { fetchPrGateFacts, remoteTip, type BranchTip } from "../git/facts.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
@@ -40,6 +41,8 @@ export interface GateCondition {
   ok: boolean;
   /** 判定の材料か、満たさない理由（1 文） */
   detail: string;
+  /** ほかの条件が満たされず検査を回さなかった印。理由の文を判定に使わない */
+  not_run?: true;
 }
 
 export interface GateView {
@@ -85,13 +88,6 @@ export function heavyReviewRounds(runs: readonly Run[], branchAt: string | undef
       r.step === REVIEW_STEP && r.started_at >= since && r.review !== null && r.review.heavy > 0,
   ).length;
 }
-
-/**
- * ほかの条件を満たさないので検査を回さなかったときの、検査（check）の理由。回して落ちた検査と見分けるのに使う
- * （dg pr merge の案内は、回さなかった検査を「承認で越えられない条件」に数えない。t884）
- */
-export const CHECK_NOT_RUN =
-  "The other conditions are not met, so the check (actions.test) was not run";
 
 /**
  * チケットの品質ゲートを判定する。gh・Git が読めない条件は満たさないとする（判定できないものを通さない）。
@@ -193,7 +189,13 @@ export async function judgeGate(
     if (ctx.config.actions.test.length === 0 || conditions.every((c) => c.ok || waived.has(c.id))) {
       const check = await judgeCheck(ctx, ticket);
       add("check", check.ok, check.detail);
-    } else add("check", false, CHECK_NOT_RUN);
+    } else
+      conditions.push({
+        id: "check",
+        ok: false,
+        detail: "The other conditions are not met, so the check (actions.test) was not run",
+        not_run: true,
+      });
   }
 
   return {
@@ -283,7 +285,7 @@ export const gate = defineCommand({
     "(a review result held with no review Run, while the ticket has no open review Run and no running sub-agent, counts as a review closed when the result was written; when several are held after the same push, only the latest counts) · " +
     `fix_rounds (reviews that raised heavy findings on this branch are at most ${FIX_ROUNDS_LIMIT} times) · mergeable (with --for merge, gh's mergeable is MERGEABLE) · ` +
     "head (with --for merge at high and low, the PR's head commit (sha in the output, which dg pr merge pins with --match-head-commit) is the latest commit of the work branch, the commit that review and check judge) · " +
-    "check (config's actions.test passes when run in a worktree with no uncommitted changes, checked out at the latest commit of the work branch (remote tip). When the last commit whose actions.test passed is an ancestor of the latest commit, no merge commit came after it, actions.test is unchanged, and every file changed since then falls under actions.light_paths, the lighter check actions.light_test runs instead (with no such record yet, the diff against base decides the same way). Otherwise actions.test runs. detail gives which one ran and why. When actions.test is empty, it passes without judging and detail says so. When it fails, detail gives the exit code and the tail of the output. A passing result is remembered per commit and per command in deguboard-local and is not rerun for the same commit (it still counts after the worktree is removed, e.g. after a merge. A failing result is not remembered; the next check reruns it). It takes time, so it runs only when all the other conditions are met). " +
+    "check (config's actions.test passes when run in a worktree with no uncommitted changes, checked out at the latest commit of the work branch (remote tip). When the last commit whose actions.test passed is an ancestor of the latest commit, no merge commit came after it, actions.test is unchanged, and every file changed since then falls under actions.light_paths, the lighter check actions.light_test runs instead (with no such record yet, the diff against base decides the same way). Otherwise actions.test runs. detail gives which one ran and why. When actions.test is empty, it passes without judging and detail says so. When it fails, detail gives the exit code and the tail of the output. A passing result is remembered per commit and per command in deguboard-local and is not rerun for the same commit (it still counts after the worktree is removed, e.g. after a merge. A failing result is not remembered; the next check reruns it). It takes time, so it runs only when all the other conditions are met; not_run: true marks a check skipped because they were not met). " +
     "A condition that gh or Git cannot read is treated as unmet. " +
     "Which conditions are judged depends on the ticket's gate level (TK-9; gate in the output; a ticket with no gate is high). " +
     "high judges all of them (--for merge: pr · acceptance · review · fix_rounds · mergeable · head · check; --for ready: pr · review · fix_rounds · check). " +
@@ -291,7 +293,9 @@ export const gate = defineCommand({
     "free judges only pr and, with --for merge, mergeable (merge: pr · mergeable; ready: pr). At free, dg pr merge still pins the PR's head (sha), so a commit pushed after the judgment is not merged. Conditions that are not judged do not appear in conditions, and their inputs (review Runs, the push time and its fetch, the check) are not read. " +
     "Set the level with dg ticket create/import/update --gate; lowering it follows a person's instruction. " +
     "--only check judges only check, with the same judgment, on the HEAD of the work branch's worktree (a commit not pushed yet is fine; uncommitted changes refuse it), whatever the level. Run it before the push. With --only, --for is not judged (the view only echoes it). The result is remembered per commit and command, so dg pr ready and dg pr merge after the push reuse it for the same commit. " +
-    "dg pr ready and dg pr merge make the same judgment before they call gh. Proceeding outside the conditions of the level is left to a person: for a merge, a person approves it and dg pr merge --approved-by overrides the unmet conditions listed in config's merge.approval_overrides (pr, mergeable, and head are never overridden; dg pr merge --help); for ready, a person runs gh. They do not write ticket data (they only record the results of passed checks in deguboard-local)",
+    "dg pr ready and dg pr merge make the same judgment before they call gh. Proceeding outside the conditions of the level is left to a person: for a merge, a person approves it and dg pr merge --approved-by overrides the unmet conditions listed in config's merge.approval_overrides (" +
+    NEVER_OVERRIDDEN +
+    "; dg pr merge --help); for ready, a person runs gh. They do not write ticket data (they only record the results of passed checks in deguboard-local)",
   input: z.object({
     ticket: ticketRef,
     for: z
