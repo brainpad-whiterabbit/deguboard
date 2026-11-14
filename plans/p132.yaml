@@ -1,0 +1,30 @@
+id: p132
+tickets: [t908, t907, t911, t909, t910]
+after:
+  t909:
+    - t908
+    - t907
+  t910:
+    - t909
+pending_approval: true
+details:
+  t908:
+    scope: データのリモートの決め方・データの ref の名前・既定のリモート名を 1 か所にまとめる。振る舞いは変えない
+    approach: model/config.ts の dataRemoteNameOf を唯一の決め方にして openContext と resolveConfigDataRemote から呼び、sync.ts の remoteRef の別名を消し、既定の origin を定数にする
+    tier: standard
+  t907:
+    scope: ADR-034 から移行の手順と projects/ の消し方の細部を消し、判断と理由と正本への案内だけにする
+    approach: 細部が usage（英日）・guide-overview・requirements 5.3・retire-projects.ts のコメントに残っていることを確かめてから ADR を削る
+    tier: light
+  t911:
+    scope: mise.toml の setup と install を package.json の script を呼ぶだけにする
+    approach: package.json に setup 用の script を足し、二つの mise タスクがそれを呼ぶ（または install が setup に依存する）形にする
+    tier: light
+  t909:
+    scope: 共通の祖先がなく両側がデータを持つとき、sync と書き込みが rebase の前に専用のエラーで止まる
+    approach: integrate の前に merge-base を確かめ、errors.ts に新しいコードを足し、guide-overview に戻し方を書き、bare リモート付きのテストで示す
+    tier: heavy
+  t910:
+    scope: データのブランチを既定の名前と断る言い回し、hooks check の説明、README の Tips の英文を直す
+    approach: 挙げられた箇所の文言だけを直し、usage と README は英日を揃える
+    tier: light
