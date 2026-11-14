@@ -24,30 +24,32 @@ Teammates install the extension, clone the repository, and press the same button
 
 ## Usage
 
-Click the deguboard icon in the Activity Bar. The tabs at the top switch between **Backlog**, **Board**, and **History**. You ask for work with **Ask Agent**, the speech bubble on a row or a heading: choose what to ask for, then paste the copied request into your agent or send it to an open terminal. The requests are Skills for Claude Code such as `/dgplan s3`, so you can also type them yourself.
+Click the deguboard icon in the Activity Bar. The tabs at the top switch between **Backlog**, **Board**, and **History**. You ask for work with **Ask Agent**, the speech bubble on a row or a heading: choose what to ask for, then paste the copied request into your agent or send it to an open terminal. The request comes in a Skill form and a plain-text form, and you can switch between them in the menu.
+
+In Claude Code, you can also just say what you want in plain words, such as "Plan the tickets of s3", and the Skill that fits is chosen for you. This needs Claude Code, which loads the Skills that deguboard installs; other agents take the plain-text form. The list of Skills, with example requests and commands, is in the [usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#skills).
 
 ### Backlog: turn ideas into tickets
 
-1. **Create tickets**: Tell the agent what you want in your own words with `/dgimport` (**Ask Agent** → **Create tickets**). It investigates the code and proposes small tickets with acceptance criteria and dependencies. Approve them, and they appear in the Backlog.
+1. **Create tickets**: Tell the agent what you want in your own words, such as "Turn this idea into tickets" (**Ask Agent** → **Create tickets**). It investigates the code and proposes small tickets with acceptance criteria and dependencies. Approve them, and they appear in the Backlog.
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/import.gif" alt="Turning a rough idea into tickets" width="560">
 
 2. **Read the details**: Click a row to open the ticket. You can edit its text and attributes there.
-3. **Discuss**: When a ticket is still vague, choose **Ask Agent** → **Discuss** (`/dgdiscuss t12`). The agent settles the open points with you through choices and updates the ticket after you approve the changes.
+3. **Discuss**: When a ticket is still vague, choose **Ask Agent** → **Discuss**, or just say "Let's discuss t12". The agent settles the open points with you through choices and updates the ticket after you approve the changes.
 
 ### Board: assign, plan, and work in parallel
 
 The Board shows the tickets of an Iteration in columns by status, and the band above it shows the Iteration's plans (Plan).
 
-1. **Assign**: In the Backlog, select tickets by the left edge of their rows, then choose **Ask** → **Assign** (`/dgassign`) at the bottom (for a single ticket, use **Ask Agent** on its row). The agent proposes the Iteration or Epic to put them into. Approve it, and they appear in Todo on the Board.
+1. **Assign**: In the Backlog, select tickets by the left edge of their rows, then choose **Ask** → **Assign** at the bottom (for a single ticket, use **Ask Agent** on its row). The agent proposes the Iteration or Epic to put them into. Approve it, and they appear in Todo on the Board.
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/assign.gif" alt="Assigning tickets to an Iteration and an Epic" width="560">
 
-2. **Plan**: Choose **Ask Agent** → **Plan** on the Board's heading (`/dgplan s3`). The agent orders the tickets by their dependencies, and the Plan appears in the band, awaiting your approval. Click its state to open the dependency graph.
+2. **Plan**: Choose **Ask Agent** → **Plan** on the Board's heading. The agent orders the tickets by their dependencies, and the Plan appears in the band, awaiting your approval. Click its state to open the dependency graph.
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="Planning and approving the order" width="612">
 
-3. **Work**: Choose **Ask Agent** → **Run Plan** on the Plan in the band (`/dgwork p3`). Agents implement the tickets that are not blocked at the same time, each on its own branch and worktree, and open PRs. A PR becomes ready and merges only when the quality gate passes. As the work goes on, the colors in the graph and the columns of the Board change.
+3. **Work**: Choose **Ask Agent** → **Run Plan** on the Plan in the band. Agents implement the tickets that are not blocked at the same time, each on its own branch and worktree, and open PRs. A PR becomes ready and merges only when the quality gate passes. As the work goes on, the colors in the graph and the columns of the Board change.
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="Agents working on a plan in parallel" width="612">
 
@@ -69,7 +71,7 @@ The setting is shared with your team. To turn it off on your own machine only, s
 
 The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md).
 
-- [Hand off everything](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#hand-off-everything): `/dgall s3 --auto` runs an Iteration from assignment to release in one go.
+- [Hand off everything](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#hand-off-everything): say "Carry s3 through to release automatically", and the agent runs the Iteration from assignment to release in one go.
 - [Quality gate levels](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#quality-gate-levels): `high` (the default), `low`, or `free` per ticket.
 - [Resolve a sync conflict](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#resolve-a-sync-conflict) when two people change the same field.
 - [Notifications](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#notifications) for Plans awaiting approval and tickets in review.

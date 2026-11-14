@@ -4,6 +4,26 @@ English | [日本語](usage.ja.md)
 
 This page covers the things people do that the [README](../README.md) leaves out. The details of each command are in `dg <command> --help`, the steps for agents are in `dg guide <topic>`, and the promises are in [requirements.md](requirements.md) (written in Japanese), which is the source of truth; this page does not copy them.
 
+## Skills
+
+The Skills are for Claude Code. Say the request in plain words, or type the command. The command column shows an example; the arguments are described in the Skill's `argument-hint` and in `dg guide <topic>`. For agents without the Skills, use the plain-text form of Ask Agent.
+
+| Skill       | What it does                                                                    | Example request                             | Command            |
+| ----------- | ------------------------------------------------------------------------------- | ------------------------------------------- | ------------------ |
+| `dgimport`  | Turns a conversation, a plan, or a design document into tickets, after approval | "Turn this discussion into tickets"         | `/dgimport`        |
+| `dgassign`  | Puts tickets into an Iteration or an Epic, after approval                       | "Assign these tickets to a sprint"          | `/dgassign s3`     |
+| `dgcheck`   | Finds mismatches among tickets, Epics, Iterations, and Plans, and fixes them    | "Check the tickets of s3"                   | `/dgcheck s3`      |
+| `dgplan`    | Decides the order of tickets and records it in a Plan awaiting approval         | "Plan the tickets of s3"                    | `/dgplan s3`       |
+| `dgwork`    | Advances the tickets of an approved Plan to draft PRs                           | "Run plan p3"                               | `/dgwork p3`       |
+| `dgall`     | Carries an Iteration or tickets from assignment to release in one flow          | "Carry s3 through to release automatically" | `/dgall s3 --auto` |
+| `dgaudit`   | Reviews the whole repository by viewpoint before release, and files findings    | "Review the repository before the release"  | `/dgaudit s3`      |
+| `dgrelease` | Checks that an Iteration is done, then releases it after approval               | "Release s3"                                | `/dgrelease s3`    |
+| `dgdone`    | Confirms merged tickets are done and cleans up their branches and worktrees     | "t12 is merged, clean it up"                | `/dgdone t12`      |
+| `dgretro`   | Looks back on a closed Iteration by the team's perspectives                     | "Look back on s3"                           | `/dgretro s3`      |
+| `dgchange`  | Carries out one change a human asked for (edit, close, reopen, abandon, undo)   | "Close s3"                                  | `/dgchange s3`     |
+| `dgdiscuss` | Settles the open points of tickets, an Epic, or an Iteration with a human       | "Let's discuss t12"                         | `/dgdiscuss t12`   |
+| `dgstatus`  | Tells where the work on an in-progress ticket is, and why it stopped            | "How far has t12 got?"                      | `/dgstatus t12`    |
+
 ## Hand off everything
 
 In Claude Code, pass an Iteration or tickets such as `/dgall s3 --auto`, and the agent carries on through assignment, planning, implementation, review, and release. It does not create tickets for what you want to build, so first turn your ideas into tickets with `/dgimport`.
