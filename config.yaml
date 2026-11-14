@@ -66,3 +66,5 @@ guide:
     all: ""
 commit:
   mode: each
+work:
+  parallel: 5
