@@ -365,6 +365,20 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect((await calls()).length).toBe(2);
   });
 
+  it("承認で越えてよい条件が空なら、見直しが通っていない PR は承認者を渡しても GATE_FAILED で gh を呼ばない（t892）", async () => {
+    const { ctx: first, calls, undraft } = await prepared();
+    await runCommand(configSet, first, { key: "merge.approval_overrides", value: [] });
+    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    await undraft();
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
+    expect(err!.code).toBe("GATE_FAILED");
+    expect(err!.detail).toContain("review:");
+    expect(err!.detail).toContain("A person's approval does not override review");
+    expect(err!.detail).toContain("merge.approval_overrides lists: none;");
+    expect(await calls()).toEqual([]);
+  });
+
   it("衝突（mergeable）・PR の先端（head）・draft は、既定の一覧でも --approved-by を渡しても越えられず、gh を呼ばない（t884）", async () => {
     const { ctx, calls, undraft, withoutHead, conflicting } = await prepared();
     // draft のまま

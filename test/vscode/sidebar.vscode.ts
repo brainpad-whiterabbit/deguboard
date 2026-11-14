@@ -230,11 +230,21 @@ describe("VS Code の実機の左パネル", () => {
   });
 
   it("履歴のチケットの見方を開き、見方の切り替えと結果の絞り込みの間隔をライトとダークで撮る", async () => {
-    // 実行計画のテストで t4 を done にしたので、チケットの見方に 1 行出る
+    // 単独実行でも履歴が空にならないよう、このテスト専用の完了チケットを作る（t892）。
+    const ctx = await openContext({ cwd: fixture.cloneA });
+    const ticket = await runCommand(ticketCreate, ctx, {
+      title: "履歴の切り替えを確かめる完了チケット",
+      acceptance: ["履歴に行が出る"],
+      iteration: "s1",
+    });
+    await runCommand(ticketMove, ctx, { ticket: ticket.data.id, status: "done" });
     await sidebar.locator("body").evaluate(() => {
       location.hash = "#/history?view=ticket";
     });
     await sidebar.locator(".result-switch").waitFor({ timeout: 60_000 });
+    await sidebar
+      .locator(".ticket-row", { hasText: ticket.data.title })
+      .waitFor({ timeout: 60_000 });
     expect(await sidebar.locator(".view-switch:not(.result-switch) button").count()).toBe(3);
     for (const theme of ["dark", "light"] as const) {
       await host.setTheme(theme);
