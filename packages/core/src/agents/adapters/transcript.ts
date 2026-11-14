@@ -54,8 +54,11 @@ export const seenAfterRun = (firstSeen: number, to: number): boolean =>
 /** 行の順が少し前後しても読み切るための猶予。期間の終わりからこれだけ過ぎた行で読むのをやめる */
 export const TAIL_MS = 60_000;
 
-/** 呼び出しの順に並べたツールの種類から、種類ごとの回数と、最初に書くまでの読む・探すの回数を求める */
-export function tallyTools(kinds: Iterable<ToolKind>): RunTools {
+/**
+ * 呼び出しの順に並べたツールの種類から、種類ごとの回数と、最初に書くまでの読む・探すの回数を求める。
+ * errors は失敗した呼び出しの数。失敗の印を読めなかったら undefined を渡し、キーを書かない（0 は「失敗がなかった」の意味にとっておく）
+ */
+export function tallyTools(kinds: Iterable<ToolKind>, errors?: number): RunTools {
   const tools: RunTools = {
     read: 0,
     search: 0,
@@ -72,6 +75,7 @@ export function tallyTools(kinds: Iterable<ToolKind>): RunTools {
     else if (!written && kind === "read") tools.read_before_write += 1;
     else if (!written && kind === "search") tools.search_before_write += 1;
   }
+  if (errors !== undefined) tools.errors = errors;
   return tools;
 }
 

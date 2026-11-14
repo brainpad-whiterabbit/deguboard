@@ -80,6 +80,24 @@ function toolUse(id: string, minutes: number, calls: Array<[string, string]>) {
   return line;
 }
 
+/** ツールの結果を持つ偽の user の行。results は [tool_use の id, 失敗の印（省けば印のない結果）] */
+function toolResult(minutes: number, results: Array<[string, boolean?]>) {
+  return {
+    type: "user",
+    timestamp: at(minutes),
+    toolUseResult: { stderr: "secret-stderr" },
+    message: {
+      role: "user",
+      content: results.map(([id, failed]) => ({
+        type: "tool_result",
+        tool_use_id: id,
+        content: "Exit code 1: cat /home/secret/file",
+        ...(failed === undefined ? {} : { is_error: failed }),
+      })),
+    },
+  };
+}
+
 /** Run の ID を含む行（dg run start の出力を受け取ったツールの結果） */
 const mention = (minutes: number) => ({
   type: "user",
@@ -137,9 +155,63 @@ describe("Claude Code の Adapter", () => {
         other: 0,
         read_before_write: 0,
         search_before_write: 0,
+        errors: 0,
       },
       warnings: [],
     });
+  });
+
+  it("失敗の印（is_error）のあるツールの結果を tool_use_id で重ねずに数え、断られた・hook に拒まれた呼び出しも印だけで数える。結果の文は返さない", async () => {
+    const { projectDir, query } = await setup();
+    await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+      toolUse("m0", -5, [["u0", "Bash"]]), // 期間の前の呼び出し
+      toolResult(-4, [["u0", true]]),
+      mention(0),
+      toolUse("m1", 1, [
+        ["u1", "Bash"],
+        ["u2", "Edit"],
+        ["u3", "Read"],
+        ["u4", "Grep"],
+      ]),
+      toolResult(1, [
+        ["u1", true], // 落ちたコマンド
+        ["u2", true], // 当たらなかった Edit
+        ["u3", false],
+        ["u4"], // 印のない結果は成功
+      ]),
+      toolResult(1, [["u1", true]]), // 同じ結果の別の行
+      toolUse("m2", 2, [
+        ["u5", "Bash"],
+        ["u6", "Write"],
+        ["u7", "Bash"],
+      ]),
+      // 許可を断られた呼び出しと hook に拒まれた呼び出しは、結果の文が違うだけで同じ印を持つ
+      { ...toolResult(2, [["u5", true]]), toolDenialKind: "user" },
+      toolResult(2, [["u6", true]]),
+      toolResult(2, [["other-run", true]]), // 数えていない呼び出しの結果
+      // 期間の終わりの呼び出しの結果は、finished_at の後に書かれても数える
+      toolResult(31, [["u7", true]]),
+      toolUse("m3", 40, [["u8", "Bash"]]), // 期間の後
+      toolResult(40, [["u8", true]]),
+    ]);
+    const got = await claudeCodeAdapter.readTranscriptUsage(query());
+    expect(got.tools).toMatchObject({ bash: 3, write: 2, read: 1, search: 1, errors: 5 });
+    // 写すのは数だけで、結果の中身（出力・コマンド・パス）は返さない（MT-4）
+    const text = JSON.stringify(got);
+    for (const secret of ["secret", "Exit code", "cat "]) expect(text).not.toContain(secret);
+  });
+
+  it("数えた呼び出しがあるのに結果が 1 つも見つからない会話記録では、失敗の数を 0 にせず errors を書かない", async () => {
+    const { projectDir, query } = await setup();
+    await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+      mention(0),
+      toolUse("m1", 1, [["u1", "Bash"]]),
+      // tool_result のない形の結果（失敗の印を読めない）
+      { type: "user", timestamp: at(1), message: { role: "user", content: "failed" } },
+    ]);
+    const got = await claudeCodeAdapter.readTranscriptUsage(query());
+    expect(got.tools).toMatchObject({ bash: 1 });
+    expect(got.tools).not.toHaveProperty("errors");
   });
 
   it("期間内の応答の tool_use を id で重ねずに種類ごとに数え、最初に書くまでの読む・探すも数える", async () => {

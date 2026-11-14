@@ -55,6 +55,7 @@ async function scenario(): Promise<CommandContext> {
       other: 1,
       read_before_write: 4,
       search_before_write: 3,
+      errors: 3,
     },
   });
   await ctx.store.create("run", {
@@ -83,7 +84,7 @@ async function scenario(): Promise<CommandContext> {
 }
 
 describe("metrics show", () => {
-  it("Run を集計し、null は足さずに欠けた数を返し、推定を含む Run を数える。ツールの回数のない Run は tools の欠けに数える", async () => {
+  it("Run を集計し、null は足さずに欠けた数を返し、推定を含む Run を数える。ツールの回数のない Run は tools の欠けに、失敗した呼び出しの数のない Run は tool_errors の欠けに数える", async () => {
     const ctx = await scenario();
     const r = await runCommand(metricsShow, ctx, {});
     expect(r.write).toBeUndefined();
@@ -106,6 +107,7 @@ describe("metrics show", () => {
           other: 1,
           read_before_write: 4,
           search_before_write: 3,
+          errors: 3,
         },
         missing: {
           duration_seconds: 1,
@@ -114,6 +116,7 @@ describe("metrics show", () => {
           cache_read: 2,
           cache_write: 3,
           tools: 2,
+          tool_errors: 2,
           review_causes: 0,
         },
         estimated_runs: 1,

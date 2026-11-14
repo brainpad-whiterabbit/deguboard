@@ -17,6 +17,11 @@
 //     どのファイルも Run の ID と譲る相手の ID が最初に出るまでと、finished_at を過ぎるまでしか読まない。数える行を読むのは選んだファイルだけ
 //   - ツールの回数：数える行の message.content の tool_use を、tool_use の id で重ねずに名前で種類に分けて数える（TOOL_KINDS）。
 //     最初に書く（write）までの読む・探すも数える。Bash はコマンドで分けない（コマンドの文字列を解釈しない）
+//   - 失敗した呼び出しの数（tools.errors）：数えた tool_use の結果（user の行の message.content の tool_result）のうち、失敗の印
+//     （is_error が true）のあるものを、tool_use_id で重ねずに数える。落ちたコマンド・当たらなかった Edit のほか、許可を断られた呼び出しと
+//     hook に拒まれた呼び出しにも Claude Code が同じ印を付ける（2026-11-14 に Claude Code 2.1 の記録で確かめた）。読むのは印だけで、
+//     結果の文（content）は読まない。成功した結果は印がないか false。数えた呼び出しがあるのに結果が 1 つも見つからない記録は、
+//     印を読めないものとして errors を書かない（0 にしない）
 //   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）。ツールは名前を種類に変えて数だけを返す
 //   - 判定（detect）：Claude Code は実行するコマンドの環境に CLAUDECODE=1 と AI_AGENT（claude-code_<版>_<種類> の形）を付ける。
 //     どちらかがあれば Claude Code が呼んだとみなす（2026-11 に Claude Code 2.1 の Bash の環境で確かめた）
@@ -84,6 +89,8 @@ interface Scan {
   messages: Map<string, { usage: Record<string, unknown>; model: unknown }>;
   /** tool_use の id ごとの種類。Map の順が呼び出しの順 */
   tools: Map<string, ToolKind>;
+  /** 結果の見つかった tool_use の id ごとの、失敗の印（is_error）があったか */
+  results: Map<string, boolean>;
   /** 後に始まった開いている Run に譲った応答があるか */
   ceded: boolean;
   /** 期間が重なるほかの Run の ID が出た時刻と、譲る相手 */
@@ -120,6 +127,32 @@ function addTools(tools: Scan["tools"], message: Record<string, unknown>, key: s
 }
 
 /**
+ * user の行の tool_result を、数えた tool_use（tools）の結果だけ、tool_use_id をキーにして失敗の印で積む。
+ * 読むのは tool_use_id と is_error だけで、結果の文（content）は読まない。ほかの Run に数えた呼び出しの結果は積まない
+ */
+function addResults(scan: Pick<Scan, "tools" | "results">, message: unknown): void {
+  if (typeof message !== "object" || message === null) return;
+  const content = (message as Record<string, unknown>)["content"];
+  if (!Array.isArray(content)) return;
+  for (const block of content as unknown[]) {
+    if (typeof block !== "object" || block === null) continue;
+    const b = block as Record<string, unknown>;
+    const id = b["tool_use_id"];
+    if (b["type"] !== "tool_result" || typeof id !== "string" || !scan.tools.has(id)) continue;
+    // 同じ結果が複数の行にあっても 1 回。どれかに印があれば失敗
+    scan.results.set(id, scan.results.get(id) === true || b["is_error"] === true);
+  }
+}
+
+/** 失敗した呼び出しの数。数えた呼び出しがあるのに結果が 1 つも見つからなければ、印を読めないものとして undefined */
+function toolErrors(scan: Pick<Scan, "tools" | "results">): number | undefined {
+  if (scan.tools.size > 0 && scan.results.size === 0) return undefined;
+  let errors = 0;
+  for (const failed of scan.results.values()) if (failed) errors += 1;
+  return errors;
+}
+
+/**
  * file を読み、期間の応答を積む。fromStart なら Run の ID の出現を待たずに積む（記録の場所があるとき）。
  * fromStart でなければ、Run の ID が出た後の行だけを積む（推測で選んだファイル）
  */
@@ -136,6 +169,7 @@ async function scan(
     firstSeen: fromStart ? -Infinity : undefined,
     messages: new Map(),
     tools: new Map(),
+    results: new Map(),
     ceded: false,
     claims,
   };
@@ -150,6 +184,15 @@ async function scan(
       const at = entry ? timeOf(entry) : NaN;
       result.firstSeen = Number.isNaN(at) ? Infinity : at;
       return true;
+    }
+    // 数えた呼び出しの結果は、時刻で区切らず tool_use_id で結ぶ（期間の終わりの呼び出しの結果は finished_at の後に書かれうる）。
+    // 読み終えるのは下の assistant の行の時刻で決まる
+    if (result.tools.size > 0 && line.includes('"tool_result"')) {
+      const entry = parse(line);
+      if (entry?.["type"] === "user") {
+        addResults(result, entry["message"]);
+        return true;
+      }
     }
     if (!line.includes('"assistant"')) return true;
     // 期間に入る timestamp の文字列がない行は JSON.parse しない。最上位の timestamp は message の後にあり、
@@ -291,7 +334,7 @@ function collected(query: UsageQuery, best: Scan): CollectedUsage {
         ? { input: 0, output: 0, cache_read: 0, cache_write: 0 }
         : sum(best.messages),
     model: mainModel(best.messages),
-    tools: tallyTools(best.tools.values()),
+    tools: tallyTools(best.tools.values(), toolErrors(best)),
     warnings: [],
   };
 }

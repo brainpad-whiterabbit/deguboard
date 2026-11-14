@@ -1309,6 +1309,31 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
         },
       },
       {
+        // ツールの結果。失敗の印（is_error）だけを数え、結果の文は読まない
+        type: "user",
+        timestamp: t(150),
+        toolUseResult: { stdout: "", stderr: "secret-result-stderr" },
+        message: {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "u1", content: "secret-result-grep" },
+            {
+              type: "tool_result",
+              tool_use_id: "u2",
+              is_error: true,
+              content: "secret-result: String to replace not found in /etc/secret-command",
+            },
+            { type: "tool_result", tool_use_id: "u3", is_error: false, content: "secret-result" },
+            {
+              type: "tool_result",
+              tool_use_id: "u4",
+              is_error: true,
+              content: "Exit code 1\ncat /etc/secret-command: secret-result",
+            },
+          ],
+        },
+      },
+      {
         type: "assistant",
         timestamp: t(200),
         message: { id: "m2", model: "model-from-transcript", content: "答え", usage: usage(4) },
@@ -1321,7 +1346,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     );
   }
 
-  /** transcript の tool_use の回数。Grep・Edit・Read・Bash の順なので、書くまでは探す 1 回だけ */
+  /** transcript の tool_use の回数。Grep・Edit・Read・Bash の順なので、書くまでは探す 1 回だけ。失敗の印は Edit と Bash の 2 つ */
   const TOOLS = {
     read: 1,
     search: 1,
@@ -1330,6 +1355,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     other: 0,
     read_before_write: 0,
     search_before_write: 1,
+    errors: 2,
   };
 
   it("Claude Code の Run は会話記録から input・output・cache_read・cache_write とモデル名とツールの回数が埋まる", async () => {
@@ -1435,7 +1461,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     }
   });
 
-  it("Git に入る記録は数とモデル名だけで、会話の中身・コマンド・リポジトリの外のパスを写さない（MT-4）", async () => {
+  it("Git に入る記録は数とモデル名だけで、会話の中身・コマンド・ツールの結果の中身・リポジトリの外のパスを写さない（MT-4）", async () => {
     const { ctx, home, projectDir } = await withTranscripts(true);
     const run = await start(ctx, "t1");
     await transcript(projectDir, run);
@@ -1447,6 +1473,10 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
       "秘密のプロンプト",
       "答え",
       "secret-command",
+      // 失敗したツールの結果の文（落ちたコマンドの出力、当たらなかった Edit の文）。数えるのは失敗の印だけ（t920）
+      "secret-result",
+      "Exit code",
+      "String to replace",
       "secret-project",
       "/etc/",
       home,

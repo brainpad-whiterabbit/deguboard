@@ -53,7 +53,9 @@ const toolCount = z.number().int().nonnegative();
 /**
  * 種類ごとのツールの呼び出しの回数と、最初に書く（write）までの読む・探すの回数。
  * 書かずに終わった Run では、最初に書くまでの回数は全体の回数と同じ。手引き（dg guide）を変えたときに調べる量が減ったかを
- * Run で比べるために持つ（チケット本文の参考節の効果は親の側に出るので Run では比べない）。種類の分け方は Adapter のコード
+ * Run で比べるために持つ（チケット本文の参考節の効果は親の側に出るので Run では比べない）。種類の分け方は Adapter のコード。
+ * errors は失敗したツールの呼び出しの数（落ちたコマンド、当たらなかった Edit、断られた・拒まれた呼び出し）。成功した Run の中の
+ * 遠回りを数えるために持つ。失敗の印を読めない Adapter・会話記録の Run と、この項目より前の Run にはキーがなく、0 で補わない（RN-2）
  */
 const runToolsSchema = z.looseObject({
   read: toolCount,
@@ -63,6 +65,7 @@ const runToolsSchema = z.looseObject({
   other: toolCount,
   read_before_write: toolCount,
   search_before_write: toolCount,
+  errors: toolCount.optional(),
 });
 export type RunTools = z.output<typeof runToolsSchema>;
 
