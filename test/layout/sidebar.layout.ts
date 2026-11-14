@@ -17,7 +17,13 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { init, openContext, runCommand } from "../../packages/core/src/index.js";
+import {
+  init,
+  iterationClose,
+  iterationStart,
+  openContext,
+  runCommand,
+} from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
 import { LANGUAGES, useLanguage } from "./language.js";
@@ -39,6 +45,17 @@ const LONG_ROOT =
   "../deguboard-layout-check-repository.worktrees/a-very-long-directory-name-without-any-spaces";
 const TEST_COMMAND = ["mise", "run", "check", "--", "--reporter=verbose", "packages/web/src/pages"];
 
+/**
+ * 履歴の区切りの見出しの検査で固定する手元の時間帯と今の時刻（t874）。
+ * 閉じた Iteration の期間（formatPeriod）は手元時刻の時刻・分と、今と違う年なら年を出すので、どちらも固定しないと回した時刻で見出しの長さが変わる
+ */
+const TIMEZONE = "Asia/Tokyo";
+const NOW = "2026-06-15T12:00:00+09:00";
+/** 典型の長さ（同じ日に閉じた。06/10 09:28–13:24 · 4 時間）の s8。1 行に収まる */
+const TYPICAL_PERIOD = { start: "2026-06-10T09:28:00+09:00", end: "2026-06-10T13:24:00+09:00" };
+/** 日をまたいで閉じた長い期間（2025/12/31 22:10–01/01 08:00 · 10 時間）の s9。幅 300px では折り返す */
+const LONG_PERIOD = { start: "2025-12-31T22:10:00+09:00", end: "2026-01-01T08:00:00+09:00" };
+
 let fixture: Fixture;
 let server: { url: string; close(): Promise<void> };
 let browser: Browser;
@@ -52,6 +69,20 @@ async function call(name: string, input: Record<string, unknown>): Promise<unkno
   const body = (await res.json()) as { ok: boolean; data?: unknown; error?: unknown };
   if (!body.ok) throw new Error(`${name} が失敗した: ${JSON.stringify(body.error)}`);
   return body.data;
+}
+
+/** 決めた日時を今の時刻としてコマンドを呼ぶ（Iteration の started_at・closed_at を固定するため。dg serve の API は時刻を渡せない） */
+async function atTime(
+  iso: string,
+  command: typeof iterationStart | typeof iterationClose,
+  input: { iteration: string },
+): Promise<void> {
+  const ctx = await openContext({
+    cwd: fixture.cloneA,
+    actor: { user: "layout" },
+    now: () => new Date(iso),
+  });
+  await runCommand(command, ctx, input);
 }
 
 beforeAll(async () => {
@@ -127,10 +158,19 @@ beforeAll(async () => {
   });
   for (let i = 13; i <= 15; i++)
     await call("ticket.create", { title: `閉じた週のチケット ${i}`, iteration: "s8" });
-  await call("iteration.start", { iteration: "s8" });
+  // s8 と s9 の実績の期間は固定の日時で書き、区切りの見出しの長さが回した時刻で変わらないようにする（t874）
+  await atTime(TYPICAL_PERIOD.start, iterationStart, { iteration: "s8" });
   await call("ticket.move", { ticket: "t13", status: "done" });
   await call("ticket.move", { ticket: "t14", status: "abandoned" });
-  await call("iteration.close", { iteration: "s8" });
+  await atTime(TYPICAL_PERIOD.end, iterationClose, { iteration: "s8" });
+  // 日をまたいで閉じた Iteration（s9）：区切りの見出しが幅 300px で折り返す長さの期間。続く行は 2 件（t16・t17）
+  await call("iteration.create", { name: "日をまたいだ週" });
+  for (let i = 16; i <= 17; i++)
+    await call("ticket.create", { title: `日をまたいだ週のチケット ${i}`, iteration: "s9" });
+  await atTime(LONG_PERIOD.start, iterationStart, { iteration: "s9" });
+  await call("ticket.move", { ticket: "t16", status: "done" });
+  await call("ticket.move", { ticket: "t17", status: "abandoned" });
+  await atTime(LONG_PERIOD.end, iterationClose, { iteration: "s9" });
   await call("iteration.start", { iteration: "s2" });
   // t1 の claim は planned の Iteration を開始する（ticket.claim は s2 を始める。t594）ので、s2 を始めた後に claim する。
   // 先に claim すると s2 が active になり、s8 の開始が IT-1 で拒否される
@@ -413,64 +453,95 @@ describe.each(SCHEMES)("履歴のチケットの見方の絞り込み（%s）", 
   );
 });
 
-describe.each(SCHEMES)("履歴のチケットの見方の区切りの見出し（%s）", (scheme) => {
-  it("幅 300px で 1 行に収まり、スクロールすると一覧の上に貼り付いて、下の行が透けない", async () => {
-    // 行が少なくてもスクロールできるよう、高さを小さくする
-    const context = await browser.newContext({
-      viewport: { width: 300, height: 220 },
-      colorScheme: scheme,
+// 区切りの見出しは Iteration の番号・期間・件数を 1 行で出し、収まらなければ CSS（flex-wrap）のとおり折り返す。
+// 期間の長さが回した時刻で変わらないよう、Iteration の日時（TYPICAL_PERIOD・LONG_PERIOD）と画面の今の時刻・時間帯を固定する（t874）
+describe.each(
+  SCHEMES.flatMap((scheme) =>
+    [
+      { iteration: "s8", lines: "1 行", period: "06/10 09:28–13:24 · 4 時間" },
+      { iteration: "s9", lines: "折り返す", period: "2025/12/31 22:10–01/01 08:00 · 10 時間" },
+    ].map((c) => ({ scheme, ...c })),
+  ),
+)(
+  "履歴のチケットの見方の区切りの見出し（$scheme・$iteration）",
+  ({ scheme, iteration, lines, period }) => {
+    it(`幅 300px で${lines}で、スクロールすると一覧の上に貼り付いて、下の行が透けない`, async () => {
+      // 行が少なくてもスクロールできるよう、高さを小さくする
+      const context = await browser.newContext({
+        viewport: { width: 300, height: 220 },
+        colorScheme: scheme,
+        timezoneId: TIMEZONE,
+      });
+      const page = await context.newPage();
+      try {
+        await page.clock.setFixedTime(new Date(NOW));
+        await page.goto(`${server.url}?surface=sidebar#/history?view=ticket`, {
+          waitUntil: "networkidle",
+        });
+        await page.locator(".history-divider").first().waitFor();
+        const m = await page.evaluate(async (id) => {
+          const main = document.querySelector<HTMLElement>(".page")!;
+          const divider = [...document.querySelectorAll<HTMLElement>(".history-divider")].find(
+            (d) => d.firstElementChild?.textContent === id,
+          )!;
+          const row = divider.nextElementSibling!;
+          const parts = [...divider.children].map((c) => c.getBoundingClientRect());
+          // 行の数は文字の矩形で数える（期間の中で折り返しても数え漏らさない）。今の行の下端より下から始まったら次の行
+          const range = document.createRange();
+          range.selectNodeContents(divider);
+          const rects = [...range.getClientRects()]
+            .filter((r) => r.width > 0)
+            .sort((a, b) => a.top - b.top);
+          let lineCount = 0;
+          let bottom = -Infinity;
+          for (const r of rects) {
+            if (r.top >= bottom - 1) {
+              lineCount++;
+              bottom = r.bottom;
+            } else bottom = Math.max(bottom, r.bottom);
+          }
+          const before = divider.getBoundingClientRect();
+          const box = main.getBoundingClientRect();
+          const padTop = parseFloat(getComputedStyle(main).paddingTop);
+          const padRight = parseFloat(getComputedStyle(main).paddingRight);
+          // 区切りの元の位置が .page の中身の上の端より 20px 上に出るまで送る（続く行が 2 件あるので、次の区切りにはまだ押されない）
+          main.scrollTop += before.top - (box.top + padTop) + 20;
+          await new Promise((r) => requestAnimationFrame(() => r(null)));
+          const after = divider.getBoundingClientRect();
+          return {
+            texts: [...divider.children].map((c) => c.textContent),
+            lineCount,
+            right: Math.max(...parts.map((p) => p.right)),
+            width: box.right - padRight,
+            scrolled: main.scrollTop,
+            stuckTop: after.top,
+            contentTop: box.top + padTop,
+            rowTop: row.getBoundingClientRect().top,
+            dividerBottom: after.bottom,
+            bg: getComputedStyle(divider).backgroundColor,
+            // 上の余白（.page の padding）に行が透けないよう塗り足す高さ
+            cover: parseFloat(getComputedStyle(divider, "::before").height),
+            padTop,
+            pageScroll: main.scrollWidth,
+            pageClient: main.clientWidth,
+          };
+        }, iteration);
+        expect(m.texts, "番号・期間・件数").toEqual([iteration, period, "2 件"]);
+        if (iteration === "s8") expect(m.lineCount, "典型の長さの区切りは 1 行").toBe(1);
+        else expect(m.lineCount, "長い期間の区切りは折り返す").toBeGreaterThan(1);
+        expect(m.right, "区切りが幅に収まる").toBeLessThanOrEqual(m.width + 0.5);
+        expect(m.scrolled, "スクロールできた").toBeGreaterThan(0);
+        expect(Math.abs(m.stuckTop - m.contentTop), "一覧の上に貼り付く").toBeLessThanOrEqual(1);
+        expect(m.rowTop, "行は区切りの下をくぐる").toBeLessThan(m.dividerBottom);
+        expect(m.bg, "下の行が透けないよう塗る").not.toBe("rgba(0, 0, 0, 0)");
+        expect(m.cover, "上の余白も塗る").toBeGreaterThanOrEqual(m.padTop);
+        expect(m.pageScroll, "画面が横に溢れない").toBeLessThanOrEqual(m.pageClient);
+      } finally {
+        await context.close();
+      }
     });
-    const page = await context.newPage();
-    try {
-      await page.goto(`${server.url}?surface=sidebar#/history?view=ticket`, {
-        waitUntil: "networkidle",
-      });
-      await page.locator(".history-divider").first().waitFor();
-      const m = await page.evaluate(async () => {
-        const main = document.querySelector<HTMLElement>(".page")!;
-        const divider = document.querySelector<HTMLElement>(".history-divider")!;
-        const row = divider.nextElementSibling!;
-        const parts = [...divider.children].map((c) => c.getBoundingClientRect());
-        const before = divider.getBoundingClientRect();
-        const box = main.getBoundingClientRect();
-        const padTop = parseFloat(getComputedStyle(main).paddingTop);
-        const padRight = parseFloat(getComputedStyle(main).paddingRight);
-        // 区切りの元の位置が .page の中身の上の端より 20px 上に出るまで送る（続く行が 2 件あるので、次の区切りにはまだ押されない）
-        main.scrollTop = before.top - (box.top + padTop) + 20;
-        await new Promise((r) => requestAnimationFrame(() => r(null)));
-        const after = divider.getBoundingClientRect();
-        return {
-          texts: [...divider.children].map((c) => c.textContent),
-          tops: new Set(parts.map((p) => Math.round(p.top))).size,
-          right: Math.max(...parts.map((p) => p.right)),
-          width: box.right - padRight,
-          scrolled: main.scrollTop,
-          stuckTop: after.top,
-          contentTop: box.top + padTop,
-          rowTop: row.getBoundingClientRect().top,
-          dividerBottom: after.bottom,
-          bg: getComputedStyle(divider).backgroundColor,
-          // 上の余白（.page の padding）に行が透けないよう塗り足す高さ
-          cover: parseFloat(getComputedStyle(divider, "::before").height),
-          padTop,
-          pageScroll: main.scrollWidth,
-          pageClient: main.clientWidth,
-        };
-      });
-      expect(m.texts.length, "番号・期間・件数").toBe(3);
-      expect(m.tops, "区切りは 1 行").toBe(1);
-      expect(m.right, "区切りが幅に収まる").toBeLessThanOrEqual(m.width + 0.5);
-      expect(m.scrolled, "スクロールできた").toBeGreaterThan(0);
-      expect(Math.abs(m.stuckTop - m.contentTop), "一覧の上に貼り付く").toBeLessThanOrEqual(1);
-      expect(m.rowTop, "行は区切りの下をくぐる").toBeLessThan(m.dividerBottom);
-      expect(m.bg, "下の行が透けないよう塗る").not.toBe("rgba(0, 0, 0, 0)");
-      expect(m.cover, "上の余白も塗る").toBeGreaterThanOrEqual(m.padTop);
-      expect(m.pageScroll, "画面が横に溢れない").toBeLessThanOrEqual(m.pageClient);
-    } finally {
-      await context.close();
-    }
-  });
-});
+  },
+);
 
 describe.each(SCHEMES)("履歴の中止の行（%s）", (scheme) => {
   it("点は塗らない輪（border）で、完了の点は塗り、タイトルは薄く打ち消し線がない", async () => {
