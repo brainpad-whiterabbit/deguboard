@@ -4,10 +4,13 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createFixture, createLocalOnlyRepo } from "../../test/helpers/git-fixture.js";
 import {
+  newerThan,
   olderVersionOf,
   putSkill as put,
   SKILL_MARKER as MARKER,
   skillsDir,
+  skillVersionOf,
+  skillWrittenBy,
 } from "../../test/helpers/skills.js";
 import * as guide from "../guide/guide.js";
 import { GUIDE_TOPICS } from "../guide/topics.js";
@@ -20,6 +23,7 @@ import {
   buildSkills,
   findStaleSkills,
   refreshInstalledSkills,
+  skillAgeOf,
   skillStateOf,
   staleSkillWarnings,
   staleSkillWarningsOf,
@@ -45,6 +49,9 @@ async function repoDir(): Promise<string> {
 }
 
 const contentOf = async (name: string) => (await buildSkills()).find((s) => s.name === name)!;
+
+/** findStaleSkills の 1 つの置き場所の、名前のない分け方（要るものだけを上書きして使う） */
+const NONE = { stale: [], edited: [], sameVersion: [], sameVersionEdited: [] };
 
 describe("入れてある dg の Skill が今の dg のものと違うかの判定（AG-2・t858）", () => {
   it("skillStateOf は、ない・同じ・手を加えていない古いもの・手を加えたものを分ける", async () => {
@@ -82,13 +89,13 @@ describe("入れてある dg の Skill が今の dg のものと違うかの判�
 
     const found = await findStaleSkills({ topLevel: top, env: { HOME: home } });
     expect(found).toEqual([
-      { scope: "project", dir: skillsDir(top), stale: ["dgwork"], edited: ["dgplan"] },
-      { scope: "personal", dir: skillsDir(home), stale: ["dgdone"], edited: [] },
+      { scope: "project", dir: skillsDir(top), ...NONE, stale: ["dgwork"], edited: ["dgplan"] },
+      { scope: "personal", dir: skillsDir(home), ...NONE, stale: ["dgdone"] },
     ]);
     expect(staleSkillWarnings(found)).toEqual([
-      `These dg Skills in ${skillsDir(top)} are older than this dg (they differ from the Skills bundled with it): dgwork. Update them with dg skill install`,
+      `These dg Skills in ${skillsDir(top)} are older than this dg (an older version of dg wrote them): dgwork. Update them with dg skill install`,
       `These dg Skills in ${skillsDir(top)} are older than this dg and were edited by hand, so dg skill install keeps them: dgplan. To overwrite them with the current Skills, run dg skill install --force`,
-      `These dg Skills in ${skillsDir(home)} are older than this dg (they differ from the Skills bundled with it): dgdone. Update them with dg skill install --personal`,
+      `These dg Skills in ${skillsDir(home)} are older than this dg (an older version of dg wrote them): dgdone. Update them with dg skill install --personal`,
     ]);
     // リポジトリの外（topLevel なし）では個人の置き場所だけを見る
     expect(await findStaleSkills({ env: { HOME: home } })).toEqual([found[1]]);
@@ -102,7 +109,83 @@ describe("入れてある dg の Skill が今の dg のものと違うかの判�
     await put(top, "dgwork", `${work.content}\nmy note\n`);
     await put(top, "dgplan", plan.content.replace(MARKER, ""));
     expect(await findStaleSkills({ topLevel: top, env: { HOME: home } })).toEqual([
-      { scope: "project", dir: skillsDir(top), stale: [], edited: ["dgplan"] },
+      { scope: "project", dir: skillsDir(top), ...NONE, edited: ["dgplan"] },
+    ]);
+  });
+});
+
+describe("Skill の印の版と、今の dg との新旧（AG-2・ADR-030・t864）", () => {
+  it("印は書いた dg の版を持つ。版が読めないときは版を書かない", async () => {
+    const skill = await contentOf("dgwork");
+    const version = skillVersionOf(skill.content);
+    expect(skill.content).toMatch(
+      new RegExp(`\\n<!-- dg skill v${version.replaceAll(".", "\\.")} sha256:[0-9a-f]{64} -->\\n`),
+    );
+    const given = (await buildSkills("9.8.7")).find((s) => s.name === "dgwork")!;
+    expect(skillVersionOf(given.content)).toBe("9.8.7");
+    const unknown = (await buildSkills("")).find((s) => s.name === "dgwork")!;
+    expect(unknown.content).toMatch(/\n<!-- dg skill sha256:[0-9a-f]{64} -->\n/);
+  });
+
+  it("skillAgeOf は、印の版が今の dg より古いか・同じか・新しいかを返す。版のない印と印のないものは古い", async () => {
+    const skill = await contentOf("dgwork");
+    const mine = skillVersionOf(skill.content);
+    expect(skillAgeOf(skillWrittenBy(skill.content, "0.0.0"), skill)).toBe("older");
+    expect(skillAgeOf(skillWrittenBy(skill.content), skill)).toBe("older");
+    expect(skillAgeOf(skill.content.replace(MARKER, ""), skill)).toBe("older");
+    expect(skillAgeOf(skillWrittenBy(skill.content, mine), skill)).toBe("same");
+    expect(skillAgeOf(skillWrittenBy(skill.content, newerThan(mine)), skill)).toBe("newer");
+    // 数として比べる（0.10.0 は 0.9.0 より新しい）
+    const [at9, at10] = await Promise.all(
+      ["0.9.0", "0.10.0"].map(async (v) =>
+        (await buildSkills(v)).find((s) => s.name === "dgwork")!,
+      ),
+    );
+    expect(skillAgeOf(at9!.content, at10!)).toBe("older");
+    expect(skillAgeOf(at10!.content, at9!)).toBe("newer");
+  });
+
+  it("本文が同じで印の版だけが違う Skill は current（古いと知らせず、書き直しもしない）", async () => {
+    const top = await tempDir();
+    const home = await tempDir();
+    const skill = await contentOf("dgwork");
+    const older = (await buildSkills("0.0.0")).find((s) => s.name === "dgwork")!;
+    expect(older.content).not.toBe(skill.content);
+    expect(skillStateOf(older.content, skill)).toBe("current");
+    await put(top, "dgwork", older.content);
+    expect(await findStaleSkills({ topLevel: top, env: { HOME: home } })).toEqual([]);
+  });
+
+  it("警告は、古い版の Skill だけを older と出し、同じ版で中身の違うものは differ と出し、新しい版のものは出さない", async () => {
+    const top = await tempDir();
+    const home = await tempDir();
+    const mine = skillVersionOf((await contentOf("dgwork")).content);
+    const by = async (name: string, version?: string, note = "") =>
+      put(top, name, skillWrittenBy((await contentOf(name)).content, version) + note);
+    await by("dgwork", "0.0.0");
+    await by("dgplan", "0.0.0", "\nmy note\n");
+    await by("dgdone", mine);
+    await by("dgcheck", mine, "\nmy note\n");
+    await by("dgimport", newerThan(mine));
+    await by("dgaudit", newerThan(mine), "\nmy note\n");
+
+    const found = await findStaleSkills({ topLevel: top, env: { HOME: home } });
+    const dir = skillsDir(top);
+    expect(found).toEqual([
+      {
+        scope: "project",
+        dir,
+        stale: ["dgwork"],
+        edited: ["dgplan"],
+        sameVersion: ["dgdone"],
+        sameVersionEdited: ["dgcheck"],
+      },
+    ]);
+    expect(staleSkillWarnings(found)).toEqual([
+      `These dg Skills in ${dir} are older than this dg (an older version of dg wrote them): dgwork. Update them with dg skill install`,
+      `These dg Skills in ${dir} are older than this dg and were edited by hand, so dg skill install keeps them: dgplan. To overwrite them with the current Skills, run dg skill install --force`,
+      `These dg Skills in ${dir} differ from the Skills of this dg, though a dg of the same version wrote them (which is newer is unknown): dgdone. To replace them with the Skills of this dg, run dg skill install`,
+      `These dg Skills in ${dir} differ from the Skills of this dg (a dg of the same version wrote them) and were edited by hand, so dg skill install keeps them: dgcheck. To overwrite them with the Skills of this dg, run dg skill install --force`,
     ]);
   });
 });
@@ -132,6 +215,55 @@ describe("VS Code 拡張の起動時の Skill の更新（AG-2・t857）", () =>
     expect(await read(home, "dgdone")).toBe(done.content);
     // そろったら変えるものはなく、何も返さない（通知しない）
     expect(await refreshInstalledSkills({ folders: [top], env: { HOME: home } })).toEqual([]);
+  });
+
+  it("古い版の dg が書いた Skill は、印に版のないものと同じく更新する", async () => {
+    const top = await repoDir();
+    const home = await tempDir();
+    const work = await contentOf("dgwork");
+    const plan = await contentOf("dgplan");
+    await put(top, "dgwork", skillWrittenBy(work.content, "0.0.0"));
+    await put(top, "dgplan", skillWrittenBy(plan.content));
+    expect(await refreshInstalledSkills({ folders: [top], env: { HOME: home } })).toEqual([
+      { scope: "project", dir: skillsDir(top), updated: ["dgplan", "dgwork"], edited: [] },
+    ]);
+    expect(await read(top, "dgwork")).toBe(work.content);
+    expect(await read(top, "dgplan")).toBe(plan.content);
+  });
+
+  it("新しい版の dg が書いた Skill と、同じ版の dg が書いた中身の違う Skill は、上書きせず知らせもしない（t864）", async () => {
+    const top = await repoDir();
+    const home = await tempDir();
+    const work = await contentOf("dgwork");
+    const mine = skillVersionOf(work.content);
+    const newer = skillWrittenBy(work.content, newerThan(mine));
+    const same = skillWrittenBy((await contentOf("dgplan")).content, mine);
+    const newerEdited = `${skillWrittenBy((await contentOf("dgdone")).content, newerThan(mine))}\nmy note\n`;
+    await put(top, "dgwork", newer);
+    await put(top, "dgplan", same);
+    await put(home, "dgdone", newerEdited);
+
+    expect(await refreshInstalledSkills({ folders: [top], env: { HOME: home } })).toEqual([]);
+    expect(await read(top, "dgwork")).toBe(newer);
+    expect(await read(top, "dgplan")).toBe(same);
+    expect(await read(home, "dgdone")).toBe(newerEdited);
+  });
+
+  it("拡張が渡した版（version）で新旧を比べる。拡張より新しい dg が書いた Skill は戻さず、拡張より古い dg が書いたものは更新する", async () => {
+    const top = await repoDir();
+    const home = await tempDir();
+    // 今の dg（core の版）が書いた Skill を、それより古い拡張と新しい拡張が見る
+    const work = await contentOf("dgwork");
+    const mine = skillVersionOf(work.content);
+    const written = skillWrittenBy(work.content, mine);
+    await put(top, "dgwork", written);
+    const query = { folders: [top], env: { HOME: home } };
+    expect(await refreshInstalledSkills({ ...query, version: "0.0.0" })).toEqual([]);
+    expect(await read(top, "dgwork")).toBe(written);
+    expect(await refreshInstalledSkills({ ...query, version: newerThan(mine) })).toEqual([
+      { scope: "project", dir: skillsDir(top), updated: ["dgwork"], edited: [] },
+    ]);
+    expect(skillVersionOf(await read(top, "dgwork"))).toBe(newerThan(mine));
   });
 
   it("手で直した古い Skill は書き換えずに edited に返す", async () => {
@@ -233,7 +365,7 @@ describe("dg next と dg brief の古い Skill の警告（t858）", () => {
     expect(await warningsOf(ctx)).toEqual({ next: [], brief: [] });
 
     await put(top, "dgwork", olderVersionOf(work.content));
-    const stale = `These dg Skills in ${skillsDir(top)} are older than this dg (they differ from the Skills bundled with it): dgwork. Update them with dg skill install`;
+    const stale = `These dg Skills in ${skillsDir(top)} are older than this dg (an older version of dg wrote them): dgwork. Update them with dg skill install`;
     expect(await warningsOf(ctx)).toEqual({ next: [stale], brief: [stale] });
 
     await put(top, "dgplan", `${olderVersionOf(plan.content)}\nmy note\n`);
@@ -249,7 +381,7 @@ describe("dg next と dg brief の古い Skill の警告（t858）", () => {
     await put(home, "dgdone", olderVersionOf((await contentOf("dgdone")).content));
     const { next: fromNext } = await warningsOf(ctx);
     expect(aboutSkills(fromNext)).toEqual([
-      `These dg Skills in ${skillsDir(home)} are older than this dg (they differ from the Skills bundled with it): dgdone. Update them with dg skill install --personal`,
+      `These dg Skills in ${skillsDir(home)} are older than this dg (an older version of dg wrote them): dgdone. Update them with dg skill install --personal`,
     ]);
   });
 

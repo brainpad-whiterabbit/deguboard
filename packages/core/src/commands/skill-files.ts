@@ -1,8 +1,9 @@
-// dg が配る Skill の中身と、入れてある Skill が今の dg のものと違うかの判定（AG-2）。
+// dg が配る Skill の中身と、入れてある Skill が今の dg のものと違うか・古いかの判定（AG-2）。
 // dg skill install（CLI）が書くか残すかを決めるのも、dg hooks check・dg next・dg brief が古い Skill を知らせるのも、
 // VS Code 拡張が起動時に古い Skill を更新するのも、ここの skillStateOf を通す（判定を 2 つ持たない）。
+// 警告と拡張は、そのうえで印の版を比べ（skillAgeOf）、今の dg より新しい版の dg が書いた Skill を古いと言わず、戻さない（ADR-030）。
 // Skill を書くのも、dg skill install と拡張で同じ writeSkillFiles を通す。
-// 公開（commands/index.ts）は入口が呼ぶものだけにする。判定の部品（skillStateOf・findStaleSkills・staleSkillWarnings）はここのテストが直接引く。
+// 公開（commands/index.ts）は入口が呼ぶものだけにする。判定の部品（skillStateOf・skillAgeOf・findStaleSkills・staleSkillWarnings）はここのテストが直接引く。
 // Skill の組み立て（buildSkills）は guide を読むので、1 回の操作で 1 回にし、組み立てたものを部品に渡して使い回す。
 // 名前・説明・引数の案内は guide の frontmatter から、冒頭の 1 文は SKILL_SUMMARY の en から、本文は SKILL_TEMPLATE から作る。
 // 雛形をファイルにせず定数にするのは、束ねた配置（拡張の extension.cjs・同梱の dg.mjs）でも置き場所を合わせずに読めるようにするため
@@ -11,6 +12,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { agentSkillPlaces, type AgentEnv, type SkillPlace } from "../agents/index.js";
+import { coreVersion } from "../bundle-layout.js";
 import { resolveRepoPaths } from "../git/index.js";
 import { readGuide, readGuideMeta } from "../guide/guide.js";
 import { GUIDE_TOPICS, type GuideTopic } from "../guide/topics.js";
@@ -33,8 +35,17 @@ Target: $ARGUMENTS
 If the target is empty, follow the "Deciding the target" section of the steps.
 `;
 
-/** frontmatter の直後に置く印。本文（印の行を除く）の sha256 で、手を加えたかを見分ける */
-const MARKER = /^<!-- dg skill sha256:([0-9a-f]{64}) -->\n/m;
+/**
+ * frontmatter の直後に置く印（形は ADR-030）。書いた dg の版と、本文（印の行を除く）の sha256 を持つ。
+ * ハッシュで手を加えたかを、版で今の dg より古いか新しいかを見分ける。版のない印は、版を書く前の dg が書いたもの
+ */
+const MARKER = /^<!-- dg skill (?:v(\d+\.\d+\.\d+)\S* )?sha256:([0-9a-f]{64}) -->\n/m;
+
+/** 印の版（major.minor.patch）とハッシュ。印がなければ undefined */
+function markerOf(text: string): { version: string | undefined; hash: string } | undefined {
+  const match = MARKER.exec(text);
+  return match ? { version: match[1], hash: match[2]! } : undefined;
+}
 
 export interface SkillFile {
   /** Skill の名前（dg<トピック>）。置き場所は <Skill のディレクトリ>/<名前>/SKILL.md */
@@ -46,8 +57,13 @@ export interface SkillFile {
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 
-/** frontmatter に description を持つトピックごとに SKILL.md を作る */
-export async function buildSkills(): Promise<SkillFile[]> {
+/**
+ * frontmatter に description を持つトピックごとに SKILL.md を作る。印に書く版（version）は、省くと core の版。
+ * 束ねた VS Code 拡張は core の版を読めないので、ビルドで埋めた版を渡す。読めない版（空など）は印に書かない
+ */
+export async function buildSkills(version?: string): Promise<SkillFile[]> {
+  const mine = version ?? (await coreVersion());
+  const tag = /^\d+\.\d+\.\d+\S*$/.test(mine) ? `v${mine} ` : "";
   const skills: SkillFile[] = [];
   for (const topic of GUIDE_TOPICS) {
     const meta = await readGuideMeta(topic);
@@ -67,44 +83,72 @@ export async function buildSkills(): Promise<SkillFile[]> {
     skills.push({
       name,
       topic,
-      content: `---\n${frontmatter}---\n\n<!-- dg skill sha256:${sha256(unmarked)} -->\n\n${body}`,
+      content: `---\n${frontmatter}---\n\n<!-- dg skill ${tag}sha256:${sha256(unmarked)} -->\n\n${body}`,
     });
   }
   return skills;
 }
 
 /**
- * 入れてある SKILL.md と今の dg の Skill の関係。
- * missing は入れていない、current は今の dg のものと同じ、stale は手を加えていないが今の dg のものと違う（古い。dg skill install が上書きする）、
+ * 入れてある SKILL.md と今の dg の Skill の関係。版は見ない（新旧は skillAgeOf）。
+ * missing は入れていない、current は今の dg のものと中身が同じ（印の版だけが違うものも含む）、
+ * stale は手を加えていないが今の dg のものと中身が違う（dg skill install が上書きする）、
  * edited は手を加えてあって今の dg のものと違う（dg skill install は残し、--force で上書きする）
  */
 export type SkillState = "missing" | "current" | "stale" | "edited";
 
 /** 印があり、印を除いた中身のハッシュが印と一致すれば、手を加えていない */
 function isUnmodified(text: string): boolean {
-  const match = MARKER.exec(text);
-  return match !== null && sha256(text.replace(MARKER, "")) === match[1];
+  const marker = markerOf(text);
+  return marker !== undefined && sha256(text.replace(MARKER, "")) === marker.hash;
 }
 
-/** 入れてある SKILL.md の中身（なければ undefined）を、今の dg の Skill と比べる */
+/**
+ * 入れてある SKILL.md の中身（なければ undefined）を、今の dg の Skill と比べる。
+ * 手を加えておらず本文のハッシュが同じなら、印の版が違っても current（版を上げただけで本文の変わらない Skill を、古いと知らせも書き直しもしない）
+ */
 export function skillStateOf(current: string | undefined, skill: SkillFile): SkillState {
   if (current === undefined) return "missing";
   if (current === skill.content) return "current";
-  return isUnmodified(current) ? "stale" : "edited";
+  if (!isUnmodified(current)) return "edited";
+  return hasCurrentBody(current, skill) ? "current" : "stale";
 }
 
-/** 手を加えた SKILL.md の印が、今の dg の Skill の印と同じか（今の版をもとに手を加えたもので、古くはない） */
-function editedFromCurrent(current: string, skill: SkillFile): boolean {
-  const base = MARKER.exec(current)?.[1];
-  return base !== undefined && base === MARKER.exec(skill.content)?.[1];
+/** 入れてある SKILL.md の印のハッシュが、今の dg の Skill の印と同じか（手を加えたものなら、今の本文をもとに手を加えたもので、古くはない） */
+function hasCurrentBody(current: string, skill: SkillFile): boolean {
+  const base = markerOf(current)?.hash;
+  return base !== undefined && base === markerOf(skill.content)?.hash;
 }
 
-/** 置き場所ごとの、今の dg のものと違う Skill */
+/**
+ * 入れてある SKILL.md を書いた dg の版が、今の dg より古いか・同じか・新しいか。major.minor.patch だけを比べる。
+ * 印に版のないもの（版を書く前の dg が書いた）と印のないものは older。今の dg の版が読めないときも older（中身の違いだけで見ていた前の扱いに戻る）
+ */
+export type SkillAge = "older" | "same" | "newer";
+
+export function skillAgeOf(current: string, skill: SkillFile): SkillAge {
+  const parts = (text: string) => markerOf(text)?.version?.split(".").map(Number);
+  const theirs = parts(current);
+  const mine = parts(skill.content);
+  if (theirs === undefined || mine === undefined) return "older";
+  for (let i = 0; i < 3; i++)
+    if (theirs[i] !== mine[i]) return theirs[i]! < mine[i]! ? "older" : "newer";
+  return "same";
+}
+
+/**
+ * 置き場所ごとの、今の dg のものと中身が違う Skill。今の dg より新しい版の dg が書いたものは入れない
+ * （古いのは今の dg の方で、知らせても書き換えても、新しい dg と書き換え合うだけになる）
+ */
 export interface StaleSkills extends SkillPlace {
-  /** 手を加えていない古い Skill の名前。dg skill install で更新できる */
+  /** 古い版の dg が書いた、手を加えていない Skill の名前。dg skill install で更新できる */
   stale: string[];
-  /** 手を加えてある古い Skill の名前。dg skill install は残し、--force で上書きする */
+  /** 古い版の dg が書いた、手を加えてある Skill の名前。dg skill install は残し、--force で上書きする */
   edited: string[];
+  /** 今の dg と同じ版の dg が書いたが中身の違う、手を加えていない Skill の名前（版を上げずに Skill を変えた開発中の dg）。どちらが新しいかは分からない */
+  sameVersion: string[];
+  /** sameVersion のうち、手を加えてあるもの */
+  sameVersionEdited: string[];
 }
 
 /** 同じディレクトリの置き場所を 1 つにする（先に出たものを残す）。リポジトリがホームディレクトリのときと、個人の置き場所を複数のフォルダから見るとき */
@@ -120,8 +164,9 @@ function uniquePlaces(places: readonly SkillPlace[]): SkillPlace[] {
 /**
  * 置き場所ごとに、入れてある dg の Skill のうち今の dg のもの（skills）と違うものを返す。
  * 違うものがない置き場所は返さない。入れていない Skill は数えない（Skill は任意で、足りないことは知らせない）。
- * 今の版をもとに手を加えた Skill（印が今の dg のものと同じ）も数えない。古くはなく、知らせても毎回同じ警告が出続けるだけになる。
- * 印を消した Skill はもとの版が分からないので edited に入れる
+ * 今の本文をもとに手を加えた Skill（印のハッシュが今の dg のものと同じ）も数えない。古くはなく、知らせても毎回同じ警告が出続けるだけになる。
+ * 今の dg より新しい版の dg が書いた Skill も数えない。古い版と同じ版は分けて返す（skillAgeOf）。
+ * 印を消した Skill はもとの版が分からないので、古いものとして edited に入れる
  */
 async function staleSkillsIn(
   places: readonly SkillPlace[],
@@ -129,17 +174,26 @@ async function staleSkillsIn(
 ): Promise<StaleSkills[]> {
   const found: StaleSkills[] = [];
   for (const place of uniquePlaces(places)) {
-    const stale: string[] = [];
-    const edited: string[] = [];
+    const names: Omit<StaleSkills, keyof SkillPlace> = {
+      stale: [],
+      edited: [],
+      sameVersion: [],
+      sameVersionEdited: [],
+    };
     for (const skill of skills) {
       const current = await readFile(join(place.dir, skill.name, "SKILL.md"), "utf8").catch(
         () => undefined,
       );
       const state = skillStateOf(current, skill);
-      if (state === "stale") stale.push(skill.name);
-      else if (state === "edited" && !editedFromCurrent(current!, skill)) edited.push(skill.name);
+      if (current === undefined || (state !== "stale" && state !== "edited")) continue;
+      if (state === "edited" && hasCurrentBody(current, skill)) continue;
+      const age = skillAgeOf(current, skill);
+      if (age === "newer") continue;
+      const unmodified = state === "stale";
+      if (age === "older") (unmodified ? names.stale : names.edited).push(skill.name);
+      else (unmodified ? names.sameVersion : names.sameVersionEdited).push(skill.name);
     }
-    if (stale.length > 0 || edited.length > 0) found.push({ ...place, stale, edited });
+    if (Object.values(names).some((n) => n.length > 0)) found.push({ ...place, ...names });
   }
   return found;
 }
@@ -171,7 +225,8 @@ export interface SkillWriteResult {
 
 /**
  * dir（Skill のディレクトリ）に dg の Skill を書く。dg skill install（CLI）と、VS Code 拡張が起動時に古い Skill を更新するのが、ここを通す。
- * 手を加えていない Skill は最新の中身で上書きし、手を加えたものは force がなければ残す。
+ * 手を加えていない Skill は今の dg の中身で上書きし、手を加えたものは force がなければ残す。
+ * 版は見ない。dg skill install は人が打つ操作なので、新しい版の dg が書いた Skill も、打った dg のものにする（版で止めるのは、自動で書く拡張だけ）。
  * names を渡すと、その名前の Skill だけを扱う（拡張は入れてある古い Skill だけを渡し、入れていない Skill を足さない）。dryRun なら書かずに中身を返す。
  * skills は呼び出し側がすでに組み立てた Skill（省くとここで組み立てる）
  */
@@ -218,9 +273,9 @@ export async function writeSkillFiles(
 
 /** 置き場所ごとの、VS Code 拡張が更新した Skill と、手を加えてあるので残した古い Skill */
 export interface RefreshedSkills extends SkillPlace {
-  /** 手を加えていない古い Skill のうち、今の dg のもので上書きした Skill の名前 */
+  /** 古い版の dg が書いた手を加えていない Skill のうち、今の dg のもので上書きした Skill の名前 */
   updated: string[];
-  /** 手を加えてある古い Skill の名前。書き換えず、dg skill install --force で上書きできることを知らせる */
+  /** 古い版の dg が書いた、手を加えてある Skill の名前。書き換えず、dg skill install --force で上書きできることを知らせる */
   edited: string[];
 }
 
@@ -258,19 +313,21 @@ export async function removeRetiredSkills(
 
 /**
  * VS Code 拡張が起動のたびに、開いている作業フォルダ（folders）を渡して呼ぶ。フォルダごとのリポジトリと個人の置き場所を見て、
- * 入れてある dg の Skill のうち今の dg のものと違うものを見つけ（staleSkillsIn）、
+ * 入れてある dg の Skill のうち、今の dg より古い版の dg が書いたもの（印に版のないものを含む）で中身の違うものを見つけ（staleSkillsIn）、
  * 手を加えていないものを writeSkillFiles（dg skill install と同じ処理）で上書きする。手を加えたものは書き換えずに返す。
  * リポジトリの外のフォルダは個人の置き場所だけを見る。フォルダがなくても個人の置き場所は見る。
  * 個人の置き場所はどのフォルダからも同じで、同じリポジトリのフォルダも重なるので、置き場所（dir）ごとに 1 回だけ見る。
  * 入れていない Skill は足さず、dg の Skill のない置き場所には書かない（Skill は任意で、各自が入れる。AG-2）。
- * 版を比べずに中身で比べるので、同じ版の拡張を入れ直しても拾う。変えるものも知らせるものもない置き場所は返さない。
- * 中身が違うことしか分からず、どちらが新しいかは分からない。PATH の dg（ソースから動かす dg）が拡張より新しいと、
- * 拡張は起動のたびに Skill を古い同梱のものに戻し、dg hooks check・next・brief はそれを古いと警告して、互いに書き換え合う。
- * 版で止めるかは決めていないので、ここでは中身の違いだけで更新し、通知も「古い」ではなく「違う」と書く
+ * 変えるものも知らせるものもない置き場所は返さない。
+ * 新しい版の dg が書いた Skill と、同じ版の dg が書いた中身の違う Skill には触れず、知らせもしない（ADR-030）。
+ * 中身の違いだけで同梱のものに揃えると、PATH の dg（ソースから動かす dg）が拡張より新しいときに、拡張は起動のたびに Skill を古い同梱のものに戻し、
+ * dg hooks check・next・brief はそれを古いと警告して、互いに書き換え合う。ソースの dg は版を上げる前に Skill を変えるので、同じ版でも止める。
+ * version は印に書く今の dg の版（束ねた拡張はビルドで埋めた版を渡す。省くと core の版）
  */
 export async function refreshInstalledSkills(query: {
   folders: readonly string[];
   env: AgentEnv;
+  version?: string;
 }): Promise<RefreshedSkills[]> {
   const tops: Array<string | undefined> = [];
   for (const folder of query.folders)
@@ -282,7 +339,7 @@ export async function refreshInstalledSkills(query: {
     );
   if (tops.length === 0) tops.push(undefined);
   const places = tops.flatMap((topLevel) => agentSkillPlaces({ topLevel, env: query.env }));
-  const skills = await buildSkills();
+  const skills = await buildSkills(query.version);
   const refreshed: RefreshedSkills[] = [];
   for (const found of await staleSkillsIn(places, skills)) {
     const updated =
@@ -295,27 +352,42 @@ export async function refreshInstalledSkills(query: {
   return refreshed;
 }
 
-/** 古い Skill の警告の文。手を加えていないもの（dg skill install で更新）と、手を加えたもの（--force で上書き）を分けて出す */
+/**
+ * 今の dg のものと違う Skill の警告の文。手を加えていないもの（dg skill install で更新）と、手を加えたもの（--force で上書き）を分けて出す。
+ * 「older」と書くのは古い版の dg が書いたものだけ。同じ版の dg が書いたものは新旧が分からないので「differ」と書く
+ */
 export function staleSkillWarnings(found: readonly StaleSkills[]): string[] {
   return found.flatMap((f) => {
     const install = `dg skill install${f.scope === "personal" ? " --personal" : ""}`;
+    const line = (names: readonly string[], text: (list: string) => string) =>
+      names.length === 0 ? [] : [text(names.join(", "))];
     return [
-      ...(f.stale.length === 0
-        ? []
-        : [
-            `These dg Skills in ${f.dir} are older than this dg (they differ from the Skills bundled with it): ${f.stale.join(", ")}. Update them with ${install}`,
-          ]),
-      ...(f.edited.length === 0
-        ? []
-        : [
-            `These dg Skills in ${f.dir} are older than this dg and were edited by hand, so ${install} keeps them: ${f.edited.join(", ")}. To overwrite them with the current Skills, run ${install} --force`,
-          ]),
+      ...line(
+        f.stale,
+        (list) =>
+          `These dg Skills in ${f.dir} are older than this dg (an older version of dg wrote them): ${list}. Update them with ${install}`,
+      ),
+      ...line(
+        f.edited,
+        (list) =>
+          `These dg Skills in ${f.dir} are older than this dg and were edited by hand, so ${install} keeps them: ${list}. To overwrite them with the current Skills, run ${install} --force`,
+      ),
+      ...line(
+        f.sameVersion,
+        (list) =>
+          `These dg Skills in ${f.dir} differ from the Skills of this dg, though a dg of the same version wrote them (which is newer is unknown): ${list}. To replace them with the Skills of this dg, run ${install}`,
+      ),
+      ...line(
+        f.sameVersionEdited,
+        (list) =>
+          `These dg Skills in ${f.dir} differ from the Skills of this dg (a dg of the same version wrote them) and were edited by hand, so ${install} keeps them: ${list}. To overwrite them with the Skills of this dg, run ${install} --force`,
+      ),
     ];
   });
 }
 
 /**
- * dg hooks check・dg next・dg brief が足す、古い Skill の警告。古いものがなければ空。
+ * dg hooks check・dg next・dg brief が足す、古い Skill（と、同じ版で中身の違う Skill）の警告。なければ空。
  * 知らせるだけなので、確かめられなかったとき（guide が読めないなど）は呼んだコマンドを止めずに空を返す
  */
 export async function staleSkillWarningsOf(

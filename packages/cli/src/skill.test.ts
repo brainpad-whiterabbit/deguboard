@@ -219,7 +219,7 @@ describe("dg skill install", () => {
       "Target (older version): $ARGUMENTS",
     );
     const hash = createHash("sha256")
-      .update(older.replace(/^<!-- dg skill sha256:[0-9a-f]{64} -->\n/m, ""))
+      .update(older.replace(/^<!-- dg skill v\S+ sha256:[0-9a-f]{64} -->\n/m, ""))
       .digest("hex");
     await writeFile(
       skillPath(local.dir, "dgimport"),
@@ -423,7 +423,7 @@ describe("Skill の本文", () => {
     for (const s of skills) {
       expect(s.content, s.name).toMatch(
         new RegExp(
-          `^---\\nname: ${s.name}\\ndescription: .+\\nargument-hint: .+\\n---\\n\\n<!-- dg skill sha256:[0-9a-f]{64} -->\\n`,
+          `^---\\nname: ${s.name}\\ndescription: .+\\nargument-hint: .+\\n---\\n\\n<!-- dg skill v\\d+\\.\\d+\\.\\d+ sha256:[0-9a-f]{64} -->\\n`,
         ),
       );
       expect(s.content, s.name).toContain(`dg guide ${s.topic}`);

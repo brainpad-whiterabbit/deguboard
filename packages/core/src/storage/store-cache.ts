@@ -10,7 +10,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bundleLayout } from "../bundle-layout.js";
+import { bundleLayout, coreVersion } from "../bundle-layout.js";
 
 /** 1 ファイルの読みの結果と、読んだときの印 */
 export interface CachedRead {
@@ -61,22 +61,9 @@ function codeStamp(): Promise<string> {
 }
 
 /**
- * core の版（package.json）。束ねた CLI（dg.mjs）は束ねたときに埋めた版を使う。束ねた拡張（VS Code）では読めないので空になり、
+ * キャッシュの鍵。これが違うキャッシュは使わない。束ねた拡張（VS Code）では core の版が読めずに空になり、
  * 版の区別は codeStamp の束ねたファイルの印（大きさと更新時刻）だけに頼る。拡張を入れ替えると束ねたファイルが書き直されて印が変わるので、それで足りるとする
  */
-async function coreVersion(): Promise<string> {
-  const bundled = bundleLayout()?.version;
-  if (bundled !== undefined) return bundled;
-  try {
-    const text = await readFile(new URL("../../package.json", import.meta.url), "utf8");
-    const pkg = JSON.parse(text) as { name?: unknown; version?: unknown };
-    return pkg.name === "@deguboard/core" ? String(pkg.version) : "";
-  } catch {
-    return "";
-  }
-}
-
-/** キャッシュの鍵。これが違うキャッシュは使わない */
 export async function storeCacheKey(root: string, actions: readonly string[] | undefined) {
   return JSON.stringify({
     format: STORE_CACHE_FORMAT,
