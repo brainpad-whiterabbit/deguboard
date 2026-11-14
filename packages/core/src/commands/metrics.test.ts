@@ -501,7 +501,7 @@ describe("metrics lines", () => {
 
 describe("metrics sources", () => {
   /**
-   * t1（PR #11 マージ済み、s1）・t2（PR #12 閉じた、s1）・t3（PR なし、s1。t1 と t2 と、チケットのない t99 を書く）・
+   * t1（PR #11 マージ済み、s1）・t2（PR #12 閉じた、s1）・t3（PR なし、s1。t1 と t2 と、チケットのない t99 を書く。元のチケットは t1、原因は tests）・
    * t4（PR #14 マージ済み、Iteration なし。題に t1 を書く）
    */
   async function tickets(): Promise<{ ctx: CommandContext; root: string }> {
@@ -518,6 +518,8 @@ describe("metrics sources", () => {
     await runCommand(ticketCreate, ctx, {
       title: "C",
       body: "t2 の見直しで見つけた（t1、t2）。t99 と t0 はない。`t1-t2` の間",
+      origin: ["t1"],
+      origin_cause: "tests",
     });
     await runCommand(ticketCreate, ctx, { title: "D（t1 の続き）" });
     await runCommand(iterationCreate, ctx, { name: "I" });
@@ -539,7 +541,7 @@ describe("metrics sources", () => {
       files: paths.map((p) => ({ path: p, additions: 1, deletions: 0 })),
     });
 
-  it("チケットごとに、マージされた PR が変えたファイルと、題と本文に書かれたほかのチケットの ID を返し、何も書かない。取れないファイルは null と理由にする", async () => {
+  it("チケットごとに、マージされた PR が変えたファイルと、題と本文に書かれたほかのチケットの ID と、記録した元のチケットと原因の種類を返し、何も書かない。取れないファイルは null と理由にする", async () => {
     const { ctx, root } = await tickets();
     const restore = await fakeGh(root, {
       "11": mergedFiles(11, ["src/a.ts", "docs/x.md"]),
@@ -564,6 +566,9 @@ describe("metrics sources", () => {
             files: ["src/a.ts", "docs/x.md"],
             files_unknown: null,
             refs: [],
+            // 記録のないチケットは [] と null（refs から埋めない）
+            origin: [],
+            origin_cause: null,
           },
           {
             id: "t2",
@@ -574,6 +579,8 @@ describe("metrics sources", () => {
             files: null,
             files_unknown: "PR #12 is not merged (closed)",
             refs: [],
+            origin: [],
+            origin_cause: null,
           },
           {
             id: "t3",
@@ -585,6 +592,9 @@ describe("metrics sources", () => {
             files_unknown: "No PR is recorded on the ticket",
             // 出た順に 1 回ずつ。自分・チケットのない t99・t0 は入らない
             refs: ["t2", "t1"],
+            // 元のチケットと原因の種類は、チケットに記録した値（本文に書かれた t2 は入らない。TK-12）
+            origin: ["t1"],
+            origin_cause: "tests",
           },
         ],
         unread: 0,

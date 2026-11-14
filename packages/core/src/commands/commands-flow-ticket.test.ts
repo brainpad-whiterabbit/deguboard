@@ -559,6 +559,97 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     });
   });
 
+  it("元のチケットと原因の種類（origin・origin_cause。TK-12）は create・import・update で付き、update の空の配列と null で外れる", async () => {
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(ticketCreate, ctx, { title: "B" });
+    // 付けなければ書かない（不具合を直すチケットでなければ持たない）
+    expect((await runCommand(ticketShow, ctx, { ticket: "t1" })).data).not.toHaveProperty("origin");
+    // ID は番号だけでも受け、同じ ID は 1 回にまとめる
+    const created = await runCommand(ticketCreate, ctx, {
+      title: "A の直し",
+      origin: ["t1", "2", "t1"],
+      origin_cause: "tests",
+    });
+    expect(created.data).toMatchObject({ id: "t3", origin: ["t1", "t2"], origin_cause: "tests" });
+    const imported = await runCommand(ticketImport, ctx, {
+      source: "- title: B の直し\n  origin: [t2]\n  origin_cause: unknown\n",
+    });
+    expect(imported.data).toMatchObject([{ id: "t4", origin: ["t2"], origin_cause: "unknown" }]);
+    // update は一覧をまるごと置き換える
+    const updated = await runCommand(ticketUpdate, ctx, {
+      ticket: "t4",
+      origin: ["t1"],
+      origin_cause: "documents",
+    });
+    expect(updated.data).toMatchObject({ origin: ["t1"], origin_cause: "documents" });
+    const text = await readFile(path.join(ctx.repo.dataDir, "tickets/t4.md"), "utf8");
+    expect(text).toContain("origin_cause: documents");
+    // ほかの項目だけを直す update は、元のチケットと原因を変えない
+    const kept = await runCommand(ticketUpdate, ctx, { ticket: "t4", priority: "high" });
+    expect(kept.data).toMatchObject({ origin: ["t1"], origin_cause: "documents" });
+    const removed = await runCommand(ticketUpdate, ctx, {
+      ticket: "t4",
+      origin: [],
+      origin_cause: null,
+    });
+    expect(removed.data).not.toHaveProperty("origin");
+    expect(removed.data).not.toHaveProperty("origin_cause");
+    expect(await readFile(path.join(ctx.repo.dataDir, "tickets/t4.md"), "utf8")).not.toContain(
+      "origin",
+    );
+  });
+
+  it("元のチケットにないチケットの ID と自分自身の ID、原因の種類にない値は、どの入口でも拒み、書き込まない（TK-12）", async () => {
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(ticketCreate, ctx, {
+      title: "A の直し",
+      origin: ["t1"],
+      origin_cause: "plan",
+    });
+    // ないチケットの ID
+    await expect(
+      runCommand(ticketCreate, ctx, { title: "C", origin: ["t99"] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      runCommand(ticketImport, ctx, { source: "- title: C\n  origin: [t99]\n" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t2", origin: ["t1", "t99"] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    // 自分自身の ID。作成と取り込みでは、これから振られる自分の番号（t3）も、同じ下書きの仮のキーも、まだないチケットとして拒む
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t2", origin: ["t1", "t2"] }),
+    ).rejects.toMatchObject({ code: "REJECTED", message: expect.stringContaining("itself (t2)") });
+    await expect(
+      runCommand(ticketCreate, ctx, { title: "C", origin: ["t3"] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      runCommand(ticketImport, ctx, { source: "- key: c\n  title: C\n  origin: [c]\n" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    // 原因の種類にない値
+    await expect(
+      runCommand(ticketCreate, ctx, { title: "C", origin: ["t1"], origin_cause: "code" as never }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      runCommand(ticketImport, ctx, {
+        source: "- title: C\n  origin: [t1]\n  origin_cause: code\n",
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t2", origin_cause: "code" as never }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    // 拒んだ操作は何も書かない
+    expect((await runCommand(ticketList, ctx, {})).data.map((t) => t.id)).toEqual(["t1", "t2"]);
+    expect((await runCommand(ticketShow, ctx, { ticket: "t2" })).data).toMatchObject({
+      origin: ["t1"],
+      origin_cause: "plan",
+    });
+  });
+
   it("空か空白だけの body は create・import・update のどの入口でも INVALID_INPUT で拒み、書き込まない（理由と直し方を出す）", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);

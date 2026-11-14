@@ -10,6 +10,7 @@ import {
   type Status,
 } from "./common.js";
 import { epicIdSchema, iterationIdSchema, ticketIdSchema, type TicketId } from "./id.js";
+import { FINDING_CAUSES } from "./run.js";
 
 export const PRIORITIES = ["low", "medium", "high"] as const;
 export type Priority = (typeof PRIORITIES)[number];
@@ -87,6 +88,14 @@ const ticketFrontmatter = z.looseObject({
   lines: z
     .object({ additions: z.number().int().min(0), deletions: z.number().int().min(0) })
     .optional(),
+  /**
+   * 不具合を直すチケットの、元のチケット（TK-12）。どのチケットの変更から出た不具合かを、起票する人かエージェントが付ける。
+   * 本文に書かれた ID（`metrics sources` の refs）は書いてあることしか伝えないので、見直しをすり抜けた不具合を
+   * 読み手の判断なしに数えられるよう、項目で持つ（ADR-029）。不具合を直すチケットでなければない
+   */
+  origin: z.array(ticketIdSchema).optional(),
+  /** 元のチケットの変更が不具合を生んだ原因の種類（TK-12）。見直しの指摘の原因（run.ts の FINDING_CAUSES）と同じ種類で、合わせて数えられる */
+  origin_cause: z.enum(FINDING_CAUSES).optional(),
   provisional: z.boolean().optional(),
   created_at: isoDateTime,
   updated_at: isoDateTime,

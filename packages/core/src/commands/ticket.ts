@@ -8,7 +8,7 @@ import { AbortWrite, withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
 import { STATUSES, isTerminal, slugSchema, statusSchema, type Status } from "../model/common.js";
 import { parseId, type TicketId } from "../model/id.js";
-import type { RunId } from "../model/run.js";
+import { FINDING_CAUSES, type RunId } from "../model/run.js";
 import {
   GATE_LEVELS,
   PRIORITIES,
@@ -108,6 +108,22 @@ const withClosedRun = (message: string, closed: readonly ClosedRun[]) =>
 /** 主体の参照。`human` / `agent` は自分（のユーザ）に解く（model/actor.ts） */
 const actorRef = z.string().min(1);
 
+/** origin と origin_cause の説明（TK-12）。create・import と update で同じ文を使い、update は外し方だけを足す */
+const ORIGIN_HELP =
+  "For a ticket that fixes a defect: IDs of the tickets whose change caused the defect (the defect got past their review and was found after the merge; count both wrong behavior and documents that should have been fixed in the same change). Only existing tickets, and not the ticket itself";
+const ORIGIN_CAUSE_HELP = `For a ticket that fixes a defect: why the change of the origin tickets caused it. One of ${FINDING_CAUSES.join(", ")}, the same kinds as the cause of a review finding (their meaning is in dg run review-result --help). Use unknown when you cannot tell, instead of guessing`;
+
+/**
+ * origin（元のチケット。TK-12）の参照を ID にする。今あるチケットだけを受け、同じ ID は 1 回にまとめる。
+ * self は書き込む相手のチケットで、自分自身を元にするのは拒む（作成と取り込みでは、まだない ID なので store.require が拒む）
+ */
+function resolveOrigin(store: Store, refs: readonly string[], self?: TicketId): TicketId[] {
+  const ids = [...new Set(refs.map((ref) => store.require("ticket", ref).data.id))];
+  if (self !== undefined && ids.includes(self))
+    throw new OperationError("REJECTED", `origin cannot include the ticket itself (${self})`);
+  return ids;
+}
+
 const ticketAttributes = {
   priority: z.enum(PRIORITIES).optional().describe("Priority"),
   labels: z.array(z.string()).optional().describe("Labels"),
@@ -121,6 +137,9 @@ const ticketAttributes = {
   iteration: z.string().optional().describe("Iteration ID"),
   epic: z.string().optional().describe("Epic ID. Cannot be set on a closed Epic"),
   depends_on: z.array(z.string()).optional().describe("IDs of tickets this one depends on"),
+  // 要件 TK-12
+  origin: z.array(z.string()).optional().describe(ORIGIN_HELP),
+  origin_cause: z.enum(FINDING_CAUSES).optional().describe(ORIGIN_CAUSE_HELP),
   workflow: slugSchema
     .optional()
     .describe("Workflow. Defaults to config's default_workflow when omitted"),
@@ -190,6 +209,8 @@ function buildTicket(
   const iteration =
     input.iteration === undefined ? undefined : requireIteration(store, input.iteration);
   const depends_on = (input.depends_on ?? []).map(resolveDep);
+  // 元のチケットは今あるチケットだけ。下書きの仮のキーは受けない（不具合は、もうマージされた変更から出る）
+  const origin = resolveOrigin(store, input.origin ?? []);
   const fields = validateFields(workflow, input.fields);
   const now = nowIso(ctx);
   return {
@@ -201,6 +222,8 @@ function buildTicket(
     ...(iteration ? { iteration } : {}),
     ...(epic ? { epic } : {}),
     depends_on,
+    ...(origin.length > 0 ? { origin } : {}),
+    ...(input.origin_cause ? { origin_cause: input.origin_cause } : {}),
     ...(input.workflow ? { workflow: input.workflow } : {}),
     created_by: resolveActorRef(ctx.actor, input.created_by ?? ctx.actor.id),
     ...(input.assignee ? { assignee: resolveActorRef(ctx.actor, input.assignee) } : {}),
@@ -548,6 +571,14 @@ export const ticketUpdate = defineCommand({
       .describe(
         "IDs of tickets this one depends on. Replaces the whole list (specify all of them, including existing ones)",
       ),
+    // 要件 TK-12
+    origin: z
+      .array(z.string())
+      .optional()
+      .describe(
+        `${ORIGIN_HELP}. Replaces the whole list (specify all of them, including existing ones); an empty list removes it (on the CLI, --origin "")`,
+      ),
+    origin_cause: z.enum(FINDING_CAUSES).nullable().optional().describe(ORIGIN_CAUSE_HELP),
     // 要件 TK-9
     gate: z
       .enum(GATE_LEVELS)
@@ -653,6 +684,12 @@ export const ticketUpdate = defineCommand({
           rejectPlanWaitCycle(store, t.id, ids, t.depends_on);
           patch["depends_on"] = ids;
         }
+        if (input.origin !== undefined) {
+          const origin = resolveOrigin(store, input.origin, t.id);
+          patch["origin"] = origin.length > 0 ? origin : undefined;
+        }
+        if (input.origin_cause !== undefined)
+          patch["origin_cause"] = input.origin_cause ?? undefined;
         if (input.fields) {
           const wfId =
             (input.workflow === undefined ? t.workflow : (input.workflow ?? undefined)) ??

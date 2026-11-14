@@ -115,6 +115,7 @@ updated_at: 2026-10-31T05:10:00Z
 - TK-9 `gate`（品質ゲートの段）は `high`（既定）・`low`・`free` で、`create`・`import`・`update` で付ける。`dg gate` が判定する条件は段で変わる（EX-6。条件は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - TK-10 `branch_base` は claim が作業ブランチを切った起点のコミットの SHA で、照合が作業のないブランチを見分けるのに使う（ST-4）。`branch` を変えるか消すと消え、古いチケットにはない
 - TK-11 `lines`（`additions`・`deletions`）はマージされた `pr` の追加・削除の行数で、照合と `dg metrics lines` が記録する（MT-6）。`pr` を消すか変えると消え、PR の要らない作業とマージ前のチケットにはない
+- TK-12 不具合を直すチケットは、`origin`（不具合を生んだ変更のチケットの ID の配列）と `origin_cause`（原因の種類。見直しの指摘の原因と同じ種類）を持てる。`create`・`import`・`update` で付け、ないチケットと自分自身の ID は拒む（細部は `dg ticket update --help`、理由は [ADR-029](adr/ADR-029-work-metrics.md)）
 
 ### 5.5 Epic（`epics/e3.md`）
 
@@ -260,7 +261,7 @@ updated_at: 2026-10-31T05:10:00Z
 - MT-5 `run refresh` は閉じた Run のモデル名と使用量を、finish と同じ方法と MT-2 の許可で会話記録から取り直し、取れた値だけを書き換えて、取れなかった値は残して警告する。実行中の Run は拒み、RN-3 の期間を過ぎた Run は読まずに今の値を残して警告する（細部は `dg run refresh --help`）
 - MT-6 `metrics show` の集計は、Run のチケットの変更行数（TK-11）と、output と input+cache に分けた 1 行あたりのトークンを含む。行数のないチケットは計算から外し、件数を出す。照合はマージを見たときに行数を記録し、`metrics lines` は行数のない done のチケットに後から記録する（細部は `dg metrics show --help`・`dg metrics lines --help`）
 - MT-7 振り返り（`dg guide retro`）は、チームの観点（5.10 の `retro.perspectives`）ごとに、承認した定義で対象の回と直近の回の指標を計算して傾向を出す。定義のない観点には指標を提案し、人が承認した定義だけを記録する。dg は指標を決め打ちせず、計算した値は保存しない（[ADR-035](adr/ADR-035-retro-perspectives.md)）
-- MT-8 `metrics sources` は振り返りの指標の元のデータをチケットごとに返す（マージされた PR が変えたファイルと、題と本文に書かれたほかのチケットの ID）。取れないファイルは理由を付けて null にし、推測で埋めず、何も書かない（細部は `dg metrics sources --help`）
+- MT-8 `metrics sources` は振り返りの指標の元のデータをチケットごとに返す（マージされた PR が変えたファイル、題と本文に書かれたほかのチケットの ID、記録した `origin` と `origin_cause`（TK-12））。取れないファイルは理由を付けて null にし、推測で埋めず、何も書かない（細部は `dg metrics sources --help`）
 
 ### 6.7 ワークフロー実行
 
