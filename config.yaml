@@ -96,6 +96,13 @@ retro:
           sources:
             - dg metrics show --iteration <S> --by ticket (retries, reviews.heavy)
           unmeasured: 手戻りの原因がチケットにあったか
+        ticket-caused-rework-rate:
+          definition: Run のあるチケットのうち、手直しの理由（fix Run の retry_reasons）か、重い指摘のあった PR のレビューコメントに、原因が「チケット」（受け入れ条件か範囲があいまい・抜けていた）に当たるものが 1 件以上あるチケットの割合。原因の分け方は dg guide retro の「Causes of rework」に従い、理由の書かれていない手直しは測れないものとして件数を添える
+          sources:
+            - dg metrics show --iteration <S> --by ticket (retries, reviews.heavy)
+            - dg run list --ticket <t> (step=fix の retry_reasons)
+            - gh pr view <PR> --json reviews,comments（重い指摘のあったチケットの PR）
+          unmeasured: 見直しで指摘されなかったチケットの不備（実装者が補って通ったもの）と、マージの後に見つかった不備
     slicing:
       name: 分け方
       question: 作業は、互いにぶつからずに並べて進められる大きさと境目に分けられたか
