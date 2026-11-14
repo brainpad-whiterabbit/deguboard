@@ -3,7 +3,7 @@
 // VS Code 拡張が起動時に古い Skill を更新するのも、ここの skillStateOf を通す（判定を 2 つ持たない）。
 // 入れていない同梱の Skill を案内するのは拡張だけで（findMissingSkills）、警告は足りない Skill を知らせない。
 // 警告と拡張は、そのうえで印の版を比べ（skillAgeOf）、今の dg より新しい版の dg が書いた Skill を古いと言わず、戻さない（ADR-030）。
-// Skill を書くのも、dg skill install と拡張で同じ writeSkillFiles を通す。
+// Skill を書くのも、dg skill install と拡張で同じ writeSkillFiles を通し、リポジトリに書いた Skill の無視の行も同じ ignoreSkills で足す。
 // 公開（commands/index.ts）は入口が呼ぶものだけにする。判定の部品（skillStateOf・skillAgeOf・findStaleSkills・staleSkillWarnings）はここのテストが直接引く。
 // Skill の組み立て（buildSkills）は guide を読むので、1 回の操作で 1 回にし、組み立てたものを部品に渡して使い回す。
 // 名前・説明・引数の案内は guide の frontmatter から、冒頭の 1 文は SKILL_SUMMARY の en から、本文は SKILL_TEMPLATE から作る。
@@ -11,7 +11,7 @@
 
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import {
   agentSkillPlaceGroups,
   agentSkillPlaces,
@@ -19,7 +19,7 @@ import {
   type SkillPlace,
 } from "../agents/index.js";
 import { coreVersion } from "../bundle-layout.js";
-import { resolveRepoPaths } from "../git/index.js";
+import { ensureIgnoreLines, resolveRepoPaths } from "../git/index.js";
 import { readGuide, readGuideMeta } from "../guide/guide.js";
 import { GUIDE_TOPICS, type GuideTopic } from "../guide/topics.js";
 import { stringify as stringifyYaml } from "yaml";
@@ -275,6 +275,37 @@ export async function writeSkillFiles(
     (state === "missing" ? result.written : result.updated).push(skill.name);
   }
   return result;
+}
+
+/**
+ * リポジトリの置き場所（dir）の親の .gitignore（Claude Code は .claude/.gitignore）に、names の Skill ごとの無視の行（skills/<名前>/）がなければ足す。
+ * Skill は各自が入れるものなので、リポジトリに書いたら追跡させない（AG-2）。dg skill install と、拡張の案内の Install（installMissingSkills）が通す。
+ * dg で始まる名前で括らず名前ごとに書くのは、利用者が自分で作った dg で始まる Skill まで無視しないため（t804）。足した .gitignore の絶対パスを返し、足さなければ null
+ */
+export async function ignoreSkills(dir: string, names: readonly string[]): Promise<string | null> {
+  const file = join(dirname(dir), ".gitignore");
+  return (await ensureIgnoreLines(
+    file,
+    names.map((name) => `${basename(dir)}/${name}/`),
+  ))
+    ? file
+    : null;
+}
+
+/**
+ * VS Code 拡張の足りない Skill の案内で、人が Install を選んだときに names の Skill を place に書く（writeSkillFiles。手を加えた Skill は残す）。
+ * リポジトリの置き場所では、書いた Skill の無視の行を ignoreSkills で足す（dg skill install と同じ。t926）。個人の置き場所は .gitignore を書かない。
+ * ignoreFile は足した .gitignore の絶対パスで、足さなければ null
+ */
+export async function installMissingSkills(
+  place: SkillPlace,
+  options: { names: readonly string[]; skills?: readonly SkillFile[] },
+): Promise<SkillWriteResult & { ignoreFile: string | null }> {
+  const result = await writeSkillFiles(place.dir, { force: false, ...options });
+  const written = [...result.written, ...result.updated];
+  const ignoreFile =
+    place.scope === "project" && written.length > 0 ? await ignoreSkills(place.dir, written) : null;
+  return { ...result, ignoreFile };
 }
 
 /** 置き場所ごとの、VS Code 拡張が更新した Skill と、手を加えてあるので残した古い Skill */

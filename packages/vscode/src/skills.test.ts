@@ -1,11 +1,11 @@
-import { mkdtemp, readdir, readFile, realpath, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
   buildSkills,
   findMissingSkills,
+  installMissingSkills,
   refreshInstalledSkills,
-  writeSkillFiles,
 } from "@deguboard/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
@@ -109,11 +109,13 @@ describe("拡張の起動時の、入れていない同梱の Skill の案内（
     );
     expect(notices).toEqual([
       {
+        scope: "project",
         dir: skillsDir(repo.dir),
         names: rest,
         text: `These dg Skills bundled with this extension are not installed in ${skillsDir(repo.dir)}, where other dg Skills are: ${rest.join(", ")}`,
       },
       {
+        scope: "personal",
         dir: skillsDir(home),
         names: rest,
         text: `These dg Skills bundled with this extension are not installed in ${skillsDir(home)}, where other dg Skills are: ${rest.join(", ")}`,
@@ -121,11 +123,7 @@ describe("拡張の起動時の、入れていない同梱の Skill の案内（
     ]);
 
     // Install（拡張は案内の names を渡す）。手を加えた Skill はそのまま
-    const result = await writeSkillFiles(notices[0]!.dir, {
-      force: false,
-      names: notices[0]!.names,
-      skills,
-    });
+    const result = await installMissingSkills(notices[0]!, { names: notices[0]!.names, skills });
     expect(result.written).toEqual(rest);
     expect(await readFile(skillFileOf(repo.dir, "dgwork"), "utf8")).toBe(edited);
     expect(await readdir(skillsDir(repo.dir))).not.toContain("dgplan");
@@ -133,6 +131,51 @@ describe("拡張の起動時の、入れていない同梱の Skill の案内（
       expect(await readFile(skillFileOf(repo.dir, name), "utf8")).toBe(
         skills.find((s) => s.name === name)!.content,
       );
+  });
+
+  it("リポジトリの置き場所に Install すると、書いた Skill ごとの無視の行を .claude/.gitignore に足し、既にある行は重ねない（t926）", async () => {
+    const repo = await createLocalOnlyRepo();
+    cleanups.push(repo.cleanup);
+    const home = await tempDir();
+    const skills = await buildSkills();
+    await putSkill(repo.dir, "dgwork", (await contentOf("dgwork")).content);
+    const rest = skills.map((s) => s.name).filter((n) => n !== "dgwork");
+    const ignoreFile = path.join(repo.dir, ".claude", ".gitignore");
+    // 利用者の行と、dg skill install が前に足した行（rest の 1 つ目）がある
+    await writeFile(ignoreFile, `mine\nskills/${rest[0]}/\n`, "utf8");
+
+    const [notice] = missingSkillNotices(
+      await findMissingSkills({ folders: [repo.dir], env: { HOME: home } }),
+      [],
+    );
+    expect(notice!.scope).toBe("project");
+    const result = await installMissingSkills(notice!, { names: notice!.names, skills });
+    expect(result.written).toEqual(rest);
+    expect(result.ignoreFile).toBe(ignoreFile);
+    expect(await readFile(ignoreFile, "utf8")).toBe(
+      `mine\nskills/${rest[0]}/\n${rest
+        .slice(1)
+        .map((n) => `skills/${n}/\n`)
+        .join("")}`,
+    );
+    // 書かなかった Skill（入れてあった dgwork）の行は足さない
+    expect(await readFile(ignoreFile, "utf8")).not.toContain("skills/dgwork/");
+  });
+
+  it("個人の置き場所に Install するときは .gitignore を書かない（t926）", async () => {
+    const home = await tempDir();
+    const skills = await buildSkills();
+    await putSkill(home, "dgwork", (await contentOf("dgwork")).content);
+
+    const [notice] = missingSkillNotices(
+      await findMissingSkills({ folders: [], env: { HOME: home } }),
+      [],
+    );
+    expect(notice!.scope).toBe("personal");
+    const result = await installMissingSkills(notice!, { names: notice!.names, skills });
+    expect(result.written.length).toBeGreaterThan(0);
+    expect(result.ignoreFile).toBeNull();
+    expect(await readdir(path.join(home, ".claude"))).toEqual(["skills"]);
   });
 
   it("Don't show again で覚えた名前は案内せず、別の名前の Skill が増えたときは案内する", async () => {

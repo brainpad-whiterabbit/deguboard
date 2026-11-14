@@ -1,11 +1,11 @@
-// gitignore.ts の ensureIgnoreLines を直接確かめる（t805）。skill・hooks のテストは入れる流れを通してだけ見るので、
+// ignore-lines.ts の ensureIgnoreLines を直接確かめる（t805）。dg skill install・dg hooks install と拡張の Install のテストは入れる流れを通してだけ見るので、
 // 行が重ならないことと、末尾に改行のない .gitignore に足す場合をここで見る
 
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ensureIgnoreLines } from "./gitignore.js";
+import { ensureIgnoreLines } from "./ignore-lines.js";
 
 let dir: string;
 

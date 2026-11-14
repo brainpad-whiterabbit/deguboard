@@ -1,18 +1,20 @@
 // dg skill install：dg guide を読む薄い Claude Code の Skill を段階ごとに置く（AG-2）。Skill は手順を持たず、正本は guide-*.md（CL-5）。
 // Skill の中身（buildSkills）と、入れてある Skill が今の dg のものと違うかの判定（skillStateOf）と書く処理（writeSkillFiles）は core の commands/skill-files.ts にある。
 // dg hooks check・dg next・dg brief の古い Skill の警告と同じ判定で書くか残すかを決め、VS Code 拡張が起動時に古い Skill を更新するのと同じ処理で書く。
-// 廃止した Skill の片付け（removeRetiredSkills）も core にある。ここは置き場所の解決・.gitignore・追跡済みの検出を受け持つ
+// 廃止した Skill の片付け（removeRetiredSkills）と .gitignore に無視の行を足す処理（ignoreSkills。拡張の案内の Install と同じ）も core にある。
+// ここは置き場所の解決と追跡済みの検出を受け持つ
 
-import { basename, dirname, join, relative, sep } from "node:path";
+import { relative, sep } from "node:path";
 import {
   buildSkills,
+  ignoreSkills,
   removeRetiredSkills,
   resolveRepoPaths,
   skillDirsOf,
   writeSkillFiles,
   type AgentEnv,
 } from "@deguboard/core";
-import { ensureIgnoreLines, trackedFiles } from "./gitignore.js";
+import { trackedFiles } from "./gitignore.js";
 
 export interface SkillInstallResult {
   /** project（リポジトリの .claude/skills）か personal（~/.claude/skills）。Claude Code の呼び名に合わせる */
@@ -46,7 +48,7 @@ export interface SkillInstallResult {
  * scope が project なら cwd を含むリポジトリの最上位、personal ならホームディレクトリ（env の HOME、空か未設定なら OS のホーム）の下。
  * 手を加えていない Skill は最新の中身で上書きし、手を加えたものは force がなければ残す。
  * project では、Skill は各自が入れるものなので、実行のたびに .claude/.gitignore に dg が入れる Skill ごとの無視の行（skills/<名前>/）がなければ足す（--dry-run では書かない）。
- * 無視の行と追跡済みの検出は dg が入れる Skill の名前だけを見る。dg で始まる名前で括ると、利用者が自分で作った dg で始まる Skill まで無視し、git rm --cached を案内してしまう（t804）。
+ * 無視の行（core の ignoreSkills）と追跡済みの検出は dg が入れる Skill の名前だけを見る。dg で始まる名前で括ると、利用者が自分で作った dg で始まる Skill まで無視し、git rm --cached を案内してしまう（t804）。
  * 廃止した Skill（core の RETIRED_SKILLS）の行は足さない。新しく入れることはなく、残っていれば消すか利用者に任せる
  */
 export async function installSkill(options: {
@@ -79,9 +81,11 @@ export async function installSkill(options: {
   };
   const skills = await buildSkills();
   if (topLevel !== undefined) {
-    const ignoreFile = join(dirname(dir), ".gitignore");
-    const lines = skills.map((s) => `${basename(dir)}/${s.name}/`);
-    if (!dryRun && (await ensureIgnoreLines(ignoreFile, lines))) result.ignoreFile = ignoreFile;
+    if (!dryRun)
+      result.ignoreFile = await ignoreSkills(
+        dir,
+        skills.map((s) => s.name),
+      );
     const names = new Set(skills.map((s) => s.name));
     const prefix = `${relative(topLevel, dir).split(sep).join("/")}/`;
     result.tracked = (await trackedFiles(topLevel, dir)).filter((p) => {

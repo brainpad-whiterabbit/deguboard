@@ -23,6 +23,8 @@ export { hooksSilentWarning, takeHookWarnings } from "./hook-sessions.js";
 export {
   buildSkills,
   findMissingSkills,
+  ignoreSkills,
+  installMissingSkills,
   refreshInstalledSkills,
   removeRetiredSkills,
   staleSkillWarningsOf,

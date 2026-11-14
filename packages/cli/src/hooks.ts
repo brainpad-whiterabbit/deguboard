@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual, promisify } from "node:util";
 import {
   bundleLayout,
+  ensureIgnoreLines,
   hookArgv,
   hooksOf,
   hooksSilentWarning,
@@ -22,7 +23,7 @@ import {
   type AgentEnv,
   type HookSupport,
 } from "@deguboard/core";
-import { ensureIgnoreLines, trackedFiles } from "./gitignore.js";
+import { trackedFiles } from "./gitignore.js";
 import { isLauncherPath, launcherFrom } from "./launcher-env.js";
 
 /** dg が書いたフックのコマンドの終わり。これで見分けて入れ替える（基のコマンドが変わっても重ねない） */
