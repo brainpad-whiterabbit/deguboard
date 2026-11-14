@@ -1,0 +1,37 @@
+id: p136
+tickets: [t926, t927, t928, t930, t932, t931, t933]
+after:
+  t931:
+    - t926
+  t933:
+    - t931
+pending_approval: true
+details:
+  t926:
+    scope: 拡張の通知の Install でリポジトリの置き場所に書くとき、.claude/.gitignore に Skill ごとの無視の行を足す。個人の置き場所は .gitignore を書かない
+    approach: cli の ensureIgnoreLines を core に移して dg skill install と拡張の両方から使い、テストと README の記述を直す
+    tier: standard
+  t927:
+    scope: reviewFindingSchema の .describe を英語にし、コマンドの入力スキーマに日本語が出ないことをテストで示す。コメントは日本語のまま
+    approach: model/run.ts の説明を英語に書き換え、describeCommands の JSON Schema の説明文に日本語の文字がないことを確かめるテストを足す
+    tier: standard
+  t928:
+    scope: ADR-029 を判断を変えずに整理し、8,000 字の目安を下回らせて、題と要約と一覧から cause・origin の判断を引けるようにする
+    approach: 原因と見つけ損ねた不具合の判断を別の ADR に分けるか題と要約を直し、細部をコード・テスト・ヘルプへ移して check:docs を通す
+    tier: light
+  t930:
+    scope: origin のない origin_cause の扱いを dg と guide-import でそろえる。TK-12 の約束は変えるときだけ直す
+    approach: dg の 3 つの入口の扱いと guide の注記のどちらに揃えるかを決め、扱いを変えるならテストとヘルプも直す
+    tier: standard
+  t932:
+    scope: dropOwnCommit が失敗しても元のエラーが返ることをテストで示す。write.ts の振る舞いは変えない
+    approach: bare リモート付きの一時リポジトリで戻しを失敗させる場面を作り、返るエラーを確かめるテストを commands-data-remote.test.ts に足す
+    tier: standard
+  t931:
+    scope: extension.ts の Skill の通知と dg の確かめの判断を、VS Code の API に触れない関数に移してテストする。振る舞いは変えない
+    approach: ボタンの選択から書く名前・覚える名前を決める関数を skills.ts に、フォルダから cwd と警告のフォルダを決める関数を dg.ts に置き、extension.ts から呼ぶ
+    tier: standard
+  t933:
+    scope: Skill の置き場所の読み・Skill の組み立て・重い軽いの判定の重複をまとめる。振る舞いは変えない
+    approach: skill-files.ts に SKILL.md を読む関数を 1 つ置き、拡張の組み立てを 1 回にし、FINDING_SEVERITIES と 1 回の判定に揃える
+    tier: standard
