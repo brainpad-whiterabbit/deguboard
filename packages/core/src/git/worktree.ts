@@ -81,7 +81,7 @@ export async function ensureDeguboardWorktree(
       },
     );
     if (remoteHas.code === 0) {
-      await git(["fetch", remote, `${dataBranch}:refs/remotes/${remote}/${dataBranch}`]);
+      await git(["fetch", remote, `refs/heads/${dataBranch}:refs/remotes/${remote}/${dataBranch}`]);
       await git([
         "worktree",
         "add",

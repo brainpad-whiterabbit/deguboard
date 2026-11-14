@@ -98,7 +98,7 @@ export async function isDirty(repo: GitRepo): Promise<boolean> {
 }
 
 /**
- * リモートの deguboard に rebase する。競合したら中止してローカルのコミットを残す（SY-4）。
+ * データのリモートのデータのブランチ（remoteRef）に rebase する。競合したら中止してローカルのコミットを残す（SY-4）。
  * frontmatter の別々のフィールドの変更はマージドライバ（merge.ts）が解く。.gitattributes がまだリモートにない間も効くよう、
  * deguboard-local/ の属性ファイルを core.attributesFile で渡す。
  * 空のコミットは落とす（--no-keep-empty）：別々に作った orphan の根（空のツリー）を積み直して履歴に割り込ませないため。
