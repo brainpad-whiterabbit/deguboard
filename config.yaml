@@ -50,7 +50,7 @@ guide:
     import: ""
     assign: ""
     check: ""
-    plan: ""
+    plan: docs/guide-notes/plan.md
     work: ""
     run: ""
     parallel: ""
