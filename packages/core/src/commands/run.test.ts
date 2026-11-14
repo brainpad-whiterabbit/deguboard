@@ -21,12 +21,14 @@ import {
   runFinish,
   runList,
   runPruneTranscripts,
+  runRecent,
   runRefresh,
   reviewOfFindings,
   runReviewResult,
   runStart,
   type RunRefreshItem,
   type RunView,
+  type TicketRunsView,
 } from "./run.js";
 import { commit, configSet, init, validate } from "./setup.js";
 import { workflowValidate } from "./workflow.js";
@@ -191,6 +193,127 @@ describe("run", () => {
     ).toBe(0);
     expect(((await runCommand(ticketList, ctx, { epic: "e9" })).data as unknown[]).length).toBe(0);
     await expect(runCommand(runList, ctx, { iteration: "x" })).rejects.toMatchObject({
+      name: "UsageError",
+    });
+  });
+
+  it("recent はチケットごとに、全部の Run の件数 total と、実行中の記録と閉じた Run を合わせた新しい順 3 件の要約を返す", async () => {
+    const ctx = await prepared();
+    // Run の ID は開始の秒までなので、開始の順が決まるように文脈の今を進める
+    let seconds = 0;
+    const startLater = (ticket: string, step: string) => {
+      const at = Date.now() + (seconds += 5) * 1000;
+      ctx.now = () => new Date(at);
+      return start(ctx, ticket, step);
+    };
+    const oldest = await startLater("t1", "implement");
+    await runCommand(runFinish, ctx, { run: oldest.id, result: "success" });
+    const reviewed = await startLater("t1", "review");
+    await amendRunning(ctx.repo, reviewed.id, { review: { heavy: 1, light: 0, passed: false } });
+    await runCommand(runFinish, ctx, { run: reviewed.id, result: "success" });
+    const failed = await startLater("t1", "implement");
+    await runCommand(runFinish, ctx, {
+      run: failed.id,
+      result: "failure",
+      error: "テストが落ちた",
+    });
+    const waiting = await startLater("t1", "review");
+    const waitingSince = "2026-11-14T00:00:00Z";
+    await amendRunning(ctx.repo, waiting.id, { waiting_since: waitingSince });
+    const other = await startLater("t2", "implement");
+
+    const recent = await runCommand(runRecent, ctx, {});
+    expect(recent.warnings).toEqual([]);
+    const closed = ctx.store.runs;
+    expect(recent.data).toEqual([
+      {
+        ticket: "t1",
+        total: 4,
+        runs: [
+          {
+            id: waiting.id,
+            step: "review",
+            result: null,
+            started_at: waiting.started_at,
+            finished_at: null,
+            review: null,
+            error: null,
+            running: true,
+            waiting_since: waitingSince,
+            settling_since: null,
+          },
+          // 閉じた Run には、止まって待っている印と書き終わりを待つ印のキーを置かない
+          {
+            id: failed.id,
+            step: "implement",
+            result: "failure",
+            started_at: failed.started_at,
+            finished_at: closed.get(failed.id)!.data.finished_at,
+            review: null,
+            error: "テストが落ちた",
+            running: false,
+          },
+          {
+            id: reviewed.id,
+            step: "review",
+            result: "success",
+            started_at: reviewed.started_at,
+            finished_at: closed.get(reviewed.id)!.data.finished_at,
+            review: { heavy: 1, light: 0, passed: false },
+            error: null,
+            running: false,
+          },
+        ],
+      },
+      {
+        ticket: "t2",
+        total: 1,
+        runs: [
+          {
+            id: other.id,
+            step: "implement",
+            result: null,
+            started_at: other.started_at,
+            finished_at: null,
+            review: null,
+            error: null,
+            running: true,
+            waiting_since: null,
+            settling_since: null,
+          },
+        ],
+      },
+    ]);
+    expect(closed.get(failed.id)!.data.finished_at).not.toBeNull();
+  });
+
+  it("recent は Iteration と Project（チケットの今の値）で絞れ、Run のないチケットは返さない", async () => {
+    const ctx = await prepared();
+    await runCommand(projectCreate, ctx, { id: "other" });
+    await runCommand(ticketCreate, ctx, { title: "C", project: "other" });
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2"] });
+    const t1 = await start(ctx, "t1");
+    await runCommand(runFinish, ctx, { run: t1.id, result: "success" });
+    await start(ctx, "t3");
+    const recent = async (input: Record<string, unknown>) =>
+      ((await runCommand(runRecent, ctx, input)).data as TicketRunsView[]).map((t) => [
+        t.ticket,
+        t.total,
+        t.runs.map((r) => r.running),
+      ]);
+    expect(await recent({})).toEqual([
+      ["t1", 1, [false]],
+      ["t3", 1, [true]],
+    ]);
+    // t2 は s1 にあるが Run がないので出ない
+    expect(await recent({ iteration: "s1" })).toEqual([["t1", 1, [false]]]);
+    expect(await recent({ iteration: "1" })).toEqual([["t1", 1, [false]]]);
+    expect(await recent({ project: "other" })).toEqual([["t3", 1, [true]]]);
+    expect(await recent({ project: "other", iteration: "s1" })).toEqual([]);
+    // 今ない Iteration はエラーにせず空で返す（run.list と同じ）
+    expect(await recent({ iteration: "s9" })).toEqual([]);
+    await expect(runCommand(runRecent, ctx, { iteration: "x" })).rejects.toMatchObject({
       name: "UsageError",
     });
   });

@@ -15,6 +15,7 @@ import {
 import { slugSchema, toIsoDateTime, type Status } from "../model/common.js";
 import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
+import { compareIds } from "../model/id.js";
 import {
   isRunId,
   REVIEW_STEP,
@@ -1149,6 +1150,87 @@ export const runList = defineCommand({
   },
 });
 
+/** run.recent がチケットごとに返す Run の要約の件数の上限（カンバンの行に並べる数） */
+export const RECENT_RUN_LIMIT = 3;
+
+/**
+ * Run の要約の 1 件（カンバンの行に並べる分だけ。使用量・ツールの回数は run.list で読む）。
+ * 止まって待っている印と書き終わりを待つ印は実行中の記録にしかないので、実行中の Run にだけキーを置く（RN-7）
+ */
+export type RunSummary = Pick<
+  Run,
+  "id" | "step" | "result" | "started_at" | "finished_at" | "review" | "error"
+> & { running: boolean } & Partial<Pick<Run, "waiting_since" | "settling_since">>;
+
+/** チケットごとの Run の要約。total はそのチケットの全部の Run の件数で、runs は新しい順に RECENT_RUN_LIMIT 件まで */
+export interface TicketRunsView {
+  ticket: Run["ticket"];
+  total: number;
+  runs: RunSummary[];
+}
+
+function runSummary(run: Run, running: boolean): RunSummary {
+  return {
+    id: run.id,
+    step: run.step,
+    result: run.result,
+    started_at: run.started_at,
+    finished_at: run.finished_at,
+    review: run.review,
+    error: run.error,
+    running,
+    ...(running ? { waiting_since: run.waiting_since, settling_since: run.settling_since } : {}),
+  };
+}
+
+export const runRecent = defineCommand({
+  name: "run.recent",
+  group: "run",
+  summary: `Summarize the Runs of each ticket: total (the number of all its Runs) and runs (the newest ${RECENT_RUN_LIMIT}, newest first). One summary has id, step, result, started_at, finished_at, review, error, and running; an unfinished Run (running: true, from deguboard-local/runs/ on this machine) also has waiting_since and settling_since. Tickets with no Run are left out. Iteration and Project follow each ticket's current value (same as run.list). Read the usage and the full list with run.list`,
+  input: z.object({
+    iteration: iterationRef
+      .optional()
+      .describe(
+        "Only tickets in this Iteration. An Iteration that does not exist now returns an empty list rather than an error (same as run.list)",
+      ),
+    project: slugSchema.optional().describe("Only tickets in this Project"),
+  }),
+  write: false,
+  needs: "store",
+  async run(ctx, input) {
+    // run.list と同じく、今あるかは確かめず ID の形だけ整える
+    const iteration = idShapeOf(input.iteration, "iteration");
+    const local = await readRunningRuns(ctx.repo);
+    const placed = [
+      ...local.runs.map((d) => ({ run: d.data, running: true })),
+      ...[...ctx.store.runs.values()].map((d) => ({ run: d.data, running: false })),
+    ].map((r) => ({ ...r, at: placeRun(r.run, ctx.store.tickets.get(r.run.ticket)?.data) }));
+    const filter: MetricFilter = {
+      ...(iteration ? { iteration } : {}),
+      ...(input.project ? { project: input.project } : {}),
+    };
+    const byTicket = new Map<Run["ticket"], Array<{ run: Run; running: boolean }>>();
+    for (const r of filterRuns(placed, filter)) {
+      const runs = byTicket.get(r.run.ticket);
+      if (runs) runs.push(r);
+      else byTicket.set(r.run.ticket, [r]);
+    }
+    const items: TicketRunsView[] = [...byTicket]
+      .sort(([a], [b]) => compareIds(a, b))
+      .map(([ticket, runs]) => ({
+        ticket,
+        total: runs.length,
+        // Run の ID の辞書順が開始の順（model/run.ts の newRunId）
+        runs: runs
+          .sort((a, b) => b.run.id.localeCompare(a.run.id))
+          .slice(0, RECENT_RUN_LIMIT)
+          .map(({ run, running }) => runSummary(run, running)),
+      }));
+    const warnings = local.issues.map((i) => `deguboard-local/${i.path}: ${i.message}`);
+    return ok(items, undefined, warnings);
+  },
+});
+
 /** 取り直しで比べる値。usage の 4 つは usage.<キー> と書く。ツールの回数（tools）は取り直さない（RN-4） */
 const REFRESH_FIELDS = ["model", "input", "output", "cache_read", "cache_write"] as const;
 type RefreshField = (typeof REFRESH_FIELDS)[number];
@@ -1359,6 +1441,7 @@ export const runCommands = [
   runHandoff,
   runRetryReason,
   runList,
+  runRecent,
   runRefresh,
   runPruneTranscripts,
 ];
