@@ -72,7 +72,7 @@ The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deg
 - [Hand off everything](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#hand-off-everything): say "Carry s3 through to release automatically", and the agent runs the Iteration from assignment to release in one go.
 - [Quality gate levels](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#quality-gate-levels): `high` (the default), `low`, or `free` per ticket.
 - [Resolve a sync conflict](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#resolve-a-sync-conflict) when two people change the same field.
-- [Keep the data in another repository](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#keep-the-data-in-another-repository) than the code's.
+- [Keep the data in another repository](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#keep-the-data-in-another-repository), away from the code.
 - [Keep several kanbans in one repository](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#keep-several-kanbans-in-one-repository), one branch per code repository.
 - [Notifications](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#notifications) for Plans awaiting approval and tickets in review.
 - [Go to Ticket](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#go-to-ticket): jump to details by ID or title.

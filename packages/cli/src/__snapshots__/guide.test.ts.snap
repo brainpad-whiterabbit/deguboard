@@ -620,7 +620,7 @@ deguboard is a ticket tool that is managed with Git. You (the AI agent) call \`d
 
 ## When sync stops
 
-Writes and \`sync\` take in the remote deguboard branch before they push. When they stop, do the following. In every case, do not edit the data files.
+Writes and \`sync\` take in the data branch (\`deguboard\` by default) on the data remote before they push. When they stop, do the following. In every case, do not edit the data files.
 
 - **Conflict**: \`data.conflicts\` of \`sync\` is not empty (\`ok\` stays true), or filing, claim, or starting or reopening an Iteration fails with \`SYNC_CONFLICT\` (unless the message says a rebase is in progress; see below). Both sides changed the same field to different values, or changed the same line of a body. Local commits remain, and push, reconcile, filing, claim, and starting or reopening an Iteration stop until it is resolved. Do not choose which value to keep yourself (even when advancing with \`--auto\`). Resolve it in these steps:
   1. Take \`data.conflict_fields\` of \`sync\` (after a \`SYNC_CONFLICT\`, run \`dg --json --actor agent sync\` once to get it). If it is empty, every file in \`conflicts\` is outside the merge driver's scope and \`--resolve\` cannot resolve it: do not ask for a choice or run \`--resolve\`, and tell a human the files and the steps to resolve them by hand that the warning's remedy gives. Each entry is one conflicting field: \`file\`, \`field\`, and the values \`base\` (at the fork point), \`local\`, and \`remote\`. For a body, \`field\` is \`body\` and each entry is only the block of lines that collided

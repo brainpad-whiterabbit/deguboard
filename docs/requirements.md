@@ -169,7 +169,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 項目と意味・値・既定値・範囲（scope）はスキーマ（`packages/core/src/model/config.ts`）、`config.set` の値の扱いは `dg config set --help` が正本。エージェントや記録に関わるもの（`metrics.read_transcripts`・`actions.shell`・`auto.merge`）は既定で `false`。
 
-- チームの `config.yaml` は deguboard ブランチで全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）
+- チームの `config.yaml` はデータのブランチ（既定は `deguboard`）で全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）
 - 値は「個人 > チーム > 既定」の順に読み、どの入口も Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する（細部は `dg config set --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 
 - `default_workflow`：自分の `workflow` を持たないチケットの Workflow（省けば `general`。TK-1）。チームだけが持つ

@@ -101,7 +101,7 @@ export const init = defineCommand({
   name: "init",
   group: "setup",
   summary:
-    "Set up the deguboard branch and its dedicated worktree, and put in the config and the template Workflows",
+    "Set up the data branch (deguboard by default) and its dedicated worktree, and put in the config and the template Workflows",
   input: z.object({
     template: z
       .enum(TEMPLATE_IDS)
@@ -120,7 +120,7 @@ export const init = defineCommand({
       .min(1)
       .optional()
       .describe(
-        `Remote that the kanban data (the deguboard branch) is fetched from and pushed to, when the data is kept in a repository other than the code's. A remote name or a URL: for a URL, dg uses the remote that already has that URL, or adds it as ${DATA_REMOTE_NAME}, and then takes the data in from it. A new board records the name in config's git.data_remote; when the board already exists and its config names another remote, the name is recorded in this clone's personal settings. Every clone passes this on its first init (the config is inside the data, so it cannot be read before the data is fetched)`,
+        `Remote that the kanban data (the data branch, deguboard by default) is fetched from and pushed to, when the data is kept in a repository other than the code's. A remote name or a URL: for a URL, dg uses the remote that already has that URL, or adds it as ${DATA_REMOTE_NAME}, and then takes the data in from it. A new board records the name in config's git.data_remote; when the board already exists and its config names another remote, the name is recorded in this clone's personal settings. Every clone passes this on its first init (the config is inside the data, so it cannot be read before the data is fetched)`,
       ),
     data_branch: z
       .string()
