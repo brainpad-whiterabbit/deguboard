@@ -6,7 +6,7 @@ after:
     - t895
   t898:
     - t899
-pending_approval: true
+pending_approval: false
 details:
   t895:
     scope: guide-*.md の Claude Code と CLAUDE.md を前提にした 7 か所だけを直し、guide のテストを合わせる。Skill の雛形と README は含まない
@@ -20,3 +20,5 @@ details:
     scope: config の models.<agent>.<tier> と、dg next の model の決め方、個人の設定での上書き、requirements と ADR-028 の本文まで。agent の判定の仕組みは変えない
     approach: detectAgent で呼んだ agent を求め、models.<agent>.<tier> → models.<tier> → 親のモデル（null）の順に引く。キーは Adapter の一覧から作り、LOCAL_KEYS にも足す
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-14T07:04:06Z
