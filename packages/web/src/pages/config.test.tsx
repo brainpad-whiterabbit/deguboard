@@ -1128,17 +1128,9 @@ describe("設定画面", () => {
     expect(screen.getByText("該当する設定がない")).toBeTruthy();
   });
 
-  // 歯車はビューのタイトル行にあり、拡張ホストの toggle の event が toggleRoute を呼ぶ（host.tsx の HostBridge）。どちらの手も設定画面から戻す
-  /** 設定画面から戻る手。歯車（toggleRoute）か、画面の「前の画面に戻る」 */
-  async function backFrom(how: "gear" | "button") {
-    if (how === "gear") act(() => toggleRoute("#/config"));
-    else fireEvent.click(await screen.findByRole("button", { name: "前の画面に戻る" }));
-  }
-
-  it.each([
-    ["歯車", "gear"],
-    ["前の画面に戻る", "button"],
-  ] as const)("%s で設定画面を開き、戻すと来る前の画面に戻る", async (_, how) => {
+  // 歯車はビューのタイトル行にあり、拡張ホストの toggle の event が toggleRoute を呼ぶ（host.tsx の HostBridge）。
+  // 設定画面から戻る手は歯車（とタブ）だけで、画面の中に戻るリンクは置かない
+  it("歯車で設定画面を開き、もう一度押すと来る前の画面に戻る", async () => {
     const { client } = configClient();
     window.location.hash = "#/backlog";
     render(
@@ -1150,23 +1142,18 @@ describe("設定画面", () => {
     act(() => toggleRoute("#/config"));
     expect(window.location.hash).toBe("#/config");
     expect(await screen.findByText("コミットの仕方")).toBeTruthy();
-    await backFrom(how);
+    expect(screen.queryByRole("button", { name: "前の画面に戻る" })).toBeNull();
+    act(() => toggleRoute("#/config"));
     expect(window.location.hash).toBe("#/backlog");
   });
 
-  it.each([
-    ["歯車", "gear"],
-    ["前の画面に戻る", "button"],
-  ] as const)(
-    "来る前の画面がない（#/config を直接開いた）ときは、%s でカンバンに戻る",
-    async (_, how) => {
-      const { client } = configClient();
-      mount(client);
-      await screen.findByText("コミットの仕方");
-      await backFrom(how);
-      expect(window.location.hash).toBe("#/board");
-    },
-  );
+  it("来る前の画面がない（#/config を直接開いた）ときは、歯車でカンバンに戻る", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    act(() => toggleRoute("#/config"));
+    expect(window.location.hash).toBe("#/board");
+  });
 });
 
 describe("設定画面の部品", () => {

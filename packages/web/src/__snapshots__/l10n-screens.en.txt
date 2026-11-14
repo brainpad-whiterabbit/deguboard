@@ -251,7 +251,6 @@ Board
 Backlog
 History
 Settings
-Back to the previous view
 [aria-label] Where settings are saved
 Team
 Mine

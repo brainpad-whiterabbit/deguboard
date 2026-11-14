@@ -2632,15 +2632,7 @@ textarea.body {
   max-width: 760px;
 }
 .config-head {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-}
-.config-head h2 {
   margin: 0;
-}
-.config-back {
-  margin-left: auto;
 }
 /* 「チーム」「自分」のタブ。選んだタブは下線と濃い文字で示し、自分のタブには上書きしている件数を添える */
 .config-tabs {
