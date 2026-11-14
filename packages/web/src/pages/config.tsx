@@ -53,6 +53,7 @@ const NAMES: Record<string, string> = {
   "work.parallel": msg("同時に進めるチケットの上限"),
   "merge.method": msg("マージの方法"),
   "merge.delete_branch": msg("マージしたら作業ブランチを消す"),
+  "merge.approval_overrides": msg("人の承認で越えてよい品質ゲートの条件"),
   "review.heavy_categories": msg("重いとみなす見直しの指摘の種類"),
   "lint.require_iteration": msg("Iteration に入れてから進める"),
   "models.light": msg("段階 light のモデル"),
@@ -146,6 +147,7 @@ export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   ["actor.human_only", msg("エージェントに許す操作が変わる")],
   ["auto.merge", msg("エージェントが PR を自動でマージするかが変わる")],
   ["auto.decisions", msg("エージェントが聞かずに選ぶ判断が変わる")],
+  ["merge.approval_overrides", msg("人の承認で越えられる品質ゲートの条件が変わる")],
 ]);
 
 type Values = Record<string, unknown>;

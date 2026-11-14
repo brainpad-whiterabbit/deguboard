@@ -35,7 +35,7 @@ For `wait_merge`, `wait_human`, and `wait_deps` with no Plan, there is no other 
 
 The agent merges a PR only after a human approves that merge (the one exception is `--auto` of `dg guide all` with `auto.merge` true; see `dg guide all`).
 
-1. Run the `dg --json --actor agent gate <id> --for merge` in `commands` of `wait_merge`. If it does not pass, do not ask to merge: show the unmet conditions, and wait for a human
+1. Run the `dg --json --actor agent gate <id> --for merge` in `commands` of `wait_merge`. If it does not pass, ask by the "Merging without meeting the gate" section of `dg guide review` instead (a human's approval overrides only the conditions in `merge.approval_overrides`)
 2. Ask a human whether to merge, with the choices "Merge" and "Not yet" (the `ask_human` of `wait_merge`). Ask about the PRs that wait together in one question, and show each PR's number and ticket
 3. Only for a PR whose merge the human approved, run `dg --json --actor agent pr merge <id> --approved-by human` (`human` is the user who approved; it records who approved as a comment on the PR). Leave out `--method` and `--delete-branch`, so that config decides them. Then clean up by the steps of `dg guide done`
 4. When the human declines, or does not answer, do not merge: leave the PR waiting, and do not ask about it again until the human brings it up or something about the PR changes. Never pass `--approved-by` for a merge that no human approved

@@ -1174,6 +1174,7 @@ describe("設定画面の部品", () => {
       "auto.merge",
       "git.base_branch",
       "git.remote",
+      "merge.approval_overrides",
       "worktree.root",
       "worktree.setup",
     ]);

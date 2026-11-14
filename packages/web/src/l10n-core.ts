@@ -154,6 +154,11 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     {
       ja: "dg pr merge が --delete-branch を省いたとき、リモートとローカルの作業ブランチも消すか。dg sync がチケットを done にしたとき、残った worktree と作業ブランチを消すか",
     },
+  // merge.approval_overrides
+  "Quality gate conditions that dg pr merge may leave unmet when a person approved the merge (--approved-by): check, review, fix_rounds, acceptance (all four by default). An unmet condition that is not listed keeps the merge at GATE_FAILED even with an approval. An open PR that is not a draft (pr), conflicts (mergeable), and the judged head (head) cannot be listed. Without an approval, nothing is overridden":
+    {
+      ja: "人がマージを承認したとき（--approved-by）に、dg pr merge が満たさなくても通す品質ゲートの条件：check・review・fix_rounds・acceptance（既定は 4 つすべて）。一覧にない条件を満たさなければ、承認があっても GATE_FAILED のまま。PR が開いていて draft でないこと（pr）・衝突（mergeable）・判定した先端（head）は入れられない。承認がなければ何も越えない",
+    },
   // review.heavy_categories
   "Review finding categories (run review-result --findings-file) treated as heavy regardless of severity. Empty by default, so the reviewer's severity is kept":
     {
@@ -253,6 +258,10 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "Delete the work branch when dg pr merge merges": {
     ja: "dg pr merge でマージしたら作業ブランチも消す",
   },
+  // merge.approval_overrides
+  "Quality gate conditions a person's approval of the merge may override": {
+    ja: "人がマージを承認したときに越えてよい品質ゲートの条件",
+  },
   // review.heavy_categories
   "Review finding categories always treated as heavy": {
     ja: "いつも重いとみなす見直しの指摘の category",
@@ -301,6 +310,10 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "--auto chooses nothing without asking": { ja: "--auto でも聞かずに選ぶ判断はない" },
   // flow.skip
   "No stage is skipped": { ja: "どの段階も飛ばさない" },
+  // merge.approval_overrides
+  "An approval overrides nothing: every condition of the gate must be met": {
+    ja: "承認があっても何も越えない（品質ゲートの条件をすべて満たす必要がある）",
+  },
   // review.heavy_categories
   "The reviewer's severity is kept": { ja: "見直し役の severity のまま" },
   // models.*
@@ -345,6 +358,11 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "Rebase the PR's commits onto the base branch": {
     ja: "PR のコミットを base のブランチに積み直す",
   },
+  // merge.approval_overrides（check・review・fix_rounds・acceptance）
+  "The check (actions.test)": { ja: "検査（actions.test）" },
+  "The review of the last push": { ja: "最後の push の見直し" },
+  "The limit on fix rounds": { ja: "手直しの回数の上限" },
+  "The marks on the acceptance criteria": { ja: "受け入れ条件の印" },
 };
 
 /**

@@ -62,7 +62,7 @@ mise run dg -- guide done      # マージ後の後始末
 
   本文には、出たコミット SHA を入れた `![カンバン（ライト）](https://github.com/brainpad-whiterabbit/deguboard/blob/<SHA>/t12/board-light.png?raw=true)` で貼る（SHA で固定し、`?raw=true` で private リポジトリでも出る）。`pr-screenshots` は消さない（PR の画像が切れる）
 
-- マージは `main` の worktree から行う。エージェントは、人がマージを承認してから `dg pr merge` で行い（承認者を `--approved-by human` で渡す。品質ゲートを満たすときだけ gh を呼び、`--delete-branch` なら gh を呼ぶ前に作業ブランチの worktree を消し、マージに失敗したらそれを戻して worktree.setup を回し直す（PR がマージ済みなら戻さず、失敗は warnings に出す）。worktree は先に消さない）、満たさないままマージするなら人が worktree を消してから `gh pr merge <PR 番号> --squash --delete-branch` を打つ（ブランチを checkout したままだと `gh` がローカルのブランチを消せない）
+- マージは `main` の worktree から行う。エージェントは、人がマージを承認してから `dg pr merge` で行い（承認者を `--approved-by human` で渡す。品質ゲートを満たすときだけ gh を呼び、`--delete-branch` なら gh を呼ぶ前に作業ブランチの worktree を消し、マージに失敗したらそれを戻して worktree.setup を回し直す（PR がマージ済みなら戻さず、失敗は warnings に出す）。worktree は先に消さない）。品質ゲートを満たさない PR も、満たさない条件を示して人に聞き、承認されたら同じコマンドでマージする（承認で越えられるのは config の `merge.approval_overrides` の条件だけ。人に `gh` を打ってもらわない）
 
   ```sh
   mise run dg -- pr merge <チケット ID> --approved-by human --delete-branch

@@ -422,6 +422,20 @@ Off
 Reset to Default
 Details
 Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted, and whether dg sync deletes the worktree and work branch that remain when it moves a ticket to done
+Gate conditions an approval may override
+merge.approval_overrides
+[title] Default: [check, review, fix_rounds, acceptance]
+Modified
+Quality gate conditions a person's approval of the merge may override
+Empty
+[aria-label] Items
+[placeholder] Add item
+Add
+[title] Reset to default [check, review, fix_rounds, acceptance]
+Reset to Default
+When empty: An approval overrides nothing: every condition of the gate must be met
+Details
+Quality gate conditions that dg pr merge may leave unmet when a person approved the merge (--approved-by): check, review, fix_rounds, acceptance (all four by default). An unmet condition that is not listed keeps the merge at GATE_FAILED even with an approval. An open PR that is not a draft (pr), conflicts (mergeable), and the judged head (head) cannot be listed. Without an approval, nothing is overridden
 Review finding categories treated as heavy
 review.heavy_categories
 [title] Default: Empty

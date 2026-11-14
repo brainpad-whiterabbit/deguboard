@@ -90,13 +90,17 @@ export function heavyReviewRounds(runs: readonly Run[], branchAt: string | undef
  * チケットの品質ゲートを判定する。gh・Git が読めない条件は満たさないとする（判定できないものを通さない）。
  * 判定する条件はチケットの段（gate。TK-9）で決まる。high はすべて、low は見直し（review・fix_rounds）を除き、
  * free は pr と（マージの前の）mergeable だけ。判定しない条件は conditions に出さず、その材料（見直しの Run・push の時刻と
- * そのための fetch・検査）も読まない。warnings には、フックが結ばなかった見直しを数えたときの警告を足す（t702。dg gate だけが渡す）
+ * そのための fetch・検査）も読まない。warnings には、フックが結ばなかった見直しを数えたときの警告を足す（t702。dg gate だけが渡す）。
+ * waived は、人の承認で越える条件（dg pr merge --approved-by だけが渡す。t884）。判定は変えず（満たさない条件は ok: false のまま返す）、
+ * 検査を回すかだけに使う：ほかの満たさない条件がすべて越えられるなら、検査を「回さなかった」で落とさずに回す
+ * （検査が一覧になければ、検査は実際に通らなければならないため。一覧にあっても、通ったかどうかを PR に残す記録を事実にするため）
  */
 export async function judgeGate(
   ctx: CommandContext,
   ticket: Ticket,
   stage: GateStage,
   warnings: string[] = [],
+  waived: ReadonlySet<GateConditionId> = new Set(),
 ): Promise<GateView> {
   const level = gateLevelOf(ticket);
   const scope = gateScopeOf(level);
@@ -179,7 +183,7 @@ export async function judgeGate(
 
   // 検査（actions.test）。free は回さない。時間がかかるので、ほかの条件をすべて満たしたときだけ回す（空なら回さずに通すので、いつでも判定する）
   if (scope.check) {
-    if (ctx.config.actions.test.length === 0 || conditions.every((c) => c.ok)) {
+    if (ctx.config.actions.test.length === 0 || conditions.every((c) => c.ok || waived.has(c.id))) {
       const check = await judgeCheck(ctx, ticket);
       add("check", check.ok, check.detail);
     } else
@@ -285,7 +289,7 @@ export const gate = defineCommand({
     "free judges only pr and, with --for merge, mergeable (merge: pr · mergeable; ready: pr). At free, dg pr merge still pins the PR's head (sha), so a commit pushed after the judgment is not merged. Conditions that are not judged do not appear in conditions, and their inputs (review Runs, the push time and its fetch, the check) are not read. " +
     "Set the level with dg ticket create/import/update --gate; lowering it follows a person's instruction. " +
     "--only check judges only check, with the same judgment, on the HEAD of the work branch's worktree (a commit not pushed yet is fine; uncommitted changes refuse it), whatever the level. Run it before the push. With --only, --for is not judged (the view only echoes it). The result is remembered per commit and command, so dg pr ready and dg pr merge after the push reuse it for the same commit. " +
-    "dg pr ready and dg pr merge make the same judgment before they call gh. Proceeding outside the conditions of the level is left to a person (a person runs gh). They do not write ticket data (they only record the results of passed checks in deguboard-local)",
+    "dg pr ready and dg pr merge make the same judgment before they call gh. Proceeding outside the conditions of the level is left to a person: for a merge, a person approves it and dg pr merge --approved-by overrides the unmet conditions listed in config's merge.approval_overrides (pr, mergeable, and head are never overridden; dg pr merge --help); for ready, a person runs gh. They do not write ticket data (they only record the results of passed checks in deguboard-local)",
   input: z.object({
     ticket: ticketRef,
     for: z

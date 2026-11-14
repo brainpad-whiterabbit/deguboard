@@ -142,7 +142,7 @@ async function prepared() {
   await git(f.cloneA, ["checkout", "-qb", "feat/t1"]);
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
   await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
-  const state = { draft: true, noHead: false };
+  const state = { draft: true, noHead: false, conflict: false };
   // 今の push した先端（PR の headRefOid。偽の gh が __TIP__ をリモートの先端に置き換える）
   const tip = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
   const prJson = (merged: boolean) =>
@@ -150,7 +150,7 @@ async function prepared() {
       number: 7,
       state: merged ? "MERGED" : "OPEN",
       isDraft: state.draft,
-      mergeable: "MERGEABLE",
+      mergeable: state.conflict ? "CONFLICTING" : "MERGEABLE",
       // headRefOid を返さない gh（JSON から外す）
       headRefOid: state.noHead ? undefined : "__TIP__",
       body: "## 概要\n\n元の本文\n",
@@ -163,6 +163,12 @@ async function prepared() {
   const withoutHead = async () => {
     state.noHead = true;
     await gh.write();
+  };
+  // PR が base と衝突している（true）か、していない（false）かを切り替える
+  const conflicting = async (on: boolean) => {
+    state.conflict = on;
+    await gh.write();
+    resetGhCache();
   };
   // gh pr merge がマージを済ませた後に失敗する状態（PR の state が MERGED になって gh が非 0 で終わる）
   const mergedThenFail = () => gh.mergedThenFailCall(prJson(true));
@@ -178,6 +184,7 @@ async function prepared() {
     allowMergeCall: gh.allowMergeCall,
     undraft,
     withoutHead,
+    conflicting,
     mergedThenFail,
     pushBeforeMerge: gh.pushBeforeMerge,
     deleteOnMerge: gh.deleteOnMerge,
@@ -303,6 +310,104 @@ describe("dg pr ready・dg pr merge（t545）", () => {
       "the approver (mika) could not be recorded as a comment on the PR",
     );
     expect((await calls()).filter((c) => c.startsWith("api POST"))).toEqual([]);
+  });
+
+  it("品質ゲートを満たさない PR は、承認者を渡さなければ GATE_FAILED のままで人に聞く道を案内し、--approved-by を渡すと越えた条件を結果と PR のコメントに残してマージする（t884）", async () => {
+    const { ctx, tip, calls, undraft } = await prepared();
+    // 見直しがなく、受け入れ条件に印がない（どちらも既定の merge.approval_overrides にある）
+    await undraft();
+    const unapproved = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
+    expect(unapproved!.code).toBe("GATE_FAILED");
+    expect(unapproved!.detail).toContain("acceptance:");
+    expect(unapproved!.detail).toContain("review:");
+    // 人に gh を打ってもらう案内は出さず、人に聞いて承認者を渡す道を案内する
+    expect(unapproved!.detail).toContain("ask whether to merge anyway");
+    expect(unapproved!.detail).toContain("dg pr merge t1 --approved-by human");
+    expect(unapproved!.detail).toContain("check, review, fix_rounds, acceptance");
+    expect(unapproved!.detail).not.toContain("ask a human to run gh pr merge");
+    expect(await calls()).toEqual([]);
+    const merged = await runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" });
+    expect(merged.data).toMatchObject({
+      action: "merge",
+      approved_by: "eiki",
+      overridden: ["acceptance", "review"],
+      gate: { passed: false },
+    });
+    expect(await calls()).toEqual([
+      `pr merge 7 --squash --match-head-commit ${tip}`,
+      "api POST issues/7/comments body=Merged with `dg pr merge` by eiki/agent, after eiki approved the merge. The approval overrode these unmet quality gate conditions: acceptance, review.",
+    ]);
+  });
+
+  it("config の merge.approval_overrides にない条件を満たさない PR は、--approved-by を渡しても GATE_FAILED のままで、その条件を満たすとマージする。一覧に入れられるのは越えられる条件だけ（t884）", async () => {
+    const { ctx: first, calls, undraft } = await prepared();
+    // 衝突・先端・PR は一覧に入れられない
+    for (const value of ["mergeable", "head", "pr"])
+      expect(
+        await rejection(runCommand(configSet, first, { key: "merge.approval_overrides", value })),
+        value,
+      ).toBeDefined();
+    await runCommand(configSet, first, { key: "merge.approval_overrides", value: "review" });
+    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
+    await undraft();
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
+    expect(err!.code).toBe("GATE_FAILED");
+    expect(err!.detail).toContain("A person's approval does not override acceptance");
+    expect(err!.detail).toContain("merge.approval_overrides lists: review;");
+    expect(err!.detail).not.toContain("ask whether to merge anyway");
+    expect(await calls()).toEqual([]);
+    // 承認者を渡さないときも、承認では越えられない条件があることを案内する
+    const unapproved = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
+    expect(unapproved!.detail).toContain("A person's approval does not override acceptance");
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    const merged = await runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" });
+    expect(merged.data).toMatchObject({ approved_by: "eiki", overridden: ["review"] });
+    expect((await calls()).length).toBe(2);
+  });
+
+  it("衝突（mergeable）・PR の先端（head）・draft は、既定の一覧でも --approved-by を渡しても越えられず、gh を呼ばない（t884）", async () => {
+    const { ctx, calls, undraft, withoutHead, conflicting } = await prepared();
+    // draft のまま
+    const draft = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
+    expect(draft!.code).toBe("GATE_FAILED");
+    expect(draft!.detail).toContain("A person's approval does not override pr");
+    await undraft();
+    await conflicting(true);
+    const conflict = await rejection(
+      runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }),
+    );
+    expect(conflict!.code).toBe("GATE_FAILED");
+    expect(conflict!.detail).toContain("mergeable: mergeable is CONFLICTING");
+    expect(conflict!.detail).toContain("A person's approval does not override mergeable");
+    await conflicting(false);
+    // PR の先端を読めない（判定したコミットに固定できない）
+    await withoutHead();
+    resetGhCache();
+    const head = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
+    expect(head!.code).toBe("GATE_FAILED");
+    expect(head!.detail).toContain("A person's approval does not override head");
+    expect(await calls()).toEqual([]);
+  });
+
+  it("検査が一覧になければ、ほかの満たさない条件を承認で越えるときも検査を回し、通らなければ --approved-by を渡しても GATE_FAILED で止まる（t884）", async () => {
+    const { ctx: first, calls, undraft } = await prepared();
+    const script = path.join(path.dirname(first.repo.topLevel), "failing-override-check.sh");
+    await writeFile(script, "#!/bin/sh\necho 落ちたテスト\nexit 1\n", { mode: 0o755 });
+    await runCommand(configSet, first, { key: "actions.test", value: `sh, ${script}` });
+    await runCommand(configSet, first, {
+      key: "merge.approval_overrides",
+      value: "review, fix_rounds, acceptance",
+    });
+    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
+    await undraft();
+    // 承認がなければ、ほかの条件を満たさないので検査は回さない
+    const unapproved = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
+    expect(unapproved!.detail).toContain("the check (actions.test) was not run");
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
+    expect(err!.code).toBe("GATE_FAILED");
+    expect(err!.detail).toContain("落ちたテスト");
+    expect(err!.detail).toContain("A person's approval does not override check");
+    expect(await calls()).toEqual([]);
   });
 
   it("書く保留がないときに rebase の途中を見つけたら、外の変更と報告せず rebase の警告を出して ready にする（t753）", async () => {
