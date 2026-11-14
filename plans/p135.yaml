@@ -1,0 +1,19 @@
+id: p135
+tickets: [t924, t925, t923]
+after:
+  t923:
+    - t924
+pending_approval: true
+details:
+  t924:
+    scope: 拡張の dg --version の確かめを、最初に使ったフォルダを cwd にして動かし、複数フォルダのときだけ警告にフォルダ名を入れる。フォルダごとの確かめはしない
+    approach: runDgVersion・resolveDg に cwd を渡せるようにし、extension.ts の adviseAboutDg をサイドバー・パネルの最初の利用で呼んで、dg.test.ts で cwd と警告の条件を示す
+    tier: standard
+  t925:
+    scope: node の版が足りないときの文に node のパスと、場所で版を選ぶ shim のときの直し方を足す。判定の条件は変えない
+    approach: node-version.mjs の nodeVersionProblemOf の文に process.execPath と mise use -g node@24 の例を足し、文を直接確かめるテストを足す
+    tier: standard
+  t923:
+    scope: 拡張の起動時に、dg の Skill を入れてある置き場所ごとに足りない同梱の Skill を info 通知で案内し、Install で足りない分だけ書く。dg next・brief・hooks check は変えない
+    approach: core に置き場所ごとの足りない Skill を求める関数を足し、extension.ts の起動時の Skill の更新の後で通知と globalState の Don't show again を扱い、AG-2 と skill-files.ts のコメントを直す
+    tier: standard
