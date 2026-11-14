@@ -18,5 +18,6 @@
   "core/src/git/worktree.ts",
   "core/src/errors.ts",
   "core/src/storage/atomic.ts",
-  "core/src/storage/exists.ts"
+  "core/src/storage/exists.ts",
+  "core/src/commands/pr-approval.ts"
 ]

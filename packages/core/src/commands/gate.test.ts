@@ -372,6 +372,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(check(await judge(ctx, "ready"))).toMatchObject({
       ok: false,
       detail: expect.stringContaining("was not run"),
+      not_run: true,
     });
     expect(await runs()).toBe(0);
     await setCode(3);
@@ -381,6 +382,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     await review(ctx, later(2), 0);
     const view = await judge(ctx, "ready");
     expect(failed(view)).toEqual(["check"]);
+    expect(check(view).not_run).toBeUndefined();
     expect(check(view).detail).toContain("(exit 3)");
     expect(check(view).detail).toContain("前の行\n最後の行");
     // 通らなかった結果は覚えないので、同じコミットでも回し直す（確率で落ちる検査をコミットを足さずにやり直せる）
