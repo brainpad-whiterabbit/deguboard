@@ -21,6 +21,7 @@ import { next } from "./next.js";
 import { init } from "./setup.js";
 import {
   buildSkills,
+  findMissingSkills,
   findStaleSkills,
   refreshInstalledSkills,
   skillAgeOf,
@@ -328,6 +329,57 @@ describe("VS Code 拡張の起動時の Skill の更新（AG-2・t857）", () =>
     await put(home, "dgwork", olderVersionOf(work.content));
     expect(await refreshInstalledSkills({ folders: [], env: { HOME: home } })).toEqual([
       { scope: "personal", dir: skillsDir(home), updated: ["dgwork"], edited: [] },
+    ]);
+  });
+});
+
+describe("VS Code 拡張が案内する、入れていない同梱の Skill（AG-2・t923）", () => {
+  const allNames = async () => (await buildSkills()).map((s) => s.name);
+  const without = async (...names: string[]) =>
+    (await allNames()).filter((n) => !names.includes(n));
+
+  it("dg の Skill を入れてある置き場所ごとに、足りない Skill を返す。1 つも入れていない置き場所と自作の Skill は見ない", async () => {
+    const top = await repoDir();
+    const home = await tempDir();
+    // どこにも入れていなければ案内しない
+    await put(top, "dgmine", "# mine\n");
+    expect(await findMissingSkills({ folders: [top], env: { HOME: home } })).toEqual([]);
+
+    // 手を加えたもの・古いものも入れてあるものとして数える
+    await put(top, "dgwork", `${(await contentOf("dgwork")).content}\nmy note\n`);
+    await put(top, "dgplan", olderVersionOf((await contentOf("dgplan")).content));
+    expect(await findMissingSkills({ folders: [top], env: { HOME: home } })).toEqual([
+      { scope: "project", dir: skillsDir(top), missing: await without("dgwork", "dgplan") },
+    ]);
+  });
+
+  it("同じ agent のほかの置き場所（リポジトリと個人）に入っている Skill は足りないと数えない", async () => {
+    const top = await repoDir();
+    const home = await tempDir();
+    const names = await allNames();
+    await put(top, "dgwork", (await contentOf("dgwork")).content);
+    for (const name of names.filter((n) => n !== "dgwork" && n !== "dgdone"))
+      await put(home, name, (await contentOf(name)).content);
+    expect(await findMissingSkills({ folders: [top], env: { HOME: home } })).toEqual([
+      { scope: "project", dir: skillsDir(top), missing: ["dgdone"] },
+      { scope: "personal", dir: skillsDir(home), missing: ["dgdone"] },
+    ]);
+    await put(home, "dgdone", (await contentOf("dgdone")).content);
+    expect(await findMissingSkills({ folders: [top], env: { HOME: home } })).toEqual([]);
+  });
+
+  it("個人の置き場所は、どの作業フォルダから見ても足りないものだけを返す。作業フォルダがなければ個人の置き場所だけを見る", async () => {
+    const repo = await repoDir();
+    const other = await repoDir();
+    const home = await tempDir();
+    await put(repo, "dgplan", (await contentOf("dgplan")).content);
+    await put(home, "dgwork", (await contentOf("dgwork")).content);
+    expect(await findMissingSkills({ folders: [repo, other], env: { HOME: home } })).toEqual([
+      { scope: "project", dir: skillsDir(repo), missing: await without("dgwork", "dgplan") },
+      { scope: "personal", dir: skillsDir(home), missing: await without("dgwork", "dgplan") },
+    ]);
+    expect(await findMissingSkills({ folders: [], env: { HOME: home } })).toEqual([
+      { scope: "personal", dir: skillsDir(home), missing: await without("dgwork") },
     ]);
   });
 });
