@@ -56,6 +56,7 @@ import {
   dataRemoteNameOf,
   dataTargetOf,
   DEFAULT_DATA_BRANCH,
+  DEFAULT_REMOTE,
   defaultConfig,
   nestedConfigValue,
   type Config,
@@ -111,7 +112,7 @@ export const init = defineCommand({
       .string()
       .optional()
       .describe(
-        "Remote of the code (work branches and pull requests). The kanban data also syncs with it unless --data-remote is given. Defaults to origin when omitted",
+        `Remote of the code (work branches and pull requests). The kanban data also syncs with it unless --data-remote is given. Defaults to ${DEFAULT_REMOTE} when omitted`,
       ),
     data_remote: z
       .string()
@@ -149,7 +150,7 @@ export const init = defineCommand({
               ? { default_workflow: input.template }
               : {}),
             git: {
-              remote: input.remote ?? "origin",
+              remote: input.remote ?? DEFAULT_REMOTE,
               ...(input.data_remote && ctx.repo.dataRemote
                 ? { data_remote: ctx.repo.dataRemote }
                 : {}),

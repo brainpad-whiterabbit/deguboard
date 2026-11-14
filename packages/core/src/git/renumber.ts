@@ -5,9 +5,9 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { idNumber, nextNumber } from "../model/id.js";
-import type { GitRepo } from "./repo.js";
+import { dataRemoteRef, type GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
-import { commitAll, integrateLogged, remoteRef, type ResolvedFile, resetHard } from "./sync.js";
+import { commitAll, integrateLogged, type ResolvedFile, resetHard } from "./sync.js";
 
 export interface Renumbered {
   from: string;
@@ -72,7 +72,7 @@ export async function renumberProvisional(
   conflicts: readonly string[],
 ): Promise<RenumberedSync | null> {
   if (!repo.dataRemote || conflicts.length === 0) return null;
-  const remote = remoteRef(repo);
+  const remote = dataRemoteRef(repo);
   for (const file of conflicts) {
     if (!CONFLICT_PATH.test(file)) return null;
     const local = await show(repo, "HEAD", file);
@@ -115,7 +115,7 @@ export async function renumberProvisional(
  */
 export async function renumberCollisions(repo: GitRepo): Promise<Renumbered[]> {
   if (!repo.dataRemote) return [];
-  const remote = remoteRef(repo);
+  const remote = dataRemoteRef(repo);
   const base = (await git(repo, ["merge-base", "HEAD", remote])).stdout.trim();
   const added = (
     await git(repo, ["diff", "--name-only", "--diff-filter=A", base, "HEAD", "--", "tickets"])
@@ -189,7 +189,7 @@ async function localCommits(repo: GitRepo, base: string): Promise<string[]> {
 /** 仮番号に、リモートとローカルのどちらでも使っていない番号を小さい順に割り当てる */
 async function assignNumbers(repo: GitRepo, ids: string[]): Promise<Map<string, string>> {
   const used = new Set<number>([
-    ...(await ticketNumbers(repo, remoteRef(repo))),
+    ...(await ticketNumbers(repo, dataRemoteRef(repo))),
     ...(await ticketNumbers(repo, "HEAD")),
   ]);
   const mapping = new Map<string, string>();

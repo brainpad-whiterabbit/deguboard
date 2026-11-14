@@ -33,7 +33,14 @@ export const FLOW_SKIPS = ["assign", "check", "plan", "work", "audit", "release"
 /** actions.test を回す時間の上限（run_tests の既定と品質ゲートの検査）。リポジトリの検査の全体（テストを含む）を回すので長めにとる */
 export const ACTIONS_TEST_TIMEOUT_MS = 30 * 60_000;
 
-/** データ（deguboard ブランチ）を fetch・push するリモートの名前。git.data_remote を省けば（空なら）git.remote と同じ */
+/** コードのリモートの名前の既定（git.remote・dg init --remote を省いたとき） */
+export const DEFAULT_REMOTE = "origin";
+
+/**
+ * データ（deguboard ブランチ）を fetch・push するリモートの名前。git.data_remote を省けば（空なら）git.remote と同じ。
+ * データのリモートの名前の決め方はここだけにする：openContext（init の値を重ねて渡す）と、ストアを開かない
+ * storage/remote-name.ts の resolveConfigDataRemote（storelessContext と Stop のフックの速い経路）がここを呼ぶ
+ */
 export function dataRemoteNameOf(config: { git: { remote: string; data_remote: string } }): string {
   return config.git.data_remote || config.git.remote;
 }
@@ -213,7 +220,7 @@ export const configSchema = z.looseObject({
   }),
   git: z
     .looseObject({
-      remote: described(z.string().min(1).default("origin"), {
+      remote: described(z.string().min(1).default(DEFAULT_REMOTE), {
         summary: "Git remote of the code (work branches and pull requests)",
         description:
           "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set",

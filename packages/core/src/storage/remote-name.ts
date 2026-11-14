@@ -3,7 +3,8 @@
 // Store.open と同じ読み方（config-file.ts）で、チームの config.yaml を既定値に、個人の config.yaml を重ねる（読めない値の警告は捨てる）。
 // チケット・Plan・Epic・Iteration・Run のファイルは読まない。
 // ストアを開かずにリモートを決めるのはここの resolveConfigDataRemote だけ。今の経路（commands/context.ts の storelessContext）は静的に、
-// 速い経路（fast-hook.ts）は yaml・zod を静的に読まないように動的に読む（t803）
+// 速い経路（fast-hook.ts）は yaml・zod を静的に読まないように動的に読む（t803）。
+// 名前の決め方そのものは model/config.ts の dataRemoteNameOf（openContext も呼ぶ）で、ここは読んだ config をそれに渡すだけ
 
 import path from "node:path";
 import { resolveRemote, type GitRepo, type RepoPaths } from "../git/repo.js";
@@ -11,7 +12,11 @@ import { dataTargetOf, overlayLocalConfig, type DataTarget } from "../model/conf
 import { loadLocalConfig, loadTeamConfig } from "./config-file.js";
 import { CONFIG_FILE, LOCAL_CONFIG_FILE } from "./paths.js";
 
-/** config のデータのリモートの名前とデータのブランチ名（個人 > チーム > 既定 の順。どれも個人で上書きできる項目）。ストアを開かずに読む */
+/**
+ * config のデータのリモートの名前とデータのブランチ名（個人 > チーム > 既定 の順。どれも個人で上書きできる項目）。ストアを開かずに読む。
+ * 製品のコードは resolveConfigDataRemote から呼ぶ。export するのは、git にないリモートの名前でも config の読み方（個人の設定の重ね方）を
+ * 確かめられるように、テスト（git/outside.test.ts）が直接呼ぶため
+ */
 export async function readDataTarget(dataDir: string, localDir: string): Promise<DataTarget> {
   const [team, local] = await Promise.all([
     loadTeamConfig(path.join(dataDir, CONFIG_FILE)),

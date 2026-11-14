@@ -12,7 +12,12 @@ import {
 } from "../git/repo.js";
 import { ensureDeguboardWorktree, type WorktreeOrigin } from "../git/worktree.js";
 import { actorIdOf } from "../model/actor.js";
-import { dataBranchProblem, DEFAULT_DATA_BRANCH } from "../model/config.js";
+import {
+  dataBranchProblem,
+  dataRemoteNameOf,
+  DEFAULT_DATA_BRANCH,
+  DEFAULT_REMOTE,
+} from "../model/config.js";
 import { STORE_CACHE_DIR } from "../storage/paths.js";
 import { resolveConfigDataRemote } from "../storage/remote-name.js";
 import { Store } from "../storage/store.js";
@@ -129,7 +134,7 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
       throw new OperationError("NOT_INITIALIZED", "deguboard is not initialized. Run dg init");
     }
     const remote =
-      initDataRemote ?? (await resolveRemote(paths, opts.initialize.remote ?? "origin"));
+      initDataRemote ?? (await resolveRemote(paths, opts.initialize.remote ?? DEFAULT_REMOTE));
     worktree = await ensureDeguboardWorktree(paths, remote, initDataBranch ?? DEFAULT_DATA_BRANCH);
   }
   // 個人の設定（deguboard-local/config.yaml）もここで重ねるので、CLI・HTTP・VS Code 拡張は同じ値を読む。
@@ -139,9 +144,12 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     localDir: paths.localDir,
     cacheDir: path.join(paths.localDir, STORE_CACHE_DIR),
   });
-  // データのリモートは、init が受けた値 > config の git.data_remote > コードのリモートと同じ、の順に決める
+  // データのリモートは、init が受けた値 > config の git.data_remote > コードのリモートと同じ、の順に決める。
+  // 後の 2 つは dataRemoteNameOf（ストアを開かない resolveConfigDataRemote と同じ決め方）に、init が受けたコードのリモートを重ねて渡す
   const codeName = opts.initialize?.remote ?? store.config.git.remote;
-  const dataName = initDataRemote ?? (store.config.git.data_remote || codeName);
+  const dataName =
+    initDataRemote ??
+    dataRemoteNameOf({ git: { remote: codeName, data_remote: store.config.git.data_remote } });
   const codeRemote = await resolveRemote(paths, codeName);
   const repo: GitRepo = {
     ...paths,
