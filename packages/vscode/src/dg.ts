@@ -9,20 +9,25 @@ export type DgLookup =
   | { kind: "missing" }
   | { kind: "error"; detail: string };
 
-/** テスト用に差し替えられる `dg --version` の実行 */
-export type RunVersion = () => Promise<string>;
+/** テスト用に差し替えられる `dg --version` の実行。cwd がなければ拡張のプロセスの cwd で動く */
+export type RunVersion = (cwd?: string) => Promise<string>;
 
-function runDgVersion(): Promise<string> {
+export function runDgVersion(cwd?: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile("dg", ["--version"], { timeout: 5_000 }, (error, stdout) =>
+    execFile("dg", ["--version"], { timeout: 5_000, ...(cwd ? { cwd } : {}) }, (error, stdout) =>
       error ? reject(error) : resolve(stdout),
     );
   });
 }
 
-export async function resolveDg(run: RunVersion = runDgVersion): Promise<DgLookup> {
+/**
+ * cwd はワークスペースのフォルダを渡す。mise などの shim は cwd の設定（mise.toml・.node-version）で
+ * node と dg の版を選ぶので、拡張のプロセスの cwd（`/` や `~`）で確かめると、ターミナル・エージェント・
+ * フックが dg を使う場所と結果が食い違う
+ */
+export async function resolveDg(cwd?: string, run: RunVersion = runDgVersion): Promise<DgLookup> {
   try {
-    const version = (await run()).trim();
+    const version = (await run(cwd)).trim();
     return version
       ? { kind: "found", version }
       : { kind: "error", detail: t("dg --version printed nothing") };
@@ -44,8 +49,28 @@ export interface DgAdvice {
   text: string;
 }
 
-/** 利用者に知らせる文。何もなければ undefined */
-export function dgAdvice(lookup: DgLookup, coreVersion: string): DgAdvice | undefined {
+/** 確かめたフォルダ。folderCount はウィンドウの作業フォルダの数 */
+export interface DgCheckedFolder {
+  name: string;
+  folderCount: number;
+}
+
+/**
+ * 利用者に知らせる文。何もなければ undefined。
+ * 確かめはウィンドウで 1 回だけで、フォルダごとにはしない。フォルダが複数あるときは、どのフォルダの
+ * 結果かが分からないので、警告に確かめたフォルダの名前を入れる（1 つなら明らかなので入れない）
+ */
+export function dgAdvice(
+  lookup: DgLookup,
+  coreVersion: string,
+  folder?: DgCheckedFolder,
+): DgAdvice | undefined {
+  const advice = adviceOf(lookup, coreVersion);
+  if (advice?.level !== "warning" || !folder || folder.folderCount <= 1) return advice;
+  return { ...advice, text: t("{0} (checked in the folder {1})", advice.text, folder.name) };
+}
+
+function adviceOf(lookup: DgLookup, coreVersion: string): DgAdvice | undefined {
   switch (lookup.kind) {
     case "missing":
       return {

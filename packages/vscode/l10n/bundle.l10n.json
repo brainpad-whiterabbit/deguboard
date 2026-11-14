@@ -32,6 +32,7 @@
   "Uncommitted changes": "Uncommitted changes",
   "dg --version failed: {0}": "dg --version failed: {0}",
   "dg --version printed nothing": "dg --version printed nothing",
+  "{0} (checked in the folder {1})": "{0} (checked in the folder {1})",
   "dg is linked to {0}.": "dg is linked to {0}.",
   "dg is already linked to {0}.": "dg is already linked to {0}.",
   "dg is not on your PATH. The views work without dg. To use dg from agents and the terminal, run “deguboard: Install dg command” from the Command Palette.": "dg is not on your PATH. The views work without dg. To use dg from agents and the terminal, run “deguboard: Install dg command” from the Command Palette.",
