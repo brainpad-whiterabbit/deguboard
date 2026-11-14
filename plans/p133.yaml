@@ -12,7 +12,7 @@ after:
     - t917
   t920:
     - t917
-pending_approval: true
+pending_approval: false
 details:
   t913:
     scope: push が拒まれた後の取り込み直しで例外が出たときの戻し方を、書き込みの経路の 1 か所にまとめる。競合したとき（SY-4）は変えない
@@ -46,3 +46,5 @@ details:
     scope: Run の tools に失敗したツールの呼び出しの数 errors を足し、metrics show で合計する
     approach: Claude Code の会話記録の tool_result の is_error を tool_use の id で重ねずに数えて tallyTools に渡し、取れないエージェントと前の Run は missing にする。結果の中身が Git に入らないことをテストで示し、ADR-029 と RN-1・MT の項を直す
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-14T16:57:43Z
