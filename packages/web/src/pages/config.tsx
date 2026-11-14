@@ -9,7 +9,7 @@
 //   （重ねた値を出すと保存が効かなかったように見える）。自分で上書きしている項目には「自分：値」の印を出し、押すと自分のタブのその項目に移る
 // - 自分：個人で上書きできる項目（scope が local）だけを出し、deguboard-local/config.yaml（view.local）を config.set --local で書く。
 //   「自分の値を使う」を入れるとチームの値を自分の値として写し、外すと config.unset --local で上書きを外してチームの値を出す
-// VS Code の settings.json は使わない（requirements.md 5.10）。左パネルのビューのタイトル行の歯車で開け閉めし、画面の中の「前の画面に戻る」も歯車と同じく来る前の画面に戻る。
+// VS Code の settings.json は使わない（requirements.md 5.10）。左パネルのビューのタイトル行の歯車で開け閉めする。
 // 選択欄とチェックは変えたらすぐ、テキストと数は Enter か欄を離れたとき、リストは足す・外すたびに保存する。
 // 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、どちらのタブでも保存の前に欄の下で確かめる
 // （自分の値を外して効く値が変わるときも確かめる。空にすると既定に戻る項目を空にするときは、戻る既定の値を出す）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す。
@@ -17,7 +17,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { failureOf } from "../client/http.js";
-import { hrefOf, toggleRoute } from "../router.js";
 import { useStore } from "../store.js";
 import type { ConfigField, ConfigScope, ConfigShowView } from "../types.js";
 import { configDescription, shownConfigValue, storedConfigValue, tr, msg } from "../l10n.js";
@@ -517,17 +516,7 @@ export function ConfigPage() {
 
   return (
     <div className="config-page">
-      <div className="config-head">
-        <h2>{tr("設定")}</h2>
-        {/* 歯車と同じく、来る前の画面（なければカンバン）に戻る */}
-        <button
-          type="button"
-          className="link config-back"
-          onClick={() => toggleRoute(hrefOf({ page: "config" }))}
-        >
-          {tr("前の画面に戻る")}
-        </button>
-      </div>
+      <h2 className="config-head">{tr("設定")}</h2>
       <div className="config-tabs" role="tablist" aria-label={tr("設定の書き先")}>
         <button
           type="button"

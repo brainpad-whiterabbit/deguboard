@@ -393,7 +393,6 @@ export const EN: Readonly<Record<string, string>> = {
   "{0} を自分だけ {1} にした": "Set {0} to {1} for yourself only",
   "保存できない: {0}{1}": "Could not save: {0}{1}",
   "保存したが、読み直せない: {0}{1}": "Saved, but could not reload: {0}{1}",
-  前の画面に戻る: "Back to the previous view",
   設定の書き先: "Where settings are saved",
   チーム: "Team",
   "自分で上書きしている項目 {0} 件": "{0} settings overridden by you",
