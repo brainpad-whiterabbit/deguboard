@@ -1,0 +1,33 @@
+{
+  "id": "r20261114-113742-2d42",
+  "ticket": "t906",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-14T11:37:42Z",
+  "finished_at": "2026-11-14T11:42:39Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "Project の削除を見送った間の書き込みで、既定でない Project のチケットの Workflow が default_workflow に変わる",
+    "batch の sync が保留の変更をコミットした後も projects/ を残す"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 11536,
+    "cache_read": 757865,
+    "cache_write": 56890
+  },
+  "tools": {
+    "read": 12,
+    "search": 0,
+    "write": 8,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 8,
+    "search_before_write": 0
+  },
+  "session": "3051aa7a-6a9a-4ce9-9958-f1577f6df56a",
+  "review": null
+}
