@@ -8,11 +8,12 @@ pnpm = "12.12.1"
 # タスクは pnpm scripts を呼ぶだけにする。人もエージェントも mise run だけを使う
 [tasks.setup]
 description = "依存を lockfile どおりに入れ、dist をビルドする（VS Code に拡張は入れない。worktree の用意はこれ）"
-run = ["pnpm install --frozen-lockfile", "pnpm run build"]
+run = "pnpm run setup"
 
 [tasks.install]
 description = "依存を lockfile どおりに入れ、dist と VSIX をビルドし、VSIX を VS Code に入れる（dg と拡張が変更前のまま残らないように。main の checkout で使い、worktree では setup。code CLI がないか上限までに答えなければ導入は飛ばす）"
-run = ["pnpm install --frozen-lockfile", "pnpm run build", "pnpm run vsix", "pnpm run vsix:install"]
+depends = ["setup"]
+run = ["pnpm run vsix", "pnpm run vsix:install"]
 
 # .oxfmtrc.json で guide-*.md を整形の対象から外す。表の列をそろえる空白を入れないため。guide の表のセルは短く、表は手で書く（ADR-001）
 [tasks.format]
