@@ -309,7 +309,7 @@ Off
 [title] Reset to default false
 Reset to Default
 Details
-Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation (AG-7)
+Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation
 Test command
 actions.test
 [title] Default: Empty
@@ -517,7 +517,7 @@ Off
 [title] Reset to default false
 Reset to Default
 Details
-Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true (MT-2)
+Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true
 Notifications
 Notify when approvals are waiting
 notify.approvals

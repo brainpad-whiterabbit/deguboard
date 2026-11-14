@@ -209,10 +209,11 @@ export const configSchema = z.looseObject({
     .prefault({}),
   metrics: z
     .looseObject({
+      // 会話記録を読んで使用量を補う設定（MT-2）
       read_transcripts: described(z.boolean().default(false), {
         summary: "Read conversation transcripts to fill in usage",
         description:
-          "Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true (MT-2)",
+          "Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true",
       }),
     })
     .prefault({}),
@@ -227,10 +228,11 @@ export const configSchema = z.looseObject({
     .prefault({}),
   actions: z
     .looseObject({
+      // 任意のシェルの Action を許す設定（AG-7）
       shell: described(z.boolean().default(false), {
         summary: "Allow the arbitrary shell Action",
         description:
-          "Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation (AG-7)",
+          "Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation",
       }),
       test: described(z.array(z.string().min(1)).default([]), {
         summary: "Command run by the quality gate's check and the test Action",
