@@ -1,6 +1,6 @@
 // カンバンのデータを、コードとは別のリポジトリ（git.data_remote）に置く（t904）。コード用（origin）とデータ用の 2 つの bare リモートで試す
 
-import { writeFile } from "node:fs/promises";
+import { mkdir, rmdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { addDataRemote, git, type Fixture } from "../../test/helpers/git-fixture.js";
@@ -288,6 +288,128 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
     const subjects = (await git(b2.repo.dataDir, ["log", "--format=%s"])).stdout.split("\n");
     expect(subjects.filter((s) => s === subjects[0])).toHaveLength(1);
     expect(await oldTip()).not.toBe(await headOf(b2));
+  });
+
+  // 取り込み直しで止まるエラーの種類によらず、書き込みの経路が自分のコミットだけを捨てる（t913）。
+  // DATA_REMOTE_CHANGED と DATA_HISTORY_UNRELATED のどちらでもないエラーを、rebase の後と前のそれぞれで仮に起こす
+  describe("push が拒否された後の取り込み直しが、決まった種類でないエラーで止まる", () => {
+    /**
+     * B に前からの手元のコミット（まとめ待ちの変更。書き込みが先にコミットする）がある状態で、B の push の直前に A が先に push する。
+     * B の push は拒否され、取り込み直しに入る。fail は A が push した直後に呼ばれ、取り込み直しを止める仕掛けを置く
+     */
+    async function rejectedThenStopped(
+      fail: (racer: CommandContext, hooks: { beforePush: () => Promise<void> }) => Promise<void>,
+    ) {
+      const { f, dataDir, a, b } = await twoClones();
+      await runCommand(ticketCreate, a, { title: "A" });
+      await runCommand(sync, b, {});
+      // まとめ待ち（batch）の文脈を先に開いてから、B を書き込みのたびにコミットして push する設定にする
+      const batch = await openContext({ cwd: f.cloneB, actor });
+      await runCommand(configSet, b, { key: "commit.mode", value: "each", local: true });
+      await runCommand(ticketUpdate, batch, { ticket: "t1", title: "前からの変更" });
+      expect((await git(b.repo.dataDir, ["status", "--porcelain"])).stdout).not.toBe("");
+      const hooks = {
+        beforePush: async () => {
+          hooks.beforePush = async () => {};
+          await runCommand(ticketCreate, a, { title: "リモートの変更" });
+          await fail(racer, hooks);
+        },
+      };
+      const racer: CommandContext = await openContext({ cwd: f.cloneB, actor, hooks });
+      return { f, dataDir, racer };
+    }
+
+    /** 手元に残った、リモートにないコミットの 1 行目（新しい順） */
+    const aheadOf = async (ctx: CommandContext) =>
+      (
+        await git(ctx.repo.dataDir, ["log", "--format=%s", `${dataRemoteRef(ctx.repo)}..HEAD`])
+      ).stdout
+        .split("\n")
+        .filter(Boolean);
+
+    /** 止まった後のもう一度の実行は push まで進み、同じ変更のコミットは 1 つだけ */
+    async function rerunOnce(cwd: string, dataDir: string) {
+      const again = await openContext({ cwd, actor });
+      const updated = await runCommand(ticketUpdate, again, { ticket: "t1", priority: "high" });
+      expect(updated.write).toMatchObject({ committed: true, pushed: true });
+      expect(await tipOf(dataDir, "deguboard")).toBe(await headOf(again));
+      const subjects = (await git(again.repo.dataDir, ["log", "--format=%s"])).stdout.split("\n");
+      expect(subjects.filter((s) => s === subjects[0])).toHaveLength(1);
+      expect(again.store.tickets.get("t1")?.data).toMatchObject({
+        priority: "high",
+        title: "前からの変更",
+      });
+    }
+
+    it("rebase の後に止まったら、積み直した自分のコミットだけを捨て、取り込んだコミットと前からの手元のコミットは残す", async () => {
+      const { f, dataDir, racer } = await rejectedThenStopped(async (_racer, hooks) => {
+        // 取り込み直し（rebase）の後、もう一度の push の直前で止める
+        hooks.beforePush = async () => {
+          throw new Error("取り込み直しの後の新しいエラー");
+        };
+      });
+      await expect(
+        runCommand(ticketUpdate, racer, { ticket: "t1", priority: "high" }),
+      ).rejects.toThrow("取り込み直しの後の新しいエラー");
+      // 自分のコミットだけが消え、前からの手元のコミットはリモートの先端（取り込んだコミット）の上に残る
+      expect(await aheadOf(racer)).toEqual(["Commit batched changes"]);
+      expect((await git(racer.repo.dataDir, ["rev-parse", "HEAD~1"])).stdout.trim()).toBe(
+        await tipOf(dataDir, "deguboard"),
+      );
+      expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+      expect([...racer.store.tickets.keys()].sort()).toEqual(["t1", "t2"]);
+      expect(racer.store.tickets.get("t1")?.data.title).toBe("前からの変更");
+      expect(racer.store.tickets.get("t1")?.data.priority).not.toBe("high");
+      await rerunOnce(f.cloneB, dataDir);
+    });
+
+    it("rebase の前に止まったら、変更の前へ戻して自分のコミットだけを捨て、前からの手元のコミットは残す", async () => {
+      // 取り込みが rebase の前に書く、自動で解いたフィールドのログの場所。ディレクトリを置くと、rebase を始める前に例外になる
+      const logOf = (ctx: CommandContext) => path.join(ctx.repo.localDir, "resolve-log.jsonl");
+      const { f, dataDir, racer } = await rejectedThenStopped(async (ctx) => {
+        await mkdir(logOf(ctx));
+      });
+      await expect(
+        runCommand(ticketUpdate, racer, { ticket: "t1", priority: "high" }),
+      ).rejects.toMatchObject({ code: "EISDIR" });
+      // rebase は始まっていないので、手元は前からのコミットが先頭のまま（リモートの変更は fetch しただけで、積み直していない）
+      const ahead = (await git(racer.repo.dataDir, ["log", "--format=%s", "-2"])).stdout.split(
+        "\n",
+      );
+      expect(ahead[0]).toBe("Commit batched changes");
+      expect(await aheadOf(racer)).toEqual(["Commit batched changes"]);
+      expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+      expect([...racer.store.tickets.keys()]).toEqual(["t1"]);
+      expect(racer.store.tickets.get("t1")?.data.title).toBe("前からの変更");
+      expect(racer.store.tickets.get("t1")?.data.priority).not.toBe("high");
+      await rmdir(logOf(racer));
+      await rerunOnce(f.cloneB, dataDir);
+    });
+
+    it("競合で止まったときは今までどおり、コミットを手元に残して警告で戻し方を案内する", async () => {
+      const { f, a, b } = await twoClones();
+      await runCommand(ticketCreate, a, { title: "A" });
+      await runCommand(sync, b, {});
+      await runCommand(configSet, b, { key: "commit.mode", value: "each", local: true });
+      await runCommand(configSet, a, { key: "commit.mode", value: "each", local: true });
+      // B の push の直前に、A が同じフィールドを別の値にして push する
+      const hooks = {
+        beforePush: async () => {
+          hooks.beforePush = async () => {};
+          const other = await openContext({ cwd: f.cloneA, actor });
+          await runCommand(ticketUpdate, other, { ticket: "t1", priority: "low" });
+        },
+      };
+      const racer = await openContext({ cwd: f.cloneB, actor, hooks });
+      const updated = await runCommand(ticketUpdate, racer, { ticket: "t1", priority: "high" });
+      expect(updated.write).toMatchObject({ committed: true, pushed: false });
+      expect(updated.warnings.join("\n")).toMatch(
+        /Conflicts with remote changes, so it cannot push/,
+      );
+      expect(updated.warnings.join("\n")).toContain("dg sync --resolve");
+      expect(await aheadOf(racer)).toHaveLength(1);
+      expect(racer.store.tickets.get("t1")?.data.priority).toBe("high");
+    });
   });
 
   it("積み直しで自分のコミットが空になって落ちたとき、同じ秒・同じメッセージの前からの手元のコミットを捨てない", async () => {
