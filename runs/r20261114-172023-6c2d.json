@@ -1,0 +1,48 @@
+{
+  "id": "r20261114-172023-6c2d",
+  "ticket": "t915",
+  "step": "review",
+  "agent": "unknown",
+  "model": null,
+  "started_at": "2026-11-14T17:20:23Z",
+  "finished_at": "2026-11-14T17:20:23Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  },
+  "tools": null,
+  "session": "e9df0304-4b12-43a8-86ab-9bd927db509c",
+  "review": {
+    "heavy": 0,
+    "light": 4,
+    "passed": true,
+    "causes": {
+      "heavy": {
+        "ticket": 0,
+        "plan": 0,
+        "implementation": 0,
+        "tests": 0,
+        "documents": 0,
+        "environment": 0,
+        "unknown": 0
+      },
+      "light": {
+        "ticket": 1,
+        "plan": 0,
+        "implementation": 3,
+        "tests": 0,
+        "documents": 0,
+        "environment": 0,
+        "unknown": 0
+      }
+    }
+  },
+  "head": "19a137c0cbc2c4dc5e40638dc4e66527b07f513d",
+  "capture": "none"
+}
