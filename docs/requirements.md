@@ -191,7 +191,7 @@ updated_at: 2026-10-31T05:10:00Z
 - CL-5 `dg guide <topic>` は、各手のやり方を `config.yaml` の値で埋めて出す。`guide.notes.<topic>` の文書は題名の直後（節なら見出しの直後）に差し込み、読めなければ警告を出す。`--section <節>` は節だけを出し（重ねると順につなぐ）、ない節は使い方の誤りとして一覧を添えて失敗する。段階・次の手は Core が返す（EX-3。[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
-- CL-8 `dg` の出力（ヘルプ・MCP のツールの説明・エラー・警告・次の手の理由・定型の文・`dg` が書くコミットの題）は英語で出し、既定の値（`config.yaml` の既定など）も英語で持つ。チケットの中身と `config.yaml` に書いた値は書いたまま出す。日本語で書いた古い既定の写しも、人が書いた値として扱う。理由は [ADR-001](adr/ADR-001-doc-strategy.md)
+- CL-8 `dg` の出力（ヘルプ・MCP のツールの説明・エラー・警告・次の手の理由・定型の文・`dg` が書くコミットの題）は英語で出し、既定の値（`config.yaml` の既定など）も英語で持つ。チケットの中身と `config.yaml` に書いた値（日本語で書いた古い既定の写しも含む）は書いたまま出す。理由は [ADR-001](adr/ADR-001-doc-strategy.md)
 
 ### 6.2 状態遷移と照合
 
