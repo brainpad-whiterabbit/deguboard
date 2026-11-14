@@ -1,0 +1,33 @@
+{
+  "id": "r20261114-153023-3c69",
+  "ticket": "t909",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-14T15:30:23Z",
+  "finished_at": "2026-11-14T15:37:10Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "After a rejected push, the retry throws the unrelated-history error while this command's commit is left in place, so the change is written despite the promise",
+    "The error message and guides use the same placeholder for the option value and the recommended branch name, which can be misread"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 9100,
+    "cache_read": 801760,
+    "cache_write": 74954
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 7,
+    "bash": 11,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "f14c3b91-5cda-4397-a480-e83c7a9900ed",
+  "review": null
+}
