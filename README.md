@@ -4,7 +4,7 @@ English | [日本語](https://github.com/brainpad-whiterabbit/deguboard/blob/mai
 
 An agentic kanban board inside your Git repository, with the development flow built in, so you and AI agents can grow your software together while keeping its quality high. Inspired by [Agentic-Agile](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md), it supports our own take on Agentic-Agile. You bring the idea; agents turn it into small tickets with acceptance criteria, implement them in parallel, and keep revising each one until it passes the quality gate. Every agent run is measured, and in the retrospective you decide how to improve the agents and the software.
 
-- **You stay in charge**: Agents start only after you approve the plan, and a PR becomes ready or merges only when the quality gate (the checks and an independent review) passes. The AI never runs away with the work.
+- **You stay in charge**: Agents start only after you approve the plan. A PR becomes ready after it passes the quality gate (the checks and an independent review), and the agent asks for your approval before merging it. The AI never runs away with the work.
 - **Made for teams**: The board lives on a dedicated branch of your repository, so everyone who clones it sees the same board. There is no server or service to run.
 - **Measure and improve**: Each run records how long each step took, how many tokens it used, and how much rework it needed, and the metrics your team approved show their trend, so the bottlenecks become the next tickets.
 
@@ -47,7 +47,7 @@ The Board shows the tickets of an Iteration in columns by status, and the band a
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="Planning and approving the order" width="612">
 
-3. **Work**: Choose **Ask Agent** → **Run Plan** on the Plan in the band. Agents implement the tickets that are not blocked at the same time, each on its own branch and worktree, and open PRs. A PR becomes ready and merges only when the quality gate passes. As the work goes on, the colors in the graph and the columns of the Board change.
+3. **Work**: Choose **Ask Agent** → **Run Plan** on the Plan in the band. Agents implement the tickets that are not blocked at the same time, each on its own branch and worktree, and open PRs. A PR becomes ready after it passes the quality gate, and the agent merges it after your approval. If the gate is not met, your approval can override only the conditions allowed by the config; see the [merge approval details](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#hand-off-everything), including the option to merge passing PRs without asking with `--auto`. As the work goes on, the colors in the graph and the columns of the Board change.
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.gif" alt="Agents working on a plan in parallel" width="612">
 
