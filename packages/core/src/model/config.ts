@@ -172,7 +172,7 @@ export type RetroPerspective = z.output<typeof retroPerspectiveSchema>;
 /**
  * 振り返りの観点の既定。Agentic-Agile の評価の枠組み（microsoft/agentic-agile-template の docs/evaluation-framework.md）にもとづく 7 つで、
  * どれも指標の定義は空（測りたいものと測れるものは利用者ごとに違うので、指標は決め打ちしない）。
- * 名前と問いは priority.* の既定と同じく日本語で持ち、書いたまま出す（CL-8）
+ * 名前と問いは priority.* の既定と同じく、今は日本語で持つ（既定の値は英語で持つ決まり（CL-8）に合わせて英語に替えるまで、画面は訳さずに出す）
  */
 const DEFAULT_RETRO_PERSPECTIVES: Record<string, RetroPerspective> = {
   outcome: {

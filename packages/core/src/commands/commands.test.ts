@@ -5,13 +5,14 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createLocalOnlyRepo, git } from "../../test/helpers/git-fixture.js";
 import { UsageError } from "../errors.js";
-import { configFields, defaultConfig } from "../model/config.js";
+import { configFields, defaultConfig, flattenConfig } from "../model/config.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
 import { epicClose, epicCreate } from "./epic.js";
 import { findCommand } from "./index.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
 import { planClose, planCreate } from "./plan.js";
+import { retroPerspective } from "./retro.js";
 import {
   configSet,
   configShow,
@@ -446,6 +447,20 @@ describe("用意", () => {
     expect(byKey.get("git.remote")?.clears_to_default).toBe(true);
     expect(byKey.get("models.light")?.clears_to_default).toBe(false);
     expect(byKey.get("auto.merge")?.clears_to_default).toBe(false);
+    // 既定は、チームと個人の値を変えても既定のまま返す。葉の項目は fields の default と同じ値で、
+    // fields に入らない振り返りの観点（retro.perspectives）の既定も返す（画面が既定のままかを比べる）
+    expect(shown.defaults).toEqual(defaultConfig());
+    expect(shown.defaults.models.light).toBe(byKey.get("models.light")?.default);
+    expect(flattenConfig(shown.defaults)).toMatchObject(
+      Object.fromEntries(
+        shown.fields.filter((x) => x.default !== undefined).map((x) => [x.key, x.default]),
+      ),
+    );
+    expect(shown.defaults.retro.perspectives.outcome).toBeDefined();
+    await runCommand(retroPerspective, ctx, { id: "outcome", name: "Outcome" });
+    const rewritten = (await runCommand(configShow, ctx, { fields: true })).data as ConfigShowView;
+    expect(rewritten.team.retro.perspectives.outcome?.name).toBe("Outcome");
+    expect(rewritten.defaults.retro.perspectives).toEqual(shown.defaults.retro.perspectives);
     // --fields なしは重ねた値だけ
     expect((await runCommand(configShow, ctx, {})).data).toMatchObject({
       models: { light: "my-light" },

@@ -1,7 +1,14 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { askCandidates, buildAsk, configFields, type AskSubject } from "@deguboard/core";
+import {
+  askCandidates,
+  buildAsk,
+  configFields,
+  defaultConfig,
+  flattenConfig,
+  type AskSubject,
+} from "@deguboard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   configDescription,
@@ -9,19 +16,21 @@ import {
   languageOf,
   msg,
   setLanguage,
-  shownConfigValue,
-  storedConfigValue,
+  shownDefault,
+  storedDefault,
   tr,
   trCore,
   trCoreMessage,
+  type Language,
 } from "./l10n.js";
 import {
   CONFIG_DESCRIPTIONS,
   CORE_LABELS,
   CORE_MESSAGES,
+  DEFAULT_VALUES,
   type CoreTextTable,
 } from "./l10n-core.js";
-import { EN, EN_ONE, PRIORITY_CRITERIA_EN } from "./l10n-en.js";
+import { EN, EN_ONE } from "./l10n-en.js";
 
 const srcDir = dirname(fileURLToPath(import.meta.url));
 
@@ -98,7 +107,7 @@ describe("表示言語の決め方と訳し方", () => {
     expect(msg("カンバン")).toBe("カンバン");
     expect(trCoreMessage("commit.mode の値が正しくない")).toBe("commit.mode の値が正しくない");
     const high = configFields().find((f) => f.key === "priority.high")!.default as string;
-    expect(shownConfigValue("priority.high", high, high)).toBe(high);
+    expect(shownDefault(high, high)).toBe(high);
   });
   it("英語では訳の表で出し、表にない鍵は鍵のまま出す", () => {
     setLanguage("en");
@@ -435,6 +444,7 @@ describe("core の文の訳の表の引き方（t649）", () => {
         "Cannot parse JSON": { ja: "JSON を読めない" },
       },
       CONFIG_DESCRIPTIONS: { "Git remote to sync with": { ja: "同期先のリモート" } },
+      DEFAULT_VALUES: { "Default text": { ja: "既定の文" } },
     }));
     try {
       const l = await import("./l10n.js");
@@ -446,7 +456,14 @@ describe("core の文の訳の表の引き方（t649）", () => {
         "deguboard-local/runs/r1.json: JSON を読めない",
       );
       expect(l.configDescription("Git remote to sync with")).toBe("同期先のリモート");
+      // 既定の値も同じ引き方：英語で持つ既定は、既定のままのときだけ日本語の訳で出し、訳の文は既定に戻して保存する
+      expect(l.shownDefault("Default text", "Default text")).toBe("既定の文");
+      expect(l.shownDefault("Rewritten", "Default text")).toBe("Rewritten");
+      expect(l.shownDefault("既定の文", "Default text")).toBe("既定の文");
+      expect(l.storedDefault("既定の文", "Default text")).toBe("Default text");
       l.setLanguage("en");
+      expect(l.shownDefault("Default text", "Default text")).toBe("Default text");
+      expect(l.storedDefault("既定の文", "Default text")).toBe("既定の文");
       expect(l.trCore("Remove from s3")).toBe("Remove from s3");
       expect(l.trCoreMessage("t3 not found (deleted)")).toBe("t3 not found (deleted)");
       expect(l.configDescription("Git remote to sync with")).toBe("Git remote to sync with");
@@ -457,43 +474,94 @@ describe("core の文の訳の表の引き方（t649）", () => {
   });
 });
 
-describe("優先度の判断基準の既定の訳（UI-11）", () => {
-  const defaults = Object.fromEntries(
-    configFields()
-      .filter((f) => f.key.startsWith("priority."))
-      .map((f) => [f.key, f.default as string]),
-  );
-  const KEY = "priority.high";
+describe("既定の値の訳（UI-11）", () => {
+  /** 優先度の判断基準の既定（core が日本語で持つ）。DEFAULT_VALUES に英語の訳がある */
+  const HIGH = configFields().find((f) => f.key === "priority.high")!.default as string;
+  const HIGH_EN = DEFAULT_VALUES[HIGH]!.en!;
+  /** 表示言語を順に切り替えて確かめる */
+  const inEach = (check: (language: Language) => void) => {
+    for (const language of ["ja", "en"] as const) {
+      setLanguage(language);
+      check(language);
+    }
+  };
 
-  it("core の既定の判断基準は、訳を書いたときの文のまま（既定を書き換えたら PRIORITY_CRITERIA_EN の訳も直す）", () => {
-    expect(defaults).toEqual({
-      "priority.high":
-        "利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている",
-      "priority.medium":
-        "機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存",
-      "priority.low": "使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討",
-    });
-  });
-  it("英語の訳は 3 つの値を持ち、日本語を含まない", () => {
-    expect(Object.keys(PRIORITY_CRITERIA_EN).sort()).toEqual(["high", "low", "medium"]);
-    for (const [level, text] of Object.entries(PRIORITY_CRITERIA_EN)) {
-      expect(text, level).not.toMatch(JAPANESE);
+  it("DEFAULT_VALUES の鍵はどれも core の既定の文で、表示言語（ja・en）の訳だけを持つ（既定を書き換えたら鍵と訳も直す）", () => {
+    // core の既定の文：config の既定（葉の項目と、振り返りの観点の名前と問い）
+    const coreDefaults = new Set(
+      Object.values(flattenConfig(defaultConfig())).filter((v) => typeof v === "string"),
+    );
+    expect(Object.keys(DEFAULT_VALUES).length).toBeGreaterThan(0);
+    for (const [key, entry] of Object.entries(DEFAULT_VALUES)) {
+      expect(coreDefaults.has(key), key).toBe(true);
+      expect(Object.keys(entry).length, key).toBeGreaterThan(0);
+      for (const [language, text] of Object.entries(entry)) {
+        expect(["ja", "en"], key).toContain(language);
+        // 訳は鍵（core の文）と違う言語で書く。同じ言語の訳は要らない（訳がなければ既定の文のまま出す）
+        expect(JAPANESE.test(text), key).toBe(language === "ja");
+        expect(JAPANESE.test(key), key).toBe(language !== "ja");
+      }
     }
   });
-  it("英語の表示で既定のままなら英語の訳を出し、書き換えた値は書いた言葉のまま出す", () => {
+  it("優先度の判断基準の既定は 3 つとも英語の訳を持つ", () => {
+    for (const level of ["high", "medium", "low"]) {
+      const value = configFields().find((f) => f.key === `priority.${level}`)!.default as string;
+      expect(DEFAULT_VALUES[value]?.en, level).toBeDefined();
+    }
+  });
+  it("既定のままの値は、今の言語の訳があれば訳で、なければ既定の文のまま出す", () => {
+    // 既定が日本語なので、日本語の表示では訳さない
+    expect(shownDefault(HIGH, HIGH)).toBe(HIGH);
     setLanguage("en");
-    expect(shownConfigValue(KEY, defaults[KEY], defaults[KEY])).toBe(PRIORITY_CRITERIA_EN.high);
-    expect(shownConfigValue(KEY, "独自の基準", defaults[KEY])).toBe("独自の基準");
-    // 優先度以外の項目は、既定と同じでも訳さない
-    expect(shownConfigValue("git.remote", "origin", "origin")).toBe("origin");
+    expect(shownDefault(HIGH, HIGH)).toBe(HIGH_EN);
+    // 訳のない既定は、既定と同じでも値のまま
+    inEach(() => expect(shownDefault("origin", "origin")).toBe("origin"));
+  });
+  it("既定を書き換えた値は、どちらの表示言語でも書いたまま出す。ほかの既定と同じ文・訳と同じ文・古い既定の写しも人の値として扱う", () => {
+    const medium = configFields().find((f) => f.key === "priority.medium")!.default as string;
+    inEach((language) => {
+      for (const written of ["独自の基準", "Our own criteria", ""]) {
+        expect(shownDefault(written, HIGH), `${language}: ${written}`).toBe(written);
+      }
+      // 訳の表にある文でも、この項目の既定と違えば訳さない（ほかの項目の既定と、訳の文そのもの）
+      expect(shownDefault(medium, HIGH), language).toBe(medium);
+      expect(shownDefault(HIGH_EN, HIGH), language).toBe(HIGH_EN);
+      // 既定が変わった後に残る、前の既定の写し（表に訳が残っていても、今の既定と違うので書いたまま）
+      expect(shownDefault(HIGH, "New default"), language).toBe(HIGH);
+    });
+  });
+  it("文字列でない値（リスト・真偽・数）と、既定のない値は値のまま出す", () => {
+    const list = ["a"];
+    inEach(() => {
+      expect(shownDefault(list, list)).toBe(list);
+      expect(shownDefault(true, true)).toBe(true);
+      expect(shownDefault(3, 3)).toBe(3);
+      expect(shownDefault(undefined, undefined)).toBeUndefined();
+      expect(shownDefault(HIGH, undefined)).toBe(HIGH);
+    });
   });
   it("入力欄の訳の文は保存するとき既定の値に戻し、ほかの文はそのまま保存する", () => {
     setLanguage("en");
-    expect(storedConfigValue(KEY, PRIORITY_CRITERIA_EN.high, defaults[KEY])).toBe(defaults[KEY]);
-    expect(storedConfigValue(KEY, "独自の基準", defaults[KEY])).toBe("独自の基準");
+    expect(storedDefault(HIGH_EN, HIGH)).toBe(HIGH);
+    expect(storedDefault("独自の基準", HIGH)).toBe("独自の基準");
+    // 訳のない既定は、何を打ってもそのまま
+    expect(storedDefault("upstream", "origin")).toBe("upstream");
+    expect(storedDefault("", undefined)).toBe("");
+    // 訳を出していない言語では、訳と同じ文も人の値
     setLanguage("ja");
-    expect(storedConfigValue(KEY, PRIORITY_CRITERIA_EN.high, defaults[KEY])).toBe(
-      PRIORITY_CRITERIA_EN.high,
-    );
+    expect(storedDefault(HIGH_EN, HIGH)).toBe(HIGH_EN);
+  });
+  it("出した文をそのまま保存に戻すと、どちらの表示言語でも元の値になる（欄を書き換えずに離れても値が変わらない）", () => {
+    inEach((language) => {
+      for (const value of [HIGH, HIGH_EN, "独自の基準", "origin"]) {
+        for (const defaultValue of [HIGH, "origin"]) {
+          const shown = shownDefault(value, defaultValue);
+          // 訳と同じ文を人が書いていた値は、欄を離れても書き換えない（画面は出した文のままなら値を渡す）ので、ここでは除く
+          if (value !== defaultValue && shown === shownDefault(defaultValue, defaultValue))
+            continue;
+          expect(storedDefault(shown, defaultValue), `${language}: ${value}`).toBe(value);
+        }
+      }
+    });
   });
 });

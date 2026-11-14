@@ -28,7 +28,7 @@ import type {
   RetroMetric,
   RetroPerspective,
 } from "../types.js";
-import { configDescription, shownConfigValue, storedConfigValue, tr, msg } from "../l10n.js";
+import { configDescription, shownDefault, storedDefault, tr, msg } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
 /** 画面のまとまり。キーの最上位（commit.mode なら commit）で振り分ける */
@@ -192,11 +192,11 @@ export function valueAt(config: unknown, key: string): unknown {
 }
 
 /**
- * 項目の値の表示。優先度の判断基準の既定のままの値は表示言語の訳で出す（UI-11）。field がなければ値のまま
+ * 項目の値の表示。既定のままの値は、訳のある既定なら表示言語の訳で出す（shownDefault。UI-11）。field がなければ値のまま
  * （保存した・外した・チームの値・確かめの文・既定の表示が使う）
  */
 function valueText(field: ConfigField | undefined, value: unknown): string {
-  return formatValue(field ? shownConfigValue(field.key, value, field.default) : value);
+  return formatValue(field ? shownDefault(value, field.default) : value);
 }
 
 /** 既定の値の表示（valueText の既定の版） */
@@ -1129,15 +1129,15 @@ function FieldInput({
           type={field.type === "number" ? "number" : "text"}
           className="config-text"
           placeholder={exampleText(field)}
-          value={String(draft ?? shownConfigValue(field.key, value, field.default) ?? "")}
+          value={String(draft ?? shownDefault(value, field.default) ?? "")}
           disabled={disabled}
           onChange={(e) => onDraft(e.target.value)}
           onBlur={(e) => {
             // 表示した文のまま離れたら値を変えない（何もしないで離れて、訳の文を config.yaml に書き込まないため）。
-            // 文を書き換えたときだけ、訳の文なら既定の値に戻す（storedConfigValue）
+            // 文を書き換えたときだけ、訳の文なら既定の値に戻す（storedDefault）
             const text = e.target.value;
-            const shown = String(shownConfigValue(field.key, value, field.default) ?? "");
-            onChange(text === shown ? value : storedConfigValue(field.key, text, field.default));
+            const shown = String(shownDefault(value, field.default) ?? "");
+            onChange(text === shown ? value : storedDefault(text, field.default));
           }}
           onKeyDown={(e) => {
             // 欄を離れたときに保存する（Enter と blur で 2 回保存しない）

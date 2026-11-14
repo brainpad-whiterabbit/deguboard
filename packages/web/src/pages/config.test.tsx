@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { setLanguage } from "../l10n.js";
-import { PRIORITY_CRITERIA_EN } from "../l10n-en.js";
+import { DEFAULT_VALUES } from "../l10n-core.js";
 import { App } from "../app.js";
 import { ClientError } from "../client/http.js";
 import { toggleRoute } from "../router.js";
@@ -1252,6 +1252,8 @@ describe("設定画面の部品", () => {
 describe("優先度の判断基準の英語の表示と保存（UI-11）", () => {
   const defaultOf = (key: string) => configFields().find((f) => f.key === key)!.default as string;
   const DEFAULT_HIGH = defaultOf("priority.high");
+  /** 既定の値の英語の訳（DEFAULT_VALUES）。既定のままのときだけ英語の表示で出る */
+  const EN_HIGH = DEFAULT_VALUES[DEFAULT_HIGH]!.en!;
   /** 判断基準の 3 つの値。medium・low は既定のまま */
   const priority = (high: string) => ({
     high,
@@ -1277,14 +1279,36 @@ describe("優先度の判断基準の英語の表示と保存（UI-11）", () =>
     try {
       const { client, config } = configClient();
       withPriorityFields(client);
-      Object.assign(config, { priority: priority(PRIORITY_CRITERIA_EN.high) });
+      Object.assign(config, { priority: priority(EN_HIGH) });
       mount(client);
       await screen.findByText("Commit mode");
-      expect(highInput().value).toBe(PRIORITY_CRITERIA_EN.high);
+      expect(highInput().value).toBe(EN_HIGH);
       fireEvent.blur(highInput());
       expect(setCalls(client)).toEqual([]);
     } finally {
       setLanguage("ja");
+    }
+  });
+
+  it("既定を書き換えた値は、どちらの表示言語でも書いたまま欄に出し、何もしないで離れても保存しない", async () => {
+    for (const [language, name] of [
+      ["ja", "コミットの仕方"],
+      ["en", "Commit mode"],
+    ] as const) {
+      setLanguage(language);
+      try {
+        const { client, config } = configClient();
+        withPriorityFields(client);
+        Object.assign(config, { priority: priority("独自の基準") });
+        mount(client);
+        await screen.findByText(name);
+        expect(highInput().value, language).toBe("独自の基準");
+        fireEvent.blur(highInput());
+        expect(setCalls(client), language).toEqual([]);
+      } finally {
+        setLanguage("ja");
+        cleanup();
+      }
     }
   });
 
@@ -1296,9 +1320,9 @@ describe("優先度の判断基準の英語の表示と保存（UI-11）", () =>
       Object.assign(config, { priority: priority(DEFAULT_HIGH) });
       mount(client);
       await screen.findByText("Commit mode");
-      expect(highInput().value).toBe(PRIORITY_CRITERIA_EN.high);
+      expect(highInput().value).toBe(EN_HIGH);
       fireEvent.blur(highInput());
-      fireEvent.change(highInput(), { target: { value: PRIORITY_CRITERIA_EN.high } });
+      fireEvent.change(highInput(), { target: { value: EN_HIGH } });
       fireEvent.blur(highInput());
       expect(setCalls(client)).toEqual([]);
       // 書き換えた文は、そのまま保存する
@@ -1320,7 +1344,7 @@ describe("優先度の判断基準の英語の表示と保存（UI-11）", () =>
       Object.assign(config, { priority: priority("独自の基準") });
       mount(client);
       await screen.findByText("Commit mode");
-      fireEvent.change(highInput(), { target: { value: PRIORITY_CRITERIA_EN.high } });
+      fireEvent.change(highInput(), { target: { value: EN_HIGH } });
       fireEvent.blur(highInput());
       await waitFor(() =>
         expect(setCalls(client)).toEqual([{ key: "priority.high", value: DEFAULT_HIGH }]),
@@ -1346,7 +1370,7 @@ describe("優先度の判断基準の英語の表示と保存（UI-11）", () =>
       );
       const saved = await waitFor(() => {
         const el = document.querySelector(".config-saved");
-        expect(el?.textContent).toContain(PRIORITY_CRITERIA_EN.high);
+        expect(el?.textContent).toContain(EN_HIGH);
         return el!;
       });
       expect(saved.textContent).not.toContain(DEFAULT_HIGH);

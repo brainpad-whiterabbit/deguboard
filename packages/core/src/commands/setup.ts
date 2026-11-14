@@ -1244,7 +1244,7 @@ export const configShow = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Also show, with the values, each leaf item's key, type, default, summary, description, example, empty (what an empty value does), option_descriptions, and scope (scope: team is team-only, local can be overridden personally), plus the team values and personal overrides (in the form { config, team, local, fields }; used by the settings screen). fields leaves out the perspectives of the retrospective (retro.perspectives), which are nested by perspective and written with dg retro",
+        "Also show, with the values, each leaf item's key, type, default, summary, description, example, empty (what an empty value does), option_descriptions, and scope (scope: team is team-only, local can be overridden personally), plus the team values, personal overrides, and the defaults of every item (in the form { config, team, local, defaults, fields }; used by the settings screen). fields leaves out the perspectives of the retrospective (retro.perspectives), which are nested by perspective and written with dg retro; their default is in defaults",
       ),
   }),
   write: false,
@@ -1257,6 +1257,7 @@ export const configShow = defineCommand({
         config,
         team: ctx.store.teamConfig,
         local: ctx.store.localConfig,
+        defaults: defaultConfig(),
         fields: configFields(),
       });
     }
@@ -1272,6 +1273,11 @@ export interface ConfigShowView {
   team: Config;
   /** 個人の上書き（ドット区切りの項目名 → 値）。上書きできる項目でスキーマに合うものだけ */
   local: Record<string, unknown>;
+  /**
+   * どの値も既定のままの config（config.yaml が空のときの値）。葉の項目の既定は fields の default と同じ値で、
+   * fields に入らない振り返りの観点（retro.perspectives）の既定もここで返す。画面は値がこれと同じときだけ、既定のままとして表示言語に訳す（UI-11）
+   */
+  defaults: Config;
   fields: ConfigField[];
 }
 

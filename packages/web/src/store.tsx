@@ -32,20 +32,19 @@ import type {
   WorkflowView,
 } from "./types.js";
 import type { UiState } from "./ui-state.js";
-import { shownConfigValue, tr } from "./l10n.js";
+import { shownDefault, tr } from "./l10n.js";
 
 /** 優先度の判断基準（config.yaml の priority。config.show が core の既定を混ぜて返す）。読み終えるまでは空 */
 const EMPTY_PRIORITY_CRITERIA: Record<Priority, string> = { high: "", medium: "", low: "" };
 
 /**
- * config.show --fields の値から優先度の判断基準の表示を作る。既定のままの値は表示言語の訳にし、書き換えた値は書いた言葉のまま（UI-11）。
- * 既定は fields の default（core が決める）で比べ、web では core の既定の文を持たない
+ * config.show --fields の値から優先度の判断基準の表示を作る。既定のままの値は表示言語の訳にし、書き換えた値は書いた言葉のまま
+ * （既定の値の決まり。判定と訳は shownDefault）。既定は fields の default（core が決める）で比べる
  */
 function priorityCriteriaOf(view: ConfigShowView): Record<Priority, string> {
   const shown = (level: Priority) =>
     String(
-      shownConfigValue(
-        `priority.${level}`,
+      shownDefault(
         view.config.priority[level],
         view.fields.find((f) => f.key === `priority.${level}`)?.default,
       ),

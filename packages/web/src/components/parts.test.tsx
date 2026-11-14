@@ -5,7 +5,7 @@ import { createUiState, memoryBackend } from "../ui-state.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { StoreProvider } from "../store.js";
 import { setLanguage } from "../l10n.js";
-import { PRIORITY_CRITERIA_EN } from "../l10n-en.js";
+import { DEFAULT_VALUES } from "../l10n-core.js";
 import { configFields } from "@deguboard/core";
 import {
   IdLinkedText,
@@ -190,6 +190,7 @@ describe("優先度の印", () => {
 
   it("英語の表示で既定のままの判断基準は英語の訳で出し、書き換えた値は書いた言葉のまま出す（UI-11）", async () => {
     const defaults = configFields().filter((f) => f.key.startsWith("priority."));
+    const mediumEn = DEFAULT_VALUES[defaults[1]!.default as string]!.en!;
     const client = mockClient();
     const config = {
       default_workflow: "software-development",
@@ -214,14 +215,14 @@ describe("優先度の印", () => {
       await waitFor(() =>
         expect(
           document.querySelector(".priority-mark.priority-medium")!.getAttribute("title"),
-        ).toContain(PRIORITY_CRITERIA_EN.medium),
+        ).toContain(mediumEn),
       );
       const titles = [...document.querySelectorAll(".priority-mark")].map((el) =>
         el.getAttribute("title"),
       );
       // 書き換えた high は書いた言葉のまま、既定のままの medium は英語の訳
       expect(titles[0]).toContain("独自の基準");
-      expect(titles[1]).toContain(PRIORITY_CRITERIA_EN.medium);
+      expect(titles[1]).toContain(mediumEn);
     } finally {
       setLanguage("ja");
     }
