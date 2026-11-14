@@ -100,7 +100,12 @@ retro:
     slicing:
       name: 分け方
       question: 作業は、互いにぶつからずに並べて進められる大きさと境目に分けられたか
-      metrics: {}
+      metrics:
+        size-spread:
+          definition: 変更行（additions + deletions）が 1 行以上あるチケットの、変更行の最大 ÷ 中央値（個数が偶数のときは小さい側の中央の値）
+          sources:
+            - dg metrics show --iteration <S> --by ticket (lines.additions, lines.deletions)
+          unmeasured: PR どうしがぶつかったか
     stability:
       name: エージェントの安定
       question: エージェントの働きは、失敗・中断・やり直しなく安定して終わったか
