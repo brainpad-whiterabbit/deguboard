@@ -1,4 +1,3 @@
-default_project: default
 git:
   remote: origin
   base_branch: main
@@ -133,3 +132,4 @@ retro:
           sources:
             - dg ticket list --label retro-<前の S> --include-abandoned (status)
           unmeasured: 狙った数字が動いたか（Try の本文の数字と見比べる）
+default_workflow: software-development
