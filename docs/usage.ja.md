@@ -81,6 +81,17 @@ dg --help                     # コマンドの一覧
 
 Skill を入れていないエージェントには、`dg ask --format text` で作った文章を貼って頼める。
 
+## 他のエージェントで使う
+
+dg のフックは、エージェントの協力なしに Run を記録し、データとマージを守る。フックが届くのは今は Claude Code だけなので、ほかのエージェントでは次の違いがある。フックがセッションに届いているかは、リポジトリで `dg hooks check` を実行して確かめる。このコマンドが見るのは Claude Code の設定と受け取った記録だけなので、フックのないエージェントでは届いていないと警告するだけになる（入れ直したあとにも回せる）。
+
+フックが届かないエージェントでは、次のとおりになる。
+
+- Run は、エージェント自身の `dg run` の呼び出しでしか残らない。サブエージェントの Run は自動で開いて閉じられないので、親のエージェントが実装と手直しを自分で行ってよく、`dg run` で Run を開いて閉じる（guide の手順がそう案内する）
+- 直接の書き換えと、dg を経由しない PR の ready・マージを止めるガードが効かない。`.git/deguboard/` の直接の書き換えや、`dg pr merge` を経由しない `gh pr merge` を止めるものがなく、応答の終わりに dg の外の変更を知らせない
+- トークン数は、会話記録を読めるエージェント（今は Claude Code・Codex・Copilot CLI）だけで集計される。数えるには `metrics.read_transcripts` を有効にする（README を見る）
+- 見直し役を起動できないエージェントは、PR の見直しを人に頼み、PR の本文に見直していないと書く
+
 ## Claude Desktop から使う
 
 `dg mcp` は stdio の MCP サーバーで、`dg` のコマンドをツールとして出す。`claude_desktop_config.json` の `command` に、拡張が入れる起動ファイル `~/.local/share/deguboard/dg` の絶対パスを書き（JSON は `~` を展開しないので、macOS は `/Users/<you>/...`、Linux は `/home/<you>/...`）、引数に `-C <対象のリポジトリ>` と `mcp` を渡す。Claude Code は Bash で `dg` を呼べるので、登録は要らない。

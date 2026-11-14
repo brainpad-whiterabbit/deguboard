@@ -75,7 +75,7 @@ dg config set metrics.read_transcripts true
 - [承認待ちの通知](docs/usage.ja.md#承認待ちの通知)：承認待ちの Plan と review のチケットを知らせます。
 - [チケットへ移動する](docs/usage.ja.md#チケットへ移動する)：ID かタイトルから詳細を開きます。
 - [CLI で使う](docs/usage.ja.md#cli-で使う)・[Claude Desktop から使う（MCP）](docs/usage.ja.md#claude-desktop-から使う)
-- シェルを使えるほかのエージェント（Codex・Copilot CLI など）は準備が要りません。「`dg guide` を読んでから `dg` で進めて」と頼みます。
+- シェルを使えるほかのエージェント（Codex・Copilot CLI など）は準備が要りません。「`dg guide` を読んでから `dg` で進めて」と頼みます。フックが届かないエージェントでは、Run はエージェント自身の `dg run` の呼び出しでしか残らず、`dg pr merge` を経由しないマージを止めるものがありません。違いは[他のエージェントで使う](docs/usage.ja.md#他のエージェントで使う)にあります。
 
 ## セキュリティとプライバシー
 
