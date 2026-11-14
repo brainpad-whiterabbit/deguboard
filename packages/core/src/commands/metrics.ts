@@ -1,6 +1,6 @@
 // 作業の実績の集計（requirements.md 6.6 MT-3・MT-6、ADR-029）。metrics show は runs/ の Run とチケットの行数を読み、表示のたびに求める（何も書かない）。
 // metrics lines は done のチケットに PR の行数を後から記録する。metrics sources は振り返りの指標の元のデータ
-// （PR が変えたファイルと、ほかのチケットの ID の参照）をチケットごとに読む（MT-8。何も書かない）
+// （PR が変えたファイル、ほかのチケットの ID の参照、不具合を直すチケットの元のチケットと原因の種類）をチケットごとに読む（MT-8。何も書かない）
 
 import { z } from "zod";
 import { fetchMergedPrFiles, fetchMergedPrLines } from "../git/facts.js";
@@ -17,7 +17,7 @@ import {
   type MetricUnit,
   type MetricsReport,
 } from "../model/metrics.js";
-import { runIdSchema } from "../model/run.js";
+import { runIdSchema, type FindingCause } from "../model/run.js";
 import type { Ticket } from "../model/ticket.js";
 import { defineCommand, ok } from "./define.js";
 import { epicRef, idShapeOf, iterationRef, ticketRef } from "./helpers.js";
@@ -224,6 +224,10 @@ export interface TicketSources {
   files_unknown: string | null;
   /** 題と本文に書かれた、ほかのチケットの ID（今あるチケットだけ。出た順） */
   refs: string[];
+  /** 不具合を直すチケットの、元のチケットの ID（チケットに記録した origin。TK-12）。なければ [] */
+  origin: string[];
+  /** 元のチケットの変更が不具合を生んだ原因の種類（チケットに記録した origin_cause）。なければ null */
+  origin_cause: FindingCause | null;
 }
 
 export interface MetricsSourcesView {
@@ -235,13 +239,14 @@ export interface MetricsSourcesView {
 /**
  * 振り返りの指標の元のデータを、チケットごとに返す（MT-8）。PR どうしで重なったファイルや、
  * ほかのチケットから生まれたチケットを、エージェントが git log と本文から手で数えずに済ませる。
+ * refs は ID が書いてあることしか伝えないので、不具合を直すチケットは元のチケットと原因の種類を項目で持ち（TK-12）、それも返す。
  * ファイルのパスは Git のデータに写さない決まり（MT-4）なので、チケットに記録せず、呼ぶたびに gh から読む
  */
 export const metricsSources = defineCommand({
   name: "metrics.sources",
   group: "metrics",
   summary:
-    "Read the data behind retrospective metrics for each ticket, without writing anything: files, the paths changed by the ticket's merged PR, and refs, the IDs of other tickets written in its title and body. files comes from gh pr view, one call per ticket that has a PR number, newest ticket first, up to --limit tickets per call. files is null when it cannot be read, with the reason in files_unknown (no PR recorded, the PR is not merged or not found, gh is not available or failed, gh returned only part of a PR with more than 100 files, or not read because of --limit); it is never filled in by guessing, and null does not mean that no file changed. The tickets left unread by --limit are counted in unread; raise --limit or narrow the filter to read them. refs lists IDs in the form t12 in the order they appear, each once, leaving out the ticket itself and IDs with no ticket; it tells only that the ID is written, not why (a dependency, an origin, or an example). Filter by ticket, Epic, or Iteration (each ticket's current value); with no filter, every ticket is returned",
+    "Read the data behind retrospective metrics for each ticket, without writing anything: files, the paths changed by the ticket's merged PR; refs, the IDs of other tickets written in its title and body; and origin and origin_cause, the tickets whose change caused the defect that this ticket fixes and the kind of cause, as recorded on the ticket. files comes from gh pr view, one call per ticket that has a PR number, newest ticket first, up to --limit tickets per call. files is null when it cannot be read, with the reason in files_unknown (no PR recorded, the PR is not merged or not found, gh is not available or failed, gh returned only part of a PR with more than 100 files, or not read because of --limit); it is never filled in by guessing, and null does not mean that no file changed. The tickets left unread by --limit are counted in unread; raise --limit or narrow the filter to read them. refs lists IDs in the form t12 in the order they appear, each once, leaving out the ticket itself and IDs with no ticket; it tells only that the ID is written, not why (a dependency, an origin, or an example). origin and origin_cause are the values recorded on the ticket with ticket create, import, or update (see dg ticket update --help); origin is [] and origin_cause is null when they are not recorded. They are never filled in from refs, and an empty origin does not mean that the ticket fixes no defect (tickets from before these were recorded have none). Filter by ticket, Epic, or Iteration (each ticket's current value); with no filter, every ticket is returned",
   input: z.object({
     ticket: ticketRef.optional().describe("Only this ticket"),
     epic: epicRef.optional().describe("Only tickets in this Epic"),
@@ -301,6 +306,9 @@ export const metricsSources = defineCommand({
         refs: referencedTickets({ id: t.id, title: t.title, body: doc.body }, (id) =>
           ctx.store.tickets.has(id as TicketId),
         ),
+        // 記録した値をそのまま返す。refs から推し量って埋めない（書かれた ID は、元のチケットとは限らない）
+        origin: t.origin ?? [],
+        origin_cause: t.origin_cause ?? null,
       };
     });
     // PR のないチケット（PR の要らない作業・着手前）は普通にあるので警告しない。PR があるのに読めなかったものだけを知らせる
