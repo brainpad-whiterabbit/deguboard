@@ -553,36 +553,6 @@ models.codex.heavy
 空のとき: models.heavy を使う
 詳しく
 models.codex.heavy
-段階 light のモデル（Copilot）
-models.copilot.light
-[title] 既定は 
-変更あり
-この agent が dg next を呼んだときに、Plan の段階 light に使うモデル
-[title] 既定の  に戻す
-既定に戻す
-空のとき: models.light を使う
-詳しく
-models.copilot.light
-段階 standard のモデル（Copilot）
-models.copilot.standard
-[title] 既定は 
-変更あり
-この agent が dg next を呼んだときに、Plan の段階 standard に使うモデル
-[title] 既定の  に戻す
-既定に戻す
-空のとき: models.standard を使う
-詳しく
-models.copilot.standard
-段階 heavy のモデル（Copilot）
-models.copilot.heavy
-[title] 既定は 
-変更あり
-この agent が dg next を呼んだときに、Plan の段階 heavy に使うモデル
-[title] 既定の  に戻す
-既定に戻す
-空のとき: models.heavy を使う
-詳しく
-models.copilot.heavy
 人だけに許すコマンド
 actor.human_only
 [title] 既定は 空

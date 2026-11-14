@@ -553,36 +553,6 @@ Reset to Default
 When empty: models.heavy is used
 Details
 Model for Plan tier heavy when the agent in this key calls dg next (it overrides models.heavy for that agent). When empty, models.heavy
-Model for tier light (Copilot)
-models.copilot.light
-[title] Default: 
-Modified
-Model for Plan tier light when this agent calls dg next
-[title] Reset to default 
-Reset to Default
-When empty: models.light is used
-Details
-Model for Plan tier light when the agent in this key calls dg next (it overrides models.light for that agent). When empty, models.light
-Model for tier standard (Copilot)
-models.copilot.standard
-[title] Default: 
-Modified
-Model for Plan tier standard when this agent calls dg next
-[title] Reset to default 
-Reset to Default
-When empty: models.standard is used
-Details
-Model for Plan tier standard when the agent in this key calls dg next (it overrides models.standard for that agent). When empty, models.standard
-Model for tier heavy (Copilot)
-models.copilot.heavy
-[title] Default: 
-Modified
-Model for Plan tier heavy when this agent calls dg next
-[title] Reset to default 
-Reset to Default
-When empty: models.heavy is used
-Details
-Model for Plan tier heavy when the agent in this key calls dg next (it overrides models.heavy for that agent). When empty, models.heavy
 Commands limited to people
 actor.human_only
 [title] Default: Empty

@@ -7,7 +7,7 @@
 // 項目ごとの範囲（scope）もここで決める：local の項目だけが、Git に入らない個人の設定（deguboard-local/config.yaml）で上書きできる
 
 import { z } from "zod";
-import { agentNames } from "../agents/index.js";
+import { detectableAgentNames } from "../agents/index.js";
 import { GUIDE_TOPICS } from "../guide/topics.js";
 import { slugSchema } from "./common.js";
 
@@ -406,8 +406,9 @@ export const configSchema = z.looseObject({
         example: "opus",
         empty: PARENT_MODEL,
       }),
-      // agent ごとの上書き（models.<agent>.<tier>）。鍵は Adapter の一覧から作る
-      ...Object.fromEntries(agentNames().map((agent) => [agent, agentModelsSchema])),
+      // agent ごとの上書き（models.<agent>.<tier>）。鍵は、呼んだ agent を判定できる Adapter だけから作る。
+      // 判定できない agent（Copilot CLI など）の鍵は dg next が決して引かず、設定しても黙って無視されるため
+      ...Object.fromEntries(detectableAgentNames().map((agent) => [agent, agentModelsSchema])),
     })
     .prefault({}),
   actor: z
@@ -510,7 +511,9 @@ const LOCAL_KEYS: ReadonlySet<string> = new Set([
   "push.mode",
   ...MODEL_TIERS.map((tier) => `models.${tier}`),
   // agent ごとのモデル名も、使えるモデルが人ごとに違うので個人で上書きできる
-  ...agentNames().flatMap((agent) => MODEL_TIERS.map((tier) => `models.${agent}.${tier}`)),
+  ...detectableAgentNames().flatMap((agent) =>
+    MODEL_TIERS.map((tier) => `models.${agent}.${tier}`),
+  ),
   "actions.shell",
   "notify.approvals",
   // 同時に回せる数はマシンの重さと契約の上限で人ごとに違う

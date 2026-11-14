@@ -109,7 +109,7 @@ export function modelOf(
   agent: string | null = null,
 ): string | null {
   const key = tier ?? "standard";
-  // 鍵は Adapter の一覧から作るので、型には agent の名前が出ない
+  // 鍵は判定できる Adapter の一覧から作るので、型には agent の名前が出ない
   const own = agent ? (models as Record<string, unknown>)[agent] : undefined;
   const ownModel =
     typeof own === "object" && own !== null ? (own as Record<string, unknown>)[key] : undefined;
