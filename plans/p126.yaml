@@ -1,0 +1,16 @@
+id: p126
+project: default
+tickets: [t883, t884]
+after:
+  t884:
+    - t883
+pending_approval: true
+details:
+  t883:
+    scope: --auto なしの wait_merge でマージしてよいかを聞く問いを返し、dg pr merge に承認者を渡す引数を足して記録する。ゲートを満たさない PR は扱わない
+    approach: commands/next.ts の wait_merge と commands/pr.ts の merge にコマンド定義で足し、CLI は写すだけにし、guide（work・all・done）と EX-7 を直して next と pr merge の形をテストで固める
+    tier: heavy
+  t884:
+    scope: 承認者を渡した dg pr merge が、config の一覧にある条件だけ満たさなくてもマージできるようにする。衝突と head は越えさせない
+    approach: t883 の承認者の引数を使い、config に越えてよい条件の一覧を足して gate.ts・pr.ts で判定し、フックと GATE_FAILED の案内の文、guide（release・review・all）、要件と ADR を直す
+    tier: heavy
