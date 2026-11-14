@@ -1,0 +1,48 @@
+id: p133
+tickets: [t913, t914, t915, t916, t917, t918, t919, t920]
+after:
+  t916:
+    - t915
+  t917:
+    - t915
+  t918:
+    - t917
+    - t916
+  t919:
+    - t917
+  t920:
+    - t917
+pending_approval: true
+details:
+  t913:
+    scope: push が拒まれた後の取り込み直しで例外が出たときの戻し方を、書き込みの経路の 1 か所にまとめる。競合したとき（SY-4）は変えない
+    approach: write.ts の取り込み直しから push の前までを 1 つの try で包み、rebase の前なら before に、rebase の後なら dropRebasedTip で自分のコミットだけを捨ててから投げ直す。新しいエラーを仮に投げる経路で bare リモートのテストを書く
+    tier: heavy
+  t914:
+    scope: データの同期と書き込みの経路を変えるチケットの分け方と tier の目安を、config の guide.notes.plan に短く書く
+    approach: s33 の t904・t906・t909 の数（変更の行数・retries・heavy）を根拠に、分ける目安と tier を heavy にすることを数行で書き、check:docs を通す
+    tier: light
+  t915:
+    scope: 見直しの指摘に 7 種類の cause を足し、見直しの Run に重い・軽いの原因ごとの数を残し、metrics show で合計する
+    approach: reviewFindingSchema に cause の enum を足して review-result で検証し、reviewOfFindings で原因ごとに数えて runReviewSchema に入れ、metrics で合計して前の Run を missing に数える。ADR-029 と RN の項を直す
+    tier: heavy
+  t916:
+    scope: review の guide に 7 種類の原因の見分け方を、retro の guide の Causes of rework に metrics show の原因ごとの数の読み方を書く
+    approach: guide-review.md の Return と guide-retro.md を書き換え、スナップショットを更新する。指標の定義（config の retro.perspectives）は変えない
+    tier: light
+  t917:
+    scope: チケットに origin と origin_cause を足し、create・import・update で受け、metrics sources で返す
+    approach: ticket の model に 2 つの項目を足し、t915 の cause の enum を使う。存在しない ID・自分自身・誤った種類を拒み、ADR-029 と TK の項を直す
+    tier: heavy
+  t918:
+    scope: import・audit・review の guide に、マージ済みのチケットの変更から出た不具合に origin を付けることと、付けない場合を書く
+    approach: 3 つの guide に短く足し、範囲の外とされた指摘には付けないことを review に書き、スナップショットを更新する。指標の定義は変えない
+    tier: light
+  t919:
+    scope: 表の 7 件に origin と origin_cause を付けるデータの整備。PR は要らない
+    approach: t917 がマージされた main の dg で claim --without-branch し、ticket update で 7 件に付けて metrics sources で確かめてから done にする
+    tier: light
+  t920:
+    scope: Run の tools に失敗したツールの呼び出しの数 errors を足し、metrics show で合計する
+    approach: Claude Code の会話記録の tool_result の is_error を tool_use の id で重ねずに数えて tallyTools に渡し、取れないエージェントと前の Run は missing にする。結果の中身が Git に入らないことをテストで示し、ADR-029 と RN-1・MT の項を直す
+    tier: heavy
