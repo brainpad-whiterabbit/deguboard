@@ -2,7 +2,7 @@ id: p124
 project: default
 tickets: [t864, t873, t874, t875]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t864:
     scope: Skill の印に書いた dg の版を足し、拡張は新しい版を上書きせず、dg の警告は古い版だけを older と出す。ADR と AG-2 も直す
@@ -20,3 +20,5 @@ details:
     scope: docs/usage.ja.md の画面の文言を l10n の ja に合わせる
     approach: 32 行目の Take remote・Take local を「remote を採る」「local を採る」に直す
     tier: light
+approved_by: maji/agent
+approved_at: 2026-11-14T03:53:23Z
