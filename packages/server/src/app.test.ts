@@ -88,7 +88,7 @@ describe("HTTP サーバー", () => {
   });
 
   it("store の要るコマンドの入力の JSON Schema の説明（.describe）に日本語の文字が出ない", () => {
-    // MCP のツール定義と GET /api/commands はこの JSON Schema をそのまま出す。説明はエージェントが読む文字列なので英語にする（ADR-001）
+    // MCP のツール定義と GET /api/commands はこの JSON Schema をそのまま出す。説明はエージェントが読む文字列なので英語にする
     const japanese = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
     // 本文で dg が読む見出しの名そのもの（データの値）は説明の中に出てよい
     const dataLiterals = ["## 受け入れ条件"];
