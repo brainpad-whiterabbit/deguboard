@@ -2,7 +2,7 @@
 // データのリモートでのブランチ名（git.data_branch。repo.dataBranch）は変えられるが、手元のブランチは名前によらず LOCAL_DATA_BRANCH にする。
 // なぜ：データのブランチ名を変える移行（dg config set git.data_branch）で、手元のブランチを付け替えずに、取り込みと push の先だけを変えれば済むように
 
-import { ensureLocalDir, type RepoPaths } from "./repo.js";
+import { dataRemoteRef, ensureLocalDir, type RepoPaths } from "./repo.js";
 import { pathExists } from "../storage/exists.js";
 import { runGit } from "./run.js";
 
@@ -81,7 +81,11 @@ export async function ensureDeguboardWorktree(
       },
     );
     if (remoteHas.code === 0) {
-      await git(["fetch", remote, `refs/heads/${dataBranch}:refs/remotes/${remote}/${dataBranch}`]);
+      await git([
+        "fetch",
+        remote,
+        `refs/heads/${dataBranch}:${dataRemoteRef({ dataRemote: remote, dataBranch })}`,
+      ]);
       await git([
         "worktree",
         "add",

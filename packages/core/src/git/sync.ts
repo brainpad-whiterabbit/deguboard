@@ -41,10 +41,6 @@ export type PushResult =
 const git = (repo: GitRepo, args: string[], opts: Parameters<typeof runGit>[2] = {}) =>
   runGit(repo.dataDir, args, { localDir: repo.localDir, ...opts });
 
-export function remoteRef(repo: GitRepo): string {
-  return dataRemoteRef(repo);
-}
-
 /**
  * データのブランチ（repo.dataBranch）だけを取り込む。同じリモートのほかのブランチ（ほかのカンバンのデータ）は取り込まない。
  * リモートにまだなければ remoteBranch: false。timeoutMs を過ぎたら届かないときと同じ失敗
@@ -53,7 +49,7 @@ export async function fetchData(repo: GitRepo, timeoutMs = 60_000): Promise<Fetc
   if (!repo.dataRemote) return { ok: true, remoteBranch: false };
   const result = await remoteGit(
     repo,
-    ["fetch", repo.dataRemote, `refs/heads/${repo.dataBranch}:${remoteRef(repo)}`],
+    ["fetch", repo.dataRemote, `refs/heads/${repo.dataBranch}:${dataRemoteRef(repo)}`],
     timeoutMs,
   );
   if (result.code === 0) return { ok: true, remoteBranch: true };
@@ -72,7 +68,7 @@ export async function fetchCode(
 
 /**
  * sync の取得：データ（データのブランチ）をデータのリモートから、作業ブランチをコードのリモートから取り込む。
- * 2 つが同じリモートなら 1 回の fetch で済ませる（ほかのカンバンのデータのブランチも追跡 ref には入るが、取り込むのは remoteRef だけ）。別のリモートのとき、結果はデータの取得のもので、
+ * 2 つが同じリモートなら 1 回の fetch で済ませる（ほかのカンバンのデータのブランチも追跡 ref には入るが、取り込むのは dataRemoteRef だけ）。別のリモートのとき、結果はデータの取得のもので、
  * コードの取得だけが失敗したら codeDetail に理由を入れる（データの取り込みと push は続け、照合は手元の ref で行う）
  */
 export async function fetchAll(repo: GitRepo): Promise<FetchResult & { codeDetail?: string }> {
@@ -83,7 +79,7 @@ export async function fetchAll(repo: GitRepo): Promise<FetchResult & { codeDetai
   const code = await fetchCode(repo);
   if (!code.ok) return code;
   if (!repo.dataRemote) return { ok: true, remoteBranch: false };
-  const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
+  const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
     allowFailure: true,
   });
   return { ok: true, remoteBranch: has.code === 0 };
@@ -98,7 +94,7 @@ export async function isDirty(repo: GitRepo): Promise<boolean> {
 }
 
 /**
- * データのリモートのデータのブランチ（remoteRef）に rebase する。競合したら中止してローカルのコミットを残す（SY-4）。
+ * データのリモートのデータのブランチ（dataRemoteRef）に rebase する。競合したら中止してローカルのコミットを残す（SY-4）。
  * frontmatter の別々のフィールドの変更はマージドライバ（merge.ts）が解く。.gitattributes がまだリモートにない間も効くよう、
  * deguboard-local/ の属性ファイルを core.attributesFile で渡す。
  * 空のコミットは落とす（--no-keep-empty）：別々に作った orphan の根（空のツリー）を積み直して履歴に割り込ませないため。
@@ -109,7 +105,7 @@ export async function integrate(
   opts: { autostash?: boolean; resolve?: ResolveSide; log?: string } = {},
 ): Promise<IntegrateResult> {
   if (!repo.dataRemote) return { ok: true, changed: false };
-  const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
+  const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
     allowFailure: true,
   });
   if (has.code !== 0) return { ok: true, changed: false };
@@ -120,7 +116,7 @@ export async function integrate(
     "rebase",
     "--no-keep-empty",
     ...(opts.autostash ? ["--autostash"] : []),
-    remoteRef(repo),
+    dataRemoteRef(repo),
   ];
   // rebase はリモートの先端にローカルのコミットを積み直すので、ドライバの ours（%A）がリモート、theirs（%B）がローカルになる。
   // 自動で解いたフィールド（同じ status の時刻）も log に書くので、--resolve でなくても log を渡す
@@ -208,7 +204,7 @@ export interface ConflictField {
  */
 export async function conflictFields(repo: GitRepo): Promise<ConflictField[]> {
   if (!repo.dataRemote) return [];
-  const remote = remoteRef(repo);
+  const remote = dataRemoteRef(repo);
   const mb = await git(repo, ["merge-base", "HEAD", remote], { allowFailure: true });
   if (mb.code !== 0) return [];
   const base = mb.stdout.trim();
@@ -380,12 +376,12 @@ export async function dropRebasedTip(repo: GitRepo, original: string): Promise<b
   const [mine] = await identities("-1", original);
   const [tip] = await identities("-1", "HEAD");
   if (mine === undefined || tip !== mine) return false;
-  const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
+  const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
     allowFailure: true,
   });
   if (has.code === 0) {
     const twins = async (rev: string) =>
-      (await identities(`${remoteRef(repo)}..${rev}`)).filter((i) => i === mine).length;
+      (await identities(`${dataRemoteRef(repo)}..${rev}`)).filter((i) => i === mine).length;
     if ((await twins("HEAD")) < (await twins(original))) return false;
   }
   await resetHard(repo, "HEAD~1");
@@ -395,7 +391,7 @@ export async function dropRebasedTip(repo: GitRepo, original: string): Promise<b
 export async function syncStatus(repo: GitRepo): Promise<SyncStatus> {
   const dirty = await isDirty(repo);
   if (!repo.dataRemote) return { ahead: 0, behind: 0, dirty, remote: null };
-  const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
+  const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
     allowFailure: true,
   });
   if (has.code !== 0) {
@@ -403,7 +399,7 @@ export async function syncStatus(repo: GitRepo): Promise<SyncStatus> {
     return { ahead, behind: 0, dirty, remote: repo.dataRemote };
   }
   const out = (
-    await git(repo, ["rev-list", "--left-right", "--count", `HEAD...${remoteRef(repo)}`])
+    await git(repo, ["rev-list", "--left-right", "--count", `HEAD...${dataRemoteRef(repo)}`])
   ).stdout.trim();
   const [ahead = "0", behind = "0"] = out.split(/\s+/);
   return { ahead: Number(ahead), behind: Number(behind), dirty, remote: repo.dataRemote };

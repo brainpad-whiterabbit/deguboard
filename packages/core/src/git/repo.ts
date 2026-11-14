@@ -35,7 +35,7 @@ export interface GitRepo {
 /** リモート・データのブランチ名・base_branch は後から決める（config を読む前に呼ぶため） */
 export type RepoPaths = Omit<GitRepo, "codeRemote" | "dataRemote" | "dataBranch" | "baseBranch">;
 
-/** データのリモートの追跡 ref（refs/remotes/<データのリモート>/<データのブランチ名>） */
+/** データのリモートの追跡 ref（refs/remotes/<データのリモート>/<データのブランチ名>）。データの追跡 ref の名前はここだけで作る */
 export function dataRemoteRef(repo: Pick<GitRepo, "dataRemote" | "dataBranch">): string {
   return `refs/remotes/${repo.dataRemote}/${repo.dataBranch}`;
 }

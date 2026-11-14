@@ -7,8 +7,8 @@ import { addDataRemote, git, type Fixture } from "../../test/helpers/git-fixture
 import { fixture, runCleanups } from "../../test/helpers/commands-context.js";
 import { fastHook } from "../fast-hook.js";
 import { checkOutside } from "../git/outside.js";
-import { DATA_REMOTE_NAME } from "../git/repo.js";
-import { dropRebasedTip, fetchData, remoteRef } from "../git/sync.js";
+import { DATA_REMOTE_NAME, dataRemoteRef } from "../git/repo.js";
+import { dropRebasedTip, fetchData } from "../git/sync.js";
 import { Store } from "../storage/store.js";
 import { openContext, openContextFor } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -317,8 +317,9 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
     // 自分のコミットが落ちたら、先頭に残った前からのコミットは捨てない
     await git(dir, ["reset", "-q", "--hard", mine]);
     expect((await fetchData(b.repo)).ok).toBe(true);
-    await git(dir, ["rebase", "-q", "--no-keep-empty", remoteRef(b.repo)]);
-    const subjects = (await git(dir, ["log", "--format=%s", `${remoteRef(b.repo)}..HEAD`])).stdout;
+    await git(dir, ["rebase", "-q", "--no-keep-empty", dataRemoteRef(b.repo)]);
+    const subjects = (await git(dir, ["log", "--format=%s", `${dataRemoteRef(b.repo)}..HEAD`]))
+      .stdout;
     expect(subjects.trim()).toBe("同じ操作");
     const rebased = await headOf(b);
     expect(await dropRebasedTip(b.repo, mine)).toBe(false);
