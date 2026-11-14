@@ -1,0 +1,27 @@
+{
+  "id": "r20261114-062957-3fc8",
+  "ticket": "t889",
+  "step": "review",
+  "agent": "codex",
+  "model": "gpt-6.1-sol",
+  "started_at": "2026-11-14T06:29:57Z",
+  "finished_at": "2026-11-14T06:30:16Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 7796,
+    "output": 308,
+    "cache_read": 161024,
+    "cache_write": 0
+  },
+  "tools": null,
+  "session": null,
+  "review": {
+    "heavy": 0,
+    "light": 0,
+    "passed": true
+  },
+  "head": "78cabf77c9c43504cbcc9118d5a300f41fc71a56"
+}
