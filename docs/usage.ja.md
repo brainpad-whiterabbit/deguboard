@@ -14,7 +14,7 @@ Skill は Claude Code 向けです。普通の言葉で頼むか、コマンド�
 | `dgassign`  | チケットを Iteration か Epic に入れる（承認を得てから）              | 「これをスプリントに入れて」      | `/dgassign s3`     |
 | `dgcheck`   | チケット・Epic・Iteration・Plan の食い違いを見つけ、直す             | 「s3 のチケットを点検して」       | `/dgcheck s3`      |
 | `dgplan`    | チケットの進める順を決め、承認待ちの Plan に記録する                 | 「s3 を計画して」                 | `/dgplan s3`       |
-| `dgwork`    | 承認した Plan のチケットを draft の PR まで進める                    | 「p3 を進めて」                   | `/dgwork p3`       |
+| `dgwork`    | 承認した Plan を ready・承認後のマージ・片付けまで進める             | 「p3 を進めて」                   | `/dgwork p3`       |
 | `dgall`     | Iteration かチケットを、割り当てからリリースまで一つの流れで進める   | 「s3 を自動でリリースまで進めて」 | `/dgall s3 --auto` |
 | `dgaudit`   | リリースの前に、リポジトリ全体を観点ごとに見直し、指摘を起票する     | 「リリースの前に見直して」        | `/dgaudit s3`      |
 | `dgrelease` | Iteration の完了を確かめ、承認を得てリリースする                     | 「s3 をリリースして」             | `/dgrelease s3`    |
@@ -29,7 +29,7 @@ Skill は Claude Code 向けです。普通の言葉で頼むか、コマンド�
 Claude Code で `/dgall s3 --auto` のように Iteration かチケットを渡すと、エージェントが割り当て・計画・実装・見直し・リリースを続けて進める。作りたいものの起票はしないので、先に `/dgimport` でチケットにする。
 
 - `--auto` を付けると、config の `auto.decisions` に入っている判断は提案の選択肢で進む。リリース、チケットをやめる・削除する、Epic・Iteration を閉じるなど、人が決めることでは止まって聞く（一覧は `dg guide all`）
-- 品質ゲートを通った PR は、エージェントがマージしてよいかを聞き、承認したときだけマージする（承認は PR に残る）。聞かずにマージするのは、`--auto` で config の `auto.merge` が true のときだけ。品質ゲートを満たさない PR は、満たさない条件を示してそれでもマージするかを聞く。承認で越えられるのは config の `merge.approval_overrides` にある条件だけで、衝突は越えられない
+- 品質ゲートを通った PR は、エージェントがマージしてよいかを聞き、承認したときだけマージする（承認は PR に残る）。聞かずにマージするのは、`--auto` で config の `auto.merge` が true のときだけ。品質ゲートを満たさない PR は、満たさない条件を示してそれでもマージするかを聞く。承認で越えられるのは config の `merge.approval_overrides` にある条件だけで、PR が開いていて下書きでないこと、base と衝突しないこと、判定したコミットをマージすることは越えられない
 - 進み具合はカンバンで見られ、計画の帯を押すと依存のグラフが出る
 - Claude Code 以外のエージェントには「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼む
 
