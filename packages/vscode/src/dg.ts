@@ -55,6 +55,26 @@ export interface DgCheckedFolder {
   folderCount: number;
 }
 
+/** 最初に使ったフォルダのうち、確かめに要るもの（vscode.WorkspaceFolder の写し。VS Code の API に触れずに試せるようにする） */
+export interface DgFirstFolder {
+  name: string;
+  scheme: string;
+  fsPath: string;
+}
+
+/**
+ * 最初に使ったフォルダから、dg --version の cwd と警告に入れるフォルダを決める。
+ * cwd にできるのは手元のファイル（scheme が file）のフォルダだけで、それ以外（リモートの仮想のファイルなど）と
+ * フォルダがないときは cwd を渡さず、警告にフォルダも入れない。folderCount はウィンドウの作業フォルダの数
+ */
+export function dgCheckTarget(
+  folder: DgFirstFolder | undefined,
+  folderCount: number,
+): { cwd?: string; checked?: DgCheckedFolder } {
+  if (!folder || folder.scheme !== "file" || !folder.fsPath) return {};
+  return { cwd: folder.fsPath, checked: { name: folder.name, folderCount } };
+}
+
 /**
  * 利用者に知らせる文。何もなければ undefined。
  * 確かめはウィンドウで 1 回だけで、フォルダごとにはしない。フォルダが複数あるときは、どのフォルダの

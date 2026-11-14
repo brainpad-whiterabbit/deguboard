@@ -54,6 +54,29 @@ export function dismissedAfter(stored: unknown, names: readonly string[]): strin
   return [...new Set([...dismissedSkillsOf(stored), ...names])];
 }
 
+/** 案内の通知のボタンの選択の後にすること。install は書く Skill の名前、dismiss は globalState に覚える名前を持つ */
+export type MissingSkillAction =
+  | { kind: "install"; names: string[] }
+  | { kind: "dismiss"; dismissed: string[] }
+  | { kind: "none" };
+
+/**
+ * 案内の通知で選んだボタン（picked。閉じたときは undefined）から、することを決める。
+ * Install は案内した名前だけを書き、Don't show again は前に覚えた名前（stored）に案内した名前を足して覚える。
+ * どちらでもない（通知を閉じた）ときは何もしない
+ */
+export function missingSkillAction(
+  picked: string | undefined,
+  buttons: { install: string; never: string },
+  notice: Pick<MissingSkillNotice, "names">,
+  stored: unknown,
+): MissingSkillAction {
+  if (picked === buttons.never)
+    return { kind: "dismiss", dismissed: dismissedAfter(stored, notice.names) };
+  if (picked === buttons.install) return { kind: "install", names: [...notice.names] };
+  return { kind: "none" };
+}
+
 /**
  * 通知の文。更新したもの（info）と、手を加えたので残した古いもの（warning）を分ける。core が返すのは、印の版がこの拡張より古い
  * （か印に版のない）Skill だけなので「older」と書く。変えるものも知らせるものもなければ空 */

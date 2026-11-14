@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { bundleTranslator, setTranslator } from "./l10n.js";
 import { describe, expect, it } from "vitest";
-import { dgAdvice, majorOf, resolveDg, runDgVersion } from "./dg.js";
+import { dgAdvice, dgCheckTarget, majorOf, resolveDg, runDgVersion } from "./dg.js";
 
 // 文言は日本語の訳で確かめる（表示言語が日本語のときに今までと同じ文言が出ること）。英語は l10n.test.ts で確かめる
 setTranslator(
@@ -66,6 +66,22 @@ describe("PATH の dg", () => {
       }
     },
   );
+
+  it("最初に使ったフォルダが手元のファイルのときだけ、そこを cwd にして警告に入れるフォルダにする", () => {
+    const repo = { name: "repo-b", scheme: "file", fsPath: "/work/repo-b" };
+    // フォルダが複数でも 1 つでも、最初に使ったフォルダを cwd にする（名前を警告に入れるかは dgAdvice が folderCount で決める）
+    expect(dgCheckTarget(repo, 2)).toEqual({
+      cwd: "/work/repo-b",
+      checked: { name: "repo-b", folderCount: 2 },
+    });
+    expect(dgCheckTarget(repo, 1)).toEqual({
+      cwd: "/work/repo-b",
+      checked: { name: "repo-b", folderCount: 1 },
+    });
+    // file 以外の scheme（仮想のファイルなど）とフォルダなしは cwd を渡さず、警告にフォルダも入れない
+    expect(dgCheckTarget({ ...repo, scheme: "vscode-vfs", fsPath: "/repo-b" }, 2)).toEqual({});
+    expect(dgCheckTarget(undefined, 0)).toEqual({});
+  });
 
   it("フォルダが複数あるときだけ、警告に確かめたフォルダの名前を入れる", () => {
     const failed = { kind: "error", detail: "needs Node.js 24" } as const;
