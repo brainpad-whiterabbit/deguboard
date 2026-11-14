@@ -1,0 +1,18 @@
+id: p131
+project: default
+tickets: [t904, t905, t906]
+after: {}
+pending_approval: true
+details:
+  t904:
+    scope: データの fetch・push の先を git.data_remote で別のリモートにでき、init は名前か URL を受け、リモートがなければ push の要る操作はエラー、取り込んだ設定でリモートが変われば push せずに止める。ブランチ名の設定と Project は含めない
+    approach: GitRepo.remote を codeRemote と dataRemote に名前を変えて分け、型のエラーで使う箇所を洗い、fetchAll をデータとコードの取得に分ける。テストはコード用とデータ用の 2 つの bare リモートの一時リポジトリで行う
+    tier: heavy
+  t905:
+    scope: データのブランチ名を git.data_branch で変えられるようにし、/ を含む名前を拒み、移行の検出をブランチ名の変更に広げ、専用リポジトリで複数のカンバンを持つ使い方を文書にする
+    approach: worktree.ts の DATA_BRANCH を GitRepo に持たせた値に置き換え、init の引数と config から決める。t904 の移行の検出に、ブランチ名の比較を足す
+    tier: standard
+  t906:
+    scope: Project をなくし、既定の Workflow を default_workflow に、active な Iteration をカンバンに 1 つにし、project の項目と projects/ を dg が消す。画面・MCP・文書を含めて 1 つの PR で行う
+    approach: model の project を外して型のエラーから参照を消し、やめた項目として書くときに消す（Iteration の start・end と同じ）。projects/ は同期か書き込みのときに印付きのコミットで一度だけ消す
+    tier: heavy
