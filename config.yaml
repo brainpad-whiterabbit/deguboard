@@ -92,6 +92,11 @@ retro:
           sources:
             - dg metrics show --iteration <S> --by ticket (reviews.recorded, reviews.passed)
           unmeasured: 通った見直しが不具合を見落としていなかったか
+        rounds-per-reviewed:
+          definition: 見直しの記録が 1 件以上あるチケット 1 件あたりの見直しの回数（reviews.recorded の合計 ÷ そのチケットの数）。1 件のチケットの最大の回数とそのチケットの ID を添える
+          sources:
+            - dg metrics show --iteration <S> --by ticket (reviews.recorded)
+          unmeasured: 回数が多かった原因（チケット・実装・見直しのどれか）
     spec:
       name: 仕様の質
       question: チケット（受け入れ条件と範囲）は、作り直しなしで通る成果を引き出せたか
