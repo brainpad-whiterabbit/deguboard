@@ -23,7 +23,10 @@ import {
   iterationStart,
   openContext,
   runCommand,
+  runStart,
+  runFinish,
 } from "../../packages/core/src/index.js";
+import { amendRunning } from "../../packages/core/src/run/record.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
 import { LANGUAGES, useLanguage } from "./language.js";
@@ -55,6 +58,13 @@ const NOW = "2026-06-15T12:00:00+09:00";
 const TYPICAL_PERIOD = { start: "2026-06-10T09:28:00+09:00", end: "2026-06-10T13:24:00+09:00" };
 /** 日をまたいで閉じた長い期間（2025/12/31 22:10–01/01 08:00 · 10 時間）の s9。幅 300px では折り返す */
 const LONG_PERIOD = { start: "2025-12-31T22:10:00+09:00", end: "2026-01-01T08:00:00+09:00" };
+
+const RUN_NOW = Date.now();
+const RUN_CASES = [
+  { ticket: "t18", result: "failure", tone: "failed" },
+  { ticket: "t19", result: "interrupted", tone: "failed" },
+  { ticket: "t20", result: "waiting", tone: "waiting" },
+] as const;
 
 let fixture: Fixture;
 let server: { url: string; close(): Promise<void> };
@@ -176,6 +186,31 @@ beforeAll(async () => {
   // 先に claim すると s2 が active になり、s8 の開始が IT-1 で拒否される
   await call("ticket.claim", { ticket: "t1", without_branch: true });
   await call("run.start", { ticket: "t1", step: "implement", agent: "claude-code" });
+  // 4 回の Run：最後の失敗・中断（2 時間前）と返事待ち（59 分）を、長いタイトルと一緒に測る（t888）。
+  for (const { ticket, result } of RUN_CASES) {
+    await call("ticket.create", { title: LONG, iteration: "s2" });
+    await call("ticket.move", { ticket, status: result === "waiting" ? "in_progress" : "review" });
+    for (let i = 0; i < 4; i++) {
+      const start = RUN_NOW - (8 - i) * 3_600_000;
+      const ctx = await openContext({
+        cwd: fixture.cloneA,
+        actor: { user: "layout" },
+        now: () => new Date(start),
+      });
+      const run = await runCommand(runStart, ctx, { ticket, step: "implement", agent: "codex" });
+      if (i === 3 && result === "waiting") {
+        await amendRunning(ctx.repo, run.data.id, {
+          waiting_since: new Date(RUN_NOW - 59 * 60_000).toISOString(),
+        });
+      } else {
+        ctx.now = () => new Date(i === 3 ? RUN_NOW - 2 * 3_600_000 : start + 60_000);
+        await runCommand(runFinish, ctx, {
+          run: run.data.id,
+          result: i === 3 && result !== "waiting" ? result : "success",
+        });
+      }
+    }
+  }
   // 設定画面：長い worktree.root（区切りのない長いパス）と、項目の多い actions.test
   await call("config.set", { key: "worktree.root", value: LONG_ROOT });
   await call("config.set", { key: "actions.test", value: TEST_COMMAND });
@@ -310,6 +345,90 @@ describe.each(
           if (hash === "#/history") expect(m.viewSwitches, `${hash} の見方の切り替え`).toBe(1);
           expect(m.color, `${hash} の文字と背景の色`).not.toBe(m.background);
         }
+      } finally {
+        await context.close();
+      }
+    },
+  );
+});
+
+// run.recent はチケットとは別に読み込まれるので、丸がない空の行を測って成功させない（t888）。
+describe.each(
+  SCHEMES.flatMap((scheme) => LANGUAGES.map((language) => [scheme, language] as const)),
+)("カンバンの Run の並び（%s・%s）", (scheme, language) => {
+  it.each([320, ...WIDTHS])(
+    "幅 %ipx で、失敗・中断・返事待ちの丸と文字が行に収まり、タイトルと重ならない",
+    async (width) => {
+      const context = await browser.newContext({
+        viewport: { width, height: 900 },
+        colorScheme: scheme,
+      });
+      await useLanguage(context, language);
+      const page = await context.newPage();
+      await page.clock.install({ time: RUN_NOW });
+      try {
+        await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+        const colors: string[] = [];
+        for (const { ticket, result, tone } of RUN_CASES) {
+          const row = page
+            .locator(".row-item")
+            .filter({ has: page.locator("code", { hasText: new RegExp(`^${ticket}$`) }) });
+          await row.locator(".run-pips").waitFor();
+          await expect.poll(() => row.locator(".run-pip").count()).toBe(3);
+          expect(await row.locator(".run-pips-more").textContent()).toBe("+1");
+          expect(await row.locator(`.run-pip.run-${result}.is-last`).count()).toBe(1);
+          const caption = await row.locator(".run-pips-caption").textContent();
+          const expected =
+            language === "ja"
+              ? {
+                  failure: "失敗 · 2時間前",
+                  interrupted: "中断 · 2時間前",
+                  waiting: "返事待ち · 59分",
+                }
+              : {
+                  failure: "Failure · 2h ago",
+                  interrupted: "Interrupted · 2h ago",
+                  waiting: "Awaiting reply · 59m",
+                };
+          expect(caption).toBe(expected[result]);
+          expect(await row.getAttribute("class")).toContain(`run-tone-${tone}`);
+          const m = await row.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            const title = el.querySelector(".row-title")!.getBoundingClientRect();
+            const parts = [
+              ...el.querySelectorAll(".run-pips, .run-pip, .run-pips-more, .run-pips-caption"),
+            ];
+            return {
+              outside: parts
+                .filter((part) => {
+                  const r = part.getBoundingClientRect();
+                  return (
+                    r.left < box.left - 0.5 ||
+                    r.right > box.right + 0.5 ||
+                    r.top < box.top - 0.5 ||
+                    r.bottom > box.bottom + 0.5
+                  );
+                })
+                .map((part) => part.className),
+              overlaps: parts
+                .filter((part) => {
+                  const r = part.getBoundingClientRect();
+                  return (
+                    Math.min(r.right, title.right) - Math.max(r.left, title.left) > 0.5 &&
+                    Math.min(r.bottom, title.bottom) - Math.max(r.top, title.top) > 0.5
+                  );
+                })
+                .map((part) => part.className),
+              color: getComputedStyle(el).backgroundColor,
+            };
+          });
+          expect(m.outside, `${ticket} で行からはみ出す部品`).toEqual([]);
+          expect(m.overlaps, `${ticket} でタイトルと重なる部品`).toEqual([]);
+          expect(m.color, `${ticket} の地の色`).not.toBe("rgba(0, 0, 0, 0)");
+          colors.push(m.color);
+        }
+        expect(colors[0], "失敗と中断は同じ色").toBe(colors[1]);
+        expect(colors[2], "返事待ちは失敗と違う色").not.toBe(colors[0]);
       } finally {
         await context.close();
       }
