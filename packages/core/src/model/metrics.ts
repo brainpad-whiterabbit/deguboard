@@ -53,7 +53,7 @@ export interface RunMetrics {
   /**
    * 見直しの結果（review。RN-9）。recorded は結果のある Run の数、passed はそのうち通った数、heavy・light は指摘の数の合計。
    * 結果のない Run（見直し以外の step と、結果を記録せずに終わった見直し）は数えない。
-   * causes は重い・軽い指摘の原因ごとの数の合計（ADR-029）。原因の数のない Run は足さずに missing.review_causes に数え、
+   * causes は重い・軽い指摘の原因ごとの数の合計。原因の数のない Run は足さずに missing.review_causes に数え、
    * 0 で補わない（その Run の指摘は heavy・light には入るので、causes の合計は heavy・light より小さくなりうる）。原因の数のある Run がなければ null
    */
   reviews: {

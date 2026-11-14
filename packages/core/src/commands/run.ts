@@ -820,7 +820,7 @@ const findingCount = z.number().int().nonnegative();
  * 指摘の一覧から見直しの結果を求める。重いのは severity が heavy か、category がリポジトリの重いとみなす種類（review.heavy_categories）のもの。
  * 通ったかは重い指摘が残っていないこと（見直し役の自己申告にしない）。
  * 原因ごとの数（causes）は、重い・軽いを同じ判定で分けて数える（それぞれの合計が heavy・light と合う）。
- * Git の Run に残すのはこの数だけで、指摘の文は残さない（振り返りの指標が原因の種類を数えられれば足りる。ADR-029）
+ * Git の Run に残すのはこの数だけで、指摘の文は残さない（振り返りの指標が原因の種類を数えられれば足りる）
  */
 export function reviewOfFindings(
   findings: readonly ReviewFinding[],
