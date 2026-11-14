@@ -8,7 +8,7 @@
 
 ## 1. 目的
 
-deguboard は、Microsoft が公開する Agentic-Agile の考え方（[マニフェスト](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md)）を、ソフトウェア開発で実践するためのツールである。
+deguboard は、Agentic-Agile の考え方（[マニフェスト](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md)）に着想を得て、作者が考える Agentic-Agile をソフトウェア開発で実践するためのツールである。
 
 - 人はエージェントのパートナーとして、設計・見直し・承認を担う
 - AI エージェント（Claude Code・Codex など）は、仕様（チケットと受け入れ条件）に沿って作業を進める。エージェントは人が動かし、deguboard は起動も監視もしない（[ADR-028](adr/ADR-028-agents-and-state.md)）

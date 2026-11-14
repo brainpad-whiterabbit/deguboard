@@ -123,7 +123,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   const jsonMode = (): boolean => program.opts<{ json?: boolean }>().json === true;
   program
     .description(
-      "A Git-native kanban for practicing Agentic-Agile. Data lives on the deguboard branch",
+      "An agentic kanban inspired by Agentic-Agile, with the development flow built in. Data lives on the deguboard branch",
     )
     .version(version(), "-v, --version", "Print the version")
     .helpOption("-h, --help", "Show usage")
