@@ -115,7 +115,7 @@ updated_at: 2026-10-31T05:10:00Z
 - TK-9 `gate`（品質ゲートの段）は `high`（既定）・`low`・`free` で、`create`・`import`・`update` で付ける。`dg gate` が判定する条件は段で変わる（EX-6。条件は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - TK-10 `branch_base` は claim が作業ブランチを切った起点のコミットの SHA で、照合が作業のないブランチを見分けるのに使う（ST-4）。`branch` を変えるか消すと消え、古いチケットにはない
 - TK-11 `lines`（`additions`・`deletions`）はマージされた `pr` の追加・削除の行数で、照合と `dg metrics lines` が記録する（MT-6）。`pr` を消すか変えると消え、PR の要らない作業とマージ前のチケットにはない
-- TK-12 不具合を直すチケットは、`origin`（不具合を生んだ変更のチケットの ID の配列）と `origin_cause`（原因の種類。見直しの指摘の原因と同じ種類）を持てる。`create`・`import`・`update` で付け、ないチケットと自分自身の ID、`origin` のない `origin_cause` は拒む（細部は `dg ticket update --help`、理由は [ADR-036](adr/ADR-036-rework-causes-and-origin.md)）
+- TK-12 不具合を直すチケットは、`origin`（不具合を生んだ変更のチケット ID の配列）と `origin_cause`（見直しの指摘と同じ原因の種類）を持てる。`create`・`import`・`update` で付け、ないチケットと自身の ID、`origin` のない `origin_cause` は拒む（細部は `dg ticket update --help`、理由は [ADR-036](adr/ADR-036-rework-causes-and-origin.md)）
 
 ### 5.5 Epic（`epics/e3.md`）
 
