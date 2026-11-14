@@ -29,7 +29,7 @@ afterEach(() => {
 
 /**
  * core の configFields と同じ形の項目（説明は短くしたもの）。scope は core と同じ：local は個人で上書きできる項目。
- * default_workflow だけは core（team）と違えて local にしてある：保存の前に確かめない・既定が空でない文字列の項目を、
+ * models.sample だけは core にない作りものの項目：保存の前に確かめない・既定が空でない文字列で、個人で上書きできる項目を、
  * 自分のタブで空にしたときの動きを試すため（core の local の項目にはこの組み合わせがない）。
  * clears_to_default（空にすると既定に戻る）も core と同じで、既定が空でない文字列の項目だけ true。
  * 要約（summary）は書いていない項目では説明と同じ文にする（画面は「詳しく」を出さない）。
@@ -42,7 +42,7 @@ const FIELDS: ConfigField[] = (
       type: "string",
       description: "workflow を持たないチケットの Workflow",
       default: "general",
-      scope: "local",
+      scope: "team",
       clears_to_default: true,
     },
     {
@@ -156,6 +156,14 @@ const FIELDS: ConfigField[] = (
       clears_to_default: false,
     },
     {
+      key: "models.sample",
+      type: "string",
+      description: "作りものの項目",
+      default: "inherit",
+      scope: "local",
+      clears_to_default: true,
+    },
+    {
       key: "actor.human_only",
       type: "list",
       description: "人だけ",
@@ -189,7 +197,7 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
     metrics: { read_transcripts: false },
     actions: { shell: false, test: ["mise", "run", "check"] },
     auto: { merge: false, decisions: ["assign", "check", "plan", "audit", "accept"] },
-    models: { light: "" },
+    models: { light: "", sample: "inherit" },
     actor: { human_only: [] as string[] },
     guide: { notes: { work: "docs/work-notes.md", plan: "" } },
   };
@@ -787,14 +795,14 @@ describe("設定画面", () => {
     expect(
       [...document.querySelectorAll(".config-field")].map((e) => e.getAttribute("data-key")),
     ).toEqual([
-      // まとまりの順（コミットと push・エージェント・Git・チケット）
+      // まとまりの順（コミットと push・エージェント・Git）
       "commit.mode",
       "push.mode",
       "actions.shell",
       "models.light",
+      "models.sample",
       "git.remote",
       "worktree.root",
-      "default_workflow",
     ]);
     expect(document.querySelectorAll(".config-field")).toHaveLength(
       FIELDS.filter((f) => f.scope === "local").length,
@@ -899,24 +907,24 @@ describe("設定画面", () => {
   });
 
   it("自分のタブで既定が空でない文字列の項目を空にすると、外すのと同じに扱い、印と件数を core の値で読み直す", async () => {
-    const { client } = configClient({ "git.remote": "upstream", default_workflow: "mine" });
+    const { client } = configClient({ "git.remote": "upstream", "models.sample": "mine" });
     mount(client);
     await screen.findByText("コミットの仕方");
     expect(tabOf("自分").textContent).toBe("自分2");
     fireEvent.click(tabOf("自分"));
 
     // 確かめない項目：空にすると上書きが外れ、チームの値を出す
-    const workflow = within(fieldOf("default_workflow")).getByRole<HTMLInputElement>("textbox");
-    fireEvent.change(workflow, { target: { value: "" } });
-    fireEvent.blur(workflow);
+    const sample = within(fieldOf("models.sample")).getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(sample, { target: { value: "" } });
+    fireEvent.blur(sample);
     expect(
       await screen.findByText(
-        "保存した: default_workflow の自分の値を外した（チームの general を使う）",
+        "保存した: models.sample の自分の値を外した（チームの inherit を使う）",
       ),
     ).toBeTruthy();
-    expect(unsetCalls(client)).toEqual([{ key: "default_workflow", local: true }]);
-    await waitFor(() => expect(ownOf("default_workflow").checked).toBe(false));
-    expect(workflow.value).toBe("general");
+    expect(unsetCalls(client)).toEqual([{ key: "models.sample", local: true }]);
+    await waitFor(() => expect(ownOf("models.sample").checked).toBe(false));
+    expect(sample.value).toBe("inherit");
     expect(tabOf("自分").textContent).toBe("自分1");
 
     // 確かめる項目：確かめの文は外すときのもの（空の値を出さない）

@@ -444,6 +444,23 @@ export async function ensureGitattributes(dataDir: string): Promise<boolean> {
 }
 
 /**
+ * deguboard worktree の .gitattributes から、ドライバを当てなくなったパターン（やめた projects/*.yaml など）の行を消す。
+ * ensureGitattributes は足りない行を足すだけなので、なくなったパスの行は呼び手（retire-projects.ts）がこれで消す。
+ * 書き換えたら true（コミットは呼び手）。行がない・ファイルがなければ何もしない
+ */
+export async function dropGitattributesPattern(dataDir: string, pattern: string): Promise<boolean> {
+  const file = path.join(dataDir, ".gitattributes");
+  const current = await readOr(file);
+  if (current === undefined) return false;
+  const stale = `${pattern} merge=${MERGE_DRIVER_NAME}`;
+  const lines = current.split("\n");
+  const kept = lines.filter((l) => l.trim() !== stale);
+  if (kept.length === lines.length) return false;
+  await writeFile(file, kept.join("\n"));
+  return true;
+}
+
+/**
  * ドライバを git config（リポジトリの共通の config）に登録し、deguboard-local/ に属性ファイルを置く。
  * command は dg を呼ぶ argv の前置（例：[node のパス, bin/dg.js, "merge-driver"]）。入口が渡さなければ config は触らない。
  * 登録したコマンド行を返す（変える必要がなかったときも返す）

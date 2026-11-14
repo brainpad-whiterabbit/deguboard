@@ -93,8 +93,12 @@ describe("やめた Project の残りを消す", () => {
     expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
   });
 
-  it("書き込みのときに projects/ と default_project を印付きのコミットで一度だけ消し、既定の Workflow を default_workflow に移す。dg の外の変更として止まらない", async () => {
-    const { f, ctx } = await legacy("each");
+  it("書き込みのときに projects/ と default_project と .gitattributes の projects の行を印付きのコミットで一度だけ消し、既定の Workflow を default_workflow に移す。dg の外の変更として止まらない", async () => {
+    // 前の dg は .gitattributes に projects/*.yaml の行（マージドライバを当てるパス）も書いていた
+    const { f, ctx } = await legacy("each", async (first) => {
+      const file = path.join(first.repo.dataDir, ".gitattributes");
+      await writeFile(file, `${await readFile(file, "utf8")}projects/*.yaml merge=deguboard\n`);
+    });
     const updated = await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" });
     expect(updated.write).toMatchObject({ committed: true, pushed: true });
 
@@ -110,11 +114,20 @@ describe("やめた Project の残りを消す", () => {
     expect(removal.split("\n")).toHaveLength(1);
     const body = (await git(ctx.repo.dataDir, ["show", "-s", "--format=%B", removal])).stdout;
     expect(body.trim().split("\n").at(-1)).toBe(DG_COMMIT_TRAILER);
-    // 消したコミットは projects/ と config.yaml だけを変える（チケットの project は、そのチケットを書くときに消える）
+    // 消したコミットは projects/ と config.yaml と .gitattributes だけを変える（チケットの project は、そのチケットを書くときに消える）
     const changed = (
       await git(ctx.repo.dataDir, ["show", "--name-only", "--format=", removal])
     ).stdout.trim();
-    expect(changed.split("\n").sort()).toEqual(["config.yaml", "projects/default.yaml"]);
+    expect(changed.split("\n").sort()).toEqual([
+      ".gitattributes",
+      "config.yaml",
+      "projects/default.yaml",
+    ]);
+    // .gitattributes：projects の行だけが消え、ほかの行は残る
+    const attributes = await read(ctx, ".gitattributes");
+    expect(attributes).not.toContain("projects/");
+    expect(attributes).toContain("tickets/*.md merge=deguboard\n");
+    expect(attributes).toContain("iterations/*.yaml merge=deguboard\n");
 
     // config：default_project は消え、既定の Project の Workflow が default_workflow になる
     const config = await read(ctx, "config.yaml");
@@ -173,6 +186,46 @@ describe("やめた Project の残りを消す", () => {
     expect(warningsOf(synced)).toEqual([]);
     expect(await remoteFiles(f)).not.toContain("projects/");
     expect((await subjects(f.remoteDir, "deguboard")).filter((s) => s === REMOVAL)).toHaveLength(1);
+    expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
+  });
+
+  it("消すときに書き換える config.yaml にまとめ待ちの変更があれば見送り、dg commit がまとめ待ちをコミットした後に別のコミットで消す", async () => {
+    const { ctx } = await legacy("batch");
+    // 前の dg が残したまとめ待ちの変更（config.yaml）を模す
+    const config = path.join(ctx.repo.dataDir, "config.yaml");
+    await writeFile(config, `${await readFile(config, "utf8")}# まとめ待ちの変更\n`);
+    await recordBaseline(ctx.repo);
+
+    // 書き込みは見送る：消すコミットを作らず、projects/ も config.yaml の default_project も残り、チケットの Workflow は変わらない
+    await runCommand(ticketUpdate, ctx, { ticket: "t2", priority: "low" });
+    expect(await subjects(ctx.repo.dataDir)).not.toContain(REMOVAL);
+    expect(await pathExists(path.join(ctx.repo.dataDir, "projects/default.yaml"))).toBe(true);
+    expect(await read(ctx, "config.yaml")).toContain("default_project: default");
+    expect(await workflowOf(ctx, "t1")).toBe("software-development");
+    expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe(
+      " M config.yaml\n M tickets/t2.md\n",
+    );
+
+    // dg commit：まとめ待ちを先にコミットし、その後に消す。消すコミットにまとめ待ちの変更は入らない
+    const committed = await runCommand(commit, ctx, { message: "まとめ待ち" });
+    expect(committed.data.committed).toBe(true);
+    expect((await subjects(ctx.repo.dataDir)).slice(0, 2)).toEqual([REMOVAL, "まとめ待ち"]);
+    const removal = (await git(ctx.repo.dataDir, ["show", "--format=", "HEAD"])).stdout;
+    expect(removal).not.toContain("+# まとめ待ちの変更");
+    expect(removal).toContain("-default_project: default");
+    expect(
+      (await git(ctx.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])).stdout
+        .trim()
+        .split("\n")
+        .sort(),
+    ).toEqual(["config.yaml", "projects/default.yaml"]);
+    const pending = (await git(ctx.repo.dataDir, ["show", "--format=", "HEAD~1"])).stdout;
+    expect(pending).toContain("+# まとめ待ちの変更");
+    expect(await pathExists(path.join(ctx.repo.dataDir, "projects"))).toBe(false);
+    expect(await read(ctx, "config.yaml")).toContain("# まとめ待ちの変更");
+    expect(await workflowOf(ctx, "t1")).toBe("software-development");
+    expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+    expect(await checkOutside(ctx.repo)).toEqual({ kind: "clean", initial: false });
     expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
   });
 
