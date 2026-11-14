@@ -3,7 +3,8 @@
 // CORE_LABELS は core の頼むの候補の名前と Plan の承認の状態の英語の文を鍵に、ja に日本語の訳を持つ。候補の名前は dg ask・ask-menu が CLI・MCP にも返す dg の出力なので、
 // ADR-001 の「dg がエージェントと利用者に出す文は英語」に当たり、画面の定型の文として表示言語で出すのは web の役目にする（t834）。CORE_MESSAGES は core のエラー・警告の英語の文を鍵に、ja に日本語の訳を持つ（t651）。
 // CONFIG_DESCRIPTIONS は設定の項目の文（説明・要約・空のときの動き・選択肢ごとの説明）の英語の文を鍵にし、値に ja の訳を持つ（英語の表示では鍵の英語の文をそのまま出す）。
-// 鍵が core の候補の名前・Plan の承認の状態・エラーと警告の文・設定の項目の文に合うことと、訳の揃いは l10n.test.ts が確かめる。
+// DEFAULT_VALUES は dg の既定の値（core が持つ文）を鍵に、既定のままの値を出すときの訳を持つ（l10n.ts の shownDefault）。
+// 鍵が core の候補の名前・Plan の承認の状態・エラーと警告の文・設定の項目の文・既定の値に合うことと、訳の揃いは l10n.test.ts が確かめる。
 // 画面のコードの文言（tr の鍵）の英訳は l10n-en.ts に置く
 
 import type { Language } from "./l10n.js";
@@ -470,5 +471,29 @@ export const CORE_MESSAGES: CoreTextTable = {
   "Does not match the schema": { ja: "スキーマに合わない" },
   "The ID {0} in the file name differs from the id {1} inside": {
     ja: "ファイル名の ID {0} と中の id {1} が違う",
+  },
+};
+
+/**
+ * dg の既定の値の訳（shownDefault・storedDefault。UI-11）。鍵は core が持つ既定の文そのもので、値は表示言語ごとの訳。
+ * 画面は値が既定と同じときだけここを引くので、書き換えた値は鍵と同じ文でない限り訳さず、訳のない言語では既定の文のまま出す。
+ * 既定の値を訳して出す項目は、ここに鍵を足すだけでよい（判定と引き方は l10n.ts の 1 か所）。
+ * 今あるのは優先度の判断基準（config の priority.*）で、core が日本語で持つので英語の訳を置く
+ * （意味は dg guide import の「Priority criteria」と揃える）。鍵が core の既定の文にあることは l10n.test.ts が確かめる
+ */
+export const DEFAULT_VALUES: CoreTextTable = {
+  // priority.high
+  "利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている":
+    {
+      en: "User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets",
+    },
+  // priority.medium
+  "機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存":
+    {
+      en: "New features and improvements, missing or unstable tests, inconsistencies in internal docs, convention violations that do no harm yet, and dependencies that are far out of date",
+    },
+  // priority.low
+  "使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討": {
+    en: "Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent",
   },
 };

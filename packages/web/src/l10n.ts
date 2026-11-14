@@ -13,9 +13,10 @@ import {
   CONFIG_DESCRIPTIONS,
   CORE_LABELS,
   CORE_MESSAGES,
+  DEFAULT_VALUES,
   type CoreTextTable,
 } from "./l10n-core.js";
-import { EN, EN_ONE, PRIORITY_CRITERIA_EN } from "./l10n-en.js";
+import { EN, EN_ONE } from "./l10n-en.js";
 
 export type Language = "ja" | "en";
 
@@ -78,28 +79,30 @@ export function configDescription(description: string): string {
   return lookup(CONFIG_DESCRIPTIONS, description) ?? description;
 }
 
-/** 優先度の判断基準の項目（priority.high など）の鍵。PRIORITY_CRITERIA_EN の鍵と同じ */
-const PRIORITY_KEY = /^priority\.(high|medium|low)$/;
-
-/**
- * 設定の値を今の言語で出す。優先度の判断基準の既定のままの値（core の既定と同じ文）は、英語の表示で英語の訳にする（UI-11）。
- * 書き換えた値・日本語の表示・優先度以外の項目は値のまま。読むのは store（判断基準）と設定画面（入力欄・既定の表示）
- */
-export function shownConfigValue(key: string, value: unknown, defaultValue: unknown): unknown {
-  const level = PRIORITY_KEY.exec(key)?.[1] as keyof typeof PRIORITY_CRITERIA_EN | undefined;
-  if (current === "ja" || level === undefined || value !== defaultValue) return value;
-  return PRIORITY_CRITERIA_EN[level];
+/** 既定の文（core が持つ文）の今の言語の訳。文字列でないか、表に今の言語の訳がなければ undefined */
+function defaultTranslation(defaultValue: unknown): string | undefined {
+  return typeof defaultValue === "string" ? lookup(DEFAULT_VALUES, defaultValue) : undefined;
 }
 
 /**
- * 入力欄の文を保存する値に戻す。shownConfigValue が出した訳の文なら、既定の値に戻す（逆の写し）。
- * 英語の表示で訳と同じ文を欄に打って離れると、既定の値（日本語）として保存される。
+ * dg の既定の値（config の既定・Workflow の雛形・推薦の指標）を画面に出すときの、ただ 1 つの口（UI-11・CL-8）。
+ * 値が既定（core が返す既定。config.show の defaults と fields の default）と同じ文のときだけ既定のままとみなし、
+ * DEFAULT_VALUES に今の言語の訳があれば訳で出す。書き換えた値・訳のない既定・文字列でない値は値のまま出す。
+ * 古い版の既定の写し（今の既定と違う文）も、人が書いた値と見分けられないので書いたまま出す。
+ * 訳して出す既定を足すときは DEFAULT_VALUES に鍵を足し、ここと storedDefault は変えない。読むのは store（判断基準）と設定画面
+ */
+export function shownDefault(value: unknown, defaultValue: unknown): unknown {
+  return value === defaultValue ? (defaultTranslation(defaultValue) ?? value) : value;
+}
+
+/**
+ * 入力欄の文を保存する値に戻す。shownDefault が出した訳の文なら、既定の値に戻す（逆の写し）。
+ * 訳と同じ文を欄に打って離れると、既定の値（core の文）として保存される。
  * 欄を書き換えず離れたときは呼ばない（config の画面の onBlur が値をそのまま渡す）
  */
-export function storedConfigValue(key: string, text: unknown, defaultValue: unknown): unknown {
-  const level = PRIORITY_KEY.exec(key)?.[1] as keyof typeof PRIORITY_CRITERIA_EN | undefined;
-  if (current === "ja" || level === undefined) return text;
-  return text === PRIORITY_CRITERIA_EN[level] ? defaultValue : text;
+export function storedDefault(text: unknown, defaultValue: unknown): unknown {
+  const translation = defaultTranslation(defaultValue);
+  return translation !== undefined && text === translation ? defaultValue : text;
 }
 
 /** core が返す決まった文の中の ID（t12・s3・e2・p7）と、外す場所の既定の「Iteration/Epic」 */
