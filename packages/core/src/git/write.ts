@@ -319,7 +319,16 @@ async function writeLocked<T>(
     const fetchedAgain = await fetchData(repo);
     const { result: integrated, resolved } =
       fetchedAgain.ok && fetchedAgain.remoteBranch
-        ? await integrateLogged(repo)
+        ? await integrateLogged(repo).catch(async (e: unknown) => {
+            // 最初の取り込みの後に、別のカンバンがデータのブランチを作った（最初はリモートにブランチがなかった）。rebase は始まって
+            // いないので先頭は自分のコミットのまま。捨ててから止める（残すと、戻した後のもう一度の実行が同じ変更を二重に入れる）。
+            // 先にコミットしたまとめ待ちの変更は before より前にあるので残る
+            if (e instanceof OperationError && e.code === "DATA_HISTORY_UNRELATED") {
+              await resetHard(repo, before);
+              await ctx.store.rescan();
+            }
+            throw e;
+          })
         : { result: { ok: true as const, changed: false }, resolved: [] as ResolvedFile[] };
     warnings.push(...autoResolvedWarnings(resolved));
     if (!integrated.ok) {

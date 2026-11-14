@@ -175,7 +175,7 @@ updated_at: 2026-10-31T05:10:00Z
 - `default_workflow`：自分の `workflow` を持たないチケットの Workflow（省けば `general`。TK-1）。チームだけが持つ
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧（検査しない呼び出しは `packages/core/src/commands/define.ts`）。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないとき（`DATA_REMOTE_MISSING`）と、取り込んだ config でこの値が変わったとき（`DATA_REMOTE_CHANGED`）は、push する操作は push せずに止まって次の手を示し、ほかの操作は警告して続く（戻し方は `dg guide overview`、細部は `commands-data-remote.test.ts`）
-- `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push し、`/` を含む名前は拒む。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく止まる（細部は `commands-data-branch.test.ts`）
+- `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push し、`/` を含む名前は拒む。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく止まり、別のカンバンのブランチを指したとき（`DATA_HISTORY_UNRELATED`）は取り込まずに止まる（戻し方は `dg guide overview`、細部は `commands-data-branch.test.ts`）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。`dg next` が implement・fix の手の `model` に返す（EX-5）。`models.<agent>.<tier>` があれば、呼んだ agent ではそれを先に使う（引く順は `dg next --help`）
 - `retro.perspectives`：振り返りの観点（MT-7）。観点ごとに名前・問い・承認した指標の定義（数え方の文と出どころのコマンド）を持つ入れ子で、チームだけが持つ。`config set` と設定画面では書かず、`dg retro` のコマンドが検査して書く（細部は `dg retro --help`、理由は [ADR-035](adr/ADR-035-retro-perspectives.md)）
 

@@ -17,6 +17,7 @@ export type OperationErrorCode =
   | "OUTSIDE_CHANGES"
   | "DATA_REMOTE_MISSING"
   | "DATA_REMOTE_CHANGED"
+  | "DATA_HISTORY_UNRELATED"
   | "REJECTED";
 
 export class DeguboardError extends Error {

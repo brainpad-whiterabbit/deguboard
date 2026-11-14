@@ -104,6 +104,7 @@ dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-api
 
 - A new clone runs `dg init` with the same `--data-remote` and `--data-branch`. The branch name is in the config's `git.data_branch`, but the config is inside the data, so the first init needs it.
 - A branch name cannot contain `/`: `deguboard/webapp` is rejected, and `deguboard-webapp` is suggested.
+- When the data remote or the data branch points at a branch that holds another board (the two share no history and both hold data), `dg sync` and writes stop with `DATA_HISTORY_UNRELATED` before taking anything in. Give this board its own branch: `dg init --data-branch <branch>` (for example `deguboard-<repository>`), `dg sync`, then `dg config set git.data_branch <branch>`.
 - Read access can only be split by repository. Everyone who can read the dedicated repository can read every kanban in it. Keep a kanban that only some people may see in a repository of its own.
 - To rename the data branch of an existing board, follow the steps of the previous section on the same remote: in step 1 run `git push <data remote> deguboard:<new name>`, in step 2 run `dg config set git.data_branch <new name>` and `dg sync`, and in step 4 delete the old branch. To move a board into a shared repository under a new name, rename the branch first and then move it to the repository, one move at a time. Changing both at once makes the next command push to the old branch name in the new repository, which may be another board's branch.
 
