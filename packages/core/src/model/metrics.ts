@@ -2,14 +2,7 @@
 
 import { isAgentActorId } from "./actor.js";
 import { idNumber } from "./id.js";
-import {
-  emptyCauseCounts,
-  FINDING_CAUSES,
-  TOOL_KINDS,
-  type CauseCounts,
-  type Run,
-  type RunTools,
-} from "./run.js";
+import { emptyCauseCounts, FINDING_CAUSES, TOOL_KINDS, type CauseCounts, type Run } from "./run.js";
 import type { Ticket } from "./ticket.js";
 
 /** 集計と絞り込みの単位。Agent/Model は agent と model に分けて持つ。step は Run の step（implement・review など） */
@@ -30,6 +23,9 @@ export type MetricValue = (typeof METRIC_VALUES)[number];
 
 const TOOL_VALUES = [...TOOL_KINDS, "read_before_write", "search_before_write"] as const;
 
+/** ツールの回数の合計。errors（失敗した呼び出しの数）は、その数のある Run がなければ null */
+export type ToolTotals = Record<(typeof TOOL_VALUES)[number], number> & { errors: number | null };
+
 export interface RunMetrics {
   runs: number;
   /** unfinished は result が null（実行中か、結果を記録せずに終わった）の Run */
@@ -41,13 +37,18 @@ export interface RunMetrics {
   output: number | null;
   cache_read: number | null;
   cache_write: number | null;
-  /** ツールの回数の合計。値のある Run がなければ null */
-  tools: RunTools | null;
+  /**
+   * ツールの回数の合計。値のある Run がなければ null。errors は失敗した呼び出しの数の合計で、
+   * その数のある Run がなければ null（ツールの回数だけがある Run は、errors に 0 を足さない）
+   */
+  tools: ToolTotals | null;
   /**
    * 値が欠けていて足さなかった Run の数。tools はツールの回数（tools）が null の Run、
+   * tool_errors は失敗した呼び出しの数（tools.errors）のない Run（tools が null の Run と、失敗の印を読めない
+   * Adapter・会話記録の Run と、この項目より前の Run。tools の欠けを含む）、
    * review_causes は見直しの結果はあるが原因ごとの数（review.causes）のない Run（この項目より前の Run と、数だけを渡した結果）
    */
-  missing: Record<MetricValue | "tools" | "review_causes", number>;
+  missing: Record<MetricValue | "tools" | "tool_errors" | "review_causes", number>;
   /** 推定の値（usage.estimated）を含む Run の数。0 でなければ合計も推定を含む */
   estimated_runs: number;
   /**
@@ -175,9 +176,10 @@ export function summarizeRuns(
     cache_read: 0,
     cache_write: 0,
     tools: 0,
+    tool_errors: 0,
     review_causes: 0,
   };
-  let tools: RunTools | null = null;
+  let tools: ToolTotals | null = null;
   const results = { success: 0, failure: 0, interrupted: 0, unfinished: 0 };
   let retries = 0;
   let estimated = 0;
@@ -223,10 +225,15 @@ export function summarizeRuns(
     }
     if (run.tools === null) missing.tools += 1;
     else {
-      const t: RunTools = tools ?? (Object.fromEntries(TOOL_VALUES.map((k) => [k, 0])) as RunTools);
+      const t: ToolTotals =
+        tools ??
+        ({ ...Object.fromEntries(TOOL_VALUES.map((k) => [k, 0])), errors: null } as ToolTotals);
       for (const key of TOOL_VALUES) t[key] += run.tools[key];
+      // 失敗した呼び出しの数のない Run は 0 として足さない（RN-2）。下で missing.tool_errors に数える
+      if (run.tools.errors !== undefined) t.errors = (t.errors ?? 0) + run.tools.errors;
       tools = t;
     }
+    if (run.tools?.errors === undefined) missing.tool_errors += 1;
   }
   return {
     runs: runs.length,

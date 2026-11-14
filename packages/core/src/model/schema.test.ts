@@ -568,6 +568,11 @@ describe("スキーマ", () => {
     };
     expect(runSchema.parse({ ...base, tools }).tools).toEqual(tools);
     expect(runSchema.safeParse({ ...base, tools: { ...tools, read: -1 } }).success).toBe(false);
+    // 失敗した呼び出しの数（errors）は省ける。この項目より前の Run はキーのないまま読み、0 や null で補わない
+    expect(runSchema.parse({ ...base, tools }).tools).not.toHaveProperty("errors");
+    expect(runSchema.parse({ ...base, tools: { ...tools, errors: 2 } }).tools?.errors).toBe(2);
+    expect(runSchema.safeParse({ ...base, tools: { ...tools, errors: -1 } }).success).toBe(false);
+    expect(runSchema.safeParse({ ...base, tools: { ...tools, errors: null } }).success).toBe(false);
     // null を省いたり、0 未満や知らない結果を書いたりはできない
     const { model: _model, ...noModel } = base;
     expect(runSchema.safeParse(noModel).success).toBe(false);

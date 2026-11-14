@@ -66,11 +66,31 @@ describe("Run の集計", () => {
       run("01"),
       run("02", { tools: { ...tools(2), write: 0 } }),
     ]);
-    expect(m.tools).toEqual({ ...tools(3), write: 1 });
+    expect(m.tools).toEqual({ ...tools(3), write: 1, errors: null });
     expect(m.missing.tools).toBe(1);
     const none = summarizeRuns([run("03")]);
     expect(none.tools).toBeNull();
     expect(none.missing.tools).toBe(1);
+  });
+
+  it("失敗した呼び出しの数（tools.errors）は足し、その数のない Run（この項目より前の Run・印を読めない Run・tools が null の Run）は 0 として足さずに missing.tool_errors に数える", () => {
+    const tools = { read: 1, search: 0, write: 1, bash: 2, other: 0 };
+    const counts = { ...tools, read_before_write: 1, search_before_write: 0 };
+    const m = summarizeRuns([
+      run("00", { tools: { ...counts, errors: 2 } }),
+      run("01", { tools: counts }), // 回数だけがある（この項目より前の Run、印を読めない会話記録）
+      run("02"), // tools のない Run（失敗の印を読めない Adapter）
+      run("03", { tools: { ...counts, errors: 0 } }),
+      run("04", { tools: { ...counts, errors: 3 } }),
+      // 会話記録を取らずに作った見直しの記録は、取れなかった値ではないので欠けに数えない
+      run("05", { step: "review", capture: "none" }),
+    ]);
+    expect(m.tools).toMatchObject({ bash: 8, errors: 5 });
+    expect(m.missing).toMatchObject({ tools: 1, tool_errors: 2 });
+    // 失敗の数のある Run が 1 つもなければ、0 でなく null
+    const none = summarizeRuns([run("06", { tools: counts }), run("07")]);
+    expect(none.tools).toMatchObject({ bash: 2, errors: null });
+    expect(none.missing.tool_errors).toBe(2);
   });
 
   it("推定の値を含む Run の数を estimated_runs で示す", () => {

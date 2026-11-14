@@ -707,7 +707,7 @@ export const runFinish = defineCommand({
   positionals: ["run"],
   group: "run",
   summary:
-    "Close the running Run and write its completion totals to runs/ (commits per commit.mode). Close a stopped Run with --result interrupted. Usage and tool counts (tools) are not taken as self-reports; the agent's Adapter imports them from the conversation record. If usage cannot be read, it stays null with a warning. With an Adapter that does not count tools, tools is null. " +
+    "Close the running Run and write its completion totals to runs/ (commits per commit.mode). Close a stopped Run with --result interrupted. Usage and tool counts (tools) are not taken as self-reports; the agent's Adapter imports them from the conversation record. If usage cannot be read, it stays null with a warning. With an Adapter that does not count tools, tools is null. tools.errors is the number of failed tool calls, counted from the failure marks of the tool results only (the text of a result is not read); it is left out when the marks cannot be read. " +
     "A Run that is already closed (such as an implementation Run closed by a ticket operation) is returned unchanged with a warning. " +
     "A Run whose sub-agent was asked with the marker and is still running (after a background start or resume, before it stops) is rejected except with --result interrupted (the hook closes it when it stops)",
   input: z.object({
