@@ -1162,10 +1162,14 @@ export type RunSummary = Pick<
   "id" | "step" | "result" | "started_at" | "finished_at" | "review" | "retries" | "error"
 > & { running: boolean } & Partial<Pick<Run, "waiting_since" | "settling_since">>;
 
-/** チケットごとの Run の要約。total はそのチケットの全部の Run の件数で、runs は新しい順に RECENT_RUN_LIMIT 件まで */
+/**
+ * チケットごとの Run の要約。total はそのチケットの全部の Run の件数で、runs は新しい順に RECENT_RUN_LIMIT 件まで。
+ * running は runs の外も含めて実行中の Run があるか（実行中の Run より後に始まった並行の Run が閉じて runs から押し出されても、実行中と分かるように）
+ */
 export interface TicketRunsView {
   ticket: Run["ticket"];
   total: number;
+  running: boolean;
   runs: RunSummary[];
 }
 
@@ -1187,7 +1191,7 @@ function runSummary(run: Run, running: boolean): RunSummary {
 export const runRecent = defineCommand({
   name: "run.recent",
   group: "run",
-  summary: `Summarize the Runs of each ticket: total (the number of all its Runs) and runs (the newest ${RECENT_RUN_LIMIT}, newest first). One summary has id, step, result, started_at, finished_at, review, retries (the number of findings fixed), error, and running; an unfinished Run (running: true, from deguboard-local/runs/ on this machine) also has waiting_since and settling_since. Tickets with no Run are left out. Iteration and Project follow each ticket's current value (same as run.list). Read the usage and the full list with run.list`,
+  summary: `Summarize the Runs of each ticket: total (the number of all its Runs), running (whether any of its Runs is unfinished, including ones older than runs), and runs (the newest ${RECENT_RUN_LIMIT}, newest first). One summary has id, step, result, started_at, finished_at, review, retries (the number of findings fixed), error, and running; an unfinished Run (running: true, from deguboard-local/runs/ on this machine) also has waiting_since and settling_since. Tickets with no Run are left out. Iteration and Project follow each ticket's current value (same as run.list). Read the usage and the full list with run.list`,
   input: z.object({
     iteration: iterationRef
       .optional()
@@ -1221,6 +1225,7 @@ export const runRecent = defineCommand({
       .map(([ticket, runs]) => ({
         ticket,
         total: runs.length,
+        running: runs.some((r) => r.running),
         // Run の ID の辞書順が開始の順（model/run.ts の newRunId）
         runs: runs
           .sort((a, b) => b.run.id.localeCompare(a.run.id))

@@ -648,7 +648,8 @@ function Column({
             const mark = planMarks.get(t.id);
             const found = store.ticketRuns?.get(t.id);
             const runs = showRunPips(t, found) ? found : undefined;
-            const running = !!runs?.runs.some((r) => r.running);
+            // 新しい 3 件の外にある実行中の Run も見る（並行の Run が後から閉じて押し出しても実行中と分かる）
+            const running = !!found?.running;
             return (
               <AskRow
                 key={t.id}

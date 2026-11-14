@@ -1599,7 +1599,7 @@ textarea.body {
 }
 /*
  * カンバンの行の Run の並び（UI-2。row-end.tsx の RunPips）。丸の色は .run-*（チケット詳細の Run と同じ色）の文字色で、形でも結果を見分ける：
- * 成功は塗り、失敗・重い指摘・中断・未完了は中抜き、実行中と返事待ちは半分塗り。最後の丸は少し大きい。
+ * 成功・実行中・返事待ちは塗り、失敗・重い指摘・未完了は中抜き、中断は半分塗り。最後の丸は少し大きい。
  * 実行中と返事待ちの最後の丸は明滅し（返事待ちは速く）、動きを減らす設定では明滅しない
  */
 .run-pips {
@@ -1635,12 +1635,10 @@ textarea.body {
 }
 .run-pip.run-failure,
 .run-pip.run-heavy,
-.run-pip.run-interrupted,
 .run-pip.run-unfinished {
   background: transparent;
 }
-.run-pip.run-running,
-.run-pip.run-waiting {
+.run-pip.run-interrupted {
   background: linear-gradient(90deg, currentColor 50%, transparent 50%);
 }
 .run-heavy {

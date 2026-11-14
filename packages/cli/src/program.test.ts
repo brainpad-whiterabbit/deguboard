@@ -233,6 +233,7 @@ describe("dg", () => {
         {
           ticket: "t1",
           total: 1,
+          running: false,
           runs: [
             {
               id: closed.id,
@@ -250,6 +251,7 @@ describe("dg", () => {
         {
           ticket: "t2",
           total: 1,
+          running: true,
           runs: [
             {
               id: running.id,

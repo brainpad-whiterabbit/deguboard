@@ -16,6 +16,7 @@ describe("カンバンの行の Run の並び（RunPips）", () => {
     const runs: TicketRunsView = {
       ticket: "t1",
       total: 1,
+      running: true,
       runs: [runSummary({ running: true, started_at: "2026-11-14T02:48:00Z" })],
     };
     render(<RunPips runs={runs} stepLabel={(s) => s} />);
@@ -31,6 +32,7 @@ describe("カンバンの行の Run の並び（RunPips）", () => {
     const runs: TicketRunsView = {
       ticket: "t1",
       total: 2,
+      running: false,
       runs: [runSummary({ id: "r2" }), runSummary({ id: "r1" })],
     };
     render(<RunPips runs={runs} stepLabel={(s) => s} />);

@@ -135,6 +135,7 @@ describe("カンバンの行の Run の並び", () => {
   const views = (...runs: ReturnType<typeof runSummary>[]) => ({
     ticket: "t1" as const,
     total: runs.length,
+    running: runs.some((r) => r.running),
     runs,
   });
 
@@ -152,6 +153,8 @@ describe("カンバンの行の Run の並び", () => {
     expect(showRunPips({ status: "todo" }, views(closed))).toBe(false);
     expect(showRunPips({ status: "todo" }, views(running))).toBe(true);
     expect(showRunPips({ status: "done" }, views(closed))).toBe(false);
+    // 新しい 3 件が閉じていても、その外に実行中の Run があれば（running）出す
+    expect(showRunPips({ status: "todo" }, { ...views(closed), running: true })).toBe(true);
   });
 
   it("丸の種類は結果に、重い指摘のあった見直しと返事待ちの実行中の Run を足す。書き終わりを待つ Run は実行中のまま", () => {

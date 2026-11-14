@@ -129,7 +129,8 @@ export function showRunPips(
 ): runs is TicketRunsView {
   if (!runs || runs.runs.length === 0) return false;
   if (ticket.status === "in_progress" || ticket.status === "review") return true;
-  return runs.runs.some((r) => r.running);
+  // 新しい 3 件の外にある実行中の Run も見る（core の TicketRunsView.running）
+  return runs.running;
 }
 
 /**

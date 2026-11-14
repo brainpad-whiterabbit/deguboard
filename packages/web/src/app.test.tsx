@@ -33,7 +33,7 @@ function ticketRuns(
   runs: RunSummary[],
   total = runs.length,
 ): TicketRunsView {
-  return { ticket: ticketId, total, runs };
+  return { ticket: ticketId, total, running: runs.some((r) => r.running), runs };
 }
 
 /** 実行中の Run の要約（今の 12 分前に始めた implement） */

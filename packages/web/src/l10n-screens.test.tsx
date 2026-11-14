@@ -167,6 +167,7 @@ function richClient(): MockClient {
     {
       ticket: "t2",
       total: runs.length,
+      running: runs.some((r) => r.running),
       runs: [...runs].reverse().map((r) => ({
         id: r.id,
         step: r.step,
