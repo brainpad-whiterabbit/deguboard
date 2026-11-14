@@ -116,7 +116,7 @@ export async function requireRelatedHistory(repo: GitRepo): Promise<void> {
   const target = `${repo.dataRemote}/${repo.dataBranch}`;
   throw new OperationError(
     "DATA_HISTORY_UNRELATED",
-    `The local kanban and ${target} share no history, and both hold data: ${target} holds another kanban (for example, another repository's kanban in a shared data repository). Nothing was taken in or pushed, and the local commits are kept. Do not merge the two yourself; tell the human. To give this kanban its own branch on ${repo.dataRemote}, the human runs dg init --data-branch <name> (deguboard-<name> is recommended; it points this clone at that branch), then dg sync, then dg config set git.data_branch <name> to record it for the team (see "Data in another repository" in dg guide overview)`,
+    `The local kanban and ${target} share no history, and both hold data: ${target} holds another kanban (for example, another repository's kanban in a shared data repository). Nothing was taken in or pushed, and the local commits are kept. Do not merge the two yourself; tell the human. To give this kanban its own branch on ${repo.dataRemote}, the human runs dg init --data-branch <branch> (for example deguboard-<repository>; it points this clone at that branch), then dg sync, then dg config set git.data_branch <branch> to record it for the team (see "Data in another repository" in dg guide overview)`,
   );
 }
 

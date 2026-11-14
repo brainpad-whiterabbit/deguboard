@@ -363,7 +363,7 @@ describe("データのリモートやブランチが別のカンバンの履歴�
   const unrelated = {
     code: "DATA_HISTORY_UNRELATED",
     message: expect.stringMatching(
-      /data\/deguboard share no history, and both hold data.*another kanban.*Nothing was taken in or pushed.*dg init --data-branch <name>.*git\.data_branch.*dg guide overview/,
+      /data\/deguboard share no history, and both hold data.*another kanban.*Nothing was taken in or pushed.*dg init --data-branch <branch> \(for example deguboard-<repository>.*git\.data_branch <branch>.*dg guide overview/,
     ),
   };
 
@@ -407,6 +407,39 @@ describe("データのリモートやブランチが別のカンバンの履歴�
     expect(titlesOf(a2)).toEqual(["t1:自分のカンバン"]);
     // 別のカンバンのブランチは動かない
     expect(await tipOf(dataDir, "deguboard")).toBe(otherTip);
+  });
+
+  it("最初の取り込みの後に別のカンバンがデータのブランチを作って push が拒まれたら、自分のコミットを捨ててから専用のエラーで止まる", async () => {
+    const f = await fixture();
+    const dataDir = await addDataRemote(f, [f.cloneA, f.cloneB]);
+    await git(f.cloneA, ["config", "user.name", "別の人"]);
+    const first = await initWith(f.cloneA, "origin", "deguboard");
+    await runCommand(ticketCreate, first, { title: "自分のカンバン" });
+    // CAS でない書き込み（自分のコミットを残したまま取り込み直す経路）をすぐコミットして push させる
+    await runCommand(configSet, first, { key: "commit.mode", value: "each", local: true });
+    await runCommand(configSet, first, { key: "git.data_remote", value: "data" });
+    // A が自分の変更をコミットして push する直前に、B がまだなかった data/deguboard に別のカンバンを置く
+    const hooks = {
+      beforePush: async () => {
+        hooks.beforePush = async () => {};
+        const other = await initWith(f.cloneB, "data", "deguboard");
+        await runCommand(ticketCreate, other, { title: "ほかのカンバン" });
+      },
+    };
+    const racer = await openContext({ cwd: f.cloneA, actor, hooks });
+    expect(racer.repo).toMatchObject({ dataRemote: "data", dataBranch: "deguboard" });
+    expect(await tipOf(dataDir, "deguboard")).toBeUndefined();
+    const head = await headOf(racer);
+
+    await expect(
+      runCommand(ticketUpdate, racer, { ticket: "t1", priority: "high" }),
+    ).rejects.toMatchObject(unrelated);
+    // 変更は書かれていない（残ると、戻した後のもう一度の実行が同じ変更を二重に入れる）
+    await expectUntouched(racer, head);
+    expect(racer.store.tickets.get("t1")?.data.priority).not.toBe("high");
+    const otherTip = await tipOf(dataDir, "deguboard");
+    expect(otherTip).toBeDefined();
+    expect(otherTip).not.toBe(head);
   });
 
   it("手元が作ったばかりで空（orphan の根だけ）のときは止めず、今までどおりリモートのカンバンを取り込む", async () => {
