@@ -169,6 +169,13 @@ gh release create v<版> --draft --notes-file <本文> packages/vscode/deguboard
 gh release edit v<版> --draft=false  # 公開すると、ワークフローが Marketplace と Open VSX に出す
 ```
 
+リリースは Iteration の中で 2 つのチケットに分けて進める。Iteration の確認（すべて done）のあとに起票する。
+
+- **版を上げる PR のチケット**（`release:version` の PR）：受け入れ条件は PR の中身だけで確かめられるものにする。例は、全パッケージの版が揃い VSIX の版が `packages/vscode/package.json` と一致する、`mise run check`・`mise run test:layout`・`mise run test:vscode` が PR の先端で通る。マージの承認を求める前に、受け入れ条件に印を付け、`dg gate <id> --for merge` が条件を満たすことを確かめる。承認で条件を外してマージしない
+- **タグと公開のチケット**（PR を持たない）：`claim --without-branch` で進め、マージのあとで確かめる。例は、マージ後の main の SHA にタグ `v<版>` を push した、VSIX を添付した Release を公開した、Marketplace と Open VSX に版が出た（ワークフローが成功した）。タグと公開は PR のマージのあとでしか確かめられないので、PR のチケットに入れると、マージが承認で条件を外すしかなくなる。確かめたら agent が done にする
+
+両方を done にしてから、Iteration を閉じる。
+
 VSIX を添付してから公開する。公開したときだけ `.github/workflows/publish-extension.yml` が走り、その Release に添付した `deguboard-vscode.vsix` を落として、版がタグと合えば Marketplace（`vsce publish --oidc`）と Open VSX（`ovsx publish`）に出す。build と検査はしないので、上の検査を通した VSIX を添付する（判断は [ADR-008](adr/ADR-008-tech-stack.md)）。pre-release の Release は出さず、あとで正式な Release に変えても出ない（出すなら、その Release を消して下書きから作り直して公開する）。片方だけ落ちたら、Actions でその job だけを再実行する。
 
 初めて出す前に、一度だけ準備する。初回の VSIX は人が手で上げ、その後の版から Release の公開で出す。手で上げるのは、Marketplace の trusted publishing の policy が既存の拡張のページに登録するもので、拡張が一度出ていないと設定できず、ワークフローは Release の公開でしか走らないため。Open VSX も、namespace と拡張のページを手元から確かめてから Release の経路に載せる：
