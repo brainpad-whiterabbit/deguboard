@@ -1,0 +1,27 @@
+id: p125
+project: default
+tickets: [t878, t880, t881, t879]
+after:
+  t881:
+    - t880
+  t879:
+    - t878
+    - t881
+pending_approval: true
+details:
+  t878:
+    scope: README.md・README.ja.md の Usage と Tips を普通の言葉の頼み方にし、全 Skill の表を usage.md・usage.ja.md に移す。Skill の description と雛形は変えない
+    approach: 英語版を先に直し、日本語版を同じ節の構成に合わせる
+    tier: light
+  t880:
+    scope: チケットごとに total と新しい順 3 件の Run の要約を返す読み取りのコマンドを core に足す。run.list と画面は変えない
+    approach: commands/run.ts にコマンド定義を足し、実行中の記録と閉じた Run を合わせて要約し、CLI・HTTP は写すだけにして --json の形をテストで固める
+    tier: heavy
+  t881:
+    scope: カンバンの行の右端の下の段を Run の丸の並びと最後の丸の文字に替え、頭の印を外し、UI-2 に 1 文足す。チケット詳細の Run の節は変えない
+    approach: store が新しいコマンドを読み、row-end.tsx に丸の部品を置いて run-parts.tsx の結果の種類を使い回し、手の名前は Workflow の steps の label から取る
+    tier: standard
+  t879:
+    scope: GIF の台本を英語と日本語で録れるようにし、5 つの *.ja.gif を README.ja.md から引く
+    approach: t878 の README の頼み方と t881 の新しい行の見た目に合わせて録る
+    tier: standard
