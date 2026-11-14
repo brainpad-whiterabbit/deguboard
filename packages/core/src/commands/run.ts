@@ -966,7 +966,7 @@ export const runReviewResult = defineCommand({
         if (doc.data.review !== null)
           throw new OperationError(
             "REJECTED",
-            `A result was written to the closed review Run ${doc.id} during the write (the result of a closed Run is not rewritten. RN-4)`,
+            `A result was written to the closed review Run ${doc.id} during the write (the result of a closed Run is not rewritten)`,
           );
         const unrecorded = doc.data.result === "failure" && doc.data.error === REVIEW_UNRECORDED;
         return (

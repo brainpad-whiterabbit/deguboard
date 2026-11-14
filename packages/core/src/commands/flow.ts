@@ -581,18 +581,18 @@ export const flowNext = defineCommand({
       .array(z.string().min(1))
       .min(1)
       .describe("Target: one Iteration (s3), one Plan (p7), or one or more tickets (t12)"),
+    // 要件 EX-7
     auto: z
       .boolean()
       .optional()
-      .describe(
-        "Automatically choose reversible decisions that come with a suggested option (EX-7)",
-      ),
+      .describe("Automatically choose reversible decisions that come with a suggested option"),
     no_assign: z.boolean().optional().describe("Skip the assign stage"),
+    // 要件 TK-9
     gate: z
       .enum(GATE_LEVELS)
       .optional()
       .describe(
-        "Quality gate level the person gave (TK-9; /dgall --gate-<level>). In the work stage, puts dg ticket update <id> --gate <level> before next only for tickets whose level differs (a ticket with no gate is high)",
+        "Quality gate level the person gave (/dgall --gate-<level>). In the work stage, puts dg ticket update <id> --gate <level> before next only for tickets whose level differs (a ticket with no gate is high)",
       ),
     resume: z
       .string()

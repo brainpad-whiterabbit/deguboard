@@ -119,11 +119,12 @@ const actorRef = z.string().min(1);
 const ticketAttributes = {
   priority: z.enum(PRIORITIES).optional().describe("Priority"),
   labels: z.array(z.string()).optional().describe("Labels"),
+  // 要件 TK-9
   gate: z
     .enum(GATE_LEVELS)
     .optional()
     .describe(
-      "Quality gate level (TK-9). high checks every condition, low skips the review, free checks only that the PR is open and has no conflict. Treated as high when omitted (see dg gate --help)",
+      "Quality gate level. high checks every condition, low skips the review, free checks only that the PR is open and has no conflict. Treated as high when omitted (see dg gate --help)",
     ),
   iteration: z.string().optional().describe("Iteration ID"),
   epic: z.string().optional().describe("Epic ID. Cannot be set on a closed Epic"),
@@ -569,12 +570,13 @@ export const ticketUpdate = defineCommand({
       .describe(
         "IDs of tickets this one depends on. Replaces the whole list (specify all of them, including existing ones)",
       ),
+    // 要件 TK-9
     gate: z
       .enum(GATE_LEVELS)
       .nullable()
       .optional()
       .describe(
-        "Quality gate level (TK-9): high, low, or free. Removing it returns to high (see dg gate --help)",
+        "Quality gate level: high, low, or free. Removing it returns to high (see dg gate --help)",
       ),
     iteration: z.string().nullable().optional().describe("Iteration ID"),
     epic: z.string().nullable().optional().describe("Epic ID"),
@@ -886,12 +888,13 @@ function transitionSideEffects(to: Status): Record<string, unknown> {
   return {};
 }
 
+// 要件 RN-6（状態の移動で、この機械で動いている Run を閉じる）
 export const ticketMove = defineCommand({
   name: "ticket.move",
   positionals: ["ticket", "status"],
   group: "ticket",
   summary:
-    "Change the Status. Transitions that break the Workflow's transitions constraints (by, requires), and moves to the same Status, are rejected. Closes Runs running on this machine (RN-6): abandoned closes implementation and fix Runs with failure; review and done for a ticket with no branch, and done with no PR, close the implementation Run with success",
+    "Change the Status. Transitions that break the Workflow's transitions constraints (by, requires), and moves to the same Status, are rejected. Closes Runs running on this machine: abandoned closes implementation and fix Runs with failure; review and done for a ticket with no branch, and done with no PR, close the implementation Run with success",
   input: z.object({
     ticket: ticketRef,
     status: statusSchema.describe(`Next Status (${STATUSES.join(" / ")})`),

@@ -274,12 +274,13 @@ async function judgeReview(
   );
 }
 
+// 要件 EX-3（品質ゲートの判定）・TK-9（段ごとに判定する条件）
 export const gate = defineCommand({
   name: "gate",
   positionals: ["ticket"],
   group: "gate",
   summary:
-    "Judge the quality gate from records and the Git and PR facts, and return the result of each condition (conditions) and the reasons for any unmet one (EX-3). The conditions are " +
+    "Judge the quality gate from records and the Git and PR facts, and return the result of each condition (conditions) and the reasons for any unmet one. The conditions are " +
     "pr (the PR is open; with --for merge, not a draft) · acceptance (with --for merge, every acceptance criterion is checked) · " +
     "review (the latest review of the work branch's remote tip has closed with success, and the run review-result result passed. A review counts for the tip when the SHA it recorded (the local tip of the work branch when the review Run was opened, or when a held result was written) is the remote tip's SHA. A review with no recorded SHA (an earlier version's Run) counts when it started after the time of the remote tip's commit) · " +
     "(a review result held with no review Run, while the ticket has no open review Run and no running sub-agent, counts as a review closed when the result was written; when several are held after the same push, only the latest counts) · " +
@@ -287,7 +288,7 @@ export const gate = defineCommand({
     "head (with --for merge at high and low, the PR's head commit (sha in the output, which dg pr merge pins with --match-head-commit) is the latest commit of the work branch, the commit that review and check judge) · " +
     "check (config's actions.test passes when run in a worktree with no uncommitted changes, checked out at the latest commit of the work branch (remote tip). When the last commit whose actions.test passed is an ancestor of the latest commit, no merge commit came after it, actions.test is unchanged, and every file changed since then falls under actions.light_paths, the lighter check actions.light_test runs instead (with no such record yet, the diff against base decides the same way). Otherwise actions.test runs. detail gives which one ran and why. When actions.test is empty, it passes without judging and detail says so. When it fails, detail gives the exit code and the tail of the output. A passing result is remembered per commit and per command in deguboard-local and is not rerun for the same commit (it still counts after the worktree is removed, e.g. after a merge. A failing result is not remembered; the next check reruns it). It takes time, so it runs only when all the other conditions are met; not_run: true marks a check skipped because they were not met). " +
     "A condition that gh or Git cannot read is treated as unmet. " +
-    "Which conditions are judged depends on the ticket's gate level (TK-9; gate in the output; a ticket with no gate is high). " +
+    "Which conditions are judged depends on the ticket's gate level (gate in the output; a ticket with no gate is high). " +
     "high judges all of them (--for merge: pr · acceptance · review · fix_rounds · mergeable · head · check; --for ready: pr · review · fix_rounds · check). " +
     "low leaves out review and fix_rounds (merge: pr · acceptance · mergeable · head · check; ready: pr · check). " +
     "free judges only pr and, with --for merge, mergeable (merge: pr · mergeable; ready: pr). At free, dg pr merge still pins the PR's head (sha), so a commit pushed after the judgment is not merged. Conditions that are not judged do not appear in conditions, and their inputs (review Runs, the push time and its fetch, the check) are not read. " +
