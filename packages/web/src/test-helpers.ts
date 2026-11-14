@@ -231,7 +231,7 @@ export function mockClient(data = fixture()): MockClient {
           low: "使われていないコードと依存・急がない調査",
         },
       };
-      // fields を付けると core と同じく { config, team, local, fields } の形（設定画面が読む）
+      // fields を付けると core の { config, team, local, defaults, fields } のうち、画面が読む config・team・local・fields を返す
       return (input as { fields?: boolean } | undefined)?.fields
         ? { config, team: config, local: {}, fields: [] }
         : config;
