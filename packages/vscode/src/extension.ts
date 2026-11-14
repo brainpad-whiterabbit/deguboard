@@ -19,11 +19,11 @@ import {
   detailOfRoute,
   detailRouteOf,
   findMissingSkills,
+  installMissingSkills,
   pickUser,
   refreshInstalledSkills,
   toCommandFailure,
   WEBVIEW_CONTRACT,
-  writeSkillFiles,
   type CommandClient,
   type ResolveSide,
   type StatusView,
@@ -294,7 +294,8 @@ async function refreshSkills(context: vscode.ExtensionContext): Promise<void> {
 
 /**
  * dg の Skill を入れてある置き場所ごとに、足りない同梱の Skill を info 通知で案内する（core の findMissingSkills、文は skills.ts）。
- * Install は足りない Skill だけを書き（入れてある Skill は writeSkillFiles に渡さないので変わらない）、
+ * Install は core の installMissingSkills で足りない Skill だけを書き（入れてある Skill は渡さないので変わらない）、
+ * リポジトリの置き場所では書いた Skill の無視の行を .gitignore に足す（dg skill install と同じ）。
  * Don't show again はその名前を globalState に覚えて以後案内しない。確かめられなくても画面は動くので、知らせずに記録だけ残す
  */
 async function suggestMissingSkills(
@@ -335,8 +336,7 @@ async function askToInstallSkills(
   }
   if (picked !== install) return;
   try {
-    const result = await writeSkillFiles(notice.dir, {
-      force: false,
+    const result = await installMissingSkills(notice, {
       names: notice.names,
       skills: await buildSkills(__CORE_VERSION__),
     });

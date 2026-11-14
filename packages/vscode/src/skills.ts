@@ -1,7 +1,7 @@
 // 拡張の起動のたびに、入れてある dg の Skill のうち、この拡張より古い版の dg が書いたものを同梱の dg のものに更新する（AG-2・UI-11）。
 // 作業フォルダごとの置き場所のまとめ・同梱のものより古いかの判定・書く処理は core の refreshInstalledSkills（dg skill install と同じ書く処理）で、
 // ここは結果から通知の文を作るだけにする。VS Code の API には触れない（core を呼んで通知を出すのは extension.ts）。
-// 更新の後で、dg の Skill を入れてある置き場所に足りない同梱の Skill を案内する（core の findMissingSkills）。
+// 更新の後で、dg の Skill を入れてある置き場所に足りない同梱の Skill を案内する（core の findMissingSkills。Install は core の installMissingSkills）。
 // Don't show again で選んだ Skill の名前は拡張の globalState に覚え、以後その名前は案内しない（覚え方はここ、読み書きは extension.ts）
 
 import type { MissingSkills, RefreshedSkills } from "@deguboard/core";
@@ -10,8 +10,9 @@ import { t } from "./l10n.js";
 /** 案内しないと選んだ Skill の名前を覚える globalState の鍵 */
 export const DISMISSED_SKILLS_KEY = "deguboard.dismissedMissingSkills";
 
-/** 足りない Skill の案内の 1 件。置き場所ごとに 1 件で、Install は names だけを書く */
+/** 足りない Skill の案内の 1 件。置き場所ごとに 1 件で、Install は names だけを書く（project の置き場所では .gitignore に無視の行も足す） */
 export interface MissingSkillNotice {
+  scope: "project" | "personal";
   dir: string;
   names: string[];
   text: string;
@@ -35,6 +36,7 @@ export function missingSkillNotices(
     if (names.length === 0) return [];
     return [
       {
+        scope: f.scope,
         dir: f.dir,
         names,
         text: t(
