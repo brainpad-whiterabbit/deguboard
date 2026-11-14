@@ -485,6 +485,10 @@ describe("dg guide", () => {
       "never `ticket`",
     ])
       expect(separate, word).toContain(word);
+    // 「テストがなければ implementation」の言い回しは、テストの有る無しで種類が決まるように読めるので残さない
+    const tests = lineWith(kinds, "`tests`:");
+    expect(tests).toContain("the tests that were there were adequate");
+    expect(kinds).not.toContain("If no test was there to miss");
   });
 
   it("retro の改善の追跡の候補は、retro-<前の S> のラベルのチケットの状態から前回の Try が終わったかを数える", async () => {
