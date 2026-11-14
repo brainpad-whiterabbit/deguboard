@@ -46,6 +46,7 @@ export const CORE_LABELS: CoreTextTable = {
   Discuss: { ja: "検討する" },
   "Undo done": { ja: "done を取り消す" },
   "Ask for status": { ja: "様子を聞く" },
+  Explain: { ja: "説明する" },
   Retrospect: { ja: "振り返る" },
   "Free-form": { ja: "自由に" },
   Reopen: { ja: "再開する" },

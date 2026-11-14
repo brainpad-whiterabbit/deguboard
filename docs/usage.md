@@ -23,6 +23,7 @@ The Skills are for Claude Code. Say the request in plain words, or type the comm
 | `dgchange`  | Carries out one change a human asked for (edit, close, reopen, abandon, undo)   | "Close s3"                                  | `/dgchange s3`     |
 | `dgdiscuss` | Settles the open points of tickets, an Epic, or an Iteration with a human       | "Let's discuss t12"                         | `/dgdiscuss t12`   |
 | `dgstatus`  | Tells where the work on an in-progress ticket is, and why it stopped            | "How far has t12 got?"                      | `/dgstatus t12`    |
+| `dgexplain` | Explains what a ticket, Epic, or Iteration is about, with text diagrams         | "Explain t12"                               | `/dgexplain t12`   |
 
 ## Hand off everything
 
