@@ -82,7 +82,12 @@ retro:
     review:
       name: 見直しの効き目
       question: 見直しは不具合をマージの前に見つけ、少ない回数で収束したか
-      metrics: {}
+      metrics:
+        heavy-per-reviewed:
+          definition: 見直しの記録が 1 件以上あるチケット 1 件あたりの重い指摘の数（reviews.heavy の合計 ÷ reviews.recorded が 1 以上のチケットの数）
+          sources:
+            - dg metrics show --iteration <S> --by ticket (reviews.heavy, reviews.recorded)
+          unmeasured: マージの後に見つかった不具合
     spec:
       name: 仕様の質
       question: チケット（受け入れ条件と範囲）は、作り直しなしで通る成果を引き出せたか
