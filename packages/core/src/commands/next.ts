@@ -509,7 +509,7 @@ export const next = defineCommand({
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
     "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. A ticket in the awaiting_approval stage is wait_human too (a person approves its Plan). " +
-    "It also warns with the dg hook warnings not reported yet (see dg hook --help), and with the installed dg Skills that are older than this dg (update them with dg skill install). It writes nothing but the mark of the reported hook warnings in deguboard-local",
+    "It also warns with the dg hook warnings not reported yet (see dg hook --help), and with the installed dg Skills that are older than this dg, or that a dg of the same version wrote with different contents (update them with dg skill install; Skills written by a newer dg are not reported). It writes nothing but the mark of the reported hook warnings in deguboard-local",
   input: z.object({
     ticket: ticketRef,
   }),

@@ -256,13 +256,18 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 /**
- * 入れてある dg の Skill のうち同梱の dg のものと違うものを core の refreshInstalledSkills で更新し、更新したものと手を加えたので残したものを通知する（文は skills.ts）。
- * 起動のたびに中身で比べるので、同じ版の入れ直しでも拾う。確かめられなくても画面は動くので、知らせずに記録だけ残す
+ * 入れてある dg の Skill のうち、この拡張より古い版の dg が書いたものを core の refreshInstalledSkills で更新し、更新したものと手を加えたので残したものを通知する（文は skills.ts）。
+ * 新しい版の dg（PATH の dg など）が書いた Skill は戻さない。束ねた拡張では core が自分の版を読めないので、ビルドで埋めた版を渡す。
+ * 確かめられなくても画面は動くので、知らせずに記録だけ残す
  */
 async function refreshSkills(): Promise<void> {
   try {
     const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-    const refreshed = await refreshInstalledSkills({ folders, env: process.env });
+    const refreshed = await refreshInstalledSkills({
+      folders,
+      env: process.env,
+      version: __CORE_VERSION__,
+    });
     for (const notice of skillRefreshNotices(refreshed)) {
       const show =
         notice.level === "warning"

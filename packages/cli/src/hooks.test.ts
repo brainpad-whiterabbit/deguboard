@@ -618,9 +618,9 @@ describe("dg hooks check（AG-9・t542）", () => {
     const personalDir = skillsDir(home);
     const edited = `These dg Skills in ${projectDir} are older than this dg and were edited by hand, so dg skill install keeps them: dgplan. To overwrite them with the current Skills, run dg skill install --force`;
     expect(await aboutSkills()).toEqual([
-      `These dg Skills in ${projectDir} are older than this dg (they differ from the Skills bundled with it): dgwork. Update them with dg skill install`,
+      `These dg Skills in ${projectDir} are older than this dg (an older version of dg wrote them): dgwork. Update them with dg skill install`,
       edited,
-      `These dg Skills in ${personalDir} are older than this dg (they differ from the Skills bundled with it): dgdone. Update them with dg skill install --personal`,
+      `These dg Skills in ${personalDir} are older than this dg (an older version of dg wrote them): dgdone. Update them with dg skill install --personal`,
     ]);
 
     // 案内のとおりに入れ直すと、警告と同じ分け方で更新され（手を加えたものは残る）、警告が消える

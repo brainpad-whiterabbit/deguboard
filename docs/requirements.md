@@ -236,7 +236,7 @@ updated_at: 2026-10-31T05:10:00Z
 ### 6.5 エージェント連携
 
 - AG-1 エージェントは `dg` を Bash から `--json` で呼び、データを直接編集しない。主体はフック（AG-9）が agent にし、フックがなければ `--actor agent` か `DEGUBOARD_ACTOR` で申告する（既定は human）。guide の手順は agent を名乗る（`skill.test.ts`。ID は TK-7 と `dg --help`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)）
-- AG-2 `dg skill install` は `dg guide <topic>` を読む薄い Skill を配る。Skill は任意で、スクリプトも許可も持たず、各自が入れる（`.claude/.gitignore` で無視）。Skill・guide は英語で書く。古い Skill は `dg hooks check`・`next`・`brief` が警告し、VS Code 拡張は起動時に更新する。手を加えたものは残して知らせる。細部は core の `skill-files.ts`
+- AG-2 `dg skill install` は `dg guide <topic>` を読む薄い Skill を配る。任意で、スクリプトも許可も持たず、各自が入れる（`.claude/.gitignore` で無視）。Skill・guide は英語で書く。古い Skill は `dg hooks check`・`next`・`brief` が警告し、VS Code 拡張が起動時に更新する（新しい版は戻さない）。手を加えたものは残して知らせる。細部は `skill-files.ts`
 - AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）。起票・着手・マージは人が頼んだ段階までにする（決まりは `dg guide overview`）
 - AG-4 MCP サーバー（`dg mcp`。stdio）は Bash のないクライアントの入口で、ツールを Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、結果は `--json` と同じ形（CL-1）で、主体は常に agent。細部は `packages/cli/src/mcp.ts` とそのテスト
 - AG-5 AI 製品ごとの差（使用量の取得・dg を呼んだエージェントの判定・フックの入力と設定）は Agent Adapter が吸収し、実装は Core の `agents/adapters/` に閉じる（対応する製品はそこのコード）。エージェントの起動と権限は扱わない（EX-1、[ADR-033](adr/ADR-033-architecture.md)）
