@@ -49,7 +49,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 - どのチケットをどの順で進めるかと承認・範囲・方針を Plan に持つ（requirements の 5.7）
 - 進捗は Plan に書かず、チケットの状態から都度求める（PL-2）。Plan は残ったチケットがあっても閉じられる（立て直しで閉じるため。PL-4）
-- チケットの難しさの段階（`tier`）を Plan に、段階からモデル名への対応を `config.yaml` の `models.*` に置く。そのモデルで起動するのは手順
+- チケットの難しさの段階（`tier`）を Plan に、段階からモデル名への対応を `config.yaml` の `models.*` に置く。対応は全体（`models.<tier>`）と agent ごと（`models.<agent>.<tier>`）に持ち、`dg next` は呼んだ agent の対応を先に引く。そのモデルで起動するのは手順
 - Plan を進める手続き（並列実行・修正ループ・自動マージ）は [ADR-011](ADR-011-procedure-in-code.md)
 - Plan の中の待ち（`after`）はチケットの `depends_on` と別に Plan に持つ。`after` は Plan の中だけの順で、Plan を閉じれば待ちをやめる（PL-1・PL-3）
 
@@ -59,7 +59,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 - `packages/core/src/git/facts.ts`（`collectBranchFacts`・`findMergedLeftover`）・`packages/core/src/workflow/reconcile.ts`・`packages/core/src/commands/setup.ts`（照合）・`packages/core/src/commands/ticket.ts`（`requireBranchAvailable`・claim・unclaim）
 - `packages/core/src/model/actor.ts`・`packages/core/src/git/repo.ts`（ユーザ名）・`packages/core/src/git/lock.ts`
-- `packages/core/src/model/plan.ts`・`packages/core/src/commands/plan.ts`・`packages/core/src/model/config.ts`（`models.*`）
+- `packages/core/src/model/plan.ts`・`packages/core/src/commands/plan.ts`・`packages/core/src/model/config.ts`（`models.*`）・`packages/core/src/commands/next.ts`（`modelOf`。モデル名を引く順）
 - `packages/core/src/commands/commands-flow-reconcile.test.ts`・`commands-flow-ticket.test.ts`・`commands-plan.test.ts`
 
 ## 理由
@@ -72,6 +72,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 - ID にホスト名を含めないのは、同じ人が別の PC から操作しても同じ人であるため。種別を ID に含めるのは、同じマシンで人と AI が動くと区別がつかず、AI がどれだけ起票・作業したかを後から数えられないため。起票者と担当者を分けるのは、AI が起票して人が進める、人が起票して AI が進める、のどちらも普通にあるため
 - Plan を分けるのは、Epic は目的の範囲、Iteration は期間、Plan は実行順、Run は実績と役割が違うため。進捗を書かないのは、push の衝突を減らすため
 - 段階を Plan に書くのは、難しさが範囲・方針と一緒に計画で決まり、承認の表で人が確かめられるため
+- モデル名の対応を agent ごとにも持つのは、モデル名が AI 製品ごとに違い、1 つの対応では別の製品で進める人がその製品にない名前を受け取るため。agent を判定できないときは全体の対応を使う
 - `after` を `depends_on` と別に持つのは、順が 1 つの Plan の中の判断で、閉じた後もチケットに残ると別の Plan や Plan の外の着手を止めるため
 
 ## 採らなかった案

@@ -14,6 +14,11 @@ import { emptyUsage, isRunId, newRunId, runSchema } from "./run.js";
 import { ticketSchema } from "./ticket.js";
 import { workflowDefinitionSchema } from "./workflow.js";
 
+/** agent ごとのモデル名の項目（models.<agent>.<tier>）。Adapter の一覧の順 */
+const AGENT_MODEL_KEYS = ["claude-code", "codex", "copilot"].flatMap((agent) =>
+  ["light", "standard", "heavy"].map((tier) => `models.${agent}.${tier}`),
+);
+
 describe("スキーマ", () => {
   it("チケットの必須項目が揃えば読め、既定値が入る", () => {
     const t = ticketSchema.parse({
@@ -79,6 +84,7 @@ describe("スキーマ", () => {
       "models.light",
       "models.standard",
       "models.heavy",
+      ...AGENT_MODEL_KEYS,
     ]);
     for (const key of [
       "git.base_branch",
@@ -165,7 +171,7 @@ describe("スキーマ", () => {
       nope: { x: 1 },
     });
     expect(config.commit.mode).toBe("each");
-    expect(config.models).toEqual({ light: "haiku", standard: "", heavy: "opus" });
+    expect(config.models).toMatchObject({ light: "haiku", standard: "", heavy: "opus" });
     expect(config.push.mode).toBe("auto");
     expect(config.auto.merge).toBe(false);
     expect(config.metrics.read_transcripts).toBe(false);
@@ -181,6 +187,48 @@ describe("スキーマ", () => {
     expect(ignored.find((i) => i.key === "push.mode")?.reason).toContain("Invalid value");
     // 個人のファイルがなければ（undefined）チームの値のまま
     expect(overlayLocalConfig(team, undefined)).toEqual({ config: team, local: {}, ignored: [] });
+  });
+
+  it("models.<agent>.<tier> は Adapter のある agent ごとの項目で、既定は空。個人の設定で上書きでき、Adapter のない agent の鍵は無視する（t898）", () => {
+    const byKey = new Map(configFields().map((f) => [f.key, f]));
+    for (const key of AGENT_MODEL_KEYS) {
+      expect(byKey.get(key), key).toMatchObject({ type: "string", default: "", scope: "local" });
+      // 空のときは models.<tier> を使うと説明する
+      const tier = key.split(".")[2];
+      expect(byKey.get(key)?.empty, key).toBe(`models.${tier} is used`);
+      expect(byKey.get(key)?.description, key).toContain(`models.${tier}`);
+    }
+    expect(defaultConfig().models).toEqual({
+      light: "",
+      standard: "",
+      heavy: "",
+      "claude-code": { light: "", standard: "", heavy: "" },
+      codex: { light: "", standard: "", heavy: "" },
+      copilot: { light: "", standard: "", heavy: "" },
+    });
+    const team = configSchema.parse({
+      models: { heavy: "opus", codex: { heavy: "gpt-team", light: "gpt-mini" } },
+    });
+    expect(team.models.heavy).toBe("opus");
+    const { config, local, ignored } = overlayLocalConfig(team, {
+      models: {
+        codex: { heavy: "gpt-mine" },
+        "claude-code": { standard: "sonnet" },
+        other: { heavy: "x" },
+      },
+    });
+    expect(config.models).toMatchObject({
+      heavy: "opus",
+      codex: { light: "gpt-mini", standard: "", heavy: "gpt-mine" },
+      "claude-code": { light: "", standard: "sonnet", heavy: "" },
+    });
+    expect(local).toEqual({
+      "models.codex.heavy": "gpt-mine",
+      "models.claude-code.standard": "sonnet",
+    });
+    expect(ignored).toEqual([{ key: "models.other.heavy", reason: "Not in the schema" }]);
+    // 文字列でない値は弾く
+    expect(configSchema.safeParse({ models: { codex: { heavy: 1 } } }).success).toBe(false);
   });
 
   it("振り返りの観点の既定は Agentic-Agile の評価の枠組みにもとづく 7 つで、どれも名前と問いを持ち、指標の定義は空（t847）", () => {
@@ -278,6 +326,7 @@ describe("スキーマ", () => {
       "models.light",
       "models.standard",
       "models.heavy",
+      ...AGENT_MODEL_KEYS,
       "actor.human_only",
       "guide.notes.overview",
       "guide.notes.import",

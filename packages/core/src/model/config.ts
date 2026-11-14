@@ -7,6 +7,7 @@
 // 項目ごとの範囲（scope）もここで決める：local の項目だけが、Git に入らない個人の設定（deguboard-local/config.yaml）で上書きできる
 
 import { z } from "zod";
+import { agentNames } from "../agents/index.js";
 import { GUIDE_TOPICS } from "../guide/topics.js";
 import { slugSchema } from "./common.js";
 
@@ -71,6 +72,28 @@ const noteField = described(z.string().default(""), {
   example: "docs/notes.md",
   empty: "Inserts nothing",
 });
+
+/** Plan の難しさの段階（PL-1）。models.<tier> と models.<agent>.<tier> の鍵 */
+const MODEL_TIERS = ["light", "standard", "heavy"] as const;
+
+/**
+ * models.<agent>.<tier> の項目。モデル名は製品ごとに違うので、dg next を呼んだ agent ごとに models.<tier> を上書きできる。
+ * どの agent も同じ実体なので、文は段階ごとに 1 つだけ持つ（agent の名前は鍵が示す）
+ */
+const agentModelsSchema = z
+  .looseObject(
+    Object.fromEntries(
+      MODEL_TIERS.map((tier) => [
+        tier,
+        described(z.string().default(""), {
+          summary: `Model for Plan tier ${tier} when this agent calls dg next`,
+          description: `Model for Plan tier ${tier} when the agent in this key calls dg next (it overrides models.${tier} for that agent). When empty, models.${tier}`,
+          empty: `models.${tier} is used`,
+        }),
+      ]),
+    ) as Record<(typeof MODEL_TIERS)[number], z.ZodDefault<z.ZodString>>,
+  )
+  .prefault({});
 
 /**
  * 振り返りの指標の定義（1 つ）。dg が実行する式ではなく、エージェントが読んで計算する数え方の文と、
@@ -383,6 +406,8 @@ export const configSchema = z.looseObject({
         example: "opus",
         empty: PARENT_MODEL,
       }),
+      // agent ごとの上書き（models.<agent>.<tier>）。鍵は Adapter の一覧から作る
+      ...Object.fromEntries(agentNames().map((agent) => [agent, agentModelsSchema])),
     })
     .prefault({}),
   actor: z
@@ -483,9 +508,9 @@ const LOCAL_KEYS: ReadonlySet<string> = new Set([
   "worktree.root",
   "commit.mode",
   "push.mode",
-  "models.light",
-  "models.standard",
-  "models.heavy",
+  ...MODEL_TIERS.map((tier) => `models.${tier}`),
+  // agent ごとのモデル名も、使えるモデルが人ごとに違うので個人で上書きできる
+  ...agentNames().flatMap((agent) => MODEL_TIERS.map((tier) => `models.${agent}.${tier}`)),
   "actions.shell",
   "notify.approvals",
   // 同時に回せる数はマシンの重さと契約の上限で人ごとに違う
