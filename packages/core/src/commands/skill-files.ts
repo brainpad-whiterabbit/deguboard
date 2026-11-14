@@ -36,7 +36,7 @@ If the target is empty, follow the "Deciding the target" section of the steps.
 `;
 
 /**
- * frontmatter の直後に置く印（形は ADR-030）。書いた dg の版と、本文（印の行を除く）の sha256 を持つ。
+ * frontmatter の直後に置く印。書いた dg の版と、本文（印の行を除く）の sha256 を持つ。
  * ハッシュで手を加えたかを、版で今の dg より古いか新しいかを見分ける。版のない印は、版を書く前の dg が書いたもの
  */
 const MARKER = /^<!-- dg skill (?:v(\d+\.\d+\.\d+)\S* )?sha256:([0-9a-f]{64}) -->\n/m;
@@ -319,7 +319,7 @@ export async function removeRetiredSkills(
  * 個人の置き場所はどのフォルダからも同じで、同じリポジトリのフォルダも重なるので、置き場所（dir）ごとに 1 回だけ見る。
  * 入れていない Skill は足さず、dg の Skill のない置き場所には書かない（Skill は任意で、各自が入れる。AG-2）。
  * 変えるものも知らせるものもない置き場所は返さない。
- * 新しい版の dg が書いた Skill と、同じ版の dg が書いた中身の違う Skill には触れず、知らせもしない（ADR-030）。
+ * 新しい版の dg が書いた Skill と、同じ版の dg が書いた中身の違う Skill には触れず、知らせもしない。
  * 中身の違いだけで同梱のものに揃えると、PATH の dg（ソースから動かす dg）が拡張より新しいときに、拡張は起動のたびに Skill を古い同梱のものに戻し、
  * dg hooks check・next・brief はそれを古いと警告して、互いに書き換え合う。ソースの dg は版を上げる前に Skill を変えるので、同じ版でも止める。
  * version は印に書く今の dg の版（束ねた拡張はビルドで埋めた版を渡す。省くと core の版）

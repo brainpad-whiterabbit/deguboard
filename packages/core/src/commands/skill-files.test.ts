@@ -114,7 +114,7 @@ describe("入れてある dg の Skill が今の dg のものと違うかの判�
   });
 });
 
-describe("Skill の印の版と、今の dg との新旧（AG-2・ADR-030・t864）", () => {
+describe("Skill の印の版と、今の dg との新旧（AG-2・t864）", () => {
   it("印は書いた dg の版を持つ。版が読めないときは版を書かない", async () => {
     const skill = await contentOf("dgwork");
     const version = skillVersionOf(skill.content);
