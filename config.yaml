@@ -91,11 +91,6 @@ retro:
       name: 仕様の質
       question: チケット（受け入れ条件と範囲）は、作り直しなしで通る成果を引き出せたか
       metrics:
-        clean-ticket-rate:
-          definition: Run のあるチケットのうち、retries が 0 で reviews.heavy も 0 のものの割合
-          sources:
-            - dg metrics show --iteration <S> --by ticket (retries, reviews.heavy)
-          unmeasured: 手戻りの原因がチケットにあったか
         ticket-caused-rework-rate:
           definition: Run のあるチケットのうち、手直しの理由（fix Run の retry_reasons）か、重い指摘のあった PR のレビューコメントに、原因が「チケット」（受け入れ条件か範囲があいまい・抜けていた）に当たるものが 1 件以上あるチケットの割合。原因の分け方は dg guide retro の「Causes of rework」に従い、理由の書かれていない手直しは測れないものとして件数を添える
           sources:
