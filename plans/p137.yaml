@@ -17,7 +17,7 @@ after:
   t929:
     - t940
     - t936
-pending_approval: true
+pending_approval: false
 details:
   t940:
     scope: config.show が葉の項目と retro.perspectives の既定を返し、画面の既定のままの判定と訳を 1 か所にまとめ、ADR-001 と CL-8・UI-11 に決まりを書く。優先度の既定の言語は変えない（t941）
@@ -55,3 +55,5 @@ details:
     scope: ADR-001 の文書の配置の表と development.md に docs/guide-notes の役目・書く範囲・言語を書き、plan.md を合わせる
     approach: t940 で決めた言語の決まりに沿って、guide-notes の文書の書く範囲と言語を決めて表に足す
     tier: light
+approved_by: maji/agent
+approved_at: 2026-11-14T21:44:28Z
