@@ -1,5 +1,6 @@
-// README（と、そこから作る拡張の README）に載せる使い方の GIF（packages/vscode/images/ の 5 本）を録り直す。mise run gifs から呼ぶ。引数に名前（import.gif など）を渡せばその分だけ録る。
-// 5 本は README の流れ（起票 → 割り当て → 計画 → 並列の実装 → 振り返り）の順で、import・assign・plan・work・retro（t844）。README の冒頭は GIF ではなく開発の流れの図（同じ場所の flow.png。元は flow.svg）。
+// README（と、そこから作る拡張の README）に載せる使い方の GIF（packages/vscode/images/ の 5 本）を、英語と日本語の 2 通りで録り直す。mise run gifs から呼ぶ。
+// 英語は import.gif などで README.md（と拡張の README）が、日本語は import.ja.gif などで README.ja.md が引く（t879）。引数に名前（import.gif・import.ja.gif など）を渡せばその分だけ録る。
+// 5 本は README の流れ（起票 → 割り当て → 計画 → 並列の実装 → 振り返り）の順で、import・assign・plan・work・retro（t844）。README の冒頭は GIF ではなく開発の流れの図（同じ場所の flow.png・flow.ja.png。元は flow.svg・flow.ja.svg）。
 // 一時ディレクトリに bare リモート付きのリポジトリを作って見本のチケットを起票し、dg serve の左パネルの画面を
 // Chromium（playwright-core）で操作して 1 コマずつスクリーンショットを撮り、gifenc で GIF にまとめる。ffmpeg などの外のツールは使わない。
 // VS Code 本体は録れないので、Activity Bar・エディタ・ターミナルの部分は画面の外枠として自前で描く（frameHtml）。左パネルの中身は実際の画面。
@@ -7,10 +8,12 @@
 // 機械の速さによらず同じ長さになる。
 // どれもエージェントの流れで、実際の実行の録画ではなく仮の GUI で録る（t348）。ターミナルのエージェント（Claude Code の入力と出力）は
 // 外枠に描いた模した画面で、エージェントが dg を動かした結果（起票・割り当て・計画・状態の遷移）は、台本が一時リポジトリで実際に dg のコマンドを流して左パネルに反映させる。
+// import.gif は README の頼み方に合わせて普通の言葉で頼み（Skill は Claude Code が選ぶ。t878）、ほかの 4 本は Ask Agent から Skill の形の依頼文をコピーして貼る（小窓から手軽に頼めることを見せる）。
 // 左パネルとエディタのパネル（チケットの詳細）は、拡張ホストの代わりの小さな仲立ち（vscodeShim）で Webview として動かし、
 // 詳細を開く・コピー・読み直しを拡張と同じ通り道で受ける。ターミナルに出す数字（retro.gif の要約と Keep / Problem / Try など）は見本で、
 // 流れは dg guide retro に合わせる（振り返りはチャットで答え、報告書のファイルは書かない）。
-// 画面は英語の表示（<html data-language="en"> を入れる）で、CSS の 760x460 を 1.5 倍の解像度で撮る（GIF は 1140x690。README の表示幅 560px の 2 倍で文字がにじまない。t458）。
+// 言語ごとに変わるのは、画面の表示言語（<html data-language>）・見本のチケットの文・ターミナルの文・外枠の文で、どれも TEXT に置く。台本の操作と時間は言語によらず同じ。
+// CSS の 760x460 を 1.5 倍の解像度で撮る（GIF は 1140x690。README の表示幅 560px の 2 倍で文字がにじまない。t458）。
 // plan.gif と work.gif だけは 3 段の依存グラフが収まるように左パネルを広げ、830x460（GIF は 1245x690、README の表示幅は 612px）で撮る（PLAN_SIDE）。
 // 先に mise run build（タスクが依存する）と mise run playwright:install が要る。各 GIF が 20 秒以下・1MB 以下に収まらなければ失敗する。
 import { execFile } from "node:child_process";
@@ -45,6 +48,282 @@ const PLAN_SIDE = 370;
 /** カーソルを動かすときの 1 コマの長さ（ミリ秒） */
 const STEP = 50;
 
+/**
+ * 言語ごとの文。en は README.md の GIF（import.gif など）、ja は README.ja.md の GIF（import.ja.gif など）。
+ * 見本のチケットの題・目標と、ターミナルの文と、外枠の文を持つ。ターミナルの文はエージェント（Claude Code）が利用者の言語で答える体にする。
+ * 画面の文言（タブ・頼むことの名前）を選ぶ文字列も持つ（nav・menu。web の l10n と core の CORE_LABELS の訳に合わせる）
+ */
+const TEXT = {
+  en: {
+    term: "Terminal",
+    fastForward: "▶▶ Fast forward",
+    accept: "Checked on screen",
+    nav: { board: "Board", backlog: "Backlog" },
+    menu: { assign: "Assign", plan: "Plan", work: "Run Plan", retro: "Retrospect" },
+    choice: { revise: "Revise" },
+    import: {
+      goal: "Add export",
+      tickets: [
+        "Export to CSV",
+        "Review the dark theme colors",
+        "Let labels have their own colors",
+      ],
+      loginFailed: "Login failed",
+      request: "Login is slow and the errors are hard to follow. Turn this into tickets",
+      looking: "● Looking at src/auth/ and the login screen…",
+      drafts: "● Draft tickets (3)",
+      high: "high",
+      after: "after 1",
+      ask: "? Create these tickets?",
+      create: "Create tickets",
+      details: [
+        {
+          summary:
+            "Login fetches the user and permissions separately, which takes two round trips. Return both in one call.",
+          acceptance: [
+            "Login calls the API once",
+            "The screen and permission checks stay the same",
+          ],
+        },
+        {
+          summary: "A wrong password, a lock, and a network failure all show 'Login failed'.",
+          acceptance: [
+            "Each cause shows a message that says what to do next",
+            "The existing tests still pass",
+          ],
+        },
+        {
+          summary: "Check the effect of the single call with numbers, and catch slowdowns.",
+          acceptance: [
+            "A test measures login time",
+            "The test fails when login takes over 1 second",
+          ],
+        },
+      ],
+      created: "✓ Created t4 t5 t6 in the backlog",
+      row: "measures login",
+    },
+    login: [
+      "Make login call the API once",
+      "Split error messages by cause",
+      "Add a test that measures login time",
+    ],
+    assign: {
+      goal: "Faster, clearer login",
+      reading: "● Reading t3 t4 t5 and the open Iterations…",
+      proposal: "● Proposal",
+      epic: "Faster login",
+      epicLine: '  New Epic e1 "Faster login": t3 t4 t5',
+      iterationLine: '  Iteration s1 "Faster, clearer login": t3 t4 t5',
+      ask: "? Apply this assignment?",
+      apply: "Apply",
+      done: "✓ Created e1 and added t3 t4 t5 to e1 and s1",
+    },
+    export: [
+      "Decide the export columns",
+      "Add an export button",
+      "Add a download endpoint",
+      "Build the CSV from the list",
+      "Wire the button to the endpoint",
+      "Stream large lists",
+      "Tell when the export finishes",
+    ],
+    plan: {
+      goal: "Export to CSV",
+      reading: "● Reading s1: 7 tickets and their dependencies…",
+      created: "● Plan p1 (awaiting approval)",
+      first: "  t1 ∥ t2 ∥ t3 can start at once",
+      then: "  then t4 ∥ t5, last t6 ∥ t7",
+      ask: "? Approve plan p1?",
+      approve: "Approve",
+      approved: "✓ Approved p1. Start it with /dgwork",
+    },
+    work: {
+      start: "● Plan p1 is approved. t1, t2 and t3 can start",
+      parallel: "● Working on t1, t2 and t3 in parallel (worktrees)…",
+      merged: (id, pr) => `✓ ${id} merged (PR #${pr}, gate passed)`,
+      unblocked: (id, ids) => `● ${id} is unblocked. Working on ${list(ids, "en")}…`,
+      finished: "✓ Plan p1 finished: 7/7 done",
+    },
+    retro: {
+      sprints: [
+        [
+          "Ask an agent",
+          [
+            "Pick a request from the speech bubble",
+            "Copy the request",
+            "Allow adding instructions",
+          ],
+        ],
+        [
+          "Show priority clearly",
+          [
+            "Show priority with arrows and words",
+            "Show high and low on the first line of rows",
+            "Show the criteria in the tooltip",
+            "Let the detail view set priority",
+            "Let settings change the priority criteria",
+          ],
+        ],
+      ],
+      current: [
+        "Make history easier to read",
+        "Show the period on history rows",
+        "Keep search terms",
+      ],
+      summary: "● s2: 5/5 done · 19 runs · 2 h 11 min · 2.4M tokens",
+      head: "  step       time  tokens",
+      perLine: "  Per changed line: 310 output tokens",
+      counts: "  9 retries · 2 heavy findings · 1 failure",
+      ask: "? Which viewpoints? (multi-select)",
+      rework: "  ◉ 1. Rework: 9 retries, 2 heavy findings",
+      efficiency: "  ◉ 2. Efficiency: 310 output tokens per line",
+      others: "  ○ 3. Flow  ○ 4. Outcome  ○ 5. Comparison",
+      keep: "  Keep    t4 t6 t8 passed review first time",
+      problem: [
+        "  Problem review→fix looped 7 times on t5 t7:",
+        "          1.1M tokens (48% of s2)",
+      ],
+      try: ["  Try #3  Write checkable acceptance criteria", "          when filing → File"],
+      reflect: "? Reflect which Try rows?",
+      file: "#3 File",
+      skip: "Do not reflect",
+      ticket: "Write checkable acceptance criteria when filing",
+      ticketAccept: "Retries per ticket go down in the next Iteration",
+      filed: "✓ Filed t11 (retro-s2)",
+    },
+  },
+  ja: {
+    term: "ターミナル",
+    fastForward: "▶▶ 早送り",
+    accept: "画面で確かめた",
+    nav: { board: "カンバン", backlog: "バックログ" },
+    menu: { assign: "割り当てる", plan: "計画を立てる", work: "Plan を進める", retro: "振り返る" },
+    choice: { revise: "直す" },
+    import: {
+      goal: "書き出しを足す",
+      tickets: ["CSV に書き出す", "ダークテーマの色を見直す", "ラベルに色を付けられるようにする"],
+      loginFailed: "ログインに失敗しました",
+      request: "ログインが遅いし、エラーも分かりにくい。チケットにして",
+      looking: "● src/auth/ とログインの画面を調べています…",
+      drafts: "● チケットの案（3 件）",
+      high: "高",
+      after: "1 のあと",
+      ask: "? このチケットを起票しますか？",
+      create: "起票する",
+      details: [
+        {
+          summary:
+            "ログインはユーザーと権限を別々に取りに行くので、往復が 2 回かかる。1 回の呼び出しで両方を返す。",
+          acceptance: ["ログインで API を 1 回だけ呼ぶ", "画面と権限の確かめ方は変わらない"],
+        },
+        {
+          summary:
+            "パスワードの誤り・ロック・通信の失敗のどれでも「ログインに失敗しました」と出る。",
+          acceptance: ["原因ごとに、次にすることが分かる文を出す", "今のテストが通る"],
+        },
+        {
+          summary: "1 回の呼び出しの効果を数字で確かめ、遅くなったら気づけるようにする。",
+          acceptance: [
+            "ログインの時間を測るテストがある",
+            "ログインに 1 秒より長くかかるとテストが落ちる",
+          ],
+        },
+      ],
+      created: "✓ t4 t5 t6 をバックログに起票しました",
+      row: "時間を測る",
+    },
+    login: [
+      "ログインで API を 1 回だけ呼ぶ",
+      "エラーの文を原因ごとに分ける",
+      "ログインの時間を測るテストを足す",
+    ],
+    assign: {
+      goal: "速く分かりやすいログイン",
+      reading: "● t3 t4 t5 と開いている Iteration を読んでいます…",
+      proposal: "● 割り当ての案",
+      epic: "ログインを速く",
+      epicLine: "  新しい Epic e1「ログインを速く」: t3 t4 t5",
+      iterationLine: "  Iteration s1「速く分かりやすいログイン」: t3 t4 t5",
+      ask: "? この割り当てを反映しますか？",
+      apply: "反映する",
+      done: "✓ e1 を作り、t3 t4 t5 を e1 と s1 に入れました",
+    },
+    export: [
+      "書き出す列を決める",
+      "書き出しのボタンを足す",
+      "ダウンロードの口を足す",
+      "一覧から CSV を作る",
+      "ボタンとダウンロードの口をつなぐ",
+      "大きな一覧を少しずつ流す",
+      "書き出しの終わりを知らせる",
+    ],
+    plan: {
+      goal: "CSV に書き出す",
+      reading: "● s1 の 7 件のチケットと依存を読んでいます…",
+      created: "● Plan p1（承認待ち）",
+      first: "  t1 ∥ t2 ∥ t3 は同時に始められます",
+      then: "  次に t4 ∥ t5、最後に t6 ∥ t7",
+      ask: "? Plan p1 を承認しますか？",
+      approve: "承認する",
+      approved: "✓ p1 を承認しました。/dgwork で始められます",
+    },
+    work: {
+      start: "● Plan p1 は承認済みです。t1・t2・t3 を始められます",
+      parallel: "● t1・t2・t3 を並列に進めています（worktree）…",
+      merged: (id, pr) => `✓ ${id} をマージしました（PR #${pr}、ゲート通過）`,
+      unblocked: (id, ids) => `● ${id} の待ちが済みました。${list(ids, "ja")} を進めています…`,
+      finished: "✓ Plan p1 が終わりました：7/7 done",
+    },
+    retro: {
+      sprints: [
+        [
+          "エージェントに頼む",
+          ["吹き出しから頼むことを選ぶ", "依頼文をコピーする", "指示を書き足せるようにする"],
+        ],
+        [
+          "優先度を分かりやすく見せる",
+          [
+            "優先度を矢印と言葉で見せる",
+            "行の 1 行目に高と低を見せる",
+            "ツールチップに基準を見せる",
+            "詳細から優先度を変えられるようにする",
+            "設定で優先度の基準を変えられるようにする",
+          ],
+        ],
+      ],
+      current: ["履歴を読みやすくする", "履歴の行に期間を見せる", "検索の言葉を残す"],
+      summary: "● s2：5/5 done · Run 19 回 · 2 時間 11 分 · 2.4M トークン",
+      // 全角の文字は半角の 2 つ分の幅なので、下の行の数字と揃うように空白を詰める
+      head: "  工程      時間 トークン",
+      perLine: "  変えた 1 行あたり：出力トークン 310",
+      counts: "  やり直し 9 回 · 重い指摘 2 件 · 失敗 1 回",
+      ask: "? どの観点で見ますか？（複数選択）",
+      rework: "  ◉ 1. やり直し：9 回、重い指摘 2 件",
+      efficiency: "  ◉ 2. 効率：1 行あたり出力トークン 310",
+      others: "  ○ 3. 流れ  ○ 4. 成果  ○ 5. 比較",
+      keep: "  Keep    t4 t6 t8 は 1 回目で見直しを通った",
+      problem: [
+        "  Problem t5 t7 で見直し→手直しが 7 回回った：",
+        "          1.1M トークン（s2 の 48%）",
+      ],
+      try: ["  Try #3  起票のときに確かめられる受け入れ条件", "          を書く → 起票"],
+      reflect: "? どの Try を反映しますか？",
+      file: "#3 を起票",
+      skip: "反映しない",
+      ticket: "起票のときに確かめられる受け入れ条件を書く",
+      ticketAccept: "次の Iteration でチケットあたりのやり直しが減る",
+      filed: "✓ t11 を起票しました（retro-s2）",
+    },
+  },
+};
+
+/** ID の並びを言語の書き方でつなぐ（en は「t4 and t5」「t2, t3 and t4」、ja は「t4・t5」） */
+function list(ids, lang) {
+  if (lang === "ja") return ids.join("・");
+  return ids.length > 1 ? `${ids.slice(0, -1).join(", ")} and ${ids.at(-1)}` : ids[0];
+}
+
 // 一時リポジトリの組み立て（initRepo など）は packages/core/test/helpers/git-fixture.ts と共有しない。理由：
 // git-fixture は TypeScript で core の src（Store・ensureDeguboardWorktree）を import し、vitest の中で動く前提で
 // process.env を書き換える。この録画スクリプトは素の node で動き、ビルド済みの dg（dist）だけを呼ぶ。
@@ -74,16 +353,8 @@ async function initRepo(dir) {
 }
 
 /** チケットを作り、Status を順に進める。作った ID を返す */
-async function createTicket(work, title, { iteration, priority = "medium", moves = [] } = {}) {
-  const args = [
-    "ticket",
-    "create",
-    title,
-    "--priority",
-    priority,
-    "--acceptance",
-    "Checked on screen",
-  ];
+async function createTicket(work, t, title, { iteration, priority = "medium", moves = [] } = {}) {
+  const args = ["ticket", "create", title, "--priority", priority, "--acceptance", t.accept];
   if (iteration) args.push("--iteration", iteration);
   const { stdout } = await dg(work, args);
   const { id } = JSON.parse(stdout).data;
@@ -91,11 +362,11 @@ async function createTicket(work, title, { iteration, priority = "medium", moves
   return id;
 }
 
-/** /dgimport で起票した体のチケットを ticket import で入れる（依存は depends_on）。iteration を渡せばその Iteration に入れる */
-async function importDrafts(work, dir, drafts, iteration) {
+/** エージェントが起票した体のチケットを ticket import で入れる（依存は depends_on）。iteration を渡せばその Iteration に入れる */
+async function importDrafts(work, dir, t, drafts, iteration) {
   const file = path.join(dir, "drafts.json");
   const rows = drafts.map((d) => ({
-    acceptance: ["Checked on screen"],
+    acceptance: [t.accept],
     ...d,
     ...(iteration ? { iteration } : {}),
   }));
@@ -104,115 +375,101 @@ async function importDrafts(work, dir, drafts, iteration) {
 }
 
 /** import.gif の見本：バックログに 3 件だけある。起票は台本が dg ticket import で行う */
-async function importRepo(dir) {
+async function importRepo(dir, t) {
   const work = await initRepo(dir);
-  await dg(work, ["iteration", "create", "Iteration 1", "--goal", "Add export"]);
+  const [csv, dark, labels] = t.import.tickets;
+  await dg(work, ["iteration", "create", "Iteration 1", "--goal", t.import.goal]);
   await dg(work, ["iteration", "start", "s1"]);
-  await createTicket(work, "Export to CSV", { iteration: "s1" });
-  await createTicket(work, "Review the dark theme colors", { priority: "low" });
-  await createTicket(work, "Let labels have their own colors");
+  await createTicket(work, t, csv, { iteration: "s1" });
+  await createTicket(work, t, dark, { priority: "low" });
+  await createTicket(work, t, labels);
   return work;
 }
 
-/** assign.gif の見本のチケット（import.gif で起票した 3 件と同じ題） */
+/** import.gif で起票し、assign.gif で割り当てるログインの 3 件（題は言語ごとの t.login） */
 const LOGIN_DRAFTS = [
-  { key: "api", title: "Make login call the API once", priority: "high" },
-  { key: "message", title: "Split error messages by cause" },
-  { key: "perf", title: "Add a test that measures login time", depends_on: ["api"] },
+  { key: "api", priority: "high" },
+  { key: "message" },
+  { key: "perf", depends_on: ["api"] },
 ];
+const loginDrafts = (t) => LOGIN_DRAFTS.map((d, i) => ({ ...d, title: t.login[i] }));
 
 /**
  * assign.gif の見本：始めたばかりの空の Iteration（s1）と、どこにも入っていないバックログの 5 件（t3〜t5 が起票したばかりのログインの 3 件）。
  * Epic の作成と割り当ては台本が dg で行う
  */
-async function assignRepo(dir) {
+async function assignRepo(dir, t) {
   const work = await initRepo(dir);
-  await dg(work, ["iteration", "create", "Iteration 1", "--goal", "Faster, clearer login"]);
+  const [, dark, labels] = t.import.tickets;
+  await dg(work, ["iteration", "create", "Iteration 1", "--goal", t.assign.goal]);
   await dg(work, ["iteration", "start", "s1"]);
-  await createTicket(work, "Review the dark theme colors", { priority: "low" });
-  await createTicket(work, "Let labels have their own colors");
-  await importDrafts(work, dir, LOGIN_DRAFTS);
+  await createTicket(work, t, dark, { priority: "low" });
+  await createTicket(work, t, labels);
+  await importDrafts(work, dir, t, loginDrafts(t));
   return work;
 }
 
 /**
- * plan.gif と work.gif の見本のチケット（この順で起票して t1〜t7 になる）。段は 3 つ：t1 t2 t3 は待ちがなく、
+ * plan.gif と work.gif の見本のチケット（この順で起票して t1〜t7 になる。題は言語ごとの t.export）。段は 3 つ：t1 t2 t3 は待ちがなく、
  * t4 は t1 を、t5 は t2 と t3 を、t6 は t3 と t4 を、t7 は t5 を待つ（work.gif で 3 件が並列に In Progress になり、
  * 複数を待つチケットも見せるため）。3 段の依存グラフは 3×76+2×48 = 324px 幅なので、この 2 本だけ左パネルを PLAN_SIDE に広げる
  */
 const EXPORT_DRAFTS = [
-  { key: "columns", title: "Decide the export columns", priority: "high" },
-  { key: "button", title: "Add an export button" },
-  { key: "endpoint", title: "Add a download endpoint" },
-  { key: "csv", title: "Build the CSV from the list", depends_on: ["columns"] },
-  { key: "wire", title: "Wire the button to the endpoint", depends_on: ["button", "endpoint"] },
-  { key: "stream", title: "Stream large lists", depends_on: ["endpoint", "csv"] },
-  { key: "notice", title: "Tell when the export finishes", depends_on: ["wire"], priority: "low" },
+  { key: "columns", priority: "high" },
+  { key: "button" },
+  { key: "endpoint" },
+  { key: "csv", depends_on: ["columns"] },
+  { key: "wire", depends_on: ["button", "endpoint"] },
+  { key: "stream", depends_on: ["endpoint", "csv"] },
+  { key: "notice", depends_on: ["wire"], priority: "low" },
 ];
 const EXPORT_IDS = EXPORT_DRAFTS.map((_, i) => `t${i + 1}`);
 
 /** plan.gif の見本：割り当て済みの 7 件が入った、始めたばかりの Iteration（s1）。計画は台本が dg で立てる */
-async function planRepo(dir) {
+async function planRepo(dir, t) {
   const work = await initRepo(dir);
-  await dg(work, ["iteration", "create", "Iteration 1", "--goal", "Export to CSV"]);
+  await dg(work, ["iteration", "create", "Iteration 1", "--goal", t.plan.goal]);
   await dg(work, ["iteration", "start", "s1"]);
-  await importDrafts(work, dir, EXPORT_DRAFTS, "s1");
+  const drafts = EXPORT_DRAFTS.map((d, i) => ({ ...d, title: t.export[i] }));
+  await importDrafts(work, dir, t, drafts, "s1");
   return work;
 }
 
 /** work.gif の見本：plan.gif のあと（承認済みの Plan p1）。遷移は台本が dg で行う */
-async function workRepo(dir) {
-  const work = await planRepo(dir);
+async function workRepo(dir, t) {
+  const work = await planRepo(dir, t);
   await dg(work, ["plan", "create", ...EXPORT_IDS]);
   await dg(work, ["plan", "approve", "p1"]);
   return work;
 }
 
 /** retro.gif の見本：閉じた Iteration が 2 つ（新しい s2 を振り返る）と、進行中が 1 つ */
-async function retroRepo(dir) {
+async function retroRepo(dir, t) {
   const work = await initRepo(dir);
   const done = ["in_progress", "review", "done"];
-  const sprints = [
-    [
-      "Ask an agent",
-      ["Pick a request from the speech bubble", "Copy the request", "Allow adding instructions"],
-    ],
-    [
-      "Show priority clearly",
-      [
-        "Show priority with arrows and words",
-        "Show high and low on the first line of rows",
-        "Show the criteria in the tooltip",
-        "Let the detail view set priority",
-        "Let settings change the priority criteria",
-      ],
-    ],
-  ];
-  for (const [n, [goal, titles]] of sprints.entries()) {
+  for (const [n, [goal, titles]] of t.retro.sprints.entries()) {
     const id = `s${n + 1}`;
     await dg(work, ["iteration", "create", `Iteration ${n + 1}`, "--goal", goal]);
     await dg(work, ["iteration", "start", id]);
-    for (const title of titles) await createTicket(work, title, { iteration: id, moves: done });
+    for (const title of titles) await createTicket(work, t, title, { iteration: id, moves: done });
     await dg(work, ["iteration", "close", id]);
   }
-  await dg(work, ["iteration", "create", "Iteration 3", "--goal", "Make history easier to read"]);
+  const [goal, period, search] = t.retro.current;
+  await dg(work, ["iteration", "create", "Iteration 3", "--goal", goal]);
   await dg(work, ["iteration", "start", "s3"]);
-  await createTicket(work, "Show the period on history rows", {
-    iteration: "s3",
-    moves: ["in_progress"],
-  });
-  await createTicket(work, "Keep search terms", { iteration: "s3" });
+  await createTicket(work, t, period, { iteration: "s3", moves: ["in_progress"] });
+  await createTicket(work, t, search, { iteration: "s3" });
   return work;
 }
 
 /**
- * 画面の言語を英語にする。main.tsx は <html data-language> を読んで起動するので、その前に付ける（拡張ホストが vscode.env.language で渡すのと同じ印）。
- * dg serve は既定で日本語のままなので、録るときだけ英語にする（t458）
+ * 画面の言語を lang にする。main.tsx は <html data-language> を読んで起動するので、その前に付ける（拡張ホストが vscode.env.language で渡すのと同じ印）。
+ * dg serve は印がなければ日本語で出すが、録るときは英語・日本語のどちらも印で決める（t458・t879）
  */
-function englishScreen() {
+function screenLanguage(lang) {
   const mark = () => {
     if (!document.documentElement) return false;
-    document.documentElement.dataset.language = "en";
+    document.documentElement.dataset.language = lang;
     return true;
   };
   if (!mark())
@@ -278,10 +535,11 @@ function vscodeShim() {
 
 /**
  * VS Code の窓に見立てた外枠。左パネルの中身は iframe の実際の画面。
- * エディタの下にターミナルのエージェント（Claude Code）を模した画面を置き、詳細を開く頼みでエディタにパネルの画面（iframe）を開く
+ * エディタの下にターミナルのエージェント（Claude Code）を模した画面を置き、詳細を開く頼みでエディタにパネルの画面（iframe）を開く。
+ * lang は <html lang> に入れ、日本語の文に日本語の字形のフォントが選ばれるようにする
  */
-function frameHtml(appUrl, icon, side) {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
+function frameHtml(appUrl, icon, side, lang, t) {
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:#1f1f1f;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
   .win{display:flex;height:100%}
@@ -338,7 +596,7 @@ function frameHtml(appUrl, icon, side) {
     <div class="tabs"><b class="tab-code">README.md</b><b class="tab-doc" hidden></b></div>
     <div class="editor"><pre class="src"></pre><iframe class="detail" hidden></iframe></div>
     <div class="term">
-      <div class="term-head"><b>Terminal</b><span>claude</span><span class="ff" hidden>▶▶ Fast forward</span></div>
+      <div class="term-head"><b>${t.term}</b><span>claude</span><span class="ff" hidden>${t.fastForward}</span></div>
       <div class="term-lines"></div>
       <div class="term-input"><span>&gt;</span><span class="text"></span></div>
     </div>
@@ -524,7 +782,7 @@ async function dgSteps(rec, work, steps) {
 }
 
 /**
- * opener（吹き出しか選択の帯の「頼む」）から頼むこと item を選び、依頼文をコピーしてターミナルに貼って送る。
+ * opener（吹き出しか選択の帯の「頼む」）から頼むこと item（表示言語の名前）を選び、依頼文をコピーしてターミナルに貼って送る。
  * README の「Ask Agent から選び、コピーした依頼文をエージェントに貼る」の流れ
  */
 async function askAndPaste(rec, app, opener, item) {
@@ -557,64 +815,45 @@ async function askAndPaste(rec, app, opener, item) {
   await termEnter(rec);
 }
 
-const IMPORT_CODE = [
-  "<em>export async function</em> login(id, password) {",
-  "  <em>const</em> user = <em>await</em> fetchUser(id);",
-  "  <em>const</em> perms = <em>await</em> fetchPerms(id);",
-  '  <em>if</em> (!user) <em>throw new</em> Error("Login failed");',
-  "  <em>return</em> { user, perms };",
-  "}",
-].join("\n");
+/** import.gif のエディタに開いておくコード（エラーの文だけ言語ごと） */
+const importCode = (t) =>
+  [
+    "<em>export async function</em> login(id, password) {",
+    "  <em>const</em> user = <em>await</em> fetchUser(id);",
+    "  <em>const</em> perms = <em>await</em> fetchPerms(id);",
+    `  <em>if</em> (!user) <em>throw new</em> Error("${t.import.loginFailed}");`,
+    "  <em>return</em> { user, perms };",
+    "}",
+  ].join("\n");
 
-/** 雑な一言に /dgimport を付けて頼み、起票の案を承認し、バックログに並んだチケットの詳細を開く */
-async function importFlow(rec, app, { work, tmp }) {
-  await setupAgent(rec, { file: "login.ts", code: IMPORT_CODE, term: "52%" });
+/**
+ * 思いついたままの言葉でチケットにするよう頼み（/dgimport は打たない。Claude Code が Skill を選ぶ。README の頼み方と同じ）、
+ * 起票の案を承認し、バックログに並んだチケットの詳細を開く
+ */
+async function importFlow(rec, app, { work, tmp, t }) {
+  await setupAgent(rec, { file: "login.ts", code: importCode(t), term: "52%" });
   await rec.hold(500);
   await rec.moveTo(rec.page.locator(".term-input"), 500, 0.3);
   await rec.click();
-  await termType(rec, "/dgimport Login is slow and the errors are hard to follow. Fix it somehow");
+  await termType(rec, t.import.request);
   await rec.hold(300);
   await termEnter(rec);
-  await termSay(rec, "dot", "● Looking at src/auth/ and the login screen…", 900);
-  await termSay(rec, "dot", "● Draft tickets (3)", 300);
-  await termSay(rec, "dim", "  1. Make login call the API once · high", 300);
-  await termSay(rec, "dim", "  2. Split error messages by cause", 300);
-  await termSay(rec, "dim", "  3. Add a test that measures login time · after 1", 300);
-  await termSay(rec, "ask", "? Create these tickets?", 200);
-  await termSay(rec, "sel", "  ❯ 1. Create tickets", 100);
-  await termSay(rec, "dim", "    2. Revise", 700);
+  await termSay(rec, "dot", t.import.looking, 900);
+  await termSay(rec, "dot", t.import.drafts, 300);
+  const [api, message, perf] = t.login;
+  await termSay(rec, "dim", `  1. ${api} · ${t.import.high}`, 300);
+  await termSay(rec, "dim", `  2. ${message}`, 300);
+  await termSay(rec, "dim", `  3. ${perf} · ${t.import.after}`, 300);
+  await termSay(rec, "ask", t.import.ask, 200);
+  await termSay(rec, "sel", `  ❯ 1. ${t.import.create}`, 100);
+  await termSay(rec, "dim", `    2. ${t.choice.revise}`, 700);
   await termChoose(rec, "1");
-  const drafts = [
-    {
-      key: "api",
-      title: "Make login call the API once",
-      priority: "high",
-      summary:
-        "Login fetches the user and permissions separately, which takes two round trips. Return both in one call.",
-      acceptance: ["Login calls the API once", "The screen and permission checks stay the same"],
-    },
-    {
-      key: "message",
-      title: "Split error messages by cause",
-      summary: "A wrong password, a lock, and a network failure all show 'Login failed'.",
-      acceptance: [
-        "Each cause shows a message that says what to do next",
-        "The existing tests still pass",
-      ],
-    },
-    {
-      key: "perf",
-      title: "Add a test that measures login time",
-      depends_on: ["api"],
-      summary: "Check the effect of the single call with numbers, and catch slowdowns.",
-      acceptance: ["A test measures login time", "The test fails when login takes over 1 second"],
-    },
-  ];
+  const drafts = loginDrafts(t).map((d, i) => ({ ...d, ...t.import.details[i] }));
   const file = path.join(tmp, "import.json");
   await writeFile(file, JSON.stringify(drafts));
   await dgSteps(rec, work, [["ticket", "import", file]]);
-  await termSay(rec, "ok", "✓ Created t4 t5 t6 in the backlog", 1000);
-  const row = app.locator("a.ticket-row", { hasText: "measures login" }).first();
+  await termSay(rec, "ok", t.import.created, 1000);
+  const row = app.locator("a.ticket-row", { hasText: t.import.row }).first();
   await rec.moveTo(row, 700, 0.4);
   await rec.click();
   await rec.page.frameLocator(".detail").locator("main.page h1").waitFor();
@@ -624,34 +863,34 @@ async function importFlow(rec, app, { work, tmp }) {
 }
 
 /** バックログでログインの 3 件を行の左端の帯で選び、選択の帯の「頼む」から Assign を頼み、Epic を作って Iteration に入れる案を承認する */
-async function assignFlow(rec, app, { work }) {
+async function assignFlow(rec, app, { work, t }) {
   await setupAgent(rec, { file: "claude", code: "", term: "auto" });
   await rec.hold(600);
   // 行の左端の帯（12px）を押すと 1 行ずつ選びに足す（selection.tsx）
-  for (const title of LOGIN_DRAFTS.map((d) => d.title)) {
+  for (const title of t.login) {
     const row = app.locator("a.ticket-row", { hasText: title }).first();
     await rec.moveTo(row, 400, 0.02);
     await rec.click();
     await rec.hold(200);
   }
   await rec.hold(500);
-  await askAndPaste(rec, app, app.locator(".selection-bar .selection-ask"), "Assign");
-  await termSay(rec, "dot", "● Reading t3 t4 t5 and the open Iterations…", 900);
-  await termSay(rec, "dot", "● Proposal", 200);
-  await termSay(rec, "dim", '  New Epic e1 "Faster login": t3 t4 t5', 250);
-  await termSay(rec, "dim", '  Iteration s1 "Faster, clearer login": t3 t4 t5', 250);
-  await termSay(rec, "ask", "? Apply this assignment?", 200);
-  await termSay(rec, "sel", "  ❯ 1. Apply", 100);
-  await termSay(rec, "dim", "    2. Revise", 600);
+  await askAndPaste(rec, app, app.locator(".selection-bar .selection-ask"), t.menu.assign);
+  await termSay(rec, "dot", t.assign.reading, 900);
+  await termSay(rec, "dot", t.assign.proposal, 200);
+  await termSay(rec, "dim", t.assign.epicLine, 250);
+  await termSay(rec, "dim", t.assign.iterationLine, 250);
+  await termSay(rec, "ask", t.assign.ask, 200);
+  await termSay(rec, "sel", `  ❯ 1. ${t.assign.apply}`, 100);
+  await termSay(rec, "dim", `    2. ${t.choice.revise}`, 600);
   await termChoose(rec, "1");
   await dgSteps(rec, work, [
-    ["epic", "create", "Faster login"],
+    ["epic", "create", t.assign.epic],
     ["epic", "add", "e1", "t3", "t4", "t5"],
     ["iteration", "add", "s1", "t3", "t4", "t5"],
   ]);
-  await termSay(rec, "ok", "✓ Created e1 and added t3 t4 t5 to e1 and s1", 1600);
+  await termSay(rec, "ok", t.assign.done, 1600);
   // カンバンに移り、Iteration の Todo に並んだのを見せる
-  await rec.moveTo(app.locator(".topbar nav a", { hasText: "Board" }), 500);
+  await rec.moveTo(app.locator(".topbar nav a", { hasText: t.nav.board }), 500);
   await rec.click();
   await rec.hold(2600);
 }
@@ -666,43 +905,43 @@ async function waitGraphFits(app) {
 }
 
 /** カンバンの Iteration の見出しから Plan を頼み、承認待ちの Plan の依存グラフを開いて、承認する */
-async function planFlow(rec, app, { work }) {
+async function planFlow(rec, app, { work, t }) {
   await setupAgent(rec, { file: "claude", code: "", term: "auto" });
   await rec.hold(600);
-  await askAndPaste(rec, app, app.locator("header.board-head .ask-bubble").first(), "Plan");
-  await termSay(rec, "dot", "● Reading s1: 7 tickets and their dependencies…", 900);
+  await askAndPaste(rec, app, app.locator("header.board-head .ask-bubble").first(), t.menu.plan);
+  await termSay(rec, "dot", t.plan.reading, 900);
   await dgSteps(rec, work, [["plan", "create", ...EXPORT_IDS]]);
-  await termSay(rec, "dot", "● Plan p1 (awaiting approval)", 200);
-  await termSay(rec, "dim", "  t1 ∥ t2 ∥ t3 can start at once", 200);
-  await termSay(rec, "dim", "  then t4 ∥ t5, last t6 ∥ t7", 500);
+  await termSay(rec, "dot", t.plan.created, 200);
+  await termSay(rec, "dim", t.plan.first, 200);
+  await termSay(rec, "dim", t.plan.then, 500);
   // 番号は Plan 詳細へのリンクなので、状態の文字を押してグラフを開く
   await rec.moveTo(app.locator(".plan-line .plan-state").first(), 600);
   await rec.click();
   await waitGraphFits(app);
   await rec.hold(1600);
-  await termSay(rec, "ask", "? Approve plan p1?", 200);
-  await termSay(rec, "sel", "  ❯ 1. Approve", 100);
-  await termSay(rec, "dim", "    2. Revise", 600);
+  await termSay(rec, "ask", t.plan.ask, 200);
+  await termSay(rec, "sel", `  ❯ 1. ${t.plan.approve}`, 100);
+  await termSay(rec, "dim", `    2. ${t.choice.revise}`, 600);
   await rec.moveTo(rec.page.locator(".term-input"), 500, 0.3);
   await termChoose(rec, "1");
   await dgSteps(rec, work, [["plan", "approve", "p1"]]);
-  await termSay(rec, "ok", "✓ Approved p1. Start it with /dgwork", 2600);
+  await termSay(rec, "ok", t.plan.approved, 2600);
 }
 
 /**
  * カンバンの上の帯の Plan から Run Plan（/dgwork p1）を頼み、依存グラフを開いたまま、待ちのないチケットが並列に In Progress になって
  * すべて Done になるまでを早送りで見せる（グラフのノードの色と、下のカンバンの列が一緒に変わる）
  */
-async function workFlow(rec, app, { work }) {
+async function workFlow(rec, app, { work, t }) {
   await setupAgent(rec, { file: "claude", code: "", term: "auto" });
   await rec.hold(500);
   await rec.moveTo(app.locator(".plan-line .plan-state").first(), 500);
   await rec.click();
   await waitGraphFits(app);
   await rec.hold(700);
-  await askAndPaste(rec, app, app.locator(".plan-row .ask-bubble").first(), "Run Plan");
+  await askAndPaste(rec, app, app.locator(".plan-row .ask-bubble").first(), t.menu.work);
   await rec.moveTo(rec.page.locator(".term-lines"), 400, 0.5, 0.6);
-  await termSay(rec, "dot", "● Plan p1 is approved. t1, t2 and t3 can start", 500);
+  await termSay(rec, "dot", t.work.start, 500);
   await rec.page.evaluate(() => (document.querySelector(".ff").hidden = false));
   // 着手は In Progress に、マージは Review・Done と PR の番号をまとめて流す（読み直しを 1 回にする）
   const start = (...ids) =>
@@ -717,83 +956,83 @@ async function workFlow(rec, app, { work }) {
       ["ticket", "move", id, "done"],
       ["ticket", "update", id, "--pr", String(pr)],
     ]);
-    await termSay(rec, "ok", `✓ ${id} merged (PR #${pr}, gate passed)`, 400);
+    await termSay(rec, "ok", t.work.merged(id, pr), 400);
   };
   // 3 人のエージェントで進める。待ちが済んだチケットから着手する（t4 は t1、t5 は t2 と t3、t6 は t3 と t4、t7 は t5 のあと）
   await start("t1", "t2", "t3");
-  await termSay(rec, "dot", "● Working on t1, t2 and t3 in parallel (worktrees)…", 1000);
+  await termSay(rec, "dot", t.work.parallel, 1000);
   await merge("t1", 1);
   await start("t4");
-  await termSay(rec, "dot", "● t4 is unblocked. Working on t2, t3 and t4…", 900);
+  await termSay(rec, "dot", t.work.unblocked("t4", ["t2", "t3", "t4"]), 900);
   await merge("t2", 2);
   await merge("t3", 3);
   await start("t5");
-  await termSay(rec, "dot", "● t5 is unblocked. Working on t4 and t5…", 700);
+  await termSay(rec, "dot", t.work.unblocked("t5", ["t4", "t5"]), 700);
   await merge("t4", 4);
   await start("t6");
-  await termSay(rec, "dot", "● t6 is unblocked. Working on t5 and t6…", 700);
+  await termSay(rec, "dot", t.work.unblocked("t6", ["t5", "t6"]), 700);
   await merge("t5", 5);
   await start("t7");
-  await termSay(rec, "dot", "● t7 is unblocked. Working on t6 and t7…", 700);
+  await termSay(rec, "dot", t.work.unblocked("t7", ["t6", "t7"]), 700);
   await merge("t6", 6);
   await merge("t7", 7);
   await rec.page.evaluate(() => (document.querySelector(".ff").hidden = true));
-  await termSay(rec, "ok", "✓ Plan p1 finished: 7/7 done", 2400);
+  await termSay(rec, "ok", t.work.finished, 2400);
 }
 
 /**
  * 履歴で閉じた Iteration の Retrospect を頼み、dg guide retro の流れで答える：数字の要約（工程ごとの所要時間とトークンの割合・1 行あたりのトークン）→
  * 観点を選ぶ → トークンを根拠に含む Keep / Problem / Try → 承認した Try を起票。振り返りはチャットで答え、ファイルは書かない
  */
-async function retroFlow(rec, app, { work }) {
+async function retroFlow(rec, app, { work, t }) {
   await setupAgent(rec, { file: "claude", code: "", term: "auto" });
   await rec.hold(500);
-  const row = app.locator("summary.history-row", { hasText: "Show priority clearly" });
-  await askAndPaste(rec, app, row.locator(".ask-bubble").first(), "Retrospect");
+  const row = app.locator("summary.history-row", { hasText: t.retro.sprints[1][0] });
+  await askAndPaste(rec, app, row.locator(".ask-bubble").first(), t.menu.retro);
   await termSay(rec, "tool", "● Bash(<i>dg metrics show --iteration s2 --by step</i>)", 500);
-  await termSay(rec, "dot", "● s2: 5/5 done · 19 runs · 2 h 11 min · 2.4M tokens", 150);
-  await termSay(rec, "dim", "  step       time  tokens", 100);
+  await termSay(rec, "dot", t.retro.summary, 150);
+  await termSay(rec, "dim", t.retro.head, 100);
   await termSay(rec, "dim", "  implement   40%     46%", 100);
   await termSay(rec, "prob", "  review      29%     25%", 100);
   await termSay(rec, "prob", "  fix         24%     23%", 100);
-  await termSay(rec, "dim", "  Per changed line: 310 output tokens", 100);
-  await termSay(rec, "dim", "  9 retries · 2 heavy findings · 1 failure", 800);
-  await termSay(rec, "ask", "? Which viewpoints? (multi-select)", 100);
-  await termSay(rec, "sel", "  ◉ 1. Rework: 9 retries, 2 heavy findings", 100);
-  await termSay(rec, "sel", "  ◉ 2. Efficiency: 310 output tokens per line", 100);
-  await termSay(rec, "dim", "  ○ 3. Flow  ○ 4. Outcome  ○ 5. Comparison", 500);
+  await termSay(rec, "dim", t.retro.perLine, 100);
+  await termSay(rec, "dim", t.retro.counts, 800);
+  await termSay(rec, "ask", t.retro.ask, 100);
+  await termSay(rec, "sel", t.retro.rework, 100);
+  await termSay(rec, "sel", t.retro.efficiency, 100);
+  await termSay(rec, "dim", t.retro.others, 500);
   await termChoose(rec, "1 2");
   await termSay(rec, "tool", "● Bash(<i>dg metrics show --iteration s2 --by ticket</i>)", 600);
-  await termSay(rec, "keep", "  Keep    t4 t6 t8 passed review first time", 150);
-  await termSay(rec, "prob", "  Problem review→fix looped 7 times on t5 t7:", 50);
-  await termSay(rec, "prob", "          1.1M tokens (48% of s2)", 150);
-  await termSay(rec, "try", "  Try #3  Write checkable acceptance criteria", 50);
-  await termSay(rec, "try", "          when filing → File", 800);
-  await termSay(rec, "ask", "? Reflect which Try rows?", 100);
-  await termSay(rec, "sel", "  ❯ 1. #3 File", 100);
-  await termSay(rec, "dim", "    2. Do not reflect", 500);
+  await termSay(rec, "keep", t.retro.keep, 150);
+  await termSay(rec, "prob", t.retro.problem[0], 50);
+  await termSay(rec, "prob", t.retro.problem[1], 150);
+  await termSay(rec, "try", t.retro.try[0], 50);
+  await termSay(rec, "try", t.retro.try[1], 800);
+  await termSay(rec, "ask", t.retro.reflect, 100);
+  await termSay(rec, "sel", `  ❯ 1. ${t.retro.file}`, 100);
+  await termSay(rec, "dim", `    2. ${t.retro.skip}`, 500);
   await termChoose(rec, "1");
   await dgSteps(rec, work, [
     [
       "ticket",
       "create",
-      "Write checkable acceptance criteria when filing",
+      t.retro.ticket,
       "--label",
       "retro-s2",
       "--acceptance",
-      "Retries per ticket go down in the next Iteration",
+      t.retro.ticketAccept,
     ],
   ]);
-  await termSay(rec, "ok", "✓ Filed t11 (retro-s2)", 400);
+  await termSay(rec, "ok", t.retro.filed, 400);
   // 起票したチケットがバックログに並んだのを見せる
-  await rec.moveTo(app.locator(".topbar nav a", { hasText: "Backlog" }), 500);
+  await rec.moveTo(app.locator(".topbar nav a", { hasText: t.nav.backlog }), 500);
   await rec.click();
   await rec.hold(2200);
 }
 
 /**
  * 1 本を録る。左パネルは拡張ホストの代わりの仲立ちで Webview として動かし、外枠にターミナルを置く。
- * 台本は (rec, app, ctx) で、app は左パネルの FrameLocator、ctx は一時リポジトリ（work・tmp）
+ * 台本は (rec, app, ctx) で、app は左パネルの FrameLocator、ctx は一時リポジトリ（work・tmp）と言語の文（t）
  */
 async function record(browser, server, icon, job, ctx) {
   const side = job.side ?? SIDE;
@@ -806,14 +1045,17 @@ async function record(browser, server, icon, job, ctx) {
   await context.grantPermissions(["clipboard-read", "clipboard-write"], {
     origin: new URL(server.url).origin,
   });
-  await context.addInitScript(englishScreen);
+  await context.addInitScript(screenLanguage, job.lang);
   await context.addInitScript(vscodeShim);
   const page = await context.newPage();
   // 外枠も dg serve と同じオリジンから出す（iframe の画面と postMessage でやり取りするため）
   const frameUrl = `${server.url}__gif-frame.html`;
   const appUrl = `${server.url}?gif-host=sidebar${job.hash}`;
   await page.route(frameUrl, (route) =>
-    route.fulfill({ contentType: "text/html", body: frameHtml(appUrl, icon, side) }),
+    route.fulfill({
+      contentType: "text/html",
+      body: frameHtml(appUrl, icon, side, job.lang, ctx.t),
+    }),
   );
   await page.goto(frameUrl, { waitUntil: "networkidle" });
   const app = page.frameLocator(".side iframe");
@@ -827,15 +1069,24 @@ async function record(browser, server, icon, job, ctx) {
 /** 画面の幅（CSS の px）。左パネルを広げた分だけ広げ、エディタとターミナルの幅は変えない */
 const gifWidth = (job) => WIDTH + (job.side ?? SIDE) - SIDE;
 
+/** 5 本の台本。言語ごとに 1 本ずつ録る（英語は import.gif、日本語は import.ja.gif） */
+const SCENES = [
+  { base: "import", hash: "#/backlog", script: importFlow, repo: importRepo },
+  { base: "assign", hash: "#/backlog", script: assignFlow, repo: assignRepo },
+  { base: "plan", hash: "#/board", script: planFlow, repo: planRepo, side: PLAN_SIDE },
+  { base: "work", hash: "#/board", script: workFlow, repo: workRepo, side: PLAN_SIDE },
+  { base: "retro", hash: "#/history", script: retroFlow, repo: retroRepo },
+];
+
 async function main() {
   const only = process.argv.slice(2);
-  const jobs = [
-    { name: "import.gif", hash: "#/backlog", script: importFlow, repo: importRepo },
-    { name: "assign.gif", hash: "#/backlog", script: assignFlow, repo: assignRepo },
-    { name: "plan.gif", hash: "#/board", script: planFlow, repo: planRepo, side: PLAN_SIDE },
-    { name: "work.gif", hash: "#/board", script: workFlow, repo: workRepo, side: PLAN_SIDE },
-    { name: "retro.gif", hash: "#/history", script: retroFlow, repo: retroRepo },
-  ];
+  const jobs = SCENES.flatMap((scene) =>
+    Object.keys(TEXT).map((lang) => ({
+      ...scene,
+      lang,
+      name: `${scene.base}${lang === "en" ? "" : `.${lang}`}.gif`,
+    })),
+  );
   const unknown = only.filter((name) => !jobs.some((job) => job.name === name));
   if (unknown.length)
     throw new Error(
@@ -858,12 +1109,13 @@ async function main() {
     await mkdir(outDir, { recursive: true });
     // 台本がデータを書き換えるので、見本のリポジトリは 1 本ごとに作る
     for (const job of jobs) {
+      const t = TEXT[job.lang];
       const dir = path.join(tmp, job.name.replace(/\.gif$/, ""));
       await mkdir(dir);
-      const work = await job.repo(dir);
+      const work = await job.repo(dir, t);
       const server = await startServer({ cwd: work, port: 0, user: "Sample", staticDir: webDist });
       servers.push(server);
-      const frames = await record(browser, server, icon, job, { work, tmp: dir });
+      const frames = await record(browser, server, icon, job, { work, tmp: dir, t });
       const bytes = encodeGif(frames);
       await writeFile(path.join(outDir, job.name), bytes);
       const seconds = frames.reduce((sum, f) => sum + f.delay, 0) / 1000;
