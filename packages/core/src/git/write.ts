@@ -1,5 +1,5 @@
 // 書き込みの 1 単位（SY-2・SY-3・DT-4）：取り込み → 変更 → 検証 → コミット →（auto なら）push。
-// push が拒否されたら取り込み直して再送する。CAS（作成・claim・Iteration の開始と再開）は自分のコミットを捨てて変更からやり直し、
+// push が拒否されたら取り込み直して再送する（取り込み直しが例外で止まるときは、自分のコミットだけを捨てる）。CAS（作成・claim・Iteration の開始と再開）は自分のコミットを捨てて変更からやり直し、
 // 届かなければ自分のコミットを捨てて失敗する（チケットの起票だけは仮番号でローカルに残す）
 
 import { OperationError } from "../errors.js";
@@ -170,6 +170,22 @@ export async function withWriteLock<T>(repo: GitRepo, fn: () => Promise<T>): Pro
   });
 }
 
+/**
+ * push が拒否された後の取り込み直しが例外で止まったときに、このコマンドのコミット（mine）だけを手元から捨てる。
+ * 取り込んだリモートのコミットと、前からある手元のコミット（before 以前）は残す。
+ * 先頭が mine のまま（rebase が始まらなかったか、中止して戻ったか、積み直すものがなかった）なら、変更の前（before）へ戻す。
+ * rebase で積み直した後なら SHA が変わっているので、dropRebasedTip が積み直した自分のコミットを見分けて捨てる
+ */
+async function dropOwnCommit(
+  ctx: Pick<WriteContext, "repo" | "store">,
+  before: string,
+  mine: string,
+): Promise<void> {
+  if ((await headSha(ctx.repo)) === mine) await resetHard(ctx.repo, before);
+  else if (!(await dropRebasedTip(ctx.repo, mine))) return;
+  await ctx.store.rescan();
+}
+
 async function writeLocked<T>(
   ctx: WriteContext,
   mutate: () => Promise<T>,
@@ -313,47 +329,40 @@ async function writeLocked<T>(
         write: { committed: true, pushed: false, provisional: false, attempts, warnings },
       };
     }
-    // 自分のコミットは残したまま次の周回で rebase して再 push する
+    // 自分のコミットは残したまま rebase して再 push する。
+    // ここから push の前までに例外で止まるときは、エラーの種類によらず、自分のコミットだけを捨ててから投げ直す（dropOwnCommit）。
+    // 残すと、エラーを直した後のもう一度の実行が同じ変更（コメントの追記など）を二重に入れる。エラーを足すときに、
+    // 種類ごとの戻しを書かなくて済むよう、この 1 か所で受ける。競合は例外ではなく、警告を付けてコミットを残す（SY-4）
     const nameBefore = dataTargetOf(ctx.store.config);
     const mine = await headSha(repo);
-    const fetchedAgain = await fetchData(repo);
-    const { result: integrated, resolved } =
-      fetchedAgain.ok && fetchedAgain.remoteBranch
-        ? await integrateLogged(repo).catch(async (e: unknown) => {
-            // 最初の取り込みの後に、別のカンバンがデータのブランチを作った（最初はリモートにブランチがなかった）。rebase は始まって
-            // いないので先頭は自分のコミットのまま。捨ててから止める（残すと、戻した後のもう一度の実行が同じ変更を二重に入れる）。
-            // 先にコミットしたまとめ待ちの変更は before より前にあるので残る
-            if (e instanceof OperationError && e.code === "DATA_HISTORY_UNRELATED") {
-              await resetHard(repo, before);
-              await ctx.store.rescan();
-            }
-            throw e;
-          })
-        : { result: { ok: true as const, changed: false }, resolved: [] as ResolvedFile[] };
-    warnings.push(...autoResolvedWarnings(resolved));
-    if (!integrated.ok) {
-      // 取り込みの警告が既に戻し方を案内していれば繰り返さない
-      const remedy = warnings.some((w) => w.includes(CONFLICT_REMEDY))
-        ? ""
-        : `. ${CONFLICT_REMEDY}`;
-      warnings.push(
-        `Conflicts with remote changes, so it cannot push (${integrated.conflicts.join(", ")})${remedy}`,
-      );
-      return {
-        value,
-        write: { committed: true, pushed: false, provisional: false, attempts, warnings },
-      };
-    }
-    await ctx.store.rescan();
     try {
+      const fetchedAgain = await fetchData(repo);
+      const { result: integrated, resolved } =
+        fetchedAgain.ok && fetchedAgain.remoteBranch
+          ? await integrateLogged(repo)
+          : { result: { ok: true as const, changed: false }, resolved: [] as ResolvedFile[] };
+      warnings.push(...autoResolvedWarnings(resolved));
+      if (!integrated.ok) {
+        // 取り込みの警告が既に戻し方を案内していれば繰り返さない
+        const remedy = warnings.some((w) => w.includes(CONFLICT_REMEDY))
+          ? ""
+          : `. ${CONFLICT_REMEDY}`;
+        warnings.push(
+          `Conflicts with remote changes, so it cannot push (${integrated.conflicts.join(", ")})${remedy}`,
+        );
+        return {
+          value,
+          write: { committed: true, pushed: false, provisional: false, attempts, warnings },
+        };
+      }
+      await ctx.store.rescan();
       stopIfDataRemoteChanged(ctx, nameBefore);
+      await ctx.hooks?.beforePush?.();
     } catch (e) {
-      // ここでは自分の変更をコミットした後なので、積み直した自分のコミットを捨ててから止める（取り込んだコミットと、
-      // 前からある手元のコミットは残す）。残すと、案内どおりのもう一度の実行が同じ変更（コメントの追記など）を二重に入れる
-      if (await dropRebasedTip(repo, mine)) await ctx.store.rescan();
+      // 戻しが失敗しても、止まった理由（元のエラー）を投げる
+      await dropOwnCommit(ctx, before, mine).catch(() => undefined);
       throw e;
     }
-    await ctx.hooks?.beforePush?.();
     const again = await push(repo);
     if (again.ok)
       return {
