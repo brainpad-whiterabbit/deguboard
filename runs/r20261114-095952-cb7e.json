@@ -1,0 +1,34 @@
+{
+  "id": "r20261114-095952-cb7e",
+  "ticket": "t904",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-14T09:59:52Z",
+  "finished_at": "2026-11-14T10:06:11Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "DATA_REMOTE_MISSING の後に文脈を開き直す動きのテストがない",
+    "積み直したコミットの見分けが、同じ秒・同じメッセージの前からの手元のコミットを捨てうる",
+    "要件 5.10 から、読むだけの操作は警告して続くという約束が読めなくなった"
+  ],
+  "usage": {
+    "input": 20,
+    "output": 10745,
+    "cache_read": 543900,
+    "cache_write": 57787
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 6,
+    "bash": 9,
+    "other": 1,
+    "read_before_write": 6,
+    "search_before_write": 0
+  },
+  "session": "3051aa7a-6a9a-4ce9-9958-f1577f6df56a",
+  "review": null
+}
