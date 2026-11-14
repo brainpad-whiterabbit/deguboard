@@ -176,7 +176,7 @@ export const init = defineCommand({
           if (await pathExists(path.join(store.root, workflowPath(t.id)))) continue;
           await store.writeWorkflow(
             t as Record<string, unknown>,
-            `${t.name} のワークフロー。dg init が同梱のテンプレートから置いた`,
+            `${t.name} workflow. Placed by dg init from the bundled template`,
           );
           created.push(workflowPath(t.id));
         }

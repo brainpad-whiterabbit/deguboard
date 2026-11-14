@@ -17,6 +17,9 @@ import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import {
   fixRunFinishedAt,
+  NO_FIX_PUSH_ERROR,
+  NO_PR_ERROR,
+  OPEN_AT_SESSION_END_ERROR,
   REVIEW_UNRECORDED,
   runFinish,
   runList,
@@ -26,6 +29,8 @@ import {
   reviewOfFindings,
   runReviewResult,
   runStart,
+  STALE_SESSION_ERROR,
+  UNCLAIMED_ERROR,
   type RunRefreshItem,
   type RunView,
   type TicketRunsView,
@@ -928,6 +933,40 @@ describe("run review-result（見直しの結果。RN-9）", () => {
       light: 0,
       passed: false,
     });
+  });
+
+  it("前の版が日本語で書いた「結果の記録なし」の failure も、結果を書けば success に直す（t943）", async () => {
+    const ctx = await prepared();
+    const review = await start(ctx, "t1", "review");
+    await runCommand(runFinish, ctx, {
+      run: review.id,
+      result: "failure",
+      error: "見直し役が結果を記録せずに終わった（dg run review-result で書く）",
+    });
+    expect((await record(ctx, "t1", 0, 1)).data).toMatchObject({
+      id: review.id,
+      result: "success",
+      error: null,
+      review: { heavy: 0, light: 1 },
+    });
+  });
+
+  it("dg が Run を閉じるときに書く error は英語で、前の版が日本語で書いた error は書いたまま出す（CL-8、t943）", async () => {
+    for (const error of [
+      REVIEW_UNRECORDED,
+      STALE_SESSION_ERROR,
+      NO_PR_ERROR,
+      NO_FIX_PUSH_ERROR,
+      OPEN_AT_SESSION_END_ERROR,
+      UNCLAIMED_ERROR,
+    ])
+      expect(error).not.toMatch(/[ぁ-んァ-ヶ一-龠（）]/);
+    const ctx = await prepared();
+    const old = await start(ctx, "t1", "fix");
+    const japanese = "サブエージェントが終わったとき手直しの push がない";
+    await runCommand(runFinish, ctx, { run: old.id, result: "failure", error: japanese });
+    const [listed] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(listed).toMatchObject({ id: old.id, result: "failure", error: japanese });
   });
 
   it("閉じた見直しの Run の後に別の Run（手直しなど）が始まっていれば、前の回の見直しなので書かずに保留にする", async () => {

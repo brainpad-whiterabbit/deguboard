@@ -13,6 +13,7 @@ import {
   RESULT_LABELS,
   RunResult,
   RunResultDot,
+  runErrorText,
   runResultKey,
 } from "./run-parts.js";
 import { formatTime } from "./timeline.js";
@@ -146,7 +147,7 @@ function PanelRunRow({ run: r }: { run: RunView }) {
           <dt>{tr("結果")}</dt>
           <dd>
             <RunResult run={r} />
-            {r.error ? <span className="muted"> {r.error}</span> : null}
+            {r.error ? <span className="muted"> {runErrorText(r)}</span> : null}
           </dd>
           <dt>agent</dt>
           <dd>{r.agent}</dd>

@@ -104,7 +104,10 @@ describe("用意", () => {
     });
     await expect(
       runCommand(ticketCreate, ctx, { title: "F", acceptance: ["a\nb"] }),
-    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    ).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      detail: expect.stringContaining("Write each item on one line"),
+    });
     // done のチケットは未チェックが残っていても（F）、全部付いていても（G）指摘しない。未チェックは照合で done に進めたときだけ sync が警告する
     await runCommand(ticketCreate, ctx, { title: "F", acceptance: ["a", "b", "c"] });
     await runCommand(ticketCheck, ctx, { ticket: "t6", items: [2] });

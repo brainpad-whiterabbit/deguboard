@@ -154,6 +154,34 @@ describe("チケット詳細の Run", () => {
     expect(second.querySelector(".run-dot")!.getAttribute("title")).toBe("失敗：落ちた");
   });
 
+  it("dg が英語で書いた Run の error は表示言語に訳し、前の版が日本語で書いた error は書いたまま出す（UI-11、t943）", async () => {
+    const client = mockClient();
+    client.handlers["run.list"] = () => [
+      run({
+        id: "r20261101-010000-aaaa",
+        result: "failure",
+        error: "No PR when the sub-agent ended",
+      }),
+      run({
+        id: "r20261101-020000-bbbb",
+        result: "interrupted",
+        error: "セッションが終わったとき開いたままだった",
+      }),
+    ];
+    renderPanel(client);
+    await screen.findAllByRole("img", { name: "失敗" });
+    const [first, second] = [...document.querySelectorAll(".ticket-run")];
+    expect(first!.querySelector(".run-dot")!.getAttribute("title")).toBe(
+      "失敗：サブエージェントが終わったとき PR がない",
+    );
+    expect(first!.querySelector(".ticket-run-detail .muted")!.textContent).toBe(
+      " サブエージェントが終わったとき PR がない",
+    );
+    expect(second!.querySelector(".run-dot")!.getAttribute("title")).toBe(
+      "中断：セッションが終わったとき開いたままだった",
+    );
+  });
+
   it("開くと agent・入力 / 出力 / cache のトークン・終了時刻・Run ID を出す", async () => {
     const client = mockClient();
     client.handlers["run.list"] = () => [

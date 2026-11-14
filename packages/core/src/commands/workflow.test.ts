@@ -142,6 +142,11 @@ describe("workflow set", () => {
   it("--template で同梱のテンプレートに戻し、id は引数に置き換えて別の Workflow も作れる", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
+    expect(
+      (await workflowText(ctx, "general")).startsWith(
+        "# General workflow. Placed by dg init from the bundled template\n",
+      ),
+    ).toBe(true);
     await runCommand(workflowSet, ctx, { workflow: "general", definition: strict });
     const back = await runCommand(workflowSet, ctx, { workflow: "general", template: "general" });
     expect(back.data.before?.name).toBe("Strict General");
@@ -153,9 +158,12 @@ describe("workflow set", () => {
       "fix",
     ]);
     const text = await workflowText(ctx, "general");
-    expect(text.startsWith("# General のワークフロー。dg workflow set が同梱のテンプレート")).toBe(
-      true,
-    );
+    // dg が Workflow のファイルに書くコメントも dg の出力なので英語（CL-8）
+    expect(
+      text.startsWith(
+        "# General workflow. Placed by dg workflow set from the bundled template general\n",
+      ),
+    ).toBe(true);
     expect(await gitOut(ctx, ["log", "-1", "--format=%s"])).toBe(
       "Replace Workflow general (template general)",
     );

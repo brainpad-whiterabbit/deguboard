@@ -42,8 +42,9 @@ export function isMergeDriverPath(file: string): boolean {
   return DRIVER_PATHS.some((re) => re.test(file));
 }
 
-const GITATTRIBUTES_HEADER =
-  "# dg のマージドライバ（frontmatter と YAML をフィールド単位でマージする）";
+// .gitattributes と git config に dg が書く文も dg の出力なので英語にする（CL-8）。コミットした .gitattributes は足りない行を足すだけなので、
+// 前の版が日本語で書いた見出しはそのまま残る（git config の name も、ドライバのコマンド行が変わるまで残る）
+const GITATTRIBUTES_HEADER = "# dg merge driver (merges frontmatter and YAML field by field)";
 
 /** 両側が違う値に変えても、新しい方を採るフィールド（書き込みのたびに変わる時刻） */
 const NEWER_WINS = new Set(["updated_at"]);
@@ -483,7 +484,7 @@ export async function ensureMergeDriver(
       "config",
       "--local",
       `merge.${MERGE_DRIVER_NAME}.name`,
-      "deguboard の frontmatter と YAML をフィールド単位でマージする（dg が登録）",
+      "Merges deguboard frontmatter and YAML field by field (registered by dg)",
     ]);
   }
   return line;

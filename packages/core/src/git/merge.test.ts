@@ -508,6 +508,15 @@ describe("同期のマージドライバ", () => {
     }
     const tracked = await git(a.repo.dataDir, ["ls-files", ".gitattributes"]);
     expect(tracked.stdout.trim()).toBe(".gitattributes");
+    // dg が .gitattributes と git config に書く文も dg の出力なので英語（CL-8、t943）
+    const text = await readFile(path.join(a.repo.dataDir, ".gitattributes"), "utf8");
+    expect(text.split("\n")[0]).toBe(
+      "# dg merge driver (merges frontmatter and YAML field by field)",
+    );
+    const name = await git(a.repo.dataDir, ["config", "--get", "merge.deguboard.name"]);
+    expect(name.stdout.trim()).toBe(
+      "Merges deguboard frontmatter and YAML field by field (registered by dg)",
+    );
   });
 
   it("既存のリポジトリでは sync が取り込みの前にドライバを登録し、.gitattributes をコミットする", async () => {

@@ -886,7 +886,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       expect(agent.store.runs.get(fix6)!.data).toMatchObject({
         step: "fix",
         result: "failure",
-        error: "ticket unclaim で todo に戻した",
+        error: "Returned to todo by ticket unclaim",
       });
       expect(await peekRunningRuns(agent.repo)).toEqual([]);
     } finally {

@@ -660,11 +660,12 @@ describe("dg hook（AG-9・RN-7）", () => {
     expect(view.done).toHaveLength(2);
     const closed = ((await runCommand(runList, ctx, {})).data as RunView[])
       .filter((r) => !r.running)
-      .map((r) => [r.ticket, r.step, r.result])
+      .map((r) => [r.ticket, r.step, r.result, r.error])
       .sort();
+    // 閉じた理由の error は dg の出力なので英語（CL-8、t943）
     expect(closed).toEqual([
-      ["t1", "review", "interrupted"],
-      ["t2", "implement", "failure"],
+      ["t1", "review", "interrupted", "Still open when the session ended"],
+      ["t2", "implement", "failure", "No PR when the sub-agent ended"],
     ]);
     const running = (await peekRunningRuns(ctx.repo)).map((r) => [r.ticket, r.step]).sort();
     expect(running).toEqual([

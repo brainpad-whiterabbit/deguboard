@@ -429,7 +429,7 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
 
 /**
  * core が返すエラー・警告の決まった文の訳（trCoreMessage）。鍵は core の文の可変の部分（ID・項目名・値）を {0}・{1} にした形。
- * 設定の保存の拒否・Plan と Run の警告・読めないファイルの理由を置く。表にない文は core の文のまま出す。
+ * 設定の保存の拒否・Plan と Run の警告・dg が Run を閉じた理由・読めないファイルの理由を置く。表にない文は core の文のまま出す。
  * 鍵の {0} 以外の部分が core のソースにあることは l10n.test.ts が確かめる（core の文言が変われば気づく）
  */
 export const CORE_MESSAGES: CoreTextTable = {
@@ -460,6 +460,19 @@ export const CORE_MESSAGES: CoreTextTable = {
   "deguboard-local/{0}: {1}": { ja: "deguboard-local/{0}: {1}" },
   "Tickets {0} not found, so the Epic and Iteration of those Runs are unknown": {
     ja: "チケット {0} が見つからないので、その Run の Epic・Iteration は分からない",
+  },
+  // dg とフックが Run を閉じるときに書く error（run.ts。Run の結果の理由として出す。前の版が日本語で書いた error は表になく、そのまま出る）
+  "Left open in another session (closed as left over from a session that ended)": {
+    ja: "別のセッションで開いたままだった（落ちたセッションの残りとみなして閉じた）",
+  },
+  "No PR when the sub-agent ended": { ja: "サブエージェントが終わったとき PR がない" },
+  "No fix push when the sub-agent ended": {
+    ja: "サブエージェントが終わったとき手直しの push がない",
+  },
+  "Still open when the session ended": { ja: "セッションが終わったとき開いたままだった" },
+  "Returned to todo by ticket unclaim": { ja: "ticket unclaim で todo に戻した" },
+  "The reviewer ended without recording a result (write it with dg run review-result)": {
+    ja: "見直し役が結果を記録せずに終わった（dg run review-result で書く）",
   },
   // 読めないファイルの理由（readDoc）
   "Cannot read the file": { ja: "ファイルを読めない" },

@@ -129,7 +129,7 @@ export const workflowSet = defineCommand({
     if (input.template !== undefined) {
       const t = findWorkflowTemplate(input.template)!;
       definition = { ...(t as Record<string, unknown>), id: input.workflow };
-      comment = `${t.name} のワークフロー。dg workflow set が同梱のテンプレート ${t.id} から置いた`;
+      comment = `${t.name} workflow. Placed by dg workflow set from the bundled template ${t.id}`;
     } else {
       definition = input.definition!;
       if (definition["id"] !== input.workflow) {
