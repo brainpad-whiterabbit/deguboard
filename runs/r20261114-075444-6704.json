@@ -1,0 +1,33 @@
+{
+  "id": "r20261114-075444-6704",
+  "ticket": "t898",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-14T07:54:44Z",
+  "finished_at": "2026-11-14T08:01:11Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "判定できない agent（copilot）にも models.<agent>.* のキーができ、設定しても黙って無視される",
+    "guide の調べ物のサブエージェントのモデルの説明が agent ごとの設定に触れていない"
+  ],
+  "usage": {
+    "input": 50,
+    "output": 15681,
+    "cache_read": 1662490,
+    "cache_write": 88249
+  },
+  "tools": {
+    "read": 16,
+    "search": 0,
+    "write": 21,
+    "bash": 21,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "04a6996f-43a7-4be4-88f8-d32272484b28",
+  "review": null
+}
