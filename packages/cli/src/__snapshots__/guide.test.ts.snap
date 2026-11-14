@@ -598,7 +598,7 @@ Turns the requirements, research results, and review findings settled in the con
   gate: high # Quality gate level: high / low / free. Default is high. Lower it only on a human's instruction
   labels: [backend]
   origin: [t9] # Existing tickets whose merged change caused the defect. Optional, for a defect fix only (see "Origin of a defect")
-  origin_cause: tests # Cause kind of the defect. Give it with origin. Optional
+  origin_cause: tests # Cause kind of the defect. Optional, and only with origin (dg rejects it without origin)
   created_by: human # Creator. If omitted, the acting actor (for you, <user>/agent)
   assignee: agent # Assignee. Optional
   fields: { estimate: 3 } # Optional fields defined by the Workflow's fields

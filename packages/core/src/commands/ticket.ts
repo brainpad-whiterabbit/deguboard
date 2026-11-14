@@ -111,7 +111,19 @@ const actorRef = z.string().min(1);
 /** origin と origin_cause の説明（TK-12）。create・import と update で同じ文を使い、update は外し方だけを足す */
 const ORIGIN_HELP =
   "For a ticket that fixes a defect: IDs of the tickets whose change caused the defect (the defect got past their review and was found after the merge; count both wrong behavior and documents that should have been fixed in the same change). Only existing tickets, and not the ticket itself";
-const ORIGIN_CAUSE_HELP = `For a ticket that fixes a defect: why the change of the origin tickets caused it. One of ${FINDING_CAUSES.join(", ")}, the same kinds as the cause of a review finding (their meaning is in dg run review-result --help). Use unknown when you cannot tell, instead of guessing`;
+const ORIGIN_CAUSE_HELP = `For a ticket that fixes a defect: why the change of the origin tickets caused it. One of ${FINDING_CAUSES.join(", ")}, the same kinds as the cause of a review finding (their meaning is in dg run review-result --help). Use unknown when you cannot tell, instead of guessing. Needs origin: given without origin, it is rejected`;
+
+/**
+ * origin_cause は origin（元のチケット）の変更の原因なので、origin がなければ持たせない（TK-12）。
+ * 書き込んだ後の値で照らす。update で origin だけを外して origin_cause を残すのも拒む
+ */
+function requireOriginForCause(origin: readonly string[] | undefined, cause: unknown): void {
+  if (cause !== undefined && (origin ?? []).length === 0)
+    throw new OperationError(
+      "REJECTED",
+      "origin_cause needs origin (it is the cause of the origin tickets' change). Give origin with it, or leave origin_cause out (on update, --origin-cause none removes it)",
+    );
+}
 
 /**
  * origin（元のチケット。TK-12）の参照を ID にする。今あるチケットだけを受け、同じ ID は 1 回にまとめる。
@@ -211,6 +223,7 @@ function buildTicket(
   const depends_on = (input.depends_on ?? []).map(resolveDep);
   // 元のチケットは今あるチケットだけ。下書きの仮のキーは受けない（不具合は、もうマージされた変更から出る）
   const origin = resolveOrigin(store, input.origin ?? []);
+  requireOriginForCause(origin, input.origin_cause);
   const fields = validateFields(workflow, input.fields);
   const now = nowIso(ctx);
   return {
@@ -576,7 +589,7 @@ export const ticketUpdate = defineCommand({
       .array(z.string())
       .optional()
       .describe(
-        `${ORIGIN_HELP}. Replaces the whole list (specify all of them, including existing ones); an empty list removes it (on the CLI, --origin "")`,
+        `${ORIGIN_HELP}. Replaces the whole list (specify all of them, including existing ones); an empty list removes it (on the CLI, --origin ""), and origin_cause must be removed with it`,
       ),
     origin_cause: z.enum(FINDING_CAUSES).nullable().optional().describe(ORIGIN_CAUSE_HELP),
     // 要件 TK-9
@@ -690,6 +703,12 @@ export const ticketUpdate = defineCommand({
         }
         if (input.origin_cause !== undefined)
           patch["origin_cause"] = input.origin_cause ?? undefined;
+        // 組は、どちらかを書き込むときだけ照らす（ほかの項目だけを直す update は、前からの値を咎めない）
+        if (input.origin !== undefined || input.origin_cause !== undefined)
+          requireOriginForCause(
+            input.origin === undefined ? t.origin : (patch["origin"] as string[] | undefined),
+            input.origin_cause === undefined ? t.origin_cause : patch["origin_cause"],
+          );
         if (input.fields) {
           const wfId =
             (input.workflow === undefined ? t.workflow : (input.workflow ?? undefined)) ??
