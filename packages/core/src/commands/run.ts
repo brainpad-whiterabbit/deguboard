@@ -827,10 +827,13 @@ export function reviewOfFindings(
   heavyCategories: readonly string[],
 ): RunReview {
   const causes = { heavy: emptyCauseCounts(), light: emptyCauseCounts() };
-  for (const f of findings)
-    causes[isHeavyFinding(f, heavyCategories) ? "heavy" : "light"][f.cause] += 1;
-  const heavy = findings.filter((f) => isHeavyFinding(f, heavyCategories)).length;
-  return { heavy, light: findings.length - heavy, passed: heavy === 0, causes };
+  const counts = { heavy: 0, light: 0 };
+  for (const f of findings) {
+    const severity = isHeavyFinding(f, heavyCategories) ? "heavy" : "light";
+    counts[severity] += 1;
+    causes[severity][f.cause] += 1;
+  }
+  return { ...counts, passed: counts.heavy === 0, causes };
 }
 
 /** 原因の種類の一覧（ヘルプの文に入れる） */

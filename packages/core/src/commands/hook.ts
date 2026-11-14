@@ -37,6 +37,7 @@ import { toIsoDateTime } from "../model/common.js";
 import { ticketIdSchema, type TicketId } from "../model/id.js";
 import {
   FINDING_CAUSES,
+  FINDING_SEVERITIES,
   REVIEW_STEP,
   type Run,
   type RunId,
@@ -377,7 +378,7 @@ async function subagentLaunched(
 const sameCauses = (a: RunReview["causes"], b: RunReview["causes"]) =>
   a === undefined || b === undefined
     ? a === b
-    : (["heavy", "light"] as const).every((s) => FINDING_CAUSES.every((c) => a[s][c] === b[s][c]));
+    : FINDING_SEVERITIES.every((s) => FINDING_CAUSES.every((c) => a[s][c] === b[s][c]));
 
 /**
  * 見直しの結果が同じか（数と通ったか、原因ごとの数）。記録と同じ秒に置いた保留の結果が呼び直しかを見分ける。

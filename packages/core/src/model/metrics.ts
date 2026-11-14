@@ -2,7 +2,14 @@
 
 import { isAgentActorId } from "./actor.js";
 import { idNumber } from "./id.js";
-import { emptyCauseCounts, FINDING_CAUSES, TOOL_KINDS, type CauseCounts, type Run } from "./run.js";
+import {
+  emptyCauseCounts,
+  FINDING_CAUSES,
+  FINDING_SEVERITIES,
+  TOOL_KINDS,
+  type CauseCounts,
+  type Run,
+} from "./run.js";
 import type { Ticket } from "./ticket.js";
 
 /** 集計と絞り込みの単位。Agent/Model は agent と model に分けて持つ。step は Run の step（implement・review など） */
@@ -200,7 +207,7 @@ export function summarizeRuns(
       if (run.review.causes === undefined) missing.review_causes += 1;
       else {
         const sum = (reviews.causes ??= { heavy: emptyCauseCounts(), light: emptyCauseCounts() });
-        for (const weight of ["heavy", "light"] as const)
+        for (const weight of FINDING_SEVERITIES)
           for (const cause of FINDING_CAUSES)
             sum[weight][cause] += run.review.causes[weight][cause];
       }

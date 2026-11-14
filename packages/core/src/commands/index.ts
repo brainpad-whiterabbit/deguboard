@@ -31,6 +31,7 @@ export {
   writeSkillFiles,
   type MissingSkills,
   type RefreshedSkills,
+  type SkillFile,
 } from "./skill-files.js";
 export type {
   CommandClient,
