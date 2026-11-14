@@ -1,5 +1,6 @@
 // カンバンのデータを、コードとは別のリポジトリ（git.data_remote）に置く（t904）。コード用（origin）とデータ用の 2 つの bare リモートで試す
 
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { addDataRemote, git, type Fixture } from "../../test/helpers/git-fixture.js";
@@ -7,6 +8,7 @@ import { fixture, runCleanups } from "../../test/helpers/commands-context.js";
 import { fastHook } from "../fast-hook.js";
 import { checkOutside } from "../git/outside.js";
 import { DATA_REMOTE_NAME } from "../git/repo.js";
+import { dropRebasedTip, fetchData, remoteRef } from "../git/sync.js";
 import { Store } from "../storage/store.js";
 import { openContext, openContextFor } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -286,6 +288,65 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
     const subjects = (await git(b2.repo.dataDir, ["log", "--format=%s"])).stdout.split("\n");
     expect(subjects.filter((s) => s === subjects[0])).toHaveLength(1);
     expect(await oldTip()).not.toBe(await headOf(b2));
+  });
+
+  it("積み直しで自分のコミットが空になって落ちたとき、同じ秒・同じメッセージの前からの手元のコミットを捨てない", async () => {
+    const { a, b } = await twoClones();
+    await runCommand(ticketCreate, a, { title: "A" });
+    await runCommand(sync, b, {});
+    const dir = b.repo.dataDir;
+    const base = await headOf(b);
+    // 作者の時刻とメッセージが同じコミットを 2 つ作る（同じ操作を続けて実行した形）
+    const twin = async (file: string, cwd = dir) => {
+      await writeFile(path.join(cwd, file), `${file}\n`);
+      await git(cwd, ["add", "--", file]);
+      await git(cwd, ["commit", "-q", "--date=2026-01-01T00:00:00Z", "-m", "同じ操作"]);
+    };
+    // 2 つ目と同じ変更を、A がリモートへ送っておく（B の 2 つ目は積み直しで空になる）
+    await twin("second.txt", a.repo.dataDir);
+    await git(a.repo.dataDir, ["push", "-q", "data", "deguboard"]);
+    await twin("first.txt");
+    const first = await headOf(b);
+    await twin("second.txt");
+    const mine = await headOf(b);
+
+    // 2 つとも残っていれば、先頭（自分のコミット）だけを捨てる
+    expect(await headOf(b)).not.toBe(base);
+    expect(await dropRebasedTip(b.repo, mine)).toBe(true);
+    expect(await headOf(b)).toBe(first);
+    // 自分のコミットが落ちたら、先頭に残った前からのコミットは捨てない
+    await git(dir, ["reset", "-q", "--hard", mine]);
+    expect((await fetchData(b.repo)).ok).toBe(true);
+    await git(dir, ["rebase", "-q", "--no-keep-empty", remoteRef(b.repo)]);
+    const subjects = (await git(dir, ["log", "--format=%s", `${remoteRef(b.repo)}..HEAD`])).stdout;
+    expect(subjects.trim()).toBe("同じ操作");
+    const rebased = await headOf(b);
+    expect(await dropRebasedTip(b.repo, mine)).toBe(false);
+    expect(await headOf(b)).toBe(rebased);
+    expect((await git(dir, ["show", "--format=", "--name-only", "HEAD"])).stdout.trim()).toBe(
+      "first.txt",
+    );
+  });
+
+  it("プロセス内の CommandClient は、データのリモートがなくて止まった後に git remote add すると、次の書き込みが push まで進む", async () => {
+    const f = await fixture();
+    const dataDir = await addDataRemote(f, [f.cloneA]);
+    const a = await initWith(f.cloneA, "data");
+    await runCommand(ticketCreate, a, { title: "A" });
+    await git(f.cloneA, ["remote", "remove", "data"]);
+
+    const client = createLocalClient({ cwd: f.cloneA, user: "eiki" });
+    await expect(client.run("ticket.create", { title: "B" })).rejects.toMatchObject({
+      code: "DATA_REMOTE_MISSING",
+    });
+    // git remote add は config を変えないので、リモートの名前の比較では開き直さない。エラーの後に開き直す
+    await git(f.cloneA, ["remote", "add", "data", dataDir]);
+    const created = await client.run<{ id: string }>("ticket.create", { title: "B" });
+    expect(created.write).toMatchObject({ pushed: true });
+    expect(created.warnings.filter((w) => w.includes("git remote add"))).toEqual([]);
+    expect((await client.status()).remote).toBe("data");
+    const tip = (await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    expect(await tipOf(dataDir, "deguboard")).toBe(tip);
   });
 
   it("プロセス内の CommandClient は、同じプロセスで git.data_remote を変えた後の書き込みと sync を新しいリモートへ送る（--local を含む）", async () => {

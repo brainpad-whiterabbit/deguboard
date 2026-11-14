@@ -357,12 +357,28 @@ export async function resetHard(repo: GitRepo, sha: string): Promise<void> {
 /**
  * rebase で積み直した後の先頭が original（積み直す前のコミット）を積み直したものなら、捨てて true を返す。
  * rebase は SHA を変えるので、変えない作者・作者の時刻・メッセージで見分ける。積み直しで空になって落とされたとき
- * （同じ変更がリモートにあった）は先頭が別のコミットなので、何も捨てずに false
+ * （同じ変更がリモートにあった）は先頭が別のコミットなので、何も捨てずに false。
+ * 落とされた後の先頭が、original と同じ秒・同じメッセージの前からの手元のコミット（同じ操作を続けて実行して push できなかったもの）
+ * だと、それだけでは original の積み直しと見分けられない。積み直す前（リモートの先端..original）と後（リモートの先端..HEAD）で
+ * 同じ見分けのコミットの数が減っていたら、どれが落ちたか分からないので捨てない（利用者の変更を捨てるより、もう一度の実行で
+ * 変更が重なる方を選ぶ）
  */
 export async function dropRebasedTip(repo: GitRepo, original: string): Promise<boolean> {
-  const identity = async (rev: string) =>
-    (await git(repo, ["log", "-1", "--format=%an%x00%ae%x00%at%x00%B", rev])).stdout;
-  if ((await identity("HEAD")) !== (await identity(original))) return false;
+  const identities = async (...revs: string[]) =>
+    (await git(repo, ["log", "-z", "--format=%an%x1f%ae%x1f%at%x1f%B", ...revs])).stdout.split(
+      "\0",
+    );
+  const [mine] = await identities("-1", original);
+  const [tip] = await identities("-1", "HEAD");
+  if (mine === undefined || tip !== mine) return false;
+  const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
+    allowFailure: true,
+  });
+  if (has.code === 0) {
+    const twins = async (rev: string) =>
+      (await identities(`${remoteRef(repo)}..${rev}`)).filter((i) => i === mine).length;
+    if ((await twins("HEAD")) < (await twins(original))) return false;
+  }
   await resetHard(repo, "HEAD~1");
   return true;
 }
