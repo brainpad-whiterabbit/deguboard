@@ -2,4 +2,5 @@ id: s33
 project: default
 name: sprint33
 goal: カンバンのデータを別のリポジトリに fetch・push でき、専用のリポジトリに複数のカンバンを置けるようにし、Project をなくす
-status: planned
+status: active
+started_at: 2026-11-14T09:13:41Z
