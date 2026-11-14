@@ -41,7 +41,7 @@ import {
   newApprovals,
   viewTitle,
 } from "./approvals.js";
-import { dgAdvice, resolveDg } from "./dg.js";
+import { dgAdvice, dgCheckTarget, resolveDg } from "./dg.js";
 import { GOTO_COMMAND, gotoItems } from "./goto.js";
 import {
   buildIdIndex,
@@ -69,8 +69,8 @@ import {
 } from "./launcher.js";
 import {
   DISMISSED_SKILLS_KEY,
-  dismissedAfter,
   dismissedSkillsOf,
+  missingSkillAction,
   type MissingSkillNotice,
   missingSkillNotices,
   skillRefreshNotices,
@@ -327,17 +327,20 @@ async function askToInstallSkills(
     install,
     never,
   );
-  if (picked === never) {
-    await context.globalState.update(
-      DISMISSED_SKILLS_KEY,
-      dismissedAfter(context.globalState.get(DISMISSED_SKILLS_KEY), notice.names),
-    );
+  const action = missingSkillAction(
+    picked,
+    { install, never },
+    notice,
+    context.globalState.get(DISMISSED_SKILLS_KEY),
+  );
+  if (action.kind === "dismiss") {
+    await context.globalState.update(DISMISSED_SKILLS_KEY, action.dismissed);
     return;
   }
-  if (picked !== install) return;
+  if (action.kind !== "install") return;
   try {
     const result = await installMissingSkills(notice, {
-      names: notice.names,
+      names: action.names,
       skills: await buildSkills(__CORE_VERSION__),
     });
     if (result.written.length > 0)
@@ -1193,18 +1196,17 @@ function panelTitle(folder: vscode.WorkspaceFolder): string {
 /**
  * 最初の使用時に 1 回、PATH の dg を確かめて知らせる。画面は dg なしで動くので止めない。
  * folder は最初に使ったフォルダ（サイドバーは最初の作業フォルダ、パネルは開くフォルダ）で、そこを cwd にして
- * 確かめる（理由は resolveDg）。フォルダがなければ cwd を渡さない
+ * 確かめる（理由は resolveDg）。cwd と警告に入れるフォルダの決め方は dgCheckTarget
  */
 async function adviseAboutDg(folder?: vscode.WorkspaceFolder): Promise<void> {
   // 起動時ではなく、サイドバーかパネルを最初に使うときに 1 回だけ出す（deguboard を使わないウィンドウでは出さない）。
   // フォルダごとには確かめない（確かめの遅れと通知を増やさない）
   if (advised) return;
   advised = true;
-  const cwd = folder?.uri.scheme === "file" ? folder.uri.fsPath : undefined;
-  const checked =
-    folder && cwd
-      ? { name: folder.name, folderCount: vscode.workspace.workspaceFolders?.length ?? 0 }
-      : undefined;
+  const { cwd, checked } = dgCheckTarget(
+    folder && { name: folder.name, scheme: folder.uri.scheme, fsPath: folder.uri.fsPath },
+    vscode.workspace.workspaceFolders?.length ?? 0,
+  );
   const advice = dgAdvice(await resolveDg(cwd), __CORE_VERSION__, checked);
   if (!advice) return;
   const show =

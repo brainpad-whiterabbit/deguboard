@@ -22,6 +22,7 @@ import { format, setTranslator } from "./l10n.js";
 import {
   dismissedAfter,
   dismissedSkillsOf,
+  missingSkillAction,
   missingSkillNotices,
   skillRefreshNotices,
 } from "./skills.js";
@@ -191,5 +192,24 @@ describe("拡張の起動時の、入れていない同梱の Skill の案内（
     expect(dismissedAfter(dismissed, ["dgnew", "dgwork"])).toEqual(["dgwork", "dgplan", "dgnew"]);
     expect(dismissedSkillsOf("broken")).toEqual([]);
     expect(dismissedSkillsOf(["dgwork", 3])).toEqual(["dgwork"]);
+  });
+
+  it("通知のボタンの選択から、Install は案内した名前を書き、Don't show again は覚えた名前に足し、閉じたら何もしない", () => {
+    const buttons = { install: "Install", never: "Don't show again" };
+    const notice = { names: ["dgwork", "dgnew"] };
+    expect(missingSkillAction("Install", buttons, notice, ["dgplan"])).toEqual({
+      kind: "install",
+      names: ["dgwork", "dgnew"],
+    });
+    expect(missingSkillAction("Don't show again", buttons, notice, ["dgplan", "dgwork"])).toEqual({
+      kind: "dismiss",
+      dismissed: ["dgplan", "dgwork", "dgnew"],
+    });
+    // 壊れた値は覚えていないものとして、案内した名前だけを覚える
+    expect(missingSkillAction("Don't show again", buttons, notice, "broken")).toEqual({
+      kind: "dismiss",
+      dismissed: ["dgwork", "dgnew"],
+    });
+    expect(missingSkillAction(undefined, buttons, notice, ["dgplan"])).toEqual({ kind: "none" });
   });
 });
