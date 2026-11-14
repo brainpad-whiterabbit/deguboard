@@ -154,6 +154,10 @@ VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech
 
 README の GIF（`packages/vscode/images/`）は、画面を変えたら `mise run gifs` で録り直す（台本は `scripts/record-gifs.mjs`）。英語の表示の `*.gif` を README.md が、日本語の表示の `*.ja.gif` を README.ja.md が引き、1 回で両方を録る。1.5 倍の解像度（1140px 幅。3 段の依存グラフを見せる plan・work は左パネルを広げて 1245px 幅）で撮る。
 
+## guide.notes の文書（docs/guide-notes/）
+
+このリポジトリの作業の補足（判断・止める条件）は、`dg guide` に差し込む文書として `docs/guide-notes/<トピック>.md` に置く。差し込むのは config の項目 `guide.notes.<トピック>` で、値はリポジトリの最上位からの相対パス（既定は空で、何も差し込まない）。`dg guide <トピック>` の題名の直後に入り、節だけを出すときは節の見出しの直後に入る。このリポジトリでは `guide.notes.plan` が `docs/guide-notes/plan.md` を指す。文書は英語で書き（[ADR-001](adr/ADR-001-doc-strategy.md)）、見出し（#）を含む文書と 64 KiB を超える文書は差し込まれず、警告が出る。項目は `packages/core/src/model/config.ts` の `noteField`、読み込みは `packages/core/src/guide/guide.ts` の `readGuideNotes` が正本。
+
 ## リリース
 
 利用者に届けるのは VSIX だけで（`dg` は拡張に同梱する）、npm には出さない。VSIX は GitHub の Release に添付し、同じものを VS Code Marketplace と Open VSX に出す。版は全パッケージで揃える（`release:version`。VSIX の版もここで決まる。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。`main` の clean な状態で行う：
