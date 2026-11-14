@@ -601,7 +601,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     );
   });
 
-  it("元のチケットにないチケットの ID と自分自身の ID、原因の種類にない値は、どの入口でも拒み、書き込まない（TK-12）", async () => {
+  it("元のチケットにないチケットの ID と自分自身の ID、原因の種類にない値、origin のない origin_cause は、どの入口でも拒み、書き込まない（TK-12）", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A" });
@@ -642,8 +642,33 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     await expect(
       runCommand(ticketUpdate, ctx, { ticket: "t2", origin_cause: "code" as never }),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    // origin のない origin_cause（原因の種類は元のチケットの変更のもの）。update は書き込んだ後の値で照らす
+    const withoutOrigin = { code: "REJECTED", message: expect.stringContaining("needs origin") };
+    await expect(
+      runCommand(ticketCreate, ctx, { title: "C", origin_cause: "tests" }),
+    ).rejects.toMatchObject(withoutOrigin);
+    await expect(
+      runCommand(ticketImport, ctx, { source: "- title: C\n  origin_cause: tests\n" }),
+    ).rejects.toMatchObject(withoutOrigin);
+    await expect(
+      runCommand(ticketImport, ctx, {
+        source: "- title: C\n  origin: []\n  origin_cause: tests\n",
+      }),
+    ).rejects.toMatchObject(withoutOrigin);
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t1", origin_cause: "tests" }),
+    ).rejects.toMatchObject(withoutOrigin);
+    await expect(runCommand(ticketUpdate, ctx, { ticket: "t2", origin: [] })).rejects.toMatchObject(
+      withoutOrigin,
+    );
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t2", origin: [], origin_cause: "tests" }),
+    ).rejects.toMatchObject(withoutOrigin);
     // 拒んだ操作は何も書かない
     expect((await runCommand(ticketList, ctx, {})).data.map((t) => t.id)).toEqual(["t1", "t2"]);
+    expect((await runCommand(ticketShow, ctx, { ticket: "t1" })).data).not.toHaveProperty(
+      "origin_cause",
+    );
     expect((await runCommand(ticketShow, ctx, { ticket: "t2" })).data).toMatchObject({
       origin: ["t1"],
       origin_cause: "plan",
