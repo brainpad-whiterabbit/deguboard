@@ -1,0 +1,30 @@
+{
+  "id": "r20261114-150310-cb3d",
+  "ticket": "t908",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-14T15:03:10Z",
+  "finished_at": "2026-11-14T15:10:54Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 52,
+    "output": 12146,
+    "cache_read": 1520292,
+    "cache_write": 76349
+  },
+  "tools": {
+    "read": 11,
+    "search": 0,
+    "write": 19,
+    "bash": 11,
+    "other": 1,
+    "read_before_write": 5,
+    "search_before_write": 0
+  },
+  "session": "f14c3b91-5cda-4397-a480-e83c7a9900ed",
+  "review": null
+}
