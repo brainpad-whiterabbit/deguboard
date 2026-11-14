@@ -438,7 +438,10 @@ describe("dg flow next", () => {
     expect(work).toMatchObject({
       stage: { name: "work", rule: 4, plan: "p1", tickets: ["t1"] },
       commands: ["dg --json --actor agent plan show p1", "dg --json --actor agent next t1"],
-      approval: { required: true, what: "Merging each PR (dg guide done)" },
+      approval: {
+        required: true,
+        what: "Merging each PR (when approved, dg pr merge <id> --approved-by human)",
+      },
       repeated: null,
     });
     expect(work.memory).toEqual({ ...none, assigned: true, checked: true });

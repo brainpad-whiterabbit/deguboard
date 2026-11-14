@@ -43,6 +43,8 @@ async function fakeGh(root: string, pr: () => string) {
   const pushBeforeMerge = path.join(root, "gh-push-before-merge");
   // このファイルがあると、gh pr merge はリモートとローカルの feat/t1 を消す（本物の gh の --delete-branch を写す。t849）
   const deleteOnMerge = path.join(root, "gh-delete-on-merge");
+  // このファイルがあると、承認者のコメントの書き込み（gh api の POST）だけ失敗する（t883）
+  const failComment = path.join(root, "gh-fail-comment");
   const projectCards =
     'echo "GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience (repository.pullRequest.projectCards)" >&2; exit 1';
   await mkdir(bin, { recursive: true });
@@ -60,6 +62,11 @@ async function fakeGh(root: string, pr: () => string) {
         "  fi",
         '  if [ "$2" = "repos/{owner}/{repo}/pulls/7" ]; then',
         `    if [ -f '${failBody}' ]; then echo "gh の失敗" >&2; exit 1; fi; sed "s|__TIP__|$(git ls-remote origin refs/heads/feat/t1 | cut -f1)|" '${viewFile}'; exit 0`,
+        "  fi",
+        // 承認者のコメント（REST の issues の comments。-f body=<文>）を記録に書き足す（t883）
+        '  if [ "$2" = --method ] && [ "$3" = POST ] && [ "$4" = "repos/{owner}/{repo}/issues/7/comments" ] && [ "$5" = -f ]; then',
+        `    if [ -f '${failComment}' ]; then echo "gh の失敗" >&2; exit 1; fi`,
+        `    echo "api POST issues/7/comments $6" >> '${log}'; exit 0`,
         "  fi",
         "  exit 1",
         "fi",
@@ -109,6 +116,7 @@ async function fakeGh(root: string, pr: () => string) {
     mergedThenFailCall,
     pushBeforeMerge: () => writeFile(pushBeforeMerge, "1"),
     deleteOnMerge: () => writeFile(deleteOnMerge, "1"),
+    failCommentCall: () => writeFile(failComment, "1"),
   };
 }
 
@@ -173,6 +181,7 @@ async function prepared() {
     mergedThenFail,
     pushBeforeMerge: gh.pushBeforeMerge,
     deleteOnMerge: gh.deleteOnMerge,
+    failCommentCall: gh.failCommentCall,
   };
 }
 
@@ -247,6 +256,53 @@ describe("dg pr ready・dg pr merge（t545）", () => {
       "pr ready 7",
       `pr merge 7 --squash --match-head-commit ${tip} --delete-branch`,
     ]);
+  });
+
+  it("--approved-by を渡すと、マージの後に誰が承認してマージしたかを PR のコメントに残す。渡さなければ（--auto で聞かずにマージ）残さない（t883）", async () => {
+    const { ctx, tip, calls, undraft } = await prepared();
+    await passedReview(ctx);
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    // 聞かずにマージしたときは承認者を残さない（コメントを書かない）
+    const auto = (await runCommand(prMerge, ctx, { ticket: "t1" })).data as PrAdvanceView;
+    expect(auto.approved_by).toBeNull();
+    expect(await calls()).toEqual([`pr merge 7 --squash --match-head-commit ${tip}`]);
+    // human は自分のユーザ本人。マージの後に、打った主体と承認者をコメントに書く
+    const approved = await runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" });
+    expect((approved.data as PrAdvanceView).approved_by).toBe("eiki");
+    expect(approved.warnings).toEqual([]);
+    expect((await calls()).slice(1)).toEqual([
+      `pr merge 7 --squash --match-head-commit ${tip}`,
+      "api POST issues/7/comments body=Merged with `dg pr merge` by eiki/agent, after eiki approved the merge.",
+    ]);
+  });
+
+  it("--approved-by に agent の ID を渡すと VALIDATION_FAILED で止まり、gh を呼ばない。マージに失敗したら承認者を残さず、コメントを書けなければマージは成功のまま警告する（t883）", async () => {
+    const { ctx, calls, undraft, failMergeCall, allowMergeCall, failCommentCall } =
+      await prepared();
+    await passedReview(ctx);
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    for (const ref of ["agent", "eiki/agent"]) {
+      const rejected = await rejection(
+        runCommand(prMerge, ctx, { ticket: "t1", approved_by: ref }),
+      );
+      expect(rejected!.code).toBe("VALIDATION_FAILED");
+      expect(rejected!.message).toContain("eiki/agent is an agent");
+    }
+    await failMergeCall();
+    expect(
+      await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" })),
+    ).toBeDefined();
+    expect(await calls()).toEqual([]);
+    await allowMergeCall();
+    await failCommentCall();
+    const merged = await runCommand(prMerge, ctx, { ticket: "t1", approved_by: "mika" });
+    expect(merged.data).toMatchObject({ action: "merge", approved_by: "mika" });
+    expect(merged.warnings.join("\n")).toContain(
+      "the approver (mika) could not be recorded as a comment on the PR",
+    );
+    expect((await calls()).filter((c) => c.startsWith("api POST"))).toEqual([]);
   });
 
   it("書く保留がないときに rebase の途中を見つけたら、外の変更と報告せず rebase の警告を出して ready にする（t753）", async () => {

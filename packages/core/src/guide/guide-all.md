@@ -27,7 +27,7 @@ The order of stages and the current stage are decided by `dg flow next`. Approva
 | Assign  | Rows to put in                               |
 | Check   | Rows to fix; deletion, abandoned, closing    |
 | Plan    | Plan                                         |
-| Work    | Merge of each PR (`dg guide done`)           |
+| Work    | Merge of each PR (`dg guide work`)           |
 | Audit   | Table of findings                            |
 | Release | Merge of the release PR, publishing, closing |
 
@@ -46,7 +46,7 @@ Closing a Plan whose tickets are all finished is part of the Work stage. It need
 ## Between stages
 
 - **No stopping between stages**: except where `approval.required` applies, do not ask, and call the next `flow next`
-- **Merge follows `auto.merge`**: if `auto.merge` (current setting: `{{auto.merge}}`) is true, a PR that passes the quality gate is merged automatically with `--auto`; if false, a human merges it. After a PR is put out, advance the next step while waiting for its merge. If there is no next step, stop. Approval for the merge follows `approval`
+- **Merge follows `auto.merge`**: if `auto.merge` (current setting: `{{auto.merge}}`) is true, a PR that passes the quality gate is merged without asking with `--auto`. Otherwise (no `--auto`, or `auto.merge` is false), ask a human whether to merge it, and merge it only when approved, by the "Merging after approval" section of `dg guide work` (`dg pr merge <id> --approved-by human`). When declined, do not merge, and leave the PR waiting. After a PR is put out, advance the next step while it waits for its merge. If there is no next step, ask about the merges that wait, and stop if none is approved. Approval for the merge follows `approval`
 - **Handling failures**: a ticket whose implementation failed goes back to todo, as in `dg guide parallel`, and tickets that do not wait for it advance. A ticket whose review or fix returned failure, or did not return, is not put back to todo, and follows the "How to finish" section of `dg guide review`
 
 ## Choosing automatically with `--auto`
@@ -58,8 +58,8 @@ With `--auto`, the flow proceeds without asking only in the following two cases.
 
 Merges and decisions a human makes are handled as follows.
 
-- **A PR is merged** only when `auto.merge` (current setting: `{{auto.merge}}`) is true, and only a PR that meets the "Quality gate" section of `dg guide review` is merged with `dg --json --actor agent pr merge <id>`. Leave out `--method` and `--delete-branch`, so that config's `merge.method` and `merge.delete_branch` (current settings: `{{merge.method}}` and `{{merge.delete_branch}}`) decide the method and whether the branch is deleted. If the PR does not meet the gate, show the conditions it did not meet, ask for approval, and stop
-- **Decisions a human makes are asked, and the flow stops, regardless of config**: merging and publishing the release PR (tags and destinations); deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic or Iteration; merging when `auto.merge` is false; changing a Plan's waits (`after`) and scope; operations with `--force`; decisions with no suggested option; and answers that cannot be a choice
+- **A PR is merged without asking** only when `auto.merge` (current setting: `{{auto.merge}}`) is true, and only a PR that meets the "Quality gate" section of `dg guide review` is merged with `dg --json --actor agent pr merge <id>`. Do not pass `--approved-by` (no human approved it, so no approver is recorded). Leave out `--method` and `--delete-branch`, so that config's `merge.method` and `merge.delete_branch` (current settings: `{{merge.method}}` and `{{merge.delete_branch}}`) decide the method and whether the branch is deleted. If the PR does not meet the gate, show the conditions it did not meet, ask for approval, and stop
+- **Decisions a human makes are asked, and the flow stops, regardless of config**: merging and publishing the release PR (tags and destinations); deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic or Iteration; merging when `auto.merge` is false (when approved, the agent merges with `dg pr merge <id> --approved-by human`; when declined, it does not merge); changing a Plan's waits (`after`) and scope; operations with `--force`; decisions with no suggested option; and answers that cannot be a choice
 
 ## Reporting the result
 
@@ -71,6 +71,7 @@ At the end of the flow, report the result of each stage: the lines fixed in assi
 
 When the flow stops, ask with the following choices, according to the reason it stopped. When the Iteration is closed and the flow has ended (the reason `flow next` gives for that), report the result and ask with the retrospective choice and "Stop here".
 
+- **Merge** (when PRs that meet the quality gate wait for their merge): when chosen, merge them by the "Merging after approval" section of `dg guide work`, and continue the flow
 - **Resume** (recommended when it stopped waiting for a merge): after the merge, read `dg guide all` again, and call `flow next` with the same target and arguments (such as `--auto`) to continue (if a Skill is available, `/dgall <S>`)
 - **Look back on the Iteration** (only when the Iteration `<S>` was closed and the flow has ended; recommended then): look back on `<S>` by the steps of `dg guide retro`. The numbers of a closed Iteration are complete at this point, and the retrospective writes nothing without approval (if a Skill is available, `/dgretro <S>`)
 - **Stop here**

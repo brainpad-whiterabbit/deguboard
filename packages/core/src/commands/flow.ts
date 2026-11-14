@@ -274,6 +274,7 @@ export const FLOW_GUIDE: Record<FlowStageName, FlowGuideRef> = {
       "Implement",
       "Receive the implementation result",
       "Following the Plan",
+      "Merging after approval",
     ],
     also: { topic: "parallel", sections: ["Advancing in parallel"] },
   },
@@ -349,7 +350,7 @@ export function approvalOf(
             auto: "Merging PRs that meet the quality gate (dg gate --for merge) with dg pr merge",
             auto_ok: true,
           }
-        : ask("Merging each PR (dg guide done)");
+        : ask("Merging each PR (when approved, dg pr merge <id> --approved-by human)");
     case "audit":
       return choose("audit", "Findings table", 'Findings table (apply all except "won\'t fix")');
     case "release":

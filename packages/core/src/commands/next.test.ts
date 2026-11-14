@@ -271,9 +271,26 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     );
     expect(over).toMatchObject({ kind: "wait_human", stage: { name: "waiting_human", fixes: 3 } });
     expect(over.ask_human).toContain("gh pr ready");
-    expect(kind(facts({ ticket: { status: "review" }, runs: [review(6, passed)] }))).toMatchObject({
-      kind: "wait_merge",
-    });
+    // 出した PR は、マージしてよいかを人に聞く問いと、承認の後に打つ dg pr merge（承認者を渡す）を返す（t883）
+    const merge = kind(facts({ ticket: { status: "review" }, runs: [review(6, passed)] }));
+    expect(merge).toMatchObject({ kind: "wait_merge", step: null, running_run: null, pr: 7 });
+    expect(merge.commands).toEqual([
+      "dg --json --actor agent gate t1 --for merge",
+      "Only after a person approves the merge: dg --json --actor agent pr merge t1 --approved-by human",
+    ]);
+    expect(merge.ask_human).toContain("ask a person whether to merge it");
+    expect(merge.ask_human).toContain("dg pr merge t1 --approved-by human");
+    expect(merge.ask_human).toContain("When declined or not answered, do not merge");
+    // auto.merge が true でも false でも同じ形を返す（聞かずにマージするかは dg guide all の --auto が決める）
+    for (const autoMerge of [true, false]) {
+      const set = {
+        ...ctx,
+        config: { ...ctx.config, auto: { ...ctx.config.auto, merge: autoMerge } },
+      };
+      expect(
+        nextOf(set, facts({ ticket: { status: "review" }, runs: [review(6, passed)] })),
+      ).toEqual(merge);
+    }
     // 実装を委譲する親は --no-run で claim し、印で頼む
     const impl = kind(facts({ ticket: { status: "todo", pr: undefined } }));
     expect(impl.commands[0]).toBe(
@@ -523,7 +540,10 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       }),
     );
     expect(merge).toMatchObject({ kind: "wait_merge" });
-    expect(merge.commands).toEqual([expect.stringContaining("gate t1 --for merge")]);
+    expect(merge.commands).toEqual([
+      expect.stringContaining("gate t1 --for merge"),
+      expect.stringContaining("pr merge t1 --approved-by human"),
+    ]);
     // branch_at より前に始まった実装の Run は、このブランチの作業ではないので待たない
     const stale = kind(
       facts({
