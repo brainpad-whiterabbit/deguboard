@@ -1,0 +1,33 @@
+{
+  "id": "r20261114-174029-fcb2",
+  "ticket": "t916",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-14T17:40:29Z",
+  "finished_at": "2026-11-14T17:50:40Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "guide-review の tests の種類が「テストがなかった」と「テストがなければ implementation」で矛盾しており、dg run review-result --help の意味と食い違う",
+    "guide-review の documents と plan の種類が、help にない意味（同じ PR の文書更新漏れ、未完了チケットへの依存）を含み、help と食い違う"
+  ],
+  "usage": {
+    "input": 76,
+    "output": 13495,
+    "cache_read": 2090810,
+    "cache_write": 58283
+  },
+  "tools": {
+    "read": 7,
+    "search": 0,
+    "write": 2,
+    "bash": 21,
+    "other": 7,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "e9df0304-4b12-43a8-86ab-9bd927db509c",
+  "review": null
+}
