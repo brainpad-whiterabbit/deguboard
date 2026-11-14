@@ -1,0 +1,32 @@
+{
+  "id": "r20261114-114559-fdba",
+  "ticket": "t906",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-14T11:45:59Z",
+  "finished_at": "2026-11-14T11:50:57Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "sync --resolve の採番し直しの後、古いストアのまま Project の退役を走らせ、付け替えた参照を退役のコミットで元に戻してしまう"
+  ],
+  "usage": {
+    "input": 30,
+    "output": 10688,
+    "cache_read": 805540,
+    "cache_write": 60873
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 3,
+    "bash": 15,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "3051aa7a-6a9a-4ce9-9958-f1577f6df56a",
+  "review": null
+}
