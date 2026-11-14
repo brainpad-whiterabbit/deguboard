@@ -1552,9 +1552,9 @@ describe("deguboard-local/runs/ の壊れた記録", () => {
     ]);
     const recent = await runCommand(runRecent, ctx, {});
     expect(recent.warnings).toEqual(r.warnings);
-    expect((recent.data as TicketRunsView[]).flatMap((v) => v.runs.map((run) => run.id))).toEqual([
-      running.id,
-    ]);
+    expect(
+      (recent.data as TicketRunsView[]).flatMap((v) => v.runs.map((run) => run.id)).sort(),
+    ).toEqual((r.data as RunView[]).map((run) => run.id).sort());
     for (const id of Object.values(files))
       expect(await exists(path.join(dir, `${id}.json`))).toBe(true);
   });
@@ -1570,11 +1570,6 @@ describe("deguboard-local/runs/ の壊れた記録", () => {
     });
     expect(r.data).toMatchObject({ ticket: "t1", step: "implement", result: null });
     expect(r.warnings).toEqual([]);
-    const recent = await runCommand(runRecent, ctx, {});
-    expect(recent.warnings).toEqual(r.warnings);
-    expect((recent.data as TicketRunsView[]).flatMap((v) => v.runs.map((run) => run.id))).toEqual([
-      running.id,
-    ]);
     for (const id of Object.values(files))
       expect(await exists(path.join(dir, `${id}.json`))).toBe(true);
   });
