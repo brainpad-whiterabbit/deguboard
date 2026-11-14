@@ -69,7 +69,7 @@ const NAMES: Record<string, string> = {
   "actor.human_only": msg("人だけに許すコマンド"),
   "metrics.read_transcripts": msg("会話記録から使用量を読む"),
   "notify.approvals": msg("承認待ちが増えたら通知する"),
-  "git.remote": msg("同期先のリモート"),
+  "git.remote": msg("コードのリモート"),
   "git.data_remote": msg("データのリモート"),
   "git.base_branch": msg("基準のブランチ"),
   "worktree.root": msg("worktree の置き場所"),
@@ -142,7 +142,7 @@ function noteLabel(key: string): string {
  * auto.merge はエージェントに PR のマージを許すので、エージェントに許す操作として扱う（EX-7）
  */
 export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
-  ["git.remote", msg("同期先が変わる")],
+  ["git.remote", msg("作業ブランチと PR の先が変わる（git.data_remote が空ならデータの同期先も）")],
   ["git.data_remote", msg("データの同期先が変わる")],
   ["git.base_branch", msg("マージ済みの判定の基準が変わる")],
   ["worktree.root", msg("作業場所が変わる")],

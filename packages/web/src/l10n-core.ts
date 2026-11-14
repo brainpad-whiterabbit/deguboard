@@ -71,7 +71,10 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   // default_project
   "Project used when none is given": { ja: "省略時の Project" },
   // git.remote
-  "Git remote that deguboard fetches from and pushes to": { ja: "同期先のリモート" },
+  "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set":
+    {
+      ja: "コードのリモート（作業ブランチと PR）。git.data_remote を設定しなければ、カンバンのデータもここと同期する",
+    },
   // git.data_remote
   "Git remote that the kanban data (the deguboard branch) is fetched from and pushed to, when the data is kept in a repository other than the code's. A remote name, not a URL (dg init --data-remote <URL> adds the remote). Empty uses git.remote. When the named remote is not in a clone, commands that push stop and tell how to add it. A change to the team's value is committed and pushed to the current data remote right away, so that clones still using it learn of the move. For how to move the data to another repository, see dg guide overview":
     {

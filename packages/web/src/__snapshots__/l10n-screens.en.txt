@@ -595,9 +595,9 @@ default_project
 Project used when none is given
 [value] default
 When empty: Returns to the default (in personal settings, to the team's value)
-Remote to sync with
+Code remote
 git.remote
-Git remote that deguboard fetches from and pushes to
+Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set
 [value] origin
 When empty: Returns to the default (in personal settings, to the team's value)
 Data remote

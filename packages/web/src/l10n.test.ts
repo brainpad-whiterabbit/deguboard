@@ -387,8 +387,11 @@ describe("設定の項目の説明の訳", () => {
     );
   });
   it("日本語では表の ja の訳を出し、英語では core の説明（英語の文）のまま出し、表にない説明は core の説明のまま出す", () => {
-    const description = "Git remote that deguboard fetches from and pushes to";
-    expect(configDescription(description)).toBe("同期先のリモート");
+    const description =
+      "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set";
+    expect(configDescription(description)).toBe(
+      "コードのリモート（作業ブランチと PR）。git.data_remote を設定しなければ、カンバンのデータもここと同期する",
+    );
     setLanguage("en");
     expect(configDescription(description)).toBe(description);
     expect(configDescription("New item")).toBe("New item");

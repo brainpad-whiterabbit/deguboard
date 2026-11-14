@@ -249,6 +249,76 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
     expect((await client.status()).remote).toBe("data2");
   });
 
+  it("push が拒否された後の取り込み直しでデータのリモートが変わったら、自分のコミットを捨てて止め、再実行で変更が二重に入らない", async () => {
+    const { f, dataDir, a, b } = await twoClones();
+    await runCommand(ticketCreate, a, { title: "A" });
+    await runCommand(sync, b, {});
+    const newDir = path.join(f.root, "data2.git");
+    await git(f.root, ["init", "--quiet", "--bare", newDir]);
+    for (const clone of [f.cloneA, f.cloneB]) await git(clone, ["remote", "add", "data2", newDir]);
+    await git(f.cloneA, ["push", "-q", "data2", "deguboard"]);
+    // B は書き込みのたびにコミットして push する（cas でない書き込みが push まで進む）
+    await runCommand(configSet, b, { key: "commit.mode", value: "each", local: true });
+    // B が自分の変更をコミットして push する直前に、A がデータを data2 へ移す（設定の変更を元のリモートと新しいリモートへ）
+    const hooks = {
+      beforePush: async () => {
+        hooks.beforePush = async () => {};
+        await runCommand(configSet, a, { key: "git.data_remote", value: "data2" });
+        await runCommand(sync, await openContext({ cwd: f.cloneA, actor }), {});
+      },
+    };
+    const racer = await openContext({ cwd: f.cloneB, actor, hooks });
+    const oldTip = async () => tipOf(dataDir, "deguboard");
+    await expect(
+      runCommand(ticketUpdate, racer, { ticket: "t1", priority: "high" }),
+    ).rejects.toMatchObject({ code: "DATA_REMOTE_CHANGED" });
+    // 自分のコミットは捨て、取り込んだ設定の変更は残る（手元は元のリモートの先端と同じ）
+    expect(await headOf(racer)).toBe(await oldTip());
+    expect(racer.store.tickets.get("t1")?.data.priority).not.toBe("high");
+    expect(racer.store.config.git.data_remote).toBe("data2");
+    expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+
+    // 案内どおりのもう一度の実行は新しいリモートへ送り、同じ変更のコミットは 1 つだけ
+    const b2 = await openContext({ cwd: f.cloneB, actor });
+    const updated = await runCommand(ticketUpdate, b2, { ticket: "t1", priority: "high" });
+    expect(updated.write).toMatchObject({ committed: true, pushed: true });
+    expect(await tipOf(newDir, "deguboard")).toBe(await headOf(b2));
+    const subjects = (await git(b2.repo.dataDir, ["log", "--format=%s"])).stdout.split("\n");
+    expect(subjects.filter((s) => s === subjects[0])).toHaveLength(1);
+    expect(await oldTip()).not.toBe(await headOf(b2));
+  });
+
+  it("プロセス内の CommandClient は、同じプロセスで git.data_remote を変えた後の書き込みと sync を新しいリモートへ送る（--local を含む）", async () => {
+    const { f, dataDir } = await twoClones();
+    const newDir = path.join(f.root, "data2.git");
+    await git(f.root, ["init", "--quiet", "--bare", newDir]);
+    await git(f.cloneA, ["remote", "add", "data2", newDir]);
+    const client = createLocalClient({ cwd: f.cloneA, user: "eiki" });
+    await client.run("ticket.create", { title: "A" });
+    await git(f.cloneA, ["push", "-q", "data2", "deguboard"]);
+    // チームの値の変更は、今の（元の）リモートへ push する
+    const changed = await client.run("config.set", { key: "git.data_remote", value: "data2" });
+    expect(changed.write).toMatchObject({ committed: true, pushed: true });
+    const oldTip = await tipOf(dataDir, "deguboard");
+    // 続く sync は設定の変更を新しいリモートへ送り、以後の書き込みも新しいリモートへ行く（元のリモートは進まない）
+    expect((await client.run<{ pushed: boolean }>("sync", {})).data).toMatchObject({
+      pushed: true,
+    });
+    expect((await client.status()).remote).toBe("data2");
+    expect(await tipOf(newDir, "deguboard")).toBe(oldTip);
+    expect((await client.run("ticket.create", { title: "B" })).write).toMatchObject({
+      pushed: true,
+    });
+    expect(await tipOf(newDir, "deguboard")).not.toBe(oldTip);
+    expect(await tipOf(dataDir, "deguboard")).toBe(oldTip);
+
+    // 個人の設定（--local）で変えても、次の呼び出しから従う
+    await client.run("config.set", { key: "git.data_remote", value: "data", local: true });
+    expect((await client.status()).remote).toBe("data");
+    await client.run("config.unset", { key: "git.data_remote", local: true });
+    expect((await client.status()).remote).toBe("data2");
+  });
+
   it("データのリモートから取り込んだコミットは、印がなくても dg の外の変更とみなさない（Stop のフックの今の経路と速い経路を含む）", async () => {
     const { f, a, b } = await twoClones();
     await runCommand(ticketCreate, a, { title: "A" });

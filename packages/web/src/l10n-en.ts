@@ -344,7 +344,7 @@ export const EN: Readonly<Record<string, string>> = {
   人だけに許すコマンド: "Commands limited to people",
   会話記録から使用量を読む: "Read usage from transcripts",
   承認待ちが増えたら通知する: "Notify when approvals are waiting",
-  同期先のリモート: "Remote to sync with",
+  コードのリモート: "Code remote",
   データのリモート: "Data remote",
   基準のブランチ: "Base branch",
   "worktree の置き場所": "Worktree location",
@@ -384,7 +384,8 @@ export const EN: Readonly<Record<string, string>> = {
   様子: "Status",
   振り返り: "Retro",
   一気通し: "All",
-  同期先が変わる: "changes where data is synced",
+  "作業ブランチと PR の先が変わる（git.data_remote が空ならデータの同期先も）":
+    "changes where work branches and pull requests go (and where the kanban data is synced, when git.data_remote is empty)",
   データの同期先が変わる: "changes where the kanban data is synced",
   マージ済みの判定の基準が変わる: "changes the base for detecting merges",
   作業場所が変わる: "changes where work happens",

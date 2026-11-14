@@ -18,6 +18,7 @@ import {
   amendAll,
   commitAll,
   describeAutoResolved,
+  dropRebasedTip,
   fetchData,
   headSha,
   integrateLogged,
@@ -61,7 +62,8 @@ export function requireDataRemote(ctx: Pick<WriteContext, "repo" | "config">): v
 /**
  * 取り込みの後（store を読み直した後）、push の前に呼ぶ。取り込んだ config でデータのリモートが、このコマンドが使っているものから
  * 変わっていたら、push せずに止めてもう一度の実行を案内する（データを別のリポジトリへ移す途中。元のリモートへ push すると、
- * 移した先に届かず取りこぼす）。手元のコミットは残り、次の実行が新しいリモートから取り込んで送る。
+ * 移した先に届かず取りこぼす）。このコマンドの変更は書かない（push が拒否された後の取り込み直しで見つけたときは、呼び出し側が
+ * 自分のコミットを捨てる）ので、もう一度の実行で二重にならない。前からある手元のコミットは残り、次の実行が新しいリモートから取り込んで送る。
  * before は取り込む前の config のデータのリモートの名前（dataRemoteNameOf）。取り込みで変わったときだけ止めるので、
  * このコマンド自身が変えた値（dg config set git.data_remote。元のリモートへ push して知らせる）では止めない
  */
@@ -299,6 +301,7 @@ async function writeLocked<T>(
     }
     // 自分のコミットは残したまま次の周回で rebase して再 push する
     const nameBefore = dataRemoteNameOf(ctx.store.config);
+    const mine = await headSha(repo);
     const fetchedAgain = await fetchData(repo);
     const { result: integrated, resolved } =
       fetchedAgain.ok && fetchedAgain.remoteBranch
@@ -319,7 +322,14 @@ async function writeLocked<T>(
       };
     }
     await ctx.store.rescan();
-    stopIfDataRemoteChanged(ctx, nameBefore);
+    try {
+      stopIfDataRemoteChanged(ctx, nameBefore);
+    } catch (e) {
+      // ここでは自分の変更をコミットした後なので、積み直した自分のコミットを捨ててから止める（取り込んだコミットと、
+      // 前からある手元のコミットは残す）。残すと、案内どおりのもう一度の実行が同じ変更（コメントの追記など）を二重に入れる
+      if (await dropRebasedTip(repo, mine)) await ctx.store.rescan();
+      throw e;
+    }
     await ctx.hooks?.beforePush?.();
     const again = await push(repo);
     if (again.ok)

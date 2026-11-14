@@ -354,6 +354,19 @@ export async function resetHard(repo: GitRepo, sha: string): Promise<void> {
   await git(repo, ["reset", "--hard", "--quiet", sha]);
 }
 
+/**
+ * rebase で積み直した後の先頭が original（積み直す前のコミット）を積み直したものなら、捨てて true を返す。
+ * rebase は SHA を変えるので、変えない作者・作者の時刻・メッセージで見分ける。積み直しで空になって落とされたとき
+ * （同じ変更がリモートにあった）は先頭が別のコミットなので、何も捨てずに false
+ */
+export async function dropRebasedTip(repo: GitRepo, original: string): Promise<boolean> {
+  const identity = async (rev: string) =>
+    (await git(repo, ["log", "-1", "--format=%an%x00%ae%x00%at%x00%B", rev])).stdout;
+  if ((await identity("HEAD")) !== (await identity(original))) return false;
+  await resetHard(repo, "HEAD~1");
+  return true;
+}
+
 export async function syncStatus(repo: GitRepo): Promise<SyncStatus> {
   const dirty = await isDirty(repo);
   if (!repo.dataRemote) return { ahead: 0, behind: 0, dirty, remote: null };

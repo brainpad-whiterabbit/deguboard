@@ -183,8 +183,10 @@ export const configSchema = z.looseObject({
   git: z
     .looseObject({
       remote: described(z.string().min(1).default("origin"), {
-        summary: "Git remote that deguboard fetches from and pushes to",
-        description: "Git remote that deguboard fetches from and pushes to",
+        summary:
+          "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set",
+        description:
+          "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set",
       }),
       data_remote: described(z.string().default(""), {
         summary: "Git remote that the kanban data is fetched from and pushed to",
