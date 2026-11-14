@@ -624,11 +624,10 @@ function withoutComments(text) {
       let inClass = false;
       while (i < n && chars[i] !== "\n") {
         const r = chars[i];
-        if (r === "\\") i += 2;
-        else if (r === "[") ((inClass = true), i++);
-        else if (r === "]") ((inClass = false), i++);
-        else if (r === "/" && !inClass) break;
-        else i++;
+        if (r === "/" && !inClass) break;
+        if (r === "[") inClass = true;
+        else if (r === "]") inClass = false;
+        i += r === "\\" ? 2 : 1;
       }
       i++;
       while (i < n && /[a-z]/.test(chars[i])) i++;
