@@ -67,7 +67,7 @@ describe("init", () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);
     const ctx = await initialized(local.dir);
-    expect(ctx.repo.remote).toBeNull();
+    expect(ctx.repo.dataRemote).toBeNull();
     const r = await runCommand(ticketCreate, ctx, { title: "オフラインの起票" });
     expect(r.data.id).toBe("t1");
     expect(r.write).toMatchObject({ committed: true, pushed: false, provisional: false });

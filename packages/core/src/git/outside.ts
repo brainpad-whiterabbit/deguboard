@@ -1,7 +1,7 @@
 // dg の外の変更を見つける（SY-7・SY-8、ADR-026）。データのリポジトリ（.git/deguboard）を dg のコマンドを通さずに書き換えたら、
 // dg が次にコマンドを実行するとき（runCommand）と Stop のフックで見つける。フックの粗い拒否（PreToolUse）の取りこぼしを事後に補う。
-//   - コミット：dg が作るコミットはメッセージの末尾に印（DG_COMMIT_TRAILER）を持つ。基準の HEAD より後で、リモートの deguboard に
-//     まだないコミットのうち、印のないものを dg の外のコミットとする（リモートから取り込んだコミットは、書いた人の dg が確かめている）
+//   - コミット：dg が作るコミットはメッセージの末尾に印（DG_COMMIT_TRAILER）を持つ。基準の HEAD より後で、データのリモート（repo.dataRemote）の
+//     deguboard にまだないコミットのうち、印のないものを dg の外のコミットとする（リモートから取り込んだコミットは、書いた人の dg が確かめている）
 //   - 未コミットの変更：commit.mode が batch・manual なら dg 自身も作業ツリーに変更を残す。dg は書き込みのロックを放す前に、
 //     作業ツリーの変更のあるファイルとその中身のハッシュを基準に記録する。今の作業ツリーが基準と違えば、違うファイルを dg の外の変更とする
 //   基準は deguboard-local/outside-baseline.json（マシンごと）。初めて確かめるとき（基準がない）は今の状態を基準にする。
@@ -120,12 +120,12 @@ export async function recordBaseline(repo: GitRepo): Promise<void> {
 }
 
 /**
- * リモートの名前の読み方。省けば repo.remote。Stop の速い経路（fast-hook.ts）は、名前を読むのに config（yaml・zod）を読むので、
+ * データのリモートの名前の読み方。省けば repo.dataRemote。Stop の速い経路（fast-hook.ts）は、名前を読むのに config（yaml・zod）を読むので、
  * 要るとき（基準の HEAD から HEAD が動いたとき）だけ読む関数を渡す（t786）
  */
 type RemoteOf = () => Promise<string | null>;
 
-/** 基準の HEAD より後で、リモートの deguboard にない、印のないコミット（新しい順） */
+/** 基準の HEAD より後で、データのリモートの deguboard にない、印のないコミット（新しい順） */
 async function outsideCommits(
   repo: GitRepo,
   base: string,
@@ -210,7 +210,7 @@ export async function checkOutside(
   repo: GitRepo,
   opts: { underLock?: boolean; remote?: RemoteOf } = {},
 ): Promise<OutsideCheck> {
-  const remoteOf = opts.remote ?? (async () => repo.remote);
+  const remoteOf = opts.remote ?? (async () => repo.dataRemote);
   // 生きた dg が書き込みのロックを持つ間の rebase はその dg の取り込みなので、下の比べ方（書きかけを捨てる）に任せる
   if ((await rebaseInProgress(repo)) && (opts.underLock || !(await writeLocked(repo))))
     return { kind: "rebasing", byDg: await rebaseLeftByDg(repo) };

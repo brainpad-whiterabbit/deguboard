@@ -46,7 +46,8 @@ const FIELDS: ConfigField[] = (
     {
       key: "git.remote",
       type: "string",
-      description: "Git remote that deguboard fetches from and pushes to",
+      description:
+        "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set",
       default: "origin",
       scope: "local",
       clears_to_default: true,
@@ -699,7 +700,9 @@ describe("設定画面", () => {
     fireEvent.blur(remote);
     expect(
       within(fieldOf("git.remote")).getByRole("alertdialog").querySelector("p")?.textContent,
-    ).toBe("git.remote を upstream にする。同期先が変わる。チーム全員に効く。保存する？");
+    ).toBe(
+      "git.remote を upstream にする。作業ブランチと PR の先が変わる（git.data_remote が空ならデータの同期先も）。チーム全員に効く。保存する？",
+    );
     fireEvent.click(within(fieldOf("git.remote")).getByText("やめる"));
 
     // 空にする：空の値（「`` にする」）でなく、戻る既定の値を出す
@@ -707,7 +710,7 @@ describe("設定画面", () => {
     fireEvent.blur(remote);
     const confirm = within(fieldOf("git.remote")).getByRole("alertdialog");
     expect(confirm.querySelector("p")?.textContent).toBe(
-      "git.remote を空にし、既定の origin に戻す。同期先が変わる。チーム全員に効く。保存する？",
+      "git.remote を空にし、既定の origin に戻す。作業ブランチと PR の先が変わる（git.data_remote が空ならデータの同期先も）。チーム全員に効く。保存する？",
     );
     fireEvent.click(within(confirm).getByText("保存する"));
     expect(await screen.findByText("保存した: git.remote を origin にした")).toBeTruthy();
@@ -861,7 +864,7 @@ describe("設定画面", () => {
     fireEvent.change(remote, { target: { value: "fork" } });
     fireEvent.blur(remote);
     const confirm = within(fieldOf("git.remote")).getByRole("alertdialog");
-    expect(confirm.textContent).toContain("同期先が変わる");
+    expect(confirm.textContent).toContain("作業ブランチと PR の先が変わる");
     expect(confirm.textContent).toContain("自分だけに効く");
     expect(confirm.textContent).not.toContain("チーム全員");
     await settle();
@@ -870,7 +873,7 @@ describe("設定画面", () => {
     expect(await screen.findByText("保存した: git.remote を自分だけ fork にした")).toBeTruthy();
     expect(setCalls(client)).toEqual([{ key: "git.remote", value: "fork", local: true }]);
 
-    // 外す：チームの origin に戻ると同期先が変わるので確かめ、やめると上書きを残す
+    // 外す：チームの origin に戻るとリモートが変わるので確かめ、やめると上書きを残す
     fireEvent.click(ownOf("git.remote"));
     const unset = within(fieldOf("git.remote")).getByRole("alertdialog");
     expect(unset.textContent).toContain("チームの origin に戻す");
@@ -995,7 +998,9 @@ describe("設定画面", () => {
     expect(more.open).toBe(true);
     // 要約を書いていない項目（要約が説明と同じ）は、説明を要約の行に出し、「詳しく」を出さない
     const remote = fieldOf("git.remote");
-    expect(remote.querySelector(".config-summary")?.textContent).toBe("同期先のリモート");
+    expect(remote.querySelector(".config-summary")?.textContent).toBe(
+      "コードのリモート（作業ブランチと PR）。git.data_remote を設定しなければ、カンバンのデータもここと同期する",
+    );
     expect(remote.querySelector("details")).toBeNull();
   });
 
@@ -1173,6 +1178,7 @@ describe("設定画面の部品", () => {
       "auto.decisions",
       "auto.merge",
       "git.base_branch",
+      "git.data_remote",
       "git.remote",
       "merge.approval_overrides",
       "worktree.root",
@@ -1220,9 +1226,9 @@ describe("設定画面の部品", () => {
   it("英語の表示では、検索が英語の説明にも当たる", () => {
     setLanguage("en");
     try {
-      // 表示名（Remote to sync with）には含まれず、英語の説明にだけある語
-      expect(fieldMatch(FIELDS[1]!, "FETCHES FROM")).toBe("shown");
-      expect(fieldMatch(FIELDS[1]!, "pushes to")).toBe("shown");
+      // 表示名（Code remote）には含まれず、英語の説明にだけある語
+      expect(fieldMatch(FIELDS[1]!, "WORK BRANCHES")).toBe("shown");
+      expect(fieldMatch(FIELDS[1]!, "pull requests")).toBe("shown");
       expect(fieldMatch(FIELDS[1]!, "worktree")).toBeNull();
     } finally {
       setLanguage("ja");

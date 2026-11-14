@@ -76,6 +76,7 @@ describe("スキーマ", () => {
     expect(local).toEqual([
       "default_project",
       "git.remote",
+      "git.data_remote",
       "worktree.root",
       "commit.mode",
       "push.mode",
@@ -312,6 +313,7 @@ describe("スキーマ", () => {
     expect(fields.map((f) => f.key)).toEqual([
       "default_project",
       "git.remote",
+      "git.data_remote",
       "git.base_branch",
       "worktree.root",
       "worktree.setup",

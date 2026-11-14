@@ -33,7 +33,12 @@ async function contextOf(
   extra: Partial<ActionContext> = {},
 ): Promise<ActionContext> {
   const paths = await resolveRepoPaths(dir);
-  const repo: GitRepo = { ...paths, remote: "origin", baseBranch: "main" };
+  const repo: GitRepo = {
+    ...paths,
+    codeRemote: "origin",
+    dataRemote: "origin",
+    baseBranch: "main",
+  };
   return { repo, config: configSchema.parse(config) as Config, ...extra };
 }
 

@@ -158,7 +158,7 @@ describe("リモートのない運用（SY-6）", () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);
     const ctx = await initialized(local.dir, { now: () => NOW });
-    expect(ctx.repo.remote).toBeNull();
+    expect(ctx.repo.dataRemote).toBeNull();
 
     const filed = await runCommand(ticketCreate, ctx, { title: "A" });
     expect(filed.write).toMatchObject({ committed: true, pushed: false, provisional: false });

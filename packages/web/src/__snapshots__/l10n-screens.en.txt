@@ -595,11 +595,20 @@ default_project
 Project used when none is given
 [value] default
 When empty: Returns to the default (in personal settings, to the team's value)
-Remote to sync with
+Code remote
 git.remote
-Git remote that deguboard fetches from and pushes to
+Git remote of the code (work branches and pull requests)
 [value] origin
 When empty: Returns to the default (in personal settings, to the team's value)
+Details
+Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set
+Data remote
+git.data_remote
+Git remote that the kanban data is fetched from and pushed to
+[placeholder] e.g. deguboard-data
+When empty: Uses git.remote
+Details
+Git remote that the kanban data (the deguboard branch) is fetched from and pushed to, when the data is kept in a repository other than the code's. A remote name, not a URL (dg init --data-remote <URL> adds the remote). Empty uses git.remote. When the named remote is not in a clone, commands that push stop and tell how to add it. A change to the team's value is committed and pushed to the current data remote right away, so that clones still using it learn of the move. For how to move the data to another repository, see dg guide overview
 Base branch
 git.base_branch
 Base for work branches and for deciding what is merged

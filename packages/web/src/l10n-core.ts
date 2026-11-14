@@ -71,7 +71,15 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   // default_project
   "Project used when none is given": { ja: "省略時の Project" },
   // git.remote
-  "Git remote that deguboard fetches from and pushes to": { ja: "同期先のリモート" },
+  "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set":
+    {
+      ja: "コードのリモート（作業ブランチと PR）。git.data_remote を設定しなければ、カンバンのデータもここと同期する",
+    },
+  // git.data_remote
+  "Git remote that the kanban data (the deguboard branch) is fetched from and pushed to, when the data is kept in a repository other than the code's. A remote name, not a URL (dg init --data-remote <URL> adds the remote). Empty uses git.remote. When the named remote is not in a clone, commands that push stop and tell how to add it. A change to the team's value is committed and pushed to the current data remote right away, so that clones still using it learn of the move. For how to move the data to another repository, see dg guide overview":
+    {
+      ja: "カンバンのデータ（deguboard ブランチ）を fetch・push するリモート。データをコードとは別のリポジトリに置くときに書く。URL でなくリモートの名前（dg init --data-remote <URL> がリモートを足す）。空なら git.remote を使う。名指ししたリモートがクローンにないと、push するコマンドは止まって足し方を示す。チームの値の変更は、すぐコミットして今のデータのリモートへ push する（そのリモートを使うクローンに移ったことを知らせるため）。別のリポジトリへ移す手順は dg guide overview",
+    },
   // git.base_branch
   "Base for work branches and for deciding what is merged": {
     ja: "作業ブランチの元と「マージ済み」の判定の基準",
@@ -224,7 +232,15 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     ja: "guide の題名の直後（節を出すときは節の見出しの直後）に差し込む文書のパス。リポジトリの最上位からの相対パスで、リポジトリの外は読まない。空なら差し込まない。見出し（#）を含む文書は差し込まない",
   },
 
-  // --- 要約（summary）。説明と同じ文の項目（default_project・git.*）は上の行が兼ねる ---
+  // --- 要約（summary）。説明と同じ文の項目（default_project・git.base_branch）は上の行が兼ねる ---
+  // git.remote
+  "Git remote of the code (work branches and pull requests)": {
+    ja: "コードのリモート（作業ブランチと PR）",
+  },
+  // git.data_remote
+  "Git remote that the kanban data is fetched from and pushed to": {
+    ja: "カンバンのデータを fetch・push するリモート",
+  },
   // worktree.root
   "Where work worktrees go": { ja: "作業 worktree の置き場所" },
   // worktree.setup
@@ -321,6 +337,8 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "Returns to the default (in personal settings, to the team's value)": {
     ja: "既定に戻る（個人の設定ではチームの値に戻る）",
   },
+  // git.data_remote
+  "Uses git.remote": { ja: "git.remote を使う" },
   // worktree.setup
   "Runs nothing": { ja: "何も回さない" },
   // actions.test

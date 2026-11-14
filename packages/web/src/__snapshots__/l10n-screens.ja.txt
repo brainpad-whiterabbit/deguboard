@@ -597,13 +597,20 @@ default_project
 空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
 詳しく
 default_project
-同期先のリモート
+コードのリモート
 git.remote
-同期先のリモート
+コードのリモート（作業ブランチと PR）
 [value] origin
 空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
 詳しく
 git.remote
+データのリモート
+git.data_remote
+カンバンのデータを fetch・push するリモート
+[placeholder] 例 deguboard-data
+空のとき: git.remote を使う
+詳しく
+git.data_remote
 基準のブランチ
 git.base_branch
 作業ブランチの元と「マージ済み」の判定の基準

@@ -15,6 +15,8 @@ export type OperationErrorCode =
   | "UNKNOWN_COMMAND"
   | "GATE_FAILED"
   | "OUTSIDE_CHANGES"
+  | "DATA_REMOTE_MISSING"
+  | "DATA_REMOTE_CHANGED"
   | "REJECTED";
 
 export class DeguboardError extends Error {

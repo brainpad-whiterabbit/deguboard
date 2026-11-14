@@ -476,7 +476,12 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       }
       const actor = { kind: actorKind, ...pickUser(global.user, env["DEGUBOARD_USER"]) };
       const initialize =
-        def.needs === "repo" ? { remote: input["remote"] as string | undefined } : undefined;
+        def.needs === "repo"
+          ? {
+              remote: input["remote"] as string | undefined,
+              dataRemote: input["data_remote"] as string | undefined,
+            }
+          : undefined;
 
       let result: CommandResult<unknown>;
       try {

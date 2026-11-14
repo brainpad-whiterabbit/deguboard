@@ -42,15 +42,15 @@ const git = (repo: GitRepo, args: string[], opts: Parameters<typeof runGit>[2] =
   runGit(repo.dataDir, args, { localDir: repo.localDir, ...opts });
 
 export function remoteRef(repo: GitRepo): string {
-  return `refs/remotes/${repo.remote}/${DATA_BRANCH}`;
+  return `refs/remotes/${repo.dataRemote}/${DATA_BRANCH}`;
 }
 
 /** deguboard ブランチだけを取り込む。リモートにまだなければ remoteBranch: false。timeoutMs を過ぎたら届かないときと同じ失敗 */
 export async function fetchData(repo: GitRepo, timeoutMs = 60_000): Promise<FetchResult> {
-  if (!repo.remote) return { ok: true, remoteBranch: false };
+  if (!repo.dataRemote) return { ok: true, remoteBranch: false };
   const result = await remoteGit(
     repo,
-    ["fetch", repo.remote, `${DATA_BRANCH}:${remoteRef(repo)}`],
+    ["fetch", repo.dataRemote, `${DATA_BRANCH}:${remoteRef(repo)}`],
     timeoutMs,
   );
   if (result.code === 0) return { ok: true, remoteBranch: true };
@@ -58,11 +58,28 @@ export async function fetchData(repo: GitRepo, timeoutMs = 60_000): Promise<Fetc
   return { ok: false, detail: result.stderr.trim() };
 }
 
-/** 作業ブランチの照合に使うので、すべてのブランチを取り込む（消えたブランチは prune） */
-export async function fetchAll(repo: GitRepo): Promise<FetchResult> {
-  if (!repo.remote) return { ok: true, remoteBranch: false };
-  const result = await remoteGit(repo, ["fetch", "--prune", repo.remote], 120_000);
-  if (result.code !== 0) return { ok: false, detail: result.stderr.trim() };
+/** 作業ブランチの照合に使うので、コードのリモートのすべてのブランチを取り込む（消えたブランチは prune）。失敗は理由を返す */
+export async function fetchCode(
+  repo: GitRepo,
+): Promise<{ ok: true } | { ok: false; detail: string }> {
+  if (!repo.codeRemote) return { ok: true };
+  const result = await remoteGit(repo, ["fetch", "--prune", repo.codeRemote], 120_000);
+  return result.code === 0 ? { ok: true } : { ok: false, detail: result.stderr.trim() };
+}
+
+/**
+ * sync の取得：データ（deguboard ブランチ）をデータのリモートから、作業ブランチをコードのリモートから取り込む。
+ * 2 つが同じリモートなら 1 回の fetch で済ませる。別のリモートのとき、結果はデータの取得のもので、
+ * コードの取得だけが失敗したら codeDetail に理由を入れる（データの取り込みと push は続け、照合は手元の ref で行う）
+ */
+export async function fetchAll(repo: GitRepo): Promise<FetchResult & { codeDetail?: string }> {
+  if (repo.dataRemote !== repo.codeRemote) {
+    const [data, code] = [await fetchData(repo), await fetchCode(repo)];
+    return data.ok && !code.ok ? { ...data, codeDetail: code.detail } : data;
+  }
+  const code = await fetchCode(repo);
+  if (!code.ok) return code;
+  if (!repo.dataRemote) return { ok: true, remoteBranch: false };
   const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
     allowFailure: true,
   });
@@ -88,7 +105,7 @@ export async function integrate(
   repo: GitRepo,
   opts: { autostash?: boolean; resolve?: ResolveSide; log?: string } = {},
 ): Promise<IntegrateResult> {
-  if (!repo.remote) return { ok: true, changed: false };
+  if (!repo.dataRemote) return { ok: true, changed: false };
   const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
     allowFailure: true,
   });
@@ -187,7 +204,7 @@ export interface ConflictField {
  * manual でコミットしていない変更も HEAD にないので入らない
  */
 export async function conflictFields(repo: GitRepo): Promise<ConflictField[]> {
-  if (!repo.remote) return [];
+  if (!repo.dataRemote) return [];
   const remote = remoteRef(repo);
   const mb = await git(repo, ["merge-base", "HEAD", remote], { allowFailure: true });
   if (mb.code !== 0) return [];
@@ -279,10 +296,10 @@ async function remoteGit(repo: GitRepo, args: string[], timeoutMs: number): Prom
 
 /** push の結果を --porcelain の行で判定する（文言に依存しない） */
 export async function push(repo: GitRepo): Promise<PushResult> {
-  if (!repo.remote) return { ok: false, reason: "unreachable", detail: "No remote" };
+  if (!repo.dataRemote) return { ok: false, reason: "unreachable", detail: "No remote" };
   const result = await remoteGit(
     repo,
-    ["push", "--porcelain", "-u", repo.remote, `${DATA_BRANCH}:${DATA_BRANCH}`],
+    ["push", "--porcelain", "-u", repo.dataRemote, `${DATA_BRANCH}:${DATA_BRANCH}`],
     60_000,
   );
   if (result.code === 0) return { ok: true };
@@ -337,19 +354,48 @@ export async function resetHard(repo: GitRepo, sha: string): Promise<void> {
   await git(repo, ["reset", "--hard", "--quiet", sha]);
 }
 
+/**
+ * rebase で積み直した後の先頭が original（積み直す前のコミット）を積み直したものなら、捨てて true を返す。
+ * rebase は SHA を変えるので、変えない作者・作者の時刻・メッセージで見分ける。積み直しで空になって落とされたとき
+ * （同じ変更がリモートにあった）は先頭が別のコミットなので、何も捨てずに false。
+ * 落とされた後の先頭が、original と同じ秒・同じメッセージの前からの手元のコミット（同じ操作を続けて実行して push できなかったもの）
+ * だと、それだけでは original の積み直しと見分けられない。積み直す前（リモートの先端..original）と後（リモートの先端..HEAD）で
+ * 同じ見分けのコミットの数が減っていたら、どれが落ちたか分からないので捨てない（利用者の変更を捨てるより、もう一度の実行で
+ * 変更が重なる方を選ぶ）
+ */
+export async function dropRebasedTip(repo: GitRepo, original: string): Promise<boolean> {
+  const identities = async (...revs: string[]) =>
+    (await git(repo, ["log", "-z", "--format=%an%x1f%ae%x1f%at%x1f%B", ...revs])).stdout.split(
+      "\0",
+    );
+  const [mine] = await identities("-1", original);
+  const [tip] = await identities("-1", "HEAD");
+  if (mine === undefined || tip !== mine) return false;
+  const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
+    allowFailure: true,
+  });
+  if (has.code === 0) {
+    const twins = async (rev: string) =>
+      (await identities(`${remoteRef(repo)}..${rev}`)).filter((i) => i === mine).length;
+    if ((await twins("HEAD")) < (await twins(original))) return false;
+  }
+  await resetHard(repo, "HEAD~1");
+  return true;
+}
+
 export async function syncStatus(repo: GitRepo): Promise<SyncStatus> {
   const dirty = await isDirty(repo);
-  if (!repo.remote) return { ahead: 0, behind: 0, dirty, remote: null };
+  if (!repo.dataRemote) return { ahead: 0, behind: 0, dirty, remote: null };
   const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
     allowFailure: true,
   });
   if (has.code !== 0) {
     const ahead = Number((await git(repo, ["rev-list", "--count", "HEAD"])).stdout.trim());
-    return { ahead, behind: 0, dirty, remote: repo.remote };
+    return { ahead, behind: 0, dirty, remote: repo.dataRemote };
   }
   const out = (
     await git(repo, ["rev-list", "--left-right", "--count", `HEAD...${remoteRef(repo)}`])
   ).stdout.trim();
   const [ahead = "0", behind = "0"] = out.split(/\s+/);
-  return { ahead: Number(ahead), behind: Number(behind), dirty, remote: repo.remote };
+  return { ahead: Number(ahead), behind: Number(behind), dirty, remote: repo.dataRemote };
 }

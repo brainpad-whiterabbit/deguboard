@@ -35,16 +35,16 @@ export function defaultWorktreePath(
 /** 作業ブランチの起点。リモートがあれば取り込んでから <remote>/<base>、なければローカルの <base> */
 export async function branchStartPoint(
   cwd: string,
-  repo: Pick<GitRepo, "remote">,
+  repo: Pick<GitRepo, "codeRemote">,
   base: string,
 ): Promise<string> {
   // base は config（Git で共有される）から来るので、ここでも検査する
   if (!isSafeBranchName(base)) {
     throw new OperationError("REJECTED", `Cannot be used as the base branch name: ${base}`);
   }
-  if (!repo.remote) return base;
-  await runGit(cwd, ["fetch", "--", repo.remote, base], { timeoutMs: 120_000 });
-  return `${repo.remote}/${base}`;
+  if (!repo.codeRemote) return base;
+  await runGit(cwd, ["fetch", "--", repo.codeRemote, base], { timeoutMs: 120_000 });
+  return `${repo.codeRemote}/${base}`;
 }
 
 /**
@@ -53,7 +53,7 @@ export async function branchStartPoint(
  */
 export async function createBranchWorktree(
   cwd: string,
-  repo: Pick<GitRepo, "remote">,
+  repo: Pick<GitRepo, "codeRemote">,
   input: { branch: string; base: string; dir: string; start?: string | undefined },
 ): Promise<{ branch: string; path: string; base: string }> {
   if (!isSafeBranchName(input.branch)) {

@@ -1,5 +1,6 @@
 // プロセス内の CommandClient。入口（server・vscode）はこれを HTTP や postMessage に写すだけで、文脈の管理を持たない（ADR-033）。
 //   - 文脈は最初の呼び出しで開き、以後は他のプロセス（CLI）の変更を取り込むために再走査する（Store.rescan は変わったファイルだけを読み直す）。
+//     config のリモートの名前（git.remote・git.data_remote）が変わったときだけ、文脈を開き直す。
 //     読み（書かないコマンドと status）は、届いた後に始まった再走査が成功して終わっていればその結果を使い回す。同じ瞬間に届いた読みは 1 回の走査に乗る。
 //     なぜ届いた後の走査だけか: 届く前に始まった走査は、要求の前に終わった変更を読み漏らしているかもしれない。「他のプロセスの変更は、
 //     要求が届く前に終わったものなら見える」という約束を保つために、それより前の走査は使わない。書き込みは毎回自分で再走査し、
@@ -15,6 +16,7 @@ import { fetchData, syncStatus } from "../git/sync.js";
 import type { CommandClient, CommandFailure, StatusView } from "./client.js";
 import { openContext } from "./context.js";
 import type { ActorKind, UserSource } from "../model/actor.js";
+import { dataRemoteNameOf, type Config } from "../model/config.js";
 import type { AnyCommand, CommandContext, CommandResult } from "./define.js";
 import { commands as allCommands, findCommand } from "./registry.js";
 import { runCommand } from "./define.js";
@@ -56,6 +58,8 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
     ...(options.user ? { user: options.user, userSource: options.userSource ?? "flag" } : {}),
   };
   let ctxPromise: Promise<CommandContext> | undefined;
+  // 文脈を開いたときの config のリモートの名前（remoteNamesOf）。変わったら context が開き直す
+  let openedRemotes: string | undefined;
   let queue: Promise<unknown> = Promise.resolve();
   // 経過の解析結果は deguboard ブランチの HEAD が同じあいだ使い回す（画面は詳細を開くたびに history を呼ぶ）
   const readHistory = createHistoryCache();
@@ -71,22 +75,34 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
 
   /** arrivedAt が undefined（書き込み）なら必ず再走査する。読みは届いた後に始まった走査が成功していればそれを使う */
   const context = async (arrivedAt: number | undefined): Promise<CommandContext> => {
-    ctxPromise ??= openContext({
-      cwd: options.cwd,
-      actor,
-      mergeDriver: options.mergeDriver,
-      actions: options.actions,
-    });
     try {
-      const ctx = await ctxPromise;
-      ctx.readHistory = readHistory;
-      if (arrivedAt === undefined || scanned <= arrivedAt) {
-        const id = ++scanGen;
-        await ctx.store.rescan();
-        scanned = id;
+      for (;;) {
+        ctxPromise ??= openContext({
+          cwd: options.cwd,
+          actor,
+          mergeDriver: options.mergeDriver,
+          actions: options.actions,
+        }).then((opened) => {
+          openedRemotes = remoteNamesOf(opened.store.config);
+          return opened;
+        });
+        const ctx = await ctxPromise;
+        ctx.readHistory = readHistory;
+        if (arrivedAt === undefined || scanned <= arrivedAt) {
+          const id = ++scanGen;
+          await ctx.store.rescan();
+          scanned = id;
+        }
+        // リモート（repo.codeRemote・repo.dataRemote）は文脈を開いたときの config で決める。その後に config のリモートの名前が
+        // 変わっていたら（このプロセスの config set・unset（--local を含む）、ほかのプロセスの書き込み、取り込み）、開き直して
+        // 新しいリモートを使う。開き直さないと、設定を変えた後の書き込みと sync が元のリモートへ送り続ける
+        if (remoteNamesOf(ctx.store.config) === openedRemotes) {
+          ctx.config = ctx.store.config;
+          return ctx;
+        }
+        ctxPromise = undefined;
+        scanned = 0;
       }
-      ctx.config = ctx.store.config;
-      return ctx;
     } catch (error) {
       ctxPromise = undefined;
       throw error;
@@ -126,6 +142,12 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       return serialized(!def.write, async (arrivedAt) => {
         try {
           return (await runCommand(def, await context(arrivedAt), input)) as CommandResult<O>;
+        } catch (error) {
+          // 名指ししたデータのリモートがクローンにない：人が git remote add で足しても config は変わらないので、次の呼び出しで
+          // 開き直してリモートを解決し直す（取り込んだ config でリモートが変わったとき（DATA_REMOTE_CHANGED）は、context が名前の違いで開き直す）
+          if (error instanceof OperationError && error.code === "DATA_REMOTE_MISSING")
+            ctxPromise = undefined;
+          throw error;
         } finally {
           // 成否に関わらず、後に続く読みは新しく走査する
           if (def.write) scanned = 0;
@@ -162,12 +184,17 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
    */
   async function backgroundFetch(): Promise<void> {
     const ctx = await ctxPromise;
-    if (!ctx?.repo.remote) return;
+    if (!ctx?.repo.dataRemote) return;
     const repo = ctx.repo;
     await withLock(repo.localDir, "write", () => fetchData(repo, STATUS_FETCH_TIMEOUT_MS), {
       waitMs: 0,
     });
   }
+}
+
+/** config が決めるコードのリモートとデータのリモートの名前（比べるための 1 つの文字列。改行はリモートの名前に入らない） */
+function remoteNamesOf(config: Config): string {
+  return `${config.git.remote}\n${dataRemoteNameOf(config)}`;
 }
 
 /** 入口が失敗を data として返すための形（CLI の --json のエラーと同じ） */

@@ -71,7 +71,7 @@ export async function renumberProvisional(
   repo: GitRepo,
   conflicts: readonly string[],
 ): Promise<RenumberedSync | null> {
-  if (!repo.remote || conflicts.length === 0) return null;
+  if (!repo.dataRemote || conflicts.length === 0) return null;
   const remote = remoteRef(repo);
   for (const file of conflicts) {
     if (!CONFLICT_PATH.test(file)) return null;
@@ -114,7 +114,7 @@ export async function renumberProvisional(
  * 衝突がなければ何も変えず空を返す
  */
 export async function renumberCollisions(repo: GitRepo): Promise<Renumbered[]> {
-  if (!repo.remote) return [];
+  if (!repo.dataRemote) return [];
   const remote = remoteRef(repo);
   const base = (await git(repo, ["merge-base", "HEAD", remote])).stdout.trim();
   const added = (
