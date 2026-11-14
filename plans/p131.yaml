@@ -1,5 +1,4 @@
 id: p131
-project: default
 tickets: [t904, t905, t906]
 after: {}
 pending_approval: false
@@ -18,3 +17,4 @@ details:
     tier: heavy
 approved_by: maji/agent
 approved_at: 2026-11-14T09:12:41Z
+closed_at: 2026-11-14T14:49:09Z
