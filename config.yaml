@@ -127,4 +127,9 @@ retro:
     improvement:
       name: 改善の追跡
       question: 前の振り返りの Try は終わり、ねらった数字は動いたか
-      metrics: {}
+      metrics:
+        prev-try-done-rate:
+          definition: 前の振り返りの retro-<前の S> のラベルのチケットのうち、done の割合（abandoned も分母に入れる）
+          sources:
+            - dg ticket list --label retro-<前の S> --include-abandoned (status)
+          unmeasured: 狙った数字が動いたか（Try の本文の数字と見比べる）
