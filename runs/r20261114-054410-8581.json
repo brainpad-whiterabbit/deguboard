@@ -1,0 +1,33 @@
+{
+  "id": "r20261114-054410-8581",
+  "ticket": "t884",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-14T05:44:10Z",
+  "finished_at": "2026-11-14T05:50:36Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "A check skipped because another overridable condition is unmet is counted as blocking, so the agent never asks the person to approve the merge",
+    "The ADR copies the default list of overridable conditions that belongs to the config help"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 10440,
+    "cache_read": 604607,
+    "cache_write": 50327
+  },
+  "tools": {
+    "read": 7,
+    "search": 0,
+    "write": 12,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 6,
+    "search_before_write": 0
+  },
+  "session": "8369a235-7992-4011-a166-8ca63f0f5437",
+  "review": null
+}
