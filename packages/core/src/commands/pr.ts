@@ -8,6 +8,7 @@ import { OperationError } from "../errors.js";
 import path from "node:path";
 import { checkOutside } from "../git/outside.js";
 import { runGh, runGit } from "../git/run.js";
+import { isAgentActorId, resolveActorRef } from "../model/actor.js";
 import { PR_MERGE_METHODS } from "../model/config.js";
 import type { Ticket } from "../model/ticket.js";
 import { unfixedLightLines, withUnfixedLight } from "../run/findings.js";
@@ -46,6 +47,58 @@ export interface PrAdvanceView {
   reviews_recorded?: RunId[];
   /** 消した worktree とブランチ（merge で作業ブランチも消すときだけ。消さなかった・なかったものは null） */
   removed?: RemovedWork;
+  /** マージを承認した人（merge のときだけ。--approved-by で渡された人。聞かずにマージしたときは null） */
+  approved_by?: string | null;
+}
+
+/**
+ * --approved-by の値を人の ID に直す（human は自分のユーザ本人）。承認するのは人なので、agent の ID は拒む
+ * （聞かずにマージした --auto のマージに承認者を残さないように）
+ */
+function approverOf(ctx: CommandContext, ref: string | undefined): string | null {
+  if (ref === undefined) return null;
+  const id = resolveActorRef(ctx.actor, ref);
+  if (isAgentActorId(id)) {
+    throw new OperationError(
+      "VALIDATION_FAILED",
+      `--approved-by takes the person who approved the merge, and ${id} is an agent`,
+      "Pass human (yourself, the user) or a user name only when a person approved this merge. For a merge made without asking (--auto of dg guide all with auto.merge true), leave --approved-by out",
+    );
+  }
+  return id;
+}
+
+/**
+ * 誰が承認してマージしたかを PR のコメントに残す（t883）。マージの後に書くので、書けなくてもマージは取り消さず、警告にする。
+ * gh pr comment でなく REST（gh api の issues の comments）で書く（本文の読み書きと同じ理由。noteUnfixedLight）
+ */
+async function noteApprover(
+  ctx: CommandContext,
+  pr: number,
+  approver: string,
+  warnings: string[],
+): Promise<void> {
+  const body = `Merged with \`dg pr merge\` by ${ctx.actor.id}, after ${approver} approved the merge.`;
+  try {
+    await runGh(
+      ctx.repo.topLevel,
+      [
+        "api",
+        "--method",
+        "POST",
+        `repos/{owner}/{repo}/issues/${pr}/comments`,
+        "-f",
+        `body=${body}`,
+        "--silent",
+      ],
+      { timeoutMs: 60_000 },
+    );
+  } catch (e) {
+    const message = e instanceof Error ? (e.message.split("\n")[0] ?? "") : String(e);
+    warnings.push(
+      `PR #${pr} is merged, but the approver (${approver}) could not be recorded as a comment on the PR (${message}). Tell a human, and do not merge again`,
+    );
+  }
 }
 
 /** ゲートを判定し、満たさなければ満たさない条件と理由を GATE_FAILED で返す（gh を呼ばない） */
@@ -216,7 +269,7 @@ export const prMerge = defineCommand({
   positionals: ["ticket"],
   group: "pr",
   summary:
-    "Merge a ticket's PR with gh pr merge (squash by default), only when it meets the quality gate (dg gate <ticket> --for merge). It pins the merge to the commit the gate judged (sha in the gate's output, passed as --match-head-commit), so a commit pushed after the judgment is not merged. The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to merge (the steps decide whether a merge is allowed; dg guide all). gh pr merge run outside dg is rejected by the hook. Merging outside the conditions of the level is a person's decision, and a person runs gh pr merge. When it also deletes the work branch, data.removed shows what was deleted (worktree, local_branch, remote_branch; null for what was not deleted or did not exist), so do not delete them again. It does not write ticket data (moving to done happens at the next sync, which also deletes what remains when merge.delete_branch is true)",
+    "Merge a ticket's PR with gh pr merge (squash by default), only when it meets the quality gate (dg gate <ticket> --for merge). It pins the merge to the commit the gate judged (sha in the gate's output, passed as --match-head-commit), so a commit pushed after the judgment is not merged. The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to merge (the steps decide whether a merge is allowed; dg guide all): after a person approved the merge, with --approved-by, which records the approver as a comment on the PR after the merge (data.approved_by; if the comment cannot be written, the merge stands and warnings say so); or without asking and without --approved-by, only under --auto of dg guide all with auto.merge true (data.approved_by is null and nothing is recorded). gh pr merge run outside dg is rejected by the hook. Merging outside the conditions of the level is a person's decision, and a person runs gh pr merge. When it also deletes the work branch, data.removed shows what was deleted (worktree, local_branch, remote_branch; null for what was not deleted or did not exist), so do not delete them again. It does not write ticket data (moving to done happens at the next sync, which also deletes what remains when merge.delete_branch is true)",
   input: z.object({
     ticket: ticketRef,
     method: z
@@ -229,10 +282,19 @@ export const prMerge = defineCommand({
       .describe(
         "Also delete the remote and local work branch (gh pr merge --delete-branch). When omitted, config's merge.delete_branch applies (not deleted by default). When deleting, after the quality gate (including its checks) passes and before gh is called, the worktree that has the branch checked out is removed (gh cannot delete the local branch while it remains). If the merge fails and the PR is not merged, the removed worktree is restored at the same path and worktree.setup is run again, and the error's detail gives what was done. If the PR is already merged (gh failed after the merge, e.g. the local branch could not be deleted), the call succeeds, the worktree is not restored, and the failure is in warnings. Do not remove the worktree first; call from outside it (the main worktree). This flag only adds deletion: when config is true there is no CLI flag to skip deletion for this one merge (to keep the branch, set config's merge.delete_branch to false)",
       ),
+    approved_by: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "The person who approved this merge: human (yourself, the user) or a user name. Pass it only when a person approved the merge of this PR; an agent's ID is rejected. Leave it out for a merge made without asking (--auto of dg guide all with auto.merge true), so that no approver is recorded",
+      ),
   }),
   write: false,
   needs: "store",
   async run(ctx, input) {
+    // gh を呼ぶ前に確かめる（マージした後に引数の誤りで止めない）
+    const approver = approverOf(ctx, input.approved_by);
     const { ticket, gate, pr, sha } = await passGate(ctx, input.ticket, "merge");
     // passGate が merge で先端を要求するので、ここで null になることはない（型を絞るための確認）
     if (sha === null) throw new Error(`The gate for ${ticket.id} judged no head commit`);
@@ -271,12 +333,15 @@ export const prMerge = defineCommand({
         );
       }
     }
+    // 承認者はマージできたときだけ残す（聞かずにマージしたときは残さない）
+    if (approver !== null) await noteApprover(ctx, pr, approver, warnings);
     const view: PrAdvanceView = {
       ticket: ticket.id,
       pr,
       action: "merge",
       gate,
       method,
+      approved_by: approver,
       ...(branch && before
         ? {
             removed: removedByMerge(ctx, branch, removedDir, before, await branchTips(ctx, branch)),

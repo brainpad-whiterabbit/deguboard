@@ -25,7 +25,7 @@ The order of stages and the current stage are decided by \`dg flow next\`. Appro
 | Assign  | Rows to put in                               |
 | Check   | Rows to fix; deletion, abandoned, closing    |
 | Plan    | Plan                                         |
-| Work    | Merge of each PR (\`dg guide done\`)           |
+| Work    | Merge of each PR (\`dg guide work\`)           |
 | Audit   | Table of findings                            |
 | Release | Merge of the release PR, publishing, closing |
 
@@ -44,7 +44,7 @@ Closing a Plan whose tickets are all finished is part of the Work stage. It need
 ## Between stages
 
 - **No stopping between stages**: except where \`approval.required\` applies, do not ask, and call the next \`flow next\`
-- **Merge follows \`auto.merge\`**: if \`auto.merge\` (current setting: \`false\`) is true, a PR that passes the quality gate is merged automatically with \`--auto\`; if false, a human merges it. After a PR is put out, advance the next step while waiting for its merge. If there is no next step, stop. Approval for the merge follows \`approval\`
+- **Merge follows \`auto.merge\`**: if \`auto.merge\` (current setting: \`false\`) is true, a PR that passes the quality gate is merged without asking with \`--auto\`. Otherwise (no \`--auto\`, or \`auto.merge\` is false), ask a human whether to merge it, and merge it only when approved, by the "Merging after approval" section of \`dg guide work\` (\`dg pr merge <id> --approved-by human\`). When declined, do not merge, and leave the PR waiting. After a PR is put out, advance the next step while it waits for its merge. If there is no next step, ask about the merges that wait, and stop if none is approved. Approval for the merge follows \`approval\`
 - **Handling failures**: a ticket whose implementation failed goes back to todo, as in \`dg guide parallel\`, and tickets that do not wait for it advance. A ticket whose review or fix returned failure, or did not return, is not put back to todo, and follows the "How to finish" section of \`dg guide review\`
 
 ## Choosing automatically with \`--auto\`
@@ -56,8 +56,8 @@ With \`--auto\`, the flow proceeds without asking only in the following two case
 
 Merges and decisions a human makes are handled as follows.
 
-- **A PR is merged** only when \`auto.merge\` (current setting: \`false\`) is true, and only a PR that meets the "Quality gate" section of \`dg guide review\` is merged with \`dg --json --actor agent pr merge <id>\`. Leave out \`--method\` and \`--delete-branch\`, so that config's \`merge.method\` and \`merge.delete_branch\` (current settings: \`squash\` and \`false\`) decide the method and whether the branch is deleted. If the PR does not meet the gate, show the conditions it did not meet, ask for approval, and stop
-- **Decisions a human makes are asked, and the flow stops, regardless of config**: merging and publishing the release PR (tags and destinations); deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic or Iteration; merging when \`auto.merge\` is false; changing a Plan's waits (\`after\`) and scope; operations with \`--force\`; decisions with no suggested option; and answers that cannot be a choice
+- **A PR is merged without asking** only when \`auto.merge\` (current setting: \`false\`) is true, and only a PR that meets the "Quality gate" section of \`dg guide review\` is merged with \`dg --json --actor agent pr merge <id>\`. Do not pass \`--approved-by\` (no human approved it, so no approver is recorded). Leave out \`--method\` and \`--delete-branch\`, so that config's \`merge.method\` and \`merge.delete_branch\` (current settings: \`squash\` and \`false\`) decide the method and whether the branch is deleted. If the PR does not meet the gate, show the conditions it did not meet, ask for approval, and stop
+- **Decisions a human makes are asked, and the flow stops, regardless of config**: merging and publishing the release PR (tags and destinations); deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic or Iteration; merging when \`auto.merge\` is false (when approved, the agent merges with \`dg pr merge <id> --approved-by human\`; when declined, it does not merge); changing a Plan's waits (\`after\`) and scope; operations with \`--force\`; decisions with no suggested option; and answers that cannot be a choice
 
 ## Reporting the result
 
@@ -77,6 +77,7 @@ Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg gui
 
 When the flow stops, ask with the following choices, according to the reason it stopped. When the Iteration is closed and the flow has ended (the reason \`flow next\` gives for that), report the result and ask with the retrospective choice and "Stop here".
 
+- **Merge** (when PRs that meet the quality gate wait for their merge): when chosen, merge them by the "Merging after approval" section of \`dg guide work\`, and continue the flow
 - **Resume** (recommended when it stopped waiting for a merge): after the merge, read \`dg guide all\` again, and call \`flow next\` with the same target and arguments (such as \`--auto\`) to continue (if a Skill is available, \`/dgall <S>\`)
 - **Look back on the Iteration** (only when the Iteration \`<S>\` was closed and the flow has ended; recommended then): look back on \`<S>\` by the steps of \`dg guide retro\`. The numbers of a closed Iteration are complete at this point, and the retrospective writes nothing without approval (if a Skill is available, \`/dgretro <S>\`)
 - **Stop here**"
@@ -444,6 +445,7 @@ Cleanup after a PR is merged. Work that needs no PR advances to done within \`dg
 
 1. Run \`dg --json --actor agent sync\`. Reconciling the merge of the PR (or the work branch entering \`main\`) moves the ticket to done. \`reconciled\` shows \`{ id, from, to, when }\` (\`when\` is the fact that became the basis; \`removed\` is in step 4)
 2. Confirm that \`status\` of \`dg --json --actor agent ticket show <id>\` became done. If it did not, read the \`warnings\` of \`sync\`. Either the facts are lacking (\`gh\` is not present, the branch is not pushed yet), or the Workflow does not include reconcile in that transition's \`by\`. In the latter case, confirm with a human, then advance with \`ticket move <id> done\`
+   - If the PR is not merged yet (\`wait_merge\` of \`dg --json --actor agent next <id>\`), do not merge it on your own. Ask a human whether to merge it, and only when approved, run \`dg --json --actor agent pr merge <id> --approved-by human\` (it records who approved on the PR), then run \`sync\` again. When declined, do not merge, and leave the ticket waiting (the steps are in the "Merging after approval" section of \`dg guide work\`)
    - If the \`warnings\` say that a PR found by branch name was not used for reconciling, follow its guidance
    - If you try to record a branch afterward for work merged without recording it, \`BRANCH_IN_USE\` may refuse it (when the tip of the remaining branch is a true ancestor of base; merges by ff or merge commit). Do not record it. Confirm the merge with a human, then advance with \`ticket move <id> done\`. A squash merge can be recorded, and afterwards the warning in the item above applies
 3. Check the remaining acceptance criteria. Using the \`warnings\` of \`sync\` (the warning "acceptance criteria items 2, 3 were left unchecked when the ticket became done", as printed) and the unchecked items in \`acceptance\` of \`ticket show --json\`, attach with \`dg --json --actor agent ticket check <id> <numbers...>\` only the items you confirmed as met by the merged deliverable (dg never attaches them on its own). Items you cannot confirm stay unchecked, and you tell a human
@@ -987,7 +989,7 @@ After showing the result (also when nothing was filed), ask with the following c
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > review 1`] = `
 "# Review and quality gate (review)
 
-Checked before a PR is handed to a human (\`review\`, \`fix\`, and \`ready\` from \`dg next\`) and before it is merged automatically (\`--auto\` of \`dg guide all\`). \`dg gate <id> --for ready\` and \`--for merge\` make the judgment (the source of the conditions is \`dg gate --help\`), and \`dg pr ready\` and \`dg pr merge\` put the PR out and merge it. Both judge first and then call gh. When the conditions are not met, they return \`GATE_FAILED\` with the unmet conditions and the reasons. Do not run \`gh pr ready\` or \`gh pr merge\` yourself (the hook refuses them). Advancing without meeting the gate is a human's decision, so have a human run \`gh\`.
+Checked before a PR is handed to a human (\`review\`, \`fix\`, and \`ready\` from \`dg next\`) and before it is merged (after a human's approval, or without asking under \`--auto\` of \`dg guide all\`). \`dg gate <id> --for ready\` and \`--for merge\` make the judgment (the source of the conditions is \`dg gate --help\`), and \`dg pr ready\` and \`dg pr merge\` put the PR out and merge it. Both judge first and then call gh. When the conditions are not met, they return \`GATE_FAILED\` with the unmet conditions and the reasons. Do not run \`gh pr ready\` or \`gh pr merge\` yourself (the hook refuses them). Advancing without meeting the gate is a human's decision, so have a human run \`gh\`.
 
 ## Quality gate
 
@@ -1139,12 +1141,21 @@ The tickets of an approved Plan are advanced in parallel when two or more of the
    - \`review\`: start the reviewer by the "Starting the review (parent)" section of \`dg guide review\` (the text includes the "Review" steps)
    - \`fix\`: follow the "Fix loop (parent)" section of \`dg guide review\`, and pass the text with \`brief <id> --role fix\` (the text includes the "Fix findings" steps and the findings of the review record)
    - \`ready\`: put the PR out by the "How to finish" section of \`dg guide review\`. For a Workflow that does not look at PRs (such as general, where \`sync\` does not move it to review), after the PR is put out, move it to review yourself with \`dg --json --actor agent ticket move <id> review\`
-   - \`wait_merge\`: the PR waits for its merge, so do not wait for it. Advance the other tickets of \`ready\` (see "Following the Plan"). After the merge, \`dg guide done\`
+   - \`wait_merge\`: the PR waits for its merge. Do not stop for it while other tickets of \`ready\` can advance (see "Following the Plan"). When nothing is left to start or wait for, follow "Merging after approval" below
    - \`wait_human\`: tell a human the \`ask_human\` (it is in the "How to finish" section of \`dg guide review\`), and do not wait for the answer: advance the other tickets of \`ready\` meanwhile. A decision that needs approval is asked as approval, and only that stops the flow. For review findings from a human, follow the "Fix loop (parent)" section of \`dg guide review\`
    - \`wait_deps\`: wait, and advance another ticket of \`ready\` of \`plan show\`
    - \`done\`: clean up by the steps of \`dg guide done\`
 
 For \`wait_merge\`, \`wait_human\`, and \`wait_deps\` with no Plan, there is no other ticket of \`ready\` to advance meanwhile. Then go to "Choosing the next step" below and ask with its choices instead.
+
+## Merging after approval
+
+The agent merges a PR only after a human approves that merge (the one exception is \`--auto\` of \`dg guide all\` with \`auto.merge\` true; see \`dg guide all\`).
+
+1. Run the \`dg --json --actor agent gate <id> --for merge\` in \`commands\` of \`wait_merge\`. If it does not pass, do not ask to merge: show the unmet conditions, and wait for a human
+2. Ask a human whether to merge, with the choices "Merge" and "Not yet" (the \`ask_human\` of \`wait_merge\`). Ask about the PRs that wait together in one question, and show each PR's number and ticket
+3. Only for a PR whose merge the human approved, run \`dg --json --actor agent pr merge <id> --approved-by human\` (\`human\` is the user who approved; it records who approved as a comment on the PR). Leave out \`--method\` and \`--delete-branch\`, so that config decides them. Then clean up by the steps of \`dg guide done\`
+4. When the human declines, or does not answer, do not merge: leave the PR waiting, and do not ask about it again until the human brings it up or something about the PR changes. Never pass \`--approved-by\` for a merge that no human approved
 
 ## Who implements and fixes
 
@@ -1215,6 +1226,7 @@ Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg gui
 
 After you open a PR (and also after finishing work that needs no PR), read \`plan show\` again when the target is in a Plan, and advance what is in \`ready\` by these steps. A ticket with no Plan goes straight to the choices below. Do not wait for the merge, and do not ask after each PR. Ask a human only when approval is needed, or when \`ready\` is empty and no subagent is running (nothing is left to start or wait for). Then ask with the following choices.
 
+- **Merge** (when PRs wait for their merge and meet the quality gate): asking with this choice is the question of "Merging after approval". When chosen, merge the approved PRs by its step 3
 - **Mark it done**: if a PR was merged, clean up by the steps of \`dg guide done\` (if a Skill is available, \`/dgdone <ID>\`)
 - **Stop here**: the Plan waits for merges and for humans. After each merge, \`dg guide done\`, and then advance the Plan again (if a Skill is available, \`/dgwork <p>\`)"
 `;

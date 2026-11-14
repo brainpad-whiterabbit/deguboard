@@ -29,7 +29,7 @@ Skill は Claude Code 向けです。普通の言葉で頼むか、コマンド�
 Claude Code で `/dgall s3 --auto` のように Iteration かチケットを渡すと、エージェントが割り当て・計画・実装・見直し・リリースを続けて進める。作りたいものの起票はしないので、先に `/dgimport` でチケットにする。
 
 - `--auto` を付けると、config の `auto.decisions` に入っている判断は提案の選択肢で進む。リリース、チケットをやめる・削除する、Epic・Iteration を閉じるなど、人が決めることでは止まって聞く（一覧は `dg guide all`）
-- 品質ゲートを通った PR のマージは、config の `auto.merge` が true のときだけ自動で行う
+- 品質ゲートを通った PR は、エージェントがマージしてよいかを聞き、承認したときだけマージする（承認は PR に残る）。聞かずにマージするのは、`--auto` で config の `auto.merge` が true のときだけ
 - 進み具合はカンバンで見られ、計画の帯を押すと依存のグラフが出る
 - Claude Code 以外のエージェントには「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼む
 

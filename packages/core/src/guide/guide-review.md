@@ -1,6 +1,6 @@
 # Review and quality gate (review)
 
-Checked before a PR is handed to a human (`review`, `fix`, and `ready` from `dg next`) and before it is merged automatically (`--auto` of `dg guide all`). `dg gate <id> --for ready` and `--for merge` make the judgment (the source of the conditions is `dg gate --help`), and `dg pr ready` and `dg pr merge` put the PR out and merge it. Both judge first and then call gh. When the conditions are not met, they return `GATE_FAILED` with the unmet conditions and the reasons. Do not run `gh pr ready` or `gh pr merge` yourself (the hook refuses them). Advancing without meeting the gate is a human's decision, so have a human run `gh`.
+Checked before a PR is handed to a human (`review`, `fix`, and `ready` from `dg next`) and before it is merged (after a human's approval, or without asking under `--auto` of `dg guide all`). `dg gate <id> --for ready` and `--for merge` make the judgment (the source of the conditions is `dg gate --help`), and `dg pr ready` and `dg pr merge` put the PR out and merge it. Both judge first and then call gh. When the conditions are not met, they return `GATE_FAILED` with the unmet conditions and the reasons. Do not run `gh pr ready` or `gh pr merge` yourself (the hook refuses them). Advancing without meeting the gate is a human's decision, so have a human run `gh`.
 
 ## Quality gate
 

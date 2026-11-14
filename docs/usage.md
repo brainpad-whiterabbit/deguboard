@@ -29,7 +29,7 @@ The Skills are for Claude Code. Say the request in plain words, or type the comm
 In Claude Code, pass an Iteration or tickets such as `/dgall s3 --auto`, and the agent carries on through assignment, planning, implementation, review, and release. It does not create tickets for what you want to build, so first turn your ideas into tickets with `/dgimport`.
 
 - With `--auto`, the decisions listed in `auto.decisions` in the config proceed with the suggested option. Decisions that people make, such as release, abandoning or deleting a ticket, and closing an Epic or Iteration, stop and ask. The full list is in `dg guide all`.
-- A PR that passed the quality gate is merged automatically only when `auto.merge` in the config is true.
+- For a PR that passed the quality gate, the agent asks you whether to merge it, and merges it only when you approve (your approval is recorded on the PR). It is merged without asking only with `--auto` when `auto.merge` in the config is true.
 - You can follow the progress on the Board. Press the Plan band to show the dependency graph.
 - For agents other than Claude Code, ask them to "read `dg guide all` and carry on to the end with `--auto`."
 

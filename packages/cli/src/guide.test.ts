@@ -599,6 +599,28 @@ describe("dg guide", () => {
     });
   });
 
+  it("work・all・done は、人がマージを承認したときだけ承認者を渡してマージし、断られたらマージせずに待つと書く。--auto で聞かずにマージするときは承認者を渡さない（t883）", async () => {
+    const merging = section(await readGuide("work"), "## Merging after approval");
+    for (const word of [
+      "only after a human approves",
+      "pr merge <id> --approved-by human",
+      "When the human declines, or does not answer, do not merge",
+      "Never pass `--approved-by` for a merge that no human approved",
+    ])
+      expect(merging).toContain(word);
+    const all = await readGuide("all");
+    expect(all).toContain("merge it only when approved");
+    expect(all).toContain("When declined, do not merge");
+    expect(section(all, "## Choosing automatically with `--auto`")).toContain(
+      "Do not pass `--approved-by`",
+    );
+    const done = await readGuide("done");
+    expect(done).toContain(
+      "only when approved, run `dg --json --actor agent pr merge <id> --approved-by human`",
+    );
+    expect(done).toContain("When declined, do not merge");
+  });
+
   it("work は Iteration への追加と開始、worktree の作成を claim に任せ、warnings が出たら人に頼むと案内し、親に git worktree と iteration add・start を打たせない。check は lint_iteration_missing の直す案を claim と同じ規則で示す。今の設定は両方で埋める", async () => {
     const work = await readGuide("work");
     const before = section(work, "## Before and after claim");

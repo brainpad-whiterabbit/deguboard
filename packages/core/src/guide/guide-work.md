@@ -24,12 +24,21 @@ The tickets of an approved Plan are advanced in parallel when two or more of the
    - `review`: start the reviewer by the "Starting the review (parent)" section of `dg guide review` (the text includes the "Review" steps)
    - `fix`: follow the "Fix loop (parent)" section of `dg guide review`, and pass the text with `brief <id> --role fix` (the text includes the "Fix findings" steps and the findings of the review record)
    - `ready`: put the PR out by the "How to finish" section of `dg guide review`. For a Workflow that does not look at PRs (such as general, where `sync` does not move it to review), after the PR is put out, move it to review yourself with `dg --json --actor agent ticket move <id> review`
-   - `wait_merge`: the PR waits for its merge, so do not wait for it. Advance the other tickets of `ready` (see "Following the Plan"). After the merge, `dg guide done`
+   - `wait_merge`: the PR waits for its merge. Do not stop for it while other tickets of `ready` can advance (see "Following the Plan"). When nothing is left to start or wait for, follow "Merging after approval" below
    - `wait_human`: tell a human the `ask_human` (it is in the "How to finish" section of `dg guide review`), and do not wait for the answer: advance the other tickets of `ready` meanwhile. A decision that needs approval is asked as approval, and only that stops the flow. For review findings from a human, follow the "Fix loop (parent)" section of `dg guide review`
    - `wait_deps`: wait, and advance another ticket of `ready` of `plan show`
    - `done`: clean up by the steps of `dg guide done`
 
 For `wait_merge`, `wait_human`, and `wait_deps` with no Plan, there is no other ticket of `ready` to advance meanwhile. Then go to "Choosing the next step" below and ask with its choices instead.
+
+## Merging after approval
+
+The agent merges a PR only after a human approves that merge (the one exception is `--auto` of `dg guide all` with `auto.merge` true; see `dg guide all`).
+
+1. Run the `dg --json --actor agent gate <id> --for merge` in `commands` of `wait_merge`. If it does not pass, do not ask to merge: show the unmet conditions, and wait for a human
+2. Ask a human whether to merge, with the choices "Merge" and "Not yet" (the `ask_human` of `wait_merge`). Ask about the PRs that wait together in one question, and show each PR's number and ticket
+3. Only for a PR whose merge the human approved, run `dg --json --actor agent pr merge <id> --approved-by human` (`human` is the user who approved; it records who approved as a comment on the PR). Leave out `--method` and `--delete-branch`, so that config decides them. Then clean up by the steps of `dg guide done`
+4. When the human declines, or does not answer, do not merge: leave the PR waiting, and do not ask about it again until the human brings it up or something about the PR changes. Never pass `--approved-by` for a merge that no human approved
 
 ## Who implements and fixes
 
@@ -92,5 +101,6 @@ Work that does not change repository files (data maintenance, checks, research) 
 
 After you open a PR (and also after finishing work that needs no PR), read `plan show` again when the target is in a Plan, and advance what is in `ready` by these steps. A ticket with no Plan goes straight to the choices below. Do not wait for the merge, and do not ask after each PR. Ask a human only when approval is needed, or when `ready` is empty and no subagent is running (nothing is left to start or wait for). Then ask with the following choices.
 
+- **Merge** (when PRs wait for their merge and meet the quality gate): asking with this choice is the question of "Merging after approval". When chosen, merge the approved PRs by its step 3
 - **Mark it done**: if a PR was merged, clean up by the steps of `dg guide done` (if a Skill is available, `/dgdone <ID>`)
 - **Stop here**: the Plan waits for merges and for humans. After each merge, `dg guide done`, and then advance the Plan again (if a Skill is available, `/dgwork <p>`)

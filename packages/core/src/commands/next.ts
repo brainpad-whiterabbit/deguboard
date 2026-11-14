@@ -482,12 +482,17 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
             "Fix on the same branch and push",
           ]);
     case "ready":
-      // マージは人を待つ手にする。自動でマージするのは auto.merge が true で品質ゲートを通った PR だけ（EX-7）
+      // マージは人に聞く手にする。承認されたら agent が承認者を渡してマージする。聞かずにマージするのは、
+      // dg guide all の --auto で auto.merge が true のときの、品質ゲートを通った PR だけ（EX-7）。
+      // dg next は --auto を知らないので、auto.merge の値によらず同じ問いを返し、聞かない場合は guide-all が決める
       return make(
         "wait_merge",
         null,
-        [dg(`gate ${id} --for merge`)],
-        `Ask a person to review and merge PR #${facts.ticket.pr} (if auto.merge is true, dg pr merge ${id} merges a PR that meets dg gate --for merge)`,
+        [
+          dg(`gate ${id} --for merge`),
+          `Only after a person approves the merge: ${dg(`pr merge ${id} --approved-by human`)}`,
+        ],
+        `PR #${facts.ticket.pr} waits for its merge. If it meets dg gate ${id} --for merge, ask a person whether to merge it (choices: merge it, or not yet). Only when the person approves, run dg pr merge ${id} --approved-by human (it records the approver on the PR). When declined or not answered, do not merge, and wait. If it does not meet the gate, do not ask to merge: show the unmet conditions and wait for a person. Only under --auto of dg guide all with auto.merge true, a PR that meets the gate is merged without asking, with dg pr merge ${id} and no --approved-by`,
       );
   }
 }
@@ -506,6 +511,7 @@ export const next = defineCommand({
     "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
     "A review result held with no review Run counts as a review the same way as in dg gate. " +
     "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another. For implement, review, and fix steps it does not wait for a Run left over from a crashed session: a Run opened by a sub-agent of a different session whose record has not been written for 30 minutes. It returns the steps to ask again with the mark, and says that asking again closes that Run as interrupted. A newer record, an unknown session, and a Run the parent opened itself are still waited for), and the questions to ask a person (ask_human). " +
+    "For wait_merge, whatever auto.merge is, ask_human asks whether to merge the PR, and commands give the gate judgment and the dg pr merge <id> --approved-by human to run only after a person approves (when declined, do not merge; merging without asking is only for --auto of dg guide all with auto.merge true). " +
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
     "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. A ticket in the awaiting_approval stage is wait_human too (a person approves its Plan). " +
