@@ -1,6 +1,7 @@
 // dg が配る Skill の中身と、入れてある Skill が今の dg のものと違うか・古いかの判定（AG-2）。
 // dg skill install（CLI）が書くか残すかを決めるのも、dg hooks check・dg next・dg brief が古い Skill を知らせるのも、
 // VS Code 拡張が起動時に古い Skill を更新するのも、ここの skillStateOf を通す（判定を 2 つ持たない）。
+// 入れていない同梱の Skill を案内するのは拡張だけで（findMissingSkills）、警告は足りない Skill を知らせない。
 // 警告と拡張は、そのうえで印の版を比べ（skillAgeOf）、今の dg より新しい版の dg が書いた Skill を古いと言わず、戻さない（ADR-030）。
 // Skill を書くのも、dg skill install と拡張で同じ writeSkillFiles を通す。
 // 公開（commands/index.ts）は入口が呼ぶものだけにする。判定の部品（skillStateOf・skillAgeOf・findStaleSkills・staleSkillWarnings）はここのテストが直接引く。
@@ -9,9 +10,14 @@
 // 雛形をファイルにせず定数にするのは、束ねた配置（拡張の extension.cjs・同梱の dg.mjs）でも置き場所を合わせずに読めるようにするため
 
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { agentSkillPlaces, type AgentEnv, type SkillPlace } from "../agents/index.js";
+import {
+  agentSkillPlaceGroups,
+  agentSkillPlaces,
+  type AgentEnv,
+  type SkillPlace,
+} from "../agents/index.js";
 import { coreVersion } from "../bundle-layout.js";
 import { resolveRepoPaths } from "../git/index.js";
 import { readGuide, readGuideMeta } from "../guide/guide.js";
@@ -163,7 +169,7 @@ function uniquePlaces(places: readonly SkillPlace[]): SkillPlace[] {
 
 /**
  * 置き場所ごとに、入れてある dg の Skill のうち今の dg のもの（skills）と違うものを返す。
- * 違うものがない置き場所は返さない。入れていない Skill は数えない（Skill は任意で、足りないことは知らせない）。
+ * 違うものがない置き場所は返さない。入れていない Skill は数えない（足りない Skill は VS Code 拡張だけが案内する。findMissingSkills）。
  * 今の本文をもとに手を加えた Skill（印のハッシュが今の dg のものと同じ）も数えない。古くはなく、知らせても毎回同じ警告が出続けるだけになる。
  * 今の dg より新しい版の dg が書いた Skill も数えない。古い版と同じ版は分けて返す（skillAgeOf）。
  * 印を消した Skill はもとの版が分からないので、古いものとして edited に入れる
@@ -227,7 +233,7 @@ export interface SkillWriteResult {
  * dir（Skill のディレクトリ）に dg の Skill を書く。dg skill install（CLI）と、VS Code 拡張が起動時に古い Skill を更新するのが、ここを通す。
  * 手を加えていない Skill は今の dg の中身で上書きし、手を加えたものは force がなければ残す。
  * 版は見ない。dg skill install は人が打つ操作なので、新しい版の dg が書いた Skill も、打った dg のものにする（版で止めるのは、自動で書く拡張だけ）。
- * names を渡すと、その名前の Skill だけを扱う（拡張は入れてある古い Skill だけを渡し、入れていない Skill を足さない）。dryRun なら書かずに中身を返す。
+ * names を渡すと、その名前の Skill だけを扱う（拡張は起動時の更新では入れてある古い Skill だけを渡し、入れていない Skill は人が案内の Install を選んだときだけ渡す）。dryRun なら書かずに中身を返す。
  * skills は呼び出し側がすでに組み立てた Skill（省くとここで組み立てる）
  */
 export async function writeSkillFiles(
@@ -317,7 +323,7 @@ export async function removeRetiredSkills(
  * 手を加えていないものを writeSkillFiles（dg skill install と同じ処理）で上書きする。手を加えたものは書き換えずに返す。
  * リポジトリの外のフォルダは個人の置き場所だけを見る。フォルダがなくても個人の置き場所は見る。
  * 個人の置き場所はどのフォルダからも同じで、同じリポジトリのフォルダも重なるので、置き場所（dir）ごとに 1 回だけ見る。
- * 入れていない Skill は足さず、dg の Skill のない置き場所には書かない（Skill は任意で、各自が入れる。AG-2）。
+ * 入れていない Skill は足さず、dg の Skill のない置き場所には書かない（Skill は任意で、各自が入れる。AG-2）。足りない Skill の案内は findMissingSkills。
  * 変えるものも知らせるものもない置き場所は返さない。
  * 新しい版の dg が書いた Skill と、同じ版の dg が書いた中身の違う Skill には触れず、知らせもしない。
  * 中身の違いだけで同梱のものに揃えると、PATH の dg（ソースから動かす dg）が拡張より新しいときに、拡張は起動のたびに Skill を古い同梱のものに戻し、
@@ -329,16 +335,9 @@ export async function refreshInstalledSkills(query: {
   env: AgentEnv;
   version?: string;
 }): Promise<RefreshedSkills[]> {
-  const tops: Array<string | undefined> = [];
-  for (const folder of query.folders)
-    tops.push(
-      await resolveRepoPaths(folder).then(
-        (p) => p.topLevel,
-        () => undefined,
-      ),
-    );
-  if (tops.length === 0) tops.push(undefined);
-  const places = tops.flatMap((topLevel) => agentSkillPlaces({ topLevel, env: query.env }));
+  const places = (await topLevelsOf(query.folders)).flatMap((topLevel) =>
+    agentSkillPlaces({ topLevel, env: query.env }),
+  );
   const skills = await buildSkills(query.version);
   const refreshed: RefreshedSkills[] = [];
   for (const found of await staleSkillsIn(places, skills)) {
@@ -350,6 +349,74 @@ export async function refreshInstalledSkills(query: {
       refreshed.push({ scope: found.scope, dir: found.dir, updated, edited: found.edited });
   }
   return refreshed;
+}
+
+/** 作業フォルダごとのリポジトリの最上位。リポジトリの外のフォルダは undefined。フォルダがなければ [undefined]（個人の置き場所だけを見る） */
+async function topLevelsOf(folders: readonly string[]): Promise<Array<string | undefined>> {
+  const tops: Array<string | undefined> = [];
+  for (const folder of folders)
+    tops.push(
+      await resolveRepoPaths(folder).then(
+        (p) => p.topLevel,
+        () => undefined,
+      ),
+    );
+  if (tops.length === 0) tops.push(undefined);
+  return tops;
+}
+
+/** 置き場所ごとの、入れていない同梱の dg の Skill（VS Code 拡張が起動時に案内する） */
+export interface MissingSkills extends SkillPlace {
+  /** 同梱の dg にあって、この置き場所にも同じ agent のほかの置き場所にも入っていない Skill の名前 */
+  missing: string[];
+}
+
+/**
+ * VS Code 拡張が起動のたびに、Skill の更新（refreshInstalledSkills）の後で、開いている作業フォルダ（folders）を渡して呼ぶ。
+ * dg の Skill を 1 つ以上入れてある置き場所ごとに、今の dg（version の dg）が配るのに入っていない Skill を返す。
+ * dg の Skill を 1 つも入れていない置き場所は返さない（Skill は任意で、入れないと決めた人に勧めない。AG-2）。
+ * agent はリポジトリと個人の両方の Skill を読むので、同じ agent のほかの置き場所に入っている Skill は足りないと数えない。
+ * 個人の置き場所を複数のフォルダから見るときは、どのフォルダから見ても足りないものだけを返す。
+ * dg が配らない Skill（利用者が自分で作ったもの）は見ない。入れてある Skill が古いか・手を加えたかは問わない（それは refreshInstalledSkills が扱う）。
+ * 足りないことは知らせるだけで、書くのは人が選んでから（拡張が writeSkillFiles に missing を names で渡す）。
+ * dg hooks check・next・brief は足りない Skill を知らせない（エージェントの作業のたびに、入れないと決めた人に出し続けることになる）
+ */
+export async function findMissingSkills(query: {
+  folders: readonly string[];
+  env: AgentEnv;
+  version?: string;
+}): Promise<MissingSkills[]> {
+  const names = (await buildSkills(query.version)).map((s) => s.name);
+  const installed = new Map<string, Promise<Set<string>>>();
+  const installedIn = (dir: string) => {
+    let found = installed.get(dir);
+    if (!found) {
+      found = Promise.all(
+        names.map((name) =>
+          stat(join(dir, name, "SKILL.md")).then(
+            () => name,
+            () => undefined,
+          ),
+        ),
+      ).then((hit) => new Set(hit.filter((n) => n !== undefined)));
+      installed.set(dir, found);
+    }
+    return found;
+  };
+  const byDir = new Map<string, MissingSkills>();
+  for (const topLevel of await topLevelsOf(query.folders)) {
+    for (const group of agentSkillPlaceGroups({ topLevel, env: query.env })) {
+      const sets = await Promise.all(group.map((p) => installedIn(p.dir)));
+      const missing = names.filter((name) => !sets.some((s) => s.has(name)));
+      group.forEach((place, i) => {
+        if (sets[i]!.size === 0) return;
+        const seen = byDir.get(place.dir);
+        if (seen) seen.missing = seen.missing.filter((n) => missing.includes(n));
+        else byDir.set(place.dir, { ...place, missing });
+      });
+    }
+  }
+  return [...byDir.values()].filter((m) => m.missing.length > 0);
 }
 
 /**

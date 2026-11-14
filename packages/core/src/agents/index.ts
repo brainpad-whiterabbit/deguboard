@@ -52,14 +52,27 @@ export function agentSkillPlaces(query: {
   env: AgentEnv;
   topLevel?: string | undefined;
 }): SkillPlace[] {
+  return agentSkillPlaceGroups(query).flat();
+}
+
+/**
+ * agentSkillPlaces を agent ごとに分けたもの（Skill のない agent は入れない）。
+ * agent はリポジトリと個人の両方の Skill を読むので、入れていない Skill を案内するときに、同じ agent のほかの置き場所にあるかを見るのに使う
+ */
+export function agentSkillPlaceGroups(query: {
+  env: AgentEnv;
+  topLevel?: string | undefined;
+}): SkillPlace[][] {
   const { topLevel } = query;
-  return ADAPTERS.flatMap((a): SkillPlace[] =>
+  return ADAPTERS.flatMap((a): SkillPlace[][] =>
     a.skillDirs
       ? [
-          ...(topLevel === undefined
-            ? []
-            : [{ scope: "project" as const, dir: a.skillDirs.project(topLevel) }]),
-          { scope: "personal", dir: a.skillDirs.personal(query.env) },
+          [
+            ...(topLevel === undefined
+              ? []
+              : [{ scope: "project" as const, dir: a.skillDirs.project(topLevel) }]),
+            { scope: "personal", dir: a.skillDirs.personal(query.env) },
+          ],
         ]
       : [],
   );
