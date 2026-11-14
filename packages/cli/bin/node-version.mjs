@@ -42,14 +42,18 @@ export function nodeVersionExitCodeOf(argv) {
 
 /**
  * 今の node が要る版より古いなら、直し方を英語で書いた文（末尾に改行）。動くなら undefined。
- * argv は dg に渡された引数（PreToolUse のフックのときは、止められたことを足す）
+ * argv は dg に渡された引数（PreToolUse のフックのときは、止められたことを足す）。
+ * execPath は dg を動かした node のパス（t925）。PATH の node が mise などの shim だと、shim は今のディレクトリで版を選ぶので、
+ * PATH の先頭が正しく見えても、版を固定していないディレクトリでは古い node が動く。どの node が動いたかと、
+ * グローバルの版を上げる直し方を文に出す
  */
-export function nodeVersionProblemOf(version, argv = []) {
+export function nodeVersionProblemOf(version, argv = [], execPath = process.execPath) {
   const major = /^v?(\d+)\./.exec(String(version).trim())?.[1];
   if (major === undefined || Number(major) >= REQUIRED_NODE_MAJOR) return undefined;
   const lines = [
-    `dg: needs Node.js ${REQUIRED_NODE_MAJOR} or later, but the node that started it is v${version}.`,
+    `dg: needs Node.js ${REQUIRED_NODE_MAJOR} or later, but the node that started it is v${version} (${execPath}).`,
     `Run dg with Node ${REQUIRED_NODE_MAJOR} first on PATH. In the deguboard repository, \`mise run dg -- <args>\` uses the Node version in mise.toml. A hook written with an absolute node path keeps the old node until you run \`dg hooks install\` again.`,
+    `If node on PATH is a shim of a version manager such as mise, the version depends on the current directory: set the global version to Node ${REQUIRED_NODE_MAJOR} (for example, \`mise use -g node@${REQUIRED_NODE_MAJOR}\`).`,
   ];
   if (isPreToolUseHookArgv(argv)) {
     lines.push(

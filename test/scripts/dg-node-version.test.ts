@@ -29,6 +29,17 @@ describe("bin/dg.js の Node の版の確かめ（t782）", () => {
     expect(problem?.endsWith("\n")).toBe(true);
   });
 
+  it("文に、dg を動かした node のパスと、shim が場所で版を選ぶときの直し方を書く（t925）", () => {
+    const problem = nodeVersionProblemOf("22.22.0", [], "/home/u/.local/share/mise/shims/node");
+    expect(problem).toContain("v22.22.0 (/home/u/.local/share/mise/shims/node)");
+    expect(problem).toContain("shim");
+    expect(problem).toContain("mise use -g node@24");
+  });
+
+  it("node のパスを渡さないときは、process.execPath を書く（t925）", () => {
+    expect(nodeVersionProblemOf("22.22.0")).toContain(`(${process.execPath})`);
+  });
+
   it("20 系も同じく止める", () => {
     expect(nodeVersionProblemOf("20.19.2")).toContain("v20.19.2");
   });
