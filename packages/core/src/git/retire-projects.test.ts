@@ -229,6 +229,70 @@ describe("やめた Project の残りを消す", () => {
     expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
   });
 
+  it("消すのを見送った間に書いた、既定でない Project のチケットは project を持ち続け、後で消すときに workflow が書かれて Workflow が変わらない", async () => {
+    const { ctx } = await legacy("batch", async (first) => {
+      // t2 は Project web（既定の Workflow は general）のチケット
+      await writeFile(
+        path.join(first.repo.dataDir, "projects/web.yaml"),
+        "id: web\nname: Web\nworkflow: general\nstatus: active\n",
+      );
+      const t2 = path.join(first.repo.dataDir, "tickets/t2.md");
+      await writeFile(t2, (await readFile(t2, "utf8")).replace("project: default", "project: web"));
+    });
+    // 前の dg が残したまとめ待ちの変更（config.yaml）で、消すのを見送らせる
+    const config = path.join(ctx.repo.dataDir, "config.yaml");
+    await writeFile(config, `${await readFile(config, "utf8")}# まとめ待ちの変更\n`);
+    await recordBaseline(ctx.repo);
+
+    // 見送った間に t2 を書く：projects/ が残る間は project を消さない（消すと、後で workflow を書けない）
+    await runCommand(ticketUpdate, ctx, { ticket: "t2", priority: "low" });
+    expect(await subjects(ctx.repo.dataDir)).not.toContain(REMOVAL);
+    expect(await pathExists(path.join(ctx.repo.dataDir, "projects/web.yaml"))).toBe(true);
+    const pending = await read(ctx, "tickets/t2.md");
+    expect(pending).toContain("project: web");
+    expect(pending).toContain("priority: low");
+    // Epic・Iteration・Plan の project は Workflow に関わらないので、見送った間も書くときに消える
+    await runCommand(iterationUpdate, ctx, { iteration: "s1", goal: "目標" });
+    expect(await read(ctx, "iterations/s1.yaml")).not.toContain("project:");
+
+    // dg commit：まとめ待ちをコミットした後に消す。t2 は workflow を持ち、project は消える
+    await runCommand(commit, ctx, { message: "まとめ待ち" });
+    expect((await subjects(ctx.repo.dataDir)).slice(0, 2)).toEqual([REMOVAL, "まとめ待ち"]);
+    expect(await pathExists(path.join(ctx.repo.dataDir, "projects"))).toBe(false);
+    const t2 = await read(ctx, "tickets/t2.md");
+    expect(t2).toContain("workflow: general");
+    expect(t2).toContain("priority: low");
+    expect(t2).not.toContain("project:");
+    expect(await workflowOf(ctx, "t2")).toBe("general");
+    expect(await workflowOf(ctx, "t1")).toBe("software-development");
+    expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+    expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
+    // projects/ が消えた後は、残っていた project（t1）も書くときに消える
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" });
+    expect(await read(ctx, "tickets/t1.md")).not.toContain("project:");
+  });
+
+  it("commit.mode が batch の同期は、見送ったときも、まとめ待ちをコミットした後に同じ同期で消して push する", async () => {
+    const { f, ctx } = await legacy("batch");
+    const config = path.join(ctx.repo.dataDir, "config.yaml");
+    await writeFile(config, `${await readFile(config, "utf8")}# まとめ待ちの変更\n`);
+    await recordBaseline(ctx.repo);
+
+    const synced = await runCommand(sync, ctx, {});
+    expect(warningsOf(synced)).toEqual([]);
+    expect(await pathExists(path.join(ctx.repo.dataDir, "projects"))).toBe(false);
+    // 消すコミットはまとめ待ちのコミットの後で、まとめ待ちの変更を含まない
+    expect((await subjects(ctx.repo.dataDir))[0]).toBe(REMOVAL);
+    const removal = (await git(ctx.repo.dataDir, ["show", "--format=", "HEAD"])).stdout;
+    expect(removal).not.toContain("+# まとめ待ちの変更");
+    expect(removal).toContain("-default_project: default");
+    expect(await read(ctx, "config.yaml")).toContain("# まとめ待ちの変更");
+    expect(await remoteFiles(f)).not.toContain("projects/");
+    expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+    expect(await checkOutside(ctx.repo)).toEqual({ kind: "clean", initial: false });
+    expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
+  });
+
   it("まだ消していない clone の同期は、消してから取り込み、相手が先に消していても競合しない", async () => {
     const { f, ctx: a } = await legacy("each");
     const b = await openContext({

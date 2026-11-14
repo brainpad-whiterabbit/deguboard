@@ -51,7 +51,7 @@
 
 - カンバンの中を分ける単位（Project）は持たない。チケットは Epic・Iteration・ラベルで束ね、別の区切りが要るときはカンバンを分ける（リポジトリごと、または専用のリポジトリのブランチごと）
 - 既定の Workflow は config の `default_workflow` で決め、active な Iteration はカンバンに 1 つにする（[ADR-009](ADR-009-epic-and-iteration.md)）
-- 前の版が書いた `project` の項目は、やめた項目として読めて、書くときに消す（DT-2）。前の版の `projects/` と config の `default_project` は、`dg` が同期か書き込みのときに、印を付けたコミットで一度だけ消す（外の変更とみなさない。SY-8）。消す前後でチケットの Workflow が変わらないように、既定の Project の Workflow を `default_workflow` に移す（形は requirements の 5.3）
+- 前の版が書いた `project` の項目は、やめた項目として読めて、書くときに消す（DT-2）。前の版の `projects/` と config の `default_project` は、`dg` が同期か書き込みのときに、印を付けたコミットで一度だけ消す（外の変更とみなさない。SY-8）。消す前後でチケットの Workflow が変わらないように、既定の Project の Workflow を `default_workflow` に移し、チケットの `project` は `projects/` が残る間は消さない（形は requirements の 5.3）
 
 ### 呼称
 

@@ -38,6 +38,7 @@ import { validateWorkflow, type WorkflowValidationOptions } from "../workflow/va
 import { writeFileAtomic } from "./atomic.js";
 import { loadLocalConfig, loadTeamConfig, readYamlFile } from "./config-file.js";
 import { createDoc, readDoc, writeDoc, type Doc, type DocFormat } from "./documents.js";
+import { pathExists } from "./exists.js";
 import { formatIssue, type Issue } from "./issue.js";
 import {
   CONFIG_FILE,
@@ -52,6 +53,7 @@ import {
   ticketPath,
   workflowPath,
 } from "./paths.js";
+import { RETIRED_PROJECTS_DIR } from "./retired-projects.js";
 import {
   loadStoreCache,
   saveStoreCache,
@@ -364,7 +366,16 @@ export class Store {
     const c = collections[kind] as unknown as Collection<EntityOf<K>>;
     const doc = this.map(kind).get(id);
     if (!doc) throw new OperationError("NOT_FOUND", `${kind} ${id} not found`);
-    const retired = Object.fromEntries((c.retired ?? []).map((k) => [k, undefined]));
+    // チケットの project は、projects/ が残る間は消さない：消すのを見送った間（git/retire-projects.ts）に書いたチケットから
+    // project が先に消えると、後で消すときにその Project の Workflow を workflow に書けず、Workflow が default_workflow に変わる。
+    // projects/ を消すとき（retireProjects）は workflow を書くのと同じ書き込みで project を明示して消す
+    const keepProject =
+      kind === "ticket" && (await pathExists(path.join(this.root, RETIRED_PROJECTS_DIR)));
+    const retired = Object.fromEntries(
+      (c.retired ?? [])
+        .filter((k) => !(keepProject && (RETIRED_PROJECT_KEYS as readonly string[]).includes(k)))
+        .map((k) => [k, undefined]),
+    );
     const next = await writeDoc(this.root, doc, c.schema, { ...retired, ...patch }, body);
     this.map(kind).set(id, next);
     return next;

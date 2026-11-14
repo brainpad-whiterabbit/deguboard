@@ -3,7 +3,8 @@
 // dg の外の変更として止まらない。commit.mode が batch・manual でもここだけはコミットする（残すと、まとめ待ちの変更に混ざる）。
 // ここで書き換えるファイル（config.yaml・workflow を書くチケット・.gitattributes）にまとめ待ちの変更があるときは、その変更が消すコミットに
 // 混ざるので、何も触らずに見送る（projects/ が残る間も読める。まとめ待ちがコミットされた後の同期か書き込みで消す。dg commit は先にまとめ待ちをコミットする）。
-// チケット・Epic・Iteration・Plan の project は、それぞれを書くときに消える（Store の retired）ので、ここでは触らない
+// チケット・Epic・Iteration・Plan の project は、それぞれを書くときに消える（Store の retired）ので、ここでは触らない。
+// チケットの project だけは、projects/ が残る間は書いても消えない（Store.update）：見送った間に書いたチケットも、後でここが workflow を書けるように
 
 import { rm } from "node:fs/promises";
 import path from "node:path";
@@ -72,7 +73,9 @@ export async function retireProjects(repo: GitRepo, store: Store): Promise<boole
 
   const paths = [...touched];
   if (writesConfig) await store.writeConfig(patch);
-  for (const r of rewrites) await store.update("ticket", r.id, { workflow: r.workflow });
+  // projects/ が残る間、Store はチケットの project を消さないので、workflow を書くのと同じ書き込みで明示して消す
+  for (const r of rewrites)
+    await store.update("ticket", r.id, { workflow: r.workflow, project: undefined });
   if (await dropGitattributesPattern(repo.dataDir, `${RETIRED_PROJECTS_DIR}/*.yaml`))
     paths.push(GITATTRIBUTES);
 

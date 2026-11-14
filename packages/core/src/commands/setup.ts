@@ -719,6 +719,8 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
   }
   const dirty = await isDirty(repo);
   if (dirty && ctx.config.commit.mode !== "manual") flushed = await flushPending(ctx);
+  // まとめ待ちの変更があって上で消すのを見送ったときは、まとめ待ちをコミットした後のここで消す（同じ同期で projects/ をなくす）
+  if (flushed) await retireProjects(repo, ctx.store);
 
   let conflicts: string[] = [];
   let integrated = renumbered.length > 0;
