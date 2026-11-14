@@ -80,8 +80,6 @@ In Progress
 1
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（状態の節 In Progress）
-[title] Run が実行中
-[aria-label] Run が実行中
 t2
 [title] API
 API
@@ -92,8 +90,20 @@ high
 E
 [title] Plan p1
 p1
-[title] このマシンで Run が実行中
-実行中
+[aria-label] Run 3 回。最後は implement · 3日
+[aria-label] implement · 成功、2026-11-01 00:00 · 30分 0秒、直した指摘 1
+implement · 成功
+2026-11-01 00:00 · 30分 0秒
+直した指摘 1
+[aria-label] implement · 失敗、2026-11-01 00:00 · 30分 0秒、テストが落ちた
+implement · 失敗
+2026-11-01 00:00 · 30分 0秒
+テストが落ちた
+[aria-label] implement · 実行中、2026-11-01 00:00 · 84時間 0分、直した指摘 1
+implement · 実行中
+2026-11-01 00:00 · 84時間 0分
+直した指摘 1
+implement · 3日
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（行 t2）
 [aria-label] Code Review
@@ -1336,8 +1346,6 @@ In Progress
 1
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（状態の節 In Progress）
-[title] Run が実行中
-[aria-label] Run が実行中
 t2
 [title] API
 API
@@ -1348,8 +1356,20 @@ high
 E
 [title] Plan p1
 p1
-[title] このマシンで Run が実行中
-実行中
+[aria-label] Run 3 回。最後は implement · 3日
+[aria-label] implement · 成功、2026-11-01 00:00 · 30分 0秒、直した指摘 1
+implement · 成功
+2026-11-01 00:00 · 30分 0秒
+直した指摘 1
+[aria-label] implement · 失敗、2026-11-01 00:00 · 30分 0秒、テストが落ちた
+implement · 失敗
+2026-11-01 00:00 · 30分 0秒
+テストが落ちた
+[aria-label] implement · 実行中、2026-11-01 00:00 · 84時間 0分、直した指摘 1
+implement · 実行中
+2026-11-01 00:00 · 84時間 0分
+直した指摘 1
+implement · 3日
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（行 t2）
 [aria-label] Code Review

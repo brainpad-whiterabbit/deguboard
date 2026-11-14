@@ -1518,15 +1518,9 @@ textarea.body {
 .ticket-row {
   grid-template-columns: auto auto minmax(0, 1fr) auto auto;
 }
-/*
- * カンバンの行は状態の丸印と担当者の列を出さない：番号・タイトル・右端（優先度の印・担当の印・Plan の番号・待ち・実行中）。
- * 頭の印（実行中の Run・in_progress）がある行は、番号の前に列を足す（has-head）
- */
+/* カンバンの行は状態の丸印と担当者の列を出さない：番号・タイトル・右端（優先度の印・担当の印・Plan の番号・待ち・Run の並び） */
 .ticket-row.kanban-row {
   grid-template-columns: auto minmax(0, 1fr) auto;
-}
-.ticket-row.kanban-row.has-head {
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
 }
 /* 左パネルのバックログの行は担当者の列を出さない：丸印・番号・タイトル・右端（担当の印・Plan の番号・待ち）。空いた幅はタイトルに回る */
 .ticket-row.backlog-row {
@@ -1535,10 +1529,10 @@ textarea.body {
 /*
  * PR のある行（UI-2。prRowClass）：番号のすぐ下の 2 段目に PR の印と #番号のリンクを出す。
  * 包み（.row-item・li）が行の列と 2 段を持ち、行のリンク（.ticket-row）は 2 段にまたがって subgrid でその列と段を使う。
- * 番号と頭の印（丸印）は 1 段目、タイトルと右端は 2 段にまたがるので、タイトルの 2 行目や右端の 2 段目（待ち）の横に PR が並び、
+ * 番号と行の頭の丸印は 1 段目、タイトルと右端は 2 段にまたがるので、タイトルの 2 行目や右端の 2 段目（待ち）の横に PR が並び、
  * 行は 2 行の高さに収まる（右端の下に 3 段目を足さない）。PR の欄（.row-pr）は番号の列の 2 段目だけに置き、行のリンクの上に重ねる。
  * PR のリンクは行のリンクの外に置く（リンクの中にリンクを入れない）。2 段目の PR の欄の外は行のリンクが受けるので、押すと行を選べる。
- * 包みの列は .ticket-row の列と同じ（kanban は頭の印の有無で 2 通り）。PR のない行には付かないので今の行のままになる
+ * 包みの列は .ticket-row の列と同じ。PR のない行には付かないので今の行のままになる
  */
 .rows li.pr-row,
 .row-item.pr-row {
@@ -1549,7 +1543,6 @@ textarea.body {
 .pr-row.kanban {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
-.pr-row.kanban.has-head,
 .pr-row.backlog {
   grid-template-columns: auto auto minmax(0, 1fr) auto;
 }
@@ -1563,7 +1556,6 @@ textarea.body {
   grid-row: 1 / span 2;
 }
 .pr-row > .row.ticket-row > code,
-.pr-row.kanban.has-head > .row.ticket-row > :first-child,
 .pr-row.backlog > .row.ticket-row > :first-child {
   grid-row: 1;
 }
@@ -1580,7 +1572,6 @@ textarea.body {
   line-height: 16px;
   color: var(--vscode-descriptionForeground);
 }
-.pr-row.kanban.has-head > .row-pr,
 .pr-row.backlog > .row-pr {
   grid-column: 2;
 }
@@ -1592,14 +1583,14 @@ textarea.body {
   white-space: nowrap;
 }
 /*
- * 番号が先頭の列（頭の印がない kanban）のときは、subgrid が行の左の余白（padding 6px と border 1px）を先頭の列に足すので、
- * 番号は列の左端から 7px 内側に出る。PR のリンクも同じだけ内側に寄せて番号と左端を揃える（頭の印の列や backlog の番号は 2 列目で、ずれない）。
+ * 番号が先頭の列（kanban）のときは、subgrid が行の左の余白（padding 6px と border 1px）を先頭の列に足すので、
+ * 番号は列の左端から 7px 内側に出る。PR のリンクも同じだけ内側に寄せて番号と左端を揃える（backlog の番号は丸印の次の 2 列目で、ずれない）。
  * 帯を持つ行（[data-select-id]）は .row の左の余白が 12px なので、番号は 13px 内側に出る。その行のリンクは 13px に寄せる（下の規則）
  */
-.pr-row.kanban:not(.has-head) > .row-pr > .row-pr-link {
+.pr-row.kanban > .row-pr > .row-pr-link {
   margin-left: 7px;
 }
-.pr-row.kanban:not(.has-head)[data-select-id] > .row-pr > .row-pr-link {
+.pr-row.kanban[data-select-id] > .row-pr > .row-pr-link {
   margin-left: 13px;
 }
 /* PR のある行は包みの背景で行全体（PR の欄を含む）を塗る。行のリンクに付く :hover は PR の欄の下に隠れる */
@@ -1607,38 +1598,106 @@ textarea.body {
   background: var(--vscode-list-hoverBackground);
 }
 /*
- * カンバンの行の頭の印（UI-2）。running は 1 秒で 1 回転するリング、idle は止まった半分塗りの丸。どちらも 12px で in_progress の色。
- * 動きを減らす設定ではリングを回さない（止まったリングのまま。半分塗りの丸とは形で見分ける）
+ * カンバンの行の Run の並び（UI-2。row-end.tsx の RunPips）。丸の色は .run-*（チケット詳細の Run と同じ色）の文字色で、形でも結果を見分ける：
+ * 成功は塗り、失敗・重い指摘・中断・未完了は中抜き、実行中と返事待ちは半分塗り。最後の丸は少し大きい。
+ * 実行中と返事待ちの最後の丸は明滅し（返事待ちは速く）、動きを減らす設定では明滅しない
  */
-.activity-mark {
+.run-pips {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.run-pips-more,
+.run-pips-caption {
+  color: var(--vscode-descriptionForeground);
+}
+.run-pips-caption {
+  margin-left: 2px;
+}
+.run-pip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.run-pip {
   display: inline-block;
   box-sizing: border-box;
-  width: 12px;
-  height: 12px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
+  border: 1.5px solid currentColor;
+  background: currentColor;
   flex: none;
 }
-.activity-running {
-  border: 2px solid color-mix(in srgb, var(--dg-status-in_progress) 25%, transparent);
-  border-top-color: var(--dg-status-in_progress);
-  animation: dg-activity-spin 1s linear infinite;
+.run-pip.is-last {
+  width: 10px;
+  height: 10px;
 }
-.activity-idle {
-  border: 1.5px solid var(--dg-status-in_progress);
-  background: linear-gradient(90deg, var(--dg-status-in_progress) 50%, transparent 50%);
+.run-pip.run-failure,
+.run-pip.run-heavy,
+.run-pip.run-interrupted,
+.run-pip.run-unfinished {
+  background: transparent;
 }
-@keyframes dg-activity-spin {
-  to {
-    transform: rotate(360deg);
+.run-pip.run-running,
+.run-pip.run-waiting {
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}
+.run-heavy {
+  color: var(--dg-error);
+}
+.run-waiting {
+  color: var(--dg-warning);
+}
+.run-pip:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+.run-pip.is-last.run-running {
+  animation: dg-run-pip-blink 2s ease-in-out infinite;
+}
+.run-pip.is-last.run-waiting {
+  animation: dg-run-pip-blink 1s ease-in-out infinite;
+}
+@keyframes dg-run-pip-blink {
+  50% {
+    opacity: 0.35;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .activity-running {
+  .run-pip.is-last.run-running,
+  .run-pip.is-last.run-waiting {
     animation: none;
   }
 }
-.row-running {
-  color: var(--dg-status-in_progress);
+/* 丸に重ねたとき・Tab で移ったときに出す説明（手・結果・時刻とかかった時間・指摘の数・理由）。行の下に重ねる */
+.run-pip-tip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 3px 6px;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+  background: var(--vscode-editorHoverWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-widget-border));
+  border-radius: 3px;
+}
+.run-pip-wrap:hover > .run-pip-tip,
+.run-pip:focus-visible + .run-pip-tip {
+  display: flex;
+}
+/* 最後の Run が返事待ち（黄系）か失敗・中断（赤系）の行は地の色を変える（row-end.tsx の runTone） */
+.row-item.run-tone-waiting {
+  background: color-mix(in srgb, var(--dg-warning) 12%, transparent);
+}
+.row-item.run-tone-failed {
+  background: color-mix(in srgb, var(--dg-error) 12%, transparent);
 }
 /*
  * カンバンとバックログの行の右端：縦に 2 段で右に揃える。上の段は優先度の印（high・low）・担当の印・Plan の番号を Plan の色で（Plan の外の未完了の行は破線の空き枠）、
@@ -1886,7 +1945,7 @@ textarea.body {
 }
 /*
  * サイドバーのバックログの行（parts.tsx の TicketTable の assigneeInEnd）：状態の丸印は in_progress（青）と review（黄）が塗り、todo は白抜き。
- * 優先度は右端の札（row-end.tsx の BacklogRowEnd）。カンバンの Run の印（12px のリング・半分塗りの丸。in_progress の色）とは大きさと形で見分ける
+ * 優先度は右端の札（row-end.tsx の BacklogRowEnd）
  */
 .backlog-rows .status-dot.status-todo {
   box-sizing: border-box;
@@ -2554,9 +2613,6 @@ textarea.body {
 }
 [data-surface="sidebar"] .ticket-row .status-dot {
   margin-top: 5px;
-}
-[data-surface="sidebar"] .ticket-row .activity-mark {
-  margin-top: 3px;
 }
 [data-surface="sidebar"] .ticket-row .row-title {
   display: -webkit-box;

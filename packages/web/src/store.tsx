@@ -3,9 +3,9 @@
 // cache を渡すと（VS Code の Webview）、読み終えた一覧を残しておき、次に開いたときはそれをすぐ描いてから読み直して差し替える。
 // 最初の読み込みは core の中で 1 本ずつ処理されるコマンドが 7 本並び、サイドバーとパネルが同じ列を使うので、その間を空の画面にしない。
 // 操作している人（whoami。主体の ID・ユーザ名と、本人とみなす ID の own_ids）も一覧と一緒に読み、me に持つ（担当者が自分かの判定に使う）。
-// 実行中の Run（run.list の running だけ。このマシンの deguboard-local/runs/ を読むだけで、終わった Run の集計は読まない）は、
-// readRunning のとき（左パネルのカンバンの行の印に使う）だけ、ほかの一覧を描いた後に遅れて読む。
-// チケットの ID の集まりだけを持ち、cache には残さない（前回の「実行中」を次に開いたときに出さない）
+// チケットごとの Run の要約（run.recent。件数と新しい順 3 件。このマシンの実行中の Run を含む）は、
+// readRunning のとき（左パネルのカンバンの行の Run の並びに使う）だけ、ほかの一覧を描いた後に遅れて読む。
+// cache には残さない（前回の「実行中」を次に開いたときに出さない）
 
 import type { CommandClient, CommandFailure, StatusView } from "@deguboard/core";
 import {
@@ -26,9 +26,9 @@ import type {
   PlanRow,
   Priority,
   Project,
-  RunView,
   Status,
   TicketRow,
+  TicketRunsView,
   WhoamiView,
   WorkflowView,
 } from "./types.js";
@@ -96,8 +96,8 @@ export interface Store {
    * 読み終えるまでは null
    */
   me: WhoamiView | null;
-  /** 実行中（running）の Run があるチケットの ID。読み終えるまでと、readRunning でないときは null */
-  runningTickets: ReadonlySet<string> | null;
+  /** チケットごとの Run の要約（run.recent。Run のないチケットは入らない）。読み終えるまでと、readRunning でないときは null */
+  ticketRuns: ReadonlyMap<string, TicketRunsView> | null;
   status: StatusView | null;
   /** 優先度の値ごとの判断基準（config.yaml の priority、なければ core の既定）。印のツールチップと詳細の選択の説明に使う */
   priorityCriteria: Record<Priority, string>;
@@ -130,7 +130,7 @@ export function StoreProvider({
   client: CommandClient;
   /** 前回の一覧の置き場。渡さなければ（dg serve）残さない */
   cache?: UiState | undefined;
-  /** 実行中の Run を読む（左パネル。カンバンの行の印に使う） */
+  /** チケットごとの Run の要約を読む（左パネル。カンバンの行の Run の並びに使う） */
   readRunning?: boolean | undefined;
   children: ReactNode;
 }) {
@@ -143,8 +143,8 @@ export function StoreProvider({
   const [plans, setPlans] = useState<PlanRow[]>(cached?.plans ?? []);
   const [workflow, setWorkflow] = useState<WorkflowView | null>(cached?.workflow ?? null);
   const [me, setMe] = useState<WhoamiView | null>(cached?.me ?? null);
-  const [runningTickets, setRunningTickets] = useState<ReadonlySet<string> | null>(null);
-  // 読み直しが重なったとき、古い読み直しの実行中の Run で上書きしない
+  const [ticketRuns, setTicketRuns] = useState<ReadonlyMap<string, TicketRunsView> | null>(null);
+  // 読み直しが重なったとき、古い読み直しの Run の要約で上書きしない
   const runningSeq = useRef(0);
   const [status, setStatus] = useState<StatusView | null>(null);
   const [priorityCriteria, setPriorityCriteria] =
@@ -220,13 +220,13 @@ export function StoreProvider({
       for (const key of OLD_SNAPSHOT_KEYS) cache?.remove(key);
       void refreshStatus();
       if (readRunning) {
-        // 行の印（UI-2）のためだけなので、ほかの一覧を描くのを待たせない。読めなければ前の値のまま（最初なら印を出さない）
+        // 行の Run の並び（UI-2）のためだけなので、ほかの一覧を描くのを待たせない。読めなければ前の値のまま（最初なら並びを出さない）
         const seq = ++runningSeq.current;
         void client
-          .run<RunView[]>("run.list", { project, running: true })
+          .run<TicketRunsView[]>("run.recent", { project })
           .then((res) => {
             if (seq === runningSeq.current)
-              setRunningTickets(new Set(res.data.map((r) => r.ticket)));
+              setTicketRuns(new Map(res.data.map((r) => [r.ticket, r])));
           })
           .catch(() => {});
       }
@@ -288,7 +288,7 @@ export function StoreProvider({
       plans,
       workflow,
       me,
-      runningTickets,
+      ticketRuns,
       status,
       priorityCriteria,
       loading,
@@ -311,7 +311,7 @@ export function StoreProvider({
       plans,
       workflow,
       me,
-      runningTickets,
+      ticketRuns,
       status,
       priorityCriteria,
       loading,

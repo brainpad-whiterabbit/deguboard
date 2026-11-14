@@ -216,6 +216,7 @@ describe("run", () => {
       run: failed.id,
       result: "failure",
       error: "テストが落ちた",
+      retries: 2,
     });
     const waiting = await startLater("t1", "review");
     const waitingSince = "2026-11-14T00:00:00Z";
@@ -237,6 +238,7 @@ describe("run", () => {
             started_at: waiting.started_at,
             finished_at: null,
             review: null,
+            retries: 0,
             error: null,
             running: true,
             waiting_since: waitingSince,
@@ -250,6 +252,7 @@ describe("run", () => {
             started_at: failed.started_at,
             finished_at: closed.get(failed.id)!.data.finished_at,
             review: null,
+            retries: 2,
             error: "テストが落ちた",
             running: false,
           },
@@ -260,6 +263,7 @@ describe("run", () => {
             started_at: reviewed.started_at,
             finished_at: closed.get(reviewed.id)!.data.finished_at,
             review: { heavy: 1, light: 0, passed: false },
+            retries: 0,
             error: null,
             running: false,
           },
@@ -276,6 +280,7 @@ describe("run", () => {
             started_at: other.started_at,
             finished_at: null,
             review: null,
+            retries: 0,
             error: null,
             running: true,
             waiting_since: null,

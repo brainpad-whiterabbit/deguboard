@@ -351,25 +351,6 @@ export function StatusDot({ status, label }: { status: Status; label?: string })
   );
 }
 
-/** カンバンの行の頭の印の種類。running は実行中の Run がある、idle は実行中の Run のない in_progress */
-export type RowActivity = "running" | "idle";
-
-/**
- * カンバンの行の頭の印（UI-2）。running は回るリング、idle は止まった半分塗りの丸。色は --dg-status-in_progress。
- * 動きを減らす設定ではリングを回さない（styles.css）
- */
-export function ActivityMark({ activity }: { activity: RowActivity }) {
-  const label = activity === "running" ? tr("Run が実行中") : tr("着手済み（実行中の Run なし）");
-  return (
-    <span
-      className={`activity-mark activity-${activity}`}
-      role="img"
-      aria-label={label}
-      title={label}
-    />
-  );
-}
-
 /**
  * 行の種類。list は一覧（履歴など）の行、kanban はカンバンの行
  * （状態は節で分かるので丸印を出さず、担当は右端に出す）、
@@ -388,8 +369,7 @@ export function RowPriority({ priority }: { priority: Priority }) {
  * サイドバーではタイトルを 2 行まで折り返す（styles.css）。hideAssignee で担当者を出さない（見えている行の担当が 1 人だけのとき）。
  * kanban と backlog の行は担当者の列を出さない（担当は右端の印で出す。row-end.tsx の KanbanRowEnd・BacklogRowEnd）。
  * 列がないぶんの幅はタイトルに回る。
- * variant で行の種類を選ぶ（TicketRowVariant）。end を渡すと右端の優先度の印の代わりにそれを出す（カンバンの行の Plan の番号と待ちなど）。
- * head を渡すとカンバンの行の頭（list の行の丸印の位置）にそれを出す（Run の実行中の印。ActivityMark）。
+ * variant で行の種類を選ぶ（TicketRowVariant）。end を渡すと右端の優先度の印の代わりにそれを出す（カンバンの行の Plan の番号と待ち、Run の並びなど）。
  * カンバンとバックログの行で PR の番号があるときは、行のリンクの外の 2 段目に PR のリンクを出す（RowPrLink）。包みの class は呼び出し側が prRowClass で付ける。
  * Epic の札に触れている間（EpicHighlight で包んだ一覧）は、その Epic の行を光らせ、ほかを薄くする（useEpicHighlightClass）
  */
@@ -399,7 +379,6 @@ export function TicketRow({
   hideAssignee = false,
   flash = false,
   variant = "list",
-  head,
   end,
 }: {
   ticket: Ticket;
@@ -408,23 +387,20 @@ export function TicketRow({
   /** 前回の描画から変わった行として枠を点滅させる（カンバンのサイドバー。change-flash.ts） */
   flash?: boolean | undefined;
   variant?: TicketRowVariant | undefined;
-  /** 頭の差し込み口（kanban の行だけ）。渡さなければ頭に何も出さない */
-  head?: ReactNode;
   /** 右端の差し込み口。渡さなければ優先度の印（RowPriority） */
   end?: ReactNode;
 }) {
   const kanban = variant === "kanban";
   const backlog = variant === "backlog";
-  const withHead = kanban && head != null;
   const epicClass = useEpicHighlightClass(ticket);
   return (
     <>
       <TicketLink
         id={ticket.id}
-        className={`row ticket-row status-${ticket.status}${kanban ? " kanban-row" : ""}${backlog ? " backlog-row" : ""}${withHead ? " has-head" : ""}${flash ? " changed" : ""}${epicClass}`}
+        className={`row ticket-row status-${ticket.status}${kanban ? " kanban-row" : ""}${backlog ? " backlog-row" : ""}${flash ? " changed" : ""}${epicClass}`}
         onClick={onClick}
       >
-        {kanban ? withHead ? head : null : <StatusDot status={ticket.status} />}
+        {kanban ? null : <StatusDot status={ticket.status} />}
         <code>{ticket.id}</code>
         <span className="row-title" title={ticket.title}>
           {ticket.title}
@@ -453,15 +429,14 @@ export function prHref(webUrl: string | null | undefined, pr: number): string | 
 
 /**
  * PR のある行の包み（UI-2）の class。カンバンとバックログの行で PR の番号があるときだけ付け、番号の列の 2 段目に PR のリンクを置く（styles.css の .pr-row）。
- * 包みは行の要素（.row-item・li）。head は kanban の頭の印の有無（TicketRow の has-head と同じ）
+ * 包みは行の要素（.row-item・li）
  */
 function prRowClass(
   ticket: Pick<Ticket, "pr">,
   variant: TicketRowVariant | undefined,
-  head: boolean,
 ): string | undefined {
   if (!ticket.pr || (variant !== "kanban" && variant !== "backlog")) return undefined;
-  return `pr-row ${variant}${variant === "kanban" && head ? " has-head" : ""}`;
+  return `pr-row ${variant}`;
 }
 
 /**
@@ -523,7 +498,8 @@ export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): bool
 }
 
 /**
- * 1 行のチケット（サイドバーのカンバン）。variant・head・end は TicketRow に渡す。dimmed でタイトルを説明文の色にする。
+ * 1 行のチケット（サイドバーのカンバン）。variant・end は TicketRow に渡す。dimmed でタイトルを説明文の色にする。
+ * tone で行の地の色を変える（最後の Run が返事待ちか失敗・中断。row-end.tsx の runTone）。
  * ask を渡すと行をエージェントに頼める場所にする（右端の吹き出し・Shift+F10。ask-menu.tsx）。Ctrl/⌘・Shift+クリックで複数選べる（selection.tsx）。
  * 右クリックの文脈に行のチケットを載せ、拡張の「詳細を開く」「ID をコピー」を出す（useAskSpot の menu）
  */
@@ -532,19 +508,20 @@ export function AskRow({
   hideAssignee,
   flash,
   variant,
-  head,
   end,
   dimmed = false,
+  tone = null,
   ask,
 }: {
   ticket: Ticket;
   hideAssignee?: boolean | undefined;
   flash?: boolean | undefined;
   variant?: TicketRowVariant | undefined;
-  head?: ReactNode;
   end?: ReactNode;
   /** すぐに手を付けられない行（カンバンの待ち・承認待ち）としてタイトルを薄く出す */
   dimmed?: boolean | undefined;
+  /** 行の地の色（waiting は返事待ち、failed は失敗・中断）。null なら変えない */
+  tone?: "waiting" | "failed" | null | undefined;
   /** エージェントに頼む場所の種類。対象はこの行のチケット */
   ask?: AskSection | undefined;
 }) {
@@ -559,10 +536,10 @@ export function AskRow({
         }
       : null,
   );
-  const prClass = prRowClass(ticket, variant, head != null);
+  const prClass = prRowClass(ticket, variant);
   return (
     <div
-      className={`row-item${dimmed ? " is-waiting" : ""}${prClass ? ` ${prClass}` : ""}`}
+      className={`row-item${dimmed ? " is-waiting" : ""}${tone ? ` run-tone-${tone}` : ""}${prClass ? ` ${prClass}` : ""}`}
       {...(ask ? spot.props : {})}
     >
       <TicketRow
@@ -570,7 +547,6 @@ export function AskRow({
         hideAssignee={hideAssignee}
         flash={flash}
         variant={variant}
-        head={head}
         end={end}
       />
       {spot.overlay}
@@ -643,7 +619,7 @@ export function TicketTable({
         const content = (
           <TicketRow ticket={t} hideAssignee={hideAssignee} variant={variant} end={endOf(t)} />
         );
-        const className = prRowClass(t, variant, false);
+        const className = prRowClass(t, variant);
         return rowMenu ? (
           <BacklogItem key={t.id} ticket={t} className={className}>
             {content}

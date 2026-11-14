@@ -1,20 +1,26 @@
 // 左パネルのカンバン（board.tsx）とバックログ（backlog.tsx）の行の右端の部品と、その判定。
 // 開いた Plan に入っているチケットの Plan の番号と待ち（kanbanPlanMarks）、todo の行の着手可・待ち・承認待ち（kanbanReadiness）を、
-// カンバンの行（KanbanRowEnd）とバックログの行（BacklogRowEnd）で同じ判定と同じ部品で出す
+// カンバンの行（KanbanRowEnd）とバックログの行（BacklogRowEnd）で同じ判定と同じ部品で出す。
+// カンバンの行は、下の段にチケットの Run を 1 回 1 つの丸で並べる（RunPips。run.recent の要約を読むだけで、dg は呼ばない）
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AssigneeMark } from "./assignee-mark.js";
 import { RowPriority } from "./parts.js";
 import { openPlanByTicket, planColor, waitsOf } from "./plan-graph.js";
+import { formatDuration, RESULT_LABELS, runResultKey, type RunResultKey } from "./run-parts.js";
+import { formatTime } from "./timeline.js";
 import {
   isOwnAssignee,
   type PlanRow,
+  type RunSummary,
   type Ticket,
   type TicketRow,
+  type TicketRunsView,
   type WhoamiView,
+  type WorkflowDefinition,
   isFinished,
 } from "../types.js";
-import { tr } from "../l10n.js";
+import { msg, tr } from "../l10n.js";
 
 /** 左パネルのカンバンとバックログの行に出す、チケットが入っている開いた Plan と、残っている待ちの相手 */
 export interface PlanMark {
@@ -76,29 +82,26 @@ export function needsPlanSlot(ticket: Pick<Ticket, "status">, mark: PlanMark | u
 }
 
 /**
- * 左パネルのカンバンの行の右端（開いた Plan に入っているか、開いた Plan に入っていない未完了の行か、実行中の Run があるか、担当のあるチケット）。縦に 2 段で、
+ * 左パネルのカンバンの行の右端（開いた Plan に入っているか、開いた Plan に入っていない未完了の行か、Run の並びを出すか、担当のあるチケット）。縦に 2 段で、
  * 上の段の左端に優先度の印（high・low。medium は出さない）を置き、続けて担当の印と Plan の番号を Plan の色で出す（開いた Plan に入っていない終わっていない行は番号の代わりに破線の空き枠「—」）。
- * 下の段は実行中の Run があれば「実行中」（Plan の外の行でも）、なければ todo なら承認待ち（Plan が承認待ち）・
+ * 下の段は Run の並び（runs。出すかは呼び出し側が showRunPips で決める）があればそれを、なければ todo なら承認待ち（Plan が承認待ち）・
  * 待ちの相手（after と depends_on の終わっていないもの）・着手可を出す（着手可・待ちだけ）。どれもなければ下の段は出さない
  */
 export function KanbanRowEnd({
   ticket,
   mark,
-  running,
+  runs,
+  stepLabel,
 }: {
   ticket: TicketRow;
   mark: PlanMark | undefined;
-  running: boolean;
+  /** 下の段に並べる Run の要約。渡さなければ着手可・待ちを出す */
+  runs?: TicketRunsView | undefined;
+  /** Run の step の表示名（stepLabelOf） */
+  stepLabel: (step: string) => string;
 }) {
-  const readiness = readinessBadge(ticket, mark);
-  // 実行中の Run があれば、todo でも着手可・待ちより「実行中」を出す（手が動いていることの方が大事なので）
-  const sub = running ? (
-    <span className="row-running" title={tr("このマシンで Run が実行中")}>
-      {tr("実行中")}
-    </span>
-  ) : (
-    readiness
-  );
+  // 実行中の Run があれば、todo でも着手可・待ちより Run の並びを出す（手が動いていることの方が大事なので）
+  const sub = runs ? <RunPips runs={runs} stepLabel={stepLabel} /> : readinessBadge(ticket, mark);
   return (
     <span className="row-end">
       <span className="row-end-top">
@@ -107,6 +110,160 @@ export function KanbanRowEnd({
         {mark ? <RowPlan plan={mark.plan} /> : needsPlanSlot(ticket, mark) ? <RowPlanSlot /> : null}
       </span>
       {sub ? <span className="row-end-sub">{sub}</span> : null}
+    </span>
+  );
+}
+
+/** Run の step の表示名：Workflow の steps の label、なければ（steps に書いていない step も）id のまま */
+export function stepLabelOf(
+  definition: Pick<WorkflowDefinition, "steps"> | undefined,
+  step: string,
+): string {
+  return definition?.steps?.find((s) => s.id === step)?.label ?? step;
+}
+
+/** カンバンの行に Run の並びを出すか：In Progress と Review の行で Run があるとき。ほかの状態の行も実行中の Run があれば出す（UI-2） */
+export function showRunPips(
+  ticket: Pick<Ticket, "status">,
+  runs: TicketRunsView | undefined,
+): runs is TicketRunsView {
+  if (!runs || runs.runs.length === 0) return false;
+  if (ticket.status === "in_progress" || ticket.status === "review") return true;
+  return runs.runs.some((r) => r.running);
+}
+
+/**
+ * 行の丸の結果の種類。run-parts.tsx の結果の種類に、重い指摘のあった見直し（heavy。成功で閉じても）と、
+ * 止まって返事を待っている実行中の Run（waiting。waiting_since がある）を足す。書き終わりを待つ（settling_since）は実行中のまま
+ */
+export type RunPipKey = RunResultKey | "heavy" | "waiting";
+
+export function runPipKey(run: RunSummary): RunPipKey {
+  if (run.running && run.waiting_since) return "waiting";
+  if (!run.running && run.result === "success" && run.review && !run.review.passed) return "heavy";
+  return runResultKey(run);
+}
+
+const PIP_LABELS: Record<RunPipKey, string> = {
+  ...RESULT_LABELS,
+  heavy: msg("重い指摘"),
+  waiting: msg("返事待ち"),
+};
+
+/**
+ * 行の地の色を変える Run の結果：最後の Run が返事待ち（waiting）か、失敗・中断で終わった（failed）。ほかは null。
+ * 並びを出さない行（showRunPips が偽）には呼び出し側で使わない
+ */
+export function runTone(runs: TicketRunsView): "waiting" | "failed" | null {
+  const last = runs.runs[0];
+  if (!last) return null;
+  const key = runPipKey(last);
+  if (key === "waiting") return "waiting";
+  return key === "failure" || key === "interrupted" ? "failed" : null;
+}
+
+/** 経過の短い書き方：1 時間未満は分、1 日未満は時間、それより長ければ日（切り捨て） */
+export function shortSpan(ms: number): string {
+  const minutes = Math.max(0, Math.floor(ms / 60_000));
+  if (minutes < 60) return tr("{0}分", minutes);
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? tr("{0}時間", hours) : tr("{0}日", Math.floor(hours / 24));
+}
+
+const msOf = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : Number.NaN);
+
+/**
+ * 最後の丸の横の文字：実行中は「手 · 経過」、返事待ちは「返事待ち · 待った時間」、
+ * 終わった Run は成功なら「手 · n分前」、ほか（重い指摘・失敗・中断・未完了）は「結果 · n分前」
+ */
+export function runPipCaption(
+  run: RunSummary,
+  stepLabel: (step: string) => string,
+  now: number,
+): string {
+  const key = runPipKey(run);
+  if (key === "waiting")
+    return `${tr(PIP_LABELS.waiting)} · ${shortSpan(now - msOf(run.waiting_since))}`;
+  if (key === "running") return `${stepLabel(run.step)} · ${shortSpan(now - msOf(run.started_at))}`;
+  const head = key === "success" ? stepLabel(run.step) : tr(PIP_LABELS[key]);
+  return `${head} · ${tr("{0}前", shortSpan(now - msOf(run.finished_at ?? run.started_at)))}`;
+}
+
+/**
+ * 丸に重ねたとき・Tab で移ったときに出す行：手と結果、開始の時刻とかかった時間（実行中は今までの時間）、
+ * 直した指摘の数（retries が 1 以上）、見直しの指摘の数（review があれば）、失敗・中断の理由（error）
+ */
+export function runPipDetails(
+  run: RunSummary,
+  stepLabel: (step: string) => string,
+  now: number,
+): string[] {
+  const seconds = ((run.running ? now : msOf(run.finished_at)) - msOf(run.started_at)) / 1000;
+  const lines = [
+    `${stepLabel(run.step)} · ${tr(PIP_LABELS[runPipKey(run)])}`,
+    `${formatTime(run.started_at)} · ${formatDuration(Number.isFinite(seconds) ? Math.max(0, seconds) : null)}`,
+  ];
+  if (run.retries > 0) lines.push(tr("直した指摘 {0}", run.retries));
+  if (run.review) lines.push(tr("指摘 重い {0} / 軽い {1}", run.review.heavy, run.review.light));
+  if (run.error) lines.push(run.error);
+  return lines;
+}
+
+/** 経過の文字を 1 分ごとに描き直すための今の時刻（dg は呼ばず、描き直すだけ） */
+function useMinuteNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
+}
+
+/**
+ * カンバンの行の Run の並び（UI-2）：古い順に 3 個までの丸（それより古い分は「+n」）と、最後の丸の横の文字（runPipCaption）。
+ * 最後の丸は少し大きい。丸の色と形（塗り・中抜き・半分塗り。styles.css の .run-pip）が結果を表し、実行中と返事待ちの最後の丸は明滅する
+ * （動きを減らす設定では明滅しない）。丸ごとに Tab で止まり、重ねるか移ると runPipDetails を出す。並び全体に読み上げ用の名前を付ける
+ */
+export function RunPips({
+  runs,
+  stepLabel,
+}: {
+  runs: TicketRunsView;
+  stepLabel: (step: string) => string;
+}) {
+  const now = useMinuteNow();
+  // run.recent は新しい順なので、古い順に並べ直す
+  const shown = [...runs.runs].reverse();
+  const last = shown.at(-1);
+  if (!last) return null;
+  const older = runs.total - shown.length;
+  const caption = runPipCaption(last, stepLabel, now);
+  return (
+    <span
+      className="run-pips"
+      role="group"
+      aria-label={tr("Run {0} 回。最後は {1}", runs.total, caption)}
+    >
+      {older > 0 ? <span className="run-pips-more">+{older}</span> : null}
+      {shown.map((run) => {
+        const details = runPipDetails(run, stepLabel, now);
+        return (
+          <span key={run.id} className="run-pip-wrap">
+            <span
+              className={`run-pip run-${runPipKey(run)}${run === last ? " is-last" : ""}`}
+              role="img"
+              tabIndex={0}
+              aria-label={details.join(tr("、"))}
+            />
+            <span className="run-pip-tip" aria-hidden="true">
+              {details.map((line, n) => (
+                <span key={n}>{line}</span>
+              ))}
+            </span>
+          </span>
+        );
+      })}
+      <span className="run-pips-caption">{caption}</span>
     </span>
   );
 }

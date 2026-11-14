@@ -6,6 +6,7 @@ import { App, INFO_NOTICE_MS } from "./app.js";
 import { PICK_SETTLE_MS } from "./components/inline-edit.js";
 import { ClientError } from "./client/http.js";
 import { formatShortTime } from "./components/date-time.js";
+import { formatTime } from "./components/timeline.js";
 import type { WebviewClient } from "./client/webview.js";
 import type { WebviewEvent } from "@deguboard/core";
 import { HostBridge, HostProvider, type Host } from "./host.js";
@@ -18,12 +19,25 @@ import {
   iterationDetail,
   mockClient,
   plan,
+  runSummary,
   ticket,
 } from "./test-helpers.js";
 
 /** カンバンのテストの client（チケットを active の Iteration に入れた fixture） */
 const boardClient = () => mockClient(boardFixture());
-import type { RunView } from "./types.js";
+import type { RunSummary, RunView, TicketRunsView } from "./types.js";
+
+/** run.recent の 1 件（runs は新しい順）。total を省けば runs の件数 */
+function ticketRuns(ticketId: string, runs: RunSummary[], total = runs.length): TicketRunsView {
+  return { ticket: ticketId, total, runs };
+}
+
+/** 実行中の Run の要約（今の 12 分前に始めた implement） */
+const runningSummary = (partial: Partial<RunSummary> = {}) =>
+  runSummary({ running: true, started_at: "2026-11-04T11:48:00Z", ...partial });
+
+/** 実行中の Run が 1 回だけあるチケットの run.recent の 1 件 */
+const runningOf = (ticketId: string) => ticketRuns(ticketId, [runningSummary()]);
 import { createUiState, memoryBackend } from "./ui-state.js";
 
 // 履歴の日付の書き方は今に依るので、今を固定する（Date だけ。個別に timer を使う試験は自分で入れ替える）
@@ -45,31 +59,6 @@ function hostOf(
   show: (route: Route) => void = () => {},
 ): Host {
   return { surface, open, show, copy: async () => {}, state: createUiState(memoryBackend()) };
-}
-
-/** 実行中の Run（run.list の 1 件） */
-function runningRun(ticketId: string): RunView {
-  return {
-    id: "r20261101-010000-aaaa",
-    ticket: ticketId,
-    step: "implement",
-    agent: "claude-code",
-    model: null,
-    started_at: "2026-11-01T01:00:00Z",
-    finished_at: null,
-    result: null,
-    error: null,
-    retries: 0,
-    retry_reasons: [],
-    usage: { input: null, output: null, cache_read: null, cache_write: null },
-    tools: null,
-    session: null,
-    review: null,
-    waiting_since: null,
-    settling_since: null,
-    running: true,
-    duration_seconds: null,
-  } as RunView;
 }
 
 /** 左パネルのカンバンの Epic・担当の絞り込みの欄（漏斗）を開いた Host */
@@ -1570,46 +1559,102 @@ describe("画面", () => {
     for (const c of contextsOf()) expect(c).toEqual({ preventDefaultContextMenuItems: true });
   });
 
-  it("サイドバーのカンバンの行の頭に、実行中の Run があれば回るリングと「実行中」を、Run のない in_progress なら止まった半分塗りの丸を出し、読み直しで変わる", async () => {
+  it("サイドバーのカンバンの In Progress の行の右端の下の段に、Run を古い順に 3 個までの丸と「+n」と最後の丸の文字で並べ、行の頭には何も出さず、読み直しで変わる", async () => {
     const client = boardClient();
     client.data.plans.push(plan({ id: "p7", tickets: ["t2"] }));
-    /** このマシンで実行中の Run（run.list の running: true だけに返す） */
-    let running: RunView[] = [runningRun("t3")];
+    client.data.workflow.definition.steps = [
+      { id: "implement", label: "Implement", actions: [], approval: false },
+    ];
+    let recent: TicketRunsView[] = [
+      ticketRuns(
+        "t2",
+        [
+          runningSummary({ id: "r3" }),
+          runSummary({ id: "r2", step: "fix", result: "success", retries: 2 }),
+          runSummary({
+            id: "r1",
+            step: "review",
+            result: "success",
+            review: { heavy: 1, light: 0, passed: false },
+          }),
+        ],
+        5,
+      ),
+      // todo の行は、閉じた Run だけなら並べない
+      ticketRuns("t3", [runSummary({ result: "success" })]),
+    ];
     client.handlers["ticket.list"] = () => [...client.data.tickets];
-    client.handlers["run.list"] = (input) =>
-      (input as { running?: boolean }).running ? running : [];
+    client.handlers["run.recent"] = () => recent;
     const send = mountWithBridge(client);
-    await waitFor(() => expect(document.querySelector(".activity-running")).toBeTruthy());
-    expect(
-      client.calls.find((c) => c.name === "run.list" && !(c.input as { ticket?: string }).ticket)!
-        .input,
-    ).toEqual({ project: "default", running: true });
-    // todo で Run が実行中（Plan の外）：頭に回るリング、右端の下の段に「実行中」
-    const screenRow = kanbanRowOf("画面");
-    expect(screenRow.classList.contains("has-head")).toBe(true);
-    expect(screenRow.querySelector(".activity-running")).toBeTruthy();
-    expect(screenRow.querySelector(".row-end-sub")!.textContent).toBe("実行中");
-    // in_progress で Run のない行：止まった半分塗りの丸。優先度の印と Plan の番号は上の段、着手可・待ちのない行は下の段を出さない
+    await waitFor(() => expect(kanbanRowOf("API").querySelector(".run-pips")).toBeTruthy());
+    expect(client.calls.find((c) => c.name === "run.recent")!.input).toEqual({
+      project: "default",
+    });
     const api = kanbanRowOf("API");
-    expect(api.querySelector(".activity-idle")).toBeTruthy();
-    expect(api.querySelector(".row-running")).toBeNull();
+    // 行の頭には印を出さず、番号から始める。優先度の印と Plan の番号は上の段
+    expect(api.firstElementChild!.tagName).toBe("CODE");
     expect(api.querySelector(".row-end-top .priority-high")).toBeTruthy();
     expect(api.querySelector(".row-end-top .row-plan")!.textContent).toBe("p7");
-    expect(api.querySelector(".row-end-sub")).toBeNull();
-    // ほかの状態の行は頭に何も出さない
-    expect(kanbanRowOf("ログイン").querySelector(".activity-mark")).toBeNull();
-    expect(kanbanRowOf("ログイン").classList.contains("has-head")).toBe(false);
+    // 古い順に r1（重い指摘）・r2（成功）・r3（実行中。最後の丸は大きい）、それより古い 2 回は「+2」
+    const pips = [...api.querySelectorAll(".run-pip")];
+    expect(pips.map((p) => p.className)).toEqual([
+      "run-pip run-heavy",
+      "run-pip run-success",
+      "run-pip run-running is-last",
+    ]);
+    expect(api.querySelector(".run-pips-more")!.textContent).toBe("+2");
+    expect(api.querySelector(".run-pips-caption")!.textContent).toBe("Implement · 12分");
+    // 並び全体に読み上げ用の名前。丸ごとに Tab で止まり、説明（手・結果・時刻とかかった時間・直した指摘の数）を持つ
+    expect(
+      within(api as HTMLElement)
+        .getByRole("group")
+        .getAttribute("aria-label"),
+    ).toBe("Run 5 回。最後は Implement · 12分");
+    expect(pips.every((p) => p.getAttribute("tabindex") === "0")).toBe(true);
+    const fix = pips[1]!.closest(".run-pip-wrap")!.querySelector(".run-pip-tip")!;
+    expect([...fix.children].map((c) => c.textContent)).toEqual([
+      "fix · 成功",
+      `${formatTime("2026-11-14T01:00:00Z")} · 10分 0秒`,
+      "直した指摘 2",
+    ]);
+    expect(pips[0]!.getAttribute("aria-label")).toContain("指摘 重い 1 / 軽い 0");
+    expect(kanbanRowOf("画面").querySelector(".run-pips")).toBeNull();
 
-    // ターミナルで t3 の Run を閉じ、t2 の Run を始めた
-    running = [runningRun("t2")];
+    // ターミナルで t3 の Run を始めた：todo でも実行中の Run があれば並べる。steps に label のない手は id のまま
+    recent = [ticketRuns("t3", [runningSummary({ step: "fix" })])];
     act(() => send()({ kind: "event", name: "reload" }));
-    await waitFor(() => expect(kanbanRowOf("API").querySelector(".activity-running")).toBeTruthy());
-    // Plan に入っている行は、優先度の印を上の段に、下の段に「実行中」
-    expect(kanbanRowOf("API").querySelector(".row-end-top .priority-high")).toBeTruthy();
-    expect(kanbanRowOf("API").querySelector(".row-end-top .row-plan")!.textContent).toBe("p7");
-    expect(kanbanRowOf("API").querySelector(".row-end-sub")!.textContent).toBe("実行中");
-    expect(kanbanRowOf("画面").querySelector(".activity-mark")).toBeNull();
-    expect(kanbanRowOf("画面").querySelector(".row-end-sub")).toBeNull();
+    await waitFor(() => expect(kanbanRowOf("画面").querySelector(".run-pips")).toBeTruthy());
+    expect(kanbanRowOf("画面").querySelector(".run-pips-caption")!.textContent).toBe("fix · 12分");
+    expect(kanbanRowOf("API").querySelector(".run-pips")).toBeNull();
+    expect(kanbanRowOf("API").querySelector(".row-end-sub")).toBeNull();
+  });
+
+  it("最後の Run が返事待ちか失敗・中断の行は地の色を変え、ほかの行は変えない", async () => {
+    const client = boardClient();
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "落ちた", status: "review", iteration: "s0" }),
+      ticket({ id: "t5", title: "止めた", status: "in_progress", iteration: "s0" }),
+    );
+    client.handlers["run.recent"] = () => [
+      ticketRuns("t2", [runningSummary({ waiting_since: "2026-11-04T11:55:00Z" })]),
+      ticketRuns("t4", [runSummary({ result: "failure", error: "テストが落ちた" })]),
+      ticketRuns("t5", [
+        runSummary({ result: "interrupted", finished_at: "2026-11-04T09:00:00Z" }),
+      ]),
+    ];
+    mountWithBridge(client);
+    await waitFor(() => expect(kanbanRowOf("API").querySelector(".run-pips")).toBeTruthy());
+    const item = (title: string) => kanbanRowOf(title).closest(".row-item")!;
+    expect(item("API").classList.contains("run-tone-waiting")).toBe(true);
+    expect(kanbanRowOf("API").querySelector(".run-pips-caption")!.textContent).toBe(
+      "返事待ち · 5分",
+    );
+    expect(item("落ちた").classList.contains("run-tone-failed")).toBe(true);
+    expect(item("止めた").classList.contains("run-tone-failed")).toBe(true);
+    expect(kanbanRowOf("止めた").querySelector(".run-pips-caption")!.textContent).toBe(
+      "中断 · 3時間前",
+    );
+    expect(item("画面").className).not.toMatch(/run-tone/);
   });
 
   it("サイドバーのカンバンでは、待ちと承認待ちの todo の行だけタイトルを薄くし、実行中の Run がある行は待ちでも薄くしない", async () => {
@@ -1629,11 +1674,10 @@ describe("画面", () => {
       }),
       plan({ id: "p9", tickets: ["t7"], status: "pending" }),
     );
-    client.handlers["run.list"] = (input) =>
-      (input as { running?: boolean }).running ? [runningRun("t8")] : [];
+    client.handlers["run.recent"] = () => [runningOf("t8")];
     mountWithBridge(client);
     await waitFor(() =>
-      expect(kanbanRowOf("待ちで実行中").querySelector(".activity-running")).toBeTruthy(),
+      expect(kanbanRowOf("待ちで実行中").querySelector(".run-running")).toBeTruthy(),
     );
     const dimmed = (title: string) =>
       kanbanRowOf(title).closest(".row-item")!.classList.contains("is-waiting");
@@ -1650,7 +1694,7 @@ describe("画面", () => {
     expect(dimmed("待ちで実行中")).toBe(false);
   });
 
-  it("実行中の Run を読み終えるまでは、in_progress の行に頭の印を出さず、待ちの行も薄くせず、ほかの一覧はそれを待たずに出す。読み終えると実行中でない待ちの行だけ薄くする", async () => {
+  it("Run の要約を読み終えるまでは、行に Run の並びを出さず、待ちの行も薄くせず、ほかの一覧はそれを待たずに出す。読み終えると実行中でない待ちの行だけ薄くする", async () => {
     const client = boardClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "待つ", iteration: "s0" }),
@@ -1659,8 +1703,9 @@ describe("画面", () => {
     client.data.plans.push(
       plan({ id: "p7", tickets: ["t2", "t4", "t8"], after: { t4: ["t2"], t8: ["t2"] } }),
     );
-    let finish: (runs: RunView[]) => void = () => {};
-    client.handlers["run.list"] = () => new Promise<RunView[]>((resolve) => (finish = resolve));
+    let finish: (runs: TicketRunsView[]) => void = () => {};
+    client.handlers["run.recent"] = () =>
+      new Promise<TicketRunsView[]>((resolve) => (finish = resolve));
     render(
       <StoreProvider client={client} readRunning>
         <HostProvider host={hostOf("sidebar")}>
@@ -1669,81 +1714,76 @@ describe("画面", () => {
       </StoreProvider>,
     );
     await screen.findByText("待つ");
-    await waitFor(() => expect(client.calls.some((c) => c.name === "run.list")).toBe(true));
-    const api = () => screen.getByText("API").closest(".ticket-row")!;
+    await waitFor(() => expect(client.calls.some((c) => c.name === "run.recent")).toBe(true));
     const dimmed = (title: string) =>
       kanbanRowOf(title).closest(".row-item")!.classList.contains("is-waiting");
-    // 読み終える前：in_progress の行に頭の印を出さず、待ちの印は出すが、どの行も薄くしない
-    expect(api().querySelector(".activity-mark")).toBeNull();
-    expect(api().classList.contains("has-head")).toBe(false);
+    // 読み終える前：Run の並びを出さず、待ちの印は出すが、どの行も薄くしない
+    expect(document.querySelector(".run-pips")).toBeNull();
     await waitFor(() =>
       expect(kanbanRowOf("待つ").querySelector(".row-wait")!.textContent).toBe("t2 待ち"),
     );
     expect(dimmed("待つ")).toBe(false);
     expect(dimmed("待ちで実行中")).toBe(false);
-    // 読み終えた後：実行中でない待ちの行だけ薄くする。実行中の Run のない API は止まった印になる
-    act(() => finish([runningRun("t8")]));
+    // 読み終えた後：実行中でない待ちの行だけ薄くする
+    act(() => finish([runningOf("t8")]));
     await waitFor(() => expect(dimmed("待つ")).toBe(true));
-    expect(api().querySelector(".activity-idle")).toBeTruthy();
-    expect(kanbanRowOf("待ちで実行中").querySelector(".activity-running")).toBeTruthy();
+    expect(kanbanRowOf("待ちで実行中").querySelector(".run-running")).toBeTruthy();
     expect(dimmed("待ちで実行中")).toBe(false);
   });
 
-  it("readRunning でなければ（左パネルでなければ）実行中の Run を読まず、行に頭の印を出さない", async () => {
+  it("readRunning でなければ（左パネルでなければ）Run の要約を読まず、行に Run の並びを出さない", async () => {
     const client = boardClient();
     mount(client, hostOf("sidebar"));
     await screen.findByText("API");
-    expect(client.calls.some((c) => c.name === "run.list")).toBe(false);
-    expect(document.querySelector(".activity-mark")).toBeNull();
+    expect(client.calls.some((c) => c.name === "run.recent")).toBe(false);
+    expect(document.querySelector(".run-pips")).toBeNull();
   });
 
-  it("実行中の Run の読み直しが重なり、後から古い結果が返っても、新しい結果のリングを残す", async () => {
+  it("Run の要約の読み直しが重なり、後から古い結果が返っても、新しい結果の並びを残す", async () => {
     const client = boardClient();
-    /** run.list（running）の応答を、呼ばれた順に後から返す */
-    const pending: ((runs: RunView[]) => void)[] = [];
-    client.handlers["run.list"] = () => new Promise<RunView[]>((resolve) => pending.push(resolve));
+    /** run.recent の応答を、呼ばれた順に後から返す */
+    const pending: ((runs: TicketRunsView[]) => void)[] = [];
+    client.handlers["run.recent"] = () =>
+      new Promise<TicketRunsView[]>((resolve) => pending.push(resolve));
     const send = mountWithBridge(client);
     await waitFor(() => expect(pending.length).toBe(1));
-    act(() => pending[0]!([runningRun("t3")]));
-    await waitFor(() =>
-      expect(kanbanRowOf("画面").querySelector(".activity-running")).toBeTruthy(),
-    );
+    act(() => pending[0]!([runningOf("t3")]));
+    await waitFor(() => expect(kanbanRowOf("画面").querySelector(".run-pips")).toBeTruthy());
 
     // 読み直しを 2 回起こす。1 回目（古い）は t3、2 回目（新しい）は t2 が実行中と返す
     act(() => send()({ kind: "event", name: "reload" }));
     act(() => send()({ kind: "event", name: "reload" }));
     await waitFor(() => expect(pending.length).toBe(3));
-    await act(async () => pending[2]!([runningRun("t2")]));
-    await waitFor(() => expect(kanbanRowOf("API").querySelector(".activity-running")).toBeTruthy());
-    expect(kanbanRowOf("画面").querySelector(".activity-mark")).toBeNull();
+    await act(async () => pending[2]!([runningOf("t2")]));
+    await waitFor(() => expect(kanbanRowOf("API").querySelector(".run-pips")).toBeTruthy());
+    expect(kanbanRowOf("画面").querySelector(".run-pips")).toBeNull();
     // 古い 1 回目が後から返っても、新しい結果を上書きしない
-    await act(async () => pending[1]!([runningRun("t3")]));
-    expect(kanbanRowOf("API").querySelector(".activity-running")).toBeTruthy();
-    expect(kanbanRowOf("画面").querySelector(".activity-mark")).toBeNull();
+    await act(async () => pending[1]!([runningOf("t3")]));
+    expect(kanbanRowOf("API").querySelector(".run-pips")).toBeTruthy();
+    expect(kanbanRowOf("画面").querySelector(".run-pips")).toBeNull();
   });
 
-  it("実行中の Run が読み直しで読めなくても、前のリングを残し、エラーの通知を出さない", async () => {
+  it("Run の要約が読み直しで読めなくても、前の並びを残し、エラーの通知を出さない", async () => {
     const client = boardClient();
     let fail = false;
-    client.handlers["run.list"] = () => {
+    client.handlers["run.recent"] = () => {
       if (fail) throw new Error("runs を読めない");
-      return [runningRun("t3")];
+      return [runningOf("t3")];
     };
     const send = mountWithBridge(client);
-    await waitFor(() =>
-      expect(kanbanRowOf("画面").querySelector(".activity-running")).toBeTruthy(),
-    );
-    const before = client.calls.filter((c) => c.name === "run.list").length;
+    await waitFor(() => expect(kanbanRowOf("画面").querySelector(".run-pips")).toBeTruthy());
+    const before = client.calls.filter((c) => c.name === "run.recent").length;
 
     fail = true;
     act(() => send()({ kind: "event", name: "reload" }));
     await waitFor(() =>
-      expect(client.calls.filter((c) => c.name === "run.list").length).toBe(before + 1),
+      expect(client.calls.filter((c) => c.name === "run.recent").length).toBe(before + 1),
     );
-    // 失敗した run.list の後始末を待つ
+    // 失敗した run.recent の後始末を待つ
     await act(async () => {});
-    expect(kanbanRowOf("画面").querySelector(".activity-running")).toBeTruthy();
-    expect(kanbanRowOf("画面").querySelector(".row-end-sub")!.textContent).toBe("実行中");
+    expect(kanbanRowOf("画面").querySelector(".run-pips-caption")!.textContent).toBe(
+      "implement · 12分",
+    );
     expect(document.querySelector(".notice")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });
@@ -2028,12 +2068,12 @@ describe("画面", () => {
     ]);
     // 「Iteration なし」の区画の行（区画の外 t5 low）も同じ印を出す
     expect(none!.querySelector(".row .priority-mark .priority-text")!.textContent).toBe("low");
-    // 状態の丸印は状態ごとに出す（review 1・in_progress 2・todo 1）。カンバンの Run の印（activity-mark）は出さない
+    // 状態の丸印は状態ごとに出す（review 1・in_progress 2・todo 1）。カンバンの Run の並び（run-pips）は出さない
     expect(list.querySelectorAll(".status-dot")).toHaveLength(4);
     expect(list.querySelectorAll(".status-dot.status-review")).toHaveLength(1);
     expect(list.querySelectorAll(".status-dot.status-in_progress")).toHaveLength(2);
     expect(list.querySelectorAll(".status-dot.status-todo")).toHaveLength(1);
-    expect(list.querySelector(".activity-mark")).toBeNull();
+    expect(list.querySelector(".run-pips")).toBeNull();
     // Iteration が 1 つもなければ区画を出さず、行は一覧だけで出て、右端の札は同じ
     cleanup();
     client.data.iterations = [];

@@ -1,4 +1,4 @@
-// Run の表示部品（チケット詳細の Run の節）：結果の表示名と印・丸印、トークン数・件数・時間の書き方。
+// Run の表示部品（チケット詳細の Run の節。結果の種類と表示名はカンバンの行の Run の並び（row-end.tsx）も使う）：結果の表示名と印・丸印、トークン数・件数・時間の書き方。
 // 取れなかった値（null）は 0 と見せず「—」で出し（RN-2）、推定を含む値には「~」を前に付ける
 
 import type { RunView } from "../types.js";
@@ -18,8 +18,8 @@ export const RESULT_LABELS: Record<RunResultKey, string> = {
   unfinished: msg("未完了"),
 };
 
-/** 結果の種類（実行中・未完了を含む） */
-export function runResultKey(run: RunView): RunResultKey {
+/** 結果の種類（実行中・未完了を含む）。Run の要約（run.recent の RunSummary）にも使う */
+export function runResultKey(run: Pick<RunView, "running" | "result">): RunResultKey {
   if (run.running) return "running";
   return run.result ?? "unfinished";
 }

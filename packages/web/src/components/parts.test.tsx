@@ -8,7 +8,6 @@ import { setLanguage } from "../l10n.js";
 import { PRIORITY_CRITERIA_EN } from "../l10n-en.js";
 import { configFields } from "@deguboard/core";
 import {
-  ActivityMark,
   IdLinkedText,
   PriorityMark,
   ProgressBar,
@@ -263,34 +262,19 @@ describe("状態の印と空の一覧", () => {
   });
 });
 
-describe("カンバンの行の頭の印", () => {
-  it("running と idle の印は、それぞれ読み上げ用の名前を持つ", async () => {
-    mount(
-      <>
-        <ActivityMark activity="running" />
-        <ActivityMark activity="idle" />
-      </>,
-    );
-    await screen.findByRole("img", { name: "Run が実行中" });
-    screen.getByRole("img", { name: "着手済み（実行中の Run なし）" });
-  });
-
-  it("kanban の行は head の印を出し、list の行は head を使わず状態の丸印を出す", async () => {
+describe("カンバンの行の頭", () => {
+  it("kanban の行は頭に何も出さず番号から始め、list の行は状態の丸印を出す", async () => {
     const t = ticket({ id: "t1", status: "in_progress" });
     mount(
       <>
-        <TicketRow ticket={t} variant="kanban" head={<ActivityMark activity="idle" />} />
-        <TicketRow ticket={t} head={<ActivityMark activity="idle" />} />
+        <TicketRow ticket={t} />
         <TicketRow ticket={t} variant="kanban" />
       </>,
     );
     await screen.findAllByText("t1");
-    const [withHead, list, plain] = [...document.querySelectorAll<HTMLElement>(".ticket-row")];
-    const idle = { name: "着手済み（実行中の Run なし）" };
-    expect(within(withHead!).getByRole("img", idle)).toBeTruthy();
-    expect(within(list!).queryByRole("img", idle)).toBeNull();
+    const [list, kanban] = [...document.querySelectorAll<HTMLElement>(".ticket-row")];
     expect(within(list!).getByRole("img", { name: "In Progress" })).toBeTruthy();
-    expect(within(plain!).queryByRole("img", idle)).toBeNull();
-    expect(within(plain!).getByText("t1")).toBeTruthy();
+    expect(within(kanban!).queryByRole("img")).toBeNull();
+    expect(kanban!.firstElementChild!.tagName).toBe("CODE");
   });
 });

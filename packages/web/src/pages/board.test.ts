@@ -7,7 +7,6 @@ import {
   boardIterationSelection,
   boardSelection,
   hideClosedFinished,
-  rowActivity,
   ticketProgress,
   ticketsInSelection,
 } from "./board.js";
@@ -57,22 +56,6 @@ describe("左パネルのカンバンの見出し", () => {
       STATUSES.flatMap((status, i) => Array.from({ length: i + 1 }, () => ({ status }))),
     ];
     for (const tickets of cases) expect(ticketProgress(tickets)).toEqual(progressOf(tickets));
-  });
-});
-
-describe("左パネルのカンバンの行の頭の印", () => {
-  const running = new Set(["t1", "t3"]);
-
-  it("実行中の Run があれば Status によらず running、なければ in_progress だけ idle で、ほかは出さない", () => {
-    expect(rowActivity({ id: "t1", status: "in_progress" }, running)).toBe("running");
-    expect(rowActivity({ id: "t3", status: "review" }, running)).toBe("running");
-    expect(rowActivity({ id: "t2", status: "in_progress" }, running)).toBe("idle");
-    expect(rowActivity({ id: "t4", status: "todo" }, running)).toBeUndefined();
-    expect(rowActivity({ id: "t5", status: "done" }, new Set())).toBeUndefined();
-  });
-
-  it("実行中の Run を読み終えるまで（null）は、in_progress でも出さない", () => {
-    expect(rowActivity({ id: "t2", status: "in_progress" }, null)).toBeUndefined();
   });
 });
 

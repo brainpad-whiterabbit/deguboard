@@ -87,11 +87,11 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
   const [round, setRound] = useState(0);
   // 前に引いたときの一覧。変わっていたら（読み直した）引いた組を忘れて、出ている場所の分をすべて引き直す
   const seen = useRef<readonly unknown[]>([]);
-  const { tickets, iterations, epics, plans, runningTickets } = store;
+  const { tickets, iterations, epics, plans, ticketRuns } = store;
   const lang = language();
 
   useEffect(() => {
-    const data = [tickets, iterations, epics, plans, runningTickets];
+    const data = [tickets, iterations, epics, plans, ticketRuns];
     if (data.some((d, n) => d !== seen.current[n])) {
       seen.current = data;
       asked.current = new Set();
@@ -122,7 +122,7 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
           return next;
         });
       });
-  }, [client, round, lang, tickets, iterations, epics, plans, runningTickets]);
+  }, [client, round, lang, tickets, iterations, epics, plans, ticketRuns]);
 
   const want = useCallback((key: string) => {
     wanted.current.set(key, (wanted.current.get(key) ?? 0) + 1);

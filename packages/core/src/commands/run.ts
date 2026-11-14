@@ -1159,7 +1159,7 @@ export const RECENT_RUN_LIMIT = 3;
  */
 export type RunSummary = Pick<
   Run,
-  "id" | "step" | "result" | "started_at" | "finished_at" | "review" | "error"
+  "id" | "step" | "result" | "started_at" | "finished_at" | "review" | "retries" | "error"
 > & { running: boolean } & Partial<Pick<Run, "waiting_since" | "settling_since">>;
 
 /** チケットごとの Run の要約。total はそのチケットの全部の Run の件数で、runs は新しい順に RECENT_RUN_LIMIT 件まで */
@@ -1177,6 +1177,7 @@ function runSummary(run: Run, running: boolean): RunSummary {
     started_at: run.started_at,
     finished_at: run.finished_at,
     review: run.review,
+    retries: run.retries,
     error: run.error,
     running,
     ...(running ? { waiting_since: run.waiting_since, settling_since: run.settling_since } : {}),
@@ -1186,7 +1187,7 @@ function runSummary(run: Run, running: boolean): RunSummary {
 export const runRecent = defineCommand({
   name: "run.recent",
   group: "run",
-  summary: `Summarize the Runs of each ticket: total (the number of all its Runs) and runs (the newest ${RECENT_RUN_LIMIT}, newest first). One summary has id, step, result, started_at, finished_at, review, error, and running; an unfinished Run (running: true, from deguboard-local/runs/ on this machine) also has waiting_since and settling_since. Tickets with no Run are left out. Iteration and Project follow each ticket's current value (same as run.list). Read the usage and the full list with run.list`,
+  summary: `Summarize the Runs of each ticket: total (the number of all its Runs) and runs (the newest ${RECENT_RUN_LIMIT}, newest first). One summary has id, step, result, started_at, finished_at, review, retries (the number of findings fixed), error, and running; an unfinished Run (running: true, from deguboard-local/runs/ on this machine) also has waiting_since and settling_since. Tickets with no Run are left out. Iteration and Project follow each ticket's current value (same as run.list). Read the usage and the full list with run.list`,
   input: z.object({
     iteration: iterationRef
       .optional()
