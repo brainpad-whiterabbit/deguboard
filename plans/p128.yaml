@@ -6,7 +6,7 @@ after:
     - t886
   t892:
     - t891
-pending_approval: true
+pending_approval: false
 details:
   t886:
     scope: README 日英版の ready とマージの条件を現在の承認手順に合わせる
@@ -32,3 +32,5 @@ details:
     scope: 履歴の VS Code テストの実行順依存を解消し、空の承認上書き設定を検証する
     approach: 履歴に必要な状態と行の存在をテスト内で確保し、空設定では承認付きでも GATE_FAILED となり gh を呼ばないことを確かめる
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-14T06:11:49Z
