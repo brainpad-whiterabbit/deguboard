@@ -1,5 +1,5 @@
 // dg hooks install / uninstall / check：harness の設定に dg hook を呼ぶフックを書く・外す・確かめる（AG-5・AG-9、ADR-025）。
-// 判定と書き込みはここ（core）に置き、CLI（packages/cli/src/hooks.ts と program.ts）は引数と結果を写すだけにする（Skill の skill-files.ts と同じ形。ADR-033）。
+// 判定と書き込みはここ（core）に置き、CLI（packages/cli/src/hooks.ts と program.ts）は引数と結果を写すだけにする（Skill の skill-files.ts と同じ形）。
 // コマンドの一覧（registry.ts）には入れない。フックを入れるのは Bash のある各自のマシンの操作で、MCP と画面には出さない（AG-4）。
 // 書くイベントと設定のファイルは agent の Adapter の hooks が決める。手で足した他のフックは残し、dg のフックだけを入れ替える。
 // 既定は追跡しない local の設定に、動いている node と dg.js の絶対パスで書き、隣の .gitignore にその設定の行を足す（t698・AG-9）。起動ファイル経由なら起動ファイルの絶対パスで書く（t735）。
