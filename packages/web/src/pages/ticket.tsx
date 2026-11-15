@@ -6,7 +6,7 @@
 // 右の列（属性）は components/ticket-props-panel.tsx（値を押してその場で直す）。編集のボタンはタイトルと本文だけを入力欄にする。
 // 本文の受け入れ条件のチェックボックスは、押すとその項目だけを ticket.check で付け外しする（読んだ本文を base に渡し、間に書き込みがあれば拒否されて戻す）
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCommandData } from "../command-data.js";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { StatusDot, PriorityMark, TicketLink } from "../components/parts.js";
@@ -25,19 +25,24 @@ import { trNode } from "../l10n-node.js";
  * チケットの Workflow。チケットの workflow、なければ既定の Workflow で、core の requireWorkflowFor と同じ解決にする。
  * 一覧が読んだ既定の Workflow（store.workflow。config の default_workflow）と同じなら引き直さない。別の Workflow は読み終えるまで null。
  * 読めなければ理由を通知に出し、null のまま（パネルの Status の選択は今の Status だけで、任意フィールドも出さない）。
- * useCommandData は使わない：失敗を画面のエラーでなく通知に出し、一覧の読み直しでは引き直さない（Workflow の定義はチケットの書き込みで変わらない）
+ * useCommandData は使わない：失敗を画面のエラーでなく通知に出し、一覧の読み直しでは引き直さない（Workflow の定義はチケットの書き込みで変わらない）。
+ * 読んだ Workflow は store と同じく core が返したままを持ち、返すときに shownWorkflow で訳す（store.workflow は store が訳したもの）
  */
 function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowView | null {
   const id = ticket?.workflow;
   const other = id !== undefined && id !== store.workflow?.definition.id ? id : null;
   const [loaded, setLoaded] = useState<{ id: string; view: WorkflowView } | null>(null);
+  const shownLoaded = useMemo(
+    () => loaded && { id: loaded.id, view: shownWorkflow(loaded.view) },
+    [loaded],
+  );
   const { client, notify } = store;
   useEffect(() => {
     if (!other) return;
     let alive = true;
     client
       .run<WorkflowView>("workflow.show", { workflow: other })
-      .then((r) => alive && setLoaded({ id: other, view: shownWorkflow(r.data) }))
+      .then((r) => alive && setLoaded({ id: other, view: r.data }))
       .catch(
         (e: unknown) =>
           alive &&
@@ -52,7 +57,7 @@ function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowV
     };
   }, [other, client, notify]);
   if (!other) return store.workflow;
-  return loaded?.id === other ? loaded.view : null;
+  return shownLoaded?.id === other ? shownLoaded.view : null;
 }
 
 export function TicketPage({ id }: { id: string }) {

@@ -488,11 +488,11 @@ export const CORE_MESSAGES: CoreTextTable = {
 };
 
 /**
- * dg の既定の値の訳（shownDefault・storedDefault。UI-11）。鍵は core が持つ既定の文そのもので、値は表示言語ごとの訳。
- * 画面は値が既定と同じときだけここを引くので、書き換えた値は鍵と同じ文でない限り訳さず、訳のない言語では既定の文のまま出す。
+ * dg の既定の値の訳（shownDefault・shownDefaultText・storedDefault。UI-11）。鍵は core が持つ既定の文そのもので、値は表示言語ごとの訳。
+ * 画面は値が既定と同じときか、既定そのものを添えるとき（「既定は …」）だけここを引くので、書き換えた値は鍵と同じ文でない限り訳さず、訳のない言語では既定の文のまま出す。
  * 既定の値を訳して出す項目は、ここに鍵を足すだけでよい（判定と引き方は l10n.ts の 1 か所）。
  * 優先度の判断基準（config の priority.*）と振り返りの既定の観点（retro.perspectives）の名前と問いは core が英語で持つので、日本語の訳を置く
- * （名前と問いの両方が既定のままの観点だけを訳す。判定は設定画面の shownRetroPerspectives）。
+ * （名前と問いの両方が既定のままの観点だけを訳す。判定は l10n.ts の isDefaultPerspective）。
  * Workflow の雛形の名前と step・任意フィールドのラベルは core が英語で持つので日本語の訳を置く（判定は l10n.ts の shownWorkflow）。
  * 鍵が core の既定の文にあることは l10n.test.ts が確かめる
  */

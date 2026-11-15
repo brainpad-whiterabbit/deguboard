@@ -30,7 +30,15 @@ import type {
   RetroMetric,
   RetroPerspective,
 } from "../types.js";
-import { configDescription, shownDefault, storedDefault, tr, msg } from "../l10n.js";
+import {
+  configDescription,
+  isDefaultPerspective,
+  shownDefault,
+  shownDefaultText,
+  storedDefault,
+  tr,
+  msg,
+} from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
 /** 画面のまとまり。キーの最上位（commit.mode なら commit）で振り分ける */
@@ -947,8 +955,8 @@ export function metricSummary(definition: string): string {
 }
 
 /**
- * 振り返りの観点を画面に出す形にする。名前と問いの両方が既定（config.show の defaults の同じ ID の観点）と同じ観点だけを
- * 既定のままとみなし、名前と問いを表示言語の訳で出す（shownDefault。UI-11）。片方でも書き換えた観点と、既定にない観点は書いたまま出す
+ * 振り返りの観点を画面に出す形にする。既定（config.show の defaults の同じ ID の観点）のままの観点（isDefaultPerspective）だけ、
+ * 名前と問いを表示言語の訳で出す（shownDefaultText。UI-11）。片方でも書き換えた観点と、既定にない観点は書いたまま出す
  * （観点ごとに決める。名前だけ訳して問いが別の言語になるのを避ける）。指標の定義は訳さない
  */
 export function shownRetroPerspectives(
@@ -958,13 +966,14 @@ export function shownRetroPerspectives(
   return Object.fromEntries(
     Object.entries(perspectives).map(([id, p]) => {
       const d = defaultPerspectiveOf(id, defaults);
-      if (d === undefined || p.name !== d.name || p.question !== d.question) return [id, p];
+      if (d === undefined || !isDefaultPerspective(p, d)) return [id, p];
+      // 名前と問いは既定と同じと決まったので、比べずに既定の文の訳を引く
       return [
         id,
         {
           ...p,
-          name: String(shownDefault(p.name, d.name)),
-          question: String(shownDefault(p.question, d.question)),
+          name: String(shownDefaultText(d.name)),
+          question: String(shownDefaultText(d.question)),
         },
       ];
     }),
@@ -980,7 +989,7 @@ function defaultPerspectiveOf(
 
 /**
  * 既定と違う観点（ほかの項目の「変更あり」と同じ印を付ける）。値は名前か問いを書き換えた観点の既定の観点で、既定にない ID の観点は "added"。
- * 既定と同じかは shownRetroPerspectives と同じく名前と問いで決める（指標は既定が空なので比べない）。
+ * 既定と同じかは shownRetroPerspectives と同じ isDefaultPerspective で決める。
  * 既定を渡さない古い応答では比べられないので、どの観点にも印を付けない
  */
 export function retroChanges(
@@ -992,7 +1001,7 @@ export function retroChanges(
   for (const [id, p] of Object.entries(perspectives)) {
     const d = defaultPerspectiveOf(id, defaults);
     if (d === undefined) out[id] = "added";
-    else if (p.name !== d.name || p.question !== d.question) out[id] = d;
+    else if (!isDefaultPerspective(p, d)) out[id] = d;
   }
   return out;
 }
@@ -1077,7 +1086,7 @@ function RetroSection({
                       ? tr("既定にない観点")
                       : tr(
                           "既定は {0}",
-                          `${String(shownDefault(change.name, change.name))}: ${String(shownDefault(change.question, change.question))}`,
+                          `${String(shownDefaultText(change.name))}: ${String(shownDefaultText(change.question))}`,
                         )
                   }
                 >
