@@ -1,0 +1,35 @@
+{
+  "id": "r20261115-173232-1af9",
+  "ticket": "t1006",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-15T17:32:32Z",
+  "finished_at": "2026-11-15T17:40:23Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "setup check always looks at origin and does not validate the data remote name or data branch as dg init does",
+    "PR body does not say the data remote and data branch options were added beyond the Plan and why"
+  ],
+  "usage": {
+    "input": 30,
+    "output": 15306,
+    "cache_read": 902768,
+    "cache_write": 70118
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 16,
+    "bash": 14,
+    "other": 1,
+    "read_before_write": 5,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "6296b215-326e-44d8-985a-825ffa47ebfb",
+  "review": null,
+  "waited_seconds": 0
+}
