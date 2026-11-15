@@ -47,7 +47,7 @@ worktree:
 guide:
   notes:
     overview: ""
-    import: ""
+    import: docs/guide-notes/import.md
     assign: ""
     check: ""
     plan: docs/guide-notes/plan.md
@@ -63,6 +63,7 @@ guide:
     status: ""
     explain: ""
     retro: ""
+    config: ""
     all: ""
 commit:
   mode: each
