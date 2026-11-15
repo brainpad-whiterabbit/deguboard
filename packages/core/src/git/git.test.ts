@@ -464,7 +464,7 @@ describe("読みの git と index.lock", () => {
     }
     expect(reads).toBeGreaterThan(0);
     const subjects = (await git(a.repo.dataDir, ["log", "--format=%s"])).stdout.split("\n");
-    expect(subjects.filter((s) => / を作成$/.test(s))).toHaveLength(writes);
+    expect(subjects.filter((s) => s.endsWith(" を作成"))).toHaveLength(writes);
   });
 });
 
