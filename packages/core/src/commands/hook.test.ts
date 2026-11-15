@@ -5,6 +5,7 @@ import {
   readdir,
   readFile,
   rm,
+  stat,
   utimes,
   writeFile,
 } from "node:fs/promises";
@@ -2602,7 +2603,9 @@ describe("落ちたセッションに残ったサブエージェントの Run（
     ctx.now = () => new Date(now - 2 * 3600_000);
     const stale = await oldSubagentRun(ctx, parent, "t1", "implement", 3600_000);
     ctx.now = realNow;
-    const lastWritten = toIsoDateTime(new Date(now - 3600_000));
+    // 期待する時刻は記録そのものの更新時刻から取る（秒の境目で Date.now() とずれて落ちないように）
+    const oldSub = path.join(path.dirname(parent), "s-old", "subagents", "agent-o1.jsonl");
+    const lastWritten = toIsoDateTime((await stat(oldSub)).mtime);
 
     await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=implement"));
     const closed = await closedRun(ctx, stale.id);
