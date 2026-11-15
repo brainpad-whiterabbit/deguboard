@@ -1,39 +1,13 @@
 // コード中の ID（t12・s3・e2・p7）へのホバーとリンク（UI-12）。VS Code の API に触れない部分で、extension.ts から呼ぶ。
-// 文章から ID を拾う正規表現と、存在する ID の索引（ticket.list などの行から作る）、ホバーの文言、開くルートを決める。
-// ID の形は core の用語（接頭辞＋ゼロ埋めなしの連番。t12・s3・e2・p7）に合わせ、種類と開くルートは core の idKindOf・detailRouteOf で決める
+// 存在する ID の索引（ticket.list などの行から作る）、ホバーの文言、開くルートを決める。
+// 文章から ID を拾う規則は core の findIdsInText、種類と開くルートは core の idKindOf・detailRouteOf で決める
 
-import { detailRouteOf, type IdKind } from "@deguboard/core";
+import { detailRouteOf, findIdsInText, type FoundId, type IdKind } from "@deguboard/core";
 import { t } from "./l10n.js";
 
 /** 種類の表示名（ホバーと「チケットへ移動」で使う）。Iteration・Epic・Plan は用語なので訳さない */
 export function kindLabel(kind: IdKind): string {
   return { ticket: t("Ticket"), iteration: "Iteration", epic: "Epic", plan: "Plan" }[kind];
-}
-
-/** 文章の中で見つけた ID と、その位置（text の先頭からの文字数。end は含まない） */
-export interface FoundId {
-  id: string;
-  start: number;
-  end: number;
-}
-
-/**
- * ID の形。abc12・feat/t12・v1.t2・t12abc・t12-foo・t12.md のように、語や経路の一部になっているものは拾わない
- * （前は英数字・_・/・.・- でないこと、後ろは英数字・_・/ でなく、- や . のあとに語が続かないこと）。
- * 文末の「t12.」「t12,」や括弧（全角を含む）・引用符・バッククォート・#・@ に続く ID と、日本語に隣り合う「t12を」「はt12」は拾う。
- * 既知の誤検出（仕様）：コードの変数名の `e1`・`t1`、`s3://` の s3、`?id=t12` のように、形が合えば拾う。
- * ただしホバーとリンクは存在する ID にしか付かないので、実害は存在する番号と偶然重なるときだけ。
- * web の目標の ID のリンク（packages/web/src/components/parts.tsx の TEXT_ID）も同じ境界の規則にしている。変えるときは両方を直す
- */
-const ID_PATTERN = /(?<![\w/.-])[tsep][1-9]\d*(?![\w/]|[-.]\w)/g;
-
-/** 文章の中の ID を位置つきで拾う（存在するかは確かめない） */
-export function findIds(text: string): FoundId[] {
-  return [...text.matchAll(ID_PATTERN)].map((m) => ({
-    id: m[0],
-    start: m.index,
-    end: m.index + m[0].length,
-  }));
 }
 
 /** 索引に載せる項目。ホバーに出す文言の材料だけを持つ */
@@ -139,7 +113,7 @@ export function openIdArgs(a0: unknown, a1?: unknown): { id: string; folder?: st
  * Ctrl/⌘+クリックで開くのは core の detailRouteOf のルート（チケット・Iteration・Epic・Plan の詳細）
  */
 export function linksOf(line: string, index: IdIndex): FoundId[] {
-  return findIds(line).filter((f) => index.has(f.id) && detailRouteOf(f.id) !== undefined);
+  return findIdsInText(line).filter((f) => index.has(f.id) && detailRouteOf(f.id) !== undefined);
 }
 
 /**

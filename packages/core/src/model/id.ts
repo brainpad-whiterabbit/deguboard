@@ -65,6 +65,33 @@ export function idNumber(id: string): number {
   return m ? Number(m[1]) : Number.NaN;
 }
 
+/** 文章の中で見つけた ID と、その位置（text の先頭からの文字数。end は含まない） */
+export interface FoundId {
+  id: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * 文章の中の ID の形（VS Code 拡張のホバーとリンク、UI-12）。abc12・feat/t12・v1.t2・t12abc・t12-foo・t12.md のように、
+ * 語や経路の一部になっているものは拾わない（前は英数字・_・/・.・- でないこと、後ろは英数字・_・/ でなく、- や . のあとに語が続かないこと）。
+ * 文末の「t12.」「t12,」や括弧（全角を含む）・引用符・バッククォート・#・@ に続く ID と、日本語に隣り合う「t12を」「はt12」は拾う。
+ * 既知の誤検出（仕様）：コードの変数名の `e1`・`t1`、`s3://` の s3、`?id=t12` のように、形が合えば拾う。
+ * 使う側は存在する ID にしか印を付けないので、実害は存在する番号と偶然重なるときだけ。
+ * web の目標の ID のリンク（packages/web/src/components/parts.tsx の TEXT_ID）は同じ規則を写している。
+ * web は core を `import type` でしか読まない（ADR-033）ため。変えるときは両方を直す
+ */
+const ID_IN_TEXT = /(?<![\w/.-])[tsep][1-9]\d*(?![\w/]|[-.]\w)/g;
+
+/** 文章の中の ID を位置つきで拾う（存在するかは確かめない） */
+export function findIdsInText(text: string): FoundId[] {
+  return [...text.matchAll(ID_IN_TEXT)].map((m) => ({
+    id: m[0],
+    start: m.index,
+    end: m.index + m[0].length,
+  }));
+}
+
 /** 番号順に並べる比較関数（辞書順では t100 が t2 より前に来るため） */
 export function compareIds(a: string, b: string): number {
   return idNumber(a) - idNumber(b);

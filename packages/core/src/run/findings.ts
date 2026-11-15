@@ -26,7 +26,7 @@ export function isHeavyFinding(f: FindingBody, heavyCategories: readonly string[
  * 英語の guide を読んだ見直し役も同じ語で書くので、guide の言語によらず見分ける（t489）。
  * category で決めるので、どの回の一覧でも同じ規則で決まり、dg が後から印を付け直さなくてすむ
  */
-export function isAcceptanceFinding(f: FindingBody): boolean {
+function isAcceptanceFinding(f: FindingBody): boolean {
   // "acceptance criteri" は criteria と criterion の両方に当たる。"acceptance test" など受け入れ条件でない語は拾わない
   return /受け入れ条件|acceptance criteri/i.test(f.category);
 }

@@ -3,6 +3,7 @@
 
 import { execFile } from "node:child_process";
 import { t } from "./l10n.js";
+import { parseVersion } from "./launcher.js";
 
 export type DgLookup =
   | { kind: "found"; version: string }
@@ -38,9 +39,9 @@ export async function resolveDg(cwd?: string, run: RunVersion = runDgVersion): P
   }
 }
 
+/** 版のメジャー。読めない版（major.minor.patch の形でない）は undefined */
 export function majorOf(version: string): number | undefined {
-  const m = /^v?(\d+)\./.exec(version.trim());
-  return m ? Number(m[1]) : undefined;
+  return parseVersion(version)?.[0];
 }
 
 export interface DgAdvice {

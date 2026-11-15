@@ -86,8 +86,9 @@ export function DetailLink({
 }
 
 /**
- * 文の中の ID（t12・e3・s2・p7）。境界の規則は VS Code 拡張の ID_PATTERN（packages/vscode/src/ids.ts）と同じにし、
- * カンバンとエディタで同じ字だけをリンクにする（web は vscode に依存しないので形を写している。変えるときは両方を直す）。
+ * 文の中の ID（t12・e3・s2・p7）。境界の規則は core の findIdsInText（packages/core/src/model/id.ts の ID_IN_TEXT）と同じにし、
+ * カンバンとエディタで同じ字だけをリンクにする。web は core を `import type` でしか読まない（ADR-033。Vite が node のモジュールを
+ * 束ねない）ので、形を写している。変えるときは両方を直す。
  * 語や経路の一部（step1・feat/t12・v1.t2・t12abc・t12-foo・t12.md）は拾わず、文末の「t12.」・括弧・日本語に隣り合う「t12を」は拾う
  */
 const TEXT_ID = /(?<![\w/.-])([tsep][1-9]\d*)(?![\w/]|[-.]\w)/;

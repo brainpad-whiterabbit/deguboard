@@ -166,7 +166,7 @@ export interface ChangesSince {
  * 前回の全体の検査（full）からの変化で回す検査を選ぶ（t741）。軽い検査は、コマンドが変わらず、祖先のまま merge がなく、
  * 前回から今までの差分のファイルがすべて actions.light_paths に入るときだけ。ほかは全体（actions.test）を回す
  */
-export function chooseCheckSince(
+function chooseCheckSince(
   actions: Pick<Config["actions"], "test" | "light_test" | "light_paths">,
   full: FullCheck,
   since: ChangesSince,

@@ -164,7 +164,11 @@ export function storedDefault(text: unknown, defaultValue: unknown): unknown {
   return translation !== undefined && text === translation ? defaultValue : text;
 }
 
-/** core が返す決まった文の中の ID（t12・s3・e2・p7）と、外す場所の既定の「Iteration/Epic」 */
+/**
+ * core が返す決まった文の中の ID（t12・s3・e2・p7）と、外す場所の既定の「Iteration/Epic」。
+ * 人の書いた文から ID を拾う規則（core の findIdsInText・parts.tsx の TEXT_ID）とは分けておく。ここは core が組んだ英語の文の
+ * 可変の部分を {0} に置き換えて表を引く鍵にするだけで、ID は core が整えた形で語の境目に来るので \b で足りる
+ */
 const CORE_ARG = /\b[tsep]\d+\b|Iteration\/Epic/g;
 
 /**

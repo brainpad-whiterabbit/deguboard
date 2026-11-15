@@ -59,9 +59,7 @@ export async function fetchData(repo: GitRepo, timeoutMs = 60_000): Promise<Fetc
 }
 
 /** 作業ブランチの照合に使うので、コードのリモートのすべてのブランチを取り込む（消えたブランチは prune）。失敗は理由を返す */
-export async function fetchCode(
-  repo: GitRepo,
-): Promise<{ ok: true } | { ok: false; detail: string }> {
+async function fetchCode(repo: GitRepo): Promise<{ ok: true } | { ok: false; detail: string }> {
   if (!repo.codeRemote) return { ok: true };
   const result = await remoteGit(repo, ["fetch", "--prune", repo.codeRemote], 120_000);
   return result.code === 0 ? { ok: true } : { ok: false, detail: result.stderr.trim() };
