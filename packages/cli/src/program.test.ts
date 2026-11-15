@@ -178,7 +178,7 @@ describe("dg", () => {
     expect(claimed.json().data).toMatchObject({
       status: "in_progress",
       assignee: "claude/agent",
-      branch: "feature/t1-login-validation",
+      branch: "t1-login-validation",
     });
 
     const shown = await dg(f.cloneA, ["ticket", "show", "t1"]);
@@ -817,6 +817,24 @@ describe("dg", () => {
     // iteration・epic・workflow・pr・branch・assignee・gate
     expect(help.match(/\(none to clear\)/g)).toHaveLength(7);
     expect(help).not.toContain("null");
+  });
+
+  it("ticket claim と ticket update のヘルプは、作業ブランチの名前の形（<id>-<値>）と値に使える文字を案内する（ST-3・t966）", async () => {
+    const f = await fixture();
+    for (const op of ["claim", "update"]) {
+      // 折り返しの位置によらず読めるように、空白を 1 つに詰めて比べる
+      const help = (await dg(f.cloneA, ["ticket", op, "--help"])).out.replace(/\s+/g, " ");
+      expect(help, op).toContain("The name is recorded as <id>-<value> (t12-fix-login)");
+      expect(help, op).toContain(
+        "short English words as the value, in lowercase letters, digits, and hyphens, up to 50 characters",
+      );
+      expect(help, op).toContain("A value that starts with another ticket's ID is rejected");
+    }
+    const claim = (await dg(f.cloneA, ["ticket", "claim", "--help"])).out.replace(/\s+/g, " ");
+    expect(claim).toContain(
+      "<id>-<slug of the title> if the title is ASCII only, and <id> otherwise",
+    );
+    expect(claim).not.toContain("feature/");
   });
 
   it("隠しコマンド merge-driver は frontmatter を 3-way マージして ours に書き、同じフィールドの競合は終了コード 1 にする。--help には出ない", async () => {

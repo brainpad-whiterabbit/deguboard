@@ -51,17 +51,17 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const implement = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" })
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" })
     ).data.run!;
     await runCommand(ticketClaim, agent, {
       no_worktree: true,
       ticket: "t2",
-      branch: "feat/t2",
+      branch: "t2",
       no_run: true,
     });
-    await git(f.cloneA, ["branch", "feat/t1"]);
+    await git(f.cloneA, ["branch", "t1"]);
     const restore = await fakeGh(f.root, {
-      "feat/t1|41":
+      "t1|41":
         '{"number":41,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
     });
     try {
@@ -127,18 +127,18 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", retry_reasons: ["x"] }),
       ).rejects.toBeInstanceOf(UsageError);
       await expect(
-        runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/other" }),
+        runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1-other" }),
       ).rejects.toBeInstanceOf(UsageError);
       await expect(
         runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", without_branch: true }),
       ).rejects.toBeInstanceOf(UsageError);
       // 同じブランチ名なら通り、fix の Run が開いたままなので重ねては開かず閉じてから開く
-      await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T01:30:00Z");
+      await pushCommitAt(f.cloneA, "t1", "2026-11-06T01:30:00Z");
       clock = new Date("2026-11-06T02:00:00Z");
       const again = await runCommand(ticketClaim, agent, {
         no_worktree: true,
         ticket: "t1",
-        branch: "feat/t1",
+        branch: "t1",
         retry_reasons: ["指摘 B", "指摘 C"],
       });
       const fix2 = again.data.run!;
@@ -190,7 +190,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     );
     await runCommand(ticketCreate, human, { title: "Crashed fix" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
-    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" });
+    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" });
     const restore = await fakeGh(f.root, {
       "41": '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
     });
@@ -256,7 +256,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     await runCommand(ticketClaim, agent, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feat/t1",
+      branch: "t1",
       no_run: true,
     });
     const restore = await fakeGh(f.root, {
@@ -320,7 +320,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     );
     await runCommand(ticketCreate, human, { title: "Raced fix" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
-    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" });
+    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" });
     const restore = await fakeGh(f.root, {
       "41": '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
     });
@@ -391,7 +391,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       await runCommand(ticketClaim, b, {
         no_worktree: true,
         ticket: "t1",
-        branch: "feat/t1",
+        branch: "t1",
         no_run: true,
       });
       await runCommand(ticketUpdate, b, { ticket: "t1", pr: 41 });
@@ -426,9 +426,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       const fresh = await runCommand(ticketClaim, agent, {
         no_worktree: true,
         ticket: "t1",
-        branch: "feat/t1-again",
+        branch: "t1-again",
       });
-      expect(fresh.data).toMatchObject({ status: "in_progress", branch: "feat/t1-again" });
+      expect(fresh.data).toMatchObject({ status: "in_progress", branch: "t1-again" });
       expect(fresh.data.pr).toBeUndefined();
       expect(fresh.warnings).not.toContainEqual(expect.stringContaining("手直しの開始"));
       expect(
@@ -456,12 +456,12 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     await runCommand(ticketClaim, agent, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feat/t1",
+      branch: "t1",
       no_run: true,
     });
-    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "feat/t2" });
-    await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t3", branch: "feat/t3" });
-    for (const t of ["t1", "t2", "t3"]) await git(f.cloneA, ["branch", `feat/${t}`]);
+    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "t2" });
+    await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t3", branch: "t3" });
+    for (const t of ["t1", "t2", "t3"]) await git(f.cloneA, ["branch", `${t}`]);
     await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
     await runCommand(ticketUpdate, agent, { ticket: "t2", pr: 42 });
     await runCommand(ticketUpdate, human, { ticket: "t3", pr: 43 });
@@ -488,9 +488,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       acceptance: ["a"],
     });
     const agent = await agentWithRuns(f.cloneA, () => clock);
-    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" });
-    await git(f.cloneA, ["branch", "feat/t1"]);
-    await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T00:30:00Z");
+    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" });
+    await git(f.cloneA, ["branch", "t1"]);
+    await pushCommitAt(f.cloneA, "t1", "2026-11-06T00:30:00Z");
     // PR の作成（gh がないので今の時刻）で実装の Run を閉じる
     clock = new Date("2026-11-06T01:00:00Z");
     await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
@@ -501,8 +501,8 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     // 実装の Run の期間（00:00〜01:00）の中の push は指摘しない
     expect(await outside()).toEqual([]);
     // 閉じた後に push されたコミットは、どの Run の期間にも入らない
-    await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T02:00:00Z");
-    const tip = (await git(f.cloneA, ["rev-parse", "--short=7", "origin/feat/t1"])).stdout.trim();
+    await pushCommitAt(f.cloneA, "t1", "2026-11-06T02:00:00Z");
+    const tip = (await git(f.cloneA, ["rev-parse", "--short=7", "origin/t1"])).stdout.trim();
     expect(await outside()).toEqual([
       [
         "t1",
@@ -530,10 +530,10 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       await runCommand(ticketClaim, agent, {
         no_worktree: true,
         ticket: t,
-        branch: `feat/${t}`,
+        branch: `${t}`,
         no_run: true,
       });
-      await git(f.cloneA, ["branch", `feat/${t}`]);
+      await git(f.cloneA, ["branch", `${t}`]);
       await runCommand(ticketUpdate, agent, { ticket: t, pr: t === "t1" ? 41 : 42 });
     }
     await runCommand(ticketMove, agent, { ticket: "t2", status: "done" });
@@ -571,9 +571,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       acceptance: ["a"],
     });
     const agent = await agentWithRuns(f.cloneA, () => clock);
-    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" });
-    await git(f.cloneA, ["branch", "feat/t1"]);
-    await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T00:30:00Z");
+    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" });
+    await git(f.cloneA, ["branch", "t1"]);
+    await pushCommitAt(f.cloneA, "t1", "2026-11-06T00:30:00Z");
     clock = new Date("2026-11-06T01:00:00Z");
     await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
     // main に進みを作り、作業ブランチに取り込んで push する（マージコミットは 02:00）
@@ -583,10 +583,10 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       process.env["GIT_AUTHOR_DATE"] = process.env["GIT_COMMITTER_DATE"] = "2026-11-06T01:10:00Z";
       await git(f.cloneA, ["commit", "--quiet", "--allow-empty", "-m", "main が進む"]);
       await git(f.cloneA, ["push", "--quiet", "origin", "main"]);
-      await git(f.cloneA, ["checkout", "--quiet", "feat/t1"]);
+      await git(f.cloneA, ["checkout", "--quiet", "t1"]);
       process.env["GIT_AUTHOR_DATE"] = process.env["GIT_COMMITTER_DATE"] = "2026-11-06T02:00:00Z";
       await git(f.cloneA, ["merge", "--quiet", "--no-ff", "--no-edit", "main"]);
-      await git(f.cloneA, ["push", "--quiet", "origin", "feat/t1"]);
+      await git(f.cloneA, ["push", "--quiet", "origin", "t1"]);
       await git(f.cloneA, ["checkout", "--quiet", "main"]);
     } finally {
       delete process.env["GIT_AUTHOR_DATE"];
@@ -612,8 +612,8 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       await runCommand(ticketCreate, human, { title, summary: "s", acceptance: ["a"] });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     for (const t of ["t1", "t2", "t3"]) {
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: t, branch: `feat/${t}` });
-      await git(f.cloneA, ["branch", `feat/${t}`]);
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: t, branch: `${t}` });
+      await git(f.cloneA, ["branch", `${t}`]);
     }
     clock = new Date("2026-11-06T01:00:00Z");
     for (const t of ["t1", "t2", "t3"])
@@ -633,13 +633,13 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     await runCommand(runFinish, agent, { run: review2, result: "success" });
     // 見直しの後に、手直しの Run のないコミットを push する（コミットの時刻は 01:30）
     for (const t of ["t1", "t2", "t3"])
-      await pushCommitAt(f.cloneA, `feat/${t}`, "2026-11-06T01:30:00Z");
+      await pushCommitAt(f.cloneA, `${t}`, "2026-11-06T01:30:00Z");
     const missing = async () =>
       (await runCommand(lint, agent, {})).data.issues
         .filter((i) => i.code === "lint_run_fix_missing")
         .map((i) => [i.id, i.message]);
     const tipOf = async (t: string) =>
-      (await git(f.cloneA, ["rev-parse", "--short=7", `origin/feat/${t}`])).stdout.trim();
+      (await git(f.cloneA, ["rev-parse", "--short=7", `origin/${t}`])).stdout.trim();
     const message = (tip: string) =>
       `1 commit(s) after the review (${tip} etc.), but no fix Run (fix) after them. Do not rewrite the Run records. Check the content of the commits (git show <sha>) and tell a person whether they are fixes (this also happens with a push by a person or a rebase after the review, or with a Run opened on another machine)`;
     expect(await missing()).toEqual([
@@ -666,8 +666,8 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     );
     await runCommand(ticketCreate, human, { title: "Twice", summary: "s", acceptance: ["a"] });
     const agent = await agentWithRuns(f.cloneA, () => clock);
-    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" });
-    await git(f.cloneA, ["branch", "feat/t1"]);
+    await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" });
+    await git(f.cloneA, ["branch", "t1"]);
     clock = new Date("2026-11-06T01:00:00Z");
     await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
     // 1 回目の見直し（01:10〜01:20）のあとに手直しの claim（01:25）をして push（01:30）
@@ -683,7 +683,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       ticket: "t1",
       retry_reasons: ["指摘 A"],
     });
-    await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T01:30:00Z");
+    await pushCommitAt(f.cloneA, "t1", "2026-11-06T01:30:00Z");
     // 2 回目の見直し（01:40〜01:45）のあとは手直しをせず、push だけする（01:50）
     clock = new Date("2026-11-06T01:40:00Z");
     const review2 = (
@@ -691,8 +691,8 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     ).data.id;
     clock = new Date("2026-11-06T01:45:00Z");
     await runCommand(runFinish, agent, { run: review2, result: "success" });
-    await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T01:50:00Z");
-    const tip = (await git(f.cloneA, ["rev-parse", "--short=7", "origin/feat/t1"])).stdout.trim();
+    await pushCommitAt(f.cloneA, "t1", "2026-11-06T01:50:00Z");
+    const tip = (await git(f.cloneA, ["rev-parse", "--short=7", "origin/t1"])).stdout.trim();
     expect(
       (await runCommand(lint, agent, {})).data.issues
         .filter((i) => i.code === "lint_run_fix_missing")
@@ -717,17 +717,17 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     for (const t of ["t1", "t2", "t3", "t4"])
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: t, branch: `feat/${t}` });
-    for (const t of ["t1", "t2", "t3", "t4"]) await git(f.cloneA, ["branch", `feat/${t}`]);
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: t, branch: `${t}` });
+    for (const t of ["t1", "t2", "t3", "t4"]) await git(f.cloneA, ["branch", `${t}`]);
     const claimT2 = (await peekRunningRuns(agent.repo)).find((r) => r.ticket === "t2")!.id;
     // t2・t3 は PR 番号だけ記録する（gh は知らない）
     await agent.store.update("ticket", "t2", { pr: 42 });
     await agent.store.update("ticket", "t3", { pr: 43 });
     await recordBaseline(agent.repo);
     let restore = await fakeGh(f.root, {
-      "feat/t1|41":
+      "t1|41":
         '{"number":41,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
-      "feat/t4|44":
+      "t4|44":
         '{"number":44,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
     });
     try {
@@ -751,7 +751,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
           retry_reasons: ["A"],
         })
       ).data.run!;
-      await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T01:30:00Z");
+      await pushCommitAt(f.cloneA, "t1", "2026-11-06T01:30:00Z");
       // 区切りがなければ閉じない
       expect((await runCommand(sync, agent, {})).data.runs_closed).toEqual([]);
       clock = new Date("2026-11-06T02:00:00Z");
@@ -785,7 +785,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
           retry_reasons: ["B"],
         })
       ).data.run!;
-      await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T03:30:00Z");
+      await pushCommitAt(f.cloneA, "t1", "2026-11-06T03:30:00Z");
       // 区切り 4：PR の ready（review への前進）。draft のまま待っていた t4 を続けて直し、push の後に ready になった
       const fix5 = (
         await runCommand(ticketClaim, agent, {
@@ -794,9 +794,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
           retry_reasons: ["D"],
         })
       ).data.run!;
-      await pushCommitAt(f.cloneA, "feat/t4", "2026-11-06T03:40:00Z");
+      await pushCommitAt(f.cloneA, "t4", "2026-11-06T03:40:00Z");
       // 区切り 5：最後の push（04:00）が手直しの Run の開始（04:30）より前なら、その Run の push はないので区切りの時刻
-      await pushCommitAt(f.cloneA, "feat/t3", "2026-11-06T04:00:00Z");
+      await pushCommitAt(f.cloneA, "t3", "2026-11-06T04:00:00Z");
       clock = new Date("2026-11-06T04:30:00Z");
       const fix4 = (
         await runCommand(ticketClaim, agent, {
@@ -809,9 +809,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       const review3 = await openWithoutClosing("t3", "review");
       restore();
       restore = await fakeGh(f.root, {
-        "feat/t1|41":
+        "t1|41":
           '{"number":41,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-06T04:00:00Z","createdAt":"2026-11-06T00:20:00Z"}',
-        "feat/t4|44":
+        "t4|44":
           '{"number":44,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
       });
       // 区切り 3：終わったチケット。t2 は PR 番号だけあり、手直しの Run を開いた後に人が done にした（branch があるので move は閉じない）
@@ -995,12 +995,12 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     await runCommand(ticketClaim, agent, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feat/t1",
+      branch: "t1",
       no_run: true,
     });
-    await git(f.cloneA, ["branch", "feat/t1"]);
+    await git(f.cloneA, ["branch", "t1"]);
     const restore = await fakeGh(f.root, {
-      "feat/t1|41":
+      "t1|41":
         '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
     });
     const start = (step: string, session: string) =>
@@ -1077,11 +1077,11 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     await runCommand(ticketCreate, human, { title: "Review loop" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const implement = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" })
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" })
     ).data.run!;
-    await git(f.cloneA, ["branch", "feat/t1"]);
+    await git(f.cloneA, ["branch", "t1"]);
     let restore = await fakeGh(f.root, {
-      "feat/t1|41":
+      "t1|41":
         '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
     });
     try {
@@ -1112,7 +1112,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         retry_reasons: ["指摘 A"],
         started_at: "2026-11-06T01:00:00Z",
       });
-      await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T01:20:00Z");
+      await pushCommitAt(f.cloneA, "t1", "2026-11-06T01:20:00Z");
       // 区切り（次の見直し・ready）がなければ閉じない
       clock = new Date("2026-11-06T01:25:00Z");
       expect((await runCommand(sync, agent, {})).data.runs_closed).toEqual([]);
@@ -1150,10 +1150,10 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
           retry_reasons: ["指摘 B"],
         })
       ).data.run!;
-      await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T02:20:00Z");
+      await pushCommitAt(f.cloneA, "t1", "2026-11-06T02:20:00Z");
       restore();
       restore = await fakeGh(f.root, {
-        "feat/t1|41":
+        "t1|41":
           '{"number":41,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
       });
       clock = new Date("2026-11-06T02:30:00Z");

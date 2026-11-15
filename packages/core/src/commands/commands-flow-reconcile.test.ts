@@ -131,7 +131,7 @@ describe("チケットの流れ（照合と claim）", () => {
     expect(claimed.data).toMatchObject({
       status: "in_progress",
       assignee: "eiki",
-      branch: "feature/t1-login-validation",
+      branch: "t1-login-validation",
     });
 
     const review = await runCommand(ticketMove, ctx, { ticket: "t1", status: "review" });
@@ -142,10 +142,10 @@ describe("チケットの流れ（照合と claim）", () => {
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
 
     // 作業ブランチを作って main にマージする
-    await git(f.cloneA, ["checkout", "-qb", "feature/t1-login-validation"]);
+    await git(f.cloneA, ["checkout", "-qb", "t1-login-validation"]);
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "実装"]);
     await git(f.cloneA, ["checkout", "-q", "main"]);
-    await git(f.cloneA, ["merge", "-q", "--ff-only", "feature/t1-login-validation"]);
+    await git(f.cloneA, ["merge", "-q", "--ff-only", "t1-login-validation"]);
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "main が進む"]);
     await git(f.cloneA, ["push", "-q", "origin", "main"]);
 
@@ -191,9 +191,9 @@ describe("チケットの流れ（照合と claim）", () => {
     const first = await initialized(f.cloneA, {}, { template: "software-development" });
     await runCommand(configSet, first, { key: "merge.delete_branch", value: "true" });
     const ctx = await openContext({ cwd: f.cloneA, actor: first.actor });
-    const clean = await claimedAndPushed(ctx, "t1", "feat/t1-clean");
-    const dirty = await claimedAndPushed(ctx, "t2", "feat/t2-dirty");
-    const ahead = await claimedAndPushed(ctx, "t3", "feat/t3-ahead");
+    const clean = await claimedAndPushed(ctx, "t1", "t1-clean");
+    const dirty = await claimedAndPushed(ctx, "t2", "t2-dirty");
+    const ahead = await claimedAndPushed(ctx, "t3", "t3-ahead");
     // t2 は worktree にコミットしていないファイルが残り、t3 は PR の先端より後のコミットがローカルにある
     await writeFile(path.join(dirty.dir, "memo.txt"), "コミットしていない");
     await git(ahead.dir, ["commit", "-q", "--allow-empty", "-m", "マージの後の作業"]);
@@ -203,9 +203,9 @@ describe("チケットの流れ（照合と claim）", () => {
     const mergedPr = (number: number, head: string) =>
       JSON.stringify({ number, state: "MERGED", isDraft: false, headRefOid: head });
     const restore = await fakeGh(f.root, {
-      "feat/t1-clean": mergedPr(11, clean.head),
-      "feat/t2-dirty": mergedPr(12, dirty.head),
-      "feat/t3-ahead": mergedPr(13, ahead.head),
+      "t1-clean": mergedPr(11, clean.head),
+      "t2-dirty": mergedPr(12, dirty.head),
+      "t3-ahead": mergedPr(13, ahead.head),
     });
     try {
       const synced = await runCommand(sync, ctx, {});
@@ -218,14 +218,14 @@ describe("チケットの流れ（照合と claim）", () => {
           when: ["pr_merged"],
           removed: {
             worktree: clean.dir,
-            local_branch: "feat/t1-clean",
-            remote_branch: "origin/feat/t1-clean",
+            local_branch: "t1-clean",
+            remote_branch: "origin/t1-clean",
           },
         },
         { id: "t2", from: "in_progress", to: "done", when: ["pr_merged"], removed: kept },
         { id: "t3", from: "in_progress", to: "done", when: ["pr_merged"], removed: kept },
       ]);
-      expect(await remaining(f.cloneA, clean.dir, "feat/t1-clean")).toEqual({
+      expect(await remaining(f.cloneA, clean.dir, "t1-clean")).toEqual({
         worktree: false,
         local: false,
         remote: false,
@@ -233,20 +233,20 @@ describe("チケットの流れ（照合と claim）", () => {
       expect(synced.warnings.filter((w) => w.startsWith("t1:"))).toEqual([]);
       // 消さなかったものは何も消えていない。理由と、手で消すコマンドを警告する
       const all = { worktree: true, local: true, remote: true };
-      expect(await remaining(f.cloneA, dirty.dir, "feat/t2-dirty")).toEqual(all);
-      expect(await remaining(f.cloneA, ahead.dir, "feat/t3-ahead")).toEqual(all);
+      expect(await remaining(f.cloneA, dirty.dir, "t2-dirty")).toEqual(all);
+      expect(await remaining(f.cloneA, ahead.dir, "t3-ahead")).toEqual(all);
       const t2 = synced.warnings.filter((w) => w.startsWith("t2:"));
       expect(t2).toHaveLength(1);
-      expect(t2[0]).toContain("the worktree and work branch feat/t2-dirty were not deleted");
+      expect(t2[0]).toContain("the worktree and work branch t2-dirty were not deleted");
       expect(t2[0]).toContain(`worktree ${dirty.dir} has uncommitted changes`);
       expect(t2[0]).toContain(
-        `git worktree remove --force ${dirty.dir}, git branch -D feat/t2-dirty, git push origin --delete feat/t2-dirty`,
+        `git worktree remove --force ${dirty.dir}, git branch -D t2-dirty, git push origin --delete t2-dirty`,
       );
       const t3 = synced.warnings.filter((w) => w.startsWith("t3:"));
       expect(t3).toHaveLength(1);
       expect(t3[0]).toContain("the tip of the local branch");
       expect(t3[0]).toContain(`differs from the head of the merged PR (${ahead.head.slice(0, 7)})`);
-      expect(t3[0]).toContain("git branch -D feat/t3-ahead");
+      expect(t3[0]).toContain("git branch -D t3-ahead");
       // 片付けはデータを書かない（照合のコミットの後に、作業ツリーへ何も残さない）
       expect(synced.data.status).toMatchObject({ ahead: 0, dirty: false });
     } finally {
@@ -257,9 +257,9 @@ describe("チケットの流れ（照合と claim）", () => {
   it("merge.delete_branch が false なら照合で done にしても何も消さず、true にすると PR のない（base に入った）作業ブランチも消す（t849）", async () => {
     const f = await fixture();
     const first = await initialized(f.cloneA);
-    const keep = await claimedAndPushed(first, "t1", "feat/t1-keep");
-    const gone = await claimedAndPushed(first, "t2", "feat/t2-gone");
-    await git(f.cloneA, ["merge", "-q", "--no-ff", "--no-edit", "feat/t1-keep"]);
+    const keep = await claimedAndPushed(first, "t1", "t1-keep");
+    const gone = await claimedAndPushed(first, "t2", "t2-gone");
+    await git(f.cloneA, ["merge", "-q", "--no-ff", "--no-edit", "t1-keep"]);
     await git(f.cloneA, ["push", "-q", "origin", "main"]);
     // 既定（false）では消さず、reconciled に removed も付けない
     const synced = await runCommand(sync, first, {});
@@ -267,7 +267,7 @@ describe("チケットの流れ（照合と claim）", () => {
       { id: "t1", from: "in_progress", to: "done", when: ["branch_merged"] },
     ]);
     expect(synced.warnings.filter((w) => w.startsWith("t1:"))).toEqual([]);
-    expect(await remaining(f.cloneA, keep.dir, "feat/t1-keep")).toEqual({
+    expect(await remaining(f.cloneA, keep.dir, "t1-keep")).toEqual({
       worktree: true,
       local: true,
       remote: true,
@@ -275,7 +275,7 @@ describe("チケットの流れ（照合と claim）", () => {
 
     await runCommand(configSet, first, { key: "merge.delete_branch", value: "true" });
     const ctx = await openContext({ cwd: f.cloneA, actor: first.actor });
-    await git(f.cloneA, ["merge", "-q", "--no-ff", "--no-edit", "feat/t2-gone"]);
+    await git(f.cloneA, ["merge", "-q", "--no-ff", "--no-edit", "t2-gone"]);
     await git(f.cloneA, ["push", "-q", "origin", "main"]);
     const again = await runCommand(sync, ctx, {});
     expect(again.data.reconciled).toEqual([
@@ -286,18 +286,18 @@ describe("チケットの流れ（照合と claim）", () => {
         when: ["branch_merged"],
         removed: {
           worktree: gone.dir,
-          local_branch: "feat/t2-gone",
-          remote_branch: "origin/feat/t2-gone",
+          local_branch: "t2-gone",
+          remote_branch: "origin/t2-gone",
         },
       },
     ]);
-    expect(await remaining(f.cloneA, gone.dir, "feat/t2-gone")).toEqual({
+    expect(await remaining(f.cloneA, gone.dir, "t2-gone")).toEqual({
       worktree: false,
       local: false,
       remote: false,
     });
     // 前に done になったチケットの残りには触れない（消すのは、照合が done にしたときだけ）
-    expect(await remaining(f.cloneA, keep.dir, "feat/t1-keep")).toEqual({
+    expect(await remaining(f.cloneA, keep.dir, "t1-keep")).toEqual({
       worktree: true,
       local: true,
       remote: true,
@@ -310,26 +310,26 @@ describe("チケットの流れ（照合と claim）", () => {
     for (const title of ["Empty", "Work", "Legacy"]) await runCommand(ticketCreate, ctx, { title });
     const start = (await git(f.cloneA, ["rev-parse", "origin/main"])).stdout.trim();
     // claim が切った worktree のまま、コミットせずに push する
-    const empty = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/t1-empty" });
+    const empty = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-empty" });
     expect(empty.data.branch_base).toBe(start);
-    await git(empty.data.worktree!, ["push", "-q", "origin", "feat/t1-empty"]);
+    await git(empty.data.worktree!, ["push", "-q", "origin", "t1-empty"]);
     // 作業を積んで push し、main に ff マージする
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "feat/t2-work" });
-    await git(f.cloneA, ["checkout", "-qb", "feat/t2-work", start]);
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "t2-work" });
+    await git(f.cloneA, ["checkout", "-qb", "t2-work", start]);
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
-    await git(f.cloneA, ["push", "-q", "origin", "feat/t2-work"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t2-work"]);
     await git(f.cloneA, ["checkout", "-q", "main"]);
-    await git(f.cloneA, ["merge", "-q", "--ff-only", "feat/t2-work"]);
+    await git(f.cloneA, ["merge", "-q", "--ff-only", "t2-work"]);
     await git(f.cloneA, ["push", "-q", "origin", "main"]);
     // 起点を記録していない前からのチケットの形（コミットのないブランチを push 済み）
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t3",
-      branch: "feat/t3-legacy",
+      branch: "t3-legacy",
     });
     await ctx.store.update("ticket", "t3", { branch_base: undefined });
     await recordBaseline(ctx.repo);
-    await git(f.cloneA, ["push", "-q", "origin", `${start}:refs/heads/feat/t3-legacy`]);
+    await git(f.cloneA, ["push", "-q", "origin", `${start}:refs/heads/t3-legacy`]);
     // 別の作業が main に入る
     await git(f.cloneB, ["pull", "-q", "--ff-only", "origin", "main"]);
     await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "main が進む"]);
@@ -348,12 +348,12 @@ describe("チケットの流れ（照合と claim）", () => {
     const again = await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feat/t1-again",
+      branch: "t1-again",
     });
     expect(again.data.branch_base).toBe(
       (await git(f.cloneA, ["rev-parse", "origin/main"])).stdout.trim(),
     );
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "feat/t1-other" });
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "t1-other" });
     expect(ctx.store.tickets.get("t1")?.data.branch_base).toBeUndefined();
     await ctx.store.update("ticket", "t1", { branch_base: again.data.branch_base });
     await recordBaseline(ctx.repo);
@@ -370,14 +370,14 @@ describe("チケットの流れ（照合と claim）", () => {
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feature/t1-with-pr",
+      branch: "t1-with-pr",
     });
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t2",
-      branch: "feature/t2-without-pr",
+      branch: "t2-without-pr",
     });
-    for (const b of ["feature/t1-with-pr", "feature/t2-without-pr"]) {
+    for (const b of ["t1-with-pr", "t2-without-pr"]) {
       await git(f.cloneA, ["branch", b]);
     }
 
@@ -390,7 +390,7 @@ describe("チケットの流れ（照合と claim）", () => {
         "#!/bin/sh",
         'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
         'case "$3" in',
-        '  feature/t1-with-pr|42) echo \'{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null}\';;',
+        '  t1-with-pr|42) echo \'{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null}\';;',
         '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
         "esac",
         "",
@@ -430,9 +430,9 @@ describe("チケットの流れ（照合と claim）", () => {
     const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
     await runCommand(ticketCreate, ctx, { title: "Slow PR" });
     await runCommand(ticketCreate, ctx, { title: "Unclaimed" });
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/t1-slow" });
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "feat/t2-gone" });
-    for (const b of ["feat/t1-slow", "feat/t2-gone"]) await git(f.cloneA, ["branch", b]);
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-slow" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "t2-gone" });
+    for (const b of ["t1-slow", "t2-gone"]) await git(f.cloneA, ["branch", b]);
     await runCommand(commit, ctx, {});
 
     // 偽の gh：t1 のブランチは started を置いてから release が置かれるまで（上限 15 秒）答えない。t2 は開いた PR #43 を返す
@@ -446,8 +446,8 @@ describe("チケットの流れ（照合と claim）", () => {
         "#!/bin/sh",
         'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
         'case "$3" in',
-        `  feat/t1-slow) : > '${started}'; i=0; while [ ! -f '${release}' ] && [ $i -lt 300 ]; do sleep 0.05; i=$((i+1)); done; echo '{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null}';;`,
-        '  feat/t2-gone) echo \'{"number":43,"state":"OPEN","isDraft":false,"mergedAt":null}\';;',
+        `  t1-slow) : > '${started}'; i=0; while [ ! -f '${release}' ] && [ $i -lt 300 ]; do sleep 0.05; i=$((i+1)); done; echo '{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null}';;`,
+        '  t2-gone) echo \'{"number":43,"state":"OPEN","isDraft":false,"mergedAt":null}\';;',
         '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
         "esac",
         "",
@@ -470,7 +470,7 @@ describe("チケットの流れ（照合と claim）", () => {
       await runCommand(ticketClaim, other, {
         no_worktree: true,
         ticket: "t3",
-        branch: "feat/t3-new",
+        branch: "t3-new",
       });
       await runCommand(ticketUnclaim, other, { ticket: "t2" });
       expect(await pathExists(release)).toBe(false);
@@ -512,8 +512,8 @@ describe("チケットの流れ（照合と claim）", () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
     await runCommand(ticketCreate, ctx, { title: "Slow PR" });
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/t1-slow" });
-    await git(f.cloneA, ["branch", "feat/t1-slow"]);
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-slow" });
+    await git(f.cloneA, ["branch", "t1-slow"]);
     await runCommand(commit, ctx, {});
 
     // 偽の gh：started を置いてから release が置かれるまで（上限 15 秒）答えず、開いた PR #42 を返す
@@ -562,8 +562,8 @@ describe("チケットの流れ（照合と claim）", () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
     await runCommand(ticketCreate, ctx, { title: "Slow PR" });
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/t1-slow" });
-    await git(f.cloneA, ["branch", "feat/t1-slow"]);
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-slow" });
+    await git(f.cloneA, ["branch", "t1-slow"]);
     await runCommand(commit, ctx, {});
 
     // 偽の gh：started を置いてから release が置かれるまで（上限 15 秒）答えず、開いた PR #42 を返す
@@ -625,20 +625,20 @@ describe("チケットの流れ（照合と claim）", () => {
     const claimed = await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t1",
-      branch: "chore/reused",
+      branch: "t1-reused",
     });
     expect(claimed.data.branch_at).toBe("2026-11-02T05:00:00Z");
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "chore/fresh" });
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t3", branch: "chore/legacy" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "t2-fresh" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t3", branch: "t3-legacy" });
     // branch_at のない古いチケットの形（created_at と比べる）
     await ctx.store.update("ticket", "t3", { branch_at: undefined });
     await recordBaseline(ctx.repo);
     // claim 直後に main から切った、commit のないブランチ（push はまだ）
-    for (const b of ["chore/reused", "chore/fresh", "chore/legacy"]) {
+    for (const b of ["t1-reused", "t2-fresh", "t3-legacy"]) {
       await git(f.cloneA, ["branch", b]);
     }
 
-    // 偽の gh：chore/reused には前日にマージ済みの PR #105、chore/fresh には claim の後にマージした PR #200
+    // 偽の gh：t1-reused には前日にマージ済みの PR #105、t2-fresh には claim の後にマージした PR #200
     const bin = path.join(f.root, "fake-bin");
     await mkdir(bin, { recursive: true });
     await writeFile(
@@ -647,9 +647,9 @@ describe("チケットの流れ（照合と claim）", () => {
         "#!/bin/sh",
         'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
         'case "$3" in',
-        '  chore/reused|105) echo \'{"number":105,"state":"MERGED","isDraft":false,"createdAt":"2026-10-31T10:00:00Z","mergedAt":"2026-11-01T10:00:00Z"}\';;',
-        '  chore/legacy|90) echo \'{"number":90,"state":"MERGED","isDraft":false,"createdAt":"2026-10-31T09:00:00Z","mergedAt":"2026-11-01T09:00:00Z"}\';;',
-        '  chore/fresh|200) echo \'{"number":200,"state":"MERGED","isDraft":false,"createdAt":"2026-11-02T05:30:00Z","mergedAt":"2026-11-02T06:00:00Z"}\';;',
+        '  t1-reused|105) echo \'{"number":105,"state":"MERGED","isDraft":false,"createdAt":"2026-10-31T10:00:00Z","mergedAt":"2026-11-01T10:00:00Z"}\';;',
+        '  t3-legacy|90) echo \'{"number":90,"state":"MERGED","isDraft":false,"createdAt":"2026-10-31T09:00:00Z","mergedAt":"2026-11-01T09:00:00Z"}\';;',
+        '  t2-fresh|200) echo \'{"number":200,"state":"MERGED","isDraft":false,"createdAt":"2026-11-02T05:30:00Z","mergedAt":"2026-11-02T06:00:00Z"}\';;',
         '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
         "esac",
         "",
@@ -699,10 +699,10 @@ describe("チケットの流れ（照合と claim）", () => {
       expect(ctx.store.tickets.get("t1")?.data.branch_at).toBeUndefined();
       // update の branch で付け、同じ値なら変えず、外せば消える
       clock = new Date("2026-11-02T07:10:00Z");
-      await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "chore/reused" });
+      await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "t1-reused" });
       expect(ctx.store.tickets.get("t1")?.data.branch_at).toBe("2026-11-02T07:10:00Z");
       clock = new Date("2026-11-02T07:20:00Z");
-      await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "chore/reused" });
+      await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "t1-reused" });
       expect(ctx.store.tickets.get("t1")?.data.branch_at).toBe("2026-11-02T07:10:00Z");
       await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: null });
       expect(ctx.store.tickets.get("t1")?.data.branch_at).toBeUndefined();
@@ -725,23 +725,23 @@ describe("チケットの流れ（照合と claim）", () => {
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t1",
-      branch: "chore/closed-old",
+      branch: "t1-closed-old",
     });
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t2",
-      branch: "chore/open-old",
+      branch: "t2-open-old",
     });
     await recordBaseline(ctx.repo);
-    for (const b of ["chore/closed-old", "chore/open-old"]) {
+    for (const b of ["t1-closed-old", "t2-open-old"]) {
       await git(f.cloneA, ["branch", b]);
     }
 
     // 前の作業：マージされずに閉じた PR #105 と、まだ開いたままの PR #110。どちらも claim より前に作られた
     const bin = await fakeGhPrs(f.root, {
-      "chore/closed-old":
+      "t1-closed-old":
         '{"number":105,"state":"CLOSED","isDraft":false,"createdAt":"2026-10-31T10:00:00Z","mergedAt":null}',
-      "chore/open-old":
+      "t2-open-old":
         '{"number":110,"state":"OPEN","isDraft":false,"createdAt":"2026-10-31T11:00:00Z","mergedAt":null}',
     });
     const savedPath = process.env["PATH"];
@@ -780,16 +780,16 @@ describe("チケットの流れ（照合と claim）", () => {
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t1",
-      branch: "chore/reclaimed",
+      branch: "t1-reclaimed",
     });
     await recordBaseline(ctx.repo);
-    await git(f.cloneA, ["branch", "chore/reclaimed"]);
+    await git(f.cloneA, ["branch", "t1-reclaimed"]);
 
     const savedPath = process.env["PATH"];
     try {
       // 前の作業の PR #105 は閉じたまま。claim し直した後の照合では拾わない
       const bin = await fakeGhPrs(f.root, {
-        "chore/reclaimed":
+        "t1-reclaimed":
           '{"number":105,"state":"CLOSED","isDraft":false,"createdAt":"2026-10-31T10:00:00Z","mergedAt":null}',
       });
       process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
@@ -802,7 +802,7 @@ describe("チケットの流れ（照合と claim）", () => {
 
       // 同じブランチで新しい PR #200 を出す（claim の後に作られ、開いている）
       await fakeGhPrs(f.root, {
-        "chore/reclaimed":
+        "t1-reclaimed":
           '{"number":200,"state":"OPEN","isDraft":false,"createdAt":"2026-11-02T06:30:00Z","mergedAt":null}',
       });
       clock = new Date("2026-11-02T06:35:00Z");
@@ -819,9 +819,9 @@ describe("チケットの流れ（照合と claim）", () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
     await runCommand(ticketCreate, ctx, { title: "Lines" });
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/lines" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-lines" });
     await recordBaseline(ctx.repo);
-    await git(f.cloneA, ["branch", "feat/lines"]);
+    await git(f.cloneA, ["branch", "t1-lines"]);
     const pr = (state: string, mergedAt: string | null) =>
       JSON.stringify({
         number: 300,
@@ -835,7 +835,7 @@ describe("チケットの流れ（照合と claim）", () => {
     const savedPath = process.env["PATH"];
     try {
       // 開いている間の行数は push のたびに変わるので記録しない
-      const bin = await fakeGhPrs(f.root, { "feat/lines|300": pr("OPEN", null) });
+      const bin = await fakeGhPrs(f.root, { "t1-lines|300": pr("OPEN", null) });
       process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
       resetGhCache();
       const open = await runCommand(sync, ctx, {});
@@ -844,7 +844,7 @@ describe("チケットの流れ（照合と claim）", () => {
       expect(ctx.store.tickets.get("t1")?.data.lines).toBeUndefined();
 
       // マージされたら、done に進めるのと同じ書き込みで行数を記録する
-      await fakeGhPrs(f.root, { "feat/lines|300": pr("MERGED", "2099-01-02T00:00:00Z") });
+      await fakeGhPrs(f.root, { "t1-lines|300": pr("MERGED", "2099-01-02T00:00:00Z") });
       const mergedSync = await runCommand(sync, ctx, {});
       expect(mergedSync.data.lines_recorded).toEqual([{ id: "t1", additions: 120, deletions: 30 }]);
       expect(ctx.store.tickets.get("t1")?.data).toMatchObject({
@@ -870,19 +870,19 @@ describe("チケットの流れ（照合と claim）", () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     for (const title of ["A", "B", "C", "D"]) await runCommand(ticketCreate, ctx, { title });
-    // 前の作業：cloneB で chore/reused に積んで push し、main に ff マージした後で main が進む（ブランチは消さない）
+    // 前の作業：cloneB で t1-reused に積んで push し、main に ff マージした後で main が進む（ブランチは消さない）
     await git(f.cloneB, ["pull", "-q", "--ff-only", "origin", "main"]);
-    await git(f.cloneB, ["checkout", "-qb", "chore/reused"]);
+    await git(f.cloneB, ["checkout", "-qb", "t1-reused"]);
     await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "前の作業"]);
-    await git(f.cloneB, ["push", "-q", "origin", "chore/reused"]);
+    await git(f.cloneB, ["push", "-q", "origin", "t1-reused"]);
     await git(f.cloneB, ["checkout", "-q", "main"]);
-    await git(f.cloneB, ["merge", "-q", "--ff-only", "chore/reused"]);
+    await git(f.cloneB, ["merge", "-q", "--ff-only", "t1-reused"]);
     await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "次の作業"]);
     await git(f.cloneB, ["push", "-q", "origin", "main"]);
     // まだマージしていない作業のブランチ
-    await git(f.cloneB, ["checkout", "-qb", "chore/wip"]);
+    await git(f.cloneB, ["checkout", "-qb", "t3-wip"]);
     await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "途中の作業"]);
-    await git(f.cloneB, ["push", "-q", "origin", "chore/wip"]);
+    await git(f.cloneB, ["push", "-q", "origin", "t3-wip"]);
 
     // リモートに残ったマージ済みのブランチ（手元では一度も fetch していない）
     // 残ったブランチの拒否は、別の名前と、古いブランチを消すか base に揃える案内を返す
@@ -892,56 +892,151 @@ describe("チケットの流れ（照合と claim）", () => {
         /Give a different name, or delete the old branch or bring it up to base/,
       ),
     });
+    // 検査は dg が組み立てた後の名前（t1-reused）で行う。渡すのは値（reused）だけ
     await expect(
-      runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "chore/reused" }),
+      runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "reused" }),
     ).rejects.toEqual(leftover);
     expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "todo" });
     expect(ctx.store.tickets.get("t1")?.data.branch).toBeUndefined();
-    await expect(
-      runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "chore/reused" }),
-    ).rejects.toEqual(leftover);
+    await expect(runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "reused" })).rejects.toEqual(
+      leftover,
+    );
 
     // 手元に残ったマージ済みのブランチ
     await git(ctx.repo.dataDir, ["fetch", "-q", "origin"]);
-    await git(f.cloneA, ["branch", "chore/local", "origin/main~1"]);
+    await git(f.cloneA, ["branch", "t1-local", "origin/main~1"]);
     await expect(
-      runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "chore/local" }),
+      runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "local" }),
     ).rejects.toEqual(leftover);
 
     // ref がない・切ったばかり・base にない作業があるときは通る
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "chore/new" });
-    await git(f.cloneA, ["branch", "chore/cut", "origin/main"]);
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "chore/cut" });
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t3", branch: "chore/wip" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "new" });
+    await git(f.cloneA, ["branch", "t2-cut", "origin/main"]);
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "cut" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t3", branch: "wip" });
     expect(ctx.store.tickets.get("t3")?.data).toMatchObject({
       status: "in_progress",
-      branch: "chore/wip",
+      branch: "t3-wip",
     });
 
-    // 終わっていない別のチケットが記録している名前は、使っているチケットと別の名前の案内を返す
+    // 終わっていない別のチケットが記録している名前は、使っているチケットと別の名前の案内を返す。
+    // dg が ID を付けるので、別のチケットと名前が重なるのは、前の形で記録したデータ（ここでは t1 が t4-new を持つ）だけ
+    await ctx.store.update("ticket", "t1", { branch: "t4-new" });
+    await recordBaseline(ctx.repo);
     await expect(
-      runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t4", branch: "chore/new" }),
+      runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t4", branch: "new" }),
     ).rejects.toMatchObject({
       code: "BRANCH_IN_USE",
-      message: expect.stringMatching(/in use by t1 \(in_progress\)\. Give a different name/),
+      message: expect.stringMatching(
+        /t4-new is in use by t1 \(in_progress\)\. Give a different name/,
+      ),
     });
     await expect(
-      runCommand(ticketUpdate, ctx, { ticket: "t4", branch: "chore/cut" }),
+      runCommand(ticketUpdate, ctx, { ticket: "t4", branch: "new" }),
     ).rejects.toMatchObject({
       code: "BRANCH_IN_USE",
       message: expect.stringContaining("Give a different name"),
     });
 
     // リモートで消したブランチの古い追跡 ref は見ない
-    await git(f.cloneB, ["push", "-q", "origin", "--delete", "chore/reused"]);
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t4", branch: "chore/reused" });
-    expect(ctx.store.tickets.get("t4")?.data.branch).toBe("chore/reused");
+    await git(f.cloneB, ["push", "-q", "origin", "--delete", "t1-reused"]);
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "reused" });
+    expect(ctx.store.tickets.get("t1")?.data.branch).toBe("t1-reused");
 
-    // 終わったチケットが記録している名前は使える
+    // 終わったチケットが記録している名前は使える（前の形で記録した t5-cut を持つ t2 が done）
+    await ctx.store.update("ticket", "t2", { branch: "t5-cut" });
+    await recordBaseline(ctx.repo);
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "done" });
     await runCommand(ticketCreate, ctx, { title: "E" });
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t5", branch: "chore/cut" });
-    expect(ctx.store.tickets.get("t5")?.data.branch).toBe("chore/cut");
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t5", branch: "cut" });
+    expect(ctx.store.tickets.get("t5")?.data.branch).toBe("t5-cut");
+  });
+
+  it("claim と update の branch は、値の前に <id>- を付けて記録し、自分の ID と - で始まる値はそのまま使う。別のチケットの ID・使えない文字・50 文字を超える値は拒む（ST-3・t966）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
+
+    // 値の前に ID を付ける。ブランチからチケットを ID で探せるようにする
+    const claimed = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t1",
+      branch: "fix-login",
+    });
+    expect(claimed.data.branch).toBe("t1-fix-login");
+    // 自分の ID と - で始まる値は、ID を重ねずにそのまま使う
+    const own = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t2",
+      branch: "t2-sync-warning",
+    });
+    expect(own.data.branch).toBe("t2-sync-warning");
+
+    // update も同じ組み立て。組み立てた名前が記録済みと同じなら何も変えない
+    const updated = await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "retry" });
+    expect(updated.data.branch).toBe("t1-retry");
+    const before = ctx.store.tickets.get("t1")?.data.branch_at;
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "retry" });
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "t1-retry" });
+    expect(ctx.store.tickets.get("t1")?.data).toMatchObject({
+      branch: "t1-retry",
+      branch_at: before,
+    });
+    // t1 で始まっても t1- でなければ別のチケットの ID（t12 を t1 の名前と取り違えない）
+    const rejected: [string, RegExp][] = [
+      ["t2-other", /starts with another ticket's ID \(t2\)/],
+      ["t12-other", /starts with another ticket's ID \(t12\)/],
+      ["t9", /starts with another ticket's ID \(t9\)/],
+      // 種類を前に付けた名前（feat/x）も、/ が使えないので拒む
+      ["feat/login", /characters that cannot be used/],
+      ["Fix-Login", /characters that cannot be used/],
+      ["fix_login", /characters that cannot be used/],
+      ["ログイン", /characters that cannot be used/],
+      ["-fix", /characters that cannot be used/],
+      ["a".repeat(51), /51 characters long.*up to 50 characters/],
+    ];
+    for (const [value, message] of rejected) {
+      for (const run of [
+        () => runCommand(ticketUpdate, ctx, { ticket: "t1", branch: value }),
+        () => runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t3", branch: value }),
+      ]) {
+        const error = await run().catch((e: unknown) => e);
+        expect(error, value).toBeInstanceOf(UsageError);
+        expect((error as UsageError).message, value).toMatch(message);
+      }
+    }
+    expect(ctx.store.tickets.get("t1")?.data.branch).toBe("t1-retry");
+    expect(ctx.store.tickets.get("t3")?.data).toMatchObject({ status: "todo" });
+    // 上限は ID を付ける前の値に掛かる（50 文字ちょうどは通る）
+    const longest = await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "a".repeat(50) });
+    expect(longest.data.branch).toBe(`t1-${"a".repeat(50)}`);
+
+    // 前の形で記録した名前（feat/x）は、同じ値を渡しても拒まずにそのまま残す
+    await ctx.store.update("ticket", "t2", { branch: "feat/legacy" });
+    await recordBaseline(ctx.repo);
+    const kept = await runCommand(ticketUpdate, ctx, { ticket: "t2", branch: "feat/legacy" });
+    expect(kept.data.branch).toBe("feat/legacy");
+  });
+
+  it("branch を省いた claim は、title が ASCII だけなら <id>-<title の slug>、ほかの文字を含むなら <id> だけにする（ST-3・t966）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const titles = [
+      "Fix the Login form (v2)!",
+      // 日本語の title から ASCII の断片（dg・id）を拾うと中身を誤って伝えるので、slug を作らない
+      "dg が id を組み立てる",
+      "!!!",
+      // slug は 40 文字で切り、切り口のハイフンを残さない
+      `${"a".repeat(39)} tail`,
+    ];
+    for (const title of titles) await runCommand(ticketCreate, ctx, { title });
+    const branches: (string | undefined)[] = [];
+    for (const ticket of ["t1", "t2", "t3", "t4"]) {
+      branches.push(
+        (await runCommand(ticketClaim, ctx, { no_worktree: true, ticket })).data.branch,
+      );
+    }
+    expect(branches).toEqual(["t1-fix-the-login-form-v2", "t2", "t3", `t4-${"a".repeat(39)}`]);
   });
 
   it("PR の要らない作業は claim の without_branch で branch を持たず、照合で動かず警告も出ない。update の branch で付け外しできる", async () => {
@@ -958,7 +1053,7 @@ describe("チケットの流れ（照合と claim）", () => {
         no_worktree: true,
         ticket: "t1",
         without_branch: true,
-        branch: "feature/x",
+        branch: "t1-x",
       }),
     ).rejects.toBeInstanceOf(UsageError);
     const claimed = await runCommand(ticketClaim, ctx, {
@@ -976,8 +1071,8 @@ describe("チケットの流れ（照合と claim）", () => {
     expect(ctx.store.tickets.get("t1")?.data.status).toBe("review");
 
     // 付けたブランチは照合の対象になり、none で外せば対象から外れる
-    const attached = await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "feature/gone" });
-    expect(attached.data.branch).toBe("feature/gone");
+    const attached = await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "t1-gone" });
+    expect(attached.data.branch).toBe("t1-gone");
     expect((await runCommand(sync, ctx, {})).warnings).toContain(
       "t1: The work branch was not found locally or on the remote",
     );
@@ -998,14 +1093,14 @@ describe("チケットの流れ（照合と claim）", () => {
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feature/t1-no-pr",
+      branch: "t1-no-pr",
     });
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t2",
-      branch: "feature/t2-closed",
+      branch: "t2-closed",
     });
-    for (const b of ["feature/t1-no-pr", "feature/t2-closed"]) await git(f.cloneA, ["branch", b]);
+    for (const b of ["t1-no-pr", "t2-closed"]) await git(f.cloneA, ["branch", b]);
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "review" });
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "review" });
 
@@ -1017,7 +1112,7 @@ describe("チケットの流れ（照合と claim）", () => {
         "#!/bin/sh",
         'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
         'case "$3" in',
-        '  feature/t2-closed) echo \'{"number":7,"state":"CLOSED","isDraft":false,"mergedAt":null}\';;',
+        '  t2-closed) echo \'{"number":7,"state":"CLOSED","isDraft":false,"mergedAt":null}\';;',
         '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
         "esac",
         "",
@@ -1148,33 +1243,28 @@ describe("チケットの流れ（照合と claim）", () => {
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const runs = {
-      t1: (
-        await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" })
-      ).data.run!,
-      t2: (
-        await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "feat/t2" })
-      ).data.run!,
-      t3: (
-        await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "feat/t3" })
-      ).data.run!,
-      t4: (
-        await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t4", branch: "feat/t4" })
-      ).data.run!,
+      t1: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" }))
+        .data.run!,
+      t2: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "t2" }))
+        .data.run!,
+      t3: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "t3" }))
+        .data.run!,
+      t4: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t4", branch: "t4" }))
+        .data.run!,
     };
-    for (const b of ["feat/t1", "feat/t2", "feat/t3", "feat/t4"])
-      await git(f.cloneA, ["branch", b]);
+    for (const b of ["t1", "t2", "t3", "t4"]) await git(f.cloneA, ["branch", b]);
     // t3 は PR 番号を記録済み（この機能より前に記録した形）で、Run は開いたまま
     await agent.store.update("ticket", "t3", { pr: 43 });
     await recordBaseline(agent.repo);
     // t4 の PR は Run の開始（00:00）より前に作られている（PR の後に implement を開き直した形）
     const restore = await fakeGh(f.root, {
-      "feat/t1|41":
+      "t1|41":
         '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T01:00:00Z"}',
-      "feat/t2|42":
+      "t2|42":
         '{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T02:00:00Z"}',
-      "feat/t3|43":
+      "t3|43":
         '{"number":43,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T02:30:00Z"}',
-      "feat/t4|44":
+      "t4|44":
         '{"number":44,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-05T23:00:00Z"}',
     });
     try {
@@ -1259,11 +1349,11 @@ describe("チケットの流れ（照合と claim）", () => {
     await runCommand(ticketCreate, human, { title: "PR before run" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const run = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" })
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" })
     ).data.run!;
-    await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t2", branch: "feat/t2" });
+    await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t2", branch: "t2" });
     const reopened = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "feat/t3" })
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "t3" })
     ).data.run!;
     // gh は PR #9（Run の開始より前に作られた）だけを知っている
     const restore = await fakeGh(f.root, {
@@ -1303,7 +1393,7 @@ describe("チケットの流れ（照合と claim）", () => {
     await runCommand(ticketCreate, human, { title: "Raced" });
     const stale = await agentWithRuns(f.cloneA, () => new Date("2026-11-06T00:00:00Z"));
     const run = (
-      await runCommand(ticketClaim, stale, { no_worktree: true, ticket: "t1", branch: "feat/t1" })
+      await runCommand(ticketClaim, stale, { no_worktree: true, ticket: "t1", branch: "t1" })
     ).data.run!;
     // 別の文脈（別のプロセスの dg に相当）が先に閉じる。stale の索引には集計がまだない
     const other = await agentWithRuns(f.cloneA, () => new Date("2026-11-06T01:00:00Z"));
@@ -1343,16 +1433,16 @@ describe("チケットの流れ（照合と claim）", () => {
     for (const title of ["Raced", "Other"]) await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const raced = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" })
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" })
     ).data.run!;
     const other = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "feat/t2" })
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "t2" })
     ).data.run!;
-    for (const b of ["feat/t1", "feat/t2"]) await git(f.cloneA, ["branch", b]);
+    for (const b of ["t1", "t2"]) await git(f.cloneA, ["branch", b]);
     const restore = await fakeGh(f.root, {
-      "feat/t1|41":
+      "t1|41":
         '{"number":41,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T01:00:00Z"}',
-      "feat/t2|42":
+      "t2|42":
         '{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T02:00:00Z"}',
     });
     try {
@@ -1401,12 +1491,10 @@ describe("チケットの流れ（照合と claim）", () => {
           without_branch: true,
         })
       ).data.run!,
-      t2: (
-        await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "feat/t2" })
-      ).data.run!,
-      t3: (
-        await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "feat/t3" })
-      ).data.run!,
+      t2: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "t2" }))
+        .data.run!,
+      t3: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "t3" }))
+        .data.run!,
     };
     // 別の文脈（別のプロセスの dg や別のマシンの sync に相当）が、操作が Run を閉じる直前に先に閉じる
     const otherCtx = await agentWithRuns(f.cloneA, () => new Date("2026-11-06T00:30:00Z"));
@@ -1472,9 +1560,8 @@ describe("チケットの流れ（照合と claim）", () => {
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const runs = {
-      t1: (
-        await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" })
-      ).data.run!,
+      t1: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" }))
+        .data.run!,
       t2: (
         await runCommand(ticketClaim, agent, {
           no_worktree: true,
@@ -1489,9 +1576,8 @@ describe("チケットの流れ（照合と claim）", () => {
           without_branch: true,
         })
       ).data.run!,
-      t4: (
-        await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t4", branch: "feat/t4" })
-      ).data.run!,
+      t4: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t4", branch: "t4" }))
+        .data.run!,
     };
     clock = new Date("2026-11-06T05:00:00Z");
 
@@ -1523,7 +1609,7 @@ describe("チケットの流れ（照合と claim）", () => {
     await runCommand(ticketClaim, human, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feat/t1-again",
+      branch: "t1-again",
     });
     expect((await runCommand(ticketUnclaim, human, { ticket: "t1" })).warnings).toEqual([]);
   });
@@ -1539,10 +1625,10 @@ describe("チケットの流れ（照合と claim）", () => {
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const implement = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "feat/t1" })
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" })
     ).data.run!;
     const implement2 = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "feat/t2" })
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "t2" })
     ).data.run!;
     // PR の記録を直接書いてから claim し直し、手直しの Run を開く（PR の発見の代わり）
     await agent.store.update("ticket", "t2", { pr: 42 });
@@ -1555,7 +1641,7 @@ describe("チケットの流れ（照合と claim）", () => {
       })
     ).data.run!;
     const done = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "feat/t3" })
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "t3" })
     ).data.run!;
     clock = new Date("2026-11-06T05:00:00Z");
 

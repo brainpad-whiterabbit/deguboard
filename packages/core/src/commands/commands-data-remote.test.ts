@@ -70,7 +70,7 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
     expect(created.write).toMatchObject({ pushed: true });
     // 作業ブランチの起点はコードのリモートの main。claim の push はデータのリモートへ
     const mainTip = await tipOf(f.remoteDir, "main");
-    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/t1-work" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-work" });
     expect(claimed.write).toMatchObject({ pushed: true });
     expect(claimed.data.branch_base).toBe(mainTip);
     expect(await tipOf(dataDir, "deguboard")).toBe(await headOf(ctx));
@@ -79,9 +79,9 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
     // 作業ブランチをコードのリモートに push して main にマージすると、照合が done にし、結果をデータのリモートに送る
     const work = claimed.data.worktree!;
     await git(work, ["commit", "-q", "--allow-empty", "-m", "実装"]);
-    await git(work, ["push", "-q", "origin", "feat/t1-work"]);
+    await git(work, ["push", "-q", "origin", "t1-work"]);
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "review" });
-    await git(f.cloneA, ["merge", "-q", "--ff-only", "feat/t1-work"]);
+    await git(f.cloneA, ["merge", "-q", "--ff-only", "t1-work"]);
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "main が進む"]);
     await git(f.cloneA, ["push", "-q", "origin", "main"]);
     const synced = await runCommand(sync, ctx, {});
@@ -93,7 +93,7 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
     expect(await tipOf(dataDir, "deguboard")).toBe(await headOf(ctx));
     // データはコードのリモートに、作業ブランチはデータのリモートに入らない
     expect(await tipOf(f.remoteDir, "deguboard")).toBeUndefined();
-    expect(await tipOf(dataDir, "feat/t1-work")).toBeUndefined();
+    expect(await tipOf(dataDir, "t1-work")).toBeUndefined();
     expect(await tipOf(dataDir, "main")).toBeUndefined();
   });
 

@@ -186,7 +186,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const f = await initializedFixture();
     const eiki = await reopenInitialized(f);
     await runCommand(ticketCreate, eiki, { title: "A" });
-    await runCommand(ticketClaim, eiki, { no_worktree: true, ticket: "t1", branch: "feature/a" });
+    await runCommand(ticketClaim, eiki, { no_worktree: true, ticket: "t1", branch: "t1-a" });
     const other = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "other" } });
     await expect(runCommand(ticketUnclaim, other, { ticket: "t1" })).rejects.toMatchObject({
       code: "REJECTED",
@@ -215,7 +215,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const claimed = await runCommand(ticketClaim, eiki, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feature/a",
+      branch: "t1-a",
     });
     expect(claimed.data).toMatchObject({ status: "in_progress", assignee: "eiki" });
     expect(claimed.data.pr).toBeUndefined();

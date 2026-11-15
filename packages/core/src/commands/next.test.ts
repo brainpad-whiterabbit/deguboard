@@ -46,7 +46,7 @@ const passed: RunReview = { heavy: 0, light: 1, passed: true };
 const heavy: RunReview = { heavy: 2, light: 0, passed: false };
 
 type TicketFacts = StageFacts["ticket"];
-/** 段階の事実。ticket は既定（in_progress・PR #7・feat/t1）に重ねる。pr: undefined で PR を外す */
+/** 段階の事実。ticket は既定（in_progress・PR #7・t1）に重ねる。pr: undefined で PR を外す */
 const facts = (
   over: Omit<Partial<StageFacts>, "ticket"> & {
     ticket?: { [K in keyof TicketFacts]?: TicketFacts[K] | undefined };
@@ -63,7 +63,7 @@ const facts = (
       id: "t1",
       status: "in_progress",
       pr: 7,
-      branch: "feat/t1",
+      branch: "t1",
       branch_at: "2026-11-07T10:00:00Z",
       ...over.ticket,
     },
@@ -295,9 +295,12 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     // 実装を委譲する親は --no-run で claim し、印で頼む
     const impl = kind(facts({ ticket: { status: "todo", pr: undefined } }));
     expect(impl.commands[0]).toBe(
-      "dg --json --actor agent ticket claim t1 --branch <type>/<content> --no-run",
+      "dg --json --actor agent ticket claim t1 --branch <short-english-words> --no-run",
     );
-    expect(impl.commands[1]).toContain("deguboard: ticket=t1 step=implement");
+    // ブランチ名の形（dg が ID を付ける）と値に使える文字を、claim の手のすぐ後で案内する（ST-3）
+    expect(impl.commands[1]).toContain("dg records the branch as t1-<value>");
+    expect(impl.commands[1]).toContain("lowercase letters, digits, and hyphens");
+    expect(impl.commands[2]).toContain("deguboard: ticket=t1 step=implement");
     // 実行中の見直し・実装があれば、新しく起動させず終わりを待つ
     const reviewing = kind(facts({ runs: [review(6, null, { finished_at: null, result: null })] }));
     expect(reviewing).toMatchObject({ kind: "review", running_run: expect.any(String) });

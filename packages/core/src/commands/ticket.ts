@@ -553,6 +553,12 @@ export const ticketShow = defineCommand({
   },
 });
 
+/** `--branch` に渡せる値の長さの上限（`<id>-` を付ける前の値） */
+const BRANCH_VALUE_MAX = 50;
+
+/** `--branch` の説明に足す、名前の形と値に使える文字の案内（claim と update で同じ文） */
+const BRANCH_NAME_HELP = `The name is recorded as <id>-<value> (t12-fix-login): give short English words as the value, in lowercase letters, digits, and hyphens, up to ${BRANCH_VALUE_MAX} characters. A value that already starts with this ticket's ID and a hyphen is used as is. A value that starts with another ticket's ID is rejected`;
+
 export const ticketUpdate = defineCommand({
   name: "ticket.update",
   positionals: ["ticket"],
@@ -622,7 +628,7 @@ export const ticketUpdate = defineCommand({
       .nullable()
       .optional()
       .describe(
-        "Work branch name. Removing it makes this a task with no PR, which is left out of reconciliation. Names in use, and names whose tip is still a true ancestor of base, are rejected (BRANCH_IN_USE)",
+        `Work branch name. ${BRANCH_NAME_HELP}. Removing it makes this a task with no PR, which is left out of reconciliation. Names in use, and names whose tip is still a true ancestor of base, are rejected (BRANCH_IN_USE)`,
       ),
     assignee: actorRef
       .nullable()
@@ -666,10 +672,16 @@ export const ticketUpdate = defineCommand({
         if (input.pr !== undefined) patch["pr"] = input.pr ?? undefined;
         // 行数は記録した PR のもの。PR を消す・別の番号に変えるときは残さない（MT-6）
         if (input.pr !== undefined && (input.pr ?? undefined) !== t.pr) patch["lines"] = undefined;
-        if (input.branch !== undefined && input.branch !== (t.branch ?? null)) {
-          if (input.branch !== null) await requireBranchAvailable(ctx, t.id, input.branch);
-          patch["branch"] = input.branch ?? undefined;
-          patch["branch_at"] = input.branch === null ? undefined : patch["updated_at"];
+        // 記録済みの名前と同じ値は、前の形の名前（`feat/x` など）でもそのまま通す（何も変えない）。
+        // それ以外の値は `<id>-<値>` に組み立ててから比べ、使えるかも組み立てた後の名前で確かめる（ST-3）
+        const branch =
+          input.branch === undefined || input.branch === null || input.branch === t.branch
+            ? input.branch
+            : workBranchName(t.id, input.branch);
+        if (branch !== undefined && branch !== (t.branch ?? null)) {
+          if (branch !== null) await requireBranchAvailable(ctx, t.id, branch);
+          patch["branch"] = branch ?? undefined;
+          patch["branch_at"] = branch === null ? undefined : patch["updated_at"];
           // 付け替えたブランチの起点は分からないので、前のブランチの起点を残さない（照合は祖先かだけで判定する。ST-4）
           patch["branch_base"] = undefined;
         }
@@ -1006,14 +1018,45 @@ export const ticketDelete = defineCommand({
   },
 });
 
-/** 作業ブランチの既定の名前。title の ASCII 部分を slug にする */
+/**
+ * 作業ブランチの名前を `<id>-<値>` に組み立てる（ST-3）。ブランチからチケットを ID で探せるように、dg が ID を付ける。
+ * 自分の ID と `-` で始まる値（と ID だけの値）はそのまま使い、別のチケットの ID で始まる値は取り違えるので拒む。
+ * 値は英小文字・数字・ハイフンだけ（`/` を含む `feat/x` のような名前も拒む）
+ */
+function workBranchName(ticketId: string, value: string): string {
+  if (value.length > BRANCH_VALUE_MAX) {
+    throw new UsageError(
+      `The branch value is ${value.length} characters long. Give short English words, up to ${BRANCH_VALUE_MAX} characters`,
+    );
+  }
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(value)) {
+    throw new UsageError(
+      `The branch value "${value}" has characters that cannot be used. Give short English words in lowercase letters, digits, and hyphens (dg records the branch as ${ticketId}-<value>)`,
+    );
+  }
+  if (value === ticketId || value.startsWith(`${ticketId}-`)) return value;
+  const otherId = /^t\d+(?=-|$)/.exec(value)?.[0];
+  if (otherId) {
+    throw new UsageError(
+      `The branch value "${value}" starts with another ticket's ID (${otherId}). Leave the ID out: dg puts ${ticketId}- in front of the value`,
+    );
+  }
+  return `${ticketId}-${value}`;
+}
+
+/**
+ * 作業ブランチの既定の名前。title が ASCII だけなら `<id>-<title の slug>`、ほかの文字を含むなら `<id>` だけ。
+ * 日本語の title から ASCII の断片（`dg`・`id` など）を拾うと、ブランチ名が中身を誤って伝えるので、英語の title のときだけ slug を作る
+ */
 function defaultBranchName(ticket: Ticket): string {
+  // oxlint-disable-next-line no-control-regex
+  if (!/^[\x00-\x7f]*$/.test(ticket.title)) return ticket.id;
   const slug = ticket.title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-  return slug ? `feature/${ticket.id}-${slug}` : `feature/${ticket.id}`;
+    .slice(0, 40)
+    .replace(/^-+|-+$/g, "");
+  return slug ? `${ticket.id}-${slug}` : ticket.id;
 }
 
 /** もう一度の claim になる条件：自分（同じユーザの人と AI）が claim 済みで PR のある in_progress・review のチケット（ST-9） */
@@ -1158,7 +1201,7 @@ export const ticketClaim = defineCommand({
       .min(1)
       .optional()
       .describe(
-        "Work branch name. Defaults to feature/<id>-<slug> when omitted. Names in use, and names whose tip is still a true ancestor of base, are rejected (BRANCH_IN_USE)",
+        `Work branch name. ${BRANCH_NAME_HELP}. When omitted, the name is <id>-<slug of the title> if the title is ASCII only, and <id> otherwise. Names in use, and names whose tip is still a true ancestor of base, are rejected (BRANCH_IN_USE)`,
       ),
     without_branch: z
       .boolean()
@@ -1298,7 +1341,10 @@ export const ticketClaim = defineCommand({
           warnings.push(`Changed the assignee from ${previous} to ${ctx.actor.id}`);
         const branch = input.without_branch
           ? undefined
-          : (input.branch ?? defaultBranchName(doc.data));
+          : input.branch === undefined
+            ? defaultBranchName(doc.data)
+            : workBranchName(doc.id, input.branch);
+        // 使えるかは、組み立てた後の名前で確かめる
         if (branch) await requireBranchAvailable(ctx, doc.id, branch);
         // 起点は requireBranchAvailable が取り込んだ base の先端。worktree はこの SHA から切り、照合は先端が
         // これと同じブランチ（作業のないまま push したもの）を、base が進んでもマージ済みにしない（ST-4）

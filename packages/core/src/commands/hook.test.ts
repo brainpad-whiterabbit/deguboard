@@ -913,10 +913,10 @@ describe("dg hook の移行の経路と兄弟の Run（RN-7）", () => {
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feat/t1",
+      branch: "t1",
       no_run: true,
     });
-    await runGit(ctx.repo.topLevel, ["checkout", "-qb", "feat/t1"]);
+    await runGit(ctx.repo.topLevel, ["checkout", "-qb", "t1"]);
     const mine = (
       await runCommand(runStart, ctx, {
         ticket: "t1",
@@ -946,7 +946,7 @@ describe("dg hook の移行の経路と兄弟の Run（RN-7）", () => {
     expect((await peekRunningRuns(ctx.repo))[0]!.waiting_since).toBeNull();
     // 続きで直して push してから、2 回目の止まり
     await runGit(ctx.repo.topLevel, ["commit", "-q", "--allow-empty", "-m", "直した"]);
-    await runGit(ctx.repo.topLevel, ["push", "-q", "origin", "feat/t1"]);
+    await runGit(ctx.repo.topLevel, ["push", "-q", "origin", "t1"]);
     await stopA(ctx, subagent("a1"));
     const runs = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     expect(runs.find((r) => r.id === mine.id)).toMatchObject({
@@ -2000,7 +2000,7 @@ describe("手直しの Run の印と run retry-reason（RN-7・RN-8）", () => {
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t2",
-      branch: "feat/t2",
+      branch: "t2",
       no_run: true,
     });
     await runCommand(ticketUpdate, ctx, { ticket: "t2", pr: 9 });
@@ -2033,7 +2033,7 @@ describe("フックが届いていないセッションの警告（t697）", () 
     const claimed = await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feat/t1",
+      branch: "t1",
       no_run: true,
     });
     expect(silentIn(claimed.warnings)).toBe(true);
@@ -2061,7 +2061,7 @@ describe("フックが届いていないセッションの警告（t697）", () 
     const again = await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t2",
-      branch: "feat/t2",
+      branch: "t2",
       no_run: true,
     });
     expect(silentIn(again.warnings)).toBe(false);
@@ -2276,7 +2276,7 @@ describe("フックが届くセッションで親が自分で Run を開く clai
     const self = await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feat/t1",
+      branch: "t1",
     });
     expect(selfIn(self.warnings)).toBe(true);
     // claim と Run の開き方は今のまま
@@ -2286,7 +2286,7 @@ describe("フックが届くセッションで親が自分で Run を開く clai
     const delegated = await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t2",
-      branch: "feat/t2",
+      branch: "t2",
       no_run: true,
     });
     expect(selfIn(delegated.warnings)).toBe(false);
@@ -2320,7 +2320,7 @@ describe("フックが届くセッションで親が自分で Run を開く clai
     const silent = await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t1",
-      branch: "feat/t1",
+      branch: "t1",
     });
     expect(selfIn(silent.warnings)).toBe(false);
     expect((silent.data as { run: string | null }).run).not.toBeNull();
@@ -2330,7 +2330,7 @@ describe("フックが届くセッションで親が自分で Run を開く clai
     const outside = await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t2",
-      branch: "feat/t2",
+      branch: "t2",
       agent: "claude-code",
     });
     expect(selfIn(outside.warnings)).toBe(false);
@@ -2368,13 +2368,13 @@ describe("フックが届くセッションで親が run start で実装・手�
       no_worktree: true,
       no_run: true,
       ticket: "t1",
-      branch: "feat/t1",
+      branch: "t1",
     });
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       no_run: true,
       ticket: "t2",
-      branch: "feat/t2",
+      branch: "t2",
     });
     await reach(ctx, parent);
 
@@ -2451,13 +2451,13 @@ describe("フックが届くセッションで親が run start で実装・手�
       no_worktree: true,
       no_run: true,
       ticket: "t1",
-      branch: "feat/t1",
+      branch: "t1",
     });
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       no_run: true,
       ticket: "t2",
-      branch: "feat/t2",
+      branch: "t2",
     });
     await reach(ctx, parent);
 
@@ -2482,7 +2482,7 @@ describe("フックが届くセッションで親が run start で実装・手�
     const { ctx, home, parent } = await prepared();
     ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
     await reach(ctx, parent);
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/t1" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1" });
     await expect(
       runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1" }),
     ).rejects.toMatchObject({
@@ -2491,7 +2491,7 @@ describe("フックが届くセッションで親が run start で実装・手�
     });
 
     ctx.env = { HOME: home };
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "feat/t2" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "t2" });
     await expect(
       runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2" }),
     ).rejects.toMatchObject({
@@ -2545,7 +2545,7 @@ describe("落ちたセッションに残ったサブエージェントの Run（
       await runCommand(ticketClaim, p.ctx, {
         no_worktree: true,
         ticket: t,
-        branch: `feat/${t}`,
+        branch: `${t}`,
         no_run: true,
       });
     p.ctx.env = { ...p.ctx.env, DEGUBOARD_SESSION: SESSION };

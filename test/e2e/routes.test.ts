@@ -164,8 +164,8 @@ const STEPS: Step[] = [
   {
     name: "ticket.claim",
     // worktree の場所はリポジトリごとに違うので、経路の比べ合いでは作らない
-    input: { ticket: "t1", branch: "feat/login", no_worktree: true },
-    argv: ["ticket", "claim", "t1", "--branch", "feat/login", "--no-worktree"],
+    input: { ticket: "t1", branch: "t1-login", no_worktree: true },
+    argv: ["ticket", "claim", "t1", "--branch", "t1-login", "--no-worktree"],
   },
   {
     name: "ticket.move",

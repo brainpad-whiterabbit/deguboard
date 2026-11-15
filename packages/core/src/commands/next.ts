@@ -460,7 +460,9 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
     case "todo":
       return make("implement", facts.implementStep, [
         ...delegate("implement it"),
-        dg(`ticket claim ${id} --branch <type>/<content> --no-run`),
+        dg(`ticket claim ${id} --branch <short-english-words> --no-run`),
+        // ブランチ名は dg が <id>-<値> に組み立てる（ST-3）。値に書けるものをここで知らせ、種類を前に付けた名前（feat/x）を渡させない
+        `Give --branch short English words for the content, in lowercase letters, digits, and hyphens (up to 50 characters). dg records the branch as ${id}-<value>`,
         marker(facts.implementStep),
         // 文は claim の前に組むので、ブランチと worktree が空欄。claim の後に組み直して渡す
         `After claim, rebuild the text with ${dg(`brief ${id} --role implement`)} and pass that text (it then has the branch and worktree)`,
