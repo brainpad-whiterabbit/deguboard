@@ -24,7 +24,9 @@ import {
   languageOf,
   msg,
   setLanguage,
+  isDefaultPerspective,
   shownDefault,
+  shownDefaultText,
   shownWorkflow,
   storedDefault,
   tr,
@@ -572,6 +574,21 @@ describe("既定の値の訳（UI-11）", () => {
       expect(shownDefault(HIGH, undefined)).toBe(HIGH);
     });
   });
+  it("既定そのものの文は比べずに、今の言語の訳があれば訳で、なければ既定の値のまま出す", () => {
+    expect(shownDefaultText(HIGH)).toBe(HIGH_JA);
+    setLanguage("en");
+    expect(shownDefaultText(HIGH)).toBe(HIGH);
+    inEach(() => {
+      expect(shownDefaultText("origin")).toBe("origin");
+      expect(shownDefaultText(undefined)).toBeUndefined();
+    });
+  });
+  it("観点は名前と問いの両方が既定と同じときだけ既定のままとみなす", () => {
+    const d = { name: "Spec", question: "Is it clear?" };
+    expect(isDefaultPerspective({ ...d }, d)).toBe(true);
+    expect(isDefaultPerspective({ ...d, name: "Ours" }, d)).toBe(false);
+    expect(isDefaultPerspective({ ...d, question: "Ours?" }, d)).toBe(false);
+  });
   it("入力欄の訳の文は保存するとき既定の値に戻し、ほかの文はそのまま保存する", () => {
     expect(storedDefault(HIGH_JA, HIGH)).toBe(HIGH);
     expect(storedDefault("独自の基準", HIGH)).toBe("独自の基準");
@@ -588,8 +605,7 @@ describe("既定の値の訳（UI-11）", () => {
         for (const defaultValue of [HIGH, "origin"]) {
           const shown = shownDefault(value, defaultValue);
           // 訳と同じ文を人が書いていた値は、欄を離れても書き換えない（画面は出した文のままなら値を渡す）ので、ここでは除く
-          if (value !== defaultValue && shown === shownDefault(defaultValue, defaultValue))
-            continue;
+          if (value !== defaultValue && shown === shownDefaultText(defaultValue)) continue;
           expect(storedDefault(shown, defaultValue), `${language}: ${value}`).toBe(value);
         }
       }

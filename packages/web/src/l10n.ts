@@ -17,7 +17,7 @@ import {
   type CoreTextTable,
 } from "./l10n-core.js";
 import { EN, EN_ONE } from "./l10n-en.js";
-import type { WorkflowView } from "./types.js";
+import type { RetroPerspective, WorkflowView } from "./types.js";
 
 export type Language = "ja" | "en";
 
@@ -86,14 +86,38 @@ function defaultTranslation(defaultValue: unknown): string | undefined {
 }
 
 /**
- * dg の既定の値（config の既定・Workflow の雛形）を画面に出すときの、ただ 1 つの口（UI-11・CL-8）。推薦の指標は英語で持つだけで、ここを通さない。
+ * dg の既定の値（config の既定・Workflow の雛形）を画面に出すときの口（UI-11・CL-8）。既定そのものを添えるときだけ比べない shownDefaultText を使う。
+ * 推薦の指標は英語で持つだけで、ここを通さない。
  * 値が既定（core が返す既定。config.show の defaults と fields の default）と同じ文のときだけ既定のままとみなし、
  * DEFAULT_VALUES に今の言語の訳があれば訳で出す。書き換えた値・訳のない既定・文字列でない値は値のまま出す。
  * 古い版の既定の写し（今の既定と違う文）も、人が書いた値と見分けられないので書いたまま出す。
  * 訳して出す既定を足すときは DEFAULT_VALUES に鍵を足し、ここと storedDefault は変えない。読むのは store（判断基準）と設定画面と shownWorkflow
+ * （チケット詳細の Workflow も、store と同じく core が返したままを持ち、返すときに shownWorkflow で訳す）
  */
 export function shownDefault(value: unknown, defaultValue: unknown): unknown {
-  return value === defaultValue ? (defaultTranslation(defaultValue) ?? value) : value;
+  return value === defaultValue ? shownDefaultText(defaultValue) : value;
+}
+
+/**
+ * 既定の値そのものを画面に出すときの文（比べない）。今の言語の訳があれば訳、なければ既定の値のまま。
+ * 書き換えた値の横に「既定は …」と既定を添えるときのように、出すのが値でなく既定と決まっているときに使う
+ */
+export function shownDefaultText(defaultValue: unknown): unknown {
+  return defaultTranslation(defaultValue) ?? defaultValue;
+}
+
+/**
+ * 振り返りの観点が既定（config.show の defaults の同じ ID の観点）のままか。名前と問いの両方が同じときだけ既定のままとみなす
+ * （指標は既定が空なので比べない）。既定のままの観点だけを訳し（設定画面の shownRetroPerspectives）、違う観点に「変更あり」を付ける（retroChanges）
+ */
+export function isDefaultPerspective(
+  perspective: Pick<RetroPerspective, "name" | "question">,
+  defaultPerspective: Pick<RetroPerspective, "name" | "question">,
+): boolean {
+  return (
+    perspective.name === defaultPerspective.name &&
+    perspective.question === defaultPerspective.question
+  );
 }
 
 /**
