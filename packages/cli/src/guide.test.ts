@@ -360,6 +360,17 @@ describe("dg guide", () => {
       "Carry-overs",
     ])
       expect(summary, word).toContain(word);
+    // step ごとの時間の割合は待ちを除いた作業時間で出し、待ちを数えられない Run の数を添える（t959）
+    const timeShare = lineWith(summary, "Share of time per step");
+    for (const word of [
+      "each group's `active_seconds`",
+      "over `total.active_seconds`",
+      "`missing.active_seconds`",
+    ])
+      expect(timeShare, word).toContain(word);
+    expect(lineWith(section(retro, "## Gaps in the measurement"), "- `missing`:")).toContain(
+      "`active_seconds`, `waited_seconds`",
+    );
     expect(lineWith(section(retro, "## Deciding the target"), "- Perspectives")).toContain(
       "propose and compute only for those",
     );

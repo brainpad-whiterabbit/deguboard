@@ -20,7 +20,7 @@ In the steps below, `<S>` is the ID of the target Iteration.
 1. **Read the numbers and the perspectives**: after `dg --json --actor agent sync`, read `metrics show --iteration <S> --by step`, `ticket list --iteration <S> --include-abandoned`, `iteration show <S>`, and `config show` (`retro.perspectives`) (all with `dg --json --actor agent`)
 2. **Show the summary**: a few lines, before asking anything
    - Runs: `total.runs`, and the tickets by status from `ticket list`
-   - Share of time per step: each group's `duration_seconds` over `total.duration_seconds`
+   - Share of time per step: each group's `active_seconds` (the time worked, without the waits for the parent's requests) over `total.active_seconds`. `duration_seconds` is the elapsed time and includes the waits, so do not use it for the share. `active_seconds` adds up only the Runs whose waits were counted, so when `missing.active_seconds` is not 0, the share covers only those Runs: give that count in the note, with each group's `duration_seconds` for reference
    - Share of tokens per step: each group's tokens over the tokens of `total`. A Run's tokens are its `input`, `output`, `cache_read`, and `cache_write` added together (cache is `cache_read` and `cache_write` together). The four counts are separate and do not overlap, so they add up without counting any token twice. A group whose four values are all null is "unmeasured". Each value adds up only the Runs that have it, so when a group has `missing` counts for them, its share covers only those Runs, and the note gives the `missing` count of each value
    - Failures: `total.results.failure` and `interrupted`
    - Retries and heavy findings: `total.retries` and `total.reviews.heavy`
@@ -103,7 +103,8 @@ Each finding of a review has a `cause`, one of seven kinds (their meanings are i
 
 Add these as notes to the summary, to the table of the metrics, and to the Keep / Problem / Try table, with their counts.
 
-- `missing`: the number of Runs whose value could not be read, per value (`duration_seconds`, `input`, `output`, `cache_read`, `cache_write`, `tools`). Those Runs are not added to the totals
+- `missing`: the number of Runs whose value could not be read, per value (`duration_seconds`, `active_seconds`, `waited_seconds`, `input`, `output`, `cache_read`, `cache_write`, `tools`). Those Runs are not added to the totals
+- Waits not counted: `missing.waited_seconds` (and `missing.active_seconds`) counts the Runs whose waits for the parent's requests could not be counted (an unfinished Run, a Run the parent opened itself, a Run of an agent whose Adapter does not count waits, a Run from before waits were recorded). Their time is not in `active_seconds`; note it as a gap, not as 0
 - Tokens not read: the `missing` counts of `input`, `output`, `cache_read`, and `cache_write` are the signal. Each value adds up only the Runs that have it, so give the `missing` count of each value, and note it as a gap, not as 0. The usage is not read when `metrics.read_transcripts` was false, or DEGUBOARD_NO_TRANSCRIPTS was set, where the Runs were finished (the setting now, in `dg config show`, may differ from the one then). `dg run refresh` can read the usage of closed Runs again
 - `lines.missing`: the number of tickets with no changed lines, which are left out of the tokens per changed line. A done ticket that has a PR and no lines can be filled with `dg metrics lines --iteration <S>` (it writes the lines to the tickets, so run it only when a human asks)
 - `estimated_runs`: the number of Runs whose usage is estimated. The totals include the estimates
@@ -111,7 +112,7 @@ Add these as notes to the summary, to the table of the metrics, and to the Keep 
 - `files_unknown` and `unread` of `metrics sources`: the tickets whose changed files could not be read (`files` is null). They are left out of the metrics that read `files`
 - Runs follow each ticket's current Iteration, so the Runs of the carried-over tickets are not in the numbers of `<S>`
 
-Do not fill in a value that has a gap by guessing. For a metric or a finding that depends on it, write "unmeasured" with the gap as the reason (for example, "share of time per step: unmeasured, 3 Runs have no `duration_seconds`"), and do not make it a Keep or a Problem.
+Do not fill in a value that has a gap by guessing. For a metric or a finding that depends on it, write "unmeasured" with the gap as the reason (for example, "share of time per step: unmeasured, 3 Runs have no `active_seconds`"), and do not make it a Keep or a Problem.
 
 ## Keep / Problem / Try
 

@@ -145,7 +145,8 @@ function richClient(): MockClient {
     incomplete: [],
   });
   const runs = [
-    run({ id: "r20261101-000000-aaaa" }),
+    // 待ちを数えた Run と、待ちが不明な Run（waited_seconds がない）の時間の文を両方出す
+    run({ id: "r20261101-000000-aaaa", waited_seconds: 600, active_seconds: 1200 }),
     run({
       id: "r20261101-010000-bbbb",
       result: "failure",

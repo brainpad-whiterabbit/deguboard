@@ -25,6 +25,8 @@ function run(partial: Partial<RunView> & { id: string }): RunView {
     usage: { input: 12345, output: 678, cache_read: null, cache_write: null },
     running: false,
     duration_seconds: 1800,
+    waited_seconds: 0,
+    active_seconds: 1800,
     ...partial,
   } as RunView;
 }
@@ -225,6 +227,38 @@ describe("チケット詳細の Run", () => {
     );
     expect(parts).toEqual(["3 件", "成功 1 · 失敗 1 · 実行中 1", "24,690 + — / 1,356 + —"]);
     expect(document.querySelector(".ticket-runs-summary")!.closest("h2")).toBeTruthy();
+  });
+
+  it("1 行の時間は待ちを除いた作業時間を主に出して待ちを添え、待ちが不明なら経過時間に「待ちは不明」を添える（t959）", async () => {
+    const client = mockClient();
+    client.handlers["run.list"] = () => [
+      run({ id: "r20261101-010000-aaaa", waited_seconds: 600, active_seconds: 1200 }),
+      run({ id: "r20261101-020000-bbbb" }),
+      run({ id: "r20261101-030000-cccc", waited_seconds: null, active_seconds: null }),
+      run({
+        id: "r20261101-040000-dddd",
+        finished_at: null,
+        result: null,
+        running: true,
+        duration_seconds: null,
+        waited_seconds: null,
+        active_seconds: null,
+      }),
+    ];
+    renderPanel(client);
+    await screen.findAllByRole("img", { name: "成功" });
+    const times = [...document.querySelectorAll(".ticket-run-time > span")];
+    expect(times.map((t) => t.textContent)).toEqual([
+      "20分 0秒（待ち 10分 0秒）",
+      "30分 0秒",
+      "30分 0秒（待ちは不明）",
+      "—",
+    ]);
+    expect(times[0]!.getAttribute("title")).toBe("待ちを除いた作業時間。経過 30分 0秒");
+    expect(times[2]!.getAttribute("title")).toBe(
+      "経過時間。親の依頼を待った時間を数えられない Run",
+    );
+    expect(times[3]!.hasAttribute("title")).toBe(false);
   });
 
   it("合計はすべて取れなければ「—」、一部なら「+ —」、推定を含めば「~」を付け、0 と見せない", () => {

@@ -233,6 +233,11 @@ export const EN: Readonly<Record<string, string>> = {
   "トークン（入力 / 出力）{0}": "Tokens (input / output){0}",
   "。値が取れなかった Run が {0} 件あり、合計に入れていない":
     ". {0} runs had no value and are not in the total",
+  "{0}（待ち {1}）": "{0} (waited {1})",
+  "{0}（待ちは不明）": "{0} (wait unknown)",
+  "待ちを除いた作業時間。経過 {0}": "Active time, without waits. Elapsed {0}",
+  "経過時間。親の依頼を待った時間を数えられない Run":
+    "Elapsed time. The time this run waited for its parent could not be counted",
   "再試行 {0}": "Retries {0}",
   "入力 {0} / 出力 {1} / cache read {2} / cache write{3}{4}{5}":
     "Input {0} / Output {1} / cache read {2} / cache write{3}{4}{5}",
