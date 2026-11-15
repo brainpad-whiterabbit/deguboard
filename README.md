@@ -59,6 +59,10 @@ Choose **Ask Agent** → **Retrospect** on a finished Iteration. The agent shows
 
 Tokens are counted only when deguboard reads usage from conversation transcripts. [Count tokens](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#count-tokens) in the usage guide explains how to turn it on.
 
+## How it works
+
+Tickets and Runs live in a branch of your repository, every screen and agent goes through the same `dg` commands, and hooks record each Run without the agent's help. [How it works](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/how-it-works.md) shows the overall structure and what each Run records, with diagrams.
+
 ## Tips
 
 The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md).
@@ -81,9 +85,10 @@ The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deg
 
 ## Documentation
 
-The documents below are written in Japanese, except the usage guide.
+The documents below are written in Japanese, except the usage guide and How it works, which are in English.
 
 - [Usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md): the details that this README leaves out
+- [How it works](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/how-it-works.md): the overall structure and what each Run records, with diagrams
 - [Requirements](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md): the source of truth for the current specification
 - [ADRs](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/adr/README.md): background and reasons for design decisions
 - [Development guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/development.md): for people developing in this repository
