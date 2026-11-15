@@ -271,9 +271,6 @@ export const STALE_SESSION_ERROR =
 /** フックが実装の Run を閉じるとき、PR がなかったエラー（RN-7） */
 export const NO_PR_ERROR = "No PR when the sub-agent ended";
 
-/** フックが手直しの Run を閉じるとき、開始より後の push がなかったエラー（RN-7） */
-export const NO_FIX_PUSH_ERROR = "No fix push when the sub-agent ended";
-
 /** セッションの終わりに、step を終えた事実のないサブエージェントの Run を interrupted で閉じるときのエラー（RN-7） */
 export const OPEN_AT_SESSION_END_ERROR = "Still open when the session ended";
 

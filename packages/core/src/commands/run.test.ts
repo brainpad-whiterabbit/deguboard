@@ -17,7 +17,6 @@ import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import {
   fixRunFinishedAt,
-  NO_FIX_PUSH_ERROR,
   NO_PR_ERROR,
   OPEN_AT_SESSION_END_ERROR,
   REVIEW_UNRECORDED,
@@ -956,7 +955,6 @@ describe("run review-result（見直しの結果。RN-9）", () => {
       REVIEW_UNRECORDED,
       STALE_SESSION_ERROR,
       NO_PR_ERROR,
-      NO_FIX_PUSH_ERROR,
       OPEN_AT_SESSION_END_ERROR,
       UNCLAIMED_ERROR,
     ])
