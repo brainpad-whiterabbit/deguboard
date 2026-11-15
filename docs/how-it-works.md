@@ -24,9 +24,9 @@ An agent does not carry the steps in its memory. Each time it asks `dg next`, dg
 
 The agent carries out only the one step that dg returns, then asks again. A decision that only a person makes, such as approving a merge, is returned by dg as a step that asks a person.
 
-### What the next step covers
+### Rules of this section
 
-- The steps are in dg: the agent reads `dg guide` and `dg next`, looks at the facts, and carries out the one step returned
+- The steps are in dg (the Skills, `dg guide`, and `dg next`; the Skills are also steps that dg ships): the agent looks at the facts and carries out the one step returned
 - The stage is not stored, so when the work stops, `dg next` resumes it from the same facts
 - Decisions that a person makes (approving a merge, release, or stopping a ticket) are stopped by dg, which asks. The gate level changes whether the review is done
 
