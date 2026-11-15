@@ -1,0 +1,35 @@
+{
+  "id": "r20261115-121343-0743",
+  "ticket": "t990",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-15T12:13:43Z",
+  "finished_at": "2026-11-15T12:14:44Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "how-it-works.ja.md の使い方リンクの文言を usage.ja.md の題と揃える",
+    "how-it-works の SVG に背景の rect を足し、OS と GitHub の配色が違っても文字と背景の対比を保つ"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 5177,
+    "cache_read": 332319,
+    "cache_write": 52377
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 7,
+    "bash": 5,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "b9a27ee7-5f63-4ae0-ae1d-d37bdb2b62f0",
+  "review": null,
+  "waited_seconds": 0
+}
