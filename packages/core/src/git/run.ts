@@ -114,12 +114,23 @@ function gitBaseArgs(localDir: string | undefined): string[] {
   return localDir ? ["-c", `core.hooksPath=${path.join(localDir, "no-hooks")}`] : [];
 }
 
+/**
+ * git の任意のロックを取らない（--no-optional-locks と同じ）。status などの読みは、index を新しくするために index.lock を取って
+ * index を書き直す。読み（画面の状態の読み・dg status）は書き込みのロック（withLock）の外で走るので、同時の dg の書き込み
+ * （add・commit）が index.lock: File exists で落ちる。読みと書き込みを呼び分けずにすべての git に付ける：書き込みに要るロック
+ * （add・commit・rebase・reset）は任意のロックではないので変わらない（t944）
+ */
+const NO_OPTIONAL_LOCKS = { GIT_OPTIONAL_LOCKS: "0" };
+
 export async function runGit(
   cwd: string,
   args: readonly string[],
   opts: RunOptions & { localDir?: string } = {},
 ): Promise<ExecResult> {
-  return exec("git", [...gitBaseArgs(opts.localDir), ...args], cwd, opts);
+  return exec("git", [...gitBaseArgs(opts.localDir), ...args], cwd, {
+    ...opts,
+    env: { ...NO_OPTIONAL_LOCKS, ...opts.env },
+  });
 }
 
 export async function runGh(
