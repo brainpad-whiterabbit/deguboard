@@ -3,13 +3,16 @@
 // dist/ を先に丸ごと消さないのは、ビルド中も main の checkout の dg（フックが絶対パスで呼ぶ）が動き続けるようにし、
 // tsbuildinfo による増分のビルドを残すため。
 // dist/x.js・x.d.ts・x.js.map・x.d.ts.map は src/x.ts か src/x.tsx（テストの *.test.ts(x) を除く）があれば残す。
-// dist/guide/ は src/guide/ の guide-*.md にあるものだけを残す。それ以外のファイルと空になったディレクトリは消す。
+// dist/guide/ は src/guide/ の guide-*.md にあるものだけを残す。dist/build-info.json（ビルドの最後に
+// scripts/write-build-info.mjs が書く、ビルドしたコミット。t973）は残す。消すと、途中で失敗したビルドのあとに古いと分からなくなる。
+// それ以外のファイルと空になったディレクトリは消す。
 // 引数でパッケージのディレクトリを変えられる（テスト用。既定は packages/core・server・cli）
 
 import { existsSync } from "node:fs";
 import { readdir, rm, rmdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { BUILD_INFO_FILE } from "../packages/cli/bin/build-info.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packages =
@@ -22,6 +25,7 @@ const OUTPUT_EXTENSIONS = [".d.ts.map", ".js.map", ".d.ts", ".js"];
 /** dist/ の中の相対パスが、今のソースから作る出力かを返す */
 function hasSource(pkg, rel) {
   const src = path.join(pkg, "src");
+  if (rel === BUILD_INFO_FILE) return true;
   if (rel.startsWith(`guide${path.sep}`) && rel.endsWith(".md")) {
     const name = rel.slice("guide".length + 1);
     return /^guide-[^/\\]*\.md$/.test(name) && existsSync(path.join(src, "guide", name));

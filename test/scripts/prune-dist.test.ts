@@ -59,11 +59,14 @@ describe("prune-dist.mjs", () => {
       "dist/a.test.js",
       "dist/guide/guide-x.md",
       "dist/guide/guide-gone.md",
+      "dist/build-info.json",
+      "dist/sub/build-info.json",
     );
 
     expect(await run(pkg)).toBe(0);
 
     for (const kept of [
+      "dist/build-info.json",
       "dist/a.js",
       "dist/a.d.ts",
       "dist/a.js.map",
@@ -82,6 +85,7 @@ describe("prune-dist.mjs", () => {
       "dist/old",
       "dist/a.test.js",
       "dist/guide/guide-gone.md",
+      "dist/sub/build-info.json",
     ]) {
       expect(existsSync(join(pkg, removed)), removed).toBe(false);
     }
@@ -101,5 +105,11 @@ describe("prune-dist.mjs", () => {
     expect(prune).toBeGreaterThan(steps.findIndex((s) => s.includes("guide-*.md")));
     expect(steps.indexOf("tsc -b tsconfig.build.json")).toBe(0);
     expect(scripts.build).not.toMatch(/rm -rf packages\/(core|server|cli)\/dist/);
+  });
+
+  it("build はビルドしたコミットを最後に書く（途中で失敗したビルドを今のものと記録しない。t973）", async () => {
+    const { scripts } = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8"));
+    const steps: string[] = scripts.build.split("&&").map((s: string) => s.trim());
+    expect(steps.at(-1)).toBe("node scripts/write-build-info.mjs");
   });
 });

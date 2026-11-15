@@ -9,6 +9,10 @@
 // それは拡張ホストの node で、engines により 24 以上に決まる。ここはどの node で呼ばれても見る。
 // 終了コードは PreToolUse のフック（hook PreToolUse）だけ 2 にする。Claude Code は PreToolUse の終了コード 1 を
 // ツールを止めない誤りとして扱うので、1 だとフックの守りが黙って外れる。2 はツールの呼び出しを拒む。ほかのコマンドは 1
+// dist をビルドしたコミットがこの worktree の今の HEAD と違えば、mise run build を案内する警告を stderr に出してから動く（t973。
+// 判定は build-info.mjs）。束ねた dg.mjs は VSIX の中にあり git の checkout から動かないので、この入口だけが持つ
+import { fileURLToPath } from "node:url";
+import { staleDistWarningOf } from "./build-info.mjs";
 import { nodeVersionExitCodeOf, nodeVersionProblemOf } from "./node-version.mjs";
 import { runEntry } from "./run-entry.mjs";
 
@@ -18,6 +22,13 @@ if (nodeProblem !== undefined) {
   process.stderr.write(nodeProblem);
   process.exitCode = nodeVersionExitCodeOf(argv);
 } else {
+  try {
+    const staleDist = staleDistWarningOf(fileURLToPath(new URL("../../..", import.meta.url)));
+    if (staleDist !== undefined) process.stderr.write(staleDist);
+  } catch {
+    // 警告は案内だけなので、思わぬ例外でも dg は動かす
+  }
+
   // dist が今のものでないときの失敗。ファイルが無いとき（ERR_MODULE_NOT_FOUND）と、部分的な再ビルドで古い dist が
   // import 先の名前を持たないとき（SyntaxError の "does not provide an export named"）。どちらも同じく扱う
   const isStaleDist = (error) =>
