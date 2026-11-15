@@ -188,41 +188,45 @@ describe("優先度の印", () => {
     expect(rest.join("\n")).toBe("利用者に見える不具合・ほかのチケットを止めている");
   });
 
-  it("英語の表示で既定のままの判断基準は英語の訳で出し、書き換えた値は書いた言葉のまま出す（UI-11）", async () => {
+  it("既定のままの判断基準は日本語の表示で日本語の訳で、英語の表示で既定の英語のまま出し、書き換えた値は書いた言葉のまま出す（UI-11）", async () => {
     const defaults = configFields().filter((f) => f.key.startsWith("priority."));
-    const mediumEn = DEFAULT_VALUES[defaults[1]!.default as string]!.en!;
-    const client = mockClient();
+    const highDefault = defaults[0]!.default as string;
+    const mediumDefault = defaults[1]!.default as string;
+    const highJa = DEFAULT_VALUES[highDefault]!.ja!;
+    const mediumJa = DEFAULT_VALUES[mediumDefault]!.ja!;
+    // high は日本語の既定（前の既定の写し）を config.yaml に書いたリポジトリ。medium は既定のまま
     const config = {
       default_workflow: "software-development",
-      priority: { high: "独自の基準", medium: "", low: "" },
+      priority: { high: highJa, medium: mediumDefault, low: "Our own criteria" },
     };
-    const shown = {
-      config: { ...config, priority: { ...config.priority, medium: defaults[1]!.default } },
-    };
-    client.handlers["config.show"] = (input) =>
-      (input as { fields?: boolean } | undefined)?.fields
-        ? { ...shown, team: shown.config, local: {}, fields: defaults }
-        : shown.config;
-    setLanguage("en");
-    try {
+    const titlesIn = async (language: "ja" | "en") => {
+      cleanup();
+      const client = mockClient();
+      client.handlers["config.show"] = (input) =>
+        (input as { fields?: boolean } | undefined)?.fields
+          ? { config, team: config, local: {}, fields: defaults }
+          : config;
+      setLanguage(language);
       render(
         <StoreProvider client={client}>
           <PriorityMark priority="high" />
           <PriorityMark priority="medium" />
+          <PriorityMark priority="low" />
         </StoreProvider>,
       );
       await screen.findByText("high");
       await waitFor(() =>
         expect(
           document.querySelector(".priority-mark.priority-medium")!.getAttribute("title"),
-        ).toContain(mediumEn),
+        ).toContain("\n"),
       );
-      const titles = [...document.querySelectorAll(".priority-mark")].map((el) =>
-        el.getAttribute("title"),
+      return [...document.querySelectorAll(".priority-mark")].map((el) =>
+        el.getAttribute("title")!.split("\n").slice(1).join("\n"),
       );
-      // 書き換えた high は書いた言葉のまま、既定のままの medium は英語の訳
-      expect(titles[0]).toContain("独自の基準");
-      expect(titles[1]).toContain(mediumEn);
+    };
+    try {
+      expect(await titlesIn("ja")).toEqual([highJa, mediumJa, "Our own criteria"]);
+      expect(await titlesIn("en")).toEqual([highJa, mediumDefault, "Our own criteria"]);
     } finally {
       setLanguage("ja");
     }

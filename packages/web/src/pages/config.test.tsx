@@ -1257,11 +1257,12 @@ describe("設定画面の部品", () => {
   });
 });
 
-describe("優先度の判断基準の英語の表示と保存（UI-11）", () => {
+describe("優先度の判断基準の日本語の表示と保存（UI-11）", () => {
   const defaultOf = (key: string) => configFields().find((f) => f.key === key)!.default as string;
+  /** core の既定（英語） */
   const DEFAULT_HIGH = defaultOf("priority.high");
-  /** 既定の値の英語の訳（DEFAULT_VALUES）。既定のままのときだけ英語の表示で出る */
-  const EN_HIGH = DEFAULT_VALUES[DEFAULT_HIGH]!.en!;
+  /** 既定の値の日本語の訳（DEFAULT_VALUES）。既定のままのときだけ日本語の表示で出る */
+  const JA_HIGH = DEFAULT_VALUES[DEFAULT_HIGH]!.ja!;
   /** 判断基準の 3 つの値。medium・low は既定のまま */
   const priority = (high: string) => ({
     high,
@@ -1282,19 +1283,25 @@ describe("優先度の判断基準の英語の表示と保存（UI-11）", () =>
   };
   const highInput = () => within(fieldOf("priority.high")).getByRole<HTMLInputElement>("textbox");
 
-  it("英語の表示で、config.yaml に訳と同じ文が書いてあるときは、何もしないで離れても保存しない", async () => {
-    setLanguage("en");
-    try {
-      const { client, config } = configClient();
-      withPriorityFields(client);
-      Object.assign(config, { priority: priority(EN_HIGH) });
-      mount(client);
-      await screen.findByText("Commit mode");
-      expect(highInput().value).toBe(EN_HIGH);
-      fireEvent.blur(highInput());
-      expect(setCalls(client)).toEqual([]);
-    } finally {
-      setLanguage("ja");
+  it("日本語の既定（訳と同じ文）を config.yaml に書いたリポジトリでは、どちらの表示言語でも書いたまま出し、何もしないで離れても保存しない", async () => {
+    for (const [language, name] of [
+      ["ja", "コミットの仕方"],
+      ["en", "Commit mode"],
+    ] as const) {
+      setLanguage(language);
+      try {
+        const { client, config } = configClient();
+        withPriorityFields(client);
+        Object.assign(config, { priority: priority(JA_HIGH) });
+        mount(client);
+        await screen.findByText(name);
+        expect(highInput().value, language).toBe(JA_HIGH);
+        fireEvent.blur(highInput());
+        expect(setCalls(client), language).toEqual([]);
+      } finally {
+        setLanguage("ja");
+        cleanup();
+      }
     }
   });
 
@@ -1320,7 +1327,26 @@ describe("優先度の判断基準の英語の表示と保存（UI-11）", () =>
     }
   });
 
-  it("英語の表示で既定のままなら英語の訳を出し、何もしないで離れても保存しない。訳を打って離れても既定のままなら保存しない", async () => {
+  it("日本語の表示で既定のままなら日本語の訳を出し、何もしないで離れても保存しない。訳を打って離れても既定のままなら保存しない", async () => {
+    const { client, config } = configClient();
+    withPriorityFields(client);
+    Object.assign(config, { priority: priority(DEFAULT_HIGH) });
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    expect(highInput().value).toBe(JA_HIGH);
+    fireEvent.blur(highInput());
+    fireEvent.change(highInput(), { target: { value: JA_HIGH } });
+    fireEvent.blur(highInput());
+    expect(setCalls(client)).toEqual([]);
+    // 書き換えた文は、そのまま保存する
+    fireEvent.change(highInput(), { target: { value: "独自の基準" } });
+    fireEvent.blur(highInput());
+    await waitFor(() =>
+      expect(setCalls(client)).toEqual([{ key: "priority.high", value: "独自の基準" }]),
+    );
+  });
+
+  it("英語の表示で既定のままなら既定の英語の文のまま出す", async () => {
     setLanguage("en");
     try {
       const { client, config } = configClient();
@@ -1328,63 +1354,43 @@ describe("優先度の判断基準の英語の表示と保存（UI-11）", () =>
       Object.assign(config, { priority: priority(DEFAULT_HIGH) });
       mount(client);
       await screen.findByText("Commit mode");
-      expect(highInput().value).toBe(EN_HIGH);
-      fireEvent.blur(highInput());
-      fireEvent.change(highInput(), { target: { value: EN_HIGH } });
+      expect(highInput().value).toBe(DEFAULT_HIGH);
       fireEvent.blur(highInput());
       expect(setCalls(client)).toEqual([]);
-      // 書き換えた文は、そのまま保存する
-      fireEvent.change(highInput(), { target: { value: "独自の基準" } });
-      fireEvent.blur(highInput());
-      await waitFor(() =>
-        expect(setCalls(client)).toEqual([{ key: "priority.high", value: "独自の基準" }]),
-      );
     } finally {
       setLanguage("ja");
     }
   });
 
-  it("英語の表示で訳の文を打って離れたら、既定の値（日本語）で保存する", async () => {
-    setLanguage("en");
-    try {
-      const { client, config } = configClient();
-      withPriorityFields(client);
-      Object.assign(config, { priority: priority("独自の基準") });
-      mount(client);
-      await screen.findByText("Commit mode");
-      fireEvent.change(highInput(), { target: { value: EN_HIGH } });
-      fireEvent.blur(highInput());
-      await waitFor(() =>
-        expect(setCalls(client)).toEqual([{ key: "priority.high", value: DEFAULT_HIGH }]),
-      );
-    } finally {
-      setLanguage("ja");
-    }
+  it("日本語の表示で訳の文を打って離れたら、既定の値（英語）で保存する", async () => {
+    const { client, config } = configClient();
+    withPriorityFields(client);
+    Object.assign(config, { priority: priority("独自の基準") });
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.change(highInput(), { target: { value: JA_HIGH } });
+    fireEvent.blur(highInput());
+    await waitFor(() =>
+      expect(setCalls(client)).toEqual([{ key: "priority.high", value: DEFAULT_HIGH }]),
+    );
   });
 
-  it("英語の表示で既定に戻したときの「保存した」の文も英語の訳で出す（日本語の既定を出さない）", async () => {
-    setLanguage("en");
-    try {
-      const { client, config } = configClient();
-      withPriorityFields(client);
-      Object.assign(config, { priority: priority("独自の基準") });
-      mount(client);
-      await screen.findByText("Commit mode");
-      fireEvent.click(
-        within(fieldOf("priority.high")).getByRole("button", { name: "Reset to Default" }),
-      );
-      await waitFor(() =>
-        expect(setCalls(client)).toEqual([{ key: "priority.high", value: DEFAULT_HIGH }]),
-      );
-      const saved = await waitFor(() => {
-        const el = document.querySelector(".config-saved");
-        expect(el?.textContent).toContain(EN_HIGH);
-        return el!;
-      });
-      expect(saved.textContent).not.toContain(DEFAULT_HIGH);
-    } finally {
-      setLanguage("ja");
-    }
+  it("日本語の表示で既定に戻したときの「保存した」の文も日本語の訳で出す（英語の既定を出さない）", async () => {
+    const { client, config } = configClient();
+    withPriorityFields(client);
+    Object.assign(config, { priority: priority("独自の基準") });
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(within(fieldOf("priority.high")).getByRole("button", { name: "既定に戻す" }));
+    await waitFor(() =>
+      expect(setCalls(client)).toEqual([{ key: "priority.high", value: DEFAULT_HIGH }]),
+    );
+    const saved = await waitFor(() => {
+      const el = document.querySelector(".config-saved");
+      expect(el?.textContent).toContain(JA_HIGH);
+      return el!;
+    });
+    expect(saved.textContent).not.toContain(DEFAULT_HIGH);
   });
 });
 

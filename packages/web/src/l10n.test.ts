@@ -99,15 +99,13 @@ describe("表示言語の決め方と訳し方", () => {
     expect(languageOf("en-us")).toBe("en");
     expect(languageOf("zh-cn")).toBe("en");
   });
-  it("日本語では鍵の {0} を埋めただけのもの（テンプレートリテラルと同じ文字）を出し、core の文と既定の判断基準は訳さずそのまま出す", () => {
+  it("日本語では鍵の {0} を埋めただけのもの（テンプレートリテラルと同じ文字）を出し、日本語の core の文は訳さずそのまま出す", () => {
     expect(tr("{0} 件", 3)).toBe("3 件");
     expect(tr("ほか {0} 件", 0)).toBe(`ほか ${0} 件`);
     expect(tr("{0}（{1}）", null, undefined)).toBe(`${null}（${undefined}）`);
     expect(format("{0} と {1}", ["a"])).toBe("a と {1}");
     expect(msg("カンバン")).toBe("カンバン");
     expect(trCoreMessage("commit.mode の値が正しくない")).toBe("commit.mode の値が正しくない");
-    const high = configFields().find((f) => f.key === "priority.high")!.default as string;
-    expect(shownDefault(high, high)).toBe(high);
   });
   it("英語では訳の表で出し、表にない鍵は鍵のまま出す", () => {
     setLanguage("en");
@@ -475,9 +473,9 @@ describe("core の文の訳の表の引き方（t649）", () => {
 });
 
 describe("既定の値の訳（UI-11）", () => {
-  /** 優先度の判断基準の既定（core が日本語で持つ）。DEFAULT_VALUES に英語の訳がある */
+  /** 優先度の判断基準の既定（core が英語で持つ）。DEFAULT_VALUES に日本語の訳がある */
   const HIGH = configFields().find((f) => f.key === "priority.high")!.default as string;
-  const HIGH_EN = DEFAULT_VALUES[HIGH]!.en!;
+  const HIGH_JA = DEFAULT_VALUES[HIGH]!.ja!;
   /** 表示言語を順に切り替えて確かめる */
   const inEach = (check: (language: Language) => void) => {
     for (const language of ["ja", "en"] as const) {
@@ -503,17 +501,18 @@ describe("既定の値の訳（UI-11）", () => {
       }
     }
   });
-  it("優先度の判断基準の既定は 3 つとも英語の訳を持つ", () => {
+  it("優先度の判断基準の既定は 3 つとも英語で、日本語の訳を持つ", () => {
     for (const level of ["high", "medium", "low"]) {
       const value = configFields().find((f) => f.key === `priority.${level}`)!.default as string;
-      expect(DEFAULT_VALUES[value]?.en, level).toBeDefined();
+      expect(JAPANESE.test(value), level).toBe(false);
+      expect(DEFAULT_VALUES[value]?.ja, level).toBeDefined();
     }
   });
   it("既定のままの値は、今の言語の訳があれば訳で、なければ既定の文のまま出す", () => {
-    // 既定が日本語なので、日本語の表示では訳さない
-    expect(shownDefault(HIGH, HIGH)).toBe(HIGH);
+    expect(shownDefault(HIGH, HIGH)).toBe(HIGH_JA);
+    // 既定が英語なので、英語の表示では訳さない
     setLanguage("en");
-    expect(shownDefault(HIGH, HIGH)).toBe(HIGH_EN);
+    expect(shownDefault(HIGH, HIGH)).toBe(HIGH);
     // 訳のない既定は、既定と同じでも値のまま
     inEach(() => expect(shownDefault("origin", "origin")).toBe("origin"));
   });
@@ -525,7 +524,8 @@ describe("既定の値の訳（UI-11）", () => {
       }
       // 訳の表にある文でも、この項目の既定と違えば訳さない（ほかの項目の既定と、訳の文そのもの）
       expect(shownDefault(medium, HIGH), language).toBe(medium);
-      expect(shownDefault(HIGH_EN, HIGH), language).toBe(HIGH_EN);
+      // 日本語の既定を config.yaml に書いたリポジトリ（前の既定の写し）も、書いたまま出す
+      expect(shownDefault(HIGH_JA, HIGH), language).toBe(HIGH_JA);
       // 既定が変わった後に残る、前の既定の写し（表に訳が残っていても、今の既定と違うので書いたまま）
       expect(shownDefault(HIGH, "New default"), language).toBe(HIGH);
     });
@@ -541,19 +541,18 @@ describe("既定の値の訳（UI-11）", () => {
     });
   });
   it("入力欄の訳の文は保存するとき既定の値に戻し、ほかの文はそのまま保存する", () => {
-    setLanguage("en");
-    expect(storedDefault(HIGH_EN, HIGH)).toBe(HIGH);
+    expect(storedDefault(HIGH_JA, HIGH)).toBe(HIGH);
     expect(storedDefault("独自の基準", HIGH)).toBe("独自の基準");
     // 訳のない既定は、何を打ってもそのまま
     expect(storedDefault("upstream", "origin")).toBe("upstream");
     expect(storedDefault("", undefined)).toBe("");
     // 訳を出していない言語では、訳と同じ文も人の値
-    setLanguage("ja");
-    expect(storedDefault(HIGH_EN, HIGH)).toBe(HIGH_EN);
+    setLanguage("en");
+    expect(storedDefault(HIGH_JA, HIGH)).toBe(HIGH_JA);
   });
   it("出した文をそのまま保存に戻すと、どちらの表示言語でも元の値になる（欄を書き換えずに離れても値が変わらない）", () => {
     inEach((language) => {
-      for (const value of [HIGH, HIGH_EN, "独自の基準", "origin"]) {
+      for (const value of [HIGH, HIGH_JA, "独自の基準", "origin"]) {
         for (const defaultValue of [HIGH, "origin"]) {
           const shown = shownDefault(value, defaultValue);
           // 訳と同じ文を人が書いていた値は、欄を離れても書き換えない（画面は出した文のままなら値を渡す）ので、ここでは除く
