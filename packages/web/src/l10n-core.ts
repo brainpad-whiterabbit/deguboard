@@ -466,9 +466,6 @@ export const CORE_MESSAGES: CoreTextTable = {
     ja: "別のセッションで開いたままだった（落ちたセッションの残りとみなして閉じた）",
   },
   "No PR when the sub-agent ended": { ja: "サブエージェントが終わったとき PR がない" },
-  "No fix push when the sub-agent ended": {
-    ja: "サブエージェントが終わったとき手直しの push がない",
-  },
   "Still open when the session ended": { ja: "セッションが終わったとき開いたままだった" },
   "Returned to todo by ticket unclaim": { ja: "ticket unclaim で todo に戻した" },
   "The reviewer ended without recording a result (write it with dg run review-result)": {

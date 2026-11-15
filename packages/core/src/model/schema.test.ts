@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { agentNames, detectableAgentNames } from "../agents/index.js";
+import { findCommand } from "../commands/registry.js";
 import {
   AUTO_DECISIONS,
   configFields,
@@ -319,6 +320,29 @@ describe("スキーマ", () => {
     ).toContain(
       "`dg metrics sources --iteration <S> (tickets[].files, files_unknown)`; `dg ticket list --iteration <S> --include-abandoned (branch_at, pr)`; `gh pr view <PR> --json mergedAt`",
     );
+  });
+
+  it("推薦の指標の出どころの dg のコマンドとオプションは、コマンドの定義にある（t954）", () => {
+    const dgSources = Object.values(RECOMMENDED_RETRO_METRICS)
+      .flatMap((metrics) => Object.values(metrics))
+      .flatMap((m) => m.sources)
+      .filter((source) => source.startsWith("dg "));
+    expect(dgSources.length).toBeGreaterThan(0);
+    for (const source of dgSources) {
+      // 括弧の前がコマンドの行。<S> などの置き場所は位置引数かオプションの値なので見ない。
+      // オプションの値（--by ticket の ticket）を名前に混ぜないよう、名前は最初のオプションより前の語だけにする
+      const words = source.split(" (")[0]!.split(" ").slice(1);
+      const firstOption = words.findIndex((w) => w.startsWith("--"));
+      const commandName = (firstOption === -1 ? words : words.slice(0, firstOption))
+        .filter((w) => !w.startsWith("<"))
+        .join(".");
+      const command = findCommand(commandName);
+      expect(command, source).toBeDefined();
+      // CLI のオプションは入力のキーの _ を - にしたもの（packages/cli/src/options.ts の toFlag）
+      const keys = Object.keys((command!.input as unknown as { shape: object }).shape);
+      for (const option of words.filter((w) => w.startsWith("--")))
+        expect(keys, `${source}: ${option}`).toContain(option.slice(2).replace(/-/g, "_"));
+    }
   });
 
   it("すり抜けた不具合の割合は、記録した origin と origin_cause で数え、refs と本文からは数えず、記録のない古い Iteration は測れないものにする（t946）", () => {

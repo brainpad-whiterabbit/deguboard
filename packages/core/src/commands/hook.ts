@@ -72,7 +72,6 @@ import {
   closePreviousFixRunOrWarn,
   crashedSubagentRunAt,
   isSubagentTranscript,
-  NO_FIX_PUSH_ERROR,
   NO_PR_ERROR,
   OPEN_AT_SESSION_END_ERROR,
   openedInOtherSession,
@@ -916,9 +915,10 @@ async function resultOf(
     const pushed = ticket.branch
       ? await lastPushedAt(ctx.repo, ticket.branch, { fetch: true }).catch(() => undefined)
       : undefined;
+    // 手直しの failure は Run に書かない（SubagentStop は止まって待つ印を付け、SessionEnd は OPEN_AT_SESSION_END_ERROR で閉じる）ので error を持たない
     return pushed !== undefined && pushed >= run.started_at
       ? { result: "success" }
-      : { result: "failure", error: NO_FIX_PUSH_ERROR };
+      : { result: "failure" };
   }
   if (run.step === REVIEW_STEP) return reviewResultOf(run);
   return { result: "success" };

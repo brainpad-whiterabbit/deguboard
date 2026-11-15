@@ -956,7 +956,6 @@ describe("run review-result（見直しの結果。RN-9）", () => {
       REVIEW_UNRECORDED,
       STALE_SESSION_ERROR,
       NO_PR_ERROR,
-      NO_FIX_PUSH_ERROR,
       OPEN_AT_SESSION_END_ERROR,
       UNCLAIMED_ERROR,
     ])
