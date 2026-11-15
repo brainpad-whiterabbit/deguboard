@@ -63,7 +63,7 @@ export function initCommandLine(options: {
   newBoard?: boolean | undefined;
 }): string {
   const arg = (value: string) =>
-    /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
+    /^[\w@%+:,./-][\w@%+=:,./-]*$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
   return [
     "dg init",
     ...(options.newBoard ? ["--new-board"] : []),

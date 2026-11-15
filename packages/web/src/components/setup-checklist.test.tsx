@@ -29,6 +29,8 @@ describe("core の写し（web は core の実行時のコードを取り込め�
       { dataRemote: "git@github.com:team/kanban.git", dataBranch: "kanban" },
       { dataRemote: "kanban", newBoard: true },
       { dataRemote: "/srv/my repo; rm -rf ~", dataBranch: "a'b", newBoard: true },
+      { dataRemote: "kanban", dataBranch: "=foo" },
+      { dataRemote: "kanban", dataBranch: "a=b" },
     ])
       expect(initCommandLine(options)).toBe(coreInitCommandLine(options));
   });

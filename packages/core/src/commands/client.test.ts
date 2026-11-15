@@ -23,6 +23,11 @@ describe("チェックリストの dg init の 1 行（initCommandLine）", () =
     expect(initCommandLine({ dataRemote: "$(x)", dataBranch: "it's" })).toBe(
       `dg init --data-remote '$(x)' --data-branch 'it'\\''s'`,
     );
+    // zsh の EQUALS は先頭の =cmd を展開するので、先頭の = だけを囲む
+    expect(initCommandLine({ dataRemote: "kanban", dataBranch: "=foo" })).toBe(
+      "dg init --data-remote kanban --data-branch '=foo'",
+    );
+    expect(initCommandLine({ dataBranch: "a=b" })).toBe("dg init --data-branch a=b");
   });
 });
 

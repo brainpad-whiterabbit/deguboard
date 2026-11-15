@@ -87,13 +87,21 @@ export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch):
       return body.data;
     },
     async setup(options): Promise<SetupView> {
-      const query = new URLSearchParams();
-      if (options?.board) {
-        query.set("data_remote", options.board.dataRemote);
-        if (options.board.dataBranch) query.set("data_branch", options.board.dataBranch);
-      }
-      const search = query.size > 0 ? `?${query.toString()}` : "";
-      const body = await call<SetupView>(`/api/setup${search}`);
+      // データの置き場所は POST の JSON で渡す（dg serve は GET の問い合わせでは ls-remote しない。server/src/app.ts）
+      const board = options?.board;
+      const body = await call<SetupView>(
+        "/api/setup",
+        board
+          ? {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                data_remote: board.dataRemote,
+                data_branch: board.dataBranch,
+              }),
+            }
+          : undefined,
+      );
       if (!body.ok) throw new ClientError(body.error);
       return body.data;
     },

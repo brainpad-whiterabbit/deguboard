@@ -2,7 +2,7 @@
 
 In the repository you want to manage, do this once. It creates the place where tickets are stored (`.git/deguboard/`).
 
-The easiest way is the setup checklist in the deguboard sidebar. It checks the folder, the OS, git, the Git repository, and the board from the top, and shows a button and the command on the first item that is not met. On the **Board** item, press the button: a terminal runs `dg init` with the dg bundled in the extension, so `dg` does not need to be on your PATH. When the team already has a board on the remote, the same button takes it in.
+The easiest way is the setup checklist in the deguboard sidebar. It checks the folder, the OS, git, the Git repository, and the board from the top, and shows a button and the command on the first item that is not met. On the **Board** item, press the button: a terminal runs `dg init` with the dg bundled in the extension, so `dg` does not need to be on your PATH. When the team already has a board on the remote, the same button takes it in. If the team keeps the board in another repository, choose **The team's board is in another repository**, enter the repository (a URL or a remote name) and its branch, and check it: the button then runs `dg init` with `--data-remote` and `--data-branch`.
 
 To run it yourself in a terminal instead:
 

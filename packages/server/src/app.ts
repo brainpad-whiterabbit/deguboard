@@ -3,6 +3,7 @@
 //   POST /api/commands/<name>     { input } を渡して CommandResult を返す
 //   GET  /api/status              同期の状態（未 push・未取り込み・読めないファイル）
 //   GET  /api/setup               導入のチェックリスト（dg setup check の結果。dg init 前でも答える）
+//   POST /api/setup               { data_remote, data_branch } のデータの置き場所で確かめた導入のチェックリスト
 //   それ以外                        staticDir があれば静的ファイル（web）
 // どの要求も、先に guard で Host・Origin・Content-Type を見て、ブラウザを踏み台にした要求を断る（UI-8）
 // 応答の文（エラーと案内）は dg の出力なので英語で書き（CL-8）、画面に出る JSON のエラーの文は web の CORE_MESSAGES で表示言語に訳す（UI-11）
@@ -201,14 +202,32 @@ export function createApp(options: AppOptions): Handler {
         json(res, 200, { ok: true, data: await client.status() });
         return;
       }
-      if (url.pathname === "/api/setup" && req.method === "GET") {
+      if (url.pathname === "/api/setup" && (req.method === "GET" || req.method === "POST")) {
         // 文脈（リポジトリかストア）を開かずに確かめるので、git がない・リポジトリの外・dg init の前でも答える。
-        // data_remote・data_branch は、人がボードの項目で指定したデータの置き場所（dg setup check の --data-remote・--data-branch と同じ）
+        // POST の data_remote・data_branch は、人がボードの項目で指定したデータの置き場所（dg setup check の
+        // --data-remote・--data-branch と同じ）。指定した先へ git ls-remote するので GET の問い合わせでは受けない：
+        // Origin のない別サイトの GET（<img src> など）でも任意の URL へ届かせられるため。POST は guard が
+        // application/json を求めるので、別オリジンからはプリフライトなしに送れない
+        let source: { data_remote?: unknown; data_branch?: unknown } = {};
+        if (req.method === "POST") {
+          const body = await readBody(req);
+          try {
+            source = body.trim() ? (JSON.parse(body) as typeof source) : {};
+          } catch {
+            json(res, 400, {
+              ok: false,
+              error: { code: "INVALID_JSON", message: "The request body is not JSON" },
+            });
+            return;
+          }
+        }
+        const text = (value: unknown) =>
+          typeof value === "string" && value !== "" ? value : undefined;
         const result = await checkSetup({
           cwd: options.cwd,
           env: process.env,
-          dataRemote: url.searchParams.get("data_remote") || undefined,
-          dataBranch: url.searchParams.get("data_branch") || undefined,
+          dataRemote: text(source?.data_remote),
+          dataBranch: text(source?.data_branch),
         });
         json(res, 200, { ok: true, data: setupViewOf(result, options.cwd) });
         return;

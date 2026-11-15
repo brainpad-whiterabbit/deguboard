@@ -72,9 +72,12 @@ export interface SetupBoardSource {
   dataBranch?: string | undefined;
 }
 
-/** シェルにそのまま渡せない文字を含む値だけを単一引用符で囲む（チェックリストのコマンドはターミナルに 1 行で送り、コピーもされる） */
+/**
+ * シェルにそのまま渡せない文字を含む値だけを単一引用符で囲む（チェックリストのコマンドはターミナルに 1 行で送り、コピーもされる）。
+ * 先頭の = も囲む：zsh（macOS の既定）の EQUALS が =cmd をコマンドのパスに展開する
+ */
 function shellArg(value: string): string {
-  return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
+  return /^[\w@%+:,./-][\w@%+=:,./-]*$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 /**
