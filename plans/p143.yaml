@@ -3,7 +3,7 @@ tickets: [t999, t1000, t1001, t1004, t1002]
 after:
   t1002:
     - t1001
-pending_approval: true
+pending_approval: false
 details:
   t999:
     scope: README.md・README.ja.md・requirements.md の gh の要否、README の冒頭のトークンの記述、usage.md・usage.ja.md の --dry-run の記述を実装に合わせる
@@ -25,3 +25,5 @@ details:
     scope: check-docs.mjs の英日の節の構成の検査を usage と how-it-works の対に広げ、SVG の ADR 番号の扱いを決め、テストを足す
     approach: t1001 で変わった check-docs.mjs の上に、README の対の検査と同じ形で対を増やす
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-15T13:08:07Z
