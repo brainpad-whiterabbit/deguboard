@@ -5,13 +5,16 @@ import { setLanguage } from "../l10n.js";
 import { DEFAULT_VALUES } from "../l10n-core.js";
 import { App } from "../app.js";
 import { ClientError } from "../client/http.js";
+import { createHost, HostProvider } from "../host.js";
 import { toggleRoute } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
+import { createUiState, memoryBackend } from "../ui-state.js";
 import type { ConfigField, ConfigShowView, RetroPerspective } from "../types.js";
-import { configFields, defaultConfig, GUIDE_TOPICS } from "@deguboard/core";
+import { ASK_PERSPECTIVE_KEY, configFields, defaultConfig, GUIDE_TOPICS } from "@deguboard/core";
 import {
   CONFIRM_KEYS,
+  RETRO_ITEM_PREFIX,
   clearsToDefault,
   formatValue,
   groupOf,
@@ -272,6 +275,21 @@ function mount(client: ReturnType<typeof mockClient>) {
   render(
     <StoreProvider client={client}>
       <App />
+    </StoreProvider>,
+  );
+}
+
+/** エージェントに頼む入力欄まで開けるよう、Host（見た目の状態はメモリ）で包んで載せる */
+function mountWithHost(client: ReturnType<typeof mockClient>) {
+  window.location.hash = "#/config";
+  render(
+    <StoreProvider client={client}>
+      {/* 拡張ホストのない Host は見た目の状態を使い回すので、テストごとの置き場に差し替える（前のテストの小窓を戻さない） */}
+      <HostProvider
+        host={{ ...createHost("sidebar", null), state: createUiState(memoryBackend()) }}
+      >
+        <App />
+      </HostProvider>
     </StoreProvider>,
   );
 }
@@ -1155,6 +1173,74 @@ describe("設定画面", () => {
 
   // 歯車はビューのタイトル行にあり、拡張ホストの toggle の event が toggleRoute を呼ぶ（host.tsx の HostBridge）。
   // 設定画面から戻る手は歯車（とタブ）だけで、画面の中に戻るリンクは置かない
+  it("項目の行ごとに頼む吹き出しを出し、押すと core が決めた候補（設定の説明と変更の 1 つ）から、その項目のキーを入れた /dgconfig の依頼文を開く", async () => {
+    const { client } = configClient();
+    mountWithHost(client);
+    await screen.findByText("コミットの仕方");
+    // 説明つきの行は名前の行に、guide.notes.* の表の行は見出しのセルに、どの項目も 1 つずつ
+    for (const f of FIELDS)
+      expect(
+        within(fieldOf(f.key)).getAllByRole("button", {
+          name: `エージェントに頼む（設定の項目 ${f.key}）`,
+        }),
+        f.key,
+      ).toHaveLength(1);
+    expect(
+      fieldOf("guide.notes.work").querySelector("th[data-ask-spot] > .ask-bubble"),
+    ).toBeTruthy();
+    // 候補は画面で組まず、項目ごとの組（= を付けたキー）を ask-menu に渡して引く
+    await waitFor(() =>
+      expect(
+        client.calls
+          .filter((c) => c.name === "ask-menu")
+          .flatMap((c) => (c.input as { sets: string[] }).sets),
+      ).toEqual(expect.arrayContaining(FIELDS.map((f) => `=${f.key}`))),
+    );
+    fireEvent.click(
+      within(fieldOf("commit.mode")).getByRole("button", { name: /エージェントに頼む/ }),
+    );
+    await waitFor(() => expect(screen.getAllByRole("menuitem")).toHaveLength(1));
+    fireEvent.click(screen.getByRole("menuitem", { name: /設定を説明・変更する/ }));
+    const composer = await screen.findByRole("region", { name: "エージェントに頼む" });
+    // 項目のキーを札に出し、依頼文は core の ask が返したまま
+    await waitFor(() =>
+      expect([...composer.querySelectorAll(".ask-pill")].map((p) => p.textContent)).toEqual([
+        "/dgconfig",
+        "commit.mode",
+      ]),
+    );
+    fireEvent.click(within(composer).getByRole("button", { name: "全文" }));
+    await waitFor(() =>
+      expect(within(composer).getByLabelText("全文", { selector: "pre" }).textContent).toBe(
+        "/dgconfig commit.mode",
+      ),
+    );
+    const asks = client.calls.filter((c) => c.name === "ask").map((c) => c.input);
+    expect(asks.length).toBeGreaterThan(0);
+    expect(
+      asks.every(
+        (i) =>
+          (i as { key?: string }).key === "commit.mode" &&
+          (i as { targets: string[] }).targets.length === 0,
+      ),
+    ).toBe(true);
+    // 頼むだけでは設定を書かない
+    expect(setCalls(client)).toEqual([]);
+  });
+
+  it("自分のタブの行にも頼む吹き出しを出す", async () => {
+    const { client } = configClient();
+    mountWithHost(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(tabOf("自分"));
+    await settle();
+    expect(
+      within(fieldOf("commit.mode")).getByRole("button", {
+        name: "エージェントに頼む（設定の項目 commit.mode）",
+      }),
+    ).toBeTruthy();
+  });
+
   it("歯車で設定画面を開き、もう一度押すと来る前の画面に戻る", async () => {
     const { client } = configClient();
     window.location.hash = "#/backlog";
@@ -1446,7 +1532,35 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
     expect(perspectiveOf("review").querySelector(".config-key")!.textContent).toBe("review");
     // 観点は <details> で畳まない（畳むのは指標の「詳しく」だけ）
     expect(s.querySelectorAll("details:not(.config-more)")).toHaveLength(0);
-    expect(s.querySelectorAll("input, select, textarea, button")).toHaveLength(0);
+    // ボタンは観点ごとの頼む吹き出しだけ
+    expect(s.querySelectorAll("input, select, textarea, button:not(.ask-bubble)")).toHaveLength(0);
+    expect(s.querySelectorAll("button.ask-bubble")).toHaveLength(2);
+  });
+
+  it("観点の行の吹き出しから、その観点の ID を渡して /dgretro を頼む依頼文を開く（ask は key に retro.perspectives.<id> を受ける）", async () => {
+    const client = retroClient();
+    mountWithHost(client);
+    await screen.findByText("コミットの仕方");
+    const head = perspectiveOf("review").querySelector<HTMLElement>(":scope > .config-field-head")!;
+    fireEvent.click(
+      within(head).getByRole("button", { name: "エージェントに頼む（振り返りの観点 review）" }),
+    );
+    // 候補は core が決めた振り返るの 1 つだけ
+    await waitFor(() => expect(screen.getAllByRole("menuitem")).toHaveLength(1));
+    fireEvent.click(screen.getByRole("menuitem", { name: /振り返る/ }));
+    const composer = await screen.findByRole("region", { name: "エージェントに頼む" });
+    fireEvent.click(within(composer).getByRole("button", { name: "全文" }));
+    await waitFor(() =>
+      expect(within(composer).getByLabelText("全文", { selector: "pre" }).textContent).toBe(
+        "/dgretro\n観点 review だけで振り返って",
+      ),
+    );
+    expect(RETRO_ITEM_PREFIX).toBe(ASK_PERSPECTIVE_KEY);
+    const asks = client.calls.filter((c) => c.name === "ask").map((c) => c.input);
+    expect(asks.map((i) => (i as { key?: string }).key)).toEqual(
+      asks.map(() => "retro.perspectives.review"),
+    );
+    expect(asks.length).toBeGreaterThan(0);
   });
 
   it("指標は ID と数え方の最初の文の子の行で出し、全文・出どころ・測れないものは「詳しく」に畳む", async () => {

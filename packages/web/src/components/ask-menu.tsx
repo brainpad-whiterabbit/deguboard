@@ -10,6 +10,7 @@
 // 詳細のタイトルは幅に余裕があるので、吹き出しをタイトルの横に常に出す（pinned）。詳細の中の行は、チケットが入っている
 // Iteration・Epic を within に渡し、「そこから外す」を候補に足す。履歴の行・見出しは place（historyRow）を渡し、
 // 場所で変わる候補（閉じた Iteration の見出しの「振り返る」）を出す。場所は core が決め、画面は鍵に写して渡すだけ。
+// 設定画面の項目の行は対象を持たず、設定の項目（item）を渡す（候補はその項目の説明と変更、振り返りの観点なら振り返る。これも core が決める）。
 // 一覧の行は select で複数選べ（selection.tsx）、選んだ行の吹き出しは選んだ全件を対象にする。選んでいる間は
 // 画面の下に「n 件を選択 ・ 頼む」の帯（SelectionBar）を出す。
 // 選べる行はキーでも操作できる（リンクにフォーカスがあるとき）：Space で選びに足し外しし、a か Shift+F10 で頼む一覧を開く。↑↓・Enter は row-nav.tsx
@@ -172,6 +173,8 @@ export interface AskSpotOptions {
   within?: string | undefined;
   /** 頼む場所（履歴の行・見出しは historyRow）。場所によって候補が変わる（閉じた Iteration の見出しの振り返るなど） */
   place?: AskPlace | undefined;
+  /** 設定の項目（設定画面の行。ask の key：commit.mode、retro.perspectives.spec）。対象（targets）は空にする。候補はその項目のものを core が決める */
+  item?: string | undefined;
   /**
    * 一覧の行（対象は targets の 1 件）を Ctrl/⌘・Shift+クリックで選べるようにする（selection.tsx）。
    * 選んだ行が 2 件以上なら、吹き出し・Shift+F10 は選んだ全件を対象にする
@@ -226,12 +229,13 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
   const within = many ? selection!.within : options?.within;
   const place = options?.place;
   const label = many ? tr("選んだ {0} 件", targets.length) : (options?.label ?? "");
-  const key = askKey(targets, within, place);
+  const item = options?.item;
+  const key = askKey(targets, within, place, item);
   const menu = useAskMenu(options ? key : null, open);
   const asking =
     !!options &&
     ask.request !== null &&
-    askKey(ask.request.targets, ask.request.within, ask.request.place) === key;
+    askKey(ask.request.targets, ask.request.within, ask.request.place, ask.request.item) === key;
   // 右クリックのメニューは ID（options.menu）のある行・見出しだけ「詳細を開く」「ID をコピー」を出す。
   // どこでも既定の切り取り・コピー・貼り付けは出さない
   const context = options
@@ -286,7 +290,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
           onPick={(c) => {
             setOpen(false);
             returnTo.current = null;
-            ask.open(targets, c.action, within, place);
+            ask.open(targets, c.action, within, place, item);
           }}
           onClose={close}
         />
@@ -451,16 +455,19 @@ export function SelectionBar() {
 export function AskSpotBox({
   as: Tag = "div",
   className,
+  scope,
   children,
   ...options
 }: AskSpotOptions & {
-  as?: "div" | "li" | "summary" | "h1" | "header";
+  as?: "div" | "li" | "summary" | "h1" | "header" | "th";
   className?: string | undefined;
+  /** 表の見出しのセル（th）の scope（設定画面の guide.notes.* の表の行） */
+  scope?: "row" | undefined;
   children: ReactNode;
 }) {
   const spot = useAskSpot(options);
   return (
-    <Tag className={className} {...spot.props}>
+    <Tag className={className} {...(Tag === "th" && scope ? { scope } : {})} {...spot.props}>
       {children}
       {spot.overlay}
     </Tag>

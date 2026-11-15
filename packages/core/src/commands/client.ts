@@ -94,6 +94,7 @@ export const WEBVIEW_CONTRACT = {
     "historyRow",
     "detailTitle",
     "detailTicket",
+    "configRow",
   ],
   /** 拡張が開く画面のルート（web の router のハッシュ） */
   routes: { board: "#/board", config: "#/config" },

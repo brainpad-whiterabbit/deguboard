@@ -471,6 +471,8 @@ export const EN: Readonly<Record<string, string>> = {
   "振り返りの観点と、人が承認した指標の定義。ここでは読むだけで、定義は振り返りで承認したものを {0} が書く":
     "Perspectives of the retrospective and the metric definitions a person approved. Read-only here: {0} writes the definitions approved in a retrospective",
   観点がない: "No perspectives",
+  "設定の項目 {0}": "Setting {0}",
+  "振り返りの観点 {0}": "Retrospective perspective {0}",
   "指標 {0}": "Metrics: {0}",
   指標なし: "No metrics",
   "指標は振り返りで提案し、人が承認するとここに出る":

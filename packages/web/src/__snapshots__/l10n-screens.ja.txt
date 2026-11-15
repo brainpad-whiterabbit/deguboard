@@ -275,6 +275,8 @@ config.yaml
 commit.mode
 [title] 既定は batch
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 commit.mode）
 チケットの書き込みをいつコミットするか
 each
 batch
@@ -291,6 +293,8 @@ push の仕方
 push.mode
 [title] 既定は auto
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 push.mode）
 コミットをいつ push するか
 auto
 （既定）
@@ -304,6 +308,8 @@ push.mode
 actions.shell
 [title] 既定は false
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 actions.shell）
 任意のシェルの Action を許す
 無効
 [title] 既定の false に戻す
@@ -314,6 +320,8 @@ actions.shell
 actions.test
 [title] 既定は 空
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 actions.test）
 品質ゲートの検査とテストの Action が回すコマンド
 空
 [aria-label] 項目
@@ -328,6 +336,8 @@ actions.test
 actions.light_test
 [title] 既定は 空
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 actions.light_test）
 変更が軽いパスだけのとき、actions.test の代わりに回す検査
 空
 [aria-label] 項目
@@ -342,6 +352,8 @@ actions.light_test
 actions.light_paths
 [title] 既定は 空
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 actions.light_paths）
 軽い検査で済ませてよいファイルの glob
 空
 [aria-label] 項目
@@ -356,6 +368,8 @@ PR を自動でマージする
 auto.merge
 [title] 既定は false
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 auto.merge）
 --auto で、品質ゲートを満たした PR を自動でマージする
 無効
 [title] 既定の false に戻す
@@ -366,6 +380,8 @@ auto.merge
 auto.decisions
 [title] 既定は [assign, check, plan, audit, accept]
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 auto.decisions）
 --auto で聞かずに選ぶ判断
 空
 [aria-label] 項目
@@ -380,6 +396,8 @@ auto.decisions
 flow.skip
 [title] 既定は 空
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 flow.skip）
 dg flow next が飛ばす段階
 空
 [aria-label] 項目
@@ -394,6 +412,8 @@ flow.skip
 work.parallel
 [title] 既定は 3
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 work.parallel）
 Plan のチケットを同時に進める数の上限（1〜10）
 [title] 既定の 3 に戻す
 既定に戻す
@@ -403,6 +423,8 @@ work.parallel
 merge.method
 [title] 既定は squash
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 merge.method）
 dg pr merge の既定のマージの方法
 squash
 （既定）
@@ -416,6 +438,8 @@ merge.method
 merge.delete_branch
 [title] 既定は false
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 merge.delete_branch）
 dg pr merge でマージしたら作業ブランチも消す
 無効
 [title] 既定の false に戻す
@@ -426,6 +450,8 @@ merge.delete_branch
 merge.approval_overrides
 [title] 既定は [check, review, fix_rounds, acceptance]
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 merge.approval_overrides）
 人がマージを承認したときに越えてよい品質ゲートの条件
 空
 [aria-label] 項目
@@ -440,6 +466,8 @@ merge.approval_overrides
 review.heavy_categories
 [title] 既定は 空
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 review.heavy_categories）
 いつも重いとみなす見直しの指摘の category
 空
 [aria-label] 項目
@@ -454,6 +482,8 @@ Iteration に入れてから進める
 lint.require_iteration
 [title] 既定は false
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 lint.require_iteration）
 Iteration に入らずに進んだチケットを dg lint が指摘する
 無効
 [title] 既定の false に戻す
@@ -464,6 +494,8 @@ lint.require_iteration
 models.light
 [title] 既定は 
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 models.light）
 Plan の段階 light と調べものに使うモデル
 [placeholder] 例 haiku
 [title] 既定の  に戻す
@@ -475,6 +507,8 @@ models.light
 models.standard
 [title] 既定は 
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 models.standard）
 Plan の段階 standard に使うモデル
 [placeholder] 例 sonnet
 [title] 既定の  に戻す
@@ -486,6 +520,8 @@ models.standard
 models.heavy
 [title] 既定は 
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 models.heavy）
 Plan の段階 heavy に使うモデル
 [placeholder] 例 opus
 [title] 既定の  に戻す
@@ -497,6 +533,8 @@ models.heavy
 models.claude-code.light
 [title] 既定は 
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 models.claude-code.light）
 この agent が dg next を呼んだときに、Plan の段階 light に使うモデル
 [title] 既定の  に戻す
 既定に戻す
@@ -507,6 +545,8 @@ models.claude-code.light
 models.claude-code.standard
 [title] 既定は 
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 models.claude-code.standard）
 この agent が dg next を呼んだときに、Plan の段階 standard に使うモデル
 [title] 既定の  に戻す
 既定に戻す
@@ -517,6 +557,8 @@ models.claude-code.standard
 models.claude-code.heavy
 [title] 既定は 
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 models.claude-code.heavy）
 この agent が dg next を呼んだときに、Plan の段階 heavy に使うモデル
 [title] 既定の  に戻す
 既定に戻す
@@ -527,6 +569,8 @@ models.claude-code.heavy
 models.codex.light
 [title] 既定は 
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 models.codex.light）
 この agent が dg next を呼んだときに、Plan の段階 light に使うモデル
 [title] 既定の  に戻す
 既定に戻す
@@ -537,6 +581,8 @@ models.codex.light
 models.codex.standard
 [title] 既定は 
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 models.codex.standard）
 この agent が dg next を呼んだときに、Plan の段階 standard に使うモデル
 [title] 既定の  に戻す
 既定に戻す
@@ -547,6 +593,8 @@ models.codex.standard
 models.codex.heavy
 [title] 既定は 
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 models.codex.heavy）
 この agent が dg next を呼んだときに、Plan の段階 heavy に使うモデル
 [title] 既定の  に戻す
 既定に戻す
@@ -557,6 +605,8 @@ models.codex.heavy
 actor.human_only
 [title] 既定は 空
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 actor.human_only）
 agent からは拒否するコマンド名
 空
 [aria-label] 項目
@@ -572,6 +622,8 @@ actor.human_only
 metrics.read_transcripts
 [title] 既定は false
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 metrics.read_transcripts）
 会話記録を読んで使用量を補う
 無効
 [title] 既定の false に戻す
@@ -583,6 +635,8 @@ metrics.read_transcripts
 notify.approvals
 [title] 既定は true
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 notify.approvals）
 承認待ちの Plan や review のチケットが増えたら VS Code で通知する
 無効
 [title] 既定の true に戻す
@@ -592,6 +646,8 @@ notify.approvals
 Git
 コードのリモート
 git.remote
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 git.remote）
 コードのリモート（作業ブランチと PR）
 [value] origin
 空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
@@ -599,6 +655,8 @@ git.remote
 git.remote
 データのリモート
 git.data_remote
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 git.data_remote）
 カンバンのデータを fetch・push するリモート
 [placeholder] 例 deguboard-data
 空のとき: git.remote を使う
@@ -606,6 +664,8 @@ git.data_remote
 git.data_remote
 データのブランチ
 git.data_branch
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 git.data_branch）
 データのリモートで、このリポジトリのカンバンを置くブランチ
 [placeholder] 例 deguboard-webapp
 [value] deguboard
@@ -614,6 +674,8 @@ git.data_branch
 git.data_branch
 基準のブランチ
 git.base_branch
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 git.base_branch）
 作業ブランチの元と「マージ済み」の判定の基準
 [value] main
 空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
@@ -623,6 +685,8 @@ worktree の置き場所
 worktree.root
 [title] 既定は ../<repo>.worktrees
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 worktree.root）
 作業 worktree の置き場所
 [title] 既定の ../<repo>.worktrees に戻す
 既定に戻す
@@ -633,6 +697,8 @@ worktree の準備のコマンド
 worktree.setup
 [title] 既定は 空
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 worktree.setup）
 新しい作業 worktree で最初に回す準備のコマンド
 空
 [aria-label] 項目
@@ -646,6 +712,8 @@ worktree.setup
 チケット
 既定の Workflow
 default_workflow
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 default_workflow）
 workflow を持たないチケットの Workflow
 [value] general
 空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
@@ -655,6 +723,8 @@ default_workflow
 priority.high
 [title] 既定は 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 priority.high）
 優先度 high の判断基準
 [title] 既定の 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている に戻す
 既定に戻す
@@ -665,6 +735,8 @@ priority.high
 priority.medium
 [title] 既定は 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 priority.medium）
 優先度 medium（既定）の判断基準
 [title] 既定の 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存 に戻す
 既定に戻す
@@ -675,6 +747,8 @@ priority.medium
 priority.low
 [title] 既定は 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
 変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 priority.low）
 優先度 low の判断基準
 [title] 既定の 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討 に戻す
 既定に戻す
@@ -689,6 +763,8 @@ guide.notes.overview
 [title] 差し込む文書（概要）
 概要
 guide.notes.overview
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.overview）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -697,6 +773,8 @@ guide.notes.overview
 [title] 差し込む文書（起票）
 チケットの起票
 guide.notes.import
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.import）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -705,6 +783,8 @@ guide.notes.import
 [title] 差し込む文書（割り当て）
 割り当て
 guide.notes.assign
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.assign）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -713,6 +793,8 @@ guide.notes.assign
 [title] 差し込む文書（点検）
 点検
 guide.notes.check
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.check）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -721,6 +803,8 @@ guide.notes.check
 [title] 差し込む文書（計画）
 計画
 guide.notes.plan
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.plan）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -729,6 +813,8 @@ guide.notes.plan
 [title] 差し込む文書（作業）
 作業
 guide.notes.work
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.work）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -737,6 +823,8 @@ guide.notes.work
 [title] 差し込む文書（Run）
 Run
 guide.notes.run
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.run）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -745,6 +833,8 @@ guide.notes.run
 [title] 差し込む文書（並べて進める）
 並べて進める
 guide.notes.parallel
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.parallel）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -753,6 +843,8 @@ guide.notes.parallel
 [title] 差し込む文書（見直しと品質ゲート）
 見直しと品質ゲート
 guide.notes.review
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.review）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -761,6 +853,8 @@ guide.notes.review
 [title] 差し込む文書（リポジトリの見直し）
 リポジトリの見直し
 guide.notes.audit
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.audit）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -769,6 +863,8 @@ guide.notes.audit
 [title] 差し込む文書（リリース）
 リリース
 guide.notes.release
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.release）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -777,6 +873,8 @@ guide.notes.release
 [title] 差し込む文書（完了）
 完了
 guide.notes.done
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.done）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -785,6 +883,8 @@ guide.notes.done
 [title] 差し込む文書（書き換え）
 書き換え
 guide.notes.change
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.change）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -793,6 +893,8 @@ guide.notes.change
 [title] 差し込む文書（検討）
 検討
 guide.notes.discuss
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.discuss）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -801,6 +903,8 @@ guide.notes.discuss
 [title] 差し込む文書（様子）
 様子
 guide.notes.status
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.status）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -809,6 +913,8 @@ guide.notes.status
 [title] 差し込む文書（説明）
 説明
 guide.notes.explain
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.explain）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -817,6 +923,8 @@ guide.notes.explain
 [title] 差し込む文書（振り返り）
 振り返り
 guide.notes.retro
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.retro）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -825,6 +933,8 @@ guide.notes.retro
 [title] 差し込む文書（設定）
 設定
 guide.notes.config
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.config）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md
@@ -833,6 +943,8 @@ guide.notes.config
 [title] 差し込む文書（一気通し）
 一気通し
 guide.notes.all
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 guide.notes.all）
 [title] 既定は 
 変更あり
 [placeholder] 例 docs/notes.md

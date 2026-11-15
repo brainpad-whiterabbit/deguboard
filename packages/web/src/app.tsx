@@ -163,6 +163,7 @@ export function App() {
           copyOnOpen={ask.serial > 0}
           within={ask.request.within}
           place={ask.request.place}
+          item={ask.request.item}
           onClose={ask.close}
         />
       ) : null}
