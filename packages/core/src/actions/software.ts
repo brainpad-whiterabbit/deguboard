@@ -19,8 +19,12 @@ const refName = z
     isSafeBranchName,
     "Cannot be used as a branch name (it starts with - or contains characters git does not allow)",
   );
-const branchName = refName.describe("ブランチ名（feat/xxx など）");
-const baseName = refName.optional().describe("元にするブランチ。省略時は git.base_branch");
+const branchName = refName.describe(
+  "Work branch name, given in full. For ticket work dg names it `<id>-<English words>` (for example `t12-fix-login`)",
+);
+const baseName = refName
+  .optional()
+  .describe("Branch to start from. Defaults to git.base_branch when omitted");
 // Action はチケットを知らないので、claim --no-worktree の後に切るときは呼び手がチケットの branch_base を渡す。
 // 取り込み直した base から切ると、main が進んでいれば起点が記録とずれ、コミットのないブランチがマージ済みに見える（ST-4）
 const startCommit = z
@@ -28,12 +32,13 @@ const startCommit = z
   .regex(/^[0-9a-f]{40}([0-9a-f]{24})?$/, "start is a commit SHA")
   .optional()
   .describe(
-    "切る起点のコミットの SHA。チケットの branch_base を渡すと claim の記録と同じ起点から切る。省略時は取り込んだ base の先端",
+    "SHA of the commit to start from. Pass the ticket's branch_base to start from the same commit that claim recorded. Defaults to the tip of the fetched base when omitted",
   );
 
 export const createWorktreeAction = defineAction({
   name: "create_worktree",
-  summary: "base（start があればそのコミット）から作業ブランチを切り、worktree に checkout する",
+  summary:
+    "Create the work branch from base (from the start commit when given) and check it out in a worktree",
   input: z.object({
     branch: branchName,
     base: baseName,
@@ -42,7 +47,7 @@ export const createWorktreeAction = defineAction({
       .string()
       .min(1)
       .optional()
-      .describe("worktree の場所。省略時は worktree.root/<ブランチ名>"),
+      .describe("Worktree location. Defaults to worktree.root/<branch name> when omitted"),
   }),
   confirm: false,
   async run(ctx, input) {
@@ -62,7 +67,8 @@ export const createWorktreeAction = defineAction({
 
 export const createBranchAction = defineAction({
   name: "create_branch",
-  summary: "base（start があればそのコミット）から作業ブランチを切る（checkout はしない）",
+  summary:
+    "Create the work branch from base (from the start commit when given), without checking it out",
   input: z.object({ branch: branchName, base: baseName, start: startCommit }),
   confirm: false,
   async run(ctx, input) {
@@ -75,7 +81,8 @@ export const createBranchAction = defineAction({
 
 export const runTestsAction = defineAction({
   name: "run_tests",
-  summary: "actions.test のコマンドを作業ディレクトリで実行する。失敗しても投げずに結果を返す",
+  summary:
+    "Run the actions.test command in the working directory. A failure returns the result without throwing",
   input: z.object({
     timeout_ms: z.number().int().positive().default(ACTIONS_TEST_TIMEOUT_MS),
   }),
@@ -104,11 +111,15 @@ async function currentBranch(cwd: string): Promise<string> {
 
 export const createPrAction = defineAction({
   name: "create_pr",
-  summary: "作業ブランチから base への PR を gh で作る（ブランチは push 済みであること）",
+  summary: "Open a PR from the work branch to base with gh (the branch must already be pushed)",
   input: z.object({
     title: z.string().min(1),
     body: z.string().default(""),
-    branch: branchName.optional().describe("PR にするブランチ。省略時は作業ディレクトリのブランチ"),
+    branch: branchName
+      .optional()
+      .describe(
+        "Branch to open the PR from. Defaults to the branch checked out in the working directory",
+      ),
     base: baseName,
     draft: z.boolean().default(false),
   }),
@@ -127,11 +138,11 @@ export const createPrAction = defineAction({
 
 export const mergePrAction = defineAction({
   name: "merge_pr",
-  summary: "PR を gh でマージする（既定は squash）",
+  summary: "Merge the PR with gh (squash by default)",
   input: z.object({
     pr: z.number().int().positive(),
     method: z.enum(PR_MERGE_METHODS).default("squash"),
-    delete_branch: z.boolean().default(false).describe("リモートとローカルのブランチも消すか"),
+    delete_branch: z.boolean().default(false).describe("Also delete the remote and local branches"),
   }),
   confirm: false,
   async run(ctx, input) {
