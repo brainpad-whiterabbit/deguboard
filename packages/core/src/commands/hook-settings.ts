@@ -439,7 +439,7 @@ export async function checkHooks(options: {
       .map(([field]) => field);
     if (record !== undefined && missing.length > 0)
       warnings.push(
-        `The latest input for ${event} (${record.received_at}) lacks ${missing.join(", ")}. The shape of ${agent}'s input may have changed, and records that use these fields (such as Runs) may not be captured`,
+        `The latest input for ${event} (${record.received_at}) lacks ${missing.join(", ")}. The shape of ${hooks.product}'s input may have changed, and records that use these fields (such as Runs) may not be captured`,
       );
     events.push({ event, installed, handler, received_at: record?.received_at ?? null, missing });
   }
