@@ -204,9 +204,11 @@ describe("run", () => {
     });
     expect(none.run.waited_seconds).toBe(0);
     const listed = (await runCommand(runList, ctx, {})).data as RunView[];
-    // 実行時間（duration_seconds）は待ちを含む経過時間のまま
+    // 実行時間（duration_seconds）は待ちを含む経過時間のまま。同じ秒に開いた Run の並びは ID の乱数で決まるので、チケットの順に並べて比べる
     expect(
-      listed.map((r) => [r.ticket, r.duration_seconds, r.waited_seconds, r.active_seconds]),
+      listed
+        .map((r) => [r.ticket, r.duration_seconds, r.waited_seconds, r.active_seconds])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
     ).toEqual([
       ["t1", 600, 100, 500],
       ["t2", expect.any(Number), null, null],
