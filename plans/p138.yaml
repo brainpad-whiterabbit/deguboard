@@ -30,7 +30,7 @@ after:
     - t958
     - t960
     - t961
-pending_approval: true
+pending_approval: false
 details:
   t944:
     scope: 読みの git（status など）がデータの worktree の index.lock を取らないようにし、同時の書き込みのテストと host.ts のコメントを直す。push が拒否されて取り込み直す途中で止まった状態でも、読みの status が壊さないことを確かめる
@@ -96,3 +96,5 @@ details:
     scope: ADR-001 を 8,000 字以内に収め、ADR-025 と ADR-034 の細部を削るか残すかを PR の本文に書く。判断は変えない
     approach: まず細部を正本（テスト・ask.ts のコメント・check-docs.mjs）へ移し、それでも超えるときだけ言語の判断を新しい ADR に分ける
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-15T03:26:10Z
