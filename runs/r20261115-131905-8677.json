@@ -1,0 +1,35 @@
+{
+  "id": "r20261115-131905-8677",
+  "ticket": "t999",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-15T13:19:05Z",
+  "finished_at": "2026-11-15T13:23:22Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "README の gh の要否が、PR を開く・マージする工程も gh を使う点を漏らしている（両言語）",
+    "requirements の必須ツールの項で、ST-6 と同じ文の括弧書きが重複している"
+  ],
+  "usage": {
+    "input": 26,
+    "output": 8257,
+    "cache_read": 571851,
+    "cache_write": 40482
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 6,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0,
+    "errors": 3
+  },
+  "session": "b9a27ee7-5f63-4ae0-ae1d-d37bdb2b62f0",
+  "review": null,
+  "waited_seconds": 0
+}
