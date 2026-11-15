@@ -1,4 +1,4 @@
-データの同期と書き込みの経路（packages/core/src/git/sync.ts・git/write.ts と、それを呼ぶコマンド）を変えるチケットは tier を heavy にする。
-変更が 500 行を超えそうなら、経路そのものの変更と呼び手の変更を別のチケットに分けて after でつなぐ（分けるときは dg guide import で起票し直すよう人に提案する）。
-受け入れ条件に、push が拒まれた後の取り込み直しで止まる場合を含める。
-根拠：s33 の重い指摘 7 件はすべてこの経路の t904（1258 行・retries 8・heavy 4）・t906（2132 行・retries 6・heavy 2）・t909（retries 2・heavy 1）に集まった。
+Set tier to heavy for any ticket that changes the data sync and write path (packages/core/src/git/sync.ts and git/write.ts, and the commands that call them).
+If a change is likely to exceed 500 lines, split the change to the path itself and the change to its callers into separate tickets, and link them with after. (When splitting, suggest to the human that they re-file the tickets with dg guide import.)
+Include in the acceptance criteria the case where work stops while re-integrating the remote changes after a rejected push.
+Basis: all 7 heavy findings of s33 clustered on this path: t904 (1258 lines, retries 8, heavy 4), t906 (2132 lines, retries 6, heavy 2), t909 (retries 2, heavy 1).

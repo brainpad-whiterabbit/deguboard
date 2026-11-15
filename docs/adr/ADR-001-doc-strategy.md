@@ -4,7 +4,7 @@
 
 ## 要約
 
-文書は読み手ごとに入口を 1 つ決め、要件定義書は利用者への約束だけを書き、細部はコード・テスト・ヘルプを正本にする。ADR は今の判断と理由だけを書き、判断を変える PR で同じ ADR の本文を直接書き換える（番号は変えず、履歴は Git に任せる）。docs（GitHub の入口の README.md と SECURITY.md、README から引く英語の docs/usage.md を除く）とコメントは日本語、dg がエージェントと利用者に出す文は英語で書く。
+文書は読み手ごとに入口を 1 つ決め、要件定義書は利用者への約束だけを書き、細部はコード・テスト・ヘルプを正本にする。ADR は今の判断と理由だけを書き、判断を変える PR で同じ ADR の本文を直接書き換える（番号は変えず、履歴は Git に任せる）。docs（GitHub の入口の README.md と SECURITY.md、README から引く英語の docs/usage.md、guide に差し込む docs/guide-notes/ を除く）とコメントは日本語、dg がエージェントと利用者に出す文は英語で書く。
 
 ## 背景
 
@@ -48,6 +48,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 | コードのコメント           | 「なぜ」と、守る約束の要件 ID                                                                  | 振る舞いの列挙、文書の写し            |
 | README.md・README.ja.md    | 利用者の入口（導入と、画面のタブごとの使い方の流れ）。同じ節の構成で置く                       | 規約・約束・細部                      |
 | docs/usage.md・usage.ja.md | README に収めない、人がする操作。英語版と日本語版を同じ節の構成で置き、README の Tips から引く | ヘルプ・guide・約束の写し             |
+| docs/guide-notes/          | 作業の判断・止める条件・根拠（数字）の補足。英語で書き、dg guide に差し込む                    | 約束・config の写し、見出し（#）      |
 | development.md             | 開発者（人）の手順と、このリポジトリ固有の決まり                                               | CLAUDE.md の規約の写し                |
 | CLAUDE.md                  | 毎回守る規約                                                                                   | 手順・細部                            |
 
@@ -94,7 +95,7 @@ ADR は、次のどれかに当たる判断だけに書く。
 
 ### 言語
 
-- docs・CLAUDE.md・コードのコメント・テスト名は日本語で書く。例外は英語で書く README.md（GitHub・Marketplace の入口）・SECURITY.md（GitHub の Security タブの入口）・docs/usage.md（README から引く使い方の英語版）。日本語の README.ja.md と docs/usage.ja.md は、それぞれ英語版と同じ節の構成にし、先頭から互いに辿れるようにする。README から指すほかの docs（要件定義書・開発ガイド・ADR 一覧）は日本語のままにする
+- docs・CLAUDE.md・コードのコメント・テスト名は日本語で書く。例外は英語で書く README.md（GitHub・Marketplace の入口）・SECURITY.md（GitHub の Security タブの入口）・docs/usage.md（README から引く使い方の英語版）・docs/guide-notes/（dg guide に英語のまま差し込むため）。日本語の README.ja.md と docs/usage.ja.md は、それぞれ英語版と同じ節の構成にし、先頭から互いに辿れるようにする。README から指すほかの docs（要件定義書・開発ガイド・ADR 一覧）は日本語のままにする
 - dg がエージェントと利用者に出す文は英語だけで書く。範囲は、guide・Skill の雛形、CLI のヘルプ、MCP のツールの説明、エラー・警告、`dg next`・`flow next` の段階の理由、brief の定型の文、フックが止める文、データのブランチへのコミットの 1 行目、`dg pr ready` が PR の本文に足す定型の節、`dg ask`・`dg ask-menu` の候補の名前と札の sub と人が打つコマンドの雛形。`dg ask` の依頼文と札の説明の定型の文（候補の 1 文・対象の 1 行）は、言語（ja・en）を選べる（細部は `packages/core/src/commands/ask.ts`）。画面（VS Code 拡張と web）の定型の文は、dg の英語の文も訳して表示言語で出す（要件 UI-11）
 - dg の既定の値（config の既定・Workflow の雛形・推薦の指標）も dg の文として英語で持つ。画面は、値が今の既定と同じ文のときだけ表示言語に訳し、書き換えた値は書いたまま出す。日本語で書いた古い既定の写しは、人の値として扱う
 - エージェントが書く文章（チケット・PR・コミット・人への返答）は、リポジトリの既存の文章と人の依頼の言語に合わせる

@@ -323,7 +323,8 @@ describe("check-docs の ADR の長さの警告（t634）", () => {
   it("8,000 字ちょうどの ADR は警告しない", async () => {
     await writeFile(join(dir, ADR), `${HEAD}${"あ".repeat(8000 - HEAD.length)}`);
     const { stderr } = await run();
-    expect(stderr).not.toContain("字を超えている");
+    // 実際の docs の別の ADR（ADR-001 など）が 8,000 字を超えていても、ここで書いた ADR-008 は警告しない
+    expect(stderr).not.toContain("ADR-008-tech-stack.md: ");
   });
 
   it("8,001 字の ADR は警告を出すが、指摘の欄には出ない（落とさない）", async () => {
