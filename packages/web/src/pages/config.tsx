@@ -203,15 +203,15 @@ export function valueAt(config: unknown, key: string): unknown {
 
 /**
  * 項目の値の表示。既定のままの値は、訳のある既定なら表示言語の訳で出す（shownDefault。UI-11）。field がなければ値のまま
- * （保存した・外した・チームの値・確かめの文・既定の表示が使う）
+ * （保存した・外した・チームの値・確かめの文が使う）
  */
 function valueText(field: ConfigField | undefined, value: unknown): string {
   return formatValue(field ? shownDefault(value, field.default) : value);
 }
 
-/** 既定の値の表示（valueText の既定の版） */
+/** 既定の値の表示。既定そのものを出すので比べずに訳を引く（shownDefaultText。UI-11） */
 function defaultText(field: ConfigField): string {
-  return valueText(field, field.default);
+  return formatValue(shownDefaultText(field.default));
 }
 
 /** 既定から変えたか。リストは中身で比べる */
