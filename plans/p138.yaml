@@ -1,0 +1,98 @@
+id: p138
+tickets: [t944, t946, t947, t956, t951, t957, t955, t954, t950, t948, t958, t961, t960, t959, t953, t949]
+after:
+  t951:
+    - t947
+  t957:
+    - t951
+  t955:
+    - t951
+  t953:
+    - t944
+    - t955
+  t954:
+    - t946
+  t950:
+    - t954
+  t948:
+    - t950
+  t958:
+    - t954
+  t961:
+    - t958
+  t960:
+    - t958
+  t959:
+    - t958
+    - t946
+  t949:
+    - t955
+    - t958
+    - t960
+    - t961
+pending_approval: true
+details:
+  t944:
+    scope: 読みの git（status など）がデータの worktree の index.lock を取らないようにし、同時の書き込みのテストと host.ts のコメントを直す。push が拒否されて取り込み直す途中で止まった状態でも、読みの status が壊さないことを確かめる
+    approach: 読みの git に GIT_OPTIONAL_LOCKS=0（--no-optional-locks）を付け、読みの status を繰り返しながら dg の書き込みを続けるテストで確かめる
+    tier: heavy
+  t946:
+    scope: 推薦の指標 escaped-defect-rate と guide-retro の数え方を origin・origin_cause にし、記録のない古いチケットは測れないものとして扱う
+    approach: retro-recommended.ts の定義と出どころを metrics sources の origin に替え、guide-retro の refs の案内を消して、snapshot を書き直す
+    tier: standard
+  t947:
+    scope: development.md の web の節に DEFAULT_VALUES の表と、それを引く口を足す
+    approach: l10n-core.ts・l10n.ts を読んで、今の 4 つの表と口を書く
+    tier: light
+  t956:
+    scope: README（英日）の振り返りの説明に推薦の指標を足し、usage（英日）の /dgchange の例に変える内容を付ける
+    approach: 英語版と日本語版を同じ節の構成で直す
+    tier: light
+  t951:
+    scope: development.md のテストの節に snapshot を書き直すコマンドを 1 か所書き、guide と画面の snapshot の説明からそこを指す
+    approach: mise run test -- -u <ファイル> を書き、新しいタスクは足さない
+    tier: light
+  t957:
+    scope: mise.toml のコメントの ADR-001 への参照を消し、理由はコメントに残す
+    approach: コメントを 1 か所書き換える
+    tier: light
+  t955:
+    scope: ADR-001 と l10n.ts のコメントで、推薦の指標を「英語で持つ」だけに含め、版を上げる PR のチケットの受け入れ条件に mise run audit を入れる
+    approach: ADR-001 の言語の項・shownDefault のコメント・development.md のリリースの節を直す
+    tier: light
+  t954:
+    scope: NO_FIX_PUSH_ERROR の定数・テスト・訳の行・JSDoc を消し、推薦の指標の出どころの dg のコマンドとオプションが定義にあることをテストで確かめる
+    approach: 出どころの文字列から dg のコマンドとオプションを取り出し、コマンドの定義と突き合わせるテストを schema.test.ts に足す
+    tier: standard
+  t950:
+    scope: core の Run の error の定数がどれも CORE_MESSAGES の鍵にあり、日本語の訳を持つことを確かめるテストを足す
+    approach: core が書き出す error の定数を l10n.test.ts で列挙し、表と突き合わせる
+    tier: standard
+  t948:
+    scope: dg serve の HTTP の応答の文を英語にし、画面に出る文に訳を足す
+    approach: app.ts・static.ts の文を英語にし、画面に出るものを CORE_MESSAGES に足して、テストで確かめる
+    tier: standard
+  t958:
+    scope: 閉じるときに会話記録から待ちの区間を数え、waited_seconds を Run に残し、run list と metrics show で active_seconds と waited_seconds を出し、requirements と ADR-025・ADR-029 を合わせる
+    approach: Claude Code の Adapter に待ちの区間を返す関数を足し、finishRun で範囲を切って記録し、数えられない Run は null にする
+    tier: heavy
+  t961:
+    scope: 落ちたセッションの残りとして閉じる Run の終わりの時刻を、会話記録の最後の更新の時刻にし、dg hook のヘルプと RN-6 を直す
+    approach: crashedSubagentRunAt が返す時刻を closeSubagentRun の finished_at に渡す
+    tier: standard
+  t960:
+    scope: run refresh が 30 日以内に閉じた Run の waited_seconds を、閉じるときと同じ関数で数え直し、MT-5 を直す
+    approach: t958 の関数を run refresh から呼び、期間を過ぎた Run は今の値を残して警告する
+    tier: standard
+  t959:
+    scope: 画面の Run の行と guide-retro で、待ちを除いた作業時間を主に見せ、待ちが不明な Run はそれを添える
+    approach: ticket-runs.tsx で active_seconds と waited_seconds を出し、guide-retro の時間の割合を active_seconds で案内して、snapshot を書き直す
+    tier: standard
+  t953:
+    scope: チケット詳細も core のままの Workflow を持ち、既定の観点の判定を 1 つの関数にし、shownDefault(x, x) の呼び方を直す
+    approach: l10n.ts に判定と既定の文の訳を引く関数を置き、ticket.tsx・store.tsx・config.tsx から呼ぶ
+    tier: standard
+  t949:
+    scope: ADR-001 を 8,000 字以内に収め、ADR-025 と ADR-034 の細部を削るか残すかを PR の本文に書く。判断は変えない
+    approach: まず細部を正本（テスト・ask.ts のコメント・check-docs.mjs）へ移し、それでも超えるときだけ言語の判断を新しい ADR に分ける
+    tier: standard
