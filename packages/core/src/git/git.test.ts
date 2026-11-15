@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -381,6 +381,90 @@ describe("rebase の途中と時間切れ", () => {
     ).rejects.toMatchObject({ code: "PUSH_FAILED" } satisfies Partial<OperationError>);
     expect((await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(before);
     expect(await syncStatus(a.repo)).toMatchObject({ dirty: false });
+  });
+});
+
+// 読みの git status は、index を新しくするために index.lock を取って index を書き直す（任意のロック）。書き込みのロック（withLock）の
+// 外で走る読み（画面の 15 秒ごとの状態・dg status）がこれをすると、同時の dg の書き込み（add・commit）が index.lock: File exists で
+// 落ちる。runGit が GIT_OPTIONAL_LOCKS=0 を付けて、読みが index.lock を取らないようにする（t944）
+describe("読みの git と index.lock", () => {
+  /** データの worktree の index の中身 */
+  const indexOf = async (dataDir: string) =>
+    readFile(
+      path.resolve(
+        dataDir,
+        (await git(dataDir, ["rev-parse", "--git-path", "index"])).stdout.trim(),
+      ),
+    );
+
+  /** 追跡しているファイルの時刻だけを変える（中身は同じ。次の status が index を新しくしたくなる状態） */
+  const touch = (file: string, at: number) => utimes(file, new Date(at), new Date(at));
+
+  /** x.yaml を 1 つコミットしたリポジトリ */
+  async function withTrackedFile() {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    const file = path.join(a.repo.dataDir, "x.yaml");
+    await writeFile(file, "a: 1\n");
+    await git(a.repo.dataDir, ["add", "-A"]);
+    await git(a.repo.dataDir, ["commit", "-qm", "a"]);
+    return { a, file };
+  }
+
+  it("追跡しているファイルの時刻だけが変わっていても、読みの status は index を書き直さない", async () => {
+    const { a, file } = await withTrackedFile();
+    await touch(file, Date.parse("2001-01-01T00:00:00Z"));
+    const before = await indexOf(a.repo.dataDir);
+    expect(await syncStatus(a.repo)).toMatchObject({ dirty: false });
+    expect((await indexOf(a.repo.dataDir)).equals(before)).toBe(true);
+  });
+
+  it("dg の残した rebase の途中で読みの status を走らせても、index と途中の状態を変えず、次の書き込みが取り消してから書く", async () => {
+    const f = await fixture();
+    const a = await leaveRebase(f, { byDg: true });
+    const before = await indexOf(a.repo.dataDir);
+    expect(await syncStatus(a.repo)).toMatchObject({ dirty: true });
+    expect((await indexOf(a.repo.dataDir)).equals(before)).toBe(true);
+    expect(await rebaseInProgress(a.repo)).toBe(true);
+    expect(await rebaseLeftByDg(a.repo)).toBe(true);
+    const { write } = await withWrite(ctxOf(a), () => a.store.create("ticket", ticketData("t1")), {
+      message: "t1 を作成",
+      immediate: true,
+    });
+    expect(write).toMatchObject({ committed: true });
+    expect(await rebaseInProgress(a.repo)).toBe(false);
+    expect(await syncStatus(a.repo)).toMatchObject({ dirty: false });
+  });
+
+  it("読みの status を繰り返しながら書き込みを続けても、書き込みが index.lock で落ちない", async () => {
+    const { a, file } = await withTrackedFile();
+    // 読みは書き込みのロックの外で走る。毎回ファイルの時刻を変えて、任意のロックを取る git なら index を書き直す状態にしておく
+    let stop = false;
+    let reads = 0;
+    const readers = Array.from({ length: 2 }, async () => {
+      while (!stop) {
+        reads += 1;
+        await touch(file, Date.parse("2001-01-01T00:00:00Z") + reads * 1000);
+        await syncStatus(a.repo);
+      }
+    });
+    const writes = 8;
+    try {
+      for (let i = 1; i <= writes; i++) {
+        const { write } = await withWrite(
+          ctxOf(a),
+          () => a.store.create("ticket", ticketData(`t${i}`)),
+          { message: `t${i} を作成`, immediate: true },
+        );
+        expect(write).toMatchObject({ committed: true });
+      }
+    } finally {
+      stop = true;
+      await Promise.all(readers);
+    }
+    expect(reads).toBeGreaterThan(0);
+    const subjects = (await git(a.repo.dataDir, ["log", "--format=%s"])).stdout.split("\n");
+    expect(subjects.filter((s) => s.endsWith(" を作成"))).toHaveLength(writes);
   });
 });
 
