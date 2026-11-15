@@ -50,6 +50,12 @@ export function gateScopeOf(level: GateLevel): GateScope {
   return GATE_SCOPES[level];
 }
 
+/**
+ * `--branch` に渡せる値の長さの上限（`<id>-` を付ける前の値。ST-3）。claim と update の検査とヘルプ・dg next の案内が
+ * ここから引き、guide-work.md の文はこれと合うことをテストが確かめる
+ */
+export const BRANCH_VALUE_MAX = 50;
+
 // スキーマにないキーは looseObject で残す（DT-2）。Workflow の fields の値もここを通る
 const ticketFrontmatter = z.looseObject({
   id: ticketIdSchema,

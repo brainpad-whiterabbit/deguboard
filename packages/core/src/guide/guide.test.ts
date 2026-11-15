@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { configSchema, type Config } from "../model/config.js";
+import { BRANCH_VALUE_MAX } from "../model/ticket.js";
 import { composeGuide, readGuide, readGuideNotes } from "./guide.js";
 
 let root: string;
@@ -145,5 +146,13 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     await writeFile(join(root, "code.md"), "判断\n```sh\n# シェルのコメント\n```\n");
     const notes = await readGuideNotes("work", configWith({ work: "code.md" }), root);
     expect(notes).toEqual({ text: "判断\n```sh\n# シェルのコメント\n```", warnings: [] });
+  });
+});
+
+describe("guide work のブランチ名の案内（ST-3）", () => {
+  it("値の長さの上限は claim の検査と同じ定数と合い、自分の ID だけの値をそのまま使うと書いている（t985）", async () => {
+    const text = await readGuide("work");
+    expect(text).toContain(`up to ${BRANCH_VALUE_MAX} characters`);
+    expect(text).toContain("or that is only the ticket's own ID (`t12`), is used as is");
   });
 });

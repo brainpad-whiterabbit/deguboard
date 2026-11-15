@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import type { Run, RunReview } from "../model/run.js";
+import { BRANCH_VALUE_MAX } from "../model/ticket.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
 import { next, nextOf, stageOf, type NextStep, type StageFacts } from "./next.js";
@@ -300,6 +301,8 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     // ブランチ名の形（dg が ID を付ける）と値に使える文字を、claim の手のすぐ後で案内する（ST-3）
     expect(impl.commands[1]).toContain("dg records the branch as t1-<value>");
     expect(impl.commands[1]).toContain("lowercase letters, digits, and hyphens");
+    // 上限は claim の検査と同じ定数から引く（t985）
+    expect(impl.commands[1]).toContain(`up to ${BRANCH_VALUE_MAX} characters`);
     expect(impl.commands[2]).toContain("deguboard: ticket=t1 step=implement");
     // 実行中の見直し・実装があれば、新しく起動させず終わりを待つ
     const reviewing = kind(facts({ runs: [review(6, null, { finished_at: null, result: null })] }));
