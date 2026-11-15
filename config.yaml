@@ -51,7 +51,7 @@ guide:
     assign: ""
     check: ""
     plan: docs/guide-notes/plan.md
-    work: ""
+    work: docs/guide-notes/work.md
     run: ""
     parallel: ""
     review: ""
