@@ -1,0 +1,27 @@
+id: p143
+tickets: [t999, t1000, t1001, t1004, t1002]
+after:
+  t1002:
+    - t1001
+pending_approval: true
+details:
+  t999:
+    scope: README.md・README.ja.md・requirements.md の gh の要否、README の冒頭のトークンの記述、usage.md・usage.ja.md の --dry-run の記述を実装に合わせる
+    approach: pr.ts・config.ts・各 --help を読んで事実を確かめ、英日を同じ PR でそろえる。要件は約束だけを直し細部は足さない
+    tier: light
+  t1000:
+    scope: how-it-works.md・.ja.md と図 4 枚の、データの置き場所・次の一手の事実・使用量・入口・描いていない場合・Core の一覧を実装に合わせる
+    approach: next.ts・hook.ts・config.ts と packages/core/src の構成を読んで直し、細部は写さずリンクで引く
+    tier: light
+  t1001:
+    scope: ADR-001 の重複（CLAUDE.md・adr/README.md・check-docs.mjs と同じ記述）を解き、ADR-025・029・034 の扱いを決める。判断は変えない
+    approach: 重複した記述は正本に残して ADR からは参照にする。字数のために正しい置き場所の記述は動かさない
+    tier: light
+  t1004:
+    scope: ID の正規表現と版の解析の重複、使われない export、pr.test.ts の実時間の待ちを片付ける
+    approach: index.ts の再公開を確かめてから export を外し、ID の規則は core の model/id.ts を基にまとめる
+    tier: standard
+  t1002:
+    scope: check-docs.mjs の英日の節の構成の検査を usage と how-it-works の対に広げ、SVG の ADR 番号の扱いを決め、テストを足す
+    approach: t1001 で変わった check-docs.mjs の上に、README の対の検査と同じ形で対を増やす
+    tier: standard
