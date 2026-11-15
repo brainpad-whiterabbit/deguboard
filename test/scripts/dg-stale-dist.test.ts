@@ -102,6 +102,19 @@ describe("dist が古いときの警告（t973）", () => {
     expect(warning?.endsWith("\n")).toBe(true);
   });
 
+  it("ビルドが読まない docs/ だけのコミットでも出し、その差分なら無視してよいと案内する（t986）", async () => {
+    // 比べるのはコミットだけで、差分の中身は見ない（git を起動しない）。案内（done.md・development.md）はこの動きを書く
+    const built = await commit(repo.dir, "a");
+    await writeBuiltCommit(repo.dir, built);
+    await mkdir(path.join(repo.dir, "docs"), { recursive: true });
+    const head = await commit(repo.dir, "docs/notes.md");
+    const warning = staleDistWarningOf(repo.dir);
+    expect(warning).toContain(head.slice(0, 12));
+    expect(warning).toContain(
+      "If the commits since that build change only files that the build does not read, such as docs/, you can ignore this.",
+    );
+  });
+
   it("記録がない・読めないときは判定できないので黙る", async () => {
     await commit(repo.dir, "a");
     expect(staleDistWarningOf(repo.dir)).toBeUndefined();
