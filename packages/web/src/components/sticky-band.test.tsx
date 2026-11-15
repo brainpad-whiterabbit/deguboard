@@ -8,7 +8,7 @@ import { boardFixture, iteration, mockClient, type MockClient } from "../test-he
 import { createUiState, memoryBackend } from "../ui-state.js";
 import { ALL_ITERATIONS } from "../router.js";
 import { ASK_HINT_KEY } from "./ask-menu.js";
-import { STICKY_BAND_PX } from "./sticky-band.js";
+import { STICKY_BAND_PX, STICKY_SEARCH_PX } from "./sticky-band.js";
 
 /** jsdom には IntersectionObserver がないので、見張った要素と呼び返しを覚える代わりを置く */
 class FakeObserver {
@@ -33,9 +33,8 @@ class FakeObserver {
 }
 
 /** 目印の行が見えているか、上へ抜けたか（下に外れたか）を呼び返しで伝える。rootBounds の上の端は帯の高さの所 */
-function scrollTo(state: "visible" | "above" | "below") {
+function scrollTo(state: "visible" | "above" | "below", top: number = STICKY_BAND_PX) {
   const observer = FakeObserver.all.at(-1)!;
-  const top = STICKY_BAND_PX;
   const bottom = state === "visible" ? top + 10 : state === "above" ? top - 1 : 900;
   act(() =>
     observer.callback(
@@ -278,5 +277,78 @@ describe("左パネルのカンバンで見出しが上に抜けたら残す 1 �
     todo.open = false;
     fireEvent(todo, new Event("toggle"));
     expect(todo.open).toBe(false);
+  });
+});
+
+describe("左パネルのバックログで検索の行の下に重ねる効いている条件の札の行（UI-3）", () => {
+  const filters = () => document.querySelector<HTMLElement>(".sticky-band .backlog-band-filters");
+  const mountBacklog = async () => {
+    window.location.hash = "#/backlog";
+    mount(mockClient(boardFixture()));
+    await screen.findByText("API");
+  };
+
+  it("よく使う絞り込みの行を一覧（.page）の中で検索の行の高さを除いて見張り、絞っていない間は抜けても札の行を出さない", async () => {
+    await mountBacklog();
+    const observer = FakeObserver.all.at(-1)!;
+    expect(observer.targets[0]!.classList.contains("quick-filters")).toBe(true);
+    expect(observer.options.root).toBe(document.querySelector(".page"));
+    expect(observer.options.rootMargin).toBe(`-${STICKY_SEARCH_PX}px 0px 0px 0px`);
+    // 札の行の箱は検索の行のすぐ後ろに置き、中身だけを出し入れする（一覧は動かない）
+    expect(document.querySelector(".backlog-search + .sticky-band")).toBeTruthy();
+    scrollTo("above", STICKY_SEARCH_PX);
+    expect(filters()).toBeNull();
+  });
+
+  it("絞っている間に抜けたら、Epic を含む効いている条件の札と「n / m 件」を出し、× で外す。効かなくなれば消え、見えている間は出さない", async () => {
+    await mountBacklog();
+    fireEvent.click(screen.getByRole("button", { name: "e1 最初の版" }));
+    fireEvent.click(screen.getByRole("button", { name: "high" }));
+    scrollTo("above", STICKY_SEARCH_PX);
+    expect(filters()!.textContent).toBe("優先度 high×Epic e1×1 / 2 件");
+    fireEvent.click(within(filters()!).getByRole("button", { name: "Epic e1 の絞り込みを外す" }));
+    expect(filters()!.textContent).toBe("優先度 high×1 / 2 件");
+    fireEvent.click(
+      within(filters()!).getByRole("button", { name: "優先度 high の絞り込みを外す" }),
+    );
+    expect(filters()).toBeNull();
+
+    // 検索だけでも件数の行を出し、よく使う絞り込みの行が見えたら消す
+    fireEvent.change(screen.getByRole("searchbox", { name: "検索" }), { target: { value: "API" } });
+    scrollTo("above", STICKY_SEARCH_PX);
+    expect(filters()!.textContent).toBe("1 / 2 件");
+    scrollTo("visible", STICKY_SEARCH_PX);
+    expect(filters()).toBeNull();
+  });
+
+  it("検索欄に打ち込むと一覧を一番上へ戻す", async () => {
+    await mountBacklog();
+    const page = document.querySelector<HTMLElement>(".page")!;
+    page.scrollTop = 400;
+    fireEvent.change(screen.getByRole("searchbox", { name: "検索" }), { target: { value: "画" } });
+    expect(page.scrollTop).toBe(0);
+  });
+
+  it("貼り付いた漏斗で絞り込みの欄を開くと、欄が見えるよう一覧を一番上へ戻す。閉じるときは戻さない", async () => {
+    await mountBacklog();
+    const page = document.querySelector<HTMLElement>(".page")!;
+    const funnel = screen.getByRole("button", { name: "絞り込み" });
+    page.scrollTop = 400;
+    fireEvent.click(funnel);
+    expect(document.getElementById("backlog-filters")).toBeTruthy();
+    expect(page.scrollTop).toBe(0);
+    page.scrollTop = 400;
+    fireEvent.click(funnel);
+    expect(document.getElementById("backlog-filters")).toBeNull();
+    expect(page.scrollTop).toBe(400);
+  });
+
+  it("区画の見出しは、貼り付いても頼む場所のままで、吹き出しと Shift+F10 で頼む一覧を開く", async () => {
+    await mountBacklog();
+    const summary = document.querySelector<HTMLElement>(".backlog-section > summary")!;
+    expect(summary.hasAttribute("data-ask-spot")).toBe(true);
+    expect(within(summary).getByRole("button", { name: "エージェントに頼む（区画の見出し s0）" }));
+    fireEvent.keyDown(summary, { key: "F10", shiftKey: true });
+    expect(await screen.findByRole("menu")).toBeTruthy();
   });
 });

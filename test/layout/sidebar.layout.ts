@@ -922,6 +922,158 @@ describe.each(SCHEMES)("左パネルのカンバンの上の端に残す帯（%s
   });
 });
 
+// バックログをスクロールしても、検索の行を上の端に残し、Iteration の区画の見出しをその下に貼り付ける（UI-3、t964）。
+// 絞っている間は、よく使う絞り込みの行が抜けたら効いている条件の札の行を検索の行の下に重ね、区画の見出しはその下に貼り付く
+describe.each(SCHEMES)("左パネルのバックログの上の端に残す検索の行（%s）", (scheme) => {
+  it("幅 300px で、検索の行は上の端に残り、区画の見出しはその下に貼り付いて次の区画に押し出され、絞っている間は札の行を一覧を動かさずに重ね、打ち込むと一番上へ戻る", async () => {
+    const context = await browser.newContext({
+      viewport: { width: 300, height: 360 },
+      colorScheme: scheme,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${server.url}?surface=sidebar#/backlog`, { waitUntil: "networkidle" });
+      await page.locator(".backlog-section").first().waitFor();
+      const stuck = await page.evaluate(async () => {
+        const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+        const main = document.querySelector<HTMLElement>(".page")!;
+        const box = main.getBoundingClientRect();
+        const search = document.querySelector<HTMLElement>(".backlog-search")!;
+        const offset = (el: HTMLElement) =>
+          el.getBoundingClientRect().top - box.top + main.scrollTop;
+        const [first, second] = [...document.querySelectorAll<HTMLElement>(".backlog-section")].map(
+          (d) => d.querySelector<HTMLElement>("summary")!,
+        );
+        // 最初の区画（s2）の見出しの元の位置から、2 段の見出しの高さより先へ
+        main.scrollTop =
+          offset(first!.parentElement!) - 32 + first!.getBoundingClientRect().height + 20;
+        await frame();
+        const rect = search.getBoundingClientRect();
+        const firstTop = first!.getBoundingClientRect().top;
+        const row = first!.parentElement!.querySelector(".ticket-row")!.getBoundingClientRect();
+        const bg = getComputedStyle(first!).backgroundColor;
+        const headBottom = first!.getBoundingClientRect().bottom - box.top;
+        const pad = parseFloat(getComputedStyle(main).scrollPaddingTop);
+        // 次の区画の見出しが検索の行の下の所に来るまで送る。後ろの区画が短く一覧の終わりで止まるので、下に余白を足して送れるようにする
+        main.style.paddingBottom = "600px";
+        main.scrollTop = offset(second!.parentElement!) - 32;
+        await frame();
+        return {
+          top: rect.top - box.top,
+          height: rect.height,
+          searchBottom: rect.bottom,
+          searchBg: getComputedStyle(search).backgroundColor,
+          firstTop,
+          rowTop: row.top,
+          bg,
+          headBottom,
+          pad,
+          secondTop: second!.getBoundingClientRect().top,
+          firstBottom: first!.getBoundingClientRect().bottom,
+          stillTop: search.getBoundingClientRect().top - box.top,
+          pageScroll: main.scrollWidth,
+          pageClient: main.clientWidth,
+        };
+      });
+      expect(Math.abs(stuck.top), "検索の行は一覧の上の端に貼り付く").toBeLessThanOrEqual(1);
+      expect(stuck.height, "検索の行の高さ").toBe(32);
+      expect(stuck.searchBg, "下の行が透けないよう塗る").not.toBe("rgba(0, 0, 0, 0)");
+      expect(
+        Math.abs(stuck.firstTop - stuck.searchBottom),
+        "区画の見出しは検索の行の下",
+      ).toBeLessThanOrEqual(1);
+      expect(stuck.rowTop, "行は区画の見出しの下をくぐる").toBeLessThan(stuck.firstTop);
+      expect(stuck.bg, "区画の見出しも塗る").not.toBe("rgba(0, 0, 0, 0)");
+      // キーで上へ行を移っても、検索の行と 2 段の区画の見出しの下に行が隠れないよう、寄せ先はその下まで下げる
+      expect(stuck.pad, "寄せ先は貼り付いた見出しの下").toBeGreaterThanOrEqual(stuck.headBottom);
+      expect(
+        Math.abs(stuck.secondTop - stuck.searchBottom),
+        "次の区画の見出しが検索の行の下に来る",
+      ).toBeLessThanOrEqual(1);
+      expect(stuck.firstBottom, "前の区画の見出しは押し出される").toBeLessThanOrEqual(
+        stuck.secondTop + 1,
+      );
+      expect(Math.abs(stuck.stillTop), "検索の行は残ったまま").toBeLessThanOrEqual(1);
+      expect(stuck.pageScroll, "画面が横に溢れない").toBeLessThanOrEqual(stuck.pageClient);
+
+      // 絞っていない間は札の行を出さない
+      expect(await page.locator(".sticky-band .backlog-band-filters").count()).toBe(0);
+
+      // 一番上で high で絞り、よく使う絞り込みの行が抜けるまで送ると、検索の行の下に札の行を重ねる
+      await page.evaluate(() => {
+        document.querySelector<HTMLElement>(".page")!.scrollTop = 0;
+      });
+      await page.getByRole("button", { name: "high", exact: true }).click();
+      const before = await page.evaluate(() => {
+        const main = document.querySelector<HTMLElement>(".page")!;
+        const quick = document.querySelector<HTMLElement>(".quick-filters")!;
+        main.scrollTop = quick.getBoundingClientRect().bottom - main.getBoundingClientRect().top;
+        return {
+          scrollTop: main.scrollTop,
+          layoutOffset:
+            document.querySelector(".backlog-layout")!.getBoundingClientRect().top -
+            main.getBoundingClientRect().top +
+            main.scrollTop,
+        };
+      });
+      await page.locator(".sticky-band .backlog-band-filters").waitFor();
+      const filtered = await page.evaluate(async () => {
+        const main = document.querySelector<HTMLElement>(".page")!;
+        const box = main.getBoundingClientRect();
+        const filters = document.querySelector<HTMLElement>(".sticky-band .backlog-band-filters")!;
+        const rect = filters.getBoundingClientRect();
+        const stack = document.querySelector<HTMLElement>(".sticky-band-stack")!;
+        const layoutOffset =
+          document.querySelector(".backlog-layout")!.getBoundingClientRect().top -
+          box.top +
+          main.scrollTop;
+        const first = document.querySelector<HTMLElement>(".backlog-section")!;
+        main.scrollTop = first.getBoundingClientRect().top - box.top + main.scrollTop;
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        return {
+          text: filters.textContent,
+          top: rect.top,
+          height: rect.height,
+          left: stack.getBoundingClientRect().left - box.left,
+          right: box.right - stack.getBoundingClientRect().right,
+          searchBottom: document.querySelector(".backlog-search")!.getBoundingClientRect().bottom,
+          bg: getComputedStyle(stack).backgroundColor,
+          layoutOffset,
+          stackBottom: stack.getBoundingClientRect().bottom,
+          summaryTop: first.querySelector("summary")!.getBoundingClientRect().top,
+          summaryBottom: first.querySelector("summary")!.getBoundingClientRect().bottom - box.top,
+          pad: parseFloat(getComputedStyle(main).scrollPaddingTop),
+        };
+      });
+      expect(filtered.text, "効いている条件の札と件数").toMatch(/^優先度 high×\d+ \/ \d+ 件$/);
+      expect(
+        Math.abs(filtered.top - filtered.searchBottom),
+        "札の行は検索の行の下",
+      ).toBeLessThanOrEqual(1);
+      expect(filtered.height, "札の行の高さ").toBe(22);
+      expect(
+        Math.abs(filtered.left) + Math.abs(filtered.right),
+        "左右の余白まで塗る",
+      ).toBeLessThanOrEqual(1);
+      expect(filtered.bg, "下の行が透けないよう塗る").not.toBe("rgba(0, 0, 0, 0)");
+      expect(filtered.layoutOffset, "札の行を出しても一覧は動かない").toBe(before.layoutOffset);
+      expect(
+        Math.abs(filtered.summaryTop - filtered.stackBottom),
+        "区画の見出しは札の行の下に貼り付く",
+      ).toBeLessThanOrEqual(1);
+      expect(filtered.pad, "札の行を出しても寄せ先は貼り付いた見出しの下").toBeGreaterThanOrEqual(
+        filtered.summaryBottom,
+      );
+
+      // 貼り付いた検索欄に打ち込むと一番上へ戻る
+      await page.getByRole("searchbox", { name: "検索" }).fill("番号");
+      await page.waitForFunction(() => document.querySelector(".page")!.scrollTop === 0);
+    } finally {
+      await context.close();
+    }
+  });
+});
+
 describe.each(SCHEMES)("履歴の中止の行（%s）", (scheme) => {
   it("点は塗らない輪（border）で、完了の点は塗り、タイトルは薄く打ち消し線がない", async () => {
     const context = await browser.newContext({

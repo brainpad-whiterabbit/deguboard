@@ -2,19 +2,26 @@
 // 見出しの中の目印の要素（カンバンなら進みの帯の行）が帯の下に隠れたかを IntersectionObserver で見て、隠れている間だけ帯を出す。
 // スクロールの量で決めないのは、見出しの高さが目標の行数や絞り込みの札で変わるため。
 // 帯は高さ 0 の sticky の箱の中に重ねて描くので、出し入れで一覧が動かない（滑り込ませると、細かくスクロールしたときにちらつく）。
-// 帯の下に貼り付く見出し（状態の節の見出しなど）は、styles.css の --dg-sticky-band-h の分だけ下げて貼り付ける
+// 帯の下に貼り付く見出し（状態の節の見出しなど）は、styles.css の --dg-sticky-band-h の分だけ下げて貼り付ける。
+// バックログ（UI-3）は縮めた帯を作らず、1 行の検索の行そのものを上の端に貼り付け（高さは STICKY_SEARCH_PX）、
+// 絞っている間だけその下に効いている条件の札の行をこの帯の仕組みで重ねる
 
 import { useEffect, useState, type ReactNode } from "react";
 
-/** 帯の高さ（px）。styles.css の --dg-sticky-band-h と同じ値にする */
+/** 帯の高さ（px）。styles.css の --dg-sticky-band-row-h と同じ値にする */
 export const STICKY_BAND_PX = 26;
 
+/** 上の端に貼り付ける検索の行の高さ（px。バックログ）。styles.css の --dg-sticky-search-h と同じ値にする */
+export const STICKY_SEARCH_PX = 32;
+
 /**
- * 目印の要素が、一覧（.page）の上の端から帯の高さまでの所より上へ抜けたか。
+ * 目印の要素が、一覧（.page）の上の端から offset（既定は帯の高さ）までの所より上へ抜けたか。
  * 返す ref を目印の要素に付ける。抜けていれば past が true で、戻れば false。
  * 下に外れている（まだ見えていない）間は抜けたとしない。IntersectionObserver がない所（テストの jsdom）では常に false
  */
-export function useScrolledPast<T extends Element>(): {
+export function useScrolledPast<T extends Element>(
+  offset: number = STICKY_BAND_PX,
+): {
   ref: (el: T | null) => void;
   past: boolean;
 } {
@@ -32,13 +39,13 @@ export function useScrolledPast<T extends Element>(): {
       },
       {
         root: el.closest(".page"),
-        rootMargin: `-${STICKY_BAND_PX}px 0px 0px 0px`,
+        rootMargin: `-${offset}px 0px 0px 0px`,
         threshold: 0,
       },
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [el]);
+  }, [el, offset]);
   return { ref: setEl, past: !!el && pastOf === el };
 }
 

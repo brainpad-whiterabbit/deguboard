@@ -11,6 +11,9 @@
 // Epic の欄は open の Epic があるときだけ、番号の札（components/epic-chip.tsx）と「なし」の札を並べる（2 行を超える分は「ほか N」）。題と進みは札のツールチップで読む
 // 行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
 // 行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
+// 左パネルでスクロールすると、検索の行（検索欄と漏斗）を上の端に貼り付け、Iteration の区画の見出しをその下に貼り付ける（次の区画の見出しに押し出されて入れ替わる）。
+// 絞り込みか検索が効いている間は、よく使う絞り込みの行が検索の行の下へ抜けたら、効いている条件の札（Epic を含む。× で外す）と「n / m 件」の行を
+// 検索の行の下に重ねる（BacklogBand。components/sticky-band.tsx と styles.css の .backlog-search）。左パネルで検索欄に打ち込むと一覧を一番上へ戻す。
 // 行・区画の見出し・選んでいる Epic の見出しは、エージェントに頼める場所にする（吹き出しと Shift+F10。UI-15）。Epic の札と件数は頼む入口にしない
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -23,7 +26,13 @@ import { DetailLink, TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { useSelection } from "../components/selection.js";
-import { useUiState } from "../host.js";
+import {
+  scrollPageToTop,
+  StickyBand,
+  STICKY_SEARCH_PX,
+  useScrolledPast,
+} from "../components/sticky-band.js";
+import { useHost, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import {
   BOARD_STATUSES,
@@ -232,6 +241,10 @@ export function BacklogPage() {
   const { epics: openEpics } = useOpenEpics();
   // 札に触れている間は、その Epic の行を光らせる（UI-10。Epic で絞っている間は光らせない）
   const epicHighlight = useEpicHighlight(filter.epic);
+  // よく使う絞り込みの行が検索の行の下へ抜けたか（左パネルだけ。絞っている間は効いている条件の札の行を重ねる）
+  const sidebar = useHost().surface === "sidebar";
+  const scrolled = useScrolledPast<HTMLDivElement>(STICKY_SEARCH_PX);
+  const count = filtering ? <FilteredCount rows={rows} total={total} /> : null;
 
   const filters: ReactNode = (
     <>
@@ -304,7 +317,11 @@ export function BacklogPage() {
           type="search"
           placeholder={tr("番号・タイトル・ラベルで検索")}
           value={filter.query}
-          onChange={(e) => set({ query: e.target.value })}
+          onChange={(e) => {
+            set({ query: e.target.value });
+            // 貼り付いた検索欄に打ち込んだら、絞った結果を上から読めるよう一覧を一番上へ戻す
+            if (sidebar) scrollPageToTop(e.currentTarget);
+          }}
           aria-label={tr("検索")}
         />
         <FilterToggle
@@ -312,9 +329,18 @@ export function BacklogPage() {
           active={active.length > 0}
           title={tr("Status・優先度・ラベル・担当で絞り込む")}
           controls="backlog-filters"
-          onToggle={() => setFiltersOpen(!filtersOpen)}
+          onToggle={(e) => {
+            // 絞り込みの欄は検索の行の下の流れに開くので、貼り付いた漏斗で開いたら一覧を一番上へ戻して欄を見せる
+            if (sidebar && !filtersOpen) scrollPageToTop(e.currentTarget);
+            setFiltersOpen(!filtersOpen);
+          }}
         />
       </div>
+      {sidebar ? (
+        <StickyBand shown={filtering && scrolled.past}>
+          <BacklogBand active={active} onChange={set} count={count} />
+        </StickyBand>
+      ) : null}
       {filtersOpen ? (
         <div className="toolbar backlog-filters" id="backlog-filters">
           {filters}
@@ -326,7 +352,8 @@ export function BacklogPage() {
         statusLabel={store.labelOf("in_progress")}
         meKnown={store.me !== null}
         onChange={set}
-        count={filtering ? <FilteredCount rows={rows} total={total} /> : null}
+        count={count}
+        markRef={sidebar ? scrolled.ref : undefined}
       />
       <div className="backlog-layout">
         {/* Epic の欄：札の行と、絞っている間はその下に選んでいる Epic の見出し（絞っている Epic が閉じて札が消えても見出しは残す） */}
@@ -385,6 +412,7 @@ function QuickFilters({
   meKnown,
   onChange,
   count,
+  markRef,
 }: {
   filter: BacklogFilter;
   folded: readonly ActiveFilter[];
@@ -394,9 +422,11 @@ function QuickFilters({
   onChange: (patch: Partial<BacklogFilter>) => void;
   /** 絞っているときの「n / m 件」。絞っていなければ null */
   count: ReactNode;
+  /** この行に付ける目印（useScrolledPast の ref）。検索の行の下へ抜けたら効いている条件の札の行を重ねる。左パネルでなければ undefined */
+  markRef: ((el: HTMLDivElement | null) => void) | undefined;
 }) {
   return (
-    <div className="chip-row quick-filters" role="group" aria-label={tr("絞り込み")}>
+    <div className="chip-row quick-filters" role="group" aria-label={tr("絞り込み")} ref={markRef}>
       {QUICK_FILTERS.filter((q) => q.key !== "mine" || meKnown).map((q) => {
         const pressed = q.on(filter);
         const what = q.what(statusLabel);
@@ -412,16 +442,53 @@ function QuickFilters({
         );
       })}
       {folded.map((a) => (
-        <span key={a.key} className="filter-chip" title={a.title ?? a.text}>
-          <span className="filter-chip-text">{a.text}</span>
-          <button
-            type="button"
-            aria-label={tr("{0} の絞り込みを外す", a.text)}
-            onClick={() => onChange(a.clear)}
-          >
-            ×
-          </button>
-        </span>
+        <FilterChip key={a.key} filter={a} onChange={onChange} />
+      ))}
+      {count}
+    </div>
+  );
+}
+
+/** 効いている条件の札（× で外す） */
+function FilterChip({
+  filter: a,
+  onChange,
+}: {
+  filter: ActiveFilter;
+  onChange: (patch: Partial<BacklogFilter>) => void;
+}) {
+  return (
+    <span className="filter-chip" title={a.title ?? a.text}>
+      <span className="filter-chip-text">{a.text}</span>
+      <button
+        type="button"
+        aria-label={tr("{0} の絞り込みを外す", a.text)}
+        onClick={() => onChange(a.clear)}
+      >
+        ×
+      </button>
+    </span>
+  );
+}
+
+/**
+ * 左パネルで絞っている間、よく使う絞り込みの行が検索の行の下へ抜けたら、検索の行の下に重ねる 1 行（UI-3）。
+ * 効いている条件をすべて（よく使うチップで見えていた条件と Epic も）× で外せる札にし、右端に「n / m 件」を出す。
+ * 札は折り返さずに文字を省く（行の高さは styles.css の --dg-sticky-filter-h）
+ */
+function BacklogBand({
+  active,
+  onChange,
+  count,
+}: {
+  active: readonly ActiveFilter[];
+  onChange: (patch: Partial<BacklogFilter>) => void;
+  count: ReactNode;
+}) {
+  return (
+    <div className="chip-row backlog-band-filters" role="group" aria-label={tr("絞り込み")}>
+      {active.map((a) => (
+        <FilterChip key={a.key} filter={a} onChange={onChange} />
       ))}
       {count}
     </div>
@@ -430,7 +497,8 @@ function QuickFilters({
 
 /**
  * 1 つの区画：見出し（番号・名前・状態・期間・目標・件数・詳細へのリンク）とチケットの一覧。
- * 折りたたみの節にし、開閉を host.state に残す。0 件なら見出しだけ。見出しは帯と 2 段
+ * 折りたたみの節にし、開閉を host.state に残す。0 件なら見出しだけ。見出しは帯と 2 段。
+ * 左パネルでは見出しを検索の行（絞っている間は条件の札の行）の下に貼り付け、次の区画の見出しに押し出されて入れ替わる（styles.css。貼り付いても押せば開閉し、頼める）
  */
 function Section({
   section: { iteration: it, tickets },
