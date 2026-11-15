@@ -61,6 +61,41 @@ export const SETUP_ACTIONS = [
 ] as const;
 export type SetupAction = (typeof SETUP_ACTIONS)[number];
 
+/**
+ * 導入のチェックリストのボードの項目で、人が指定したデータの置き場所（データを別のリポジトリに置くチーム）。
+ * 確かめる（setup）にも、ボタンの dg init（setupAct）にも同じ値を渡す（dg init の --data-remote・--data-branch）
+ */
+export interface SetupBoardSource {
+  /** データのリポジトリ。remote の名前か URL */
+  dataRemote: string;
+  /** データのブランチ。省けば dg init の既定（deguboard） */
+  dataBranch?: string | undefined;
+}
+
+/** シェルにそのまま渡せない文字を含む値だけを単一引用符で囲む（チェックリストのコマンドはターミナルに 1 行で送り、コピーもされる） */
+function shellArg(value: string): string {
+  return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * チェックリストが見せて流す dg init の 1 行。確かめた値（コードのリモート・データのリモートとブランチ）を init にも渡す。
+ * newBoard は、リモートに届かないときに人が選んで手元だけで始める --new-board
+ */
+export function initCommandLine(options: {
+  remote?: string | undefined;
+  dataRemote?: string | undefined;
+  dataBranch?: string | undefined;
+  newBoard?: boolean | undefined;
+}): string {
+  return [
+    "dg init",
+    ...(options.newBoard ? ["--new-board"] : []),
+    ...(options.remote ? ["--remote", shellArg(options.remote)] : []),
+    ...(options.dataRemote ? ["--data-remote", shellArg(options.dataRemote)] : []),
+    ...(options.dataBranch ? ["--data-branch", shellArg(options.dataBranch)] : []),
+  ].join(" ");
+}
+
 /** dg setup check の結果を画面のチェックリストの形にする（入口が足す項目のない dg serve はこれだけを返す） */
 export function setupViewOf(result: SetupCheckResult, cwd: string): SetupView {
   return { ready: result.ready, items: result.items, cwd };
@@ -74,7 +109,8 @@ export function setupViewOf(result: SetupCheckResult, cwd: string): SetupView {
  * terminals は開いているターミナルの一覧を返す（応答の data は TerminalChoice[]）。sendToTerminal は text を terminal の入力に入れる（Enter は押さない。UI-15）。
  * setup は導入のチェックリストを確かめ直して返す（応答の data は SetupView）。setupAct はチェックリストのボタンの操作（SetupAction）を頼む（UI-12）。
  * setup の bandDismissed は、推奨の項目の帯を出す画面（左パネル）が、人が帯を「このリポジトリでは出さない」にしているかを伝える
- * （拡張ホストが、推奨だけが欠けている間の自動の確かめ直しをやめる）。帯を出さない画面は付けない
+ * （拡張ホストが、推奨だけが欠けている間の自動の確かめ直しをやめる）。帯を出さない画面は付けない。
+ * setup と setupAct の board は、人がボードの項目で指定したデータの置き場所（SetupBoardSource）。setup はそこを確かめ、setupAct の init・newBoard は dg init に渡す
  */
 export type WebviewRequest =
   | { id: number; kind: "run"; name: string; input: unknown }
@@ -83,8 +119,20 @@ export type WebviewRequest =
   | { id: number; kind: "action"; name: "copy"; text: string }
   | { id: number; kind: "action"; name: "terminals" }
   | { id: number; kind: "action"; name: "sendToTerminal"; terminal: number; text: string }
-  | { id: number; kind: "action"; name: "setup"; bandDismissed?: boolean | undefined }
-  | { id: number; kind: "action"; name: "setupAct"; act: SetupAction };
+  | {
+      id: number;
+      kind: "action";
+      name: "setup";
+      bandDismissed?: boolean | undefined;
+      board?: SetupBoardSource | undefined;
+    }
+  | {
+      id: number;
+      kind: "action";
+      name: "setupAct";
+      act: SetupAction;
+      board?: SetupBoardSource | undefined;
+    };
 
 /** sendToTerminal の応答の data。clipboardKept は、貼り付けのために書いたクリップボードを元に戻せず、依頼文が残っていること */
 export interface TerminalSendResult {

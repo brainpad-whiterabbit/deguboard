@@ -21,8 +21,8 @@ An agentic kanban board inside your Git repository, with the development flow bu
 ## Installation
 
 1. **Install the extension**: Download `deguboard-vscode.vsix` from [GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases), run `code --install-extension deguboard-vscode.vsix`, and reload the VS Code window.
-2. **Start with the repository**: Open your repository, click the deguboard icon in the Activity Bar, and follow the setup checklist in the sidebar: the first item that is not met shows a button and the command to run. Once the board is set up, the usual views appear, and the band above them installs the Skills (such as `/dgplan`) and the hooks for Claude Code on your machine. Commit the `.claude/.gitignore` they add.
-3. **Terminal users only**: To run `dg` yourself, run **Install dg command** from the Command Palette.
+2. **Follow the checklist**: Open your repository, click the deguboard icon in the Activity Bar, and follow the setup checklist in the sidebar. The first item that is not met shows a button and the command to run. At the board item, take in the team's board or create a new one. If your team keeps the board in another repository, choose that, enter the repository (a URL or a remote name) and its branch, and check it before you take the board in.
+3. **Finish the recommended items**: Once the board is set up, the usual views appear, and a band above them lists the recommended items that are still missing. Install the Skills (such as `/dgplan`) and the hooks for Claude Code, install the `dg` command, and commit the `.claude/.gitignore` they add. Agents need the `dg` command as much as you do: the Skills and agents run `dg` in a shell to read and update the board.
 
 Teammates install the extension, clone the repository, and follow the same checklist to see the same board.
 

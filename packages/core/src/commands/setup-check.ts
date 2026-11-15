@@ -21,6 +21,7 @@ import {
 } from "../git/index.js";
 import { dataBranchProblem, DEFAULT_DATA_BRANCH, DEFAULT_REMOTE } from "../model/config.js";
 import { pathExists } from "../storage/exists.js";
+import { initCommandLine } from "./client.js";
 import { hookInstallStateOf, type HookInstallState } from "./hook-settings.js";
 import { skillInstallStateOf } from "./skill-files.js";
 
@@ -126,17 +127,6 @@ async function checkGit(): Promise<Checked> {
   return ok(`git ${version}`);
 }
 
-/** dg init に足す引数（確かめたリモートとブランチを init にも渡す） */
-function initArgs(options: SetupCheckOptions): string {
-  return [
-    ...(options.remote ? ["--remote", options.remote] : []),
-    ...(options.dataRemote ? ["--data-remote", options.dataRemote] : []),
-    ...(options.dataBranch ? ["--data-branch", options.dataBranch] : []),
-  ]
-    .map((a) => ` ${a}`)
-    .join("");
-}
-
 /**
  * ボードがあるか（init 済みか）。まだなら、dg init がすることを先に確かめる：手元に deguboard ブランチがあればそれを使い、
  * なければデータのリモートを ls-remote で見る（init と同じ probeRemoteBoard。t1005）。
@@ -164,7 +154,7 @@ async function checkBoard(paths: RepoPaths, options: SetupCheckOptions): Promise
       [],
       { state: "data_remote_missing" },
     );
-  const init = `dg init${initArgs(options)}`;
+  const init = initCommandLine(options);
   if (await hasLocalDataBranch(paths))
     return unmet(
       "This clone has a deguboard branch but no worktree for it. dg init sets up the worktree from that branch",
@@ -195,7 +185,7 @@ async function checkBoard(paths: RepoPaths, options: SetupCheckOptions): Promise
     );
   // 届かないときは直すコマンドを返さない：直すのは接続で、dg init --new-board はチームのボードと別のボードを作りうるので、人が選んだときだけにする（SY-1）
   return unmet(
-    `Cannot reach ${remote}, so whether the team has a board is unknown, and no board was created. Fix the connection (network, credentials, or the remote's URL) and check again. Only if you know the team has no board, dg init --new-board${initArgs(options)} starts one on this machine`,
+    `Cannot reach ${remote}, so whether the team has a board is unknown, and no board was created. Fix the connection (network, credentials, or the remote's URL) and check again. Only if you know the team has no board, ${initCommandLine({ ...options, newBoard: true })} starts one on this machine`,
     [],
     { state: "remote_unreachable", ...(found.detail ? { detail: found.detail } : {}) },
   );

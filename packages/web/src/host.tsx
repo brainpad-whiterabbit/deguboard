@@ -16,7 +16,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { SetupAction, TerminalChoice, TerminalSendResult } from "@deguboard/core";
+import type {
+  SetupAction,
+  SetupBoardSource,
+  TerminalChoice,
+  TerminalSendResult,
+} from "@deguboard/core";
 import { askKey, parseAskKey } from "./ask-key.js";
 import type { WebviewClient } from "./client/webview.js";
 import { hrefOf, navigate, toggleRoute, type Route } from "./router.js";
@@ -43,9 +48,10 @@ export interface Host {
   terminals?: TerminalsHost | undefined;
   /**
    * 導入のチェックリストのボタンの操作（UI-12）。拡張ホストに頼み、フォルダを開く・deguboard のターミナルで実行する・dg コマンドを入れる。
-   * Webview だけにあり、dg serve にはない（ボタンを出さず、コマンドのコピーだけになる）
+   * Webview だけにあり、dg serve にはない（ボタンを出さず、コマンドのコピーだけになる）。
+   * board は、人がボードの項目で指定したデータの置き場所（dg init に --data-remote・--data-branch を付ける）
    */
-  setupAct?: ((act: SetupAction) => Promise<void>) | undefined;
+  setupAct?: ((act: SetupAction, board?: SetupBoardSource) => Promise<void>) | undefined;
 }
 
 /**
@@ -87,7 +93,7 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
       // Webview の navigator.clipboard は VS Code の版や設定で使えないことがあるので、試さずに拡張ホストに頼む
       copy: (text) => client.copy(text),
       state: state ?? standalone.state,
-      setupAct: (act) => client.setupAct(act),
+      setupAct: (act, board) => client.setupAct(act, board),
       terminals: {
         list: () => client.terminals(),
         send: (terminal, text) => client.sendToTerminal(terminal, text),

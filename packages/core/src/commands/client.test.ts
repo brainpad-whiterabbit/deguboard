@@ -1,5 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { detailOfRoute, detailRouteOf } from "./client.js";
+import { detailOfRoute, detailRouteOf, initCommandLine } from "./client.js";
+
+describe("チェックリストの dg init の 1 行（initCommandLine）", () => {
+  it("渡した値を --remote・--data-remote・--data-branch に付け、省いた値は付けない", () => {
+    expect(initCommandLine({})).toBe("dg init");
+    expect(
+      initCommandLine({
+        remote: "upstream",
+        dataRemote: "git@github.com:team/kanban.git",
+        dataBranch: "kanban",
+        newBoard: true,
+      }),
+    ).toBe(
+      "dg init --new-board --remote upstream --data-remote git@github.com:team/kanban.git --data-branch kanban",
+    );
+  });
+
+  it("シェルにそのまま渡せない値だけを単一引用符で囲む", () => {
+    expect(initCommandLine({ dataRemote: "https://example.com/a b.git" })).toBe(
+      "dg init --data-remote 'https://example.com/a b.git'",
+    );
+    expect(initCommandLine({ dataRemote: "$(x)", dataBranch: "it's" })).toBe(
+      `dg init --data-remote '$(x)' --data-branch 'it'\\''s'`,
+    );
+  });
+});
 
 describe("詳細のルート（WEBVIEW_CONTRACT.detailRoutes）", () => {
   it("チケット・Iteration・Epic・Plan の ID から詳細のルートを組み、形の違う ID は組まない", () => {

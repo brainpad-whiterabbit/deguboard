@@ -55,6 +55,7 @@ export type {
   CommandClient,
   CommandFailure,
   SetupAction,
+  SetupBoardSource,
   SetupView,
   SetupViewItem,
   StatusView,
@@ -69,5 +70,6 @@ export {
   WEBVIEW_CONTRACT,
   detailOfRoute,
   detailRouteOf,
+  initCommandLine,
   setupViewOf,
 } from "./client.js";

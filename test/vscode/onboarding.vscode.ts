@@ -68,6 +68,16 @@ describe("VS Code の実機の導入のチェックリスト", () => {
     await run("git", ["config", "user.email", "vscode-test@example.com"], { cwd: folder });
     await sidebar.getByRole("button", { name: "Create a new board" }).waitFor({ timeout: 60_000 });
     await shoot("setup-board");
+    // チームのボードが別のリポジトリにある道を選ぶと、データのリポジトリとブランチの欄と、付ける引数の 1 行が出る（t1008）
+    await sidebar.getByRole("radio", { name: "The team's board is in another repository" }).check();
+    await sidebar
+      .getByRole("textbox", { name: "Data repository (URL or remote name)" })
+      .fill("git@github.com:team/kanban.git");
+    await sidebar
+      .getByText("dg init --data-remote git@github.com:team/kanban.git --data-branch deguboard")
+      .waitFor();
+    await shoot("setup-board-other");
+    await sidebar.getByRole("radio", { name: "Create a new board" }).check();
   });
 
   it("ボードの項目のボタンを押すと deguboard のターミナルで dg init が走り、終わるといつもの画面に変わって、推奨の項目の帯が出る", async () => {

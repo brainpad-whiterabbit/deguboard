@@ -3828,6 +3828,48 @@ button.ask-copy svg {
   padding-top: 8px;
   border-top: 1px solid var(--dg-border);
 }
+/* ボードの項目の選択肢（新しく作るか、別のリポジトリか）と、データのリポジトリを入れる欄 */
+.setup-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.setup-choice legend {
+  padding: 0;
+  margin-bottom: 2px;
+}
+.setup-choice > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.setup-source {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  align-self: stretch;
+}
+.setup-choice .setup-source {
+  padding-left: 22px;
+}
+.setup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-self: stretch;
+  font-size: 11.5px;
+  color: var(--vscode-descriptionForeground);
+}
+.setup-field input {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
 /* いつもの画面の上の、推奨の項目が欠けていることの帯 */
 .setup-band {
   display: flex;

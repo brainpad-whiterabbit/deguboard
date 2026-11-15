@@ -4,6 +4,7 @@ import type {
   CommandClient,
   CommandFailure,
   CommandResult,
+  SetupBoardSource,
   SetupView,
   StatusView,
 } from "@deguboard/core";
@@ -28,9 +29,18 @@ type Envelope<T> =
   | { ok: true; data: T; warnings?: string[]; write?: CommandResult<T>["write"] | null }
   | { ok: false; error: CommandFailure };
 
+/**
+ * 確かめるときに付けるもの。board は人がボードの項目で指定したデータの置き場所（dg init 前のボードをそこで確かめる）。
+ * bandDismissed は Webview だけが拡張ホストに伝える（client/webview.ts）
+ */
+export interface SetupOptions {
+  bandDismissed?: boolean | undefined;
+  board?: SetupBoardSource | undefined;
+}
+
 /** 導入のチェックリスト（UI-12）を確かめ直して返す口を持つ CommandClient。dg serve と Webview の両方の実装が持つ */
 export interface SetupClient extends CommandClient {
-  setup(): Promise<SetupView>;
+  setup(options?: SetupOptions): Promise<SetupView>;
 }
 
 export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch): SetupClient {
@@ -76,8 +86,14 @@ export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch):
       if (!body.ok) throw new ClientError(body.error);
       return body.data;
     },
-    async setup(): Promise<SetupView> {
-      const body = await call<SetupView>("/api/setup");
+    async setup(options): Promise<SetupView> {
+      const query = new URLSearchParams();
+      if (options?.board) {
+        query.set("data_remote", options.board.dataRemote);
+        if (options.board.dataBranch) query.set("data_branch", options.board.dataBranch);
+      }
+      const search = query.size > 0 ? `?${query.toString()}` : "";
+      const body = await call<SetupView>(`/api/setup${search}`);
       if (!body.ok) throw new ClientError(body.error);
       return body.data;
     },

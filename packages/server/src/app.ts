@@ -202,8 +202,14 @@ export function createApp(options: AppOptions): Handler {
         return;
       }
       if (url.pathname === "/api/setup" && req.method === "GET") {
-        // 文脈（リポジトリかストア）を開かずに確かめるので、git がない・リポジトリの外・dg init の前でも答える
-        const result = await checkSetup({ cwd: options.cwd, env: process.env });
+        // 文脈（リポジトリかストア）を開かずに確かめるので、git がない・リポジトリの外・dg init の前でも答える。
+        // data_remote・data_branch は、人がボードの項目で指定したデータの置き場所（dg setup check の --data-remote・--data-branch と同じ）
+        const result = await checkSetup({
+          cwd: options.cwd,
+          env: process.env,
+          dataRemote: url.searchParams.get("data_remote") || undefined,
+          dataBranch: url.searchParams.get("data_branch") || undefined,
+        });
         json(res, 200, { ok: true, data: setupViewOf(result, options.cwd) });
         return;
       }

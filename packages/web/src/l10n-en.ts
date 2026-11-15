@@ -170,9 +170,14 @@ export const EN: Readonly<Record<string, string>> = {
   未取り込み: "Not taken in",
   "リモートにチームのボードがあり、このクローンにはまだ取り込んでいません。":
     "The remote has the team's board, and this clone has not taken it in yet.",
+  "データのリポジトリにチームのボードがあり、このクローンにはまだ取り込んでいません。":
+    "The data repository has the team's board, and this clone has not taken it in yet.",
   チームのボードを取り込む: "Take in the team's board",
   まだない: "Not set up",
+  "データのリポジトリにボードはありません。": "The data repository has no board.",
   "リモートにボードはありません。": "The remote has no board.",
+  "新しいボードを作り、データのリポジトリへ push します。":
+    "This creates a new board and pushes it to the data repository.",
   "新しいボードを作り、リモートへ push します。":
     "This creates a new board and pushes it to the remote.",
   新しいボードを作る: "Create a new board",
@@ -190,6 +195,14 @@ export const EN: Readonly<Record<string, string>> = {
   "このクローンにはボードのブランチがあり、その worktree がありません。":
     "This clone has the board's branch but no worktree for it.",
   "ボードの worktree を作り直す": "Set up the board's worktree again",
+  "データのリポジトリ（URL か remote 名）": "Data repository (URL or remote name)",
+  このリポジトリを確かめる: "Check this repository",
+  コードのリモートのボードを使う: "Use the board on the code's remote",
+  確かめたデータのリポジトリ: "Data repository checked",
+  どちらかを選ぶ: "Choose one",
+  チームのボードは別のリポジトリにある: "The team's board is in another repository",
+  使うボードが別のリポジトリにあるなら: "If the board to use is in another repository",
+  データのリポジトリを指定する: "Specify the data repository",
   リモートがない: "No such remote",
   "データのリモートに渡した名前のリモートが、このクローンにありません。":
     "This clone has no remote with the name given for the data remote.",

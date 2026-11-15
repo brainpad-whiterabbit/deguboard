@@ -4,7 +4,14 @@
 // ここの message は core と同じく英語で持ち、画面には出ない
 
 import path from "node:path";
-import type { SetupCheckResult, SetupView, SetupViewItem } from "@deguboard/core";
+import {
+  initCommandLine,
+  type SetupAction,
+  type SetupBoardSource,
+  type SetupCheckResult,
+  type SetupView,
+  type SetupViewItem,
+} from "@deguboard/core";
 import { majorOf, type DgLookup } from "./dg.js";
 import type { DgLink } from "./launcher.js";
 
@@ -187,4 +194,29 @@ export function skillsHooksCommands(view: SetupView | undefined): string[] {
   const item = view?.items.find((i) => i.id === "skills_hooks");
   if (!item) return ["dg skill install", "dg hooks install"];
   return item.fix.filter((command) => !command.includes("--force"));
+}
+
+/** ボタンのうち、deguboard のターミナルでコマンドを流すもの（フォルダを開く・dg コマンドを入れるは拡張が自分で行う） */
+export type TerminalSetupAction = Exclude<SetupAction, "openFolder" | "installDg">;
+
+/**
+ * ボタンが deguboard のターミナルで流すコマンド。init・newBoard は、人がボードの項目で別のリポジトリを指定していれば（board）、
+ * 確かめたときと同じ値を dg init の --data-remote・--data-branch に渡す（core の initCommandLine。値はシェルに渡せる形に囲む）
+ */
+export function setupCommands(
+  act: TerminalSetupAction,
+  view: SetupView | undefined,
+  board?: SetupBoardSource,
+): string[] {
+  const source = { dataRemote: board?.dataRemote, dataBranch: board?.dataBranch };
+  switch (act) {
+    case "gitInit":
+      return ["git init"];
+    case "init":
+      return [initCommandLine(source)];
+    case "newBoard":
+      return [initCommandLine({ ...source, newBoard: true })];
+    case "installSkillsHooks":
+      return skillsHooksCommands(view);
+  }
 }

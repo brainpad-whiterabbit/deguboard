@@ -5,6 +5,7 @@ import {
   buildSetupView,
   dgCommandItem,
   PATH_EXPORT_LINE,
+  setupCommands,
   skillsHooksCommands,
   supportedPlatform,
   type DgCommandFacts,
@@ -266,5 +267,34 @@ describe("「Skill と hooks を入れる」ボタンが流すコマンド", () 
 
   it("確かめた結果がなければ、どちらも入れる", () => {
     expect(skillsHooksCommands(undefined)).toEqual(["dg skill install", "dg hooks install"]);
+  });
+});
+
+describe("ボタンがターミナルで流すコマンド（setupCommands）", () => {
+  const board = { dataRemote: "git@github.com:team/kanban.git", dataBranch: "kanban" };
+
+  it("別のリポジトリのボードを指定していれば、dg init に --data-remote・--data-branch を付ける", () => {
+    expect(setupCommands("init", undefined, board)).toEqual([
+      "dg init --data-remote git@github.com:team/kanban.git --data-branch kanban",
+    ]);
+    expect(setupCommands("newBoard", undefined, board)).toEqual([
+      "dg init --new-board --data-remote git@github.com:team/kanban.git --data-branch kanban",
+    ]);
+    // ブランチを省けば --data-branch を付けない（dg init の既定の deguboard）
+    expect(setupCommands("init", undefined, { dataRemote: "kanban" })).toEqual([
+      "dg init --data-remote kanban",
+    ]);
+  });
+
+  it("指定していなければ引数を付けない", () => {
+    expect(setupCommands("init", undefined)).toEqual(["dg init"]);
+    expect(setupCommands("newBoard", undefined)).toEqual(["dg init --new-board"]);
+    expect(setupCommands("gitInit", undefined, board)).toEqual(["git init"]);
+  });
+
+  it("人が入れた値は、シェルにそのまま渡らないように囲む（ターミナルに 1 行で送るので）", () => {
+    expect(
+      setupCommands("init", undefined, { dataRemote: "/srv/my repo; rm -rf ~", dataBranch: "a'b" }),
+    ).toEqual([`dg init --data-remote '/srv/my repo; rm -rf ~' --data-branch 'a'\\''b'`]);
   });
 });

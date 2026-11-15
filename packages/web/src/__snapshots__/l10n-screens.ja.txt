@@ -1696,6 +1696,8 @@ Git リポジトリ
 dg init
 [title] dg init をコピー
 [aria-label] dg init をコピー
+使うボードが別のリポジトリにあるなら
+データのリポジトリを指定する
 [aria-label] まだ確かめていない
 ·
 Skill と hooks

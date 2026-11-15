@@ -3,7 +3,7 @@ import type { SetupAction, SetupView, SetupViewItem } from "@deguboard/core";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HostProvider, type Host } from "../host.js";
-import { StoreProvider } from "../store.js";
+import { StoreProvider, useStore } from "../store.js";
 import { mockClient, setupView } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
 import { guideOf, SetupChecklist } from "./setup-checklist.js";
@@ -208,6 +208,128 @@ describe("ボードの項目（dg init がすることを先に確かめた結�
     expect(screen.getByText(status)).toBeTruthy();
     expect(within(row("ボード")).getByRole("button", { name: "もう一度確かめる" })).toBeTruthy();
     expect(screen.queryByText("ターミナルで行うなら")).toBeNull();
+  });
+});
+
+describe("ボードの項目で別のリポジトリのボードを指定する", () => {
+  const SOURCE = { dataRemote: "git@github.com:team/kanban.git", dataBranch: "deguboard" };
+
+  /**
+   * 確かめ直した結果を描き直すチェックリスト（store.setup を描く）。setup は board を付けて頼まれると next を返し、
+   * 拡張ホストに頼んだ操作は acts に [操作, データの置き場所] で入る
+   */
+  function mountLive(first: SetupView, next: SetupView) {
+    const acts: [SetupAction, unknown][] = [];
+    const host: Host = {
+      ...vscodeHost(),
+      setupAct: async (act, board) => void acts.push([act, board]),
+    };
+    const client = mockClient();
+    const setup = vi.fn(async (options?: { board?: unknown }) => (options?.board ? next : first));
+    client.setup = setup;
+    function Live() {
+      const store = useStore();
+      return <SetupChecklist view={store.setup ?? first} />;
+    }
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={host}>
+          <Live />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    return { acts, setup };
+  }
+
+  const board = (state: string, extra: Partial<SetupViewItem> = {}) =>
+    setupView({ board: { status: "unmet", state, fix: ["dg init"], ...extra } });
+
+  it("remote にボードがないときは、新しく作るか別のリポジトリかを選ばせ、別のリポジトリを選ぶと入れた値で確かめ直し、--data-remote・--data-branch 付きで dg init する", async () => {
+    const fix = [`dg init --data-remote ${SOURCE.dataRemote} --data-branch deguboard`];
+    const { acts, setup } = mountLive(board("remote_no_board"), board("remote_board", { fix }));
+    const item = within(row("ボード"));
+    // 既定は新しく作る道で、そのボタンを出す
+    expect(item.getByRole("radio", { name: "新しいボードを作る" })).toHaveProperty("checked", true);
+    expect(item.getByRole("button", { name: "新しいボードを作る" })).toBeTruthy();
+    fireEvent.click(item.getByRole("radio", { name: "チームのボードは別のリポジトリにある" }));
+    // 別のリポジトリを選んだ間は、新しく作るボタンを出さない
+    expect(item.queryByRole("button", { name: "新しいボードを作る" })).toBeNull();
+    const check = item.getByRole("button", { name: "このリポジトリを確かめる" });
+    expect(check).toHaveProperty("disabled", true);
+    fireEvent.change(
+      item.getByRole("textbox", { name: "データのリポジトリ（URL か remote 名）" }),
+      {
+        target: { value: ` ${SOURCE.dataRemote} ` },
+      },
+    );
+    expect(item.getByRole("textbox", { name: "ブランチ" })).toHaveProperty("value", "deguboard");
+    // 確かめる前でも、ターミナルで打つ 1 行を見せる
+    expect(item.getByText(fix[0]!)).toBeTruthy();
+    fireEvent.click(check);
+    await waitFor(() => expect(setup).toHaveBeenCalledWith({ board: SOURCE }));
+    const after = within(row("ボード"));
+    await waitFor(() =>
+      expect(
+        after.getByText(
+          "データのリポジトリにチームのボードがあり、このクローンにはまだ取り込んでいません。",
+        ),
+      ).toBeTruthy(),
+    );
+    fireEvent.click(after.getByRole("button", { name: "チームのボードを取り込む" }));
+    expect(acts).toEqual([["init", SOURCE]]);
+    expect(after.getByText(fix[0]!)).toBeTruthy();
+  });
+
+  it("入れた値を確かめた結果が dg init の受け付けない値なら、その状態を出し、値を直すかコードのリモートに戻れる", async () => {
+    const { setup } = mountLive(board("no_remote"), board("data_remote_missing", { fix: [] }));
+    const item = within(row("ボード"));
+    fireEvent.click(item.getByRole("radio", { name: "チームのボードは別のリポジトリにある" }));
+    fireEvent.change(
+      item.getByRole("textbox", { name: "データのリポジトリ（URL か remote 名）" }),
+      {
+        target: { value: "kanban" },
+      },
+    );
+    fireEvent.change(item.getByRole("textbox", { name: "ブランチ" }), { target: { value: "" } });
+    fireEvent.click(item.getByRole("button", { name: "このリポジトリを確かめる" }));
+    // ブランチを空にすれば --data-branch を付けない（dg init の既定）
+    await waitFor(() => expect(setup).toHaveBeenCalledWith({ board: { dataRemote: "kanban" } }));
+    const after = within(row("ボード"));
+    await waitFor(() =>
+      expect(
+        after.getByText("データのリモートに渡した名前のリモートが、このクローンにありません。"),
+      ).toBeTruthy(),
+    );
+    expect(
+      after.getByRole("textbox", { name: "データのリポジトリ（URL か remote 名）" }),
+    ).toHaveProperty("value", "kanban");
+    const calls = setup.mock.calls.length;
+    fireEvent.click(after.getByRole("button", { name: "コードのリモートのボードを使う" }));
+    await waitFor(() => expect(setup.mock.calls.length).toBeGreaterThan(calls));
+    expect(setup.mock.calls.at(-1)).toEqual([undefined]);
+  });
+
+  it("remote にボードがあるときも、条件を書いた別の道としてデータのリポジトリを指定できる", async () => {
+    const { acts, setup } = mountLive(
+      board("remote_board"),
+      board("remote_board", { fix: [`dg init --data-remote ${SOURCE.dataRemote}`] }),
+    );
+    const alt = within(row("ボード").querySelector<HTMLElement>(".setup-alt")!);
+    expect(alt.getByText("使うボードが別のリポジトリにあるなら")).toBeTruthy();
+    // 主の道は取り込むボタンで、別の道は開くまで入力を出さない
+    expect(
+      within(row("ボード")).getByRole("button", { name: "チームのボードを取り込む" }).className,
+    ).toBe("primary");
+    expect(alt.queryByRole("textbox")).toBeNull();
+    fireEvent.click(alt.getByRole("button", { name: "データのリポジトリを指定する" }));
+    fireEvent.change(alt.getByRole("textbox", { name: "データのリポジトリ（URL か remote 名）" }), {
+      target: { value: SOURCE.dataRemote },
+    });
+    fireEvent.click(alt.getByRole("button", { name: "このリポジトリを確かめる" }));
+    await waitFor(() => expect(setup).toHaveBeenCalledWith({ board: SOURCE }));
+    await waitFor(() => expect(screen.getByText("確かめたデータのリポジトリ")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "チームのボードを取り込む" }));
+    expect(acts).toEqual([["init", SOURCE]]);
   });
 });
 
