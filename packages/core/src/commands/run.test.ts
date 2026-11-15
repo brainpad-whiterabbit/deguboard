@@ -1936,10 +1936,11 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     );
     /** Run の期間の応答 1 つを持つ会話記録。usage のキーを省けばその値は取れない */
     const transcriptFor = async (run: Run, usage: Record<string, number>) => {
+      const at = new Date(Date.parse(run.started_at) + 100);
       const intro = { type: "user", timestamp: run.started_at, message: { content: run.id } };
       const line = {
         type: "assistant",
-        timestamp: new Date(Date.parse(run.started_at) + 100).toISOString(),
+        timestamp: at.toISOString(),
         message: {
           id: `m-${run.id}`,
           model: "claude-opus-from-transcript",
@@ -1948,10 +1949,14 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
         },
       };
       await mkdir(projectDir, { recursive: true });
-      await writeFile(
-        path.join(projectDir, `${run.id}.jsonl`),
-        [intro, line].map((l) => JSON.stringify(l)).join("\n") + "\n",
-      );
+      const file = path.join(projectDir, `${run.id}.jsonl`);
+      await writeFile(file, [intro, line].map((l) => JSON.stringify(l)).join("\n") + "\n");
+      // ファイルの更新時刻を、最後の行の時刻（started_at の後）に決める。決めないと、refresh が確率でこの記録を見つけない：
+      // Adapter は更新時刻が started_at（秒に切り捨てた start の時刻）より前のファイルを探す範囲から外す（transcript.ts の fresh）。
+      // ファイルシステムが付ける更新時刻は最後のタイマー割り込みの時刻で、Date.now() より数ミリ秒遅れる。
+      // 本物の時計で開いた Run の start が秒の境目の直後で、この書き込みが次の割り込みより前だと、
+      // 更新時刻が境目の手前（started_at より前）になる（withModelTranscript の t977 と同じ原因）
+      await utimes(file, at, at);
     };
     /** 会話記録のないまま閉じた Run（使用量は null、モデル名は start の別名） */
     const closedRun = async (ticket: string, model = "opus") => {
