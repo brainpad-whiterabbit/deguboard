@@ -75,30 +75,30 @@
   <rect class="box inner" x="166" y="318" width="693" height="36" rx="5"/>
   <text x="512" y="341" text-anchor="middle">commands/ — every operation is defined here; entry points only map them</text>
   <g>
-    <rect class="box inner" x="166" y="370" width="82" height="56" rx="5"/>
-    <text x="207" y="394" text-anchor="middle">model</text>
-    <text x="207" y="412" text-anchor="middle" class="sub">schemas</text>
-    <rect class="box inner" x="252" y="370" width="82" height="56" rx="5"/>
-    <text x="293" y="394" text-anchor="middle">storage</text>
-    <text x="293" y="412" text-anchor="middle" class="sub">files, index</text>
-    <rect class="box inner" x="338" y="370" width="82" height="56" rx="5"/>
-    <text x="379" y="394" text-anchor="middle">workflow</text>
-    <text x="379" y="412" text-anchor="middle" class="sub">transitions</text>
-    <rect class="box inner" x="424" y="370" width="82" height="56" rx="5"/>
-    <text x="465" y="394" text-anchor="middle">git</text>
-    <text x="465" y="412" text-anchor="middle" class="sub">sync, reconcile</text>
-    <rect class="box inner" x="510" y="370" width="82" height="56" rx="5"/>
-    <text x="551" y="394" text-anchor="middle">run</text>
-    <text x="551" y="412" text-anchor="middle" class="sub">Run records</text>
-    <rect class="box inner" x="596" y="370" width="82" height="56" rx="5"/>
-    <text x="637" y="394" text-anchor="middle">agents</text>
-    <text x="637" y="412" text-anchor="middle" class="sub">per product</text>
-    <rect class="box inner" x="682" y="370" width="82" height="56" rx="5"/>
-    <text x="723" y="394" text-anchor="middle">actions</text>
-    <text x="723" y="412" text-anchor="middle" class="sub">for workflows</text>
-    <rect class="box inner" x="768" y="370" width="82" height="56" rx="5"/>
-    <text x="809" y="394" text-anchor="middle">guide</text>
-    <text x="809" y="412" text-anchor="middle" class="sub">step texts</text>
+    <rect class="box inner" x="166" y="370" width="82.25" height="56" rx="5"/>
+    <text x="207.13" y="394" text-anchor="middle">model</text>
+    <text x="207.13" y="412" text-anchor="middle" class="sub">schemas</text>
+    <rect class="box inner" x="253.25" y="370" width="82.25" height="56" rx="5"/>
+    <text x="294.38" y="394" text-anchor="middle">storage</text>
+    <text x="294.38" y="412" text-anchor="middle" class="sub">files, index</text>
+    <rect class="box inner" x="340.5" y="370" width="82.25" height="56" rx="5"/>
+    <text x="381.63" y="394" text-anchor="middle">workflow</text>
+    <text x="381.63" y="412" text-anchor="middle" class="sub">transitions</text>
+    <rect class="box inner" x="427.75" y="370" width="82.25" height="56" rx="5"/>
+    <text x="468.88" y="394" text-anchor="middle">git</text>
+    <text x="468.88" y="412" text-anchor="middle" class="sub">sync, reconcile</text>
+    <rect class="box inner" x="515" y="370" width="82.25" height="56" rx="5"/>
+    <text x="556.13" y="394" text-anchor="middle">run</text>
+    <text x="556.13" y="412" text-anchor="middle" class="sub">Run records</text>
+    <rect class="box inner" x="602.25" y="370" width="82.25" height="56" rx="5"/>
+    <text x="643.38" y="394" text-anchor="middle">agents</text>
+    <text x="643.38" y="412" text-anchor="middle" class="sub">per product</text>
+    <rect class="box inner" x="689.5" y="370" width="82.25" height="56" rx="5"/>
+    <text x="730.63" y="394" text-anchor="middle">actions</text>
+    <text x="730.63" y="412" text-anchor="middle" class="sub">for workflows</text>
+    <rect class="box inner" x="776.75" y="370" width="82.25" height="56" rx="5"/>
+    <text x="817.88" y="394" text-anchor="middle">guide</text>
+    <text x="817.88" y="412" text-anchor="middle" class="sub">step texts</text>
   </g>
   <rect class="box" x="150" y="490" width="300" height="56" rx="6"/>
   <text x="300" y="513" text-anchor="middle">Data branch (git.data_branch)</text>

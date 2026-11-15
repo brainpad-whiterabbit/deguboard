@@ -20,7 +20,7 @@ Arrows show the direction of dependency and calls. People and agents go through 
 
 An agent does not carry the steps in its memory. Each time it asks `dg next`, dg derives the stage from the facts of the ticket, its work branch, its PR, its Runs, its Plan (approval and waits), and its gate level, and returns one next step. The stage is not stored, so after a stop the same question resumes the work.
 
-![How the agent asks dg next and carries out the one step it returns: dg derives the stage from facts such as ticket state, branches, PRs, Runs, checks, and gate level; the agent carries out the step and asks again; decisions only a person makes come back as a question](images/how-it-works-next.svg)
+![How the agent asks dg next and carries out the one step it returns: dg derives the stage from facts such as ticket state, work branches, PRs, Runs, Plans (approval and waits), and gate level; the agent carries out the step and asks again; decisions only a person makes come back as a question](images/how-it-works-next.svg)
 
 The agent carries out only the one step that dg returns, then asks again. A decision that only a person makes, such as approving a merge, is returned by dg as a step that asks a person.
 
