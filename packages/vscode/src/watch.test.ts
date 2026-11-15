@@ -3,7 +3,13 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { commonDirOf, initWatchTarget, isWatched, watchTargets } from "./watch.js";
+import {
+  commonDirOf,
+  initWatchTarget,
+  isWatched,
+  setupWatchTargets,
+  watchTargets,
+} from "./watch.js";
 
 const common = path.join("/repo", ".git");
 const dataDir = path.join(common, "deguboard");
@@ -61,6 +67,35 @@ describe("initWatchTarget（dg init 前に待つ対象）", () => {
   it("deguboard-local やほかの .git の中身には反応しない", () => {
     for (const rel of ["deguboard-local/runs/r1.json", "HEAD", "objects/ab/cdef"]) {
       expect(isWatched(init, path.join(common, rel)), rel).toBe(false);
+    }
+  });
+});
+
+describe("setupWatchTargets（導入のチェックリストを確かめ直すために見張る対象）", () => {
+  const folder = path.join("/work", "repo");
+  const link = path.join("/home", "u", ".local", "bin", "dg");
+  const setup = setupWatchTargets(folder, link, path.join(".claude", ".gitignore"));
+
+  it("git init でできる .git、Skill と hooks を入れると変わる agent の設定のディレクトリ、dg コマンドのリンクを拾う", () => {
+    for (const file of [
+      path.join(folder, ".git"),
+      path.join(folder, ".claude", ".gitignore"),
+      path.join(folder, ".claude", "settings.local.json"),
+      path.join(folder, ".claude", "skills", "dgwork", "SKILL.md"),
+      link,
+    ]) {
+      expect(isWatched(setup, file), file).toBe(true);
+    }
+  });
+
+  it("フォルダのほかのファイルと .git の中身、~/.local/bin のほかのファイルには反応しない", () => {
+    for (const file of [
+      path.join(folder, "src", "index.ts"),
+      path.join(folder, ".git", "HEAD"),
+      path.join(folder, ".gitignore"),
+      path.join(path.dirname(link), "mise"),
+    ]) {
+      expect(isWatched(setup, file), file).toBe(false);
     }
   });
 });

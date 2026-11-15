@@ -359,6 +359,26 @@ describe("HTTP サーバー", () => {
     expect((await post(s2, "ticket.list", {})).status).toBe(503);
   });
 
+  it("GET /api/setup は dg init 前でも導入のチェックリストを返し、init の後は必須を満たす", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const s = await serve(local.dir);
+    const before = (await (await fetch(`${s.url}api/setup`)).json()) as any;
+    expect(before.ok).toBe(true);
+    expect(before.data).toMatchObject({ ready: false, cwd: local.dir });
+    expect(before.data.items.map((i: { id: string; status: string }) => [i.id, i.status])).toEqual([
+      ["git", "ok"],
+      ["repository", "ok"],
+      ["board", "unmet"],
+      ["skills_hooks", "pending"],
+      ["gitignore", "pending"],
+    ]);
+    expect(before.data.items[2]).toMatchObject({ state: "no_remote", fix: ["dg init"] });
+    await runCommand(init, await openContext({ cwd: local.dir, initialize: {} }), {});
+    const after = (await (await fetch(`${s.url}api/setup`)).json()) as any;
+    expect(after.data.ready).toBe(true);
+  });
+
   it("GET /api/status が同期の状態を返し、静的ファイルは index.html に落ちる", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});

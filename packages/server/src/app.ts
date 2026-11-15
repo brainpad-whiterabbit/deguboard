@@ -2,6 +2,7 @@
 //   GET  /api/commands            コマンドの一覧（名前・要約・入力の JSON Schema）
 //   POST /api/commands/<name>     { input } を渡して CommandResult を返す
 //   GET  /api/status              同期の状態（未 push・未取り込み・読めないファイル）
+//   GET  /api/setup               導入のチェックリスト（dg setup check の結果。dg init 前でも答える）
 //   それ以外                        staticDir があれば静的ファイル（web）
 // どの要求も、先に guard で Host・Origin・Content-Type を見て、ブラウザを踏み台にした要求を断る（UI-8）
 // 応答の文（エラーと案内）は dg の出力なので英語で書き（CL-8）、画面に出る JSON のエラーの文は web の CORE_MESSAGES で表示言語に訳す（UI-11）
@@ -11,7 +12,9 @@ import { isIP } from "node:net";
 import {
   ACTION_NAMES,
   DeguboardError,
+  checkSetup,
   createLocalClient,
+  setupViewOf,
   type AnyCommand,
   type CommandResult,
   type UserSource,
@@ -196,6 +199,12 @@ export function createApp(options: AppOptions): Handler {
       }
       if (url.pathname === "/api/status" && req.method === "GET") {
         json(res, 200, { ok: true, data: await client.status() });
+        return;
+      }
+      if (url.pathname === "/api/setup" && req.method === "GET") {
+        // 文脈（リポジトリかストア）を開かずに確かめるので、git がない・リポジトリの外・dg init の前でも答える
+        const result = await checkSetup({ cwd: options.cwd, env: process.env });
+        json(res, 200, { ok: true, data: setupViewOf(result, options.cwd) });
         return;
       }
       if (url.pathname.startsWith("/api/")) {

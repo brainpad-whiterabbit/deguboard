@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { bundleTranslator, setTranslator } from "./l10n.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   describeTerminals,
-  startCommandLine,
+  setupCommandLine,
   startTerminalPlan,
   terminalInput,
 } from "./terminals.js";
@@ -80,48 +80,63 @@ describe("terminalInput", () => {
   });
 });
 
-describe("startCommandLine（始め方のボタンが入れる 1 行）", () => {
+describe("setupCommandLine（チェックリストのボタンが入れる 1 行）", () => {
   const dirs: string[] = [];
   afterEach(() => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
 
-  it("起動ファイルの絶対パスで init・skill install・hooks install を && でつなぎ、PATH の dg は使わない", () => {
-    expect(startCommandLine("/home/u/.local/share/deguboard/dg")).toBe(
-      "'/home/u/.local/share/deguboard/dg' init && '/home/u/.local/share/deguboard/dg' skill install && '/home/u/.local/share/deguboard/dg' hooks install",
+  it("フォルダへ移ってからコマンドを && でつなぎ、dg は起動ファイルの絶対パスで呼ぶ（PATH の dg は使わない）。git はそのまま呼ぶ", () => {
+    const launcher = "/home/u/.local/share/deguboard/dg";
+    expect(setupCommandLine(launcher, "/work/repo", ["dg skill install", "dg hooks install"])).toBe(
+      `cd '/work/repo' && '${launcher}' skill install && '${launcher}' hooks install`,
+    );
+    expect(setupCommandLine(launcher, "/work/repo", ["dg init --new-board"])).toBe(
+      `cd '/work/repo' && '${launcher}' init --new-board`,
+    );
+    expect(setupCommandLine(launcher, "/work/repo", ["git init"])).toBe(
+      "cd '/work/repo' && git init",
     );
   });
 
-  it("パスに空白と ' があっても 1 つの引数のまま、sh で 3 つを順に実行し、途中で失敗したら止まる", () => {
+  it("パスに空白と ' があっても 1 つの引数のまま、sh がフォルダへ移ってから順に実行し、途中で失敗したら止まる", () => {
     const root = mkdtempSync(path.join(tmpdir(), "deguboard-start-"));
     dirs.push(root);
-    // 起動ファイルの代わりに、引数を log に書き、FAIL と同じ引数なら失敗するスクリプトを置く
+    // 起動ファイルの代わりに、動いた場所と引数を log に書き、FAIL と同じ引数なら失敗するスクリプトを置く
     const dir = path.join(root, "it's here");
     mkdirSync(dir);
     const launcher = path.join(dir, "dg");
     writeFileSync(
       launcher,
-      '#!/bin/sh\necho "$*" >> "$LOG"\n[ "$1" = "$FAIL" ] && exit 1\nexit 0\n',
+      '#!/bin/sh\necho "$(pwd -P): $*" >> "$LOG"\n[ "$1" = "$FAIL" ] && exit 1\nexit 0\n',
       { mode: 0o755 },
     );
     const log = path.join(root, "log");
+    const cwd = realpathSync(dir);
     const run = (fail: string) =>
-      spawnSync("sh", ["-c", startCommandLine(launcher)], {
-        env: { ...process.env, LOG: log, FAIL: fail },
-        encoding: "utf8",
-      });
+      spawnSync(
+        "sh",
+        [
+          "-c",
+          setupCommandLine(launcher, cwd, ["dg init", "dg skill install", "dg hooks install"]),
+        ],
+        // ターミナルを使い回すので、ほかの場所にいても確かめたフォルダで実行する
+        { cwd: root, env: { ...process.env, LOG: log, FAIL: fail }, encoding: "utf8" },
+      );
     expect(run("none").status).toBe(0);
-    expect(readFileSync(log, "utf8")).toBe("init\nskill install\nhooks install\n");
+    expect(readFileSync(log, "utf8")).toBe(
+      `${cwd}: init\n${cwd}: skill install\n${cwd}: hooks install\n`,
+    );
     rmSync(log);
     expect(run("skill").status).not.toBe(0);
-    expect(readFileSync(log, "utf8")).toBe("init\nskill install\n");
+    expect(readFileSync(log, "utf8")).toBe(`${cwd}: init\n${cwd}: skill install\n`);
   });
 });
 
-describe("startTerminalPlan（始め方のボタンの再利用・二重押し・やり直し）", () => {
+describe("startTerminalPlan（チェックリストのボタンの再利用・二重押し・やり直し）", () => {
   const none = new Set<{ name: string; exitStatus?: unknown }>();
 
-  it("始めの 1 行が実行中の deguboard のターミナルは送らず、見せるだけにする（二重に走らせない）", () => {
+  it("ボタンの 1 行が実行中の deguboard のターミナルは送らず、見せるだけにする（二重に走らせない）", () => {
     const other = { name: "zsh" };
     const busy = { name: "deguboard" };
     const idle = { name: "deguboard" };

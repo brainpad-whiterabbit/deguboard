@@ -2,8 +2,11 @@
 
 import {
   askMenuKey,
+  SETUP_ACTIONS,
   toCommandFailure,
   type CommandClient,
+  type SetupAction,
+  type SetupView,
   type TerminalChoice,
   type TerminalSendResult,
   type StatusView,
@@ -128,20 +131,6 @@ export function currentAskDelivery(
     : { pending: [] };
 }
 
-/** 画面を出せないとき（フォルダを開いていない）に Webview に出す、スクリプトのない HTML。language は text の言語（vscode.env.language） */
-export function renderMessageHtml(text: string, language: string): string {
-  return `<!doctype html>
-<html lang="${escapeAttribute(language)}">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'" />
-  </head>
-  <body style="font-family: var(--vscode-font-family); color: var(--vscode-descriptionForeground); padding: 12px">
-    <p>${escapeAttribute(text)}</p>
-  </body>
-</html>`;
-}
-
 function escapeAttribute(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -165,8 +154,13 @@ export interface WebviewActions {
     terminal: number,
     text: string,
   ): TerminalSendResult | void | Promise<TerminalSendResult | void>;
-  /** 始め方の画面のボタン（UI-12）。専用のターミナルで dg init・skill install・hooks install を実行する。失敗は拡張が通知する */
-  startRepository(): void | Promise<void>;
+  /**
+   * 導入のチェックリスト（UI-12）を確かめ直して返す。bandDismissed は、推奨の項目の帯を出す画面が伝える、
+   * 人が帯を「このリポジトリでは出さない」にしているか（帯を出さない画面からは undefined）
+   */
+  setup(bandDismissed?: boolean): SetupView | Promise<SetupView>;
+  /** チェックリストのボタンの操作（フォルダを開く・deguboard のターミナルで実行する・dg コマンドを入れる）。失敗は拡張が通知する */
+  setupAct(act: SetupAction): void | Promise<void>;
 }
 
 /** Webview からの要求を CommandClient（か actions）に通し、同じ id の応答にする。失敗は ok: false で返す */
@@ -193,13 +187,17 @@ export async function handleRequest(
       if (request.name === "terminals") {
         return { id: request.id, ok: true, data: actions.terminals(), warnings: [], write: null };
       }
+      if (request.name === "setup") {
+        const data = await actions.setup(request.bandDismissed);
+        return { id: request.id, ok: true, data, warnings: [], write: null };
+      }
       if (request.name === "sendToTerminal") {
         const sent = await actions.sendToTerminal(request.terminal, request.text);
         return { id: request.id, ok: true, data: sent ?? null, warnings: [], write: null };
       } else if (request.name === "copy") await actions.copy(request.text);
       else if (request.name === "show") await actions.show(request.route);
       else if (request.name === "open") await actions.open(request.route);
-      else if (request.name === "startRepository") await actions.startRepository();
+      else if (request.name === "setupAct") await actions.setupAct(request.act);
       return { id: request.id, ok: true, data: null, warnings: [], write: null };
     }
     const result = await client.run(request.name, request.input);
@@ -226,7 +224,13 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
       return typeof v.name === "string";
     case "action":
       if (v.name === "copy") return typeof (v as { text?: unknown }).text === "string";
-      if (v.name === "terminals" || v.name === "startRepository") return true;
+      if (v.name === "terminals") return true;
+      if (v.name === "setup") {
+        const dismissed = (v as { bandDismissed?: unknown }).bandDismissed;
+        return dismissed === undefined || typeof dismissed === "boolean";
+      }
+      if (v.name === "setupAct")
+        return (SETUP_ACTIONS as readonly unknown[]).includes((v as { act?: unknown }).act);
       if (v.name === "sendToTerminal") {
         const m = v as { terminal?: unknown; text?: unknown };
         return typeof m.terminal === "number" && typeof m.text === "string";

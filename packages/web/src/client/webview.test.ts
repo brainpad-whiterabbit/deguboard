@@ -60,13 +60,23 @@ describe("postMessage の CommandClient", () => {
     expect((await second).ahead).toBe(1);
   });
 
-  it("始め方のボタン（startRepository）は action の要求を送り、拡張の応答を待つ", async () => {
+  it("導入のチェックリストは action の setup で取り、ボタンの操作は setupAct で頼んで、拡張の応答を待つ", async () => {
     const h = host();
     const client = createWebviewClient(h);
-    const started = client.startRepository();
-    expect(h.requests).toEqual([{ id: 1, kind: "action", name: "startRepository" }]);
-    h.reply({ id: 1, ok: true, data: null, warnings: [], write: null });
-    await expect(started).resolves.toBeUndefined();
+    const checked = client.setup();
+    const acted = client.setupAct("gitInit");
+    expect(h.requests).toEqual([
+      { id: 1, kind: "action", name: "setup" },
+      { id: 2, kind: "action", name: "setupAct", act: "gitInit" },
+    ]);
+    const view = { ready: false, items: [], cwd: "/work/repo" };
+    h.reply({ id: 1, ok: true, data: view, warnings: [], write: null });
+    h.reply({ id: 2, ok: true, data: null, warnings: [], write: null });
+    await expect(checked).resolves.toEqual(view);
+    await expect(acted).resolves.toBeUndefined();
+    // 帯を出す画面は、人が帯を出さないと決めているかを付けて頼む（付けなければ要求に入れない）
+    void client.setup({ bandDismissed: true });
+    expect(h.requests[2]).toEqual({ id: 3, kind: "action", name: "setup", bandDismissed: true });
   });
 
   it("ok: false の応答は ClientError（code と message）になり、知らない id の応答は無視する", async () => {

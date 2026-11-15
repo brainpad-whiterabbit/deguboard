@@ -77,7 +77,8 @@ function mountWebview(
       void sent.push([terminal, text]);
       return null;
     },
-    startRepository: async () => {},
+    setup: async () => ({ ready: true, items: [], cwd: null }),
+    setupAct: async () => {},
     onEvent: (listener) => {
       listeners.add(listener);
       return () => void listeners.delete(listener);
@@ -451,7 +452,8 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
                 copy: async () => {},
                 terminals: async () => [],
                 sendToTerminal: async () => null,
-                startRepository: async () => {},
+                setup: async () => ({ ready: true, items: [], cwd: null }),
+                setupAct: async () => {},
                 onEvent: (l) => ((send = l), () => {}),
               }}
             />

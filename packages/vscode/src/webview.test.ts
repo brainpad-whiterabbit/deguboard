@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { bundleTranslator, setTranslator } from "./l10n.js";
-import type { CommandClient, CommandResult } from "@deguboard/core";
+import type { CommandClient, CommandResult, SetupAction, SetupView } from "@deguboard/core";
 import { OperationError, UsageError } from "@deguboard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -11,7 +11,6 @@ import {
   isWebviewRequest,
   coalesce,
   currentAskDelivery,
-  renderMessageHtml,
   renderWebviewHtml,
   sidebarDelivery,
 } from "./webview.js";
@@ -85,14 +84,13 @@ describe("Webview の HTML", () => {
       "data-language",
     );
   });
-
-  it("画面を出せないときの HTML はスクリプトを持たず、文言を escape する", () => {
-    const html = renderMessageHtml("<フォルダ> を開く", "ja");
-    expect(html).toContain("&lt;フォルダ&gt; を開く");
-    expect(html).toContain('<html lang="ja">');
-    expect(html).not.toContain("<script");
-  });
 });
+
+/** 導入のチェックリストを使わないテストの actions に足す */
+const NO_SETUP = {
+  setup: (): SetupView => ({ ready: true, items: [], cwd: null }),
+  setupAct: () => {},
+};
 
 function fakeClient(): CommandClient & { calls: unknown[] } {
   const calls: unknown[] = [];
@@ -175,7 +173,7 @@ describe("Webview の要求", () => {
         copy: () => {},
         terminals: () => [],
         sendToTerminal: () => {},
-        startRepository: () => {},
+        ...NO_SETUP,
       },
     );
     expect(ok).toEqual({ id: 4, ok: true, data: null, warnings: [], write: null });
@@ -210,7 +208,7 @@ describe("Webview の要求", () => {
           copy: () => {},
           terminals: () => [],
           sendToTerminal: () => {},
-          startRepository: () => {},
+          ...NO_SETUP,
         },
       );
       expect(ok).toEqual({ id, ok: true, data: null, warnings: [], write: null });
@@ -230,7 +228,7 @@ describe("Webview の要求", () => {
         copy: (text) => void copied.push(text),
         terminals: () => [],
         sendToTerminal: () => {},
-        startRepository: () => {},
+        ...NO_SETUP,
       },
     );
     expect(ok).toEqual({ id: 7, ok: true, data: null, warnings: [], write: null });
@@ -245,7 +243,7 @@ describe("Webview の要求", () => {
       copy: () => {},
       terminals: () => [{ id: 3, label: "zsh" }],
       sendToTerminal: (id: number, text: string) => void sent.push([id, text]),
-      startRepository: () => {},
+      ...NO_SETUP,
     };
     const list = await handleRequest(
       fakeClient(),
@@ -280,35 +278,63 @@ describe("Webview の要求", () => {
         sendToTerminal: () => {
           throw new Error("送り先のターミナルが閉じている");
         },
-        startRepository: () => {},
+        ...NO_SETUP,
       },
     );
     expect(res).toMatchObject({ id: 11, ok: false });
   });
 
-  it("action の startRepository は actions.startRepository を呼んで data: null で答え、actions のない画面からは拒否する", async () => {
-    let started = 0;
+  it("action の setup は導入のチェックリストを data で返し、setupAct は操作を actions に渡して data: null で答える。actions のない画面からは拒否する", async () => {
+    const acts: SetupAction[] = [];
+    const dismissed: (boolean | undefined)[] = [];
+    const view: SetupView = { ready: false, items: [], cwd: "/work/repo" };
+    const actions = {
+      open: () => {},
+      show: () => {},
+      copy: () => {},
+      terminals: () => [],
+      sendToTerminal: () => {},
+      setup: (bandDismissed?: boolean) => {
+        dismissed.push(bandDismissed);
+        return view;
+      },
+      setupAct: (act: SetupAction) => void acts.push(act),
+    };
+    const checked = await handleRequest(
+      fakeClient(),
+      { id: 12, kind: "action", name: "setup" },
+      actions,
+    );
+    expect(checked).toEqual({ id: 12, ok: true, data: view, warnings: [], write: null });
+    // 帯を出す画面（左パネル）は、人が帯を出さないと決めているかを付けてくる。actions にそのまま渡す
+    await handleRequest(
+      fakeClient(),
+      { id: 15, kind: "action", name: "setup", bandDismissed: true },
+      actions,
+    );
+    expect(dismissed).toEqual([undefined, true]);
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "setup", bandDismissed: false })).toBe(
+      true,
+    );
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "setup", bandDismissed: "yes" })).toBe(
+      false,
+    );
     const ok = await handleRequest(
       fakeClient(),
-      { id: 12, kind: "action", name: "startRepository" },
-      {
-        open: () => {},
-        show: () => {},
-        copy: () => {},
-        terminals: () => [],
-        sendToTerminal: () => {},
-        startRepository: () => void started++,
-      },
+      { id: 13, kind: "action", name: "setupAct", act: "gitInit" },
+      actions,
     );
-    expect(ok).toEqual({ id: 12, ok: true, data: null, warnings: [], write: null });
-    expect(started).toBe(1);
-    const refused = await handleRequest(fakeClient(), {
-      id: 13,
-      kind: "action",
-      name: "startRepository",
-    });
-    expect(refused).toMatchObject({ id: 13, ok: false, error: { code: "UNSUPPORTED_ACTION" } });
-    expect(isWebviewRequest({ id: 1, kind: "action", name: "startRepository" })).toBe(true);
+    expect(ok).toEqual({ id: 13, ok: true, data: null, warnings: [], write: null });
+    expect(acts).toEqual(["gitInit"]);
+    const refused = await handleRequest(fakeClient(), { id: 14, kind: "action", name: "setup" });
+    expect(refused).toMatchObject({ id: 14, ok: false, error: { code: "UNSUPPORTED_ACTION" } });
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "setup" })).toBe(true);
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "setupAct", act: "init" })).toBe(true);
+    // 知らない操作と、コマンドの文字列は受け付けない（拡張が流すコマンドは拡張が決める）
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "setupAct", act: "rm -rf" })).toBe(
+      false,
+    );
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "setupAct" })).toBe(false);
   });
 
   it("要求の形を確かめる", () => {

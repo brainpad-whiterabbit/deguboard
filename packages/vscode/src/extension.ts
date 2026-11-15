@@ -4,9 +4,11 @@
 // コード中の ID（t12・s3・e2・p7）にホバーとリンクを付ける（ids.ts）。存在する ID だけで、索引は見張りで更新する。
 // データ worktree と実行中の Run の記録を見張り、CLI やエージェントの書き込みを画面に映す。
 // dg init 前は .git/deguboard/ ができるのを見張り（watchInit）、できたら見張りを張り直して画面を普段の画面に変える。
+// 導入のチェックリスト（UI-12）は、core の dg setup check に拡張だけの項目（フォルダ・OS・PATH の dg）を足して画面に渡し（readSetup。組み立ては setup.ts）、
+// ボタンの操作を deguboard のターミナルで実行し（setupAct）、人がターミナルで直したことを見張りで拾って確かめ直させる（watchSetup・autoSetup）。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-027）。サーバーは起動しない。
 // 同梱した dg は、起動のたびに版の付かない起動ファイルと行き先を書いて外に出す（launcher.ts）。コマンドで ~/.local/bin/dg に張り、外せる。
-// PATH の dg は確かめて、コマンドを勧める（UI-11）。起動のたびに、入れてある dg の Skill を同梱の dg のものに更新し、足りない同梱の Skill を案内する（skills.ts）。
+// PATH の dg がない・版のメジャーが違うことは、通知にせずチェックリストの項目で示す（UI-11）。起動のたびに、入れてある dg の Skill を同梱の dg のものに更新し、足りない同梱の Skill を案内する（skills.ts）。
 // VS Code の API に触れるのはこのファイルだけ
 
 import { randomBytes } from "node:crypto";
@@ -15,6 +17,7 @@ import path from "node:path";
 import {
   ACTION_NAMES,
   buildSkills,
+  checkSetup,
   createLocalClient,
   detailOfRoute,
   detailRouteOf,
@@ -27,6 +30,8 @@ import {
   WEBVIEW_CONTRACT,
   type CommandClient,
   type ResolveSide,
+  type SetupAction,
+  type SetupView,
   type SkillFile,
   type StatusView,
   type TerminalChoice,
@@ -43,7 +48,7 @@ import {
   newApprovals,
   viewTitle,
 } from "./approvals.js";
-import { dgAdvice, dgCheckTarget, resolveDg } from "./dg.js";
+import { dgCheckCwd, resolveDg } from "./dg.js";
 import { GOTO_COMMAND, gotoItems } from "./goto.js";
 import {
   buildIdIndex,
@@ -59,6 +64,8 @@ import {
 import { setTranslator, t } from "./l10n.js";
 import {
   type Current,
+  type DgLink,
+  dgLinkOf,
   installLauncher,
   type LauncherResult,
   launcherFileOf,
@@ -76,15 +83,22 @@ import {
   missingSkillNotices,
   skillRefreshNotices,
 } from "./skills.js";
+import {
+  autoRecheck,
+  buildSetupView,
+  type DgCommandFacts,
+  skillsHooksCommands,
+  supportedPlatform,
+} from "./setup.js";
 import { pickedSide, syncNotice } from "./sync-resolve.js";
 import {
   describeTerminals,
+  setupCommandLine,
   START_TERMINAL_NAME,
-  startCommandLine,
   startTerminalPlan,
   terminalInput,
 } from "./terminals.js";
-import { commonDirOf, initWatchTarget, watchTargets } from "./watch.js";
+import { commonDirOf, initWatchTarget, setupWatchTargets, watchTargets } from "./watch.js";
 import {
   askDelivery,
   askEvent,
@@ -93,7 +107,6 @@ import {
   currentAskDelivery,
   handleRequest,
   isWebviewRequest,
-  renderMessageHtml,
   renderWebviewHtml,
   sidebarDelivery,
   type Surface,
@@ -116,16 +129,26 @@ const initWatchers = new Map<string, vscode.Disposable>();
 const watchStarting = new Set<string>();
 /** 今出ているサイドバーのビュー。右クリックで非表示にされると dispose され、再表示で作り直される */
 let sidebar: vscode.WebviewView | undefined;
-/** サイドバーが対象にするフォルダ（最初の作業フォルダ）。ビューのタイトル行のコマンドはこのフォルダに対して動く */
+/** サイドバーが対象にするフォルダ（最初の作業フォルダ。開いていなければ undefined）。ビューのタイトル行のコマンドはこのフォルダに対して動く */
 let sidebarFolder: vscode.WorkspaceFolder | undefined;
+/**
+ * フォルダごとの、最後に確かめた導入のチェックリスト（鍵は folderKey。フォルダを開いていなければ ""）。
+ * 見張りで自動で確かめ直すか（setup.ts の autoRecheck）と、「Skill と hooks を入れる」ボタンが流すコマンドに使う
+ */
+const setupViews = new Map<string, SetupView>();
+/**
+ * 人が推奨の項目の帯を「このリポジトリでは出さない」にしているフォルダ（鍵は folderKey）。決めたことは Webview の見た目の状態にあり、
+ * 左パネルが確かめるたびに伝えてくる（readSetup）。推奨だけが欠けている間の自動の確かめ直しをやめるのに使う（setup.ts の autoRecheck）
+ */
+const setupBandDismissed = new Set<string>();
+/** フォルダごとの、導入のチェックリストを確かめ直すための見張り（watchSetup） */
+const setupWatchers = new Map<string, vscode.Disposable>();
 /** サイドバーがまだ描かれていないときに出す画面。サイドバーを開いて作るときの初期ルートにする */
 let pendingSidebarRoute: string | undefined;
 /** サイドバーがまだ描かれていないときに出す、エージェントに頼む入力欄の対象。サイドバーを作るときに HTML に埋める */
 let pendingSidebarAsk: string[] | undefined;
 /** 同期の実行中。重ねて走らせない */
 let syncing = false;
-/** dg の案内を出したか */
-let advised = false;
 /** 通知から詳細を開くために覚える、拡張のコンテキスト */
 let extensionContext: vscode.ExtensionContext | undefined;
 /** 起動ファイルを書いた結果。書き終える前と書けなかったときは、マージドライバが起動ファイルを指さない（mergeDriverOf） */
@@ -147,8 +170,8 @@ const ID_INDEX_RETRY_MS = 30_000;
 const idIndexLoading = new Map<string, Promise<IdIndex | undefined>>();
 const idIndexDirty = new Set<string>();
 /**
- * 始め方の 1 行をまだ実行中のターミナル（UI-12）。送ったら入り、そのターミナルで最初に実行が終わったら外す。
- * シェルは 1 つずつ実行するので、送った後に最初に終わる実行は始めの 1 行に当たる。実行の始まり・終わりは
+ * チェックリストのボタンの 1 行をまだ実行中のターミナル（UI-12）。送ったら入り、そのターミナルで最初に実行が終わったら外す。
+ * シェルは 1 つずつ実行するので、送った後に最初に終わる実行は送った 1 行に当たる。実行の始まり・終わりは
  * シェル統合（shell integration）が知らせる。統合がないターミナルでは終わりが来ないので、閉じるまで実行中のままになる
  */
 const startRuns = new Set<vscode.Terminal>();
@@ -163,7 +186,16 @@ export function activate(context: vscode.ExtensionContext): void {
       startRuns.delete(closed);
       broadcastTerminals(closed);
     }),
-    vscode.window.onDidEndTerminalShellExecution((event) => startRuns.delete(event.terminal)),
+    vscode.window.onDidEndTerminalShellExecution((event) => {
+      // チェックリストのボタンの実行が終わったら、必ず確かめ直す（人が押した結果をその場に出す）。
+      // 人がターミナルで自分で直したことも実行の終わりで拾うが、こちらは見張りと同じ扱いにする（autoSetup）
+      if (startRuns.delete(event.terminal)) postSetup();
+      else autoSetup.fire();
+    }),
+    // ほかのアプリやターミナルで直して戻ってきたとき（git を入れた、など見張れない変化）も確かめ直す
+    vscode.window.onDidChangeWindowState((state) => {
+      if (state.focused) autoSetup.fire();
+    }),
     // アクティブなターミナル（送り先の既定）と名前の変化も送り先に反映する
     vscode.window.onDidChangeActiveTerminal(() => broadcastTerminals()),
     vscode.window.onDidChangeTerminalState(() => broadcastTerminals()),
@@ -376,9 +408,13 @@ function launcherCurrent(context: vscode.ExtensionContext): Current {
 
 /**
  * 「dg コマンドを入れる」。起動ファイルを書き（まだなければ）、~/.local/bin/dg をそこへ張る。
- * ほかの dg（mise run dg:link のリンクや通常のファイル）は上書きせず、張り先を示して止まる
+ * ほかの dg（mise run dg:link のリンクや通常のファイル）は上書きせず、張り先を示して止まる。
+ * quiet はチェックリストのボタンから：結果（張った・塞がっている・PATH にない）は確かめ直した項目がその場に出すので、通知は失敗だけにする
  */
-async function installDgCommand(context: vscode.ExtensionContext): Promise<void> {
+async function installDgCommand(
+  context: vscode.ExtensionContext,
+  options: { quiet?: boolean } = {},
+): Promise<void> {
   try {
     if ((await installLauncher(launcherCurrent(context))) === "unsupported") {
       void vscode.window.showWarningMessage(
@@ -387,6 +423,7 @@ async function installDgCommand(context: vscode.ExtensionContext): Promise<void>
       return;
     }
     const outcome = await linkDg();
+    if (options.quiet) return;
     const link = linkPathOf();
     if (outcome.kind === "occupied") {
       const text =
@@ -417,6 +454,8 @@ async function installDgCommand(context: vscode.ExtensionContext): Promise<void>
     void vscode.window.showErrorMessage(
       `deguboard: ${t("The dg command could not be changed: {0}", error instanceof Error ? error.message : String(error))}`,
     );
+  } finally {
+    postSetup();
   }
 }
 
@@ -454,43 +493,42 @@ async function uninstallDgCommand(): Promise<void> {
     void vscode.window.showErrorMessage(
       `deguboard: ${t("The dg command could not be changed: {0}", error instanceof Error ? error.message : String(error))}`,
     );
+  } finally {
+    postSetup();
   }
 }
 
 export function deactivate(): void {
+  autoSetup.cancel();
   for (const panel of panels.values()) panel.dispose();
   panels.clear();
-  for (const watcher of watchers.values()) watcher.dispose();
-  watchers.clear();
-  for (const watcher of initWatchers.values()) watcher.dispose();
-  initWatchers.clear();
+  for (const map of [watchers, initWatchers, setupWatchers]) {
+    for (const watcher of map.values()) watcher.dispose();
+    map.clear();
+  }
+  setupViews.clear();
+  setupBandDismissed.clear();
   clients.clear();
   idIndexes.clear();
   idIndexFailedAt.clear();
 }
 
-/** サイドバーのビュー。最初の作業フォルダを対象にし、詳細を押すとエディタ領域のパネルに開く */
+/**
+ * サイドバーのビュー。最初の作業フォルダを対象にし、詳細を押すとエディタ領域のパネルに開く。
+ * フォルダを開いていなくても画面を載せる（一覧は読めないので、画面は導入のチェックリストを出し、フォルダの項目に「フォルダを開く」が出る）
+ */
 async function resolveSidebar(
   context: vscode.ExtensionContext,
   view: vscode.WebviewView,
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders ?? [];
   const folder = folders[0];
-  void adviseAboutDg(folder);
-  if (!folder) {
-    view.webview.options = {};
-    view.webview.html = renderMessageHtml(
-      t("Open a folder (the target repository) to use deguboard"),
-      vscode.env.language,
-    );
-    return;
-  }
   sidebar = view;
   sidebarFolder = folder;
   view.onDidDispose(() => {
     if (sidebar === view) sidebar = undefined;
   });
-  if (folders.length > 1) view.description = folder.name;
+  if (folder && folders.length > 1) view.description = folder.name;
   view.title = viewTitle(approvalCount);
   const route = pendingSidebarRoute ?? WEBVIEW_CONTRACT.routes.board;
   const ask = pendingSidebarAsk;
@@ -505,7 +543,7 @@ async function resolveSidebar(
     },
     actions: {
       open: (route) =>
-        detailOfRoute(route)
+        folder && detailOfRoute(route)
           ? openPanel(context, folder, {
               column: vscode.ViewColumn.Beside,
               route,
@@ -516,25 +554,154 @@ async function resolveSidebar(
       copy: copyToClipboard,
       terminals: listTerminals,
       sendToTerminal,
-      startRepository: () => startRepository(context, folder),
+      setup: (bandDismissed) => readSetup(folder, bandDismissed),
+      setupAct: (act) => setupAct(context, folder, act),
+    },
+  });
+}
+
+/** setupViews・setupWatchers の鍵。フォルダを開いていなければ "" */
+function folderKey(folder: vscode.WorkspaceFolder | undefined): string {
+  return folder?.uri.toString() ?? "";
+}
+
+/**
+ * 導入のチェックリスト（UI-12）を確かめ直して返す。core の dg setup check（git・Git リポジトリ・ボード・Skill と hooks・.gitignore）に、
+ * 拡張でしか確かめられない項目（フォルダ・OS・PATH の dg）を足す（組み立ては setup.ts の buildSetupView）。
+ * フォルダがない・OS が対応していないときは core を確かめず、必須を満たすまでは PATH の dg も確かめない。
+ * 確かめたついでに、人がターミナルで直したことを拾う見張りを張る（watchSetup）。必須を満たさない間は、データ worktree ができるのを待つ見張りも
+ * 張り直す（git init の前は張れないので。watchData → watchInit）。
+ * bandDismissed は左パネルが伝える、人が推奨の項目の帯を出さないと決めているか（エディタのパネルは伝えないので、前の値のまま）
+ */
+async function readSetup(
+  folder: vscode.WorkspaceFolder | undefined,
+  bandDismissed?: boolean,
+): Promise<SetupView> {
+  const key = folderKey(folder);
+  if (bandDismissed === true) setupBandDismissed.add(key);
+  else if (bandDismissed === false) setupBandDismissed.delete(key);
+  const cwd = folder?.uri.fsPath;
+  const core =
+    cwd !== undefined && supportedPlatform(process.platform)
+      ? await checkSetup({ cwd, env: process.env })
+      : undefined;
+  const view = buildSetupView({
+    folder: cwd,
+    platform: process.platform,
+    core,
+    dg: folder && core?.ready ? await dgCommandFacts(folder) : undefined,
+  });
+  setupViews.set(key, view);
+  if (folder) {
+    watchSetup(folder, view);
+    if (!view.ready) void watchData(folder, clientFor(folder));
+  }
+  return view;
+}
+
+/** PATH の dg と ~/.local/bin/dg の今の状態（dg コマンドの項目の事実）。dg --version はフォルダを cwd にして確かめる（理由は resolveDg） */
+async function dgCommandFacts(folder: vscode.WorkspaceFolder): Promise<DgCommandFacts> {
+  const linkPath = linkPathOf();
+  // リンクを見られなくても（権限など）項目は出す。張れるかは押したときに分かる
+  const link = await dgLinkOf().catch((): DgLink => ({ kind: "none" }));
+  return {
+    lookup: await resolveDg(dgCheckCwd(folder.uri)),
+    coreVersion: __CORE_VERSION__,
+    link,
+    linkPath,
+    binOnPath: onPath(path.dirname(linkPath)),
+  };
+}
+
+/**
+ * 人がターミナルで直したことを拾う見張りを、フォルダごとに 1 回だけ張る（対象は watch.ts の setupWatchTargets）。
+ * 変わったら autoSetup が画面に確かめ直しを頼む。core を確かめなかった（OS が対応していない）ときは、見張る場所が分からないので張らない
+ */
+function watchSetup(folder: vscode.WorkspaceFolder, view: SetupView): void {
+  const key = folderKey(folder);
+  const ignoreFile = view.items.find((item) => item.id === "gitignore")?.label;
+  if (setupWatchers.has(key) || ignoreFile === undefined) return;
+  const fsWatchers = setupWatchTargets(folder.uri.fsPath, linkPathOf(), ignoreFile).map(
+    (target) => {
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(vscode.Uri.file(target.base), target.pattern),
+      );
+      watcher.onDidCreate(autoSetup.fire);
+      watcher.onDidChange(autoSetup.fire);
+      watcher.onDidDelete(autoSetup.fire);
+      return watcher;
+    },
+  );
+  setupWatchers.set(key, {
+    dispose() {
+      for (const watcher of fsWatchers) watcher.dispose();
     },
   });
 }
 
 /**
- * 始め方の画面の「このリポジトリで始める」（UI-12）。同梱の dg の起動ファイルを書き（まだなければ）、リポジトリを開いた
- * deguboard のターミナルに、起動ファイルの絶対パスで dg init・skill install・hooks install を続けて入れ、Enter で実行する。
- * 開いたターミナルが残っていても、前の実行が終わっていれば同じ 1 行を送り直す（失敗した後のやり直し）。実行中は送らずに見せるだけにする。
- * PATH の dg は使わない。エージェントは起動せず、ターミナルは人が押したときだけ開く。終わると見張り（watchInit）が画面を普段の画面に変える
+ * 見張り（ファイルの変化・ターミナルの実行の終わり・ウィンドウに戻った）からの確かめ直し。続けて来たら 300ms まとめ、
+ * 最後に確かめた結果が自動の確かめ直しに当たるフォルダ（setup.ts の autoRecheck）の画面にだけ頼む
  */
-async function startRepository(
+const autoSetup = coalesce(() => {
+  for (const [key, view] of setupViews)
+    if (autoRecheck(view, setupBandDismissed.has(key))) postSetupTo(key);
+}, 300);
+
+/** フォルダ（鍵）のサイドバーとパネルに、導入のチェックリストの確かめ直しを頼む（画面が setup の要求で取り直す） */
+function postSetupTo(key: string): void {
+  const event: WebviewEvent = { kind: "event", name: "setup" };
+  if (sidebar && folderKey(sidebarFolder) === key) void sidebar.webview.postMessage(event);
+  void panels.get(key)?.webview.postMessage(event);
+}
+
+/** 画面を出しているすべてのフォルダに確かめ直しを頼む（dg コマンドを入れた・外した後。PATH の dg はフォルダによらない） */
+function postSetup(): void {
+  for (const key of setupViews.keys()) postSetupTo(key);
+}
+
+/**
+ * チェックリストのボタンの操作（UI-12）。フォルダを開く・dg コマンドを入れるほかは、deguboard のターミナルでコマンドを実行する。
+ * 「Skill と hooks を入れる」は、最後に確かめた項目の直すコマンドを流す（setup.ts の skillsHooksCommands）
+ */
+async function setupAct(
+  context: vscode.ExtensionContext,
+  folder: vscode.WorkspaceFolder | undefined,
+  act: SetupAction,
+): Promise<void> {
+  if (act === "openFolder") {
+    await vscode.commands.executeCommand("workbench.action.files.openFolder");
+    return;
+  }
+  if (act === "installDg") {
+    await installDgCommand(context, { quiet: true });
+    return;
+  }
+  if (!folder) return;
+  const commands = {
+    gitInit: ["git init"],
+    init: ["dg init"],
+    newBoard: ["dg init --new-board"],
+    installSkillsHooks: skillsHooksCommands(setupViews.get(folderKey(folder))),
+  }[act];
+  if (commands.length > 0) await runInSetupTerminal(context, folder, commands);
+}
+
+/**
+ * チェックリストのボタンのコマンドを、deguboard のターミナルで実行する（UI-12）。同梱の dg の起動ファイルを書き（まだなければ）、
+ * フォルダへ移ってから commands を続けて入れ、Enter で実行する（1 行の組み立ては terminals.ts の setupCommandLine。dg は起動ファイルの絶対パスで呼び、PATH の dg は使わない）。
+ * 開いたターミナルが残っていても、前の実行が終わっていれば送る（失敗した後のやり直し）。実行中は送らずに見せるだけにする。
+ * エージェントは起動せず、ターミナルは人が押したときだけ開く。終わると見張り（watchInit・autoSetup）が画面に確かめ直させる
+ */
+async function runInSetupTerminal(
   context: vscode.ExtensionContext,
   folder: vscode.WorkspaceFolder,
+  commands: readonly string[],
 ): Promise<void> {
   try {
     if ((await installLauncher(launcherCurrent(context))) === "unsupported") {
       void vscode.window.showWarningMessage(
-        `deguboard: ${t("Starting from this view is not supported on this platform.")}`,
+        `deguboard: ${t("Running setup commands from this view is not supported on this platform.")}`,
       );
       return;
     }
@@ -552,10 +719,10 @@ async function startRepository(
       });
     terminal.show();
     startRuns.add(terminal);
-    terminal.sendText(startCommandLine(launcherFileOf()), true);
+    terminal.sendText(setupCommandLine(launcherFileOf(), folder.uri.fsPath, commands), true);
   } catch (error) {
     void vscode.window.showErrorMessage(
-      `deguboard: ${t("Could not start this repository: {0}", error instanceof Error ? error.message : String(error))}`,
+      `deguboard: ${t("Could not run the setup command: {0}", error instanceof Error ? error.message : String(error))}`,
     );
   }
 }
@@ -788,7 +955,6 @@ async function openPanel(
   folder: vscode.WorkspaceFolder,
   options: { column: vscode.ViewColumn; route: string; preserveFocus?: boolean },
 ): Promise<void> {
-  void adviseAboutDg(folder);
   const key = folder.uri.toString();
   const existing = panels.get(key);
   const { route } = options;
@@ -823,7 +989,8 @@ async function openPanel(
       copy: copyToClipboard,
       terminals: listTerminals,
       sendToTerminal,
-      startRepository: () => startRepository(context, folder),
+      setup: (bandDismissed) => readSetup(folder, bandDismissed),
+      setupAct: (act) => setupAct(context, folder, act),
     },
   });
 }
@@ -843,18 +1010,25 @@ interface AttachOptions {
   actions?: WebviewActions;
 }
 
-/** Webview に web を載せ、要求をフォルダの CommandClient に通す。サイドバーとパネルで共通 */
+/** フォルダを開いていないときの CommandClient。どのコマンドも断る（画面は一覧を読めないので、導入のチェックリストを出す） */
+const NO_FOLDER_CLIENT: CommandClient = {
+  run: () => Promise.reject(new Error(t("Open a folder (the target repository) to use deguboard"))),
+  status: () =>
+    Promise.reject(new Error(t("Open a folder (the target repository) to use deguboard"))),
+};
+
+/** Webview に web を載せ、要求をフォルダの CommandClient に通す。サイドバーとパネルで共通。フォルダがなければ（サイドバーだけ）コマンドは断る */
 async function attach(
   context: vscode.ExtensionContext,
   webview: vscode.Webview,
-  folder: vscode.WorkspaceFolder,
+  folder: vscode.WorkspaceFolder | undefined,
   options: AttachOptions,
 ): Promise<void> {
   const webRoot = vscode.Uri.joinPath(context.extensionUri, "dist", "web");
   webview.options = { enableScripts: true, localResourceRoots: [webRoot] };
-  const client = clientFor(folder);
+  const client = folder ? clientFor(folder) : NO_FOLDER_CLIENT;
   // 初期化前のリポジトリで張れなかった見張りを、画面を開くたびに張り直す（張れていれば何もしない）
-  void watchData(folder, client);
+  if (folder) void watchData(folder, client);
   webview.onDidReceiveMessage((message: unknown) => {
     if (!isWebviewRequest(message)) return;
     void handleRequest(client, message, options.actions).then((response) => {
@@ -885,10 +1059,12 @@ function isOpenFolder(folder: vscode.WorkspaceFolder): boolean {
 /** 外したフォルダの見張り・client・索引を捨てる（残すと外したフォルダの変化で読み直し続ける） */
 function forgetFolder(folder: vscode.WorkspaceFolder): void {
   const key = folder.uri.toString();
-  for (const map of [watchers, initWatchers]) {
+  for (const map of [watchers, initWatchers, setupWatchers]) {
     map.get(key)?.dispose();
     map.delete(key);
   }
+  setupViews.delete(key);
+  setupBandDismissed.delete(key);
   watchStarting.delete(key);
   panels.get(key)?.dispose();
   panels.delete(key);
@@ -1190,27 +1366,4 @@ function panelTitle(folder: vscode.WorkspaceFolder): string {
   return (vscode.workspace.workspaceFolders?.length ?? 0) > 1
     ? `deguboard: ${folder.name}`
     : "deguboard";
-}
-
-/**
- * 最初の使用時に 1 回、PATH の dg を確かめて知らせる。画面は dg なしで動くので止めない。
- * folder は最初に使ったフォルダ（サイドバーは最初の作業フォルダ、パネルは開くフォルダ）で、そこを cwd にして
- * 確かめる（理由は resolveDg）。cwd と警告に入れるフォルダの決め方は dgCheckTarget
- */
-async function adviseAboutDg(folder?: vscode.WorkspaceFolder): Promise<void> {
-  // 起動時ではなく、サイドバーかパネルを最初に使うときに 1 回だけ出す（deguboard を使わないウィンドウでは出さない）。
-  // フォルダごとには確かめない（確かめの遅れと通知を増やさない）
-  if (advised) return;
-  advised = true;
-  const { cwd, checked } = dgCheckTarget(
-    folder && { name: folder.name, scheme: folder.uri.scheme, fsPath: folder.uri.fsPath },
-    vscode.workspace.workspaceFolders?.length ?? 0,
-  );
-  const advice = dgAdvice(await resolveDg(cwd), __CORE_VERSION__, checked);
-  if (!advice) return;
-  const show =
-    advice.level === "warning"
-      ? vscode.window.showWarningMessage
-      : vscode.window.showInformationMessage;
-  void show(`deguboard: ${advice.text}`);
 }

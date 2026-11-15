@@ -54,6 +54,9 @@ export {
 export type {
   CommandClient,
   CommandFailure,
+  SetupAction,
+  SetupView,
+  SetupViewItem,
   StatusView,
   WebviewEvent,
   WebviewRequest,
@@ -61,4 +64,10 @@ export type {
   TerminalSendResult,
   WebviewResponse,
 } from "./client.js";
-export { WEBVIEW_CONTRACT, detailOfRoute, detailRouteOf } from "./client.js";
+export {
+  SETUP_ACTIONS,
+  WEBVIEW_CONTRACT,
+  detailOfRoute,
+  detailRouteOf,
+  setupViewOf,
+} from "./client.js";

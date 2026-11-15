@@ -2,8 +2,9 @@
 // 要求と応答の形は core の WebviewRequest / WebviewResponse。拡張ホストからの通知（WebviewEvent）は id を持たず、購読者に配る
 
 import type {
-  CommandClient,
   CommandResult,
+  SetupAction,
+  SetupView,
   StatusView,
   TerminalChoice,
   TerminalSendResult,
@@ -12,7 +13,7 @@ import type {
   WebviewResponse,
 } from "@deguboard/core";
 import { trCoreMessage } from "../l10n.js";
-import { ClientError } from "./http.js";
+import { ClientError, type SetupClient } from "./http.js";
 
 /** acquireVsCodeApi() が返すもののうち使う部分 */
 export interface WebviewHost {
@@ -20,7 +21,7 @@ export interface WebviewHost {
 }
 
 /** 拡張ホストと話す CommandClient。画面の外への働きかけと、ホストからの通知の購読も持つ（UI-12） */
-export interface WebviewClient extends CommandClient {
+export interface WebviewClient extends SetupClient {
   /** 詳細のルート（#/tickets/t12 など）をエディタ領域のパネルに開いてもらう */
   open(route: string): Promise<void>;
   /** 一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出してもらう */
@@ -31,8 +32,13 @@ export interface WebviewClient extends CommandClient {
   terminals(): Promise<TerminalChoice[]>;
   /** 開いているターミナル terminal の入力に text を入れてもらう。Enter は押さず、ターミナルは起動しない（EX-1） */
   sendToTerminal(terminal: number, text: string): Promise<TerminalSendResult | null>;
-  /** 始め方のボタン。専用の新しいターミナルで dg init・skill install・hooks install を実行してもらう（UI-12） */
-  startRepository(): Promise<void>;
+  /**
+   * 導入のチェックリストを確かめ直してもらう（UI-12）。拡張ホストが dg setup check の項目に、フォルダ・OS・dg コマンドを足して返す。
+   * bandDismissed は、推奨の項目の帯を出す画面が、人が帯を出さないと決めているかを伝える（store.tsx の readSetup）
+   */
+  setup(options?: { bandDismissed?: boolean | undefined }): Promise<SetupView>;
+  /** チェックリストのボタンの操作を頼む（フォルダを開く、deguboard のターミナルで git init・dg init などを実行する、dg コマンドを入れる） */
+  setupAct(act: SetupAction): Promise<void>;
   /** 拡張ホストからの通知を受ける。戻り値で購読を外す */
   onEvent(listener: (event: WebviewEvent) => void): () => void;
 }
@@ -97,8 +103,13 @@ export function createWebviewClient(
       return (await send({ kind: "action", name: "sendToTerminal", terminal, text }))
         .data as TerminalSendResult | null;
     },
-    async startRepository(): Promise<void> {
-      await send({ kind: "action", name: "startRepository" });
+    async setup(options): Promise<SetupView> {
+      const dismissed = options?.bandDismissed;
+      const flag = dismissed === undefined ? {} : { bandDismissed: dismissed };
+      return (await send({ kind: "action", name: "setup", ...flag })).data as SetupView;
+    },
+    async setupAct(act: SetupAction): Promise<void> {
+      await send({ kind: "action", name: "setupAct", act });
     },
     onEvent(listener) {
       listeners.add(listener);
@@ -130,6 +141,7 @@ export const WEBVIEW_CONTRACT_COPY = {
   /** 拡張ホスト → Webview の通知の名前。Record なので core の WebviewEvent の name が増えると型の検査で漏れが分かる */
   eventNames: {
     reload: true,
+    setup: true,
     navigate: true,
     toggle: true,
     ask: true,

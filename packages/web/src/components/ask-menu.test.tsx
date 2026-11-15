@@ -403,7 +403,8 @@ describe("入力欄を頼むことを選んで開く", () => {
       copy: async () => {},
       terminals: async () => [],
       sendToTerminal: async () => null,
-      startRepository: async () => {},
+      setup: async () => ({ ready: true, items: [], cwd: null }),
+      setupAct: async () => {},
       onEvent: (listener) => {
         send = listener;
         return () => (send = undefined);

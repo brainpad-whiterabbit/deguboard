@@ -1,8 +1,8 @@
 # 1. Initialize the repository
 
-In the repository you want to manage, run this once. It creates the place where tickets are stored (`.git/deguboard/`).
+In the repository you want to manage, do this once. It creates the place where tickets are stored (`.git/deguboard/`).
 
-The easiest way is to press **Start with this repository** on the deguboard start screen in the sidebar. A new terminal runs `dg init`, `dg skill install`, and `dg hooks install` in order, so `dg` does not need to be on your PATH. The last two write the Claude Code Skills and hooks for this machine and add them to `.claude/.gitignore`; commit that `.gitignore`. Someone who clones the repository presses the same button to get their own.
+The easiest way is the setup checklist in the deguboard sidebar. It checks the folder, the OS, git, the Git repository, and the board from the top, and shows a button and the command on the first item that is not met. On the **Board** item, press the button: a terminal runs `dg init` with the dg bundled in the extension, so `dg` does not need to be on your PATH. When the team already has a board on the remote, the same button takes it in.
 
 To run it yourself in a terminal instead:
 
@@ -10,6 +10,6 @@ To run it yourself in a terminal instead:
 dg init
 ```
 
-If `dg` is not found in a terminal, press **Start with this repository** on the start screen in the sidebar instead. Or run **Install dg command** from the Command Palette (`deguboard.installDg`) to link `~/.local/bin/dg`.
+If `dg` is not found in a terminal, press the button in the sidebar instead. Or run **Install dg command** from the Command Palette (`deguboard.installDg`) to link `~/.local/bin/dg`.
 
-Once it finishes, the sidebar switches to the usual views without reopening.
+Once the required items are met, the sidebar switches to the usual views without reopening. A band above them shows the recommended items that are left (the Skills and hooks, the dg command, and `.claude/.gitignore`).

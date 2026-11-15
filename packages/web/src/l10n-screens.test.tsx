@@ -5,10 +5,10 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { configFields } from "@deguboard/core";
+import { configFields, type SetupView } from "@deguboard/core";
 import { App } from "./app.js";
 import { ClientError } from "./client/http.js";
-import { HostProvider, type Host } from "./host.js";
+import { HostProvider, showsSetupBand, type Host } from "./host.js";
 import { StoreProvider } from "./store.js";
 import {
   boardFixture,
@@ -16,6 +16,7 @@ import {
   iterationDetail,
   mockClient,
   plan,
+  setupView,
   ticket,
   type MockClient,
 } from "./test-helpers.js";
@@ -42,6 +43,8 @@ function hostOf(surface: Host["surface"]): Host {
     show: () => {},
     copy: async () => {},
     state: createUiState(memoryBackend()),
+    // VS Code の中と同じく、導入のチェックリストのボタンを出す
+    setupAct: async () => {},
   };
 }
 
@@ -262,6 +265,8 @@ interface Scene {
   /** 描いた後に操作する（吹き出しを開くなど） */
   act?: () => void | Promise<void>;
   client?: () => MockClient;
+  /** VS Code の拡張ホストの中として描く（推奨の項目の帯が出る。同期の印は出ない） */
+  extension?: boolean;
 }
 
 const SCENES: Scene[] = [
@@ -291,26 +296,99 @@ const SCENES: Scene[] = [
     },
   },
   {
-    name: "dg init 前の始め方",
+    name: "dg init 前の導入のチェックリスト（リモートにチームのボードがある）",
     surface: "sidebar",
     hash: "#/board",
-    client: () => {
-      const client = mockClient();
-      client.handlers["config.show"] = () => {
-        throw new ClientError({ code: "NOT_INITIALIZED", message: "初期化されていない" });
-      };
-      return client;
+    client: () =>
+      setupClient(
+        setupView({ board: { status: "unmet", state: "remote_board", fix: ["dg init"] } }),
+      ),
+  },
+  {
+    name: "Git リポジトリの外の導入のチェックリスト",
+    surface: "sidebar",
+    hash: "#/board",
+    client: () => setupClient(setupView({ repository: { status: "unmet", fix: ["git init"] } })),
+  },
+  {
+    name: "リモートに届かないときの導入のチェックリスト",
+    surface: "sidebar",
+    hash: "#/board",
+    client: () =>
+      setupClient(
+        setupView({
+          board: {
+            status: "unmet",
+            state: "remote_unreachable",
+            detail: "fatal: Could not read from remote repository.",
+          },
+        }),
+      ),
+  },
+  {
+    name: "推奨の項目が欠けているときの帯",
+    surface: "sidebar",
+    hash: "#/board",
+    client: recommendedClient,
+    extension: true,
+  },
+  {
+    name: "帯から開いた推奨の項目",
+    surface: "sidebar",
+    hash: "#/board",
+    client: recommendedClient,
+    extension: true,
+    act: () => {
+      fireEvent.click(document.querySelector<HTMLElement>(".setup-band button")!);
     },
   },
 ];
+
+/** 一覧を読めず（導入の途中）、導入のチェックリストとして view を返す client */
+function setupClient(view: SetupView): MockClient {
+  const client = mockClient();
+  client.handlers["config.show"] = () => {
+    throw new ClientError({ code: "NOT_INITIALIZED", message: "初期化されていない" });
+  };
+  client.setup = async () => view;
+  return client;
+}
+
+/** 必須は満たし、推奨の 3 項目が欠けている client（いつもの画面の上に帯が出る） */
+function recommendedClient(): MockClient {
+  const client = richClient();
+  client.setup = async () =>
+    setupView({
+      skills_hooks: { status: "unmet", fix: ["dg hooks install", "dg skill install"] },
+      dg_command: {
+        status: "unmet",
+        state: "not_on_path",
+        fix: ["export PATH=$HOME/.local/bin:$PATH"],
+        params: { link: "/home/u/.local/bin/dg", dir: "/home/u/.local/bin" },
+      },
+      gitignore: {
+        status: "unmet",
+        fix: [
+          "git add .claude/.gitignore",
+          'git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore',
+        ],
+      },
+    });
+  return client;
+}
 
 async function renderScene(scene: Scene, language: Language): Promise<string> {
   setLanguage(language);
   window.location.hash = scene.hash;
   const client = (scene.client ?? richClient)();
+  const host = { ...hostOf(scene.surface), ...(scene.extension ? { extension: true } : {}) };
   render(
-    <StoreProvider client={client} readRunning={scene.surface === "sidebar"}>
-      <HostProvider host={hostOf(scene.surface)}>
+    <StoreProvider
+      client={client}
+      readRunning={scene.surface === "sidebar"}
+      setupBand={showsSetupBand(host)}
+    >
+      <HostProvider host={host}>
         <App />
       </HostProvider>
     </StoreProvider>,

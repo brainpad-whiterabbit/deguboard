@@ -4,15 +4,16 @@
 // 同期のボタンと印・設定の歯車・エージェントに頼む吹き出しはビューのタイトル行のボタンとバッジにある（拡張の view/title。UI-12）。
 // タイトル行のない dg serve の画面では、同期の印（未 push・未取り込み）だけを上のバーに出す（SyncMark。UI-6）。
 // エディタのパネルは詳細だけを出し、上のバーを出さない。
+// 導入の必須の項目を満たさない間は、ページの代わりにチェックリストを出し、推奨の項目が欠けている間は左パネルのページの上に帯を出す（UI-12。components/setup-checklist.tsx）。
 // エージェントに頼む入力欄（UI-15）は、開いていればページの下に出す。左パネルでは初めて開いたときに 1 度だけ、行の吹き出しの案内を出す
 
-import { useEffect, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { AskComposer } from "./components/ask-composer.js";
 import { AskHint, AskMenuProvider, SelectionBar } from "./components/ask-menu.js";
-import { Onboarding } from "./components/onboarding.js";
 import { useRowNav } from "./components/row-nav.js";
 import { SelectionProvider } from "./components/selection.js";
-import { useAsk, useHost, useUiState } from "./host.js";
+import { SetupBand, SetupChecklist } from "./components/setup-checklist.js";
+import { showsSetupBand, useAsk, useHost, useUiState } from "./host.js";
 import { useStore, type Store } from "./store.js";
 import { hrefOf, isDetailRoute, parseRoute, useRoute, type Route } from "./router.js";
 import { BoardPage, boardIterationSelection } from "./pages/board.js";
@@ -64,10 +65,10 @@ function useLastHref(page: LastHashPage, route: Route, store: Store): string {
   const [saved, setSaved] = useUiState<LastHash | null>(`nav.${page}`, null);
   const current = route.page === page ? hrefOf(route) : null;
   useEffect(() => {
-    // 一覧を読み終えるまでは残さない（初期化前の画面のハッシュを残さない）
-    if (current === null || !store.loaded || store.notInitialized) return;
+    // 一覧を読み終えるまでは残さない（導入のチェックリストを出している間のハッシュを残さない）
+    if (current === null || !store.loaded || store.needsSetup) return;
     if (saved?.href !== current) setSaved({ href: current });
-  }, [current, store.loaded, store.notInitialized, saved, setSaved]);
+  }, [current, store.loaded, store.needsSetup, saved, setSaved]);
   // 前の版は履歴のハッシュを文字列で残していた。形の違うものは使わない。消しには行かない（履歴の画面を開けば新しい形で上書きされ、
   // 残っても既定の行き先になるだけなので害がない）
   if (!saved || typeof saved !== "object" || typeof saved.href !== "string") return fallback;
@@ -97,6 +98,10 @@ export function App() {
   const panel = !sidebar;
   // サイドバーの行を ↑↓・Enter・Space・a で操作する（roving tabindex。components/row-nav.tsx）
   const { ref: rowNavRef, ...rowNav } = useRowNav(sidebar);
+  // 推奨の項目のチェックリストを帯から開いているか。開き直したら閉じてよいので、見た目の状態には残さない
+  const [setupOpen, setSetupOpen] = useState(false);
+  // 推奨の項目の帯は VS Code の左パネルにだけ出す（理由は host.tsx の showsSetupBand）
+  const band = showsSetupBand(host);
   return (
     <div
       className="app"
@@ -139,12 +144,19 @@ export function App() {
                 {/* Webview では前回の一覧がないときだけここに来る。文字だけにせず、節と行の骨組みを出す */}
                 <LoadingSkeleton />
               </>
-            ) : store.notInitialized ? (
-              // dg init 前は一覧の代わりに始め方を出す（init の後は見張りの読み直しで普段の画面に変わる）
-              <Onboarding />
+            ) : store.needsSetup && store.setup ? (
+              // 導入の必須の項目を満たさない間は、一覧の代わりにチェックリストを出す（満たすと確かめ直しでいつもの画面に変わる）
+              <SetupChecklist view={store.setup} />
+            ) : band && setupOpen && store.setup ? (
+              // 帯から開いた、推奨の項目のチェックリスト
+              <SetupChecklist view={store.setup} onClose={() => setSetupOpen(false)} />
             ) : (
               // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く。UI-12）
               <>
+                {/* 推奨の項目が欠けている間は、いつもの画面の上に帯を出す */}
+                {band && store.setup ? (
+                  <SetupBand view={store.setup} onOpen={() => setSetupOpen(true)} />
+                ) : null}
                 {/* 案内は頼める場所のある画面（カンバン・バックログ・履歴）にだけ出す */}
                 {sidebar && ASK_HINT_PAGES.has(shown.page) ? <AskHint /> : null}
                 <Page route={shown} />
