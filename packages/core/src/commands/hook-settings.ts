@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import { DEFAULT_HOOK_AGENT } from "../agents/fast-hooks.js";
 import { hooksOf, type AgentEnv, type HookSupport } from "../agents/index.js";
 import { UsageError } from "../errors.js";
 import {
@@ -279,7 +280,7 @@ export async function installHooks(options: {
   self: SelfCommand;
   dryRun?: boolean;
 }): Promise<HooksResult> {
-  const agent = options.agent ?? "claude-code";
+  const agent = options.agent ?? DEFAULT_HOOK_AGENT;
   const hooks = support(agent);
   const file = await settingsFile(hooks, options);
   const current = await readSettings(file);
@@ -369,7 +370,7 @@ export async function hookInstallStateOf(query: {
   env: AgentEnv;
   agent?: string;
 }): Promise<HookInstallState[]> {
-  const hooks = support(query.agent ?? "claude-code");
+  const hooks = support(query.agent ?? DEFAULT_HOOK_AGENT);
   const files: Array<[HookScope, string]> = [
     ...(query.topLevel === undefined
       ? []
@@ -401,7 +402,7 @@ export async function checkHooks(options: {
   env: AgentEnv;
   agent?: string;
 }): Promise<HooksCheckResult> {
-  const agent = options.agent ?? "claude-code";
+  const agent = options.agent ?? DEFAULT_HOOK_AGENT;
   const hooks = support(agent);
   const file = await settingsFile(hooks, options);
   // 入力の記録はリポジトリの中にある。個人の設定をリポジトリの外で見るときは確かめずに飛ばす
@@ -438,7 +439,7 @@ export async function checkHooks(options: {
       .map(([field]) => field);
     if (record !== undefined && missing.length > 0)
       warnings.push(
-        `The latest input for ${event} (${record.received_at}) lacks ${missing.join(", ")}. The shape of Claude Code's input may have changed, and records that use these fields (such as Runs) may not be captured`,
+        `The latest input for ${event} (${record.received_at}) lacks ${missing.join(", ")}. The shape of ${agent}'s input may have changed, and records that use these fields (such as Runs) may not be captured`,
       );
     events.push({ event, installed, handler, received_at: record?.received_at ?? null, missing });
   }
@@ -497,7 +498,7 @@ export async function checkHooks(options: {
 
 /**
  * dg のフックを外す。手で足したフックは残す。
- * .gitignore の settings.local.json の行は消さない。settings.local.json は Claude Code が dg の外でも各自のマシンの設定（許可など）に使うので、
+ * .gitignore の settings.local.json の行は消さない。settings.local.json はエージェントの製品が dg の外でも各自のマシンの設定（許可など）に使うので、
  * dg のフックがなくなっても追跡させないままにする（t804）
  */
 export async function uninstallHooks(options: {
@@ -507,7 +508,7 @@ export async function uninstallHooks(options: {
   agent?: string;
   dryRun?: boolean;
 }): Promise<HooksResult> {
-  const agent = options.agent ?? "claude-code";
+  const agent = options.agent ?? DEFAULT_HOOK_AGENT;
   const hooks = support(agent);
   const file = await settingsFile(hooks, options);
   const current = await readSettings(file);
