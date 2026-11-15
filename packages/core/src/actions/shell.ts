@@ -7,7 +7,7 @@ import { defineAction } from "./define.js";
 export const shellAction = defineAction({
   name: "shell",
   summary:
-    "任意のシェルコマンドを sh -c で実行する。actions.shell が true のときだけ使え、実行前に確認する",
+    "Run an arbitrary shell command with sh -c. Usable only when actions.shell is true; asks for confirmation before each run",
   input: z.object({
     command: z.string().min(1),
     timeout_ms: z
