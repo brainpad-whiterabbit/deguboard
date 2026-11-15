@@ -867,7 +867,8 @@ opus
 Retries
 1
 2026-11-01 00:00
-30m 0s
+[title] Active time, without waits. Elapsed 30m 0s
+20m 0s (waited 10m 0s)
 Result
 Success
 agent
@@ -890,7 +891,8 @@ implement
 [aria-label] Failure
 opus
 2026-11-01 00:00
-30m 0s
+[title] Elapsed time. The time this run waited for its parent could not be counted
+30m 0s (wait unknown)
 Result
 [title] テストが落ちた
 Failure
@@ -1030,7 +1032,8 @@ opus
 Retries
 1
 2026-11-01 00:00
-30m 0s
+[title] Active time, without waits. Elapsed 30m 0s
+20m 0s (waited 10m 0s)
 Result
 Success
 agent
@@ -1053,7 +1056,8 @@ implement
 [aria-label] Failure
 opus
 2026-11-01 00:00
-30m 0s
+[title] Elapsed time. The time this run waited for its parent could not be counted
+30m 0s (wait unknown)
 Result
 [title] テストが落ちた
 Failure

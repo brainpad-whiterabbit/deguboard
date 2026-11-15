@@ -1,5 +1,6 @@
 // チケット詳細の Run の一覧（UI-4）。run.list をチケットで絞った結果（実行中の Run を含む）を開始の順に出す。
-// 1 行に step・結果の丸印・model と再試行・開始と所要を出し、開くと残りを出す。見出しには件数・結果の内訳・トークンの合計を出す。
+// 1 行に step・結果の丸印・model と再試行・開始と作業時間を出し、開くと残りを出す。見出しには件数・結果の内訳・トークンの合計を出す。
+// 時間は待ちを除いた作業時間（active_seconds）を主に出し、待ちを数えられない Run は経過時間に待ちが不明なことを添える（ADR-029）。
 // 取れなかったトークン数（null）は 0 と見せず「—」で出し、合計でも取れなかった Run があれば「+ —」を付ける（RN-2）。
 // 結果と数の書き方は run-parts.tsx
 
@@ -123,6 +124,28 @@ function RunsSummary({ runs }: { runs: RunView[] }) {
   );
 }
 
+/**
+ * 1 行の時間。待ちを除いた作業時間を主に出し、待ちがあれば添える。待ちを数えられない Run（waited_seconds が null）は
+ * 経過時間に待ちが不明なことを添える（経過時間を作業時間と見せない）。終わっていない Run は「—」
+ */
+export function formatRunTime(r: RunView): string {
+  if (typeof r.active_seconds === "number") {
+    return r.waited_seconds
+      ? tr("{0}（待ち {1}）", formatDuration(r.active_seconds), formatDuration(r.waited_seconds))
+      : formatDuration(r.active_seconds);
+  }
+  if (r.duration_seconds === null) return NO_VALUE;
+  return tr("{0}（待ちは不明）", formatDuration(r.duration_seconds));
+}
+
+/** 1 行の時間の説明（title）。作業時間なら経過時間も示す */
+function runTimeTitle(r: RunView): string | undefined {
+  if (r.duration_seconds === null) return undefined;
+  return typeof r.active_seconds === "number"
+    ? tr("待ちを除いた作業時間。経過 {0}", formatDuration(r.duration_seconds))
+    : tr("経過時間。親の依頼を待った時間を数えられない Run");
+}
+
 /** パネルの Run の 1 行。開くと agent・トークンの内訳・終了・Run ID を出す */
 function PanelRunRow({ run: r }: { run: RunView }) {
   const u = usageTexts(r);
@@ -140,7 +163,7 @@ function PanelRunRow({ run: r }: { run: RunView }) {
           ) : null}
           <span className="ticket-run-time muted">
             <time dateTime={r.started_at}>{formatTime(r.started_at)}</time>{" "}
-            {formatDuration(r.duration_seconds)}
+            <span title={runTimeTitle(r)}>{formatRunTime(r)}</span>
           </span>
         </summary>
         <dl className="ticket-run-detail">
