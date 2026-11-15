@@ -22,7 +22,7 @@ export interface CachedRead {
  * キャッシュの形の版。覚える値（Doc・Issue・config・Workflow）の形や、読みの解釈を変えたら上げる。
  * dg の版と読みのコードの印も鍵に入れるので、上げ忘れても版を上げたときか作り直したときに捨てる
  */
-export const STORE_CACHE_FORMAT = 1;
+const STORE_CACHE_FORMAT = 1;
 
 /**
  * 鍵の違う他のキャッシュのファイルは、新しい順にこの数だけ残して消す（使われていない版の分を溜めない）。

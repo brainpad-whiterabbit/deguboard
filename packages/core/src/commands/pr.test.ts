@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
 import { OperationError } from "../errors.js";
 import { resetGhCache } from "../git/facts.js";
+import { runGit } from "../git/run.js";
 import type { Run } from "../model/run.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -880,7 +881,12 @@ describe("dg pr ready・dg pr merge（t545）", () => {
 
   it("ゲートが判定した後に別のコミットを push したら、マージしない（判定したコミットに固定し、新しいコミットは見直しと検査を通っていない。t750）", async () => {
     const { ctx, f, tip, calls, undraft } = await prepared();
-    // 見直しは今始めて通す。あとの push は 1 秒以上あとにする（コミットの時刻は秒までなので、見直しより後の時刻にならないように）
+    // 時刻はテストが決める。見直しは先端のコミットの 60 秒後、判定の後のコミットは 120 秒後にする
+    // （コミットの時刻は秒までなので、実時間に任せると見直しと同じ秒に落ちうる）
+    const tipAt = Date.parse(
+      (await git(f.cloneA, ["log", "-1", "--format=%cI", tip])).stdout.trim(),
+    );
+    ctx.now = () => new Date(tipAt + 60_000);
     const run = (
       await runCommand(runStart, ctx, { ticket: "t1", step: "review", agent: "claude-code" })
     ).data as Run;
@@ -892,8 +898,9 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const judged = (await runCommand(gate, ctx, { ticket: "t1", for: "merge" })).data as GateView;
     expect(judged).toMatchObject({ passed: true, sha: tip });
     // 判定の後にコミットを push する（PR の先端が進む）
-    await new Promise((resolve) => setTimeout(resolve, 1100));
-    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "判定の後の作業"]);
+    await runGit(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "判定の後の作業"], {
+      env: { GIT_COMMITTER_DATE: new Date(tipAt + 120_000).toISOString() },
+    });
     await git(f.cloneA, ["push", "-q", "origin", "t1"]);
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
     expect(err).toBeInstanceOf(OperationError);

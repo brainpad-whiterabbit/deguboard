@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { StoreProvider } from "../store.js";
 import { setLanguage } from "../l10n.js";
 import { DEFAULT_VALUES } from "../l10n-core.js";
-import { configFields } from "@deguboard/core";
+import { configFields, findIdsInText } from "@deguboard/core";
 import {
   IdLinkedText,
   PriorityMark,
@@ -37,7 +37,7 @@ describe("行の担当", () => {
 });
 
 describe("文の中の ID のリンク（IdLinkedText）", () => {
-  // 境界の規則は VS Code 拡張の findIds（packages/vscode/src/ids.test.ts）と同じ例で確かめる
+  // 境界の規則は core の findIdsInText（packages/core/src/model/id.test.ts）と同じ例で確かめる
   const linked = (text: string) => {
     const { container } = render(
       <HostProvider
@@ -80,6 +80,12 @@ describe("文の中の ID のリンク（IdLinkedText）", () => {
       [],
     );
     expect(linked("t0 t012 t s e")).toEqual([]);
+  });
+
+  it("写した規則は core の findIdsInText と同じ字を拾う", () => {
+    const text =
+      "t12. (t14) 「p7」 t12を これはt13 abc12 feat/t12-foo t12.md a.t12 t012 const e1 s3://b ?id=t9";
+    expect(linked(text)).toEqual(findIdsInText(text).map((f) => f.id));
   });
 });
 

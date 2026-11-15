@@ -84,7 +84,8 @@ export function parseCurrent(text: string): Partial<Current> {
   return parsed;
 }
 
-function parseVersion(v: string): number[] | undefined {
+/** 版（v を付けてもよい major.minor.patch。後ろの -rc.1 などは見ない）を数の並びにする。読めない版は undefined。拡張の中の版の解析はここだけにする */
+export function parseVersion(v: string): number[] | undefined {
   return /^v?(\d+)\.(\d+)\.(\d+)/.exec(v.trim())?.slice(1).map(Number);
 }
 

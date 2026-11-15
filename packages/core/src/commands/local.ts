@@ -40,13 +40,13 @@ export interface LocalClientOptions {
 }
 
 /** 画面は 15 秒ごとに status を読む。そのたびに fetch するとリモートへの負荷が大きいので、間を空ける（UI-6） */
-export const STATUS_FETCH_INTERVAL_MS = 60_000;
+const STATUS_FETCH_INTERVAL_MS = 60_000;
 /**
  * status の後ろの fetch の時間の上限。書き込みのロックを持って fetch するので、ほかの dg の書き込みがロックを待つ上限（lock.ts の WAIT_MS）より短くする
  */
 const STATUS_FETCH_TIMEOUT_MS = 8_000;
 
-export interface LocalClient extends CommandClient {
+interface LocalClient extends CommandClient {
   /** 入口が出すコマンド（store の要るものだけ） */
   readonly commands: readonly AnyCommand[];
 }

@@ -18,6 +18,7 @@ import {
   createLocalClient,
   detailOfRoute,
   detailRouteOf,
+  findIdsInText,
   findMissingSkills,
   installMissingSkills,
   pickUser,
@@ -46,7 +47,6 @@ import { dgAdvice, dgCheckTarget, resolveDg } from "./dg.js";
 import { GOTO_COMMAND, gotoItems } from "./goto.js";
 import {
   buildIdIndex,
-  findIds,
   linksOf,
   openIdArgs,
   hoverMarkdown,
@@ -226,7 +226,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const index = (await idIndexFor(document.uri))?.index;
         if (!index) return undefined;
         const line = document.lineAt(position.line).text;
-        const hit = findIds(line).find(
+        const hit = findIdsInText(line).find(
           (f) => f.start <= position.character && position.character <= f.end,
         );
         const entry = hit && index.get(hit.id);
