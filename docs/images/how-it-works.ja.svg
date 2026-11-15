@@ -75,30 +75,33 @@
   <rect class="box inner" x="166" y="318" width="693" height="36" rx="5"/>
   <text x="512" y="341" text-anchor="middle">commands/ — すべての操作の定義。入口はこれを写すだけ</text>
   <g>
-    <rect class="box inner" x="166" y="370" width="93" height="56" rx="5"/>
-    <text x="212" y="394" text-anchor="middle">model</text>
-    <text x="212" y="412" text-anchor="middle" class="sub">スキーマ</text>
-    <rect class="box inner" x="266" y="370" width="93" height="56" rx="5"/>
-    <text x="312" y="394" text-anchor="middle">storage</text>
-    <text x="312" y="412" text-anchor="middle" class="sub">読み書き・索引</text>
-    <rect class="box inner" x="366" y="370" width="93" height="56" rx="5"/>
-    <text x="412" y="394" text-anchor="middle">workflow</text>
-    <text x="412" y="412" text-anchor="middle" class="sub">遷移の制約</text>
-    <rect class="box inner" x="466" y="370" width="93" height="56" rx="5"/>
-    <text x="512" y="394" text-anchor="middle">git</text>
-    <text x="512" y="412" text-anchor="middle" class="sub">同期・照合</text>
-    <rect class="box inner" x="566" y="370" width="93" height="56" rx="5"/>
-    <text x="612" y="394" text-anchor="middle">run</text>
-    <text x="612" y="412" text-anchor="middle" class="sub">Run の記録</text>
-    <rect class="box inner" x="666" y="370" width="93" height="56" rx="5"/>
-    <text x="712" y="394" text-anchor="middle">agents</text>
-    <text x="712" y="412" text-anchor="middle" class="sub">製品ごとの差</text>
-    <rect class="box inner" x="766" y="370" width="93" height="56" rx="5"/>
-    <text x="812" y="394" text-anchor="middle">guide</text>
-    <text x="812" y="412" text-anchor="middle" class="sub">手順の本文</text>
+    <rect class="box inner" x="166" y="370" width="82.25" height="56" rx="5"/>
+    <text x="207.13" y="394" text-anchor="middle">model</text>
+    <text x="207.13" y="412" text-anchor="middle" class="sub">スキーマ</text>
+    <rect class="box inner" x="253.25" y="370" width="82.25" height="56" rx="5"/>
+    <text x="294.38" y="394" text-anchor="middle">storage</text>
+    <text x="294.38" y="412" text-anchor="middle" class="sub">読み書き・索引</text>
+    <rect class="box inner" x="340.5" y="370" width="82.25" height="56" rx="5"/>
+    <text x="381.63" y="394" text-anchor="middle">workflow</text>
+    <text x="381.63" y="412" text-anchor="middle" class="sub">遷移の制約</text>
+    <rect class="box inner" x="427.75" y="370" width="82.25" height="56" rx="5"/>
+    <text x="468.88" y="394" text-anchor="middle">git</text>
+    <text x="468.88" y="412" text-anchor="middle" class="sub">同期・照合</text>
+    <rect class="box inner" x="515" y="370" width="82.25" height="56" rx="5"/>
+    <text x="556.13" y="394" text-anchor="middle">run</text>
+    <text x="556.13" y="412" text-anchor="middle" class="sub">Run の記録</text>
+    <rect class="box inner" x="602.25" y="370" width="82.25" height="56" rx="5"/>
+    <text x="643.38" y="394" text-anchor="middle">agents</text>
+    <text x="643.38" y="412" text-anchor="middle" class="sub">製品ごとの差</text>
+    <rect class="box inner" x="689.5" y="370" width="82.25" height="56" rx="5"/>
+    <text x="730.63" y="394" text-anchor="middle">actions</text>
+    <text x="730.63" y="412" text-anchor="middle" class="sub">手順から呼ぶ</text>
+    <rect class="box inner" x="776.75" y="370" width="82.25" height="56" rx="5"/>
+    <text x="817.88" y="394" text-anchor="middle">guide</text>
+    <text x="817.88" y="412" text-anchor="middle" class="sub">手順の本文</text>
   </g>
   <rect class="box" x="150" y="490" width="300" height="56" rx="6"/>
-  <text x="300" y="513" text-anchor="middle">ブランチ deguboard</text>
+  <text x="300" y="513" text-anchor="middle">データのブランチ（git.data_branch）</text>
   <text x="300" y="532" text-anchor="middle" class="sub">チケット・Plan・Run など（.git/deguboard/）</text>
   <rect class="box" x="465" y="490" width="200" height="56" rx="6"/>
   <text x="565" y="513" text-anchor="middle">作業ブランチ・worktree</text>
@@ -108,7 +111,7 @@
   <text x="777" y="532" text-anchor="middle" class="sub">実行中の Run・ロック（Git の外）</text>
   <rect class="box" x="150" y="590" width="515" height="50" rx="6"/>
   <text x="407" y="611" text-anchor="middle">Git リモート・GitHub</text>
-  <text x="407" y="629" text-anchor="middle" class="sub">データもコードも push で共有、PR は gh で見る</text>
+  <text x="407" y="629" text-anchor="middle" class="sub">データ（git.data_remote）もコードも push で共有、PR は gh で見る</text>
   <rect class="box" x="680" y="590" width="195" height="50" rx="6"/>
   <text x="777" y="611" text-anchor="middle">会話記録</text>
   <text x="777" y="629" text-anchor="middle" class="sub">エージェントの製品が書く</text>
