@@ -17,7 +17,7 @@ import {
   type UserSource,
 } from "@deguboard/core";
 import { z } from "zod";
-import { readBody, serveStatic } from "./static.js";
+import { BodyTooLargeError, readBody, serveStatic } from "./static.js";
 
 export interface AppOptions {
   /** 対象のリポジトリ */
@@ -221,6 +221,14 @@ export function createApp(options: AppOptions): Handler {
       // 静的ファイルを流し始めた後の失敗は、応答を書けないので接続を閉じる（書くと例外になり、落ちる）
       if (res.headersSent) {
         res.destroy();
+        return;
+      }
+      // 本文が大きすぎる要求は、残りの本文を読まないので接続を使い続けられない。
+      // 応答を書き終えてから閉じる（先に閉じると応答がクライアントに届かない）
+      if (error instanceof BodyTooLargeError) {
+        res.setHeader("connection", "close");
+        res.on("finish", () => req.destroy());
+        json(res, 413, { ok: false, error: { code: "BODY_TOO_LARGE", message: error.message } });
         return;
       }
       if (error instanceof DeguboardError) {

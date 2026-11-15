@@ -199,6 +199,51 @@ describe("HTTP サーバー", () => {
     );
   });
 
+  it("本文が上限を超えた要求に、413 と英語の文の応答を返してから接続を閉じる（t975）", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    // 上限（4 MiB）を超える本文。送り終える前にサーバーが閉じても、先に届いた応答を受け取る
+    const res = await new Promise<{ status: number; body: any; connection: string | undefined }>(
+      (resolve, reject) => {
+        const req = request(
+          {
+            host: "127.0.0.1",
+            port: s.port,
+            method: "POST",
+            path: "/api/commands/ticket.list",
+            headers: { "content-type": "application/json" },
+          },
+          (response) => {
+            let text = "";
+            response.setEncoding("utf8");
+            response.on("data", (chunk: string) => (text += chunk));
+            response.on("end", () =>
+              resolve({
+                status: response.statusCode ?? 0,
+                body: JSON.parse(text),
+                connection: response.headers.connection,
+              }),
+            );
+          },
+        );
+        // 応答の後に送りかけの本文が切られて出るエラー（EPIPE・ECONNRESET）は無視する。応答がなければ失敗
+        req.on("error", (error) => setTimeout(() => reject(error), 1000));
+        req.end(Buffer.alloc(5 * 1024 * 1024, 0x20));
+      },
+    );
+    expect(res).toEqual({
+      status: 413,
+      body: {
+        ok: false,
+        error: { code: "BODY_TOO_LARGE", message: "The request body is too large" },
+      },
+      connection: "close",
+    });
+    // 閉じたのはその接続だけで、サーバーは次の要求に応える
+    expect((await post(s, "ticket.list", {})).status).toBe(200);
+  });
+
   it("壊れた percent-encoding と URL として読めない要求先は、API と静的ファイルの両方で 400 を返し、プロセスは落ちない（t752）", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
