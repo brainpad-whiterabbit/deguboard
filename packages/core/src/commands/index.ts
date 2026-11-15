@@ -16,10 +16,20 @@ export * from "./workflow.js";
 export * from "./run.js";
 export * from "./ask.js";
 export * from "./local.js";
-export { readHookInput, type HookInputRecord } from "./hook-records.js";
 export { hookArgv } from "./hook-argv.js";
-export { hooksSilentWarning, takeHookWarnings } from "./hook-sessions.js";
-// Skill は入口が呼ぶものだけを公開する（dg skill install・dg hooks check・VS Code 拡張の起動時の更新と足りない Skill の案内）。判定の部品は公開しない
+// dg hooks install・uninstall・check の判定と書き込み（CLI が写す）と、フックが入っているかだけを見る hookInstallStateOf
+export {
+  checkHooks,
+  hookInstallStateOf,
+  hookScope,
+  installHooks,
+  uninstallHooks,
+  type HandlerStatus,
+  type HookInstallState,
+} from "./hook-settings.js";
+// 起動ファイル経由で動いているか（フックとマージドライバが書く命令を決める）と、起動ファイルの場所（VS Code 拡張の launcher.ts と揃っているかをテストが見る）
+export { isLauncherPath, launcherFrom } from "./launcher-env.js";
+// Skill は入口が呼ぶものだけを公開する（dg skill install・VS Code 拡張の起動時の更新と足りない Skill の案内）。判定の部品は公開しない
 export {
   buildSkills,
   findMissingSkills,
@@ -27,7 +37,6 @@ export {
   installMissingSkills,
   refreshInstalledSkills,
   removeRetiredSkills,
-  staleSkillWarningsOf,
   writeSkillFiles,
   type MissingSkills,
   type RefreshedSkills,

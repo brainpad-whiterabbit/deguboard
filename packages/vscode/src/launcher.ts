@@ -3,7 +3,12 @@
 // 起動ファイルは中身が固定の sh で、隣の current（node と dg.mjs の場所、版）を読んで動かす。拡張は起動のたびに current を書き直す。
 // node は拡張ホストの実行ファイル（process.execPath）を使う。デスクトップでは VS Code 本体（Electron）で、ELECTRON_RUN_AS_NODE=1 で
 // node として動く。リモート（SSH・WSL・Dev Containers）では拡張ホストが server の node で動くので、そのまま node になる。
-// Windows は sh がないので書かない
+// Windows は sh がないので書かない。
+// 設置の判定と書き込み（起動ファイル・current・~/.local/bin/dg のリンク）は、core に寄せずにこの入口に置く（t1003）。
+// 拡張が同梱した dg を外に出すための、拡張だけの操作で、拡張ホストの node・拡張の版とフォルダという拡張の事実で決まり、ほかの入口（CLI・MCP・dg serve）は
+// 起動ファイルを置かない。uninstall.ts（拡張を消したあとに node だけで動く）からも呼ぶので、core の入口を読み込ませない。
+// dg の側が持つのは読むことだけ（core の commands/launcher-env.ts：DEGUBOARD_LAUNCHER と起動ファイルの場所）で、
+// 場所と変数の名前が両方で同じことは launcher.test.ts が確かめる
 
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";

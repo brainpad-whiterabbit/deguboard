@@ -297,6 +297,7 @@ function inputFieldsOf(event: string, input: Record<string, unknown>): readonly 
 }
 
 export const claudeCodeHooks: HookSupport = {
+  product: "Claude Code",
   events: [
     { event: "SessionStart" },
     { event: "PostToolUse", matcher: "Agent" },

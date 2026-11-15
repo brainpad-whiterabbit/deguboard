@@ -2,7 +2,7 @@
 // Skill の中身（buildSkills）と、入れてある Skill が今の dg のものと違うかの判定（skillStateOf）と書く処理（writeSkillFiles）は core の commands/skill-files.ts にある。
 // dg hooks check・dg next・dg brief の古い Skill の警告と同じ判定で書くか残すかを決め、VS Code 拡張が起動時に古い Skill を更新するのと同じ処理で書く。
 // 廃止した Skill の片付け（removeRetiredSkills）と .gitignore に無視の行を足す処理（ignoreSkills。拡張の案内の Install と同じ）も core にある。
-// ここは置き場所の解決と追跡済みの検出を受け持つ
+// ここは置き場所の解決と、追跡済みのファイル（core の git 層の trackedFiles）から dg の Skill を選ぶことを受け持つ
 
 import { relative, sep } from "node:path";
 import {
@@ -11,10 +11,10 @@ import {
   removeRetiredSkills,
   resolveRepoPaths,
   skillDirsOf,
+  trackedFiles,
   writeSkillFiles,
   type AgentEnv,
 } from "@deguboard/core";
-import { trackedFiles } from "./gitignore.js";
 
 export interface SkillInstallResult {
   /** project（リポジトリの .claude/skills）か personal（~/.claude/skills）。Claude Code の呼び名に合わせる */

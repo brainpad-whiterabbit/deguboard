@@ -128,6 +128,8 @@ export type HookEvent =
 
 /** この製品のフック（AG-5）。dg hooks install が設定に書き、dg hook が入力を出来事に変える */
 export interface HookSupport {
+  /** 製品の表示名。dg の出力（警告など）が製品を名指すときに使う（Core の汎用部分は製品の名前を書かない） */
+  product: string;
   /** 設定に入れるフック。event は製品のイベント名、matcher はその製品の matcher（省けばすべて） */
   events: ReadonlyArray<{ event: string; matcher?: string }>;
   /**

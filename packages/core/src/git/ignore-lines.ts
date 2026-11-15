@@ -1,9 +1,17 @@
 // 各自のマシンで入れるファイル（dg の Skill・追跡しない設定）を git に追跡させない行を .gitignore に足す（AG-2・AG-9）。
 // dg skill install・dg hooks install（CLI）と、VS Code 拡張の足りない Skill の案内の Install（commands/skill-files.ts）が使う。
-// 入れたファイルの親のディレクトリ（agent の設定のディレクトリ）の .gitignore に足し、この .gitignore はコミットして共有する
+// 入れたファイルの親のディレクトリ（agent の設定のディレクトリ）の .gitignore に足し、この .gitignore はコミットして共有する。
+// 追跡済みのファイルには無視の行が効かないので、入れたファイルが追跡済みかも見て（trackedFiles）、呼び出し側が git rm --cached を案内する
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { runGit } from "./run.js";
+
+/** target（ファイルかディレクトリ）の下で git が追跡しているファイル。リポジトリの最上位からの相対パス（区切りは /）で返す */
+export async function trackedFiles(topLevel: string, target: string): Promise<string[]> {
+  const { stdout } = await runGit(topLevel, ["ls-files", "-z", "--", target]);
+  return stdout.split("\0").filter((p) => p !== "");
+}
 
 /**
  * .gitignore にない行を、渡した順に末尾に足す。1 行でも足したら true。利用者の行は残し、同じ行（前後の空白を除いて一致）があれば書かない。

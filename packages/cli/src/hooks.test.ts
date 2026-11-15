@@ -489,7 +489,12 @@ describe("dg hooks check（AG-9・t542）", () => {
     const after = await checkOf(cwd);
     const post = after.data.events.find((e) => e.event === "PostToolUse")!;
     expect(post.missing).toEqual(["tool_response.agentId"]);
-    expect(after.warnings).toContainEqual(expect.stringContaining("lacks tool_response.agentId"));
+    // 警告は製品を表示名で名指す（Adapter の id ではない）。名前は Adapter から引く
+    expect(after.warnings).toContainEqual(
+      expect.stringContaining(
+        "lacks tool_response.agentId. The shape of Claude Code's input may have changed, and records that use these fields (such as Runs) may not be captured",
+      ),
+    );
   });
 
   it("PreToolUse の Bash で command が欠けていれば、check が警告する", async () => {
