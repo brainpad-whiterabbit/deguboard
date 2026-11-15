@@ -321,7 +321,7 @@ describe("スキーマ", () => {
     );
   });
 
-  it("すり抜けた不具合の割合は、記録した origin と origin_cause で数え、refs と本文からは数えず、記録のない古い Iteration は測れないものにする（t946・ADR-036）", () => {
+  it("すり抜けた不具合の割合は、記録した origin と origin_cause で数え、refs と本文からは数えず、記録のない古い Iteration は測れないものにする（t946）", () => {
     const m = RECOMMENDED_RETRO_METRICS["review"]?.["escaped-defect-rate"];
     expect(m?.sources).toEqual([
       "dg metrics sources --limit 1 (tickets[].origin, origin_cause, iteration; files is not read)",
