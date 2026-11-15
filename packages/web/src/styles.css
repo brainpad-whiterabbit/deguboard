@@ -2060,7 +2060,7 @@ textarea.body {
 /* --dg-page-pad は .page の余白（上の端に貼り付けるものは、この分だけ上にずらして余白を埋める）。
    --dg-sticky-band-row-h は上の端に残す 1 行の帯の高さ（components/sticky-band.tsx の STICKY_BAND_PX と同じ）。
    --dg-sticky-band-h は帯の全体の高さで、帯の下に貼り付く見出しはこの分だけ下げる（絞り込みの札の行を出すと伸びる）。
-   --dg-sticky-search-h は上の端に貼り付ける検索の行の高さ（バックログ。sticky-band.tsx の STICKY_SEARCH_PX と同じ） */
+   --dg-sticky-search-h は上の端に貼り付ける検索の行の高さ（バックログと履歴。sticky-band.tsx の STICKY_SEARCH_PX と同じ） */
 [data-surface="sidebar"] .page {
   --dg-page-pad: 0.5rem;
   --dg-sticky-band-row-h: 26px;
@@ -2497,8 +2497,10 @@ textarea.body {
   font-size: 0.92em;
 }
 /* 左パネルのバックログの検索欄は、右端に漏斗（.filter-toggle）を置いて 1 行に収める。
-   スクロールしても上の端に貼り付けて残す（高さは --dg-sticky-search-h）。下の行が透けないよう地の色で塗り、.page の左右の余白も影で塗る */
-[data-surface="sidebar"] .toolbar.backlog-search {
+   スクロールしても上の端に貼り付けて残す（高さは --dg-sticky-search-h）。下の行が透けないよう地の色で塗り、.page の左右の余白も影で塗る。
+   履歴の検索の行（.history-search。検索欄だけ）も同じに貼り付ける */
+[data-surface="sidebar"] .toolbar.backlog-search,
+[data-surface="sidebar"] .toolbar.history-search {
   flex-wrap: nowrap;
   position: sticky;
   top: calc(-1 * var(--dg-page-pad));
@@ -2795,6 +2797,73 @@ textarea.body {
 /* 件数は 1 段目の右端に出すので、頼む吹き出し（右端に重なる）の分だけ右に余白を取り、件数に重ねない */
 [data-surface="sidebar"] .history-row[data-ask-spot] {
   padding-right: 30px;
+}
+/* 左パネルの履歴をスクロールしたときに上に残す段（pages/history.tsx の HistoryHead）。検索の行（.history-search）は上の .backlog-search と同じに上の端に貼り付く。
+   --dg-history-stuck-h は上の端に残り続ける段の高さ：検索の行と、チケットの見方ではその下の 2 段目の結果の絞り込み（高さ --dg-sticky-result-h）。
+   見方ごとの見出し（Iteration と Epic の見方は開いた行の見出し、チケットの見方は区切りの見出し）はその下に貼り付き、
+   キーで行へ移ったときに見出しの下に行が隠れないよう、寄せ先（--dg-sticky-scroll-pad）は見出しの 2〜3 行分（56px）だけさらに下げる */
+[data-surface="sidebar"] .page:has(> section > .history-search) {
+  --dg-sticky-result-h: 26px;
+  --dg-history-stuck-h: var(--dg-sticky-search-h);
+  --dg-sticky-scroll-pad: calc(var(--dg-history-stuck-h) + 56px);
+  scroll-padding-top: var(--dg-sticky-scroll-pad);
+}
+[data-surface="sidebar"] .page:has(> section > .result-switch) {
+  --dg-history-stuck-h: calc(var(--dg-sticky-search-h) + var(--dg-sticky-result-h));
+}
+[data-surface="sidebar"] .toolbar:has(+ .history-search) {
+  margin-bottom: 2px;
+}
+/* チケットの見方の結果の絞り込みは、検索の行の下の 2 段目に貼り付く。下の行が透けないよう地の色で塗り、下の余白も箱の中に取る */
+[data-surface="sidebar"] .result-switch {
+  display: flex;
+  align-items: center;
+  position: sticky;
+  top: calc(var(--dg-sticky-search-h) - var(--dg-page-pad));
+  z-index: 3;
+  box-sizing: border-box;
+  height: var(--dg-sticky-result-h);
+  margin-bottom: 0;
+  padding-bottom: 2px;
+  background: var(--vscode-sideBar-background);
+  box-shadow:
+    calc(-1 * var(--dg-page-pad)) 0 0 var(--vscode-sideBar-background),
+    var(--dg-page-pad) 0 0 var(--vscode-sideBar-background);
+}
+/* 区切りの見出しは検索の行と結果の絞り込みの下に貼り付く（上の余白を塗り足す ::before は、z-index の高い結果の絞り込みの下に隠れる） */
+[data-surface="sidebar"] .page:has(> section > .history-search) .history-divider {
+  top: calc(var(--dg-history-stuck-h) - var(--dg-page-pad));
+}
+/* Iteration と Epic の見方の開いた行の見出しは検索の行の下に貼り付く。貼り付く範囲は行（details）の中だけなので、次の行の見出しに押し出されて入れ替わる。
+   開いた行の色（半透明のことがある）は地の色の上に重ねて、下の行が透けないようにする（頼む一覧を開いている間は頼む場所の色を重ねる） */
+[data-surface="sidebar"] .history-item > summary.history-row {
+  position: sticky;
+  top: calc(var(--dg-sticky-search-h) - var(--dg-page-pad));
+  z-index: 2;
+}
+[data-surface="sidebar"] .history-item[open] > summary.history-row {
+  --dg-row-tint: var(--vscode-list-hoverBackground);
+  background: linear-gradient(var(--dg-row-tint), var(--dg-row-tint))
+    var(--vscode-sideBar-background);
+}
+[data-surface="sidebar"] .history-item[open] > summary.history-row[data-ask-spot="active"] {
+  --dg-row-tint: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
+}
+/* 貼り付いた段と見出しは上の端に見えているので、フォーカスや押したときに寄せ先の分だけ一覧を戻さない（戻すと読んでいた所から動く）。
+   寄せ先を貼り付く位置までにするので、貼り付いていない見出しへ移ったときは、上の段に隠れない所までだけ戻す。
+   検索欄（文字を打つ欄）は、Chromium がフォーカスで寄せるときに scroll-margin を見ず寄せ先（scroll-padding）だけを見るので、
+   検索欄にフォーカスがある間は寄せ先を外す（外さないと、キーで検索欄へ戻ったときに一覧が上へ動く） */
+[data-surface="sidebar"] .page:has(> section > .history-search input:focus) {
+  scroll-padding-top: 0;
+}
+[data-surface="sidebar"] .result-switch *,
+[data-surface="sidebar"] .history-item > summary.history-row,
+[data-surface="sidebar"] .history-item > summary.history-row * {
+  scroll-margin-top: calc(var(--dg-sticky-search-h) - var(--dg-sticky-scroll-pad));
+}
+[data-surface="sidebar"] .history-search ~ * .history-divider,
+[data-surface="sidebar"] .history-search ~ * .history-divider * {
+  scroll-margin-top: calc(var(--dg-history-stuck-h) - var(--dg-sticky-scroll-pad));
 }
 /* サイドバーのチケットの行はタイトルを 2 行まで折り返す。丸印・番号・担当・印は 1 行目に揃える */
 [data-surface="sidebar"] .ticket-row {

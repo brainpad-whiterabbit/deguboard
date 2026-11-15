@@ -9,7 +9,8 @@
 // - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
 // 行数は要素の枠の中に見えている行だけを数える（2 行で切られて隠れた行は数えない）
 // カンバンの行の右端（担当の印・Plan の番号など）は、行の枠からはみ出さず、タイトルと重ならないことも確かめる
-// カンバンをスクロールして見出しが抜けたら、上の端の 1 行の帯と、その下に貼り付く状態の節の見出しが出ることも確かめる
+// カンバンをスクロールして見出しが抜けたら、上の端の 1 行の帯と、その下に貼り付く状態の節の見出しが出ることも確かめる。
+// バックログと履歴は、スクロールしても検索の行と、その下に貼り付く見出しが残ることを確かめる
 // 設定画面（#/config）は、確認の帯を開き、長い worktree.root と actions.test のリストを入れた状態で、部品が幅からはみ出さないことを別に確かめる。
 // guide.notes.* の表の変更した行の印が 1 つだけであることも、左パネルとパネルの配置で確かめる
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
@@ -624,10 +625,13 @@ describe.each(
           const box = main.getBoundingClientRect();
           const padTop = parseFloat(getComputedStyle(main).paddingTop);
           const padRight = parseFloat(getComputedStyle(main).paddingRight);
-          // 区切りの元の位置が .page の中身の上の端より 20px 上に出るまで送る（続く行が 2 件あるので、次の区切りにはまだ押されない）
-          main.scrollTop += before.top - (box.top + padTop) + 20;
+          // 左パネルの区切りは、上の端に貼り付いた検索の行と結果の絞り込みの下に貼り付く（t965）
+          const stuckOffset = parseFloat(getComputedStyle(divider).top) + padTop;
+          // 区切りの元の位置が貼り付く所より 20px 上に出るまで送る（続く行が 2 件あるので、次の区切りにはまだ押されない）
+          main.scrollTop += before.top - (box.top + stuckOffset) + 20;
           await new Promise((r) => requestAnimationFrame(() => r(null)));
           const after = divider.getBoundingClientRect();
+          const result = document.querySelector(".result-switch")!.getBoundingClientRect();
           return {
             texts: [...divider.children].map((c) => c.textContent),
             lineCount,
@@ -635,7 +639,8 @@ describe.each(
             width: box.right - padRight,
             scrolled: main.scrollTop,
             stuckTop: after.top,
-            contentTop: box.top + padTop,
+            stuckAt: result.bottom,
+            resultTop: result.top - box.top,
             rowTop: row.getBoundingClientRect().top,
             dividerBottom: after.bottom,
             bg: getComputedStyle(divider).backgroundColor,
@@ -651,7 +656,11 @@ describe.each(
         else expect(m.lineCount, "長い期間の区切りは折り返す").toBeGreaterThan(1);
         expect(m.right, "区切りが幅に収まる").toBeLessThanOrEqual(m.width + 0.5);
         expect(m.scrolled, "スクロールできた").toBeGreaterThan(0);
-        expect(Math.abs(m.stuckTop - m.contentTop), "一覧の上に貼り付く").toBeLessThanOrEqual(1);
+        expect(
+          Math.abs(m.stuckTop - m.stuckAt),
+          "検索の行と結果の絞り込みの下に貼り付く",
+        ).toBeLessThanOrEqual(1);
+        expect(m.resultTop, "結果の絞り込みは検索の行の下に残る").toBeGreaterThan(30);
         expect(m.rowTop, "行は区切りの下をくぐる").toBeLessThan(m.dividerBottom);
         expect(m.bg, "下の行が透けないよう塗る").not.toBe("rgba(0, 0, 0, 0)");
         expect(m.cover, "上の余白も塗る").toBeGreaterThanOrEqual(m.padTop);
@@ -662,6 +671,204 @@ describe.each(
     });
   },
 );
+
+// 履歴をスクロールしても、検索の行を上の端に残し、その下に見方ごとの見出しを貼り付ける（UI-5、t965）。
+// Iteration の見方は開いた行の見出しが検索の行の下に貼り付いて次の行に押し出され、押すと畳む（Epic の見方は同じ CSS の行）。
+// チケットの見方は結果の絞り込みが検索の行の下の 2 段目に残る（区切りの見出しはその下。上の区切りの見出しの検査）。
+// 貼り付いた検索欄・見出しにフォーカスしても一覧が動かないこと（寄せ先の分だけ戻さない）も確かめる
+describe.each(SCHEMES)("左パネルの履歴の上の端に残す検索の行と見出し（%s）", (scheme) => {
+  it("幅 300px の Iteration の見方で、開いた行の見出しは検索の行の下に貼り付いて次の行に押し出され、フォーカスしても一覧は動かず、押すと畳んで見出しが見え、打ち込むと一番上へ戻る", async () => {
+    const context = await browser.newContext({
+      viewport: { width: 300, height: 260 },
+      colorScheme: scheme,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${server.url}?surface=sidebar#/history`, { waitUntil: "networkidle" });
+      const summaryOf = (id: string) =>
+        page.locator("summary.history-row", {
+          has: page.locator("code", { hasText: new RegExp(`^${id}$`) }),
+        });
+      for (const id of ["s8", "s9"]) {
+        await summaryOf(id).click();
+        await page.locator(`details[open] > summary.history-row code:text-is("${id}")`).waitFor();
+      }
+      // 持ち越しの読み込みで行の中身が伸びるのを待つ
+      await page.locator(".history-carried").waitFor();
+      const stuck = await page.evaluate(async () => {
+        const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+        const main = document.querySelector<HTMLElement>(".page")!;
+        const box = main.getBoundingClientRect();
+        // 後ろの行が短く一覧の終わりで止まるので、下に余白を足して送れるようにする
+        main.style.paddingBottom = "600px";
+        const offset = (el: Element) => el.getBoundingClientRect().top - box.top + main.scrollTop;
+        const search = document.querySelector<HTMLElement>(".history-search")!;
+        const [first, second] = [...document.querySelectorAll("details.history-item[open]")];
+        const head = first!.querySelector<HTMLElement>(":scope > summary")!;
+        const next = second!.querySelector<HTMLElement>(":scope > summary")!;
+        // 最初の開いた行（s8）の見出しの元の位置が検索の行の下より 40px 上に出るまで送る
+        main.scrollTop = offset(first!) - 32 + 40;
+        await frame();
+        const scrolled = main.scrollTop;
+        const rect = search.getBoundingClientRect();
+        const headRect = head.getBoundingClientRect();
+        const row = first!.querySelector(".history-ticket")!.getBoundingClientRect();
+        const toggle = document.querySelector('[role=group][aria-label="見方"]')!;
+        // 貼り付いた検索欄と見出しにフォーカスしても一覧は動かない（寄せ先の分だけ戻さない）
+        search.querySelector("input")!.focus();
+        await frame();
+        const afterSearchFocus = main.scrollTop;
+        head.focus();
+        await frame();
+        const afterHeadFocus = main.scrollTop;
+        const result = {
+          scrolled,
+          top: rect.top - box.top,
+          height: rect.height,
+          searchBottom: rect.bottom,
+          searchBg: getComputedStyle(search).backgroundColor,
+          toggleBottom: toggle.getBoundingClientRect().bottom - box.top,
+          headTop: headRect.top,
+          headBg: getComputedStyle(head).backgroundImage,
+          headBgColor: getComputedStyle(head).backgroundColor,
+          bubbles: head.querySelectorAll(".ask-bubble").length,
+          rowTop: row.top,
+          headBottom: headRect.bottom,
+          afterSearchFocus,
+          afterHeadFocus,
+          nextTop: 0,
+          firstBottom: 0,
+          stillTop: 0,
+        };
+        // 次の開いた行（s9）の見出しが検索の行の下に来るまで送ると、前の行の見出しは押し出される
+        main.scrollTop = offset(second!) - 32;
+        await frame();
+        result.nextTop = next.getBoundingClientRect().top;
+        result.firstBottom = head.getBoundingClientRect().bottom;
+        result.stillTop = search.getBoundingClientRect().top - box.top;
+        // 最初の行の見出しが貼り付いている所へ戻す
+        main.scrollTop = scrolled;
+        await frame();
+        return result;
+      });
+      expect(stuck.scrolled, "スクロールできた").toBeGreaterThan(0);
+      expect(Math.abs(stuck.top), "検索の行は一覧の上の端に貼り付く").toBeLessThanOrEqual(1);
+      expect(stuck.height, "検索の行の高さ").toBe(32);
+      expect(stuck.searchBg, "下の行が透けないよう塗る").not.toBe("rgba(0, 0, 0, 0)");
+      expect(stuck.toggleBottom, "見方の切り替えは残さない").toBeLessThanOrEqual(stuck.top + 1);
+      expect(
+        Math.abs(stuck.headTop - stuck.searchBottom),
+        "開いた行の見出しは検索の行の下",
+      ).toBeLessThanOrEqual(1);
+      expect(stuck.headBg, "開いた行の色を重ねる").toContain("gradient");
+      expect(stuck.headBgColor, "下の行が透けないよう地の色で塗る").not.toBe("rgba(0, 0, 0, 0)");
+      expect(stuck.bubbles, "貼り付いた見出しも頼める").toBe(1);
+      expect(stuck.rowTop, "行は見出しの下をくぐる").toBeLessThan(stuck.headBottom);
+      expect(stuck.afterSearchFocus, "検索欄にフォーカスしても一覧は動かない").toBe(stuck.scrolled);
+      expect(stuck.afterHeadFocus, "見出しにフォーカスしても一覧は動かない").toBe(stuck.scrolled);
+      expect(
+        Math.abs(stuck.nextTop - stuck.searchBottom),
+        "次の行の見出しが検索の行の下に来る",
+      ).toBeLessThanOrEqual(1);
+      expect(stuck.firstBottom, "前の行の見出しは押し出される").toBeLessThanOrEqual(
+        stuck.nextTop + 1,
+      );
+      expect(Math.abs(stuck.stillTop), "検索の行は残ったまま").toBeLessThanOrEqual(1);
+
+      // 貼り付いた見出しで Shift+F10 を押すと頼む一覧が出る
+      await summaryOf("s8").focus();
+      await page.keyboard.press("Shift+F10");
+      const menu = page.locator(".ask-menu");
+      await menu.waitFor();
+      await menu.locator("[role=menuitem]").first().focus();
+      await page.keyboard.press("Escape");
+      await menu.waitFor({ state: "detached" });
+      expect(
+        await page.evaluate(() => document.querySelector(".page")!.scrollTop),
+        "頼む一覧を開いて閉じても一覧は動かない",
+      ).toBe(stuck.scrolled);
+
+      // 貼り付いた見出しを押すと畳み、畳んだ行の見出しが検索の行の下に見える所まで一覧を戻す
+      await summaryOf("s8").click();
+      await page.locator("details.history-item:not([open]) > summary code:text-is('s8')").waitFor();
+      await page.waitForFunction(() => {
+        const main = document.querySelector(".page")!;
+        const search = document.querySelector(".history-search")!.getBoundingClientRect();
+        const head = [...document.querySelectorAll("summary.history-row")]
+          .find((s) => s.querySelector("code")?.textContent === "s8")!
+          .getBoundingClientRect();
+        return head.top >= search.bottom - 1 && head.bottom <= main.getBoundingClientRect().bottom;
+      });
+
+      // 貼り付いた検索欄に打ち込むと一番上へ戻る
+      await page.evaluate(() => {
+        document.querySelector<HTMLElement>(".page")!.scrollTop = 200;
+      });
+      await page.getByRole("searchbox").fill("s9");
+      await page.waitForFunction(() => document.querySelector(".page")!.scrollTop === 0);
+    } finally {
+      await context.close();
+    }
+  });
+
+  it("幅 300px のチケットの見方で、結果の絞り込みは検索の行の下の 2 段目に残り、フォーカスしても一覧は動かず、打ち込むと一番上へ戻る", async () => {
+    const context = await browser.newContext({
+      viewport: { width: 300, height: 220 },
+      colorScheme: scheme,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${server.url}?surface=sidebar#/history?view=ticket`, {
+        waitUntil: "networkidle",
+      });
+      await page.locator(".history-divider").first().waitFor();
+      const m = await page.evaluate(async () => {
+        const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+        const main = document.querySelector<HTMLElement>(".page")!;
+        main.style.paddingBottom = "600px";
+        main.scrollTop = 150;
+        await frame();
+        const box = main.getBoundingClientRect();
+        const search = document.querySelector(".history-search")!.getBoundingClientRect();
+        const group = document.querySelector<HTMLElement>(".result-switch")!;
+        const rect = group.getBoundingClientRect();
+        const scrolled = main.scrollTop;
+        group.querySelector("button")!.focus();
+        await frame();
+        const afterFocus = main.scrollTop;
+        document.querySelector<HTMLElement>(".history-search input")!.focus();
+        await frame();
+        return {
+          scrolled,
+          searchTop: search.top - box.top,
+          searchBottom: search.bottom,
+          top: rect.top,
+          tops: new Set(
+            [...group.querySelectorAll("button")].map((b) =>
+              Math.round(b.getBoundingClientRect().top),
+            ),
+          ).size,
+          bg: getComputedStyle(group).backgroundColor,
+          afterFocus,
+          afterSearchFocus: main.scrollTop,
+        };
+      });
+      expect(m.scrolled, "スクロールできた").toBe(150);
+      expect(Math.abs(m.searchTop), "検索の行は一覧の上の端に貼り付く").toBeLessThanOrEqual(1);
+      expect(Math.abs(m.top - m.searchBottom), "結果の絞り込みは検索の行の下").toBeLessThanOrEqual(
+        1,
+      );
+      expect(m.tops, "結果の絞り込みは 1 行の文字の切り替え").toBe(1);
+      expect(m.bg, "下の行が透けないよう塗る").not.toBe("rgba(0, 0, 0, 0)");
+      expect(m.afterFocus, "結果の切り替えにフォーカスしても一覧は動かない").toBe(m.scrolled);
+      expect(m.afterSearchFocus, "検索欄にフォーカスしても一覧は動かない").toBe(m.scrolled);
+      await page.getByRole("searchbox").fill("t1");
+      await page.waitForFunction(() => document.querySelector(".page")!.scrollTop === 0);
+    } finally {
+      await context.close();
+    }
+  });
+});
 
 // 見出しの進みの帯の行が上へ抜けたら、上の端に 1 行の帯を出し、状態の節の見出しをその下に貼り付ける（UI-2、t962）。
 // 帯は一覧を動かさずに出し入れし、節の見出しは次の節の見出しに押し出されて入れ替わる

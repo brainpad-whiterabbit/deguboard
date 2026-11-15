@@ -17,6 +17,9 @@
 // 絞り込みは検索と結果（完了・中止）だけ。Iteration・Epic で分けて見るのはそれぞれの見方に任せる。
 // 番号を押すと詳細を開く（拡張ホストに頼んでエディタに）。
 // 検索欄は 3 つの見方で全幅にし、チケットの見方だけその下に結果の絞り込み（すべて・完了・中止）を件数付きの文字の切り替えで出す。
+// 左パネルでスクロールすると、検索の行を上の端に貼り付け（見方の切り替えは流す。HistoryHead）、その下に見方ごとの見出しを貼り付ける：
+// Iteration と Epic の見方は開いた行の見出し（次の行に押し出されて入れ替わり、押すと畳む）、チケットの見方は結果の絞り込みと、
+// その下に Iteration の区切りの見出し（styles.css の .history-search）。貼り付いた見出しも頼める場所のまま（UI-15）。
 // Iteration と Epic の見方の検索は、中の終わったチケットと行そのもの（Iteration の番号・目標・名前、Epic の番号・タイトル）に当てる。
 // 検索欄の案内と名前は、見方ごとに当てるものを言う（SEARCH_LABELS）。
 // 検索語があるあいだ、中のチケットに当たった行は開いて当たったチケットだけを印付きで出し、行にだけ当たった行は閉じたまま
@@ -36,7 +39,8 @@ import { ASK_SECTIONS, useAskSpot, type AskSpot } from "../components/ask-menu.j
 import { DetailLink } from "../components/parts.js";
 import { Highlight, HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
 import { shortPeriod } from "../components/iteration-parts.js";
-import { useAskCurrent, useUiState } from "../host.js";
+import { scrollPageToTop } from "../components/sticky-band.js";
+import { useAskCurrent, useHost, useUiState } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { ClosedOn, Period, ShortDay } from "../components/date-time.js";
 import { navigate, replaceRoute, type HistoryQuery, type HistoryView } from "../router.js";
@@ -392,25 +396,47 @@ const SEARCH_LABELS: Record<HistoryView, { placeholder: string; label: string }>
   ticket: { placeholder: msg("番号・タイトル・ラベルで検索"), label: msg("チケットを探す") },
 };
 
-/** 履歴の検索欄（3 つの見方で共通。案内と名前は見方ごと） */
-function HistorySearch({
+/**
+ * 履歴の見出し：題・見方の切り替え・検索欄（3 つの見方で共通。検索欄の案内と名前は見方ごと）。
+ * 左パネルでは検索欄を見方の切り替えの下の 1 行（.history-search）に分け、スクロールしても上の端に貼り付けて残す。
+ * 見方の切り替えは、見方を変えると一覧が一番上から出直すので残さない。貼り付いた検索欄に打ち込んだら、絞った結果を上から読めるよう一覧を一番上へ戻す
+ */
+function HistoryHead({
+  route,
   view,
+  counts,
   query,
   setQuery,
 }: {
+  route: HistoryQuery;
   view: HistoryView;
+  counts: ViewCounts;
   query: string;
   setQuery: (q: string) => void;
 }) {
+  const sidebar = useHost().surface === "sidebar";
   const { placeholder, label } = SEARCH_LABELS[view];
-  return (
+  const search = (
     <input
       type="search"
       placeholder={tr(placeholder)}
       value={query}
-      onChange={(e) => setQuery(e.target.value)}
+      onChange={(e) => {
+        setQuery(e.target.value);
+        if (sidebar) scrollPageToTop(e.currentTarget);
+      }}
       aria-label={tr(label)}
     />
+  );
+  return (
+    <>
+      <div className="toolbar">
+        <h1>{tr("履歴")}</h1>
+        <ViewSwitch route={route} view={view} counts={counts} />
+        {sidebar ? null : search}
+      </div>
+      {sidebar ? <div className="toolbar history-search">{search}</div> : null}
+    </>
   );
 }
 
@@ -473,11 +499,7 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
     return <TicketView route={route} counts={counts} query={query} setQuery={setQuery} />;
   return (
     <section>
-      <div className="toolbar">
-        <h1>{tr("履歴")}</h1>
-        <ViewSwitch route={route} view={view} counts={counts} />
-        <HistorySearch view={view} query={query} setQuery={setQuery} />
-      </div>
+      <HistoryHead route={route} view={view} counts={counts} query={query} setQuery={setQuery} />
       {all.length === 0 ? (
         <p className="empty">
           {view === "epic" ? tr("閉じた Epic はない") : tr("閉じた Iteration はない")}
@@ -509,13 +531,21 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
 
 /**
  * 行の開閉を fold に合わせる details の属性。開閉は呼ぶ側（useRowFolds）が持ち、ここでは描いた値と違うときだけ伝える
- * （open を描き直したときにも toggle が来るので）
+ * （open を描き直したときにも toggle が来るので）。
+ * 左パネルでは開いた行の見出し（summary）が検索の行の下に貼り付くので、中を読み進めてから貼り付いた見出しを押して畳むと、
+ * 畳んだ行は上へ抜けて見えなくなる。畳んだら行の見出しが見える所まで一覧を戻す（見えていれば動かさない。寄せ先は styles.css）
  */
 function foldProps(fold: RowFold) {
   return {
     open: fold.open,
     onToggle: (e: SyntheticEvent<HTMLDetailsElement>) => {
-      if (e.currentTarget.open !== fold.open) fold.setOpen(e.currentTarget.open);
+      const details = e.currentTarget;
+      if (details.open === fold.open) return;
+      fold.setOpen(details.open);
+      if (!details.open)
+        requestAnimationFrame(() =>
+          details.querySelector(":scope > summary")?.scrollIntoView?.({ block: "nearest" }),
+        );
     },
   };
 }
@@ -952,6 +982,7 @@ function TicketView({
   setQuery: (q: string) => void;
 }) {
   const store = useStore();
+  const sidebar = useHost().surface === "sidebar";
   const { data: log, error } = useCommandData<HistoryLog>("history", {});
   const result = route.result ?? "";
   const setResult = (value: string) =>
@@ -983,18 +1014,17 @@ function TicketView({
   const filtered = query.trim() !== "" || result !== "";
   return (
     <section>
-      <div className="toolbar">
-        <h1>{tr("履歴")}</h1>
-        <ViewSwitch
-          route={route}
-          view="ticket"
-          counts={{ ...counts, ticket: { hit: rows.length, total: all.length, filtered } }}
-        />
-        <HistorySearch view="ticket" query={query} setQuery={setQuery} />
-      </div>
+      <HistoryHead
+        route={route}
+        view="ticket"
+        counts={{ ...counts, ticket: { hit: rows.length, total: all.length, filtered } }}
+        query={query}
+        setQuery={setQuery}
+      />
       {/* 結果の絞り込みは見方の切り替えと同じ文字の切り替え。件数は検索に当たった数で、中止が 0 件なら中止は出さない（選んでいるときは残す）。
           言葉は「すべて・完了・中止」で、Workflow で変えられる Status の表示名（labelOf）は使わない。結果は done・abandoned に固定で、
-          Iteration の行の件数（完了・中止）と履歴の行の「中止」と同じ言葉にそろえるため（英語の表示は l10n で Done・Abandoned） */}
+          Iteration の行の件数（完了・中止）と履歴の行の「中止」と同じ言葉にそろえるため（英語の表示は l10n で Done・Abandoned）。
+          左パネルでは検索の行の下の 2 段目に貼り付けて残す（styles.css の .result-switch） */}
       <span className="view-switch result-switch" role="group" aria-label={tr("結果")}>
         {(
           [
@@ -1009,7 +1039,11 @@ function TicketView({
               key={value}
               type="button"
               aria-pressed={result === value}
-              onClick={() => setResult(value)}
+              onClick={(e) => {
+                setResult(value);
+                // 貼り付いた切り替えで結果を変えたら、検索と同じく絞った結果を上から読めるよう一覧を一番上へ戻す
+                if (sidebar) scrollPageToTop(e.currentTarget);
+              }}
             >
               {label} <span className="view-count">{n}</span>
             </button>
@@ -1061,7 +1095,7 @@ export function iterationRuns(
 
 /**
  * チケットの見方の区切りの見出し：Iteration の番号（詳細へのリンク）・実績の期間（planned と、一覧にない Iteration は出さない。閉じたものは時刻と所要時間）・
- * 区切りに続く件数。Iteration のないチケットは「Iteration なし」。スクロール中は一覧の上に貼り付く（styles.css の .history-divider）。
+ * 区切りに続く件数。Iteration のないチケットは「Iteration なし」。スクロール中は一覧の上（左パネルは検索の行と結果の絞り込みの下）に貼り付く（styles.css の .history-divider）。
  * 件数は Iteration の終わったチケットの全件ではなく、この区切りから次の区切りまでの行の数（iterationRuns。終えた順が Iteration を
  * またいで前後すると、同じ Iteration の区切りが分かれて件数も分かれる）。読み違えないよう件数のツールチップでそう言う
  */

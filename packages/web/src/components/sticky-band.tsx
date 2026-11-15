@@ -4,14 +4,14 @@
 // 帯は高さ 0 の sticky の箱の中に重ねて描くので、出し入れで一覧が動かない（滑り込ませると、細かくスクロールしたときにちらつく）。
 // 帯の下に貼り付く見出し（状態の節の見出しなど）は、styles.css の --dg-sticky-band-h の分だけ下げて貼り付ける。
 // バックログ（UI-3）は縮めた帯を作らず、1 行の検索の行そのものを上の端に貼り付け（高さは STICKY_SEARCH_PX）、
-// 絞っている間だけその下に効いている条件の札の行をこの帯の仕組みで重ねる
+// 絞っている間だけその下に効いている条件の札の行をこの帯の仕組みで重ねる。履歴（UI-5）も検索の行を同じに貼り付け、その下に見方ごとの見出しを貼り付ける
 
 import { useEffect, useState, type ReactNode } from "react";
 
 /** 帯の高さ（px）。styles.css の --dg-sticky-band-row-h と同じ値にする */
 export const STICKY_BAND_PX = 26;
 
-/** 上の端に貼り付ける検索の行の高さ（px。バックログ）。styles.css の --dg-sticky-search-h と同じ値にする */
+/** 上の端に貼り付ける検索の行の高さ（px。バックログと履歴）。styles.css の --dg-sticky-search-h と同じ値にする */
 export const STICKY_SEARCH_PX = 32;
 
 /**
