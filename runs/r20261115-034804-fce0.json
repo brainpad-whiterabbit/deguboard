@@ -1,0 +1,34 @@
+{
+  "id": "r20261115-034804-fce0",
+  "ticket": "t951",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-15T03:48:04Z",
+  "finished_at": "2026-11-15T03:48:57Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "mise run test -- -u <file> は -u の値にファイルが取られ、全テストが更新モードで走る",
+    "-u の説明に値を取れることと、ファイルを先に書く理由が無い"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 3489,
+    "cache_read": 286843,
+    "cache_write": 45344
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 1,
+    "bash": 8,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "93a43eea-ea71-4604-98fe-751022f07791",
+  "review": null
+}
