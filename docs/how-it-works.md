@@ -16,6 +16,26 @@ Arrows show the direction of dependency and calls. People and agents go through 
 - **Reconcile**: `dg sync` reads the facts of work branches and PRs, and moves tickets forward (to review when the PR is ready, to done when it is merged)
 - **Agents**: read the steps from the Skills or `dg guide <topic>`, and carry out the next step that `dg next` returns with `dg`. Runs are recorded not by the agent but by the harness's hooks, through `dg hook` (see [How Runs are recorded](#how-runs-are-recorded) and [ADR-025](adr/ADR-025-runs-by-hooks.md))
 
+## How the agent decides the next step
+
+An agent does not carry the steps in its memory. Each time it asks `dg next`, dg derives the stage from the facts of the ticket, its branch, its PR, its Runs, its checks, and its gate level, and returns one next step. The stage is not stored, so after a stop the same question resumes the work.
+
+![How the agent asks dg next and carries out the one step it returns: dg derives the stage from facts such as ticket state, branches, PRs, Runs, checks, and gate level; the agent carries out the step and asks again; decisions only a person makes come back as a question](images/how-it-works-next.svg)
+
+The agent carries out only the one step that dg returns, then asks again. A decision that only a person makes, such as approving a merge, is returned by dg as a step that asks a person.
+
+### Rules of this section
+
+- The steps are in dg (the Skills, `dg guide`, and `dg next`; the Skills are also steps that dg ships): the agent looks at the facts and carries out the one step returned
+- The stage is not stored, so when the work stops, `dg next` resumes it from the same facts
+- Decisions that a person makes (approving a merge, release, or stopping a ticket) are stopped by dg, which asks. The gate level changes whether the review is done
+
+### Linked, not written here
+
+- The steps and how each runs → `dg guide work` and `dg next --help`
+- The conditions of the quality gate → [Quality gate levels](usage.md#quality-gate-levels) and `dg gate --help`
+- Why the steps are in dg, not in the guide text → [ADR-011](adr/ADR-011-procedure-in-code.md) and [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)
+
 ## How Runs are recorded
 
 A Run is the record of one piece of AI work (implement, review, or fix), with its usage (tokens) and time. Each colored span below is one Run. The parent session's work outside the spans is in no Run.
