@@ -1,4 +1,4 @@
-# deguboard
+# <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/media/icon.png" alt="" width="40" align="top"> deguboard
 
 English | [日本語](https://github.com/brainpad-whiterabbit/deguboard/blob/main/README.ja.md)
 
@@ -67,6 +67,7 @@ Tickets and Runs live in a branch of your repository, every screen and agent goe
 
 The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md).
 
+- **Let agents run the board**: Unlike most kanban tools, there is no drag and drop, and there are no buttons for creating tickets or for changing Iterations, Epics, and Plans. Ask with **Ask Agent**, and the change goes through the Skill's checks and your approval. In the ticket details you can still edit the text and attributes, including the status. We may let you do more directly in the future.
 - [Hand off everything](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#hand-off-everything): say "Carry s3 through to release automatically", and the agent runs the Iteration from assignment to release in one go.
 - [Quality gate levels](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#quality-gate-levels): `high` (the default), `low`, or `free` per ticket.
 - [Resolve a sync conflict](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#resolve-a-sync-conflict) when two people change the same field.
