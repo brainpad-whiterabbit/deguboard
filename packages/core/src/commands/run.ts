@@ -36,6 +36,7 @@ import {
   type RunId,
   type RunResult,
   type RunUsage,
+  waitedSeconds,
 } from "../model/run.js";
 import { AbortWrite, withWrite } from "../git/write.js";
 import { lastPushedAt, localTip } from "../git/facts.js";
@@ -1195,7 +1196,7 @@ export const runList = defineCommand({
   name: "run.list",
   group: "run",
   summary:
-    "List Runs in start order. Also lists unfinished Runs (running: true, from deguboard-local/runs/ on this machine). Iteration follows each ticket's current value (same as metrics.show). duration_seconds is the elapsed time from started_at to finished_at (null if unfinished), and it includes waited_seconds, the time the Run waited for a request from its parent (counted from the conversation record when the Run is closed; null when it could not be counted: an unfinished Run, a Run the parent opened itself, a Run of an agent whose Adapter does not count waits, or a Run from before waits were recorded). active_seconds is duration_seconds minus waited_seconds (null when either is null)",
+    "List Runs in start order. Also lists unfinished Runs (running: true, from deguboard-local/runs/ on this machine). Iteration follows each ticket's current value (same as metrics.show). duration_seconds is the elapsed time from started_at to finished_at (null if unfinished), and it includes waited_seconds, the time the Run waited for a request from its parent (counted from the conversation record when the Run is closed, and again by run refresh; null when it could not be counted: an unfinished Run, a Run the parent opened itself, a Run of an agent whose Adapter does not count waits, or a Run from before waits were recorded that run refresh has not counted). active_seconds is duration_seconds minus waited_seconds (null when either is null)",
   input: z.object({
     ticket: ticketRef.optional().describe("Only Runs of this ticket"),
     iteration: iterationRef
@@ -1297,7 +1298,7 @@ export const runRecent = defineCommand({
   },
 });
 
-/** 取り直しで比べる値。usage の 4 つは usage.<キー> と書く。ツールの回数（tools）は取り直さない（RN-4） */
+/** 取り直しで比べる値。usage の 4 つは usage.<キー> と書く。待った秒数（waited_seconds）は refreshPlan が別に比べ、ツールの回数（tools）は取り直さない（RN-4） */
 const REFRESH_FIELDS = ["model", "input", "output", "cache_read", "cache_write"] as const;
 type RefreshField = (typeof REFRESH_FIELDS)[number];
 type UsageKey = Exclude<RefreshField, "model">;
@@ -1318,18 +1319,23 @@ export interface RunRefreshItem {
   updated: boolean;
 }
 
+/** 取り直した値。waited は待った秒数で、null は数えられず警告した値、undefined は数えない Run（親が開いた Run など。今の値に触れない） */
+interface RefreshCollected {
+  model: string | null;
+  usage: Partial<Record<UsageKey, number | null>>;
+  waited: number | null | undefined;
+}
+
 /**
  * 会話記録から取れた値だけを今の記録に重ねる。取れなかった値（null）は今の値を残す。
  * 使用量の 4 つをすべて取り直せたら、推定の印（usage.estimated）は外す（RN-2）
  */
-function refreshPlan(
-  run: Run,
-  collected: { model: string | null; usage: Partial<Record<UsageKey, number | null>> },
-) {
+function refreshPlan(run: Run, collected: RefreshCollected) {
   const changes: RunRefreshItem["changes"] = [];
   const kept: string[] = [];
   const usage: Partial<RunUsage> = {};
   let model: string | undefined;
+  let waited: number | undefined;
   for (const field of REFRESH_FIELDS) {
     const now = field === "model" ? run.model : run.usage[field];
     const next = field === "model" ? collected.model : (collected.usage[field] ?? null);
@@ -1346,21 +1352,26 @@ function refreshPlan(
   const dropEstimated = allUsage && run.usage.estimated !== undefined;
   if (dropEstimated)
     changes.push({ field: "usage.estimated", from: run.usage.estimated!, to: null });
-  return { changes, kept, model, usage, dropEstimated };
+  if (collected.waited === null) kept.push("waited_seconds");
+  else if (collected.waited !== undefined && collected.waited !== run.waited_seconds) {
+    changes.push({ field: "waited_seconds", from: run.waited_seconds, to: collected.waited });
+    waited = collected.waited;
+  }
+  return { changes, kept, model, usage, dropEstimated, waited };
 }
 
 /**
- * Adapter の警告の末尾の「null で残す」は finish の言い方なので外し、取り直しの末尾（今の値を残す）は呼ぶ側が付ける。
- * Adapter の文言が変わって外せなくても、末尾は必ず「今の値を残す」になる
+ * Adapter の警告の末尾の「null で残す」（「Usage is left as null」「waited_seconds ... is left as null」）は finish の言い方なので外し、
+ * 取り直しの末尾（今の値を残す）は呼ぶ側が付ける。Adapter の文言が変わって外せなくても、末尾は必ず「今の値を残す」になる
  */
 const keepWording = (warning: string) =>
-  `${warning.replace(/\. (Usage is )?[Ll]eft as null$/, "")}. Keep the current value`;
+  `${warning.replace(/\. [^.]*\b[Ll]eft as null$/, "")}. Keep the current value`;
 
 export const runRefresh = defineCommand({
   name: "run.refresh",
   positionals: ["runs"],
   group: "run",
-  summary: `Re-read the model name and usage of closed Runs from the conversation record through the agent's Adapter (same search as finish; follows metrics.read_transcripts and DEGUBOARD_NO_TRANSCRIPTS). Only values that are read are rewritten; values that cannot be read keep their current value and produce a warning. A Run more than ${TRANSCRIPT_RETENTION_DAYS} days past its finished_at has its conversation record location cleaned up (run prune-transcripts), so it is not re-read; its current values are kept and a warning is given. With --dry-run nothing is written; only the differences (changes) are returned`,
+  summary: `Re-read the model name and usage of closed Runs from the conversation record through the agent's Adapter (same search as finish; follows metrics.read_transcripts and DEGUBOARD_NO_TRANSCRIPTS), and count again the time the Run waited for a request from its parent (waited_seconds), the same way as when the Run was closed, so counting again gives the same value. A Run whose waits are not counted (a Run the parent opened itself, or an agent whose Adapter does not count waits) keeps its waited_seconds. Only values that are read are rewritten; values that cannot be read keep their current value and produce a warning. A Run more than ${TRANSCRIPT_RETENTION_DAYS} days past its finished_at has its conversation record location cleaned up (run prune-transcripts), so it is not re-read; its current values are kept and a warning is given. With --dry-run nothing is written; only the differences (changes) are returned`,
   input: z.object({
     runs: z
       .array(z.string().min(1))
@@ -1395,33 +1406,52 @@ export const runRefresh = defineCommand({
     const warnings: string[] = [];
     /** Adapter が理由を警告した Run。kept の警告を重ねて出さない */
     const explained = new Set<RunId>();
-    const collected = new Map<string, Awaited<ReturnType<typeof collectRunUsage>>>();
+    const collected = new Map<string, RefreshCollected>();
     const { others, transcriptOf } = await usageContext(ctx, local);
     const now = ctx.now();
     for (const id of ids) {
       const run = closed(id).data;
       // 期間を過ぎた Run は場所を片付けうる。場所なしの探し方（セッション・推測）で別の記録を数えないよう、読まずに残す
-      const got = transcriptExpired(run, now)
-        ? {
-            usage: { input: null, output: null, cache_read: null, cache_write: null },
-            model: null,
-            tools: null,
-            warnings: [
-              `A Run more than ${TRANSCRIPT_RETENTION_DAYS} days past its end time (finished_at) is not read again, because its conversation record location is cleaned up`,
-            ],
-          }
-        : await collectRunUsage(ctx.config, {
-            run,
-            // 閉じた Run は終了日時で期間を区切る（finish と同じ範囲を読む）。会話記録の場所も finish と同じ
-            finishedAt: run.finished_at ?? run.started_at,
-            env: ctx.env ?? process.env,
-            topLevel: ctx.repo.topLevel,
-            others,
-            transcript: transcriptOf(id),
-          });
-      collected.set(id, got);
+      if (transcriptExpired(run, now)) {
+        collected.set(id, {
+          usage: { input: null, output: null, cache_read: null, cache_write: null },
+          model: null,
+          waited: null,
+        });
+        explained.add(id);
+        warnings.push(
+          `Run ${id}: A Run more than ${TRANSCRIPT_RETENTION_DAYS} days past its end time (finished_at) is not read again, because its conversation record location is cleaned up. Keep the current value`,
+        );
+        continue;
+      }
+      // 閉じた Run は終了日時で期間を区切る（finish と同じ範囲を読む）。会話記録の場所も finish と同じ
+      const finishedAt = run.finished_at ?? run.started_at;
+      const query = {
+        run,
+        finishedAt,
+        env: ctx.env ?? process.env,
+        topLevel: ctx.repo.topLevel,
+        others,
+        transcript: transcriptOf(id),
+      };
+      const got = await collectRunUsage(ctx.config, query);
+      // 待ちも閉じるときと同じ関数と範囲で数え直す。同じ記録からは何度数えても同じ値になる（MT-5）
+      const waits = await collectRunWaits(ctx.config, query);
+      collected.set(id, {
+        model: got.model,
+        usage: got.usage,
+        waited:
+          waits.intervals !== null
+            ? waitedSeconds(waits.intervals, run.started_at, finishedAt)
+            : // 数えられず警告した Run だけ「残した値」に挙げる。警告のない null は数えない Run（親が開いた Run・待ちを数えない Adapter・読む許可がない）
+              waits.warnings.length > 0
+              ? null
+              : undefined,
+      });
       if (got.warnings.length > 0) explained.add(id);
-      warnings.push(...got.warnings.map((w) => `Run ${id}: ${keepWording(w)}`));
+      warnings.push(
+        ...[...got.warnings, ...waits.warnings].map((w) => `Run ${id}: ${keepWording(w)}`),
+      );
     }
     // 書き込みのやり直し（push の拒否）で索引が読み直されても、その時の記録に重ねる
     const plan = (): RunRefreshItem[] =>
@@ -1432,9 +1462,11 @@ export const runRefresh = defineCommand({
       });
     const items = plan();
     for (const item of items) {
-      if (item.kept.length > 0 && !explained.has(item.id))
+      // 残した待ちは、いつも Adapter か期間の警告が理由を出している
+      const unexplained = item.kept.filter((f) => f !== "waited_seconds");
+      if (unexplained.length > 0 && !explained.has(item.id))
         warnings.push(
-          `Run ${item.id}: ${item.kept.join(", ")} could not be read from the conversation record, so the current values are kept`,
+          `Run ${item.id}: ${unexplained.join(", ")} could not be read from the conversation record, so the current values are kept`,
         );
     }
     if (input.dry_run || items.every((i) => i.changes.length === 0)) {
@@ -1447,7 +1479,10 @@ export const runRefresh = defineCommand({
         for (const item of next) {
           if (item.changes.length === 0) continue;
           const doc = closed(item.id as RunId);
-          const { model, usage, dropEstimated } = refreshPlan(doc.data, collected.get(item.id)!);
+          const { model, usage, dropEstimated, waited } = refreshPlan(
+            doc.data,
+            collected.get(item.id)!,
+          );
           const base = doc.raw;
           // usage の中の未知のキーは残す（DT-2）
           const nextUsage = { ...(base["usage"] as Record<string, unknown>), ...usage };
@@ -1455,6 +1490,7 @@ export const runRefresh = defineCommand({
           await ctx.store.update("run", item.id, {
             ...(model === undefined ? {} : { model }),
             usage: nextUsage,
+            ...(waited === undefined ? {} : { waited_seconds: waited }),
           });
           item.updated = true;
         }

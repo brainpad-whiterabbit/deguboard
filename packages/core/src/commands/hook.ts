@@ -902,7 +902,7 @@ async function bindSelfOpened(
   if (closed.length === 0) return;
   const refreshed = await runCommand(runRefresh, ctx, { runs: closed });
   warnings.push(...refreshed.warnings);
-  view.done.push(`Re-read the usage of the closed Runs ${closed.join(", ")}`);
+  view.done.push(`Re-read the usage and waits of the closed Runs ${closed.join(", ")}`);
 }
 
 /**

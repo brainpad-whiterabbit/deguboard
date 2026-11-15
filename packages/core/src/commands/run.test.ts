@@ -1943,7 +1943,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     const saved = async (id: string) =>
       readFile(path.join(ctx.repo.dataDir, "runs", `${id}.json`), "utf8");
     const head = async () => (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
-    return { ctx, transcriptFor, closedRun, saved, head };
+    return { ctx, transcriptFor, closedRun, saved, head, projectDir };
   }
 
   const full = {
@@ -2157,6 +2157,130 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     ]);
     expect(r.data).toMatchObject([{ id: a.id, changes: [], updated: false }]);
     expect(await saved(a.id)).toBe(before);
+  });
+
+  it("閉じた Run の waited_seconds を閉じるときと同じ関数で数え直し、何度数えても同じ値で、数えられなければ・期間を過ぎれば今の値を残して警告する（MT-5・t960）", async () => {
+    const { ctx, saved, projectDir } = await closedRuns();
+    const t0 = Date.parse("2026-11-10T00:00:00Z");
+    const at = (s: number) => new Date(t0 + s * 1000).toISOString();
+    /** サブエージェントの記録。62 秒目に親の続きの依頼が来るので、直前の行（2 秒目）からの 60 秒が待ち */
+    const record = async (file: string, origin: object = { kind: "coordinator" }) => {
+      const usage = {
+        input_tokens: 1,
+        output_tokens: 1,
+        cache_read_input_tokens: 1,
+        cache_creation_input_tokens: 1,
+      };
+      const use = (s: number, id: string) => ({
+        type: "assistant",
+        timestamp: at(s),
+        message: {
+          id: `m-${id}`,
+          model: "claude-opus-from-transcript",
+          content: [{ type: "tool_use", id, name: "Bash", input: {} }],
+          usage,
+        },
+      });
+      const user = (s: number, content: unknown, over: object = {}) => ({
+        type: "user",
+        timestamp: at(s),
+        message: { role: "user", content },
+        ...over,
+      });
+      const result = (s: number, id: string) =>
+        user(s, [{ type: "tool_result", tool_use_id: id, content: "結果" }]);
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(
+        file,
+        [
+          user(0, "依頼"),
+          use(1, "u1"),
+          result(2, "u1"),
+          user(62, "続きの依頼", { isMeta: true, origin }),
+          use(63, "u2"),
+          result(64, "u2"),
+        ]
+          .map((l) => JSON.stringify(l))
+          .join("\n") + "\n",
+      );
+    };
+    const closedAt = async (ticket: string, file: string) => {
+      ctx.now = () => new Date(t0);
+      const run = (
+        await runCommand(runStart, ctx, {
+          ticket,
+          step: "implement",
+          agent: "claude-code",
+          session: "s1",
+          transcript: file,
+        })
+      ).data as Run;
+      ctx.now = () => new Date(t0 + 120_000);
+      return (await runCommand(runFinish, ctx, { run: run.id, result: "success" })).data as Run;
+    };
+
+    // 記録が閉じた後に置かれた Run は、閉じたときには待ちを数えられず null
+    const late = path.join(projectDir, "s1", "subagents", "agent-a.jsonl");
+    const a = await closedAt("t1", late);
+    expect(a.waited_seconds).toBeNull();
+    await record(late);
+    // 閉じるときに記録があった Run は、閉じるときに 60 秒と数える
+    const early = path.join(projectDir, "s1", "subagents", "agent-b.jsonl");
+    await record(early);
+    const b = await closedAt("t2", early);
+    expect(b.waited_seconds).toBe(60);
+
+    ctx.now = () => new Date(t0 + 86400_000);
+    const r = await runCommand(runRefresh, ctx, { runs: [a.id, b.id] });
+    expect(r.warnings).toEqual([]);
+    const items = r.data as RunRefreshItem[];
+    // 閉じるときと同じ値に数え直し、閉じるときに数えた Run は変えない
+    expect(items[0]!.changes).toContainEqual({ field: "waited_seconds", from: null, to: 60 });
+    expect(items[1]!.changes.map((c) => c.field)).not.toContain("waited_seconds");
+    expect((JSON.parse(await saved(a.id)) as Run).waited_seconds).toBe(60);
+    // 何度数えても同じ値で、書かない
+    const again = await runCommand(runRefresh, ctx, { runs: [a.id, b.id] });
+    expect(again.data).toMatchObject([
+      { changes: [], updated: false },
+      { changes: [], updated: false },
+    ]);
+    expect(again.write).toBeUndefined();
+
+    // 知らない形の入力で数えられなければ、今の値を残し、Adapter の理由を「今の値を残す」で出す
+    await record(late, { kind: "no-such-origin" });
+    const unknown = await runCommand(runRefresh, ctx, { runs: [a.id] });
+    expect((unknown.data as RunRefreshItem[])[0]).toMatchObject({
+      changes: [],
+      kept: ["waited_seconds"],
+    });
+    expect(unknown.warnings).toEqual([
+      `Run ${a.id}: The Claude Code conversation record has an input of an unknown form, so the waits are not counted. Keep the current value`,
+    ]);
+    expect((JSON.parse(await saved(a.id)) as Run).waited_seconds).toBe(60);
+
+    // 期間を過ぎた Run は、待ちの区間が変わる記録があっても読まずに今の値を残す
+    await writeFile(late, "");
+    ctx.now = () => new Date(t0 + 120_000 + TRANSCRIPT_RETENTION_DAYS * 86400_000);
+    const expired = await runCommand(runRefresh, ctx, { runs: [a.id] });
+    expect((expired.data as RunRefreshItem[])[0]).toMatchObject({
+      changes: [],
+      kept: expect.arrayContaining(["waited_seconds"]),
+    });
+    expect(expired.warnings).toEqual([expect.stringContaining("is not read again")]);
+    expect((JSON.parse(await saved(a.id)) as Run).waited_seconds).toBe(60);
+  });
+
+  it("待ちを数えない Run（親のセッションの記録で開いた Run）は、waited_seconds に触れず警告もしない（t960）", async () => {
+    const { ctx, transcriptFor, closedRun, saved } = await closedRuns();
+    const a = await closedRun("t1");
+    await transcriptFor(a, full);
+    const r = await runCommand(runRefresh, ctx, { runs: [a.id] });
+    expect(r.warnings).toEqual([]);
+    const item = (r.data as RunRefreshItem[])[0]!;
+    expect(item.kept).toEqual([]);
+    expect(item.changes.map((c) => c.field)).not.toContain("waited_seconds");
+    expect(ctx.store.runs.get(a.id)!.raw).toHaveProperty("waited_seconds", null);
+    expect((JSON.parse(await saved(a.id)) as Run).waited_seconds).toBeNull();
   });
 
   it("実行中・見つからない・ID の形でない Run は、ほかの Run も書き換えずに拒否する", async () => {
