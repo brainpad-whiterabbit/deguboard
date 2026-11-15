@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" class="next" viewBox="0 0 900 250" role="img" aria-label="エージェントが dg next を呼ぶと、dg は事実（チケット・ブランチ・PR・Run・検査・段）から段階を求めて次の一手を返す。エージェントはその一手を行い、また聞く。マージの承認など人だけが決めることは、人に聞く手として返る">
+<svg xmlns="http://www.w3.org/2000/svg" class="next" viewBox="0 0 900 250" role="img" aria-label="エージェントが dg next を呼ぶと、dg は事実（チケット・作業ブランチ・PR・Run・Plan・段）から段階を求めて次の一手を返す。エージェントはその一手を行い、また聞く。マージの承認など人だけが決めることは、人に聞く手として返る">
   <style>
     .next .bg { fill: #ffffff; }
     .next text { font-size: 13px; fill: #1f2328; font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; }
@@ -42,7 +42,7 @@
   <text x="785" y="96" text-anchor="middle" class="sub">作業ブランチと push</text>
   <text x="785" y="120" text-anchor="middle" class="sub">PR（draft・ready・マージ）</text>
   <text x="785" y="144" text-anchor="middle" class="sub">Run と見直しの結果</text>
-  <text x="785" y="168" text-anchor="middle" class="sub">検査の結果</text>
+  <text x="785" y="168" text-anchor="middle" class="sub">Plan の承認と待ち</text>
   <text x="785" y="192" text-anchor="middle" class="sub">段（high・low・free）</text>
 
   <line class="ln" x1="190" y1="108" x2="328" y2="108" marker-end="url(#next-arrow)"/>
