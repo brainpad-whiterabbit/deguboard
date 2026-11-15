@@ -11,6 +11,7 @@ import {
   HostBridge,
   HostProvider,
   readSurface,
+  showsSetupBand,
 } from "./host.js";
 import { StoreProvider } from "./store.js";
 import { createUiState } from "./ui-state.js";
@@ -43,7 +44,13 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {/* Webview では前回の一覧を getState に残し、次に開いたときすぐ描く（dg serve では残さない） */}
     {/* 実行中の Run は左パネルのカンバンの行の印にだけ使うので、左パネルのときだけ読む */}
-    <StoreProvider client={client} cache={uiState} readRunning={surface === "sidebar"}>
+    {/* 導入の推奨の項目は、帯を出す入口（VS Code の左パネル）でだけ、一覧を読めた後に確かめる */}
+    <StoreProvider
+      client={client}
+      cache={uiState}
+      readRunning={surface === "sidebar"}
+      setupBand={showsSetupBand(host)}
+    >
       <HostProvider host={host}>
         {webviewClient ? <HostBridge client={webviewClient} /> : null}
         <App />

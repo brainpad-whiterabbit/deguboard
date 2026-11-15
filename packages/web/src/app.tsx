@@ -13,7 +13,7 @@ import { AskHint, AskMenuProvider, SelectionBar } from "./components/ask-menu.js
 import { useRowNav } from "./components/row-nav.js";
 import { SelectionProvider } from "./components/selection.js";
 import { SetupBand, SetupChecklist } from "./components/setup-checklist.js";
-import { useAsk, useHost, useUiState } from "./host.js";
+import { showsSetupBand, useAsk, useHost, useUiState } from "./host.js";
 import { useStore, type Store } from "./store.js";
 import { hrefOf, isDetailRoute, parseRoute, useRoute, type Route } from "./router.js";
 import { BoardPage, boardIterationSelection } from "./pages/board.js";
@@ -100,9 +100,8 @@ export function App() {
   const { ref: rowNavRef, ...rowNav } = useRowNav(sidebar);
   // 推奨の項目のチェックリストを帯から開いているか。開き直したら閉じてよいので、見た目の状態には残さない
   const [setupOpen, setSetupOpen] = useState(false);
-  // 推奨の項目の帯は VS Code の左パネルにだけ出す。開発用の dg serve には出さない（配置の確認とスクリーンショットの画面が、
-  // 開発者のマシンに Skill と hooks が入っているかで変わらないように。必須を満たさない間のチェックリストは dg serve にも出す）
-  const band = sidebar && host.extension === true;
+  // 推奨の項目の帯は VS Code の左パネルにだけ出す（理由は host.tsx の showsSetupBand）
+  const band = showsSetupBand(host);
   return (
     <div
       className="app"

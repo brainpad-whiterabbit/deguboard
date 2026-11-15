@@ -7,7 +7,8 @@
 // readRunning のとき（左パネルのカンバンの行の Run の並びに使う）だけ、ほかの一覧を描いた後に遅れて読む。
 // cache には残さない（前回の「実行中」を次に開いたときに出さない）。
 // 一覧を読めないとき（dg init 前・Git リポジトリの外・git がない）は、エラーの通知を出す前に導入のチェックリスト（client.setup。UI-12）を確かめ、
-// 必須の項目を満たさなければ needsSetup にして画面にチェックリストを出させる。読めたときも確かめて、推奨の項目の帯に使う
+// 必須の項目を満たさなければ needsSetup にして画面にチェックリストを出させる。読めたときは、推奨の項目の帯を出す入口（setupBand）で、
+// 人が帯を出さないと決めていない間だけ確かめて、帯に使う
 
 import type { CommandClient, CommandFailure, SetupView, StatusView } from "@deguboard/core";
 import {
@@ -33,7 +34,7 @@ import type {
   WhoamiView,
   WorkflowView,
 } from "./types.js";
-import type { UiState } from "./ui-state.js";
+import { SETUP_BAND_DISMISSED_KEY, type UiState } from "./ui-state.js";
 import { shownDefault, shownWorkflow, tr } from "./l10n.js";
 
 /** 優先度の判断基準（config.yaml の priority。config.show が core の既定を混ぜて返す）。読み終えるまでは空 */
@@ -127,14 +128,25 @@ export function StoreProvider({
   client,
   cache,
   readRunning = false,
+  setupBand = false,
   children,
 }: {
   /** setup（導入のチェックリストを確かめる口）は dg serve と Webview の client が持つ。持たなければチェックリストを出さない */
-  client: CommandClient & { setup?: (() => Promise<SetupView>) | undefined };
-  /** 前回の一覧の置き場。渡さなければ（dg serve）残さない */
+  client: CommandClient & {
+    setup?: ((options?: { bandDismissed?: boolean | undefined }) => Promise<SetupView>) | undefined;
+  };
+  /**
+   * 前回の一覧の置き場。渡さなければ（dg serve）残さない。画面の見た目の状態と同じ置き場（host.state）で、
+   * 推奨の項目の帯を出さないと決めたこと（SETUP_BAND_DISMISSED_KEY）もここから読む
+   */
   cache?: UiState | undefined;
   /** チケットごとの Run の要約を読む（左パネル。カンバンの行の Run の並びに使う） */
   readRunning?: boolean | undefined;
+  /**
+   * 推奨の項目の帯を出す入口か（host.tsx の showsSetupBand）。出す入口でだけ、一覧を読めた後に導入の項目を確かめる
+   * （人が帯を出さないと決めている間は確かめない）。出さない入口（エディタのパネル・dg serve）は、一覧を読めなかったときにだけ確かめる
+   */
+  setupBand?: boolean | undefined;
   children: ReactNode;
 }) {
   const [cached] = useState(() => cache?.get<Snapshot>(SNAPSHOT_KEY));
@@ -162,12 +174,21 @@ export function StoreProvider({
   // 最後に確かめた結果。reload が、確かめ直すかを決めるのに読む（state を依存に入れると reload が作り直され、最初の読み込みが走り直す）
   const setupRef = useRef<SetupView | null>(null);
 
-  /** 導入のチェックリストを確かめて持つ。確かめる口がない・確かめられないときは null（前の結果のまま） */
+  /** 人が推奨の項目の帯を「このリポジトリでは出さない」にしているか（帯の SetupBand が見た目の状態に残す） */
+  const bandDismissed = useCallback(
+    () => cache?.get<boolean>(SETUP_BAND_DISMISSED_KEY) === true,
+    [cache],
+  );
+
+  /**
+   * 導入のチェックリストを確かめて持つ。確かめる口がない・確かめられないときは null（前の結果のまま）。
+   * 帯を出す入口は、帯を出さないと決めているかを付けて頼む（拡張ホストが、推奨だけが欠けている間の自動の確かめ直しをやめる）
+   */
   const readSetup = useCallback(async (): Promise<SetupView | null> => {
     if (!client.setup) return null;
     const seq = ++setupSeq.current;
     try {
-      const view = await client.setup();
+      const view = await client.setup(setupBand ? { bandDismissed: bandDismissed() } : undefined);
       if (seq === setupSeq.current) {
         setupRef.current = view;
         setSetup(view);
@@ -176,7 +197,7 @@ export function StoreProvider({
     } catch {
       return null;
     }
-  }, [client]);
+  }, [client, setupBand, bandDismissed]);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -222,7 +243,8 @@ export function StoreProvider({
       void refreshStatus();
       // 推奨の項目（Skill と hooks・dg コマンドなど）の帯のために確かめる。一覧を描くのを待たせない。
       // 確かめるのは最初と、必須を満たした直後だけ（読み直しのたびに git と dg を起こさない。その後の変化は入口が setup の通知で知らせる）
-      if (!setupRef.current?.ready) void readSetup();
+      // 帯を出さない入口と、人が帯を出さないと決めている間は確かめない（結果を出す場所がないのに、Skill・hooks・.gitignore を確かめさせない）
+      if (setupBand && !bandDismissed() && !setupRef.current?.ready) void readSetup();
       if (readRunning) {
         // 行の Run の並び（UI-2）のためだけなので、ほかの一覧を描くのを待たせない。読めなければ前の値のまま（最初なら並びを出さない）
         const seq = ++runningSeq.current;
@@ -245,7 +267,7 @@ export function StoreProvider({
       setLoading(false);
       setLoaded(true);
     }
-  }, [client, cache, readRunning, refreshStatus, readSetup]);
+  }, [client, cache, readRunning, setupBand, bandDismissed, refreshStatus, readSetup]);
 
   const recheckSetup = useCallback(async () => {
     setCheckingSetup(true);

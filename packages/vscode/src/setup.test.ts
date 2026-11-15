@@ -215,17 +215,34 @@ describe("見張りで自動で確かめ直すか", () => {
   ) => buildSetupView({ folder: "/work/repo", platform: "linux", core, dg });
 
   it("まだ確かめていない・満たさない項目があるときは確かめ直し、すべて満たしていれば確かめ直さない", () => {
-    expect(autoRecheck(undefined)).toBe(true);
-    expect(autoRecheck(view(coreResult()))).toBe(false);
-    expect(autoRecheck(view(coreResult({ repository: { status: "unmet" } })))).toBe(true);
-    expect(autoRecheck(view(coreResult({ skills_hooks: { status: "unmet" } })))).toBe(true);
-    expect(autoRecheck(view(coreResult(), dgFacts()))).toBe(true);
+    expect(autoRecheck(undefined, false)).toBe(true);
+    expect(autoRecheck(view(coreResult()), false)).toBe(false);
+    expect(autoRecheck(view(coreResult({ repository: { status: "unmet" } })), false)).toBe(true);
+    expect(autoRecheck(view(coreResult({ skills_hooks: { status: "unmet" } })), false)).toBe(true);
+    expect(autoRecheck(view(coreResult(), dgFacts()), false)).toBe(true);
   });
 
   it("満たさない最初の項目がボードのときは確かめ直さない（remote に尋ねる確かめを見張りのたびに回さない。dg init はデータ worktree の見張りが拾う）", () => {
+    const board = view(coreResult({ board: { status: "unmet", state: "remote_unreachable" } }));
+    expect(autoRecheck(board, false)).toBe(false);
+    expect(autoRecheck(board, true)).toBe(false);
+  });
+
+  it("帯を「このリポジトリでは出さない」にしていて推奨だけが欠けているときは確かめ直さない（ターミナルの実行の終わりとウィンドウに戻るたびに git と dg を起こさない）", () => {
+    const recommended = [
+      view(coreResult({ skills_hooks: { status: "unmet" } })),
+      view(coreResult({ gitignore: { status: "unmet" } })),
+      view(coreResult(), dgFacts()),
+    ];
+    for (const v of recommended) expect(autoRecheck(v, true)).toBe(false);
+    // 帯を出さなくても、まだ確かめていない・必須が欠けている間は確かめ直す（チェックリストは出ている）
+    expect(autoRecheck(undefined, true)).toBe(true);
     expect(
-      autoRecheck(view(coreResult({ board: { status: "unmet", state: "remote_unreachable" } }))),
-    ).toBe(false);
+      autoRecheck(
+        view(coreResult({ git: { status: "unmet" }, skills_hooks: { status: "pending" } })),
+        true,
+      ),
+    ).toBe(true);
   });
 });
 

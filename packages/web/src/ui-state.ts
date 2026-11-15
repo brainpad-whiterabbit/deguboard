@@ -1,6 +1,12 @@
 // 画面の見た目の状態（表や節の開閉・最後に選んだ Iteration）の置き場。データではないので store には入れない。
 // Webview では vscode の getState / setState（ビューを閉じて開いても、VS Code を再起動しても残る）、開発用の dg serve では localStorage
 
+/**
+ * 推奨の項目の帯（components/setup-checklist.tsx の SetupBand）を出さないと決めたことを残す鍵。Webview の状態はワークスペース（リポジトリ）ごと
+ * なので、このリポジトリでだけ出なくなる。store も読み、出さないと決めた間は推奨の項目を確かめない（store.tsx）
+ */
+export const SETUP_BAND_DISMISSED_KEY = "setup.band.dismissed";
+
 export interface UiState {
   get<T>(key: string): T | undefined;
   set(key: string, value: unknown): void;

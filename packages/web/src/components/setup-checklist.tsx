@@ -12,6 +12,7 @@ import { failureOf } from "../client/http.js";
 import { useHost, useUiState } from "../host.js";
 import { msg, tr } from "../l10n.js";
 import { useStore } from "../store.js";
+import { SETUP_BAND_DISMISSED_KEY } from "../ui-state.js";
 import { CopyableCode } from "./copyable-code.js";
 
 /** ボタン 1 つ。recheck は確かめ直す（どの入口でも動く）。ほかは拡張ホストに頼む操作で、頼めない入口（dg serve）では出さない */
@@ -462,9 +463,6 @@ export function SetupChecklist({ view, onClose }: { view: SetupView; onClose?: (
   );
 }
 
-/** 帯を出さないと決めたことを残す見た目の状態の鍵。Webview の状態はワークスペース（リポジトリ）ごとなので、このリポジトリでだけ出なくなる */
-export const SETUP_BAND_DISMISSED_KEY = "setup.band.dismissed";
-
 /** 推奨の満たさない項目 */
 export function unmetRecommended(view: SetupView): SetupViewItem[] {
   return view.items.filter((i) => i.level === "recommended" && i.status === "unmet");
@@ -475,8 +473,15 @@ export function unmetRecommended(view: SetupView): SetupViewItem[] {
  * このリポジトリでは出さないこともできる（Claude Code を使わない人は Skill と hooks を入れないままでよい）
  */
 export function SetupBand({ view, onOpen }: { view: SetupView; onOpen: () => void }) {
+  const store = useStore();
   const [dismissed, setDismissed] = useUiState(SETUP_BAND_DISMISSED_KEY, false);
   const unmet = unmetRecommended(view);
+  const dismiss = (): void => {
+    setDismissed(true);
+    // 出さないと決めたことを入口に伝える（確かめる要求に付く。store.tsx の readSetup）。拡張ホストは、推奨だけが欠けている間の
+    // 自動の確かめ直しをやめる
+    void store.recheckSetup();
+  };
   if (dismissed || unmet.length === 0) return null;
   return (
     <div className="setup-band" role="status">
@@ -491,7 +496,7 @@ export function SetupBand({ view, onOpen }: { view: SetupView; onOpen: () => voi
         <button type="button" onClick={onOpen}>
           {tr("残りの項目を開く")}
         </button>
-        <button type="button" className="link" onClick={() => setDismissed(true)}>
+        <button type="button" className="link" onClick={dismiss}>
           {tr("このリポジトリでは出さない")}
         </button>
       </span>

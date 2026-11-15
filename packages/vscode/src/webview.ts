@@ -154,8 +154,11 @@ export interface WebviewActions {
     terminal: number,
     text: string,
   ): TerminalSendResult | void | Promise<TerminalSendResult | void>;
-  /** 導入のチェックリスト（UI-12）を確かめ直して返す */
-  setup(): SetupView | Promise<SetupView>;
+  /**
+   * 導入のチェックリスト（UI-12）を確かめ直して返す。bandDismissed は、推奨の項目の帯を出す画面が伝える、
+   * 人が帯を「このリポジトリでは出さない」にしているか（帯を出さない画面からは undefined）
+   */
+  setup(bandDismissed?: boolean): SetupView | Promise<SetupView>;
   /** チェックリストのボタンの操作（フォルダを開く・deguboard のターミナルで実行する・dg コマンドを入れる）。失敗は拡張が通知する */
   setupAct(act: SetupAction): void | Promise<void>;
 }
@@ -185,7 +188,8 @@ export async function handleRequest(
         return { id: request.id, ok: true, data: actions.terminals(), warnings: [], write: null };
       }
       if (request.name === "setup") {
-        return { id: request.id, ok: true, data: await actions.setup(), warnings: [], write: null };
+        const data = await actions.setup(request.bandDismissed);
+        return { id: request.id, ok: true, data, warnings: [], write: null };
       }
       if (request.name === "sendToTerminal") {
         const sent = await actions.sendToTerminal(request.terminal, request.text);
@@ -220,7 +224,11 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
       return typeof v.name === "string";
     case "action":
       if (v.name === "copy") return typeof (v as { text?: unknown }).text === "string";
-      if (v.name === "terminals" || v.name === "setup") return true;
+      if (v.name === "terminals") return true;
+      if (v.name === "setup") {
+        const dismissed = (v as { bandDismissed?: unknown }).bandDismissed;
+        return dismissed === undefined || typeof dismissed === "boolean";
+      }
       if (v.name === "setupAct")
         return (SETUP_ACTIONS as readonly unknown[]).includes((v as { act?: unknown }).act);
       if (v.name === "sendToTerminal") {

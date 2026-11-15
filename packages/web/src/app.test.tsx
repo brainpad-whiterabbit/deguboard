@@ -9,7 +9,7 @@ import { formatShortTime } from "./components/date-time.js";
 import { formatTime } from "./components/timeline.js";
 import type { WebviewClient } from "./client/webview.js";
 import type { WebviewEvent } from "@deguboard/core";
-import { HostBridge, HostProvider, type Host } from "./host.js";
+import { HostBridge, HostProvider, showsSetupBand, type Host } from "./host.js";
 import type { Route } from "./router.js";
 import { StoreProvider } from "./store.js";
 import {
@@ -43,7 +43,7 @@ const runningSummary = (partial: Partial<RunSummary> = {}) =>
 
 /** 実行中の Run が 1 回だけあるチケットの run.recent の 1 件 */
 const runningOf = (ticketId: TicketRunsView["ticket"]) => ticketRuns(ticketId, [runningSummary()]);
-import { createUiState, memoryBackend } from "./ui-state.js";
+import { createUiState, memoryBackend, type UiState } from "./ui-state.js";
 
 // 履歴の日付の書き方は今に依るので、今を固定する（Date だけ。個別に timer を使う試験は自分で入れ替える）
 beforeEach(() => {
@@ -78,7 +78,8 @@ function boardFiltersOpen(): Host {
   return host;
 }
 
-function mount(client = mockClient(), host?: Host) {
+/** cache は StoreProvider の置き場。本物の Webview と同じく見た目の状態（host.state）を渡すと、帯を出さないと決めたことを store も読む */
+function mount(client = mockClient(), host?: Host, cache?: UiState) {
   const app = host ? (
     <HostProvider host={host}>
       <App />
@@ -86,7 +87,15 @@ function mount(client = mockClient(), host?: Host) {
   ) : (
     <App />
   );
-  render(<StoreProvider client={client}>{app}</StoreProvider>);
+  render(
+    <StoreProvider
+      client={client}
+      cache={cache}
+      setupBand={host !== undefined && showsSetupBand(host)}
+    >
+      {app}
+    </StoreProvider>,
+  );
   return client;
 }
 
@@ -119,7 +128,7 @@ function mountWithBridge(
     },
   };
   render(
-    <StoreProvider client={client} readRunning={readRunning}>
+    <StoreProvider client={client} readRunning={readRunning} setupBand={showsSetupBand(host)}>
       <HostProvider host={host}>
         <HostBridge client={bridge} />
         <App />
@@ -1321,9 +1330,11 @@ describe("画面", () => {
     expect(screen.getByText("推奨の 1 項目が未完了です（dg コマンド）。")).toBeTruthy();
   });
 
-  it("帯は「このリポジトリでは出さない」で消え、見た目の状態に残って次に開いても出ない。推奨をすべて満たしていれば初めから出ない", async () => {
+  it("帯は「このリポジトリでは出さない」で消え、見た目の状態に残って次に開いても出ない。出さないと決めたことを入口に伝え、次からは推奨の項目を確かめない。推奨をすべて満たしていれば初めから出ない", async () => {
     const client = boardClient();
-    const setup = vi.fn(async () => setupView({ skills_hooks: { status: "unmet", fix: [] } }));
+    const setup = vi.fn(async (_options?: { bandDismissed?: boolean | undefined }) =>
+      setupView({ skills_hooks: { status: "unmet", fix: [] } }),
+    );
     client.setup = setup;
     /** 一覧を描き、導入の項目を確かめた結果が画面に届くまで待つ */
     const settled = async (calls: number) => {
@@ -1332,37 +1343,50 @@ describe("画面", () => {
       await act(async () => {});
     };
     const host = extensionHost();
-    mount(client, host);
+    mount(client, host, host.state);
     await settled(1);
+    expect(setup).toHaveBeenLastCalledWith({ bandDismissed: false });
     fireEvent.click(screen.getByRole("button", { name: "このリポジトリでは出さない" }));
     expect(screen.queryByText(/推奨の 1 項目が未完了です/)).toBeNull();
-    cleanup();
-    mount(client, host);
+    // 出さないと決めたことを、確かめる要求に付けて入口に伝える（拡張ホストが自動の確かめ直しをやめる）
     await settled(2);
+    expect(setup).toHaveBeenLastCalledWith({ bandDismissed: true });
+    cleanup();
+    const lists = () => client.calls.filter((c) => c.name === "ticket.list").length;
+    const before = lists();
+    mount(client, host, host.state);
+    await waitFor(() => expect(lists()).toBeGreaterThan(before));
+    await act(async () => {});
     expect(screen.queryByText(/推奨の 1 項目が未完了です/)).toBeNull();
+    // 出さないと決めている間は、一覧を読めた後に推奨の項目を確かめない
+    expect(setup).toHaveBeenCalledTimes(2);
     // 残したのはこのリポジトリの見た目の状態だけ。ほかのリポジトリ（別の見た目の状態）では出る
     cleanup();
-    mount(client, extensionHost());
+    const other = extensionHost();
+    mount(client, other, other.state);
     await settled(3);
     expect(screen.getByText(/推奨の 1 項目が未完了です/)).toBeTruthy();
 
     cleanup();
     setup.mockImplementation(async () => setupView());
-    mount(client, extensionHost());
+    const met = extensionHost();
+    mount(client, met, met.state);
     await settled(4);
     expect(screen.queryByText(/未完了です/)).toBeNull();
   });
 
-  it("推奨の帯は VS Code の左パネルにだけ出す。エディタのパネルと、開発用の dg serve（拡張ホストがない）には出さない", async () => {
+  it("推奨の帯は VS Code の左パネルにだけ出す。エディタのパネルと、開発用の dg serve（拡張ホストがない）には出さず、一覧を読めた後に導入の項目を確かめない", async () => {
     for (const host of [extensionHost("panel"), hostOf("sidebar")]) {
       const client = boardClient();
       const setup = vi.fn(async () => setupView({ skills_hooks: { status: "unmet", fix: [] } }));
       client.setup = setup;
       window.location.hash = host.surface === "panel" ? "#/tickets/t1" : "#/board";
       mount(client, host);
-      await waitFor(() => expect(setup).toHaveBeenCalled());
+      await waitFor(() => expect(client.calls.some((c) => c.name === "ticket.list")).toBe(true));
       await act(async () => {});
       expect(screen.queryByText(/推奨の 1 項目が未完了です/)).toBeNull();
+      // 帯を出さない入口は、結果を出す場所がないので確かめない（Skill・hooks・.gitignore を無駄に確かめさせない）
+      expect(setup).not.toHaveBeenCalled();
       cleanup();
     }
   });

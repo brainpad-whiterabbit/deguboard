@@ -74,6 +74,9 @@ describe("postMessage の CommandClient", () => {
     h.reply({ id: 2, ok: true, data: null, warnings: [], write: null });
     await expect(checked).resolves.toEqual(view);
     await expect(acted).resolves.toBeUndefined();
+    // 帯を出す画面は、人が帯を出さないと決めているかを付けて頼む（付けなければ要求に入れない）
+    void client.setup({ bandDismissed: true });
+    expect(h.requests[2]).toEqual({ id: 3, kind: "action", name: "setup", bandDismissed: true });
   });
 
   it("ok: false の応答は ClientError（code と message）になり、知らない id の応答は無視する", async () => {

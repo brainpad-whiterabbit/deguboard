@@ -169,11 +169,14 @@ export function buildSetupView(facts: SetupFacts): SetupView {
  * - すべて満たしていれば確かめ直さない（欠けたことは次に画面を開いたときに分かる）
  * - 満たさない最初の項目がボードのときも確かめ直さない。ボードの確かめは remote に尋ねる（git ls-remote。最長 30 秒）ので見張りのたびには回さず、
  *   dg init が済んだことはデータ worktree の見張り（extension.ts の watchInit）が拾う。remote を直した後は、人が手で確かめ直す
+ * - 推奨だけが欠けていて、人が帯を「このリポジトリでは出さない」にしている（bandDismissed）ときも確かめ直さない。結果を出す場所がないのに、
+ *   ターミナルの実行の終わりとウィンドウに戻るたびに git と dg --version を起こさない（Claude Code を使わない人は推奨を入れないままでよい）
  */
-export function autoRecheck(view: SetupView | undefined): boolean {
+export function autoRecheck(view: SetupView | undefined, bandDismissed: boolean): boolean {
   if (!view) return true;
   const first = view.items.find((item) => item.status === "unmet");
-  return first !== undefined && first.id !== "board";
+  if (first === undefined || first.id === "board") return false;
+  return first.level === "required" || !bandDismissed;
 }
 
 /**

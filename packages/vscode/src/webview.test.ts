@@ -286,6 +286,7 @@ describe("Webview の要求", () => {
 
   it("action の setup は導入のチェックリストを data で返し、setupAct は操作を actions に渡して data: null で答える。actions のない画面からは拒否する", async () => {
     const acts: SetupAction[] = [];
+    const dismissed: (boolean | undefined)[] = [];
     const view: SetupView = { ready: false, items: [], cwd: "/work/repo" };
     const actions = {
       open: () => {},
@@ -293,7 +294,10 @@ describe("Webview の要求", () => {
       copy: () => {},
       terminals: () => [],
       sendToTerminal: () => {},
-      setup: () => view,
+      setup: (bandDismissed?: boolean) => {
+        dismissed.push(bandDismissed);
+        return view;
+      },
       setupAct: (act: SetupAction) => void acts.push(act),
     };
     const checked = await handleRequest(
@@ -302,6 +306,19 @@ describe("Webview の要求", () => {
       actions,
     );
     expect(checked).toEqual({ id: 12, ok: true, data: view, warnings: [], write: null });
+    // 帯を出す画面（左パネル）は、人が帯を出さないと決めているかを付けてくる。actions にそのまま渡す
+    await handleRequest(
+      fakeClient(),
+      { id: 15, kind: "action", name: "setup", bandDismissed: true },
+      actions,
+    );
+    expect(dismissed).toEqual([undefined, true]);
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "setup", bandDismissed: false })).toBe(
+      true,
+    );
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "setup", bandDismissed: "yes" })).toBe(
+      false,
+    );
     const ok = await handleRequest(
       fakeClient(),
       { id: 13, kind: "action", name: "setupAct", act: "gitInit" },

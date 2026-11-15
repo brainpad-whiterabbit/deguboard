@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configFields, type SetupView } from "@deguboard/core";
 import { App } from "./app.js";
 import { ClientError } from "./client/http.js";
-import { HostProvider, type Host } from "./host.js";
+import { HostProvider, showsSetupBand, type Host } from "./host.js";
 import { StoreProvider } from "./store.js";
 import {
   boardFixture,
@@ -381,11 +381,14 @@ async function renderScene(scene: Scene, language: Language): Promise<string> {
   setLanguage(language);
   window.location.hash = scene.hash;
   const client = (scene.client ?? richClient)();
+  const host = { ...hostOf(scene.surface), ...(scene.extension ? { extension: true } : {}) };
   render(
-    <StoreProvider client={client} readRunning={scene.surface === "sidebar"}>
-      <HostProvider
-        host={{ ...hostOf(scene.surface), ...(scene.extension ? { extension: true } : {}) }}
-      >
+    <StoreProvider
+      client={client}
+      readRunning={scene.surface === "sidebar"}
+      setupBand={showsSetupBand(host)}
+    >
+      <HostProvider host={host}>
         <App />
       </HostProvider>
     </StoreProvider>,

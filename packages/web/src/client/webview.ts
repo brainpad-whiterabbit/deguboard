@@ -32,8 +32,11 @@ export interface WebviewClient extends SetupClient {
   terminals(): Promise<TerminalChoice[]>;
   /** 開いているターミナル terminal の入力に text を入れてもらう。Enter は押さず、ターミナルは起動しない（EX-1） */
   sendToTerminal(terminal: number, text: string): Promise<TerminalSendResult | null>;
-  /** 導入のチェックリストを確かめ直してもらう（UI-12）。拡張ホストが dg setup check の項目に、フォルダ・OS・dg コマンドを足して返す */
-  setup(): Promise<SetupView>;
+  /**
+   * 導入のチェックリストを確かめ直してもらう（UI-12）。拡張ホストが dg setup check の項目に、フォルダ・OS・dg コマンドを足して返す。
+   * bandDismissed は、推奨の項目の帯を出す画面が、人が帯を出さないと決めているかを伝える（store.tsx の readSetup）
+   */
+  setup(options?: { bandDismissed?: boolean | undefined }): Promise<SetupView>;
   /** チェックリストのボタンの操作を頼む（フォルダを開く、deguboard のターミナルで git init・dg init などを実行する、dg コマンドを入れる） */
   setupAct(act: SetupAction): Promise<void>;
   /** 拡張ホストからの通知を受ける。戻り値で購読を外す */
@@ -100,8 +103,10 @@ export function createWebviewClient(
       return (await send({ kind: "action", name: "sendToTerminal", terminal, text }))
         .data as TerminalSendResult | null;
     },
-    async setup(): Promise<SetupView> {
-      return (await send({ kind: "action", name: "setup" })).data as SetupView;
+    async setup(options): Promise<SetupView> {
+      const dismissed = options?.bandDismissed;
+      const flag = dismissed === undefined ? {} : { bandDismissed: dismissed };
+      return (await send({ kind: "action", name: "setup", ...flag })).data as SetupView;
     },
     async setupAct(act: SetupAction): Promise<void> {
       await send({ kind: "action", name: "setupAct", act });

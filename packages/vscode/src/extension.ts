@@ -136,6 +136,11 @@ let sidebarFolder: vscode.WorkspaceFolder | undefined;
  * 見張りで自動で確かめ直すか（setup.ts の autoRecheck）と、「Skill と hooks を入れる」ボタンが流すコマンドに使う
  */
 const setupViews = new Map<string, SetupView>();
+/**
+ * 人が推奨の項目の帯を「このリポジトリでは出さない」にしているフォルダ（鍵は folderKey）。決めたことは Webview の見た目の状態にあり、
+ * 左パネルが確かめるたびに伝えてくる（readSetup）。推奨だけが欠けている間の自動の確かめ直しをやめるのに使う（setup.ts の autoRecheck）
+ */
+const setupBandDismissed = new Set<string>();
 /** フォルダごとの、導入のチェックリストを確かめ直すための見張り（watchSetup） */
 const setupWatchers = new Map<string, vscode.Disposable>();
 /** サイドバーがまだ描かれていないときに出す画面。サイドバーを開いて作るときの初期ルートにする */
@@ -502,6 +507,7 @@ export function deactivate(): void {
     map.clear();
   }
   setupViews.clear();
+  setupBandDismissed.clear();
   clients.clear();
   idIndexes.clear();
   idIndexFailedAt.clear();
@@ -548,7 +554,7 @@ async function resolveSidebar(
       copy: copyToClipboard,
       terminals: listTerminals,
       sendToTerminal,
-      setup: () => readSetup(folder),
+      setup: (bandDismissed) => readSetup(folder, bandDismissed),
       setupAct: (act) => setupAct(context, folder, act),
     },
   });
@@ -564,9 +570,16 @@ function folderKey(folder: vscode.WorkspaceFolder | undefined): string {
  * 拡張でしか確かめられない項目（フォルダ・OS・PATH の dg）を足す（組み立ては setup.ts の buildSetupView）。
  * フォルダがない・OS が対応していないときは core を確かめず、必須を満たすまでは PATH の dg も確かめない。
  * 確かめたついでに、人がターミナルで直したことを拾う見張りを張る（watchSetup）。必須を満たさない間は、データ worktree ができるのを待つ見張りも
- * 張り直す（git init の前は張れないので。watchData → watchInit）
+ * 張り直す（git init の前は張れないので。watchData → watchInit）。
+ * bandDismissed は左パネルが伝える、人が推奨の項目の帯を出さないと決めているか（エディタのパネルは伝えないので、前の値のまま）
  */
-async function readSetup(folder: vscode.WorkspaceFolder | undefined): Promise<SetupView> {
+async function readSetup(
+  folder: vscode.WorkspaceFolder | undefined,
+  bandDismissed?: boolean,
+): Promise<SetupView> {
+  const key = folderKey(folder);
+  if (bandDismissed === true) setupBandDismissed.add(key);
+  else if (bandDismissed === false) setupBandDismissed.delete(key);
   const cwd = folder?.uri.fsPath;
   const core =
     cwd !== undefined && supportedPlatform(process.platform)
@@ -578,7 +591,7 @@ async function readSetup(folder: vscode.WorkspaceFolder | undefined): Promise<Se
     core,
     dg: folder && core?.ready ? await dgCommandFacts(folder) : undefined,
   });
-  setupViews.set(folderKey(folder), view);
+  setupViews.set(key, view);
   if (folder) {
     watchSetup(folder, view);
     if (!view.ready) void watchData(folder, clientFor(folder));
@@ -631,7 +644,8 @@ function watchSetup(folder: vscode.WorkspaceFolder, view: SetupView): void {
  * 最後に確かめた結果が自動の確かめ直しに当たるフォルダ（setup.ts の autoRecheck）の画面にだけ頼む
  */
 const autoSetup = coalesce(() => {
-  for (const [key, view] of setupViews) if (autoRecheck(view)) postSetupTo(key);
+  for (const [key, view] of setupViews)
+    if (autoRecheck(view, setupBandDismissed.has(key))) postSetupTo(key);
 }, 300);
 
 /** フォルダ（鍵）のサイドバーとパネルに、導入のチェックリストの確かめ直しを頼む（画面が setup の要求で取り直す） */
@@ -975,7 +989,7 @@ async function openPanel(
       copy: copyToClipboard,
       terminals: listTerminals,
       sendToTerminal,
-      setup: () => readSetup(folder),
+      setup: (bandDismissed) => readSetup(folder, bandDismissed),
       setupAct: (act) => setupAct(context, folder, act),
     },
   });
@@ -1050,6 +1064,7 @@ function forgetFolder(folder: vscode.WorkspaceFolder): void {
     map.delete(key);
   }
   setupViews.delete(key);
+  setupBandDismissed.delete(key);
   watchStarting.delete(key);
   panels.get(key)?.dispose();
   panels.delete(key);

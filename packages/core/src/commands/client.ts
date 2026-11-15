@@ -72,7 +72,9 @@ export function setupViewOf(result: SetupCheckResult, cwd: string): SetupView {
  * show は一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す（パネルは詳細だけを出すので。UI-12）。
  * copy は text をクリップボードに入れる（Webview の画面はコピーをすべて拡張ホストに頼み、vscode.env.clipboard で書く）。
  * terminals は開いているターミナルの一覧を返す（応答の data は TerminalChoice[]）。sendToTerminal は text を terminal の入力に入れる（Enter は押さない。UI-15）。
- * setup は導入のチェックリストを確かめ直して返す（応答の data は SetupView）。setupAct はチェックリストのボタンの操作（SetupAction）を頼む（UI-12）
+ * setup は導入のチェックリストを確かめ直して返す（応答の data は SetupView）。setupAct はチェックリストのボタンの操作（SetupAction）を頼む（UI-12）。
+ * setup の bandDismissed は、推奨の項目の帯を出す画面（左パネル）が、人が帯を「このリポジトリでは出さない」にしているかを伝える
+ * （拡張ホストが、推奨だけが欠けている間の自動の確かめ直しをやめる）。帯を出さない画面は付けない
  */
 export type WebviewRequest =
   | { id: number; kind: "run"; name: string; input: unknown }
@@ -81,7 +83,7 @@ export type WebviewRequest =
   | { id: number; kind: "action"; name: "copy"; text: string }
   | { id: number; kind: "action"; name: "terminals" }
   | { id: number; kind: "action"; name: "sendToTerminal"; terminal: number; text: string }
-  | { id: number; kind: "action"; name: "setup" }
+  | { id: number; kind: "action"; name: "setup"; bandDismissed?: boolean | undefined }
   | { id: number; kind: "action"; name: "setupAct"; act: SetupAction };
 
 /** sendToTerminal の応答の data。clipboardKept は、貼り付けのために書いたクリップボードを元に戻せず、依頼文が残っていること */

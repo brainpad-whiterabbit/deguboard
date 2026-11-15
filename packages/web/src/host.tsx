@@ -48,6 +48,15 @@ export interface Host {
   setupAct?: ((act: SetupAction) => Promise<void>) | undefined;
 }
 
+/**
+ * 推奨の項目の帯を出す入口か。VS Code の左パネルにだけ出す。開発用の dg serve には出さない（配置の確認とスクリーンショットの画面が、
+ * 開発者のマシンに Skill と hooks が入っているかで変わらないように。必須を満たさない間のチェックリストは dg serve にも出す）。
+ * 出さない入口では、一覧を読めた後に導入の項目を確かめない（StoreProvider の setupBand）
+ */
+export function showsSetupBand(host: Pick<Host, "surface" | "extension">): boolean {
+  return host.surface === "sidebar" && host.extension === true;
+}
+
 export interface TerminalsHost {
   /** 今開いているターミナル */
   list(): Promise<TerminalChoice[]>;
