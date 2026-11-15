@@ -12,13 +12,14 @@ import {
   GitError,
   hasLocalDataBranch,
   isInitialized,
+  looksLikeRemoteUrl,
   probeRemoteBoard,
   resolveRemote,
   resolveRepoPaths,
   runGit,
   type RepoPaths,
 } from "../git/index.js";
-import { DEFAULT_DATA_BRANCH, DEFAULT_REMOTE } from "../model/config.js";
+import { dataBranchProblem, DEFAULT_DATA_BRANCH, DEFAULT_REMOTE } from "../model/config.js";
 import { pathExists } from "../storage/exists.js";
 import { hookInstallStateOf, type HookInstallState } from "./hook-settings.js";
 import { skillInstallStateOf } from "./skill-files.js";
@@ -31,7 +32,8 @@ export type SetupItemId = "git" | "repository" | "board" | "skills_hooks" | "git
 /**
  * ボードの項目の細かい状態。ready は init 済み。local_branch は手元に deguboard ブランチだけが残っている（init はリモートを見ずにそれを使う）。
  * remote_board・remote_no_board・remote_unreachable は init 前にデータのリモートを確かめた結果（届いてボードがある・届いてボードがない・届かない）。
- * no_remote は確かめるリモートがない（init は手元だけのボードを作る）
+ * no_remote は確かめるリモートがない（init は手元だけのボードを作る）。
+ * data_branch_invalid・data_remote_missing は、渡したデータのブランチ名・データのリモートの名前を dg init が受け付けない（init は何も作らずに止まる）
  */
 export type BoardState =
   | "ready"
@@ -39,7 +41,9 @@ export type BoardState =
   | "remote_board"
   | "remote_no_board"
   | "remote_unreachable"
-  | "no_remote";
+  | "no_remote"
+  | "data_branch_invalid"
+  | "data_remote_missing";
 
 export interface SetupCheckItem {
   id: SetupItemId;
@@ -70,7 +74,9 @@ export interface SetupCheckOptions {
   cwd: string;
   /** 環境変数。個人の設定と Skill の置き場所（HOME）を引く */
   env: AgentEnv;
-  /** init 前に確かめるデータのリモート（名前か URL）。省けば origin。dg init の --data-remote と同じ値を渡す */
+  /** コードのリモートの名前。省けば origin。dg init の --remote と同じ値を渡す（dataRemote を省くと、init 前のボードもここで確かめる） */
+  remote?: string | undefined;
+  /** init 前に確かめるデータのリモート（名前か URL）。省けばコードのリモート。dg init の --data-remote と同じ値を渡す */
   dataRemote?: string | undefined;
   /** init 前に確かめるデータのブランチ名。省けば deguboard。dg init の --data-branch と同じ値を渡す */
   dataBranch?: string | undefined;
@@ -123,6 +129,7 @@ async function checkGit(): Promise<Checked> {
 /** dg init に足す引数（確かめたリモートとブランチを init にも渡す） */
 function initArgs(options: SetupCheckOptions): string {
   return [
+    ...(options.remote ? ["--remote", options.remote] : []),
     ...(options.dataRemote ? ["--data-remote", options.dataRemote] : []),
     ...(options.dataBranch ? ["--data-branch", options.dataBranch] : []),
   ]
@@ -132,11 +139,31 @@ function initArgs(options: SetupCheckOptions): string {
 
 /**
  * ボードがあるか（init 済みか）。まだなら、dg init がすることを先に確かめる：手元に deguboard ブランチがあればそれを使い、
- * なければデータのリモートを ls-remote で見る（init と同じ probeRemoteBoard。t1005）
+ * なければデータのリモートを ls-remote で見る（init と同じ probeRemoteBoard。t1005）。
+ * 確かめる先は init と同じ決め方にする（openContext の initialize）：データのブランチ名とデータのリモートの名前を先に確かめ、
+ * データのリモートを省けばコードのリモート（省けば origin）を見る。init が受け付けない値は、直すコマンドが失敗するので別の状態で返す
  */
 async function checkBoard(paths: RepoPaths, options: SetupCheckOptions): Promise<Checked> {
   if (await isInitialized(paths))
     return ok(`The board is set up in this clone (${paths.dataDir})`, { state: "ready" });
+  const branchProblem =
+    options.dataBranch === undefined ? undefined : dataBranchProblem(options.dataBranch);
+  if (branchProblem)
+    return unmet(`${branchProblem}. dg init rejects this name, so nothing was checked`, [], {
+      state: "data_branch_invalid",
+    });
+  // 名前のリモートがあればそのまま、URL（かパス）ならそこを直接見る（init は足すが、ここは何も書かない）。ない名前は init がエラーにする
+  const dataRemote = options.dataRemote;
+  if (
+    dataRemote !== undefined &&
+    !(await resolveRemote(paths, dataRemote)) &&
+    !looksLikeRemoteUrl(dataRemote)
+  )
+    return unmet(
+      `This clone has no remote named ${dataRemote} (the value of --data-remote), so dg init would stop without creating a board. Add it with git remote add ${dataRemote} <URL of the data repository>, or pass the URL itself to --data-remote, and check again`,
+      [],
+      { state: "data_remote_missing" },
+    );
   const init = `dg init${initArgs(options)}`;
   if (await hasLocalDataBranch(paths))
     return unmet(
@@ -144,11 +171,12 @@ async function checkBoard(paths: RepoPaths, options: SetupCheckOptions): Promise
       [init],
       { state: "local_branch" },
     );
-  const remote = options.dataRemote ?? (await resolveRemote(paths, DEFAULT_REMOTE)) ?? undefined;
+  const codeRemote = options.remote ?? DEFAULT_REMOTE;
+  const remote = dataRemote ?? (await resolveRemote(paths, codeRemote)) ?? undefined;
   const branch = options.dataBranch ?? DEFAULT_DATA_BRANCH;
   if (remote === undefined)
     return unmet(
-      `This repository has no remote named ${DEFAULT_REMOTE}, so there is no team board to take in. dg init creates a board that stays on this machine. If the team's board is in another repository, pass it with dg init --data-remote <name or URL>`,
+      `This repository has no remote named ${codeRemote}, so there is no team board to take in. dg init creates a board that stays on this machine. If the code's remote has another name, pass it with --remote <name>. If the team's board is in another repository, pass it with dg init --data-remote <name or URL>`,
       [init],
       { state: "no_remote" },
     );

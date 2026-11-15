@@ -259,7 +259,7 @@ describe("dg", () => {
       );
     expect(items[1]).toMatchObject({ level: "required", fix: ["git init"] });
 
-    // init の前：ボードの項目が remote の状態を返し、--data-branch は確かめる先と直すコマンドに写る
+    // init の前：ボードの項目が remote の状態を返し、--remote と --data-branch は確かめる先と直すコマンドに写る
     const f = await fixture();
     const before = await dg(f.cloneA, ["--json", "setup", "check"], env);
     expect(before.json().data.items[2]).toMatchObject({
@@ -274,6 +274,11 @@ describe("dg", () => {
     );
     expect(branch.json().data.items[2]).toMatchObject({
       fix: ["dg init --data-branch deguboard-web"],
+    });
+    const remote = await dg(f.cloneA, ["--json", "setup", "check", "--remote", "upstream"], env);
+    expect(remote.json().data.items[2]).toMatchObject({
+      state: "no_remote",
+      fix: ["dg init --remote upstream"],
     });
 
     // init の後：必須を満たし、推奨の項目は満たさなくても終了コードは 0。人向けの出力は項目ごとの行と直すコマンド

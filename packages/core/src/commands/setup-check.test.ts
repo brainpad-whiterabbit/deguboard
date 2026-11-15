@@ -228,6 +228,64 @@ describe("checkSetup：ボード", () => {
     });
     expect((await git(f.cloneB, ["remote"])).stdout.trim()).toBe("origin");
   });
+
+  it("コードのリモートが origin でないときは、渡した名前のリモートを確かめ、直すコマンドにも同じ引数を付ける", async () => {
+    const f = await fixture();
+    await initAndPush(f.cloneA);
+    const env = await emptyEnv();
+    await git(f.cloneB, ["remote", "rename", "origin", "upstream"]);
+    // 省くと origin を探すので、リモートがない扱いになる（dg init も --remote なしでは手元だけのボードを作る）
+    const byDefault = byId(await checkSetup({ cwd: f.cloneB, env }));
+    expect(byDefault.board).toMatchObject({
+      state: "no_remote",
+      message: expect.stringContaining("no remote named origin"),
+      fix: ["dg init"],
+    });
+    const named = byId(await checkSetup({ cwd: f.cloneB, env, remote: "upstream" }));
+    expect(named.board).toMatchObject({
+      state: "remote_board",
+      message: expect.stringContaining("upstream has the team's board"),
+      fix: ["dg init --remote upstream"],
+    });
+    // 渡した名前のリモートがなければ、その名前でリモートがないと返す
+    const absent = byId(await checkSetup({ cwd: f.cloneB, env, remote: "fork" }));
+    expect(absent.board).toMatchObject({
+      state: "no_remote",
+      message: expect.stringContaining("no remote named fork"),
+      fix: ["dg init --remote fork"],
+    });
+    // 返した直すコマンドのとおりに init すると、リモートのボードを取り込む
+    await openRepo(f.cloneB, { remote: "upstream" });
+    expect(byId(await checkSetup({ cwd: f.cloneB, env })).board.state).toBe("ready");
+  });
+
+  it("dg init が受け付けないデータのリモートの名前とブランチ名は、届かない・ボードがないと取り違えず、直すコマンドを返さない", async () => {
+    const f = await fixture();
+    const env = await emptyEnv();
+    // ない名前（URL でもパスでもない）：init は DATA_REMOTE_MISSING で止まるので、接続を直す案内にしない
+    const missing = byId(await checkSetup({ cwd: f.cloneA, env, dataRemote: "data" }));
+    expect(missing.board).toMatchObject({
+      status: "unmet",
+      state: "data_remote_missing",
+      message: expect.stringMatching(/no remote named data.*git remote add data/),
+      fix: [],
+    });
+    expect(missing.board.detail).toBeUndefined();
+    // / を含むブランチ名：init は VALIDATION_FAILED で止まるので、dg init を直すコマンドに返さない
+    const slash = byId(await checkSetup({ cwd: f.cloneA, env, dataBranch: "deguboard/web" }));
+    expect(slash.board).toMatchObject({
+      status: "unmet",
+      state: "data_branch_invalid",
+      message: expect.stringMatching(/contains "\/".*deguboard-web/),
+      fix: [],
+    });
+    // 手元に deguboard ブランチがあっても、init は先に引数で止まる
+    await git(f.cloneA, ["branch", "deguboard"]);
+    const local = byId(await checkSetup({ cwd: f.cloneA, env, dataRemote: "data" }));
+    expect(local.board.state).toBe("data_remote_missing");
+    // どちらも必須を満たさないので、後の項目は確かめない
+    expect(local.skills_hooks.status).toBe("pending");
+  });
 });
 
 describe("checkSetup：Skill と hooks", () => {

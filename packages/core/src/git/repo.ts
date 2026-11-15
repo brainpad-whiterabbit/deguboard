@@ -103,14 +103,20 @@ export function missingDataRemote(
 }
 
 /**
+ * `--data-remote` の値が、リモートの名前でなく URL（かパス）に見えるか。ensureDataRemote と dg setup check が同じ見分け方をする
+ */
+export function looksLikeRemoteUrl(nameOrUrl: string): boolean {
+  return !nameOrUrl.startsWith("-") && /[/:]/.test(nameOrUrl);
+}
+
+/**
  * `dg init --data-remote` の値（リモートの名前か URL）を、データのリモートの名前にする。
  * その名前のリモートがあればそのまま。URL（かパス）なら、同じ URL のリモートがあればその名前、なければ DATA_REMOTE_NAME で足す。
  * どちらでもなければ（ない名前）、黙って同期なしにせずエラーにする
  */
 export async function ensureDataRemote(paths: RepoPaths, nameOrUrl: string): Promise<string> {
   if (await resolveRemote(paths, nameOrUrl)) return nameOrUrl;
-  const looksLikeUrl = !nameOrUrl.startsWith("-") && /[/:]/.test(nameOrUrl);
-  if (!looksLikeUrl) throw dataRemoteMissingError(nameOrUrl);
+  if (!looksLikeRemoteUrl(nameOrUrl)) throw dataRemoteMissingError(nameOrUrl);
   const listed = await runGit(paths.topLevel, ["config", "--get-regexp", "^remote\\..*\\.url$"], {
     allowFailure: true,
   });
