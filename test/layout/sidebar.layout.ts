@@ -1132,7 +1132,7 @@ describe.each(SCHEMES)("左パネルのカンバンの上の端に残す帯（%s
 // バックログをスクロールしても、検索の行を上の端に残し、Iteration の区画の見出しをその下に貼り付ける（UI-3、t964）。
 // 絞っている間は、よく使う絞り込みの行が抜けたら効いている条件の札の行を検索の行の下に重ね、区画の見出しはその下に貼り付く
 describe.each(SCHEMES)("左パネルのバックログの上の端に残す検索の行（%s）", (scheme) => {
-  it("幅 300px で、検索の行は上の端に残り、区画の見出しはその下に貼り付いて次の区画に押し出され、絞っている間は札の行を一覧を動かさずに重ね、打ち込むと一番上へ戻る", async () => {
+  it("幅 300px で、検索の行は上の端に残り、フォーカスしても一覧は動かず、区画の見出しはその下に貼り付いて次の区画に押し出され、絞っている間は札の行を一覧を動かさずに重ね、打ち込むと一番上へ戻る", async () => {
     const context = await browser.newContext({
       viewport: { width: 300, height: 360 },
       colorScheme: scheme,
@@ -1161,6 +1161,12 @@ describe.each(SCHEMES)("左パネルのバックログの上の端に残す検�
         const bg = getComputedStyle(first!).backgroundColor;
         const headBottom = first!.getBoundingClientRect().bottom - box.top;
         const pad = parseFloat(getComputedStyle(main).scrollPaddingTop);
+        // 貼り付いた検索欄にフォーカスしても一覧は動かない（寄せ先の分だけ戻さない）
+        const scrolled = main.scrollTop;
+        search.querySelector("input")!.focus();
+        await frame();
+        const afterSearchFocus = main.scrollTop;
+        search.querySelector("input")!.blur();
         // 次の区画の見出しが検索の行の下の所に来るまで送る。後ろの区画が短く一覧の終わりで止まるので、下に余白を足して送れるようにする
         main.style.paddingBottom = "600px";
         main.scrollTop = offset(second!.parentElement!) - 32;
@@ -1175,6 +1181,8 @@ describe.each(SCHEMES)("左パネルのバックログの上の端に残す検�
           bg,
           headBottom,
           pad,
+          scrolled,
+          afterSearchFocus,
           secondTop: second!.getBoundingClientRect().top,
           firstBottom: first!.getBoundingClientRect().bottom,
           stillTop: search.getBoundingClientRect().top - box.top,
@@ -1193,6 +1201,8 @@ describe.each(SCHEMES)("左パネルのバックログの上の端に残す検�
       expect(stuck.bg, "区画の見出しも塗る").not.toBe("rgba(0, 0, 0, 0)");
       // キーで上へ行を移っても、検索の行と 2 段の区画の見出しの下に行が隠れないよう、寄せ先はその下まで下げる
       expect(stuck.pad, "寄せ先は貼り付いた見出しの下").toBeGreaterThanOrEqual(stuck.headBottom);
+      expect(stuck.scrolled, "スクロールできた").toBeGreaterThan(0);
+      expect(stuck.afterSearchFocus, "検索欄にフォーカスしても一覧は動かない").toBe(stuck.scrolled);
       expect(
         Math.abs(stuck.secondTop - stuck.searchBottom),
         "次の区画の見出しが検索の行の下に来る",
