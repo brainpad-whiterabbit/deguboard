@@ -223,7 +223,10 @@ export const ASK_FIRST_EN = "No target is chosen yet, so ask me first which ones
 /** ASK_DG_USAGE の英語 */
 export const ASK_DG_USAGE_EN = `Call dg as \`dg … --json --actor agent\`, and do not edit the files under .git/deguboard/ directly. ${DG_PATH_NOTE_EN}`;
 
-/** 依頼文の定型の文の言語（UI-11）。英語の画面から日本語の定型の文が渡らないよう、画面の表示言語で組む。指示（note）とチケットの中身は書いた言葉のまま入れ、言語では変えない */
+/**
+ * 依頼文の定型の文の言語（UI-11）。英語の画面から日本語の定型の文が渡らないよう、画面の表示言語で組む。指示（note）とチケットの中身は書いた言葉のまま入れ、言語では変えない。
+ * 言語を選べるのは依頼文と札の説明の定型の文（候補の 1 文・対象の 1 行）だけ。候補の名前・札の sub・人が打つコマンドの雛形は dg の出力なので、dg ask・ask-menu とも英語で返す
+ */
 export const ASK_LANGUAGES = ["ja", "en"] as const;
 export type AskLanguage = (typeof ASK_LANGUAGES)[number];
 
