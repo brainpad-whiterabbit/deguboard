@@ -1,0 +1,4 @@
+id: s36
+name: sprint36
+goal: 左パネルのカンバン・バックログ・履歴をスクロールしても見出しと検索の行を上に残し、縮めた帯から Iteration・Epic・担当を切り替えられるようにする。あわせて、Workflow の Status の表示名を表示言語に訳し、作業ブランチ名にチケット ID を入れる
+status: planned
