@@ -193,6 +193,7 @@ updated_at: 2026-10-31T05:10:00Z
 - CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
 - CL-8 `dg` の出力（ヘルプ・MCP のツールの説明・エラー・警告・次の手の理由・定型の文・`dg` が書くコミットの題）は英語で出し、既定の値（`config.yaml` の既定など）も英語で持つ。チケットの中身と `config.yaml` に書いた値（日本語で書いた古い既定の写しも含む）は書いたまま出す。理由は [ADR-001](adr/ADR-001-doc-strategy.md)
+- CL-9 `dg setup check` は導入の項目（git の版・Git リポジトリ・ボード・Skill と hooks・`.claude/.gitignore`）を上から確かめ、満たすか・状態・必須か推奨か・直すコマンドを返す。必須を満たさなければ後の項目は確かめない。git がなくても init の前でも動き、何も書かない（細部は `dg setup check --help`）
 
 ### 6.2 状態遷移と照合
 
@@ -244,7 +245,7 @@ updated_at: 2026-10-31T05:10:00Z
 - AG-1 エージェントは `dg` を Bash から `--json` で呼び、データを直接編集しない。主体はフック（AG-9）が agent にし、フックがなければ `--actor agent` か `DEGUBOARD_ACTOR` で申告する（既定は human）。guide の手順は agent を名乗る（`skill.test.ts`。ID は TK-7 と `dg --help`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)）
 - AG-2 `dg skill install` は `dg guide <topic>` を読む英語の薄い Skill を配る。任意で、スクリプトも許可も持たず、各自が入れる（`.claude/.gitignore` で無視）。古い Skill は `dg hooks check`・`next`・`brief` が警告し、VS Code 拡張が起動時に更新する（新しい版は戻さず、手を加えたものは残して知らせる）。足りない Skill は拡張が案内する。細部は `skill-files.ts`
 - AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）。起票・着手・マージは人が頼んだ段階までにする（決まりは `dg guide overview`）
-- AG-4 MCP サーバー（`dg mcp`。stdio）は Bash のないクライアントの入口で、ツールを Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`hooks`・`serve`・`open` を除く）、結果は `--json` と同じ形（CL-1）で、主体は常に agent。細部は `packages/cli/src/mcp.ts` とそのテスト
+- AG-4 MCP サーバー（`dg mcp`。stdio）は Bash のないクライアントの入口で、ツールを Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`hooks`・`setup`・`serve`・`open` を除く）、結果は `--json` と同じ形（CL-1）で、主体は常に agent。細部は `packages/cli/src/mcp.ts` とそのテスト
 - AG-5 AI 製品ごとの差（使用量の取得・dg を呼んだエージェントの判定・フックの入力と設定）は Agent Adapter が吸収し、実装は Core の `agents/adapters/` に閉じる（対応する製品はそこのコード）。エージェントの起動と権限は扱わない（EX-1、[ADR-033](adr/ADR-033-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-033](adr/ADR-033-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る

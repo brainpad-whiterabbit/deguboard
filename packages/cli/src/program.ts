@@ -14,6 +14,7 @@ import {
   ACTION_NAMES,
   bundleLayout,
   checkHooks,
+  checkSetup,
   hookScope,
   installHooks,
   launcherFrom,
@@ -383,6 +384,62 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           }
           for (const w of warnings) streams.err(`Warning: ${w}`);
         }
+        process.exitCode = 0;
+      } catch (error) {
+        const view = toErrorView(error);
+        if (global.json) printJsonError(streams, view);
+        else printError(streams, view);
+        process.exitCode = view.exitCode;
+      }
+    });
+
+  // setup check も CLI だけの操作。判定は core の commands/setup-check.ts にあり、ここは引数と結果を写す。
+  // git がない・リポジトリの外・dg init の前でも結果を返すので、文脈（リポジトリ・ストア）を開かない
+  program
+    .command("setup")
+    .description("Check what is needed to start using deguboard")
+    .helpCommand("help [command]", "Show usage for a command")
+    .exitOverride()
+    .configureOutput(program.configureOutput())
+    .command("check")
+    .description(
+      "Check the setup items from the top, in this order: git (2.30 or later), the Git repository, the board, the Skills and hooks, and .claude/.gitignore. Each item (data.items) has status (ok, unmet, or pending), message (its state), level (required or recommended), and fix (the commands that fix it, in order; empty when there is none). When a required item is unmet, the items after it are not checked and come back as pending. data.ready is true when every required item is ok. It works without git, outside a Git repository, and before dg init, and writes nothing. " +
+        "Before dg init, the board item checks what dg init would do and tells it in state: remote_board (the data remote was reached and has the team's board, so dg init takes it in), remote_no_board (reached, no board, so dg init creates one), remote_unreachable (not reached; no fix command, because dg init --new-board may start a board apart from the team's), no_remote (the code's remote, origin or the one given with --remote, is not in this clone, so the board stays on this machine), local_branch (a deguboard branch is left here with no worktree), data_branch_invalid (dg init rejects the --data-branch name; no fix command), or data_remote_missing (the --data-remote name is not a remote of this clone and is not a URL, so dg init would stop; no fix command). After dg init it is ready. The remote is only asked for its branch (git ls-remote, up to 30 seconds); nothing is fetched. " +
+        "The Skills and hooks item only looks at whether they are installed: the dg hooks are in one of the Claude Code settings (.claude/settings.local.json, .claude/settings.json, or ~/.claude/settings.json) for every event, and dg Skills are in the repository or in ~/.claude/skills with none written by an older dg. Whether the hooks work is checked by dg hooks check. " +
+        "The .claude/.gitignore item is unmet when that file has uncommitted changes; dg does not commit it. The exit code is 0 even when items are unmet",
+    )
+    .option(
+      "--remote <name>",
+      "Before dg init, the remote of the code, which is also where the board is looked for unless --data-remote is given (the value to pass to dg init --remote). Defaults to origin",
+    )
+    .option(
+      "--data-remote <name or URL>",
+      "Before dg init, the remote to look for the board on, when the data is kept in a repository other than the code's (the value to pass to dg init --data-remote). Defaults to the remote of the code",
+    )
+    .option(
+      "--data-branch <name>",
+      "Before dg init, the branch of the data remote to look for (the value to pass to dg init --data-branch). Defaults to deguboard",
+    )
+    .exitOverride()
+    .configureOutput(program.configureOutput())
+    .action(async (opts: { remote?: string; dataRemote?: string; dataBranch?: string }) => {
+      const global = program.opts<{ json?: boolean; C?: string }>();
+      try {
+        const data = await checkSetup({
+          cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
+          env,
+          remote: opts.remote,
+          dataRemote: opts.dataRemote,
+          dataBranch: opts.dataBranch,
+        });
+        if (global.json)
+          streams.out(JSON.stringify({ ok: true, data, warnings: [], write: null }, null, 2));
+        else
+          for (const item of data.items) {
+            streams.out(`${item.status.padEnd(7)}  ${item.label} (${item.level}): ${item.message}`);
+            if (item.detail) streams.out(`         ${item.detail}`);
+            for (const command of item.fix) streams.out(`         fix: ${command}`);
+          }
         process.exitCode = 0;
       } catch (error) {
         const view = toErrorView(error);

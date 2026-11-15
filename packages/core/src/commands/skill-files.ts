@@ -2,6 +2,7 @@
 // dg skill install（CLI）が書くか残すかを決めるのも、dg hooks check・dg next・dg brief が古い Skill を知らせるのも、
 // VS Code 拡張が起動時に古い Skill を更新するのも、ここの skillStateOf を通す（判定を 2 つ持たない）。
 // 入れていない同梱の Skill を案内するのは拡張だけで（findMissingSkills）、警告は足りない Skill を知らせない。
+// dg setup check（setup-check.ts）は、Skill が入っているかと古いかを skillInstallStateOf で見る（古いかの数え方は警告と同じ staleSkillsIn）。
 // 警告と拡張は、そのうえで印の版を比べ（skillAgeOf）、今の dg より新しい版の dg が書いた Skill を古いと言わず、戻さない（ADR-030）。
 // Skill を書くのも、dg skill install と拡張で同じ writeSkillFiles を通し、リポジトリに書いた Skill の無視の行も同じ ignoreSkills で足す。
 // 公開（commands/index.ts）は入口が呼ぶものだけにする。判定の部品（skillStateOf・skillAgeOf・findStaleSkills・staleSkillWarnings）はここのテストが直接引く。
@@ -234,6 +235,31 @@ export async function findStaleSkills(query: {
   env: AgentEnv;
 }): Promise<StaleSkills[]> {
   return staleSkillsIn(agentSkillPlaces(query), await buildSkills());
+}
+
+/** dg の Skill の入り方（dg setup check が見る） */
+export interface SkillInstallState {
+  /** dg の Skill が 1 つ以上入っている置き場所 */
+  installed: SkillPlace[];
+  /** 今の dg のものと違う Skill のある置き場所（数え方は staleSkillsIn） */
+  stale: StaleSkills[];
+}
+
+/**
+ * リポジトリ（topLevel の下）と個人（env の HOME の下）の置き場所を見て、dg の Skill が入っているかと、入れてあるものが古いかを返す。
+ * 読むだけで何も書かない。topLevel を省くと個人の置き場所だけを見る
+ */
+export async function skillInstallStateOf(query: {
+  topLevel?: string | undefined;
+  env: AgentEnv;
+}): Promise<SkillInstallState> {
+  const skills = await buildSkills();
+  const names = skills.map((s) => s.name);
+  const places = uniquePlaces(agentSkillPlaces(query));
+  const installed: SkillPlace[] = [];
+  for (const place of places)
+    if ((await readInstalledSkills(place.dir, names)).size > 0) installed.push(place);
+  return { installed, stale: await staleSkillsIn(places, skills) };
 }
 
 /** 1 つの Skill のディレクトリに dg の Skill を書いた結果 */
