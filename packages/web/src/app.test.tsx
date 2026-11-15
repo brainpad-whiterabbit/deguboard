@@ -1199,10 +1199,12 @@ describe("画面", () => {
           tools: null,
           session: null,
           review: null,
+          waited_seconds: null,
           waiting_since: null,
           settling_since: null,
           running: true,
           duration_seconds: null,
+          active_seconds: null,
         } as RunView,
       ];
       expect(screen.queryByText("外で始めた step")).toBeNull();

@@ -47,6 +47,8 @@ async function scenario(): Promise<CommandContext> {
     id: "r20261031-040000-0001",
     ticket: "t1",
     usage: { input: 1000, output: 100, cache_read: 50, cache_write: null },
+    // 10 分のうち 100 秒は親の依頼を待った。ほかの 2 つは待ちのキーのない Run（この項目より前の Run）
+    waited_seconds: 100,
     tools: {
       read: 5,
       search: 3,
@@ -95,6 +97,9 @@ describe("metrics show", () => {
         runs: 3,
         results: { success: 1, failure: 1, interrupted: 0, unfinished: 1 },
         duration_seconds: 1200,
+        // 作業時間は待ちのある Run だけの実行時間 − 待ち（600 − 100）。待ちの欠けた Run は 0 として足さない
+        active_seconds: 500,
+        waited_seconds: 100,
         input: 1200,
         output: 100,
         cache_read: 50,
@@ -111,6 +116,8 @@ describe("metrics show", () => {
         },
         missing: {
           duration_seconds: 1,
+          active_seconds: 2,
+          waited_seconds: 2,
           input: 1,
           output: 2,
           cache_read: 2,

@@ -25,7 +25,15 @@ export const METRIC_UNITS = [
 export type MetricUnit = (typeof METRIC_UNITS)[number];
 
 /** 足し合わせる数。どれも Run に null があれば足さず、missing に数える（RN-2） */
-const METRIC_VALUES = ["duration_seconds", "input", "output", "cache_read", "cache_write"] as const;
+const METRIC_VALUES = [
+  "duration_seconds",
+  "active_seconds",
+  "waited_seconds",
+  "input",
+  "output",
+  "cache_read",
+  "cache_write",
+] as const;
 export type MetricValue = (typeof METRIC_VALUES)[number];
 
 const TOOL_VALUES = [...TOOL_KINDS, "read_before_write", "search_before_write"] as const;
@@ -38,8 +46,15 @@ export interface RunMetrics {
   /** unfinished は result が null（実行中か、結果を記録せずに終わった）の Run */
   results: { success: number; failure: number; interrupted: number; unfinished: number };
   retries: number;
-  /** 実行時間（started_at〜finished_at）の合計。値のある Run がなければ null */
+  /** 実行時間（started_at〜finished_at。親の依頼を待った時間を含む）の合計。値のある Run がなければ null */
   duration_seconds: number | null;
+  /**
+   * 作業時間（実行時間 − 待ち）の合計。待ちを数えられた Run だけを足すので、待ちの欠けた Run があると
+   * duration_seconds − waited_seconds とは合わない（欠けた数は missing.active_seconds）。値のある Run がなければ null
+   */
+  active_seconds: number | null;
+  /** 親の依頼を待った時間（Run の waited_seconds）の合計。値のある Run がなければ null */
+  waited_seconds: number | null;
   input: number | null;
   output: number | null;
   cache_read: number | null;
@@ -164,6 +179,17 @@ export function runDurationSeconds(run: Run): number | null {
   return Number.isFinite(ms) && ms >= 0 ? ms / 1000 : null;
 }
 
+/**
+ * 作業時間（秒）：実行時間から、親の依頼を待った時間（waited_seconds）を引いた値。保存せず、表示と集計のたびに求める。
+ * 実行時間か待ちが null なら null（待ちの分からない Run の実行時間を作業時間として出さない。RN-2）
+ */
+export function runActiveSeconds(run: Run): number | null {
+  const duration = runDurationSeconds(run);
+  if (duration === null || run.waited_seconds === null) return null;
+  // 待ちは閉じるときに範囲で切ってあるが、後から時刻を書き換えた記録でも負にしない
+  return Math.max(0, duration - run.waited_seconds);
+}
+
 /** linesOf はチケットの ID から記録された行数を引く。省けばどのチケットも行数なしとして数える */
 export function summarizeRuns(
   runs: readonly Run[],
@@ -171,6 +197,8 @@ export function summarizeRuns(
 ): RunMetrics {
   const sums: Record<MetricValue, number | null> = {
     duration_seconds: null,
+    active_seconds: null,
+    waited_seconds: null,
     input: null,
     output: null,
     cache_read: null,
@@ -178,6 +206,8 @@ export function summarizeRuns(
   };
   const missing: RunMetrics["missing"] = {
     duration_seconds: 0,
+    active_seconds: 0,
+    waited_seconds: 0,
     input: 0,
     output: 0,
     cache_read: 0,
@@ -220,6 +250,8 @@ export function summarizeRuns(
     if (run.usage.estimated === true) estimated += 1;
     const values: Record<MetricValue, number | null> = {
       duration_seconds: runDurationSeconds(run),
+      active_seconds: runActiveSeconds(run),
+      waited_seconds: run.waited_seconds,
       input: run.usage.input,
       output: run.usage.output,
       cache_read: run.usage.cache_read,

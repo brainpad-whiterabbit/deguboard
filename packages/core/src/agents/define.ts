@@ -1,7 +1,7 @@
 // Agent Adapter の形（AG-5・MT-1、ADR-029）。
 // 特定の AI 製品に依存する処理は adapters/ に閉じ、Core の汎用部分はこの形と agents/index.ts の一覧だけを見る
 
-import type { Run, RunTools, RunUsage } from "../model/run.js";
+import type { Run, RunTools, RunUsage, WaitInterval } from "../model/run.js";
 
 /** 環境変数。テストが HOME などを差し替えられるように、process.env を直接読まずに受け取る */
 export type AgentEnv = Readonly<Record<string, string | undefined>>;
@@ -44,6 +44,16 @@ export interface CollectedUsage {
   model: string | null;
   /** 使用量と同じ範囲で数えたツールの回数。数えられない Adapter・記録は null */
   tools: RunTools | null;
+  warnings: string[];
+}
+
+/**
+ * Adapter が会話記録から読んだ、親の依頼を待った区間（RN-1）。intervals は記録の全体の区間で、Run の範囲で切るのは閉じる側
+ * （run/record.ts）。数えられなければ null（0 個の区間は「待たなかった」の意味にとっておく）。返すのは時刻だけで、
+ * 会話の中身・パスは返さない（MT-4。警告にも書かない）
+ */
+export interface CollectedWaits {
+  intervals: WaitInterval[] | null;
   warnings: string[];
 }
 
@@ -162,6 +172,11 @@ export interface AgentAdapter {
   name: string;
   /** 会話記録から使用量とツールの回数を読む。読む許可（metrics.read_transcripts・DEGUBOARD_NO_TRANSCRIPTS）は呼び出し側が確かめる */
   readTranscriptUsage(query: UsageQuery): Promise<CollectedUsage>;
+  /**
+   * 会話記録から、親の依頼を待った区間を読む。入力の出どころを記録の項目で見分けられない製品の Adapter は持たない
+   * （その Run の waited_seconds は null）。読む許可は呼び出し側が確かめる
+   */
+  readTranscriptWaits?(query: UsageQuery): Promise<CollectedWaits>;
   /** この製品が Skill を読むディレクトリ。Skill のない製品は持たない */
   skillDirs?: SkillDirs;
   /** この製品のフック。フックのない製品は持たない（主体は申告、Run は run start と claim で開く） */
