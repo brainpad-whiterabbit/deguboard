@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" class="arch" viewBox="0 0 910 660" role="img" aria-label="deguboard's architecture. People and agents go through the entry points (the VS Code extension, dg serve, the CLI and MCP, dg hook), and every entry point calls the command definitions of Core. Core reads and writes the data branch, the work branches, and deguboard-local on this machine, and connects to the Git remote, GitHub, and the transcripts">
   <style>
+    .arch .bg { fill: #ffffff; }
     .arch text { font-size: 13px; fill: #1f2328; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
     .arch text.sub { font-size: 11px; fill: #59636e; }
     .arch text.strong { font-weight: 600; fill: #0969da; }
@@ -24,6 +25,7 @@
       .arch .arrow line, .arch .arrow polyline { stroke: #e6edf3; }
       .arch .label text { fill: #9198a1; }
       .arch .head { fill: #e6edf3; }
+      .arch .bg { fill: #0d1117; }
     }
   </style>
   <defs>
@@ -31,6 +33,7 @@
       <path class="head" d="M0,0 L10,5 L0,10 z"/>
     </marker>
   </defs>
+  <rect class="bg" x="0" y="0" width="910" height="660"/>
   <g class="layer">
     <text x="16" y="45">Users</text>
     <text x="16" y="129">UI</text>

@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" class="arch" viewBox="0 0 910 660" role="img" aria-label="deguboard のアーキテクチャ。人とエージェントは入口（VS Code 拡張・dg serve・CLI と MCP・dg hook）を通り、入口はすべて Core のコマンド定義を呼ぶ。Core はデータのブランチ・作業ブランチ・このマシンの deguboard-local を読み書きし、リモートと GitHub と会話記録につながる">
   <style>
+    .arch .bg { fill: #ffffff; }
     .arch text { font-size: 13px; fill: #1f2328; font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; }
     .arch text.sub { font-size: 11px; fill: #59636e; }
     .arch text.strong { font-weight: 600; fill: #0969da; }
@@ -24,6 +25,7 @@
       .arch .arrow line, .arch .arrow polyline { stroke: #e6edf3; }
       .arch .label text { fill: #9198a1; }
       .arch .head { fill: #e6edf3; }
+      .arch .bg { fill: #0d1117; }
     }
   </style>
   <defs>
@@ -31,6 +33,7 @@
       <path class="head" d="M0,0 L10,5 L0,10 z"/>
     </marker>
   </defs>
+  <rect class="bg" x="0" y="0" width="910" height="660"/>
   <g class="layer">
     <text x="16" y="45">使う人</text>
     <text x="16" y="129">UI</text>

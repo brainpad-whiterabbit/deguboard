@@ -2,7 +2,7 @@
 
 [English](how-it-works.md) | 日本語
 
-このページでは、deguboard の全体の構成と、Run がどこからどこまでを記録するかを説明します。操作の仕方は[使い方の詳細](usage.ja.md)に、約束は[要件定義書](requirements.md)（正本）に、判断の理由は [ADR](adr/README.md) にあります。このページはそれらを写しません。
+このページでは、deguboard の全体の構成と、Run がどこからどこまでを記録するかを説明します。操作の仕方は[使い方の細部](usage.ja.md)に、約束は[要件定義書](requirements.md)（正本）に、判断の理由は [ADR](adr/README.md) にあります。このページはそれらを写しません。
 
 ## 全体の構成
 
