@@ -3,7 +3,7 @@ tickets: [t945, t1003, t1005, t1006, t1007, t1008]
 after:
   t1006:
     - t1003
-pending_approval: true
+pending_approval: false
 details:
   t945:
     scope: release-<S> ラベルのチケットだけが残るとき flow next が release を返す判定と、guide-release・guide-all の起票の手順とヘルプ・テスト
@@ -29,3 +29,5 @@ details:
     scope: ボードの項目で別のリポジトリのボードを指定して --data-remote・--data-branch 付きで init できるようにし、README と README.ja.md の導入を直す
     approach: チェックリストのボードの項目に選択と入力を足して init の引数を組み立て、渡す引数をテストで確かめる
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-15T16:34:43Z
