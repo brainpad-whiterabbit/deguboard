@@ -1,0 +1,35 @@
+{
+  "id": "r20261115-170216-9444",
+  "ticket": "t1003",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-15T17:02:16Z",
+  "finished_at": "2026-11-15T17:08:11Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "dg hooks check warning for missing input fields shows the Adapter id instead of the product name, so the output changed",
+    "ADR-033 gives a reason for placing hooks decisions in core commands that holds only for skill"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 5061,
+    "cache_read": 271587,
+    "cache_write": 37041
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 5,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "6296b215-326e-44d8-985a-825ffa47ebfb",
+  "review": null,
+  "waited_seconds": 0
+}
