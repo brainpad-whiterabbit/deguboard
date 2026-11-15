@@ -275,6 +275,8 @@ Commit mode
 commit.mode
 [title] Default: batch
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting commit.mode)
 When ticket writes are committed
 each
 batch
@@ -291,6 +293,8 @@ Push mode
 push.mode
 [title] Default: auto
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting push.mode)
 When commits are pushed
 auto
 (default)
@@ -304,6 +308,8 @@ Allow shell Actions
 actions.shell
 [title] Default: false
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting actions.shell)
 Allow the arbitrary shell Action
 Off
 [title] Reset to default false
@@ -314,6 +320,8 @@ Test command
 actions.test
 [title] Default: Empty
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting actions.test)
 Command run by the quality gate's check and the test Action
 Empty
 [aria-label] Items
@@ -328,6 +336,8 @@ Lighter check command
 actions.light_test
 [title] Default: Empty
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting actions.light_test)
 Lighter check run instead of actions.test when only light paths changed
 Empty
 [aria-label] Items
@@ -342,6 +352,8 @@ Paths the lighter check is enough for
 actions.light_paths
 [title] Default: Empty
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting actions.light_paths)
 Globs of files the lighter check is enough for
 Empty
 [aria-label] Items
@@ -356,6 +368,8 @@ Merge PRs automatically
 auto.merge
 [title] Default: false
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting auto.merge)
 Merge PRs that pass the quality gate automatically with --auto
 Off
 [title] Reset to default false
@@ -366,6 +380,8 @@ Decisions --auto chooses automatically
 auto.decisions
 [title] Default: [assign, check, plan, audit, accept]
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting auto.decisions)
 Decisions --auto chooses without asking
 Empty
 [aria-label] Items
@@ -380,6 +396,8 @@ Stages to leave out of the flow
 flow.skip
 [title] Default: Empty
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting flow.skip)
 Stages that dg flow next skips
 Empty
 [aria-label] Items
@@ -394,6 +412,8 @@ Most tickets advanced at the same time
 work.parallel
 [title] Default: 3
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting work.parallel)
 Most tickets of a Plan advanced at the same time (1 to 10)
 [title] Reset to default 3
 Reset to Default
@@ -403,6 +423,8 @@ Merge method
 merge.method
 [title] Default: squash
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting merge.method)
 Merge method dg pr merge uses by default
 squash
 (default)
@@ -416,6 +438,8 @@ Delete the work branch after merging
 merge.delete_branch
 [title] Default: false
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting merge.delete_branch)
 Delete the work branch when dg pr merge merges
 Off
 [title] Reset to default false
@@ -426,6 +450,8 @@ Gate conditions an approval may override
 merge.approval_overrides
 [title] Default: [check, review, fix_rounds, acceptance]
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting merge.approval_overrides)
 Quality gate conditions a person's approval of the merge may override
 Empty
 [aria-label] Items
@@ -440,6 +466,8 @@ Review finding categories treated as heavy
 review.heavy_categories
 [title] Default: Empty
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting review.heavy_categories)
 Review finding categories always treated as heavy
 Empty
 [aria-label] Items
@@ -454,6 +482,8 @@ Require an Iteration before starting
 lint.require_iteration
 [title] Default: false
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting lint.require_iteration)
 Have dg lint flag tickets worked on outside an Iteration
 Off
 [title] Reset to default false
@@ -464,6 +494,8 @@ Model for tier light
 models.light
 [title] Default: 
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting models.light)
 Model for Plan tier light and for research
 [placeholder] e.g. haiku
 [title] Reset to default 
@@ -475,6 +507,8 @@ Model for tier standard
 models.standard
 [title] Default: 
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting models.standard)
 Model for Plan tier standard
 [placeholder] e.g. sonnet
 [title] Reset to default 
@@ -486,6 +520,8 @@ Model for tier heavy
 models.heavy
 [title] Default: 
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting models.heavy)
 Model for Plan tier heavy
 [placeholder] e.g. opus
 [title] Reset to default 
@@ -497,6 +533,8 @@ Model for tier light (Claude Code)
 models.claude-code.light
 [title] Default: 
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting models.claude-code.light)
 Model for Plan tier light when this agent calls dg next
 [title] Reset to default 
 Reset to Default
@@ -507,6 +545,8 @@ Model for tier standard (Claude Code)
 models.claude-code.standard
 [title] Default: 
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting models.claude-code.standard)
 Model for Plan tier standard when this agent calls dg next
 [title] Reset to default 
 Reset to Default
@@ -517,6 +557,8 @@ Model for tier heavy (Claude Code)
 models.claude-code.heavy
 [title] Default: 
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting models.claude-code.heavy)
 Model for Plan tier heavy when this agent calls dg next
 [title] Reset to default 
 Reset to Default
@@ -527,6 +569,8 @@ Model for tier light (Codex)
 models.codex.light
 [title] Default: 
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting models.codex.light)
 Model for Plan tier light when this agent calls dg next
 [title] Reset to default 
 Reset to Default
@@ -537,6 +581,8 @@ Model for tier standard (Codex)
 models.codex.standard
 [title] Default: 
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting models.codex.standard)
 Model for Plan tier standard when this agent calls dg next
 [title] Reset to default 
 Reset to Default
@@ -547,6 +593,8 @@ Model for tier heavy (Codex)
 models.codex.heavy
 [title] Default: 
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting models.codex.heavy)
 Model for Plan tier heavy when this agent calls dg next
 [title] Reset to default 
 Reset to Default
@@ -557,6 +605,8 @@ Commands limited to people
 actor.human_only
 [title] Default: Empty
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting actor.human_only)
 Command names rejected for agents
 Empty
 [aria-label] Items
@@ -572,6 +622,8 @@ Read usage from transcripts
 metrics.read_transcripts
 [title] Default: false
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting metrics.read_transcripts)
 Read conversation transcripts to fill in usage
 Off
 [title] Reset to default false
@@ -583,6 +635,8 @@ Notify when approvals are waiting
 notify.approvals
 [title] Default: true
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting notify.approvals)
 Notify in VS Code when Plans awaiting approval or tickets in review increase
 Off
 [title] Reset to default true
@@ -592,6 +646,8 @@ Whether the VS Code extension shows a notification when Plans awaiting approval 
 Git
 Code remote
 git.remote
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting git.remote)
 Git remote of the code (work branches and pull requests)
 [value] origin
 When empty: Returns to the default (in personal settings, to the team's value)
@@ -599,6 +655,8 @@ Details
 Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set
 Data remote
 git.data_remote
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting git.data_remote)
 Git remote that the kanban data is fetched from and pushed to
 [placeholder] e.g. deguboard-data
 When empty: Uses git.remote
@@ -606,6 +664,8 @@ Details
 Git remote that the kanban data (the deguboard branch) is fetched from and pushed to, when the data is kept in a repository other than the code's. A remote name, not a URL (dg init --data-remote <URL> adds the remote). Empty uses git.remote. When the named remote is not in a clone, commands that push stop and tell how to add it. A change to the team's value is committed and pushed to the current data remote right away, so that clones still using it learn of the move. For how to move the data to another repository, see dg guide overview
 Data branch
 git.data_branch
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting git.data_branch)
 Branch of the data remote that holds this repository's kanban
 [placeholder] e.g. deguboard-webapp
 [value] deguboard
@@ -614,6 +674,8 @@ Details
 Branch of the data remote that holds this repository's kanban. Only this branch is fetched, integrated, and pushed, so several repositories can keep separate kanbans in one dedicated data repository, each under its own branch (deguboard-<name> is recommended). A name with / is rejected. Everyone who can read the data repository can read every kanban in it. A new clone passes it to dg init --data-branch (the config is inside the data). A change to the team's value is committed and pushed to the current branch right away, so that clones still using it learn of the move. For how to move the data, see dg guide overview
 Base branch
 git.base_branch
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting git.base_branch)
 Base for work branches and for deciding what is merged
 [value] main
 When empty: Returns to the default (in personal settings, to the team's value)
@@ -621,6 +683,8 @@ Worktree location
 worktree.root
 [title] Default: ../<repo>.worktrees
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting worktree.root)
 Where work worktrees go
 [title] Reset to default ../<repo>.worktrees
 Reset to Default
@@ -631,6 +695,8 @@ Setup command for worktrees
 worktree.setup
 [title] Default: Empty
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting worktree.setup)
 Setup command run first in a new work worktree
 Empty
 [aria-label] Items
@@ -644,6 +710,8 @@ Argument array of the setup command run first in a work worktree that claim crea
 Tickets
 Default Workflow
 default_workflow
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting default_workflow)
 Workflow of tickets that name none
 [value] general
 When empty: Returns to the default (in personal settings, to the team's value)
@@ -653,6 +721,8 @@ Criteria for priority high
 priority.high
 [title] Default: User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting priority.high)
 Criteria for priority high
 [title] Reset to default User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets
 Reset to Default
@@ -663,6 +733,8 @@ Criteria for priority medium
 priority.medium
 [title] Default: New features and improvements, missing or unstable tests, inconsistencies in internal docs, convention violations that do no harm yet, and dependencies that are far out of date
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting priority.medium)
 Criteria for priority medium (the default)
 [title] Reset to default New features and improvements, missing or unstable tests, inconsistencies in internal docs, convention violations that do no harm yet, and dependencies that are far out of date
 Reset to Default
@@ -673,6 +745,8 @@ Criteria for priority low
 priority.low
 [title] Default: Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent
 Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting priority.low)
 Criteria for priority low
 [title] Reset to default Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent
 Reset to Default
@@ -687,6 +761,8 @@ Path of a document inserted just after the guide title (just after the section h
 [title] Document inserted into overview
 Overview
 guide.notes.overview
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.overview)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -695,6 +771,8 @@ Reset to Default
 [title] Document inserted into import
 Import
 guide.notes.import
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.import)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -703,6 +781,8 @@ Reset to Default
 [title] Document inserted into assign
 Assign
 guide.notes.assign
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.assign)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -711,6 +791,8 @@ Reset to Default
 [title] Document inserted into check
 Check
 guide.notes.check
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.check)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -719,6 +801,8 @@ Reset to Default
 [title] Document inserted into plan
 Planning
 guide.notes.plan
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.plan)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -727,6 +811,8 @@ Reset to Default
 [title] Document inserted into work
 Work
 guide.notes.work
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.work)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -735,6 +821,8 @@ Reset to Default
 [title] Document inserted into run
 Run
 guide.notes.run
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.run)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -743,6 +831,8 @@ Reset to Default
 [title] Document inserted into parallel
 Parallel
 guide.notes.parallel
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.parallel)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -751,6 +841,8 @@ Reset to Default
 [title] Document inserted into review and quality gate
 Review and quality gate
 guide.notes.review
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.review)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -759,6 +851,8 @@ Reset to Default
 [title] Document inserted into audit
 Audit
 guide.notes.audit
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.audit)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -767,6 +861,8 @@ Reset to Default
 [title] Document inserted into release
 Release
 guide.notes.release
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.release)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -775,6 +871,8 @@ Reset to Default
 [title] Document inserted into done
 Done
 guide.notes.done
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.done)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -783,6 +881,8 @@ Reset to Default
 [title] Document inserted into change
 Change
 guide.notes.change
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.change)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -791,6 +891,8 @@ Reset to Default
 [title] Document inserted into discuss
 Discuss
 guide.notes.discuss
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.discuss)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -799,6 +901,8 @@ Reset to Default
 [title] Document inserted into status
 Status
 guide.notes.status
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.status)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -807,6 +911,8 @@ Reset to Default
 [title] Document inserted into explain
 Explain
 guide.notes.explain
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.explain)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -815,6 +921,8 @@ Reset to Default
 [title] Document inserted into retro
 Retro
 guide.notes.retro
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.retro)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -823,6 +931,8 @@ Reset to Default
 [title] Document inserted into config
 Settings
 guide.notes.config
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.config)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md
@@ -831,6 +941,8 @@ Reset to Default
 [title] Document inserted into all
 All
 guide.notes.all
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting guide.notes.all)
 [title] Default: 
 Modified
 [placeholder] e.g. docs/notes.md

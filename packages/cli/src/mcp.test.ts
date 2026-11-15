@@ -367,6 +367,57 @@ describe("dg mcp", () => {
     expect((await cli(["flow", "next", "s1", "--no-assign"])).data.stage.name).toBe("check");
   });
 
+  it("ask は設定の項目（--key）で CLI の --json と MCP が同じ依頼文を返し、スキーマにない項目はどちらも使い方の誤りになる", async () => {
+    const f = await initialized();
+    const cli = async (argv: string[]) => {
+      const out: string[] = [];
+      const code = await run(["-C", f.cloneA, "--json", ...argv], {
+        env: cliEnv(),
+        streams: { out: (t) => out.push(t), err: () => {} },
+      });
+      return { code, json: JSON.parse(out.join("")) };
+    };
+    const field = await cli([
+      "ask",
+      "--action",
+      "config",
+      "--key",
+      "commit.mode",
+      "--format",
+      "skill",
+    ]);
+    expect(field.code).toBe(0);
+    expect(field.json.data).toMatchObject({
+      action: "config",
+      key: "commit.mode",
+      text: "/dgconfig commit.mode",
+    });
+    const perspective = await cli(["ask", "--key", "retro.perspectives.spec", "--format", "skill"]);
+    expect(perspective.json.data).toMatchObject({
+      action: "retro",
+      text: "/dgretro\n観点 spec だけで振り返って",
+    });
+    const unknown = await cli(["ask", "--action", "config", "--key", "commit.nothing"]);
+    expect(unknown.code).toBe(2);
+    expect(unknown.json).toMatchObject({ ok: false, error: { code: "INVALID_INPUT" } });
+
+    const call = (args: Record<string, unknown>) => ({
+      method: "tools/call",
+      params: { name: "ask", arguments: args },
+    });
+    const viaMcp = await session(
+      ["-C", f.cloneA],
+      [
+        call({ action: "config", key: "commit.mode", format: "skill" }),
+        call({ key: "retro.perspectives.spec", format: "skill" }),
+        call({ action: "config", key: "commit.nothing" }),
+      ],
+    );
+    expect(body(viaMcp.results[0]!)).toEqual(field.json);
+    expect(body(viaMcp.results[1]!)).toEqual(perspective.json);
+    expect(body(viaMcp.results[2]!)).toEqual(unknown.json);
+  });
+
   it("next と brief は CLI の --json と MCP で同じ文を返し、役ごとの文に節の本文が入る（t593）", async () => {
     const f = await initialized();
     const cli = async (argv: string[]) => {

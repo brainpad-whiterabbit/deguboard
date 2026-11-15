@@ -233,8 +233,8 @@ updated_at: 2026-10-31T05:10:00Z
 - UI-11 VS Code 拡張は `core` と CLI を同梱して `dg` なしで動き、起動ファイルで外に出す。コマンドで `~/.local/bin/dg` に張り、外せる。PATH の `dg` がないか版のメジャーが違えば知らせる。文言は表示言語で出す（core の文・既定のままの値も訳し、チケットの中身・人の値・指示は訳さない）。細部は `vscode/src/launcher.ts`・`vscode/src/l10n.ts`・`web/src/l10n.ts` とそのテスト
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。コード中の ID から要約と詳細を開け、コマンドで ID か題からも探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせ（設定で切れる）、`dg init` 前は始め方を出し、VS Code ではボタンで初期化を実行できる。細部は `packages/vscode/package.json`・`src/extension.ts`
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
-- UI-14 設定画面：チームの `config.yaml` の項目（5.10）と個人で上書きできる項目を分けて直せ、上書きは外せる。影響の大きい項目は保存前に確かめ、`retro.perspectives` は読むだけ。VS Code の settings.json は使わない（細部は `packages/web/src/pages/config.tsx` とそのテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
-- UI-15 エージェントに頼む：行・見出しから `dg ask` の依頼文を作って頼め、データには書き込まない。対象を選ばずに頼むときは、設定の説明と変更（5.10）も頼める。VS Code では開いているターミナルにも送れる。細部は `packages/web/src/components/ask-menu.tsx`・`packages/vscode/src/terminals.ts` のテスト
+- UI-14 設定画面：チームの `config.yaml` の項目（5.10）と個人で上書きできる項目を分けて直せ、上書きは外せる。影響の大きい項目は保存前に確かめ、`retro.perspectives` は読むだけ。項目と観点の行から頼める（UI-15）。VS Code の settings.json は使わない（細部は `packages/web/src/pages/config.tsx` とそのテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
+- UI-15 エージェントに頼む：行・見出しから `dg ask` の依頼文を作って頼め、データには書き込まない。対象を選ばずに頼むときは、設定の説明と変更（5.10）も頼める。設定画面の項目の行からはその項目の説明と変更を、観点の行からはその観点の振り返り（MT-7）を頼める。VS Code では開いているターミナルにも送れる。細部は `packages/web/src/components/ask-menu.tsx`・`packages/vscode/src/terminals.ts` のテスト
 - UI-16 VS Code 拡張は、制限モードと仮想ワークスペースでは動かない（理由は `packages/vscode/package.json` の `capabilities`）
 
 画面の並び・文言・印などの細部は `packages/web/src/`・`packages/vscode/src/` のコードとテストが正本。

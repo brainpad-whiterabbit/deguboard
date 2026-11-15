@@ -18,7 +18,10 @@
 // 選択欄とチェックは変えたらすぐ、テキストと数は Enter か欄を離れたとき、リストは足す・外すたびに保存する。
 // 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、どちらのタブでも保存の前に欄の下で確かめる
 // （自分の値を外して効く値が変わるときも確かめる。空にすると既定に戻る項目を空にするときは、戻る既定の値を出す）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す。
-// 保存は通って読み直しだけが失敗したら、保存できたことと読み直せないことを分けて出し、欄は保存した値で出す
+// 保存は通って読み直しだけが失敗したら、保存できたことと読み直せないことを分けて出し、欄は保存した値で出す。
+// 項目の行と観点の行の名前の横には、エージェントに頼む吹き出しを出す（UI-15）。項目の行はそのキーを、観点の行は retro.perspectives.<id> を
+// 渡すだけで、候補（項目は /dgconfig の説明と変更、観点は /dgretro の振り返り）と依頼文は core の ask が決める。
+// 頼める場所は名前の行だけにする（行の全体にすると、入力欄の右クリックの切り取り・貼り付けまで止める）
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { failureOf } from "../client/http.js";
@@ -40,6 +43,10 @@ import {
   msg,
 } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
+import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
+
+/** 振り返りの観点の行から頼むときに渡す項目の頭（core の ask の key：retro.perspectives.<id>。ASK_PERSPECTIVE_KEY の写しで、一致はテストが確かめる） */
+export const RETRO_ITEM_PREFIX = "retro.perspectives.";
 
 /** 画面のまとまり。キーの最上位（commit.mode なら commit）で振り分ける */
 const GROUPS: { id: string; label: string; tops: string[] }[] = [
@@ -837,15 +844,22 @@ function FieldRow({
       ) : null}
     </>
   );
+  // 行からエージェントに頼む（UI-15）。対象は持たず、項目のキーを渡す（候補と依頼文は core の ask が決める）
+  const askSpot = {
+    targets: [],
+    label: tr("設定の項目 {0}", field.key),
+    section: ASK_SECTIONS.configRow,
+    item: field.key,
+  };
   if (layout === "note")
     return (
       <tr className={className} data-key={field.key}>
-        <th scope="row">
+        <AskSpotBox as="th" scope="row" {...askSpot}>
           <label htmlFor={id} className="config-name" title={nameOf(field.key)}>
             {noteLabel(field.key)}
           </label>
           <code className="config-key">{field.key}</code>
-        </th>
+        </AskSpotBox>
         <td>
           <div className="config-field-head">{status}</div>
           {body}
@@ -855,13 +869,13 @@ function FieldRow({
   const detail = detailOf(field);
   return (
     <div className={className} data-key={field.key}>
-      <div className="config-field-head">
+      <AskSpotBox className="config-field-head" {...askSpot}>
         <label htmlFor={id} className="config-name">
           {nameOf(field.key)}
         </label>
         <code className="config-key">{field.key}</code>
         {status}
-      </div>
+      </AskSpotBox>
       <p className="config-summary muted">{summaryOf(field)}</p>
       {body}
       {detail !== null ? <FieldDetail text={detail} open={detailOpen} /> : null}
@@ -1077,7 +1091,14 @@ function RetroSection({
             className={`config-field config-retro-perspective${change !== undefined ? " modified" : ""}`}
             data-perspective={id}
           >
-            <div className="config-field-head">
+            {/* 観点の行からは、その観点だけの振り返りを頼む（項目は retro.perspectives.<id>。候補と依頼文は core の ask が決める） */}
+            <AskSpotBox
+              className="config-field-head"
+              targets={[]}
+              label={tr("振り返りの観点 {0}", id)}
+              section={ASK_SECTIONS.configRow}
+              item={`${RETRO_ITEM_PREFIX}${id}`}
+            >
               <strong className="config-name">{perspective.name}</strong>
               <code className="config-key">{id}</code>
               {change !== undefined ? (
@@ -1100,7 +1121,7 @@ function RetroSection({
               ) : (
                 <span className="badge config-retro-none">{tr("指標なし")}</span>
               )}
-            </div>
+            </AskSpotBox>
             <p className="config-summary muted config-retro-question">{perspective.question}</p>
             {count === 0 ? (
               <p className="config-hint muted">

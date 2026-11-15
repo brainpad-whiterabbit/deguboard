@@ -115,13 +115,15 @@ export function HostProvider({ host, children }: { host: Host; children: ReactNo
 /**
  * エージェントに頼む入力欄を開く頼み。targets は対象の ID（空なら対象なし）、action は選んで開く頼むこと（省けばおすすめ）、
  * within は対象のチケットが入っている Iteration・Epic（詳細の中の行から開いたとき。外すの候補が出る）、
- * place は頼む場所（履歴の行・見出しなど。場所によって候補が変わる）。見た目の状態の ask.open に残す
+ * place は頼む場所（履歴の行・見出しなど。場所によって候補が変わる）、
+ * item は設定の項目（設定画面の行から開いたとき。ask の key。対象は空）。見た目の状態の ask.open に残す
  */
 export interface AskRequest {
   targets: string[];
   action?: AskAction | undefined;
   within?: string | undefined;
   place?: string | undefined;
+  item?: string | undefined;
 }
 
 /** 見た目の状態の鍵。拡張ホストが HTML の data-ask で渡した対象は、main.tsx が描く前にここへ書く */
@@ -136,7 +138,13 @@ export interface Ask {
   /** 開いている入力欄の対象。閉じていれば null */
   request: AskRequest | null;
   /** 入力欄を開く。開いていれば対象を入れ替える（頼むことは action か、なければおすすめ）。指示は空にする */
-  open(targets: readonly string[], action?: AskAction, within?: string, place?: string): void;
+  open(
+    targets: readonly string[],
+    action?: AskAction,
+    within?: string,
+    place?: string,
+    item?: string,
+  ): void;
   close(): void;
   /** 開いた回数。開き直したら入力欄の中の状態（外した対象・選んだ頼むこと）を捨てるための key に使う。0 なら見た目の状態からの復元で、頼むことを選んで開いたときのコピーはしない（判別にも使う） */
   serial: number;
@@ -160,7 +168,13 @@ function AskProvider({ children }: { children: ReactNode }) {
   const [request, setRequest] = useUiState<AskRequest | null>(ASK_OPEN_KEY, null);
   const [serial, setSerial] = useState(0);
   const open = useCallback(
-    (targets: readonly string[], action?: AskAction, within?: string, place?: string) => {
+    (
+      targets: readonly string[],
+      action?: AskAction,
+      within?: string,
+      place?: string,
+      item?: string,
+    ) => {
       // 開くたびに指示は空で始める（閉じるときの下書きは残すが、開き直したら消す）。形式は人が選んだものを残す
       host.state.set(ASK_NOTE_KEY, "");
       setRequest({
@@ -168,6 +182,7 @@ function AskProvider({ children }: { children: ReactNode }) {
         ...(action ? { action } : {}),
         ...(within ? { within } : {}),
         ...(place ? { place } : {}),
+        ...(item ? { item } : {}),
       });
       setSerial((n) => n + 1);
     },

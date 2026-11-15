@@ -525,7 +525,7 @@ describe("dg", () => {
     expect(columns).not.toContain("end");
   });
 
-  it("ask --help は --place と historyRow の説明を出す", async () => {
+  it("ask --help は --place と historyRow の説明と、設定の項目を渡す --key の説明を出す", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     const help = await dg(f.cloneA, ["ask", "--help"]);
@@ -533,6 +533,8 @@ describe("dg", () => {
     expect(help.out).toContain("--place");
     expect(help.out).toContain("historyRow");
     expect(help.out).toContain("retro");
+    expect(help.out).toContain("--key");
+    expect(help.out).toContain("retro.perspectives.<id>");
   });
 
   it("Iteration は予定の期間を持たないので、create・update のヘルプに --start・--end がなく、渡すと使い方の誤り", async () => {

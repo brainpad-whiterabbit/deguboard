@@ -42,6 +42,8 @@ interface AskInput {
   targets: string[];
   within?: string | undefined;
   place?: string | undefined;
+  /** 設定の項目（設定画面の行から開いたとき）。core の ask の key */
+  key?: string | undefined;
   action?: AskAction | undefined;
   note?: string | undefined;
   format?: AskFormat | undefined;
@@ -54,6 +56,7 @@ export function AskComposer({
   action: initialAction,
   within,
   place,
+  item,
   copyOnOpen = false,
   onClose,
 }: {
@@ -62,6 +65,8 @@ export function AskComposer({
   within?: string | undefined;
   /** 頼む場所（履歴の行・見出しなど）。場所によって候補が変わる */
   place?: string | undefined;
+  /** 設定の項目（設定画面の行から開いたとき。commit.mode、retro.perspectives.spec）。対象は空で、候補と依頼文はその項目のものになる */
+  item?: string | undefined;
   /** 選んで開く頼むこと（行・見出しの吹き出し）。省くか候補になければおすすめ */
   action?: AskAction | undefined;
   /** 開いたときに、選んだ頼むこと（action）の依頼文をそのままコピーする（一覧で選んで開いたとき。復元では false） */
@@ -123,6 +128,7 @@ export function AskComposer({
         targets: parseAskKey(targetsKey).targets,
         within,
         place,
+        key: item,
         language: language(),
       } satisfies AskInput)
       .then((r) => alive && (setBase(r.data), setError(null)))
@@ -130,7 +136,7 @@ export function AskComposer({
     return () => {
       alive = false;
     };
-  }, [client, targetsKey, within, place, store.tickets]);
+  }, [client, targetsKey, within, place, item, store.tickets]);
 
   // 選んだ頼むことが候補にない（開いた後に Status が変わったなど）ときは、おすすめに戻す
   const action = picked && base?.candidates.some((c) => c.action === picked) ? picked : null;
@@ -141,6 +147,7 @@ export function AskComposer({
       targets: parseAskKey(targetsKey).targets,
       within,
       place,
+      key: item,
       action: action ?? undefined,
       note: settledNote,
       format: chosenFormat ?? undefined,
@@ -153,7 +160,7 @@ export function AskComposer({
     return () => {
       alive = false;
     };
-  }, [client, base, targetsKey, within, place, action, settledNote, chosenFormat]);
+  }, [client, base, targetsKey, within, place, item, action, settledNote, chosenFormat]);
 
   const chosen = action ?? base?.candidates[0]?.action ?? null;
   // 出している形式。人が選んでいなければ、形式を渡さずに引いた結果の既定
@@ -178,6 +185,7 @@ export function AskComposer({
         targets,
         within,
         place,
+        key: item,
         action: pick ?? undefined,
         note,
         format: chosenFormat ?? undefined,
@@ -302,7 +310,7 @@ export function AskComposer({
         </button>
       </div>
       <div className="ask-box">
-        {skillPill || (base?.targets.length ?? 0) > 0 ? (
+        {skillPill || (base?.targets.length ?? 0) > 0 || base?.key ? (
           <div className="ask-pills">
             {skillPill ? (
               <span
@@ -324,6 +332,8 @@ export function AskComposer({
                 </button>
               </span>
             ))}
+            {/* 設定の項目から開いたとき（設定画面の行）は、その項目の key を札に出す（core の ask が返したまま。外せない） */}
+            {base?.key ? <span className="ask-pill ask-pill-target">{base.key}</span> : null}
           </div>
         ) : null}
         {candidate?.meaning ? <p className="ask-meaning">{candidate.meaning}</p> : null}

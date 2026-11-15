@@ -3412,6 +3412,16 @@ button.ask-copy svg {
 [data-ask-spot="active"] > .ask-bubble.pinned {
   background: var(--vscode-list-hoverBackground);
 }
+/* 設定画面の項目の行（pages/config.tsx）。頼める場所は名前の行（表の行では th）だけで、右に吹き出しの場所を空け、
+   行のどこにマウスを載せても・行の中にフォーカスがあっても吹き出しを出す */
+.config-field-head[data-ask-spot],
+.config-notes-table th[data-ask-spot] {
+  padding-right: 28px;
+}
+.config-field:hover > [data-ask-spot] > .ask-bubble,
+.config-field:focus-within > [data-ask-spot] > .ask-bubble {
+  opacity: 1;
+}
 /* タイトルは入力欄の対象でも塗らない（吹き出しの色だけで示す） */
 .ask-title[data-ask-spot="active"] {
   background: transparent;

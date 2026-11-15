@@ -2,8 +2,10 @@
 
 import {
   askCandidates,
+  askConfigItem,
   askMenuKey,
   buildAsk,
+  defaultConfig,
   parseAskMenuKey,
   planReadiness,
   progressOf,
@@ -234,6 +236,9 @@ function askSubjectOf(data: Fixture, id: string): AskSubject {
   };
 }
 
+/** ask・ask-menu の設定の項目（key）で受ける振り返りの観点の ID。core の既定の観点 */
+const DEFAULT_PERSPECTIVES = Object.keys(defaultConfig().retro.perspectives);
+
 export function mockClient(data = fixture()): MockClient {
   const calls: MockClient["calls"] = [];
   /** ticket.check で書き換えた本文。ticket.show はこれを返し、なければ TICKET_BODY */
@@ -287,22 +292,32 @@ export function mockClient(data = fixture()): MockClient {
     "run.list": () => [],
     "run.recent": () => [],
     // core の ask と同じく、対象を fixture から引いて buildAsk で依頼文を作る（チケットと Iteration だけ。実行中の Run はない）
+    // 設定の項目（key）も core と同じく確かめる（観点は既定の観点の ID）
     ask: (input) => {
-      const { targets = [], ...rest } = input as { targets?: string[] } & Record<string, unknown>;
-      return buildAsk({ subjects: targets.map((id) => askSubjectOf(data, id)), ...rest });
+      const {
+        targets = [],
+        key,
+        ...rest
+      } = input as { targets?: string[]; key?: string } & Record<string, unknown>;
+      return buildAsk({
+        subjects: targets.map((id) => askSubjectOf(data, id)),
+        item: key ? askConfigItem(key, DEFAULT_PERSPECTIVES) : undefined,
+        ...rest,
+      });
     },
     // core の ask-menu と同じく、組（core の askMenuKey の形にそろえた鍵）ごとに候補を返す。fixture にない対象は error。
     // 返す key は core と同じくそろえた形なので、画面が別の形の鍵で引くと候補が見つからない
     "ask-menu": (input) =>
       ((input as { sets?: string[] }).sets ?? []).map((set): AskMenu => {
-        const { refs, within, place } = parseAskMenuKey(set);
-        const key = askMenuKey(refs, within, place);
+        const { refs, within, place, item } = parseAskMenuKey(set);
+        const key = askMenuKey(refs, within, place, item);
         try {
           const candidates = askCandidates(
             refs.map((id) => askSubjectOf(data, id)),
             within,
             (input as { language?: "ja" | "en" }).language,
             place as Parameters<typeof askCandidates>[3],
+            item ? askConfigItem(item, DEFAULT_PERSPECTIVES) : undefined,
           );
           return { key, candidates, error: null };
         } catch (e) {

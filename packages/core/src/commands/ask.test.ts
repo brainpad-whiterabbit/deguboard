@@ -16,6 +16,8 @@ import {
   askGuideLine,
   ask,
   askCandidates,
+  askConfigItem,
+  ASK_PERSPECTIVE_KEY,
   askHumanChecks,
   askMeaning,
   askMenu,
@@ -1133,6 +1135,124 @@ describe("頼むことの候補", () => {
     });
   });
 
+  it("設定の項目（key）は、スキーマの葉の項目と今ある振り返りの観点だけを受け、ほかは使い方の誤りになる", () => {
+    expect(askConfigItem("commit.mode", [])).toEqual({ kind: "field", key: "commit.mode" });
+    expect(askConfigItem(" guide.notes.work ", [])).toEqual({
+      kind: "field",
+      key: "guide.notes.work",
+    });
+    expect(askConfigItem(`${ASK_PERSPECTIVE_KEY}spec`, ["spec", "cost"])).toEqual({
+      kind: "perspective",
+      key: "retro.perspectives.spec",
+      id: "spec",
+    });
+    // スキーマにない項目・まとまり・観点の入れ子そのもの・今ない観点は受けない
+    for (const key of ["commit.nothing", "commit", "models", "retro.perspectives", "t12"])
+      expect(() => askConfigItem(key, ["spec"]), key).toThrow(/is not a settings item/);
+    expect(() => askConfigItem("retro.perspectives.nothing", ["spec"])).toThrow(
+      /is not a perspective of the retrospective/,
+    );
+  });
+
+  it("設定の項目から頼むと、候補はその項目の説明と変更の 1 つだけで、キーを入れた /dgconfig の依頼文になる", () => {
+    const item = askConfigItem("commit.mode", []);
+    for (const language of ["ja", "en"] as const)
+      expect(askCandidates([], undefined, language, "configRow", item)).toEqual([
+        {
+          action: "config",
+          label: "Explain or change settings",
+          skill: "/dgconfig",
+          skill_summary: SKILL_SUMMARY["dgconfig"]![language],
+          recommended: true,
+          meaning:
+            language === "ja"
+              ? "commit.mode の意味・今の値・既定の値・範囲を説明し、変更は前と後の差の承認を得てから書きます。"
+              : "Explain commit.mode (meaning, current value, default, scope), and write a change only after approval of before → after.",
+        },
+      ]);
+    // 頼むことを省いても渡しても同じ依頼文。key は札に出すために返す
+    const view = buildAsk({ subjects: [], item, format: "skill" });
+    expect(view).toMatchObject({
+      action: "config",
+      kind: "prompt",
+      key: "commit.mode",
+      targets: [],
+      text: "/dgconfig commit.mode",
+    });
+    expect(buildAsk({ subjects: [], item, action: "config", format: "skill" }).text).toBe(
+      view.text,
+    );
+    expect(buildAsk({ subjects: [], item, format: "skill", note: "each にして" }).text).toBe(
+      "/dgconfig commit.mode\neach にして",
+    );
+    expect(buildAsk({ subjects: [], item, format: "text" }).text).toBe(
+      [
+        "deguboard の設定（config.yaml）の項目 commit.mode を説明してください。変更は、前と後の差とチームか個人（--local）かを見せて、承認を得てから dg config set で書いてください。",
+        ASK_DG_USAGE,
+        askGuideLine("/dgconfig"),
+      ].join("\n"),
+    );
+    expect(buildAsk({ subjects: [], item, format: "text", language: "en" }).text).toBe(
+      [
+        "Explain the deguboard setting commit.mode (config.yaml). For a change, show before → after and team or personal (--local), and write it with dg config set only after I approve.",
+        ASK_DG_USAGE_EN,
+        askGuideLine("/dgconfig", "en"),
+      ].join("\n"),
+    );
+    // config.set が人に限られていても、書くのは Skill が承認を得てからなので依頼文のまま
+    expect(buildAsk({ subjects: [], item, humanOnly: ["config.set"] }).kind).toBe("prompt");
+    // 項目を渡さない依頼は key を持たない
+    expect(buildAsk({ subjects: [], action: "config" }).key).toBeNull();
+    // 項目の候補にない頼むことと、対象と一緒の項目は使い方の誤り
+    expect(() => buildAsk({ subjects: [], item, action: "retro" })).toThrow(
+      /retro is not a candidate/,
+    );
+    expect(() => buildAsk({ subjects: [], item, action: "free", note: "x" })).toThrow(
+      /free is not a candidate/,
+    );
+    expect(() => buildAsk({ subjects: [ticket()], item })).toThrow(
+      /cannot be asked together with targets/,
+    );
+  });
+
+  it("振り返りの観点から頼むと、候補は振り返るの 1 つだけで、観点の ID を渡して /dgretro を頼む依頼文になる", () => {
+    const item = askConfigItem("retro.perspectives.spec", ["spec"]);
+    expect(askCandidates([], undefined, "ja", undefined, item)).toEqual([
+      {
+        action: "retro",
+        label: "Retrospect",
+        skill: "/dgretro",
+        skill_summary: SKILL_SUMMARY["dgretro"]!.ja,
+        recommended: true,
+        meaning:
+          "直近に閉じた Iteration を、観点 spec だけで振り返ります（Iteration は Skill が確かめます）。",
+      },
+    ]);
+    expect(askCandidates([], undefined, "en", undefined, item)[0]!.meaning).toBe(
+      "Look back on the Iteration closed last by the perspective spec only (the Skill confirms the Iteration).",
+    );
+    // Iteration は Skill が直近に閉じたものを示して聞くので、呼び出しには並べず、観点の ID を頼みごとの 1 行で渡す
+    expect(buildAsk({ subjects: [], item, format: "skill" })).toMatchObject({
+      action: "retro",
+      kind: "prompt",
+      key: "retro.perspectives.spec",
+      text: "/dgretro\n観点 spec だけで振り返って",
+    });
+    expect(buildAsk({ subjects: [], item, format: "skill", language: "en", note: "s3" }).text).toBe(
+      "/dgretro\nLook back by the perspective spec only\ns3",
+    );
+    const text = buildAsk({ subjects: [], item, format: "text" }).text.split("\n");
+    expect(text[0]).toContain("直近に閉じた Iteration を示して確かめてから、観点 spec");
+    expect(text.slice(1)).toEqual([ASK_DG_USAGE, askGuideLine("/dgretro")]);
+    const en = buildAsk({ subjects: [], item, format: "text", language: "en" }).text.split("\n");
+    expect(en[0]).toContain("by the perspective spec (retro.perspectives) only");
+    expect(en.slice(1)).toEqual([ASK_DG_USAGE_EN, askGuideLine("/dgretro", "en")]);
+    // 観点は config set で書けないので、設定の説明と変更は候補にない
+    expect(() => buildAsk({ subjects: [], item, action: "config" })).toThrow(
+      /config is not a candidate/,
+    );
+  });
+
   it("止まったものの再開は、1 行目に実行中の Run のないチケットだけを並べる", () => {
     const view = buildAsk({
       subjects: [
@@ -1307,6 +1427,53 @@ describe("ask", () => {
     await expect(runCommand(ask, ctx, { targets: ["s1"], action: "retro" })).rejects.toThrow(
       /retro is not a candidate/,
     );
+  });
+
+  it("ask は key の設定の項目をスキーマと今の観点で確かめ、ask-menu は = の項目で同じ候補を返す。知らない項目は使い方の誤りと組の error", async () => {
+    const { ctx } = await initialized();
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    const run = async (input: Record<string, unknown>) => (await runCommand(ask, ctx, input)).data;
+    expect(await run({ action: "config", key: "commit.mode", format: "skill" })).toMatchObject({
+      action: "config",
+      key: "commit.mode",
+      text: "/dgconfig commit.mode",
+    });
+    // 頼むことを省けば、その項目の候補（1 つ）になる。既定の観点（spec）は新しいリポジトリにある
+    expect(await run({ key: "retro.perspectives.spec", format: "skill" })).toMatchObject({
+      action: "retro",
+      key: "retro.perspectives.spec",
+      text: "/dgretro\n観点 spec だけで振り返って",
+    });
+    await expect(run({ action: "config", key: "commit.nothing" })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: expect.stringContaining("commit.nothing is not a settings item"),
+    });
+    await expect(run({ key: "retro.perspectives.nothing" })).rejects.toThrow(
+      /is not a perspective of the retrospective/,
+    );
+    await expect(run({ targets: ["t1"], key: "commit.mode" })).rejects.toThrow(
+      /cannot be asked together with targets/,
+    );
+
+    // 鍵は = を付けた項目を後ろに置き、分けると元に戻る
+    expect(askMenuKey([], undefined, "configRow", "commit.mode")).toBe("#configRow =commit.mode");
+    expect(parseAskMenuKey("=commit.mode")).toEqual({ refs: [], item: "commit.mode" });
+    const menus = (
+      await runCommand(askMenu, ctx, {
+        sets: ["=commit.mode", "=retro.perspectives.spec", "=commit.nothing", "t1 =commit.mode"],
+      })
+    ).data;
+    expect(menus.map((m) => m.key)).toEqual([
+      "=commit.mode",
+      "=retro.perspectives.spec",
+      "=commit.nothing",
+      "t1 =commit.mode",
+    ]);
+    expect(menus[0]!.candidates).toEqual((await run({ key: "commit.mode" })).candidates);
+    expect(menus[0]!.candidates.map((c) => c.action)).toEqual(["config"]);
+    expect(menus[1]!.candidates.map((c) => c.action)).toEqual(["retro"]);
+    expect(menus[2]).toMatchObject({ candidates: [], error: expect.stringContaining("nothing") });
+    expect(menus[3]).toMatchObject({ candidates: [], error: expect.stringContaining("together") });
   });
 
   it("ask-menu は language を渡すと候補の 1 文も英語にし、省けば日本語にする", async () => {

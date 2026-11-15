@@ -8,6 +8,7 @@ import { z } from "zod";
 import { agentSkillDirs } from "../agents/index.js";
 import { UsageError } from "../errors.js";
 import { isFinishedSet, isTerminal, STATUSES, type Status } from "../model/common.js";
+import { configFields } from "../model/config.js";
 import { idKindOf, parseId } from "../model/id.js";
 import { peekRunningRuns } from "../run/record.js";
 import type { Store } from "../storage/store.js";
@@ -18,7 +19,8 @@ import { WEBVIEW_CONTRACT } from "./client.js";
 
 /**
  * 頼む場所（画面の行・見出しの種類。WEBVIEW_CONTRACT.askSections の名前）。場所によって候補が変わる。
- * 今は historyRow（履歴のタブの行・見出し）からだけ、閉じた Iteration に振り返るを候補に足す。細部はテストが正本
+ * 今は historyRow（履歴のタブの行・見出し）からだけ、閉じた Iteration に振り返るを候補に足す。細部はテストが正本。
+ * configRow（設定画面の項目の行）は候補を変えない（その行の候補は、渡した設定の項目（AskConfigItem）が決める）
  */
 export const ASK_PLACES = WEBVIEW_CONTRACT.askSections;
 export type AskPlace = (typeof ASK_PLACES)[number];
@@ -102,6 +104,39 @@ export type AskTarget = AskSubject & {
   sub: string;
 };
 
+/**
+ * 設定画面の行から頼むときの設定の項目（ask の key）。対象の種類（チケット・Iteration・Epic・Plan）ではなく、対象なしの依頼に添える。
+ * field は config.yaml の葉の項目（commit.mode）で、/dgconfig にキーを渡す。
+ * perspective は振り返りの観点（retro.perspectives.<id>）で、/dgretro に観点の ID を渡す（観点は config set で書けず、dg retro が書くため）
+ */
+export type AskConfigItem =
+  | { kind: "field"; key: string }
+  | { kind: "perspective"; key: string; id: string };
+
+/** 振り返りの観点の key の頭。後ろに観点の ID を付ける（retro.perspectives.spec） */
+export const ASK_PERSPECTIVE_KEY = "retro.perspectives.";
+
+/**
+ * key を確かめて設定の項目にする。スキーマの葉の項目（configFields）か、今の config にある振り返りの観点（perspectives はその ID）でなければ使い方の誤り。
+ * まとまり（models など）は受けない（設定画面の行は葉の項目と観点だけ）
+ */
+export function askConfigItem(key: string, perspectives: readonly string[]): AskConfigItem {
+  const name = key.trim();
+  if (configFields().some((f) => f.key === name)) return { kind: "field", key: name };
+  if (name.startsWith(ASK_PERSPECTIVE_KEY)) {
+    const id = name.slice(ASK_PERSPECTIVE_KEY.length);
+    if (perspectives.includes(id)) return { kind: "perspective", key: name, id };
+    throw new UsageError(
+      `${name} is not a perspective of the retrospective`,
+      `Perspectives: ${perspectives.map((p) => `${ASK_PERSPECTIVE_KEY}${p}`).join(", ")}`,
+    );
+  }
+  throw new UsageError(
+    `${name} is not a settings item`,
+    `Pass a key of dg config show --fields (such as commit.mode), or a perspective of the retrospective as ${ASK_PERSPECTIVE_KEY}<id>`,
+  );
+}
+
 export interface AskCandidate {
   action: AskAction;
   /** 候補の名前。dg の出力なので英語で返し、画面は表示言語に訳す（理由は web の l10n-core.ts の先頭のコメント） */
@@ -119,7 +154,9 @@ export interface AskCandidate {
 
 export interface AskView {
   targets: AskTarget[];
-  /** 対象の種類と状態から決めた候補。先頭がおすすめ */
+  /** 設定の項目から頼んだときの key（commit.mode、retro.perspectives.spec）。そうでなければ null。画面は札に出す */
+  key: string | null;
+  /** 対象の種類と状態（設定の項目から頼むときはその項目）から決めた候補。先頭がおすすめ */
   candidates: AskCandidate[];
   action: AskAction;
   label: string;
@@ -950,7 +987,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   retro: {
     skill: "dgretro",
     label: () => "Retrospect",
-    // 振り返るは閉じた Iteration 1 つの候補（askActions）だけなので、対象は必ず Iteration。
+    // 対象からの振り返るは閉じた Iteration 1 つの候補（askActions）だけなので、対象は必ず Iteration（設定画面の観点の行からの文は ITEM_ASK）。
     // 文章だけの形も guide-retro の流れ（数字の要約 → 定義のない観点の指標の提案 → 定義のある指標の計算と傾向 → 根拠つきの Keep / Problem / Try → 承認を得た改善の起票）に合わせる
     text: (s, _w, lang) =>
       say(
@@ -959,8 +996,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
         `Look back on ${idList(s, lang)}: show a summary of its numbers, propose metrics for the perspectives that have no definition and record only the definitions I approve, compute the defined metrics with the trend against the recent Iterations, give Keep / Problem / Try with a basis, and file only the improvements I approve as tickets.`,
       ),
   },
-  // deguboard の設定（config.yaml）の説明と変更。対象の ID を持たず、対象なしの候補（baseActions）にだけ出る。
-  // どの項目をどうするかは指示か Skill が聞くので、頼みごとの 1 行も、対象を先に聞かせる行（ASK_FIRST）も付けない
+  // deguboard の設定（config.yaml）の説明と変更。対象の ID を持たず、対象なしの候補（baseActions）と、設定の項目から頼むとき（ITEM_ASK）にだけ出る。
+  // ここの文は項目を渡さないときのもの。どの項目をどうするかは指示か Skill が聞くので、頼みごとの 1 行も、対象を先に聞かせる行（ASK_FIRST）も付けない
   config: {
     skill: "dgconfig",
     noTargetOk: true,
@@ -1254,6 +1291,77 @@ const MEANING: Record<
         ),
 };
 
+/**
+ * 設定の項目から頼むとき（設定画面の行。AskConfigItem）の頼むことと文。候補はこの 1 つだけで、名前と Skill は ACTIONS の同じ頼むことから取る。
+ * 葉の項目は /dgconfig にキーを渡す（説明するか変えるかは指示が決め、指示がなければ Skill が説明する）。
+ * 観点は /dgretro に渡す。guide-retro は Iteration の後ろの ID を観点として読むので、Iteration のない呼び出しでは観点の ID を頼みごとの 1 行で渡し、
+ * Iteration は Skill が直近に閉じたものを示して確かめる
+ */
+const ITEM_ASK: {
+  [K in AskConfigItem["kind"]]: {
+    action: AskAction;
+    /** Skill の呼び出しの後ろに並べるもの */
+    args(item: Extract<AskConfigItem, { kind: K }>): string[];
+    /** Skill の呼び出しの次の行の頼みごと。要らなければ空 */
+    intent(item: Extract<AskConfigItem, { kind: K }>, lang: AskLanguage): string;
+    /** 文章だけの形の頼む 1 文 */
+    text(item: Extract<AskConfigItem, { kind: K }>, lang: AskLanguage): string;
+    /** 候補の下に出す 1 文（依頼文には入れない） */
+    meaning(item: Extract<AskConfigItem, { kind: K }>, lang: AskLanguage): string;
+  };
+} = {
+  field: {
+    action: "config",
+    args: (item) => [item.key],
+    intent: () => "",
+    text: (item, lang) =>
+      say(
+        lang,
+        `deguboard の設定（config.yaml）の項目 ${item.key} を説明してください。変更は、前と後の差とチームか個人（--local）かを見せて、承認を得てから dg config set で書いてください。`,
+        `Explain the deguboard setting ${item.key} (config.yaml). For a change, show before → after and team or personal (--local), and write it with dg config set only after I approve.`,
+      ),
+    meaning: (item, lang) =>
+      say(
+        lang,
+        `${item.key} の意味・今の値・既定の値・範囲を説明し、変更は前と後の差の承認を得てから書きます。`,
+        `Explain ${item.key} (meaning, current value, default, scope), and write a change only after approval of before → after.`,
+      ),
+  },
+  perspective: {
+    action: "retro",
+    args: () => [],
+    intent: (item, lang) =>
+      say(lang, `観点 ${item.id} だけで振り返って`, `Look back by the perspective ${item.id} only`),
+    text: (item, lang) =>
+      say(
+        lang,
+        `直近に閉じた Iteration を示して確かめてから、観点 ${item.id}（retro.perspectives）だけで振り返ってください（定義のない観点には指標を提案して承認した定義だけを記録し、定義のある指標は直近の回と比べて傾向を出し、根拠つきの Keep / Problem / Try を示して、承認を得た改善だけを起票する）。`,
+        `Suggest the Iteration closed last and confirm it with me, then look back on it by the perspective ${item.id} (retro.perspectives) only: propose metrics if the perspective has no definition and record only the definitions I approve, compute the defined metrics with the trend against the recent Iterations, give Keep / Problem / Try with a basis, and file only the improvements I approve as tickets.`,
+      ),
+    meaning: (item, lang) =>
+      say(
+        lang,
+        `直近に閉じた Iteration を、観点 ${item.id} だけで振り返ります（Iteration は Skill が確かめます）。`,
+        `Look back on the Iteration closed last by the perspective ${item.id} only (the Skill confirms the Iteration).`,
+      ),
+  },
+};
+
+/** 設定の項目から頼むときの定義（ITEM_ASK）を、項目の種類に合わせて引く */
+function itemAsk(item: AskConfigItem) {
+  const def = ITEM_ASK[item.kind] as (typeof ITEM_ASK)[AskConfigItem["kind"]];
+  return {
+    action: def.action,
+    args: () => (def.args as (i: AskConfigItem) => string[])(item),
+    intent: (lang: AskLanguage) =>
+      (def.intent as (i: AskConfigItem, l: AskLanguage) => string)(item, lang),
+    text: (lang: AskLanguage) =>
+      (def.text as (i: AskConfigItem, l: AskLanguage) => string)(item, lang),
+    meaning: (lang: AskLanguage) =>
+      (def.meaning as (i: AskConfigItem, l: AskLanguage) => string)(item, lang),
+  };
+}
+
 /** 依頼文に使う Skill の名前（dg<トピック>）。dg skill install で配る名前と一致することを cli のテストで確かめる */
 export const ASK_SKILLS: readonly string[] = [
   ...new Set(Object.values(ACTIONS).flatMap((a) => (a.skill ? [a.skill] : []))),
@@ -1468,12 +1576,28 @@ export function askMeaning(
   return MEANING[action](s, withinOf(s, within), lang);
 }
 
+/** item（設定の項目）を渡すと、対象は見ずにその項目の候補 1 つだけを返す（対象と一緒には頼めない。buildAsk が確かめる） */
 export function askCandidates(
   s: Subjects,
   within?: string,
   lang: AskLanguage = "ja",
   place?: AskPlace,
+  item?: AskConfigItem,
 ): AskCandidate[] {
+  if (item) {
+    const def = itemAsk(item);
+    const skill = ACTIONS[def.action].skill;
+    return [
+      {
+        action: def.action,
+        label: ACTIONS[def.action].label([]),
+        skill: skill && `/${skill}`,
+        skill_summary: skill ? skillSummary(skill, lang) : null,
+        recommended: true,
+        meaning: def.meaning(lang),
+      },
+    ];
+  }
   const w = withinOf(s, within);
   return askActions(s, within, place).map((action, n) => {
     const skill = ACTIONS[action].skill;
@@ -1555,6 +1679,8 @@ export interface BuildAskInput {
   place?: AskPlace | undefined;
   /** 定型の文の言語。省けば日本語。指示とチケットの中身は変えない */
   language?: AskLanguage | undefined;
+  /** 設定の項目から頼む（設定画面の行）。対象と一緒には渡せない。候補はその項目の 1 つだけになる */
+  item?: AskConfigItem | undefined;
 }
 
 /** 依頼文を作る。頼むことが候補になければ UsageError */
@@ -1562,7 +1688,12 @@ export function buildAsk(input: BuildAskInput): AskView {
   const s = input.subjects;
   const format = input.format ?? "skill";
   const lang = input.language ?? "ja";
-  const candidates = askCandidates(s, input.within, lang, input.place);
+  const item = input.item;
+  if (item && s.length > 0)
+    throw new UsageError(
+      `A settings item (${item.key}) cannot be asked together with targets (${ids(s).join(", ")})`,
+    );
+  const candidates = askCandidates(s, input.within, lang, input.place, item);
   const w = withinOf(s, input.within);
   const chosen = input.action ?? candidates[0]!.action;
   const candidate = candidates.find((c) => c.action === chosen);
@@ -1575,6 +1706,7 @@ export function buildAsk(input: BuildAskInput): AskView {
   const targets = s.map((t) => ({ ...t, line: targetLine(t, lang), sub: targetSub(t) }));
   const view = {
     targets,
+    key: item?.key ?? null,
     candidates,
     action: chosen,
     label: candidate.label,
@@ -1601,7 +1733,18 @@ export function buildAsk(input: BuildAskInput): AskView {
     throw new UsageError("A free-form ask needs a target or an instruction (note)");
   // 題・本文・Status はエージェントが dg で読むので、依頼文には ID だけを入れる（読んだ時点の写しが古くならないため）
   const lines: string[] = [];
-  if (format === "skill" && candidate.skill) {
+  if (item) {
+    // 設定の項目から頼む文は ITEM_ASK が組む。形は下の対象からの依頼文と同じ（Skill の形は呼び出しと頼みごと、文章だけの形は頼む 1 文と dg の呼び方と guide の一文）
+    const idef = itemAsk(item);
+    if (format === "skill" && candidate.skill) {
+      lines.push([candidate.skill, ...idef.args()].join(" "));
+      const intent = idef.intent(lang);
+      if (intent) lines.push(intent);
+    } else {
+      lines.push(idef.text(lang), say(lang, ASK_DG_USAGE, ASK_DG_USAGE_EN));
+      if (candidate.skill) lines.push(askGuideLine(candidate.skill, lang));
+    }
+  } else if (format === "skill" && candidate.skill) {
     // Skill の形は呼び出しと指示だけ。呼び出しで頼むことが決まらないものは、ActionDef.intent の短い頼みごとを挟む
     lines.push(
       def.bare ? candidate.skill : [candidate.skill, ...ids(def.args?.(s) ?? s)].join(" "),
@@ -1722,7 +1865,14 @@ export const ask = defineCommand({
       .enum(ASK_PLACES)
       .optional()
       .describe(
-        "Where the ask is made from, the screen's kind of row or heading (boardTicket, boardHeading, backlogHeading, historyRow, detailTitle, detailTicket). Only historyRow changes the candidates: from a History row or heading on a closed Iteration, retro (retrospective) is added. The other places give the same candidates as omitting it",
+        "Where the ask is made from, the screen's kind of row or heading (boardTicket, boardHeading, backlogHeading, historyRow, detailTitle, detailTicket, configRow). Only historyRow changes the candidates: from a History row or heading on a closed Iteration, retro (retrospective) is added. The other places give the same candidates as omitting it (a row of the settings screen passes its item with key)",
+      ),
+    key: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "A settings item to ask about, as the rows of the settings screen do, with no targets. A key of dg config show --fields (commit.mode) gives the single candidate config, which calls /dgconfig with the key. A perspective of the retrospective (retro.perspectives.<id>) gives the single candidate retro, which asks /dgretro to look back by that perspective only (the Skill confirms the Iteration closed last). A key that is neither, or a key together with targets, is a usage error",
       ),
     language: z
       .enum(ASK_LANGUAGES)
@@ -1750,12 +1900,13 @@ export const ask = defineCommand({
         within: withinRef(ctx.store, input.within),
         place: input.place,
         language: input.language,
+        item: itemRef(ctx.config, input.key),
       }),
     );
   },
 });
 
-/** 画面の 1 か所（行・見出し）の候補。key は askMenuKey の形（対象の ID を空白でつなぎ、場所（within）があれば @、頼む場所（place）があれば # を付けて後ろに置く。空なら対象なし） */
+/** 画面の 1 か所（行・見出し）の候補。key は askMenuKey の形（対象の ID を空白でつなぎ、場所（within）があれば @、頼む場所（place）があれば #、設定の項目があれば = を付けて後ろに置く。空なら対象なし） */
 export interface AskMenu {
   key: string;
   /** 対象の種類と状態から決めた候補（ask の candidates と同じ）。先頭がおすすめ。引けなければ空 */
@@ -1774,7 +1925,7 @@ export const askMenu = defineCommand({
       .array(z.string())
       .default([])
       .describe(
-        'Sets of targets (IDs separated by spaces: t12, "t1 t2", s3). An empty string means no target. An Iteration or Epic with @ ("t12 @s3") means where the tickets are (ask\'s within). A place with # ("s3 #historyRow") means the screen row or heading it is asked from (ask\'s place)',
+        'Sets of targets (IDs separated by spaces: t12, "t1 t2", s3). An empty string means no target. An Iteration or Epic with @ ("t12 @s3") means where the tickets are (ask\'s within). A place with # ("s3 #historyRow") means the screen row or heading it is asked from (ask\'s place). A settings item with = ("=commit.mode", with no targets) means a row of the settings screen (ask\'s key)',
       ),
     language: z
       .enum(ASK_LANGUAGES)
@@ -1795,12 +1946,18 @@ export const askMenu = defineCommand({
     return ok(
       keys.map((key): AskMenu => {
         try {
-          const { refs, within, place } = parseAskMenuKey(key);
+          const { refs, within, place, item } = parseAskMenuKey(key);
+          const found = itemRef(ctx.config, item);
+          if (found && refs.length > 0)
+            throw new UsageError(
+              `A settings item (${found.key}) cannot be asked together with targets (${refs.join(", ")})`,
+            );
           const candidates = askCandidates(
             subjectsOf(ctx.store, refs, running),
             withinRef(ctx.store, within),
             input.language,
             placeRef(place),
+            found,
           );
           return { key, candidates, error: null };
         } catch (e) {
@@ -1812,18 +1969,29 @@ export const askMenu = defineCommand({
 });
 
 /**
- * ask-menu の組の鍵。対象の ID を空白でつなぎ、場所（within）があれば @ を、頼む場所（place）があれば # を付けて、後ろに置く（返す key はこの形）。
+ * ask-menu の組の鍵。対象の ID を空白でつなぎ、場所（within）があれば @ を、頼む場所（place）があれば # を、設定の項目（item。ask の key）があれば = を付けて、後ろに置く（返す key はこの形）。
  * web は core を実行時に取り込めないので同じ書式を写し（ask-key.ts）、一致を web のテストで確かめる
  */
-export function askMenuKey(refs: readonly string[], within?: string, place?: string): string {
-  return [...refs, ...(within ? [`@${within}`] : []), ...(place ? [`#${place}`] : [])].join(" ");
+export function askMenuKey(
+  refs: readonly string[],
+  within?: string,
+  place?: string,
+  item?: string,
+): string {
+  return [
+    ...refs,
+    ...(within ? [`@${within}`] : []),
+    ...(place ? [`#${place}`] : []),
+    ...(item ? [`=${item}`] : []),
+  ].join(" ");
 }
 
-/** 組の文字列を対象と場所（@ を付けた 1 つ）と頼む場所（# を付けた 1 つ）に分ける。重ねたら後のもの */
+/** 組の文字列を対象と場所（@ を付けた 1 つ）と頼む場所（# を付けた 1 つ）と設定の項目（= を付けた 1 つ）に分ける。重ねたら後のもの */
 export function parseAskMenuKey(key: string): {
   refs: string[];
   within: string | undefined;
   place: string | undefined;
+  item: string | undefined;
 } {
   const tokens = key.split(/\s+/).filter(Boolean);
   const last = (mark: string) =>
@@ -1832,16 +2000,26 @@ export function parseAskMenuKey(key: string): {
       .at(-1)
       ?.slice(1);
   return {
-    refs: tokens.filter((t) => !t.startsWith("@") && !t.startsWith("#")),
+    refs: tokens.filter((t) => !/^[@#=]/.test(t)),
     within: last("@"),
     place: last("#"),
+    item: last("="),
   };
 }
 
-/** 組の文字列を、対象の ID の後に場所と頼む場所を置いた形にそろえる（返す key はこの形） */
+/** 組の文字列を、対象の ID の後に場所・頼む場所・設定の項目を置いた形にそろえる（返す key はこの形） */
 function normalizeKey(key: string): string {
-  const { refs, within, place } = parseAskMenuKey(key);
-  return askMenuKey(refs, within, place);
+  const { refs, within, place, item } = parseAskMenuKey(key);
+  return askMenuKey(refs, within, place, item);
+}
+
+/** key（設定の項目）を確かめる。観点の ID は今の config の retro.perspectives から引く */
+function itemRef(
+  config: { retro: { perspectives: Record<string, unknown> } },
+  key: string | undefined,
+): AskConfigItem | undefined {
+  if (key === undefined || key.trim() === "") return undefined;
+  return askConfigItem(key, Object.keys(config.retro.perspectives));
 }
 
 /** within を確かめる。Iteration・Epic の ID でなければ使い方の誤り、なければ NOT_FOUND */

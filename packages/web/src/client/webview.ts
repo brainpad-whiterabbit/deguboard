@@ -125,6 +125,7 @@ export const WEBVIEW_CONTRACT_COPY = {
     historyRow: "historyRow",
     detailTitle: "detailTitle",
     detailTicket: "detailTicket",
+    configRow: "configRow",
   },
   /** 拡張ホスト → Webview の通知の名前。Record なので core の WebviewEvent の name が増えると型の検査で漏れが分かる */
   eventNames: {
