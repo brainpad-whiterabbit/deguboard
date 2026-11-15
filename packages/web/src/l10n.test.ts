@@ -409,12 +409,12 @@ describe("core が返すエラー・警告の文の訳（UI-11）", () => {
     }
   });
   it("dg serve が JSON で返すエラーの文は英語で、どれも CORE_MESSAGES の鍵にあって日本語の画面では訳す（t948）", () => {
-    // server のソースの message: の文字列と new Error の文を拾う（可変の部分 ${…} は {0}・{1} にする）。
+    // server のソースの message: の文字列と new Error・エラーの型の super の文を拾う（可変の部分 ${…} は {0}・{1} にする）。
     // 文を足したり書き換えたりして表を直し忘れると、日本語の画面に英語のエラーが出るので気づく
     const source = packageSource("server");
     const texts = [
       ...source.matchAll(/\bmessage: (?:"([^"]*)"|`([^`]*)`)/g),
-      ...source.matchAll(/new Error\("([^"]*)"\)/g),
+      ...source.matchAll(/(?:new Error|super)\("([^"]*)"\)/g),
     ].map((m) => {
       let n = 0;
       return (m[1] ?? m[2]!).replace(/\$\{[^}]*\}/g, () => `{${n++}}`);

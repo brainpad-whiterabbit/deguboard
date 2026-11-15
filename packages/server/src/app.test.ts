@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { request, type IncomingMessage } from "node:http";
+import { connect } from "node:net";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
@@ -197,6 +198,45 @@ describe("HTTP サーバー", () => {
     await expect(readBody(Readable.from([Buffer.alloc(8)]) as IncomingMessage, 4)).rejects.toThrow(
       "The request body is too large",
     );
+  });
+
+  it("本文が上限を超えた要求に、413 と英語の文の応答を返し、残りの本文を読み捨てて接続を使い続ける（t975）", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    const host = `127.0.0.1:${s.port}`;
+    // 上限（4 MiB）を超える本文の要求と、同じ接続の次の要求を、送り終えてから読み始める。
+    // 応答の直後にサーバーが接続を壊すと、送り終える前に RST で切られて書き込みが失敗する
+    const big = 5 * 1024 * 1024;
+    const next = JSON.stringify({ input: {} });
+    const text = await new Promise<string>((resolve, reject) => {
+      const socket = connect(s.port, "127.0.0.1", () => {
+        socket.write(
+          `POST /api/commands/ticket.list HTTP/1.1\r\nhost: ${host}\r\ncontent-type: application/json\r\ncontent-length: ${big}\r\n\r\n`,
+        );
+        socket.write(Buffer.alloc(big, 0x20));
+        socket.write(
+          `POST /api/commands/ticket.list HTTP/1.1\r\nhost: ${host}\r\ncontent-type: application/json\r\ncontent-length: ${Buffer.byteLength(next)}\r\nconnection: close\r\n\r\n${next}`,
+          (error) => {
+            if (error) return reject(error);
+            let received = "";
+            socket.setEncoding("utf8");
+            socket.on("data", (chunk: string) => (received += chunk));
+            socket.on("end", () => resolve(received));
+          },
+        );
+      });
+      socket.on("error", reject);
+    });
+    // 1 つ目は 413 と英語の文、2 つ目は同じ接続で答えた 200（本文はどちらも chunked の 1 塊）
+    const responses = [
+      ...text.matchAll(/HTTP\/1\.1 (\d+) [^\r]*\r\n[\s\S]*?\r\n\r\n[0-9a-f]+\r\n(.*)\r\n/g),
+    ];
+    expect(responses.map((m) => Number(m[1]))).toEqual([413, 200]);
+    expect(JSON.parse(responses[0]![2]!)).toEqual({
+      ok: false,
+      error: { code: "BODY_TOO_LARGE", message: "The request body is too large" },
+    });
   });
 
   it("壊れた percent-encoding と URL として読めない要求先は、API と静的ファイルの両方で 400 を返し、プロセスは落ちない（t752）", async () => {
