@@ -47,6 +47,18 @@ const DEFAULT_LABELS: Record<Status, string> = {
   abandoned: "Abandoned",
 };
 
+/** Status の表示名。定義の labels に書いた Status はその文、書いていない Status は core の既定（DEFAULT_LABELS） */
+export function resolveLabels(
+  written: Partial<Record<Status, string>> | undefined,
+): Record<Status, string> {
+  const labels = { ...DEFAULT_LABELS };
+  for (const s of STATUSES) {
+    const label = written?.[s];
+    if (label) labels[s] = label;
+  }
+  return labels;
+}
+
 /**
  * 定義の transitions を from→to ごとに 1 件にまとめる。同じ組が複数あれば requires は和、
  * by は両方にあれば積（狭い方に倒す）。重複は validate.ts が指摘する前提で、ここでは安全側に合成する
@@ -62,15 +74,10 @@ export function resolveWorkflow(def: WorkflowDefinition): ResolvedWorkflow {
     if (t.by) by = by ? by.filter((a) => (t.by as Actor[]).includes(a)) : (t.by as Actor[]);
     merged.set(key, { from: t.from, to: t.to, ...(by ? { by } : {}), requires: [...requires] });
   }
-  const labels = { ...DEFAULT_LABELS };
-  for (const s of STATUSES) {
-    const label = def.labels?.[s];
-    if (label) labels[s] = label;
-  }
   return {
     id: def.id,
     name: def.name,
-    labels,
+    labels: resolveLabels(def.labels),
     transitions: [...merged.values()],
     reconcile: def.reconcile.map((r) => ({ when: r.when as Condition[], status: r.status })),
     fields: def.fields,

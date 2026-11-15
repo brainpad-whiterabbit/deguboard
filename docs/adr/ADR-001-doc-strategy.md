@@ -97,7 +97,7 @@ ADR は、次のどれかに当たる判断だけに書く。
 
 - docs・CLAUDE.md・コードのコメント・テスト名は日本語で書く。例外は英語で書く README.md（GitHub・Marketplace の入口）・SECURITY.md（GitHub の Security タブの入口）・docs/usage.md（README から引く使い方の英語版）・docs/guide-notes/（dg guide に英語のまま差し込むため）。日本語の README.ja.md と docs/usage.ja.md は、それぞれ英語版と同じ節の構成にし、先頭から互いに辿れるようにする。README から指すほかの docs（要件定義書・開発ガイド・ADR 一覧）は日本語のままにする
 - dg がエージェントと利用者に出す文は英語だけで書く。範囲は guide・Skill の雛形と、ヘルプ・MCP のツールの説明・エラー・警告・段階の理由・フックが止める文・コミットの 1 行目など、dg が出す定型の文すべて。例外として `dg ask` の依頼文と札の説明の定型の文は、言語（ja・en）を選べる（範囲は `packages/core/src/commands/ask.ts` の `ASK_LANGUAGES` のコメント）。画面（VS Code 拡張と web）の定型の文は、dg の英語の文も訳して表示言語で出す（要件 UI-11）
-- dg の既定の値（config の既定・Workflow の雛形）も dg の文として英語で持つ。画面は、値が今の既定と同じ文のときだけ表示言語に訳し、書き換えた値は書いたまま出す。日本語で書いた古い既定の写しは、人の値として扱う（細部は `packages/web/src/l10n.ts` の `shownDefault`）
+- dg の既定の値（config の既定・Workflow の雛形・Status の既定の表示名）も dg の文として英語で持つ。画面は、値が今の既定と同じ文のときだけ表示言語に訳し、書き換えた値は書いたまま出す。日本語で書いた古い既定の写しは、人の値として扱う（細部は `packages/web/src/l10n.ts` の `shownDefault`）
 - エージェントが書く文章（チケット・PR・コミット・人への返答）は、リポジトリの既存の文章と人の依頼の言語に合わせる
 
 ## 理由

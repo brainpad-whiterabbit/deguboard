@@ -70,6 +70,33 @@ describe("workflow show", () => {
     const research = await runCommand(workflowShow, ctx, { workflow: "research" });
     expect(research.data.template).toBeNull();
   });
+  it("default_labels に、labels を書き換えていなければ出る Status の表示名（雛形の labels と core の既定）を添える", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const coreDefaults = {
+      todo: "Todo",
+      in_progress: "In Progress",
+      review: "Review",
+      done: "Done",
+      abandoned: "Abandoned",
+    };
+    // labels を書き換えても、default_labels は書き換える前の文のまま（画面は labels と比べて、同じ文の Status だけを訳す）
+    await runCommand(workflowSet, ctx, {
+      workflow: "software-development",
+      definition: { id: "software-development", name: "SD", labels: { review: "Code Review" } },
+    });
+    const sd = await runCommand(workflowShow, ctx, { workflow: "software-development" });
+    expect(sd.data.labels.review).toBe("Code Review");
+    expect(sd.data.default_labels).toEqual(coreDefaults);
+    // 雛形のない Workflow は core の既定
+    await runCommand(workflowSet, ctx, {
+      workflow: "research",
+      definition: { id: "research", name: "Research", labels: { todo: "Backlog" } },
+    });
+    const research = await runCommand(workflowShow, ctx, { workflow: "research" });
+    expect(research.data.labels.todo).toBe("Backlog");
+    expect(research.data.default_labels).toEqual(coreDefaults);
+  });
 });
 
 describe("workflow set", () => {

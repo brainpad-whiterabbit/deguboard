@@ -238,7 +238,8 @@ export function StoreProvider({
     [client, reload],
   );
 
-  // 雛形と同じ名前とラベルは表示言語の訳にして渡す。cache には core が返したままを残す（表示言語が変わっても訳し直せるように）
+  // 雛形と同じ名前とラベルと、既定のままの Status の表示名は表示言語の訳にして渡す（workflow と labelOf の両方）。
+  // cache には core が返したままを残す（表示言語が変わっても訳し直せるように）
   const shownWf = useMemo(() => workflow && shownWorkflow(workflow), [workflow]);
   const value = useMemo<Store>(
     () => ({
@@ -259,7 +260,7 @@ export function StoreProvider({
       reload,
       run,
       notify: setNotice,
-      labelOf: (s) => workflow?.labels[s] ?? s,
+      labelOf: (s) => shownWf?.labels[s] ?? s,
     }),
     [
       client,
@@ -267,7 +268,6 @@ export function StoreProvider({
       epics,
       iterations,
       plans,
-      workflow,
       shownWf,
       me,
       ticketRuns,

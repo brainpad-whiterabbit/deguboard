@@ -9,6 +9,7 @@ import type { WorkflowDefinition } from "../model/workflow.js";
 import { pathExists } from "../storage/exists.js";
 import { formatIssue } from "../storage/issue.js";
 import { DIRS, workflowPath } from "../storage/paths.js";
+import { resolveLabels } from "../workflow/resolve.js";
 import { WORKFLOW_TEMPLATES, findWorkflowTemplate } from "../workflow/templates/index.js";
 import { defineCommand, ok } from "./define.js";
 
@@ -39,7 +40,7 @@ export const workflowShow = defineCommand({
   positionals: ["workflow"],
   group: "workflow",
   summary:
-    "Show a Workflow's definition and the transition constraints composed for each from→to. A transition that is not written is allowed for anyone without conditions. template is the bundled template with the same id (null if there is none)",
+    "Show a Workflow's definition and the transition constraints composed for each from→to. A transition that is not written is allowed for anyone without conditions. template is the bundled template with the same id (null if there is none), and default_labels are the Status labels shown when labels are not rewritten",
   input: z.object({
     workflow: slugSchema.describe("ID of the Workflow to show (workflows/<id>.yaml)"),
   }),
@@ -52,13 +53,16 @@ export const workflowShow = defineCommand({
         "NOT_FOUND",
         `Workflow ${input.workflow} not found or cannot be read`,
       );
+    const template = findWorkflowTemplate(w.resolved.id) ?? null;
     return ok({
       definition: w.definition,
       labels: w.resolved.labels,
       transitions: w.resolved.transitions,
       path: w.path,
       // 画面が、名前とラベルが雛形と同じ文（既定のまま）かを比べて表示言語に訳すのに使う（UI-11）。画面は雛形の写しを持たない
-      template: findWorkflowTemplate(w.resolved.id) ?? null,
+      template,
+      // 書き換えていなければ出る Status の表示名（雛形の labels と core の既定）。画面が labels と比べて既定のままなら訳す（UI-11）
+      default_labels: resolveLabels(template?.labels),
     });
   },
 });

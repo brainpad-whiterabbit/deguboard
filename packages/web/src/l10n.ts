@@ -17,7 +17,7 @@ import {
   type CoreTextTable,
 } from "./l10n-core.js";
 import { EN, EN_ONE } from "./l10n-en.js";
-import type { RetroPerspective, WorkflowView } from "./types.js";
+import type { RetroPerspective, Status, WorkflowView } from "./types.js";
 
 export type Language = "ja" | "en";
 
@@ -124,11 +124,18 @@ export function isDefaultPerspective(
  * Workflow の名前と、step・任意フィールドのラベルを画面に出す形にする（UI-11）。workflow.show が添える同じ id の雛形（template）の、
  * 名前・同じ id の step と項目のラベルを既定として shownDefault に渡すので、雛形と同じ文のときだけ訳す。
  * 書き換えた文・雛形にない step と項目・雛形のない Workflow は書いたまま。雛形の文は core が返したものだけで比べ、画面は写しを持たない。
- * Status の表示名（labels）は変えない。訳は DEFAULT_VALUES に置く
+ * Status の表示名（labels）は、workflow.show の default_labels（雛形の labels と core の既定）と同じ文のときだけ訳す。
+ * 雛形のない Workflow も、labels を書いていない Status は core の既定なので訳す。訳は DEFAULT_VALUES に置き、step のラベルと同じ文は同じ訳になる
  */
 export function shownWorkflow(view: WorkflowView): WorkflowView {
-  const { definition, template } = view;
-  if (!template) return view;
+  const { definition, template, default_labels: defaultLabels } = view;
+  const labels = Object.fromEntries(
+    Object.entries(view.labels).map(([s, label]) => [
+      s,
+      String(shownDefault(label, defaultLabels?.[s as Status])),
+    ]),
+  ) as Record<Status, string>;
+  if (!template) return { ...view, labels };
   type Labeled = { id: string; label?: string | undefined };
   const shown = <T extends Labeled>(item: T, from: readonly Labeled[] | undefined): T => {
     if (item.label === undefined) return item;
@@ -137,6 +144,7 @@ export function shownWorkflow(view: WorkflowView): WorkflowView {
   };
   return {
     ...view,
+    labels,
     definition: {
       ...definition,
       name: String(shownDefault(definition.name, template.name)),

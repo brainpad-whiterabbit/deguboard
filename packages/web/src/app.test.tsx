@@ -138,6 +138,84 @@ describe("画面", () => {
     expect(screen.queryByLabelText("abandoned を出す")).toBeNull();
   });
 
+  describe("Status の表示名は、既定のまま（workflow.show の default_labels と同じ文）なら日本語で、書き換えたもの（review の Code Review）は書いたまま出す", () => {
+    /** workflow.show に、labels を書き換えていなければ出る表示名（core の既定）を添える client */
+    const withDefaultLabels = (client: ReturnType<typeof mockClient>) => {
+      const show = client.handlers["workflow.show"]!;
+      client.handlers["workflow.show"] = (input) => ({
+        ...(show(input) as WorkflowView),
+        default_labels: {
+          todo: "Todo",
+          in_progress: "In Progress",
+          review: "Review",
+          done: "Done",
+          abandoned: "Abandoned",
+        },
+      });
+      return client;
+    };
+
+    it("カンバンの節の見出し", async () => {
+      mount(withDefaultLabels(boardClient()));
+      await screen.findByText("ログイン");
+      await waitFor(() =>
+        expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+          "未着手1",
+          "作業中1",
+          "Code Review0",
+          "完了1",
+        ]),
+      );
+    });
+    it("バックログの Status の絞り込み", async () => {
+      window.location.hash = "#/backlog";
+      mount(withDefaultLabels(mockClient()));
+      await screen.findByText("API");
+      fireEvent.click(screen.getByTitle("Status・優先度・ラベル・担当で絞り込む"));
+      // 絞り込みの Status の欄（Status の選択肢を持つ select）
+      const select = [...document.querySelectorAll(".backlog-filters select")].find((s) =>
+        s.querySelector('option[value="in_progress"]'),
+      ) as HTMLSelectElement;
+      await waitFor(() =>
+        expect([...select.options].map((o) => o.textContent)).toEqual([
+          "すべて",
+          "未着手",
+          "作業中",
+          "Code Review",
+        ]),
+      );
+    });
+    it("チケット詳細の Status と経過", async () => {
+      window.location.hash = "#/tickets/t2";
+      const client = withDefaultLabels(mockClient());
+      client.handlers["history"] = () => ({
+        events: [
+          {
+            kind: "ticket",
+            id: "t2",
+            commit: "c1",
+            author: "eiki",
+            subject: "s",
+            type: "changed",
+            at: "2026-11-01T01:00:00Z",
+            changes: [{ field: "status", from: "todo", to: "in_progress" }],
+          },
+        ],
+        shallow: false,
+        incomplete: [],
+      });
+      mount(client, hostOf("panel"));
+      await screen.findByRole("heading", { level: 1, name: "API" });
+      await waitFor(() =>
+        expect(
+          [...document.querySelectorAll(".timeline-list .timeline-text")].map((e) => e.textContent),
+        ).toEqual(["未着手 → 作業中"]),
+      );
+      expect(screen.getAllByRole("img", { name: "作業中" }).length).toBeGreaterThan(0);
+      expect(screen.queryByText("In Progress")).toBeNull();
+    });
+  });
+
   it("開いた Iteration がなければ、列も帯も出さず、開いた Iteration がないこととバックログへの案内を出す。作るボタンは出さない。「すべて」は選べる", async () => {
     const client = mockClient(
       fixture({ iterations: [iteration({ id: "s1", name: "昔", status: "closed" })] }),

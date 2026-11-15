@@ -511,7 +511,7 @@ export const CORE_MESSAGES: CoreTextTable = {
  * 既定の値を訳して出す項目は、ここに鍵を足すだけでよい（判定と引き方は l10n.ts の 1 か所）。
  * 優先度の判断基準（config の priority.*）と振り返りの既定の観点（retro.perspectives）の名前と問いは core が英語で持つので、日本語の訳を置く
  * （名前と問いの両方が既定のままの観点だけを訳す。判定は l10n.ts の isDefaultPerspective）。
- * Workflow の雛形の名前と step・任意フィールドのラベルは core が英語で持つので日本語の訳を置く（判定は l10n.ts の shownWorkflow）。
+ * Workflow の雛形の名前と step・任意フィールドのラベルと、Status の既定の表示名は core が英語で持つので日本語の訳を置く（判定は l10n.ts の shownWorkflow）。
  * 鍵が core の既定の文にあることは l10n.test.ts が確かめる
  */
 export const DEFAULT_VALUES: CoreTextTable = {
@@ -578,4 +578,9 @@ export const DEFAULT_VALUES: CoreTextTable = {
   Merge: { ja: "マージ" },
   // Workflow の雛形の任意フィールドのラベル
   Estimate: { ja: "見積もり" },
+  // Status の既定の表示名（core の DEFAULT_LABELS と雛形の labels）。Review は step のラベルと同じ鍵なので、同じ「見直し」で出る
+  Todo: { ja: "未着手" },
+  "In Progress": { ja: "作業中" },
+  Done: { ja: "完了" },
+  Abandoned: { ja: "中止" },
 };
