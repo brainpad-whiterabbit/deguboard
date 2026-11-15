@@ -18,6 +18,7 @@ import {
   isModified,
   fieldMatch,
   metricSummary,
+  retroChanges,
   nameOf,
   shownRetroPerspectives,
   valueAt,
@@ -1414,56 +1415,65 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
   };
   const section = () => screen.getByRole("region", { name: "振り返り" });
   const perspectiveOf = (id: string) =>
-    document.querySelector<HTMLDetailsElement>(`[data-perspective="${id}"]`)!;
-  const metricOf = (key: string) =>
-    document.querySelector<HTMLDetailsElement>(`[data-metric="${key}"]`)!;
+    document.querySelector<HTMLElement>(`[data-perspective="${id}"]`)!;
+  const metricOf = (key: string) => document.querySelector<HTMLElement>(`[data-metric="${key}"]`)!;
+  /** 指標の「詳しく」 */
+  const moreOf = (key: string) => metricOf(key).querySelector<HTMLDetailsElement>(".config-more")!;
   const summaryOf = (el: Element) => el.querySelector(":scope > summary")!;
 
-  it("チームのタブに観点ごとに名前・問い・指標の数（ないときは「定義なし」）の 1 行を閉じて出し、入力欄を置かない", async () => {
+  it("観点をほかの項目と同じ行（名前・ID・指標の数、下に問いを切らずに）で出し、入力欄も畳む三角も置かない", async () => {
     mount(retroClient());
     await screen.findByText("コミットの仕方");
     const s = section();
     expect(within(s).getByText("dg retro metric")).toBeTruthy();
     expect(
-      [...s.querySelectorAll("[data-perspective] > summary")].map((e) => e.textContent),
+      [...s.querySelectorAll("[data-perspective]")].map((e) => [
+        e.classList.contains("config-field"),
+        e.querySelector(":scope > .config-field-head")!.textContent,
+        e.querySelector(":scope > .config-summary")!.textContent,
+      ]),
     ).toEqual([
-      "見直しの効き目見直しは不具合をマージの前に見つけたか指標 2",
-      "コスト時間とトークンはどこに使われたか定義なし",
+      // どちらも既定の同じ ID の観点から名前と問いを書き換えているので「変更あり」が付く
+      [true, "見直しの効き目review変更あり指標 2", "見直しは不具合をマージの前に見つけたか"],
+      [true, "コストcost変更あり指標なし", "時間とトークンはどこに使われたか"],
     ]);
-    expect(perspectiveOf("review").open).toBe(false);
-    expect(perspectiveOf("cost").open).toBe(false);
+    expect(perspectiveOf("review").querySelector(".config-key")!.textContent).toBe("review");
+    // 観点は <details> で畳まない（畳むのは指標の「詳しく」だけ）
+    expect(s.querySelectorAll("details:not(.config-more)")).toHaveLength(0);
     expect(s.querySelectorAll("input, select, textarea, button")).toHaveLength(0);
   });
 
-  it("観点を開くと指標の ID と要約（数え方の最初の文）を 1 行ずつ出し、指標を開くと全文・出どころ・測れないものを出す", async () => {
+  it("指標は ID と数え方の最初の文の子の行で出し、全文・出どころ・測れないものは「詳しく」に畳む", async () => {
     mount(retroClient());
     await screen.findByText("コミットの仕方");
-    fireEvent.click(summaryOf(perspectiveOf("review")));
-    expect(perspectiveOf("review").open).toBe(true);
     expect(
-      [...perspectiveOf("review").querySelectorAll("[data-metric] > summary")].map(
+      [...perspectiveOf("review").querySelectorAll("[data-metric] > .config-field-head")].map(
         (e) => e.textContent,
       ),
     ).toEqual([
       "first-pass-rate最初の見直しで通ったチケットの割合。",
       "fix-rounds手直しの回数の平均",
     ]);
-    const metric = metricOf("review.first-pass-rate");
-    expect(metric.open).toBe(false);
-    fireEvent.click(summaryOf(metric));
-    expect(metric.open).toBe(true);
-    const dl = within(metric.querySelector("dl")!);
+    const more = moreOf("review.first-pass-rate");
+    expect(more.open).toBe(false);
+    expect(summaryOf(more).textContent).toBe("詳しく");
+    fireEvent.click(summaryOf(more));
+    expect(more.open).toBe(true);
+    const dl = within(more.querySelector("dl")!);
     expect(dl.getByText("最初の見直しで通ったチケットの割合。手直しの Run を数える")).toBeTruthy();
     expect(dl.getByText("dg metrics show --iteration <S>")).toBeTruthy();
     expect(dl.getByText("見逃した不具合")).toBeTruthy();
     // 測れないものがない指標はその見出しを出さない
     expect(within(metricOf("review.fix-rounds")).queryByText("この指標で測れないもの")).toBeNull();
-    // 定義のない観点は、開くと定義がまだないことを出す
-    fireEvent.click(summaryOf(perspectiveOf("cost")));
-    expect(within(perspectiveOf("cost")).getByText(/指標の定義はまだない/)).toBeTruthy();
-    // 閉じられる
-    fireEvent.click(summaryOf(perspectiveOf("review")));
-    expect(perspectiveOf("review").open).toBe(false);
+  });
+
+  it("指標のない観点に「指標なし」の札と、振り返りで提案して承認すると出ることの 1 行を出す", async () => {
+    mount(retroClient());
+    await screen.findByText("コミットの仕方");
+    const cost = within(perspectiveOf("cost"));
+    expect(cost.getByText("指標なし").classList.contains("badge")).toBe(true);
+    expect(cost.getByText("指標は振り返りで提案し、人が承認するとここに出る")).toBeTruthy();
+    expect(within(perspectiveOf("review")).queryByText(/指標は振り返りで提案し/)).toBeNull();
   });
 
   it("自分のタブには出さない", async () => {
@@ -1473,7 +1483,7 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
     expect(screen.queryByRole("region", { name: "振り返り" })).toBeNull();
   });
 
-  it("検索は観点の名前・問いと指標の ID・数え方・出どころ・測れないものに当たり、当たった観点と指標を開いて出す", async () => {
+  it("検索は観点の名前・問いと指標の ID・数え方・出どころ・測れないものに当たり、当たった指標の「詳しく」を開いて出す", async () => {
     mount(retroClient());
     await screen.findByText("コミットの仕方");
     const search = screen.getByLabelText("設定を検索");
@@ -1485,19 +1495,17 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
         e.getAttribute("data-metric"),
       ),
     });
-    // 観点の問いに当たる：観点を開いて指標をすべて出し、指標は閉じたまま
+    // 観点の問いに当たる：指標をすべて出し、指標の「詳しく」は閉じたまま
     fireEvent.change(search, { target: { value: "マージの前" } });
     expect(shown()).toEqual({
       perspectives: ["review"],
       metrics: ["review.first-pass-rate", "review.fix-rounds"],
     });
-    expect(perspectiveOf("review").open).toBe(true);
-    expect(metricOf("review.first-pass-rate").open).toBe(false);
-    // 観点の名前（定義のない観点）
+    expect(moreOf("review.first-pass-rate").open).toBe(false);
+    // 観点の名前（指標のない観点）
     fireEvent.change(search, { target: { value: "コスト" } });
     expect(shown()).toEqual({ perspectives: ["cost"], metrics: [] });
-    expect(perspectiveOf("cost").open).toBe(true);
-    // 指標の出どころ・ID・数え方の 2 文目・測れないものに当たる：当たった指標だけを開いて出す
+    // 指標の出どころ・ID・数え方の 2 文目・測れないものに当たる：当たった指標だけを、「詳しく」を開いて出す
     for (const [query, key] of [
       ["GH PR", "review.fix-rounds"],
       ["first-pass", "review.first-pass-rate"],
@@ -1506,8 +1514,7 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
     ] as const) {
       fireEvent.change(search, { target: { value: query } });
       expect(shown()).toEqual({ perspectives: ["review"], metrics: [key] });
-      expect(perspectiveOf("review").open).toBe(true);
-      expect(metricOf(key).open).toBe(true);
+      expect(moreOf(key).open).toBe(true);
     }
     // どれにも当たらなければ節を出さない
     fireEvent.change(search, { target: { value: "見つからない" } });
@@ -1518,13 +1525,17 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
     expect(screen.queryByText("該当する設定がない")).toBeNull();
     // 検索を消すと畳む
     fireEvent.change(search, { target: { value: "" } });
-    expect(perspectiveOf("review").open).toBe(false);
-    expect(metricOf("review.first-pass-rate").open).toBe(false);
+    expect(moreOf("review.first-pass-rate").open).toBe(false);
   });
 
-  it("要約は数え方の最初の「。」まで、「。」がなければ全文", () => {
+  it("要約は数え方の最初の文（「。」か英語の「. 」の先に来る方まで）、文の終わりがなければ全文", () => {
     expect(metricSummary("一文目。二文目。")).toBe("一文目。");
     expect(metricSummary("句点のない文")).toBe("句点のない文");
+    expect(metricSummary("Share of tickets. Count the runs. More.")).toBe("Share of tickets.");
+    expect(metricSummary("One sentence only.")).toBe("One sentence only.");
+    // 文の中の「.」（版や小数）は文の終わりとみなさない
+    expect(metricSummary("Runs of v1.2 per ticket")).toBe("Runs of v1.2 per ticket");
+    expect(metricSummary("英語の文 like this. と混ざる。")).toBe("英語の文 like this.");
   });
 
   it("英語の表示では節の文字列を英語の訳で出す（観点の名前と問いは書いたまま）", async () => {
@@ -1534,7 +1545,7 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
       await screen.findByText("Commit mode");
       const s = screen.getByRole("region", { name: "Retro" });
       expect(within(s).getByText("Metrics: 2")).toBeTruthy();
-      expect(within(s).getByText("No definitions")).toBeTruthy();
+      expect(within(s).getByText("No metrics")).toBeTruthy();
       expect(within(s).getByText("コスト")).toBeTruthy();
     } finally {
       setLanguage("ja");
@@ -1590,7 +1601,9 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
         ["flow", "Outcome", d["outcome"]!.question],
       ]);
       // 指標を持つ観点も、名前と問いが既定のままなら訳す（指標の定義は訳さない）
-      expect(perspectiveOf("review").querySelector(".badge")!.textContent).toBe("指標 2");
+      expect(perspectiveOf("review").querySelector(".config-retro-count")!.textContent).toBe(
+        "指標 2",
+      );
       // 検索は出している文（訳）に当てる
       fireEvent.change(screen.getByLabelText("設定を検索"), { target: { value: "成果" } });
       expect(rows().map((r) => r[0])).toEqual(["outcome"]);
@@ -1614,6 +1627,37 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
     it("shownRetroPerspectives は既定を渡さなければ（古い応答）、どの観点も書いたまま返す", () => {
       const written = perspectives();
       expect(shownRetroPerspectives(written, {})).toEqual(written);
+    });
+
+    it("名前か問いを書き換えた観点と既定にない観点に、ほかの項目と同じ左の線と「変更あり」の札を付け、既定のままの観点には付けない", async () => {
+      mount(client());
+      await screen.findByText("コミットの仕方");
+      const marks = () =>
+        [...document.querySelectorAll<HTMLElement>("[data-perspective]")].map((e) => [
+          e.getAttribute("data-perspective"),
+          e.classList.contains("modified"),
+          e.querySelector(".config-modified")?.textContent ?? null,
+        ]);
+      expect(marks()).toEqual([
+        ["outcome", false, null],
+        // 指標を足しても、名前と問いが既定のままなら変更なし（既定の観点は指標を持たない）
+        ["review", false, null],
+        ["spec", true, "変更あり"],
+        ["cost", true, "変更あり"],
+        ["flow", true, "変更あり"],
+      ]);
+      // 札の title に既定（表示言語の訳）を出し、既定にない観点はそう出す
+      const title = (id: string) =>
+        perspectiveOf(id).querySelector(".config-modified")!.getAttribute("title");
+      expect(title("spec")).toBe(
+        `既定は ${jaOf(DEFAULTS["spec"]!.name)}: ${jaOf(DEFAULTS["spec"]!.question)}`,
+      );
+      expect(title("flow")).toBe("既定にない観点");
+    });
+
+    it("retroChanges は既定を渡さなければ（古い応答）どの観点にも印を付けない", () => {
+      expect(retroChanges(perspectives(), {})).toEqual({});
+      expect(Object.keys(retroChanges(perspectives(), DEFAULTS))).toEqual(["spec", "cost", "flow"]);
     });
   });
 });
