@@ -188,4 +188,4 @@ It does not install a Skill that is not already there by itself. Where some dg S
 
 The extension runs only `git`, `gh`, and `dg --version`, and only in trusted folders.
 
-The Skills only tell the agent to read `dg guide`. The hooks only call `dg hook <event>`, which records Runs and refuses to mark a PR ready, merge it, or write to the data outside `dg`. See both with `--dry-run`.
+The Skills only tell the agent to read `dg guide`. The hooks only call `dg hook <event>`, which records Runs and refuses to mark a PR ready, merge it, or write to the data outside `dg`. See the Skills with `dg skill install --dry-run` and the hooks with `dg hooks install --dry-run`.

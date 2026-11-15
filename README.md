@@ -6,7 +6,7 @@ An agentic kanban board inside your Git repository, with the development flow bu
 
 - **You stay in charge**: Agents work under your oversight. You decide what to build and what ships, and the agents drive the work forward within those bounds. You build alongside them, and the AI never runs away with the work.
 - **Made for teams**: The board lives on a dedicated branch of your repository, so everyone who clones it sees the same board. There is no server or service to run.
-- **Measure and improve**: Every agent run records how long it took, how many tokens it used, and how much rework it needed. In the retrospective, your team reviews the trends of the metrics it chose, and any bottleneck it finds becomes a ticket for the next round of work.
+- **Measure and improve**: Every agent run records how long it took and how much rework it needed, and when your team turns on reading conversation transcripts, it also records how many tokens it used. In the retrospective, your team reviews the trends of the metrics it chose, and any bottleneck it finds becomes a ticket for the next round of work.
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/flow.png" alt="The development flow: an agent turns your idea into tickets and plans the order, agents work in parallel through the quality gate in each Iteration and report the time and tokens per ticket, then release and retrospect; your whole team sees the same board, and you approve the tickets, the plan, and the release, monitor the Iteration, and choose what to improve" width="800">
 
@@ -15,7 +15,7 @@ An agentic kanban board inside your Git repository, with the development flow bu
 - **OS**: Linux or macOS.
 - **VS Code**: 1.123 or later, the desktop edition.
 - **Git**: 2.30 or later.
-- **GitHub CLI (`gh`)**: optional. It is needed only to show pull request status on tickets.
+- **GitHub CLI (`gh`)**: optional. The pull request steps (opening, marking ready, and merging PRs, through `dg pr ready`, `dg pr merge`, and the agent's workflow actions) and showing pull request status on tickets need it. The board, the tickets, and reconciliation by Git facts work without it.
 - **Agent**: Claude Code is the primary supported agent, and the Skills and hooks are made for it. Other agents that can run a shell, such as Codex and Copilot CLI, can also use `dg`, but without the hooks the measurement of agent Runs and tokens is less accurate, and the guards on data and merges do not work. See [Use other agents](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-other-agents) in the usage guide.
 
 ## Installation
