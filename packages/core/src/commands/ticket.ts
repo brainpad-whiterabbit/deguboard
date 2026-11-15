@@ -1156,7 +1156,13 @@ async function reclaim(
   } & TranscriptInput,
   warnings: string[],
 ): Promise<RunId | null> {
-  if (input.without_branch || (input.branch !== undefined && input.branch !== doc.data.branch)) {
+  // --branch は最初の claim と同じ値（`fix-login`）でも通るように、組み立てた後の名前で比べる（ST-3）。
+  // 記録済みの名前そのもの（`<id>-` を付ける前の版が記録した `feature/x` など）は、組み立てずに通す
+  const sameBranch =
+    input.branch === undefined ||
+    input.branch === doc.data.branch ||
+    workBranchName(doc.id, input.branch) === doc.data.branch;
+  if (input.without_branch || !sameBranch) {
     throw new UsageError(
       `${doc.id} is already claimed (branch ${doc.data.branch ?? "none"}, PR #${doc.data.pr}). Claiming again cannot change the branch`,
     );

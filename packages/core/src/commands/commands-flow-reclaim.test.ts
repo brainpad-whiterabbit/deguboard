@@ -180,6 +180,46 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     }
   });
 
+  it("もう一度の claim の --branch は、最初の claim と同じ値（<id>- を付ける前の値）でも、記録済みの名前でも通り、別の名前になる値は拒む（ST-3・ST-9）", async () => {
+    const f = await fixture();
+    const human = await initialized(f.cloneA, {}, { template: "software-development" });
+    await runCommand(ticketCreate, human, { title: "Login" });
+    const claimed = await runCommand(ticketClaim, human, {
+      no_worktree: true,
+      ticket: "t1",
+      branch: "fix-login",
+    });
+    expect(claimed.data.branch).toBe("t1-fix-login");
+    await git(f.cloneA, ["branch", "t1-fix-login"]);
+    const restore = await fakeGh(f.root, {
+      "t1-fix-login|41":
+        '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
+    });
+    try {
+      await runCommand(ticketUpdate, human, { ticket: "t1", pr: 41 });
+      for (const branch of ["fix-login", "t1-fix-login"]) {
+        const again = await runCommand(ticketClaim, human, {
+          no_worktree: true,
+          ticket: "t1",
+          branch,
+        });
+        expect(again.data.branch).toBe("t1-fix-login");
+        expect(again.warnings).toContainEqual(
+          expect.stringContaining("treated as the start of a fix and the ticket is not changed"),
+        );
+      }
+      await expect(
+        runCommand(ticketClaim, human, { no_worktree: true, ticket: "t1", branch: "login" }),
+      ).rejects.toThrow("Claiming again cannot change the branch");
+      // 名前に使えない値は、組み立ての規則の誤りとして拒む
+      await expect(
+        runCommand(ticketClaim, human, { no_worktree: true, ticket: "t1", branch: "Fix Login" }),
+      ).rejects.toBeInstanceOf(UsageError);
+    } finally {
+      restore();
+    }
+  });
+
   it("もう一度の claim は、別のセッションで開いたままの前の手直しの Run を落ちたセッションの残りとみなして interrupted で閉じ、同じセッションの前の手直しは今までどおり区切りとして success で閉じる（RN-6）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
