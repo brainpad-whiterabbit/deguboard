@@ -1,6 +1,6 @@
 // scripts/check-docs.mjs が ADR の更新日の照合をやめ、列や行がなくても通ることを確かめる（t634）。
 // 実在しない ADR の番号・「最後に使った番号」との食い違いで落ち、8,000 字を超える ADR は警告で落とさないことも確かめる（t634）。
-// README.md と README.ja.md の節の構成のずれで落ちることを確かめる（t464）。
+// README.md と README.ja.md の節の構成のずれで落ちることを確かめる（t464）。docs/usage と docs/how-it-works の英日の対のずれと、docs/images の SVG の ADR 番号も見る（t1002）。
 // 拡張と Walkthrough が指す README の見出しアンカーが切れたときも落ちる（t524）。
 // 要件 ID・先頭コメント・guide の重複の検査が落ちることも確かめる（t536）。
 // 節を消して定義がなくなった接頭辞の参照は、接頭辞の一覧から拾って落ちることも確かめる（t552）。
@@ -366,6 +366,54 @@ describe("check-docs の README.md と README.ja.md の節の構成", () => {
     await writeFile(file, `${await readFile(file, "utf8")}\n\`\`\`sh\n# コメント\n\`\`\`\n`);
     const { stderr } = await run();
     expect(stderr).not.toContain("階層が README.md とずれている");
+  });
+});
+
+describe("check-docs の docs/usage と docs/how-it-works の英日の節の構成（t1002）", () => {
+  const PAIRS = [
+    ["docs/usage.md", "docs/usage.ja.md"],
+    ["docs/how-it-works.md", "docs/how-it-works.ja.md"],
+  ];
+  const esc = (s: string) => s.replace(/[./]/g, "\\$&");
+
+  it("写したままなら構成のずれは指摘しない", async () => {
+    const { stderr } = await run();
+    for (const [en] of PAIRS) expect(stderr).not.toContain(`階層が ${en} とずれている`);
+  });
+
+  it.each(PAIRS)(
+    "%s の日本語版の見出しの階層を変えると、位置と両方の見出しを出して落ちる",
+    async (en, ja) => {
+      await rewrite(ja, /^## (.+)$/m, "### $1");
+      const { code, stderr } = await run();
+      expect(code).toBe(1);
+      expect(stderr).toMatch(
+        new RegExp(
+          `${esc(ja)}: \\d+ 番目の見出しの階層が ${esc(en)} とずれている: ${esc(en)} は ## .+（\\d+ 行目）、${esc(ja)} は ### .+（\\d+ 行目）`,
+        ),
+      );
+    },
+  );
+
+  it.each(PAIRS)("%s に節を足すと、数のずれで落ちる", async (en, ja) => {
+    const file = join(dir, en);
+    await writeFile(file, `${await readFile(file, "utf8")}\n## Extra\n`);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(
+      new RegExp(`${esc(en)} は ## Extra（\\d+ 行目）、${esc(ja)} は （なし）`),
+    );
+  });
+});
+
+describe("check-docs の docs/images の SVG の ADR 番号（t1002）", () => {
+  it("図の中の実在しない ADR 番号を、ファイルと行を出して落とす", async () => {
+    await rewrite("docs/images/how-it-works.svg", /ADR-\d{3}/, "ADR-099");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(findingsOf(stderr)).toMatch(
+      /docs\/images\/how-it-works\.svg:\d+: ADR-099 が docs\/adr にない/,
+    );
   });
 });
 
