@@ -19,18 +19,16 @@ export function useScrolledPast<T extends Element>(): {
   past: boolean;
 } {
   const [el, setEl] = useState<T | null>(null);
-  const [past, setPast] = useState(false);
+  // 抜けたと見た要素を覚え、目印が替わったら（外れた・別の要素になった）前の結果を使わない
+  const [pastOf, setPastOf] = useState<Element | null>(null);
   useEffect(() => {
-    if (!el || typeof IntersectionObserver === "undefined") {
-      setPast(false);
-      return;
-    }
+    if (!el || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry) return;
         // rootBounds は rootMargin で帯の高さを除いた後の矩形
         const top = entry.rootBounds?.top ?? 0;
-        setPast(!entry.isIntersecting && entry.boundingClientRect.bottom <= top);
+        setPastOf(!entry.isIntersecting && entry.boundingClientRect.bottom <= top ? el : null);
       },
       {
         root: el.closest(".page"),
@@ -39,12 +37,9 @@ export function useScrolledPast<T extends Element>(): {
       },
     );
     observer.observe(el);
-    return () => {
-      observer.disconnect();
-      setPast(false);
-    };
+    return () => observer.disconnect();
   }, [el]);
-  return { ref: setEl, past };
+  return { ref: setEl, past: !!el && pastOf === el };
 }
 
 /**
