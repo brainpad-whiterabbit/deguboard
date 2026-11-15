@@ -5,7 +5,7 @@ after:
     - t990
   t996:
     - t990
-pending_approval: true
+pending_approval: false
 details:
   t990:
     scope: docs/how-it-works.md と .ja.md を足し、Overview の SVG 図 2 つ・Run の記録の Mermaid 図、README の How it works の節と Documentation の一覧、ADR-001 の書く範囲まで。次の一手の節は t996
@@ -27,3 +27,5 @@ details:
     scope: how-it-works の日英に「エージェントが次の一手を決める仕組み」の節と SVG 図 2 つを足し、必要なら ADR-001 の行を直す
     approach: t990 の図の形に合わせて描き、手の一覧・品質ゲート・理由は dg guide work・dg next --help・usage.md・ADR-011・ADR-030 へのリンクで引く
     tier: light
+approved_by: maji/agent
+approved_at: 2026-11-15T11:56:11Z
