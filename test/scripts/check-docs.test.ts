@@ -861,12 +861,29 @@ describe("check-docs の要件の 1 項の上限（t580）", () => {
     expect(stderr).toContain("要件 TK-1 の 1 項が 251 字で");
   });
 
-  it("ID のない前文と箇条書きは、長くても数えない", async () => {
+  it("節の前文は、長くても数えない", async () => {
     const req = join(dir, REQ);
-    await writeFile(
-      req,
-      `${await readFile(req, "utf8")}\n${"う".repeat(300)}\n\n- ${"え".repeat(300)}\n`,
+    await writeFile(req, `${await readFile(req, "utf8")}\n${"う".repeat(300)}\n`);
+    const { stderr } = await run();
+    expect(stderr).not.toContain("上限の 250 字を超えている");
+  });
+
+  it("ID のない箇条書きの項も数え、251 字なら行と字数を出して落ちる（t984）", async () => {
+    const req = join(dir, REQ);
+    const before = (await readFile(req, "utf8")).replace(/\n*$/, "\n");
+    const line = before.split("\n").length;
+    // 記号「- 」2 字＋本文 249 字＝251 字
+    await writeFile(req, `${before}\n- ${"え".repeat(249)}\n`);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      `docs/requirements.md:${line + 1}: 要件の ID のない 1 項が 251 字で、上限の 250 字を超えている`,
     );
+  });
+
+  it("ID のない箇条書きの項も、ちょうど 250 字なら指摘しない", async () => {
+    const req = join(dir, REQ);
+    await writeFile(req, `${await readFile(req, "utf8")}\n- ${"え".repeat(248)}\n`);
     const { stderr } = await run();
     expect(stderr).not.toContain("上限の 250 字を超えている");
   });

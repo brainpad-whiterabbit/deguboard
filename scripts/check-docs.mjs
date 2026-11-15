@@ -1,6 +1,6 @@
 // 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・packages・scripts・test の ADR 番号が先頭のコメントの外にあること（ファイルと行を出す）と、先頭のコメントの異なる番号が 2 つ以上ないこと・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・packages のテスト以外の文字列（コメントの外）にある要件 ID（ファイルと行を出す）・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行（CSS などは先頭の /* の塊）で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
-// 要件の 1 項は「- XX-N」の項目とその下の字下げした行を、行のまま（記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える（節の前文は数えない）。置き換え済みかは各 ADR のステータスの「置き換え（ADR-0xx）」から読み、packages・scripts・test のコードの ADR-0xx の参照すべて（コメント・テスト名・文字列）を照らし、置き換えの先を置き換え済みでなくなるまでたどって今の判断を出す。
+// 要件の 1 項は字下げのない箇条書きの項目（「- XX-N」の項と ID のない項）とその下の字下げした行を、行のまま（記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える（節の前文は数えない）。置き換え済みかは各 ADR のステータスの「置き換え（ADR-0xx）」から読み、packages・scripts・test のコードの ADR-0xx の参照すべて（コメント・テスト名・文字列）を照らし、置き換えの先を置き換え済みでなくなるまでたどって今の判断を出す。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、判断と理由を書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
 // 調べるファイルは git が追跡しているか無視されていないもの（.gitignore のビルドの成果物は読まない）。git のリポジトリの中で動かす。
 // 依存なしで動かす（git だけは execFile で呼ぶ）。mise run check:docs から呼ぶ。
@@ -217,8 +217,9 @@ for (const rel of requirementPlacementFiles) {
   }
 }
 
-// 要件の 1 項の上限（先頭の ADR の「要件定義書に書くもの」）：「- XX-N」の箇条書きの 1 項目と、その下の字下げした行の合計の字数。
-// 行のまま（箇条書きの記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える。その ADR が上限を決めたときの値（105 項・中央値 120 字・超えていたのは 20 項）がこの数え方で出るため。ID のない行（節の前文・ID のない箇条書き）は数えない
+// 要件の 1 項の上限（先頭の ADR の「要件定義書に書くもの」）：字下げのない箇条書きの 1 項目（「- XX-N」の項と、5.10 の config の項目のような ID のない項）と、その下の字下げした行の合計の字数。
+// 行のまま（箇条書きの記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える。その ADR が上限を決めたときの値（105 項・中央値 120 字・超えていたのは 20 項）がこの数え方で出るため。
+// ID のない項も約束と案内だけを書く 1 項なので数える（ID のある項だけを数えていたときに、ID のない項に細部が入って上限を超えても通っていた。t984）。節の前文は箇条書きでないので数えない
 let requirementItemCount = 0;
 let item = null;
 const checkItem = () => {
@@ -226,17 +227,18 @@ const checkItem = () => {
   requirementItemCount++;
   const chars = [...item.text].length;
   if (chars > REQUIREMENT_ITEM_MAX_CHARS) {
+    const name = item.id === null ? "要件の ID のない" : `要件 ${item.id} の`;
     errors.push(
-      `docs/requirements.md:${item.line}: 要件 ${item.id} の 1 項が ${chars} 字で、上限の ${REQUIREMENT_ITEM_MAX_CHARS} 字を超えている（細部を正本へ移して縮める）`,
+      `docs/requirements.md:${item.line}: ${name} 1 項が ${chars} 字で、上限の ${REQUIREMENT_ITEM_MAX_CHARS} 字を超えている（細部を正本へ移して縮める）`,
     );
   }
   item = null;
 };
 for (const [i, line] of linesOutsideFences(requirementsText).entries()) {
-  const m = /^- ([A-Z]{2,3}-\d+)(?![0-9])/.exec(line);
-  if (m) {
+  if (line.startsWith("- ")) {
     checkItem();
-    item = { id: m[1], line: i + 1, text: line };
+    const m = /^- ([A-Z]{2,3}-\d+)(?![0-9])/.exec(line);
+    item = { id: m ? m[1] : null, line: i + 1, text: line };
   } else if (item !== null && /^\s+\S/.test(line)) {
     item.text += `\n${line}`;
   } else {
