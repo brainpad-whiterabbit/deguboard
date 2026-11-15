@@ -1,0 +1,31 @@
+id: p144
+tickets: [t945, t1003, t1005, t1006, t1007, t1008]
+after:
+  t1006:
+    - t1003
+pending_approval: true
+details:
+  t945:
+    scope: release-<S> ラベルのチケットだけが残るとき flow next が release を返す判定と、guide-release・guide-all の起票の手順とヘルプ・テスト
+    approach: flow.ts の releaseScope と規則 5・7 で release-<S> のラベルを数えから外し、audit-<S> と同じく事実から決める
+    tier: standard
+  t1003:
+    scope: dg hooks install・uninstall・check と gitignore.ts の置き場所を決めて直し、launcher.ts の扱いを決めて書き残す
+    approach: skill-files.ts と同じ形で判定と書き込みを core のコマンド定義に移し、CLI は写すだけにする（CLI だけの操作にするなら ADR-033 と AG-4 に理由を書く）
+    tier: heavy
+  t1005:
+    scope: remote に届かないとき dg init を止め、--new-board で手元だけで始められるようにし、リポジトリの外のエラーに git init の案内を足す。SY-1 を直す
+    approach: ensureDeguboardWorktree の ls-remote の失敗を orphan の作成に流さずエラーにし、setup.ts の init に --new-board を足して 3 つの場合を bare リモートのテストで確かめる
+    tier: standard
+  t1006:
+    scope: dg setup check --json で git・リポジトリ・ボード・Skill と hooks・.gitignore の項目を順に返す core のコマンド。拡張だけの項目は含めない
+    approach: t1003 で core に移した hooks と Skill の判定を使い、t1005 の remote の確かめ方でボードの 3 状態を返すコマンド定義を commands/ に置く
+    tier: heavy
+  t1007:
+    scope: 左パネルを導入のチェックリストにし、必須を満たすといつもの画面に、推奨は帯で示す。通知を減らし UI-11・UI-12 を直す
+    approach: web の Onboarding を setup check の結果を描くチェックリストに置き換え、vscode の側で拡張だけの項目を足して自動で確かめ直す
+    tier: heavy
+  t1008:
+    scope: ボードの項目で別のリポジトリのボードを指定して --data-remote・--data-branch 付きで init できるようにし、README と README.ja.md の導入を直す
+    approach: チェックリストのボードの項目に選択と入力を足して init の引数を組み立て、渡す引数をテストで確かめる
+    tier: standard
