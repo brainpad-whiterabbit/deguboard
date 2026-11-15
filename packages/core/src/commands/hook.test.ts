@@ -2594,6 +2594,30 @@ describe("落ちたセッションに残ったサブエージェントの Run（
     expect(await closedRun(ctx, review.id)).toMatchObject({ result: "interrupted" });
   });
 
+  it("落ちた残りとして閉じる Run は、記録の最後の更新の時刻で閉じ、落ちてから閉じるまでの時間を Run の時間に入れない", async () => {
+    const { ctx, parent } = await claimed();
+    // 2 時間前に開き、1 時間前に記録が止まった（落ちた）サブエージェントの Run
+    const now = Date.now();
+    const realNow = ctx.now;
+    ctx.now = () => new Date(now - 2 * 3600_000);
+    const stale = await oldSubagentRun(ctx, parent, "t1", "implement", 3600_000);
+    ctx.now = realNow;
+    const lastWritten = toIsoDateTime(new Date(now - 3600_000));
+
+    await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=implement"));
+    const closed = await closedRun(ctx, stale.id);
+    expect(closed).toMatchObject({
+      result: "interrupted",
+      error: STALE_SESSION_ERROR,
+      started_at: stale.started_at,
+      finished_at: lastWritten,
+    });
+    expect(closed!.duration_seconds).toBe(
+      (Date.parse(lastWritten) - Date.parse(stale.started_at)) / 1000,
+    );
+    expect(closed!.duration_seconds).toBeLessThan(3600 + 2);
+  });
+
   it("記録が新しいとき・どちらかのセッションが分からないとき・親が自分で開いた Run のときは、dg next は待たせ、印の起動は閉じない", async () => {
     const { ctx, parent } = await claimed();
     const waits = async (ticket: string, id: string) => {

@@ -135,7 +135,7 @@ export const hook = defineCommand({
   group: "hook",
   summary:
     "Called by the harness hooks (dg hooks install writes them into the settings; people do not run it). Reads the hook input (JSON) from stdin with --payload -. At the start of a session, puts the actor, session ID, and record path into the environment. For a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts " +
-    "(if a Run for the same ticket and step is still open, it does not open one and warns. Before opening, it closes as interrupted the open Runs of the same ticket that are left over from a crashed session: for a review, a review Run from a different session; for any step, a Run of any step tied to the record of a sub-agent of a different session whose record has not been written for 30 minutes (a newer record is taken as a sub-agent still running in parallel, and a Run the parent opened itself, or one whose session is not known, is left open). A review result written to that Run after a foreground start is held and linked to the new Run. When a foreground reviewer returns and dg sync or dg pr ready has already written its held result as a review record (capture: none) in the same session after the start, it does not open a Run; it ties the transcript to that record, re-reads its usage, removes capture: none, and replaces its result with a result held after the record was written. In both cases, an earlier fix Run still open on the same ticket is closed at the start boundary, as run start does). When it stops, if the step was finished, it closes the Run (otherwise it marks the Run as stopped and waiting, and resuming continues it; a Run opened by the agent itself is the same). At the end of the session it closes the open Runs of that session's sub-agents. " +
+    "(if a Run for the same ticket and step is still open, it does not open one and warns. Before opening, it closes as interrupted the open Runs of the same ticket that are left over from a crashed session: for a review, a review Run from a different session; for any step, a Run of any step tied to the record of a sub-agent of a different session whose record has not been written for 30 minutes, closed at the time its record was last written so the time after the crash is not counted (a newer record is taken as a sub-agent still running in parallel, and a Run the parent opened itself, or one whose session is not known, is left open). A review result written to that Run after a foreground start is held and linked to the new Run. When a foreground reviewer returns and dg sync or dg pr ready has already written its held result as a review record (capture: none) in the same session after the start, it does not open a Run; it ties the transcript to that record, re-reads its usage, removes capture: none, and replaces its result with a result held after the record was written. In both cases, an earlier fix Run still open on the same ticket is closed at the start boundary, as run start does). When it stops, if the step was finished, it closes the Run (otherwise it marks the Run as stopped and waiting, and resuming continues it; a Run opened by the agent itself is the same). At the end of the session it closes the open Runs of that session's sub-agents. " +
     "Before a tool is used (PreToolUse), it rejects writes under .git/deguboard/ by writing tools, and Bash containing the word .git/deguboard (including read-only commands, and text inside quotes or comments), and points to dg's read and write commands instead " +
     "(writes that do not show the word are not seen; a miss is found as a change outside dg the next time dg runs, and at Stop). " +
     "It rejects gh pr ready and gh pr merge run outside dg (including the same operations through gh api) and points to dg pr ready and dg pr merge " +
@@ -535,11 +535,9 @@ async function closeStaleRuns(
   for (const { data: stale } of (await readRunningRuns(ctx.repo)).runs) {
     if (stale.ticket !== marker.ticket || !openedInOtherSession(stale, session)) continue;
     const review = stale.step === REVIEW_STEP && marker.step === REVIEW_STEP;
-    if (
-      !review &&
-      (await crashedSubagentRunAt(stale, paths.get(stale.id), session, ctx.now())) === undefined
-    )
-      continue;
+    // 落ちた残りは記録の最後の更新の時刻で閉じる（落ちてから今の起動までの時間を Run の時間に入れない）
+    const crashedAt = await crashedSubagentRunAt(stale, paths.get(stale.id), session, ctx.now());
+    if (!review && crashedAt === undefined) continue;
     try {
       let run = stale;
       if (review && (await moveReviewToPending(ctx.repo, run.id, launchedAt))) {
@@ -552,7 +550,7 @@ async function closeStaleRuns(
         ctx,
         run,
         paths.get(run.id),
-        { result: "interrupted", error: STALE_SESSION_ERROR },
+        { result: "interrupted", error: STALE_SESSION_ERROR, finishedAt: crashedAt },
         view,
         warnings,
       );
@@ -758,12 +756,15 @@ async function waitSettled(agent: string, transcript: string): Promise<boolean> 
   }
 }
 
-/** サブエージェントの Run を、記録の全体から数えて閉じる。見直しの成否はロックの中で読み直した記録で決める */
+/**
+ * サブエージェントの Run を、記録の全体から数えて閉じる。見直しの成否はロックの中で読み直した記録で決める。
+ * decided.finishedAt を渡せばその時刻で閉じ（落ちた残りの記録の最後の更新の時刻）、使用量と待ちもその時刻までを数える。なければ今の時刻
+ */
 async function closeSubagentRun(
   ctx: CommandContext,
   run: Run,
   transcript: string | undefined,
-  decided: { result: RunResult; error?: string },
+  decided: { result: RunResult; error?: string; finishedAt?: string | undefined },
   view: HookView,
   warnings: string[],
 ): Promise<void> {
@@ -771,7 +772,7 @@ async function closeSubagentRun(
   const now = ctx.now();
   const query = {
     run,
-    finishedAt: toIsoDateTime(now),
+    finishedAt: decided.finishedAt ?? toIsoDateTime(now),
     env: ctx.env ?? process.env,
     topLevel: ctx.repo.topLevel,
     others,
@@ -790,6 +791,7 @@ async function closeSubagentRun(
     usage: collected.usage,
     tools: collected.tools,
     waits: waits.intervals,
+    finishedAt: decided.finishedAt,
     now,
   });
   warnings.push(
