@@ -4,7 +4,8 @@
 
 import { dataRemoteRef, ensureLocalDir, type RepoPaths } from "./repo.js";
 import { pathExists } from "../storage/exists.js";
-import { runGit } from "./run.js";
+import { OperationError } from "../errors.js";
+import { GitError, runGit } from "./run.js";
 
 /** 手元のデータの worktree が checkout するブランチの名前（データのリモートでの名前は repo.dataBranch） */
 export const LOCAL_DATA_BRANCH = "deguboard";
@@ -50,15 +51,33 @@ export async function findBranchWorktree(paths: RepoPaths, branch: string): Prom
   return null;
 }
 
+/** init がデータのリモートに届かず、ボードを作らずに止まるときのエラー */
+function remoteUnreachableError(
+  remote: string,
+  dataBranch: string,
+  detail: string,
+): OperationError {
+  return new OperationError(
+    "GIT_ERROR",
+    `Cannot reach the data remote ${remote} to check for its ${dataBranch} branch, so dg init did not create a board. ` +
+      `Fix the connection (network, credentials, or the remote's URL) and run dg init again to take in the team's board. ` +
+      `To start with a board only on this machine instead, run dg init --new-board: if the remote already has a board, ` +
+      `the new one is a separate board that shares no history with it, and dg sync stops with DATA_HISTORY_UNRELATED`,
+    detail || undefined,
+  );
+}
+
 /**
  * 既にあればそのまま、ローカルに deguboard ブランチ（LOCAL_DATA_BRANCH）があればそれを、データのリモートにデータのブランチ（dataBranch）が
- * あればそれを追うブランチを、なければ orphan を作って checkout する。リモートのほかのブランチ（ほかのカンバンのデータ）は見ない。
+ * あればそれを追うブランチを、なければ orphan を作って checkout する。データのリモートに届かなければ、newBoard のときだけ orphan を作り、
+ * そうでなければ何も作らずに失敗する。リモートのほかのブランチ（ほかのカンバンのデータ）は見ない。
  * orphan は `worktree add --orphan`（git 2.42）を使わず plumbing で作り、git 2.30 と unborn HEAD でも動かす
  */
 export async function ensureDeguboardWorktree(
   paths: RepoPaths,
   remote: string | null,
   dataBranch: string,
+  options: { newBoard?: boolean | undefined } = {},
 ): Promise<WorktreeOrigin> {
   await ensureLocalDir(paths.localDir);
   const git = (args: string[]) => runGit(paths.topLevel, args, { localDir: paths.localDir });
@@ -79,7 +98,17 @@ export async function ensureDeguboardWorktree(
         allowFailure: true,
         timeoutMs: 30_000,
       },
-    );
+    ).catch((error: unknown) => {
+      // 時間切れも届かないとみなす（GitError の timeout は allowFailure でも投げられる）
+      if (error instanceof GitError && error.kind === "timeout")
+        return { stdout: "", stderr: error.message, code: -1 };
+      throw error;
+    });
+    // --exit-code の 2 は「届いて、そのブランチがない」。それ以外の失敗は届かなかった（接続・認証・時間切れ）。
+    // なぜ止める：届かないまま orphan を作ると、チームのボードと履歴を共有しない別のボードができ、後の sync が
+    // DATA_HISTORY_UNRELATED で止まるまで気づけない（SY-1）。手元だけで始めるのは newBoard で人が選ぶ
+    if (remoteHas.code !== 0 && remoteHas.code !== 2 && !options.newBoard)
+      throw remoteUnreachableError(remote, dataBranch, remoteHas.stderr.trim());
     if (remoteHas.code === 0) {
       await git([
         "fetch",

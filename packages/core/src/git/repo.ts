@@ -51,7 +51,11 @@ export async function resolveRepoPaths(cwd: string): Promise<RepoPaths> {
     if (error instanceof GitError && error.kind === "missing") {
       throw new OperationError("GIT_ERROR", "git not found. Install git 2.30 or later");
     }
-    throw new OperationError("GIT_ERROR", `${cwd} is not inside a Git repository`, String(error));
+    throw new OperationError(
+      "GIT_ERROR",
+      `${cwd} is not inside a Git repository. dg keeps the board in a Git repository: create one with git init (or move into an existing one), then run dg again`,
+      String(error),
+    );
   }
   return { topLevel, commonDir, ...repoDirsOf(commonDir) };
 }

@@ -135,6 +135,12 @@ export const init = defineCommand({
       .string()
       .optional()
       .describe("Base of work branches. Defaults to main when omitted"),
+    new_board: z
+      .boolean()
+      .optional()
+      .describe(
+        "Create a new board on this machine even when the data remote cannot be reached. Without it, dg init stops without creating a board when it cannot reach the data remote, so that a clone does not start a board apart from the team's. If the remote already has a board, the new one is a separate board that shares no history with it (dg sync then stops with DATA_HISTORY_UNRELATED). Has no effect when the board already exists here or the remote can be reached",
+      ),
   }),
   write: true,
   needs: "repo",
