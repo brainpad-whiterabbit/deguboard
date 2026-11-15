@@ -41,6 +41,7 @@ const facts = (over: Partial<FlowFacts> = {}): FlowFacts => ({
   releaseScope: [{ id: "t1", status: "in_progress" }],
   candidates: [],
   auditLabeled: false,
+  releaseLabeled: false,
   pendingPlans: [],
   approvedPlans: [],
   unplanned: [],
@@ -150,6 +151,11 @@ describe("flowStageOf（流れの 8 つの規則）", () => {
       rule: 7,
     });
     expect(flowStageOf(facts(finished()), { ...checked, audited: true }).name).toBe("release");
+    // ラベル release-<S> のチケットがあればリリースを始めたので、1 から呼び直しても見直しに戻らない
+    expect(flowStageOf(facts({ ...finished(), releaseLabeled: true }), checked)).toMatchObject({
+      name: "release",
+      rule: 7,
+    });
   });
 
   it("規則 8 止まる：どれにも当たらない（PR のない in_progress だけなど）。Iteration が決まらなければ見直しもリリースもしない", () => {
@@ -525,6 +531,36 @@ describe("dg flow next", () => {
     const first = await flow(ctx, {});
     expect(first.stage.name).toBe("check");
     expect((await flow(ctx, { resume: first.resume })).stage.name).toBe("release");
+  });
+
+  it("ラベル release-<S> のチケットだけが残れば、リリースを返し続け、計画にも見直しにも戻らない（Iteration とチケットの指定）", async () => {
+    const ctx = await ready();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(ticketCreate, ctx, { title: "版を上げる PR", labels: ["release-s1"] });
+    await runCommand(ticketCreate, ctx, { title: "タグと公開", labels: ["release-s1"] });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2", "t3"] });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    // audit-<S> のない（指摘のなかった）見直しのあと、同じ引数で 1 から呼び直す
+    const first = await flow(ctx, {});
+    expect(first.stage.name).toBe("check");
+    const todo = await flow(ctx, { resume: first.resume });
+    expect(todo.stage).toMatchObject({ name: "release", rule: 7 });
+    // 公開のチケットが in_progress の間も、リリースを返す
+    await runCommand(ticketMove, ctx, { ticket: "t3", status: "in_progress" });
+    const inProgress = await flow(ctx, { resume: todo.resume });
+    expect(inProgress.stage).toMatchObject({ name: "release", rule: 7 });
+    expect(inProgress.repeated).toBeNull();
+    // チケットの指定でも同じ
+    const byTicket = await flow(ctx, { targets: ["t1"] });
+    expect((await flow(ctx, { targets: ["t1"], resume: byTicket.resume })).stage.name).toBe(
+      "release",
+    );
+    // release-<S> でない todo が残れば、今までどおり計画する
+    await runCommand(ticketCreate, ctx, { title: "B" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t4"] });
+    const plan = await flow(ctx, { resume: inProgress.resume });
+    expect(plan.stage).toMatchObject({ name: "plan", rule: 5, tickets: ["t4"] });
   });
 
   it("チケットの指定では、その Iteration を <S> にし、別の対象の resume は使わずに警告する", async () => {
