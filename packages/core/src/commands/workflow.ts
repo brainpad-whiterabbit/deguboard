@@ -39,7 +39,7 @@ export const workflowShow = defineCommand({
   positionals: ["workflow"],
   group: "workflow",
   summary:
-    "Show a Workflow's definition and the transition constraints composed for each from→to. A transition that is not written is allowed for anyone without conditions",
+    "Show a Workflow's definition and the transition constraints composed for each from→to. A transition that is not written is allowed for anyone without conditions. template is the bundled template with the same id (null if there is none)",
   input: z.object({
     workflow: slugSchema.describe("ID of the Workflow to show (workflows/<id>.yaml)"),
   }),
@@ -57,6 +57,8 @@ export const workflowShow = defineCommand({
       labels: w.resolved.labels,
       transitions: w.resolved.transitions,
       path: w.path,
+      // 画面が、名前とラベルが雛形と同じ文（既定のまま）かを比べて表示言語に訳すのに使う（UI-11）。画面は雛形の写しを持たない
+      template: findWorkflowTemplate(w.resolved.id) ?? null,
     });
   },
 });

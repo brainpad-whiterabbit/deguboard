@@ -17,6 +17,7 @@ import {
   type CoreTextTable,
 } from "./l10n-core.js";
 import { EN, EN_ONE } from "./l10n-en.js";
+import type { WorkflowView } from "./types.js";
 
 export type Language = "ja" | "en";
 
@@ -89,10 +90,36 @@ function defaultTranslation(defaultValue: unknown): string | undefined {
  * 値が既定（core が返す既定。config.show の defaults と fields の default）と同じ文のときだけ既定のままとみなし、
  * DEFAULT_VALUES に今の言語の訳があれば訳で出す。書き換えた値・訳のない既定・文字列でない値は値のまま出す。
  * 古い版の既定の写し（今の既定と違う文）も、人が書いた値と見分けられないので書いたまま出す。
- * 訳して出す既定を足すときは DEFAULT_VALUES に鍵を足し、ここと storedDefault は変えない。読むのは store（判断基準）と設定画面
+ * 訳して出す既定を足すときは DEFAULT_VALUES に鍵を足し、ここと storedDefault は変えない。読むのは store（判断基準）と設定画面と shownWorkflow
  */
 export function shownDefault(value: unknown, defaultValue: unknown): unknown {
   return value === defaultValue ? (defaultTranslation(defaultValue) ?? value) : value;
+}
+
+/**
+ * Workflow の名前と、step・任意フィールドのラベルを画面に出す形にする（UI-11）。workflow.show が添える同じ id の雛形（template）の、
+ * 名前・同じ id の step と項目のラベルを既定として shownDefault に渡すので、雛形と同じ文のときだけ訳す。
+ * 書き換えた文・雛形にない step と項目・雛形のない Workflow は書いたまま。雛形の文は core が返したものだけで比べ、画面は写しを持たない。
+ * Status の表示名（labels）は変えない。訳は DEFAULT_VALUES に置く
+ */
+export function shownWorkflow(view: WorkflowView): WorkflowView {
+  const { definition, template } = view;
+  if (!template) return view;
+  type Labeled = { id: string; label?: string | undefined };
+  const shown = <T extends Labeled>(item: T, from: readonly Labeled[] | undefined): T => {
+    if (item.label === undefined) return item;
+    const defaultLabel = from?.find((i) => i.id === item.id)?.label;
+    return { ...item, label: String(shownDefault(item.label, defaultLabel)) };
+  };
+  return {
+    ...view,
+    definition: {
+      ...definition,
+      name: String(shownDefault(definition.name, template.name)),
+      fields: definition.fields.map((f) => shown(f, template.fields)),
+      ...(definition.steps && { steps: definition.steps.map((s) => shown(s, template.steps)) }),
+    },
+  };
 }
 
 /**

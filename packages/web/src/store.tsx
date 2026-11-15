@@ -32,7 +32,7 @@ import type {
   WorkflowView,
 } from "./types.js";
 import type { UiState } from "./ui-state.js";
-import { shownDefault, tr } from "./l10n.js";
+import { shownDefault, shownWorkflow, tr } from "./l10n.js";
 
 /** 優先度の判断基準（config.yaml の priority。config.show が core の既定を混ぜて返す）。読み終えるまでは空 */
 const EMPTY_PRIORITY_CRITERIA: Record<Priority, string> = { high: "", medium: "", low: "" };
@@ -238,6 +238,8 @@ export function StoreProvider({
     [client, reload],
   );
 
+  // 雛形と同じ名前とラベルは表示言語の訳にして渡す。cache には core が返したままを残す（表示言語が変わっても訳し直せるように）
+  const shownWf = useMemo(() => workflow && shownWorkflow(workflow), [workflow]);
   const value = useMemo<Store>(
     () => ({
       client,
@@ -245,7 +247,7 @@ export function StoreProvider({
       epics,
       iterations,
       plans,
-      workflow,
+      workflow: shownWf,
       me,
       ticketRuns,
       status,
@@ -266,6 +268,7 @@ export function StoreProvider({
       iterations,
       plans,
       workflow,
+      shownWf,
       me,
       ticketRuns,
       status,

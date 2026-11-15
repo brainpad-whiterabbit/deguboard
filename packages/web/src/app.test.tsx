@@ -25,7 +25,7 @@ import {
 
 /** カンバンのテストの client（チケットを active の Iteration に入れた fixture） */
 const boardClient = () => mockClient(boardFixture());
-import type { RunSummary, RunView, TicketRunsView } from "./types.js";
+import type { RunSummary, RunView, TicketRunsView, WorkflowView } from "./types.js";
 
 /** run.recent の 1 件（runs は新しい順）。total を省けば runs の件数 */
 function ticketRuns(
@@ -322,6 +322,45 @@ describe("画面", () => {
       ),
     ).toBe(true);
   });
+
+  it.each([
+    ["既定の Workflow", "t3", "画面"],
+    ["チケット自身の Workflow", "t9", "別の流れ"],
+  ])(
+    "%sの項目のラベルは、workflow.show が添える雛形と同じ文なら日本語で、書き換えたものは書いたまま出す",
+    async (_, id, title) => {
+      window.location.hash = `#/tickets/${id}`;
+      const client = id === "t9" ? ownWorkflowClient() : mockClient();
+      const show = client.handlers["workflow.show"]!;
+      const template = {
+        name: "Software Development",
+        fields: [
+          { id: "estimate", type: "number", label: "Estimate" },
+          { id: "size", type: "string", label: "Size" },
+        ],
+      };
+      client.handlers["workflow.show"] = (input) => {
+        const view = show(input) as WorkflowView;
+        return {
+          ...view,
+          definition: {
+            ...view.definition,
+            fields: [
+              { id: "estimate", type: "number", label: "Estimate" },
+              { id: "size", type: "string", label: "Size of work" },
+            ],
+          },
+          template,
+        };
+      };
+      mount(client, hostOf("panel"));
+      await screen.findByRole("heading", { level: 1, name: title });
+      const none = (await screen.findByText("なし", { selector: "dt" })).nextElementSibling!;
+      await waitFor(() => expect(none.textContent).toContain("見積もり"));
+      expect(none.textContent).not.toContain("Estimate");
+      expect(none.textContent).toContain("Size of work");
+    },
+  );
 
   it("チケットの Workflow が読めなければ理由を通知に出し、パネルの Status の選択は今の Status だけにする", async () => {
     window.location.hash = "#/tickets/t9";

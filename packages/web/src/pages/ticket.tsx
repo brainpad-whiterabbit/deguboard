@@ -18,7 +18,7 @@ import { Markdown, type AcceptanceToggle } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore, type Store } from "../store.js";
 import type { Status, TicketDetail, WorkflowView } from "../types.js";
-import { tr } from "../l10n.js";
+import { shownWorkflow, tr } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
 /**
@@ -37,7 +37,7 @@ function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowV
     let alive = true;
     client
       .run<WorkflowView>("workflow.show", { workflow: other })
-      .then((r) => alive && setLoaded({ id: other, view: r.data }))
+      .then((r) => alive && setLoaded({ id: other, view: shownWorkflow(r.data) }))
       .catch(
         (e: unknown) =>
           alive &&
