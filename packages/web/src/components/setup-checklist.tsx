@@ -7,7 +7,8 @@
 // ボタンは VS Code の中でだけ出る（拡張ホストに頼み、deguboard のターミナルで実行する）。dg serve のブラウザにはなく、コマンドをコピーするだけ（ADR-027）。
 // 確かめ直しは、拡張ホストの見張りと手のボタン（store.recheckSetup）が行う。
 // ボードの項目だけは、チームのボードが別のリポジトリにあるときのために、データのリポジトリとブランチを入れて確かめ直す道を持つ（BoardItemGuide。
-// 入れた値は store.setupBoard に持ち、確かめ直しとボタンの dg init の --data-remote・--data-branch に渡す）
+// 入れた値は store.setupBoard に持ち、確かめ直しとボタンの dg init の --data-remote・--data-branch に渡す）。
+// web は core から型だけを取り込む（.oxlintrc.json の no-restricted-imports）ので、DEFAULT_DATA_BRANCH と initCommandLine は core の写しを置く
 
 import type { SetupAction, SetupBoardSource, SetupView, SetupViewItem } from "@deguboard/core";
 import { useState, type ReactNode } from "react";
@@ -50,8 +51,7 @@ export interface Guide {
 
 const RECHECK = msg("もう一度確かめる");
 
-// web は core の実行時のコードを取り込めない（ADR-033）ので、次の 2 つは core の写し。
-// core の DEFAULT_DATA_BRANCH・initCommandLine と同じ値になることは setup-checklist.test.tsx が確かめる
+// 次の 2 つは core の写し（先頭のコメント）。core の DEFAULT_DATA_BRANCH・initCommandLine と同じ値になることは setup-checklist.test.tsx が確かめる
 
 /** データのブランチの既定（dg init の --data-branch を省いたとき） */
 export const DEFAULT_DATA_BRANCH = "deguboard";
