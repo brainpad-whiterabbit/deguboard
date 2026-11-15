@@ -1,0 +1,36 @@
+{
+  "id": "r20261115-122510-105c",
+  "ticket": "t996",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-15T12:25:10Z",
+  "finished_at": "2026-11-15T12:26:06Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "日本語版の受け入れ条件3: 本文に Skill の記述がなく、手順が dg にあることが読めない",
+    "英語版の受け入れ条件3: 本文に Skills の記述がなく、図のラベルにしか出ない",
+    "英語版と日本語版の小見出しの意味がずれている"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 4438,
+    "cache_read": 348210,
+    "cache_write": 33445
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 3,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "b9a27ee7-5f63-4ae0-ae1d-d37bdb2b62f0",
+  "review": null,
+  "waited_seconds": 0
+}
