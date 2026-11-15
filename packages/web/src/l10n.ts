@@ -86,7 +86,7 @@ function defaultTranslation(defaultValue: unknown): string | undefined {
 }
 
 /**
- * dg の既定の値（config の既定・Workflow の雛形・推薦の指標）を画面に出すときの、ただ 1 つの口（UI-11・CL-8）。
+ * dg の既定の値（config の既定・Workflow の雛形）を画面に出すときの、ただ 1 つの口（UI-11・CL-8）。推薦の指標は英語で持つだけで、ここを通さない。
  * 値が既定（core が返す既定。config.show の defaults と fields の default）と同じ文のときだけ既定のままとみなし、
  * DEFAULT_VALUES に今の言語の訳があれば訳で出す。書き換えた値・訳のない既定・文字列でない値は値のまま出す。
  * 古い版の既定の写し（今の既定と違う文）も、人が書いた値と見分けられないので書いたまま出す。
