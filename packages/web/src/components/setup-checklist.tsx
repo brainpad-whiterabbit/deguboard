@@ -5,9 +5,13 @@
 // （core の message は dg の出力で英語なので出さない）。満たさない項目の中身は、どの項目も次の順に並べる（guideOf と ItemGuide）：
 //   1. 状態（事実の 1 文） 2. すること（文・場所・ボタン 1 つ） 3. ターミナルで行うなら（同じことをするコマンド） 4. 条件を書いた別の道
 // ボタンは VS Code の中でだけ出る（拡張ホストに頼み、deguboard のターミナルで実行する）。dg serve のブラウザにはなく、コマンドをコピーするだけ（ADR-027）。
-// 確かめ直しは、拡張ホストの見張りと手のボタン（store.recheckSetup）が行う
+// 確かめ直しは、拡張ホストの見張りと手のボタン（store.recheckSetup）が行う。
+// ボードの項目だけは、チームのボードが別のリポジトリにあるときのために、データのリポジトリとブランチを入れて確かめ直す道を持つ（BoardItemGuide。
+// 入れた値は store.setupBoard に持ち、確かめ直しとボタンの dg init の --data-remote・--data-branch に渡す）。
+// web は core から型だけを取り込む（.oxlintrc.json の no-restricted-imports）ので、DEFAULT_DATA_BRANCH と initCommandLine は core の写しを置く
 
-import type { SetupAction, SetupView, SetupViewItem } from "@deguboard/core";
+import type { SetupAction, SetupBoardSource, SetupView, SetupViewItem } from "@deguboard/core";
+import { useState, type ReactNode } from "react";
 import { failureOf } from "../client/http.js";
 import { useHost, useUiState } from "../host.js";
 import { msg, tr } from "../l10n.js";
@@ -47,25 +51,52 @@ export interface Guide {
 
 const RECHECK = msg("もう一度確かめる");
 
-/** remote に届かないときに、人が選んだときだけ使う「手元だけで新しいボードを作る」のコマンド（拡張のボタン newBoard と同じ） */
-const NEW_BOARD_COMMAND = "dg init --new-board";
+// 次の 2 つは core の写し（先頭のコメント）。core の DEFAULT_DATA_BRANCH・initCommandLine と同じ値になることは setup-checklist.test.tsx が確かめる
 
-/** ボードの項目の中身。state は core の BoardState（dg init がすることを先に確かめた結果） */
-function boardGuide(item: SetupViewItem): Guide {
+/** データのブランチの既定（dg init の --data-branch を省いたとき） */
+export const DEFAULT_DATA_BRANCH = "deguboard";
+
+/** 拡張のボタンが流す dg init の 1 行（core の initCommandLine の写し。値はシェルにそのまま渡せる形に囲む） */
+export function initCommandLine(options: {
+  dataRemote?: string | undefined;
+  dataBranch?: string | undefined;
+  newBoard?: boolean | undefined;
+}): string {
+  const arg = (value: string) =>
+    /^[\w@%+:,./-][\w@%+=:,./-]*$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
+  return [
+    "dg init",
+    ...(options.newBoard ? ["--new-board"] : []),
+    ...(options.dataRemote ? ["--data-remote", arg(options.dataRemote)] : []),
+    ...(options.dataBranch ? ["--data-branch", arg(options.dataBranch)] : []),
+  ].join(" ");
+}
+
+/**
+ * ボードの項目の中身。state は core の BoardState（dg init がすることを先に確かめた結果）。
+ * board は人が指定したデータの置き場所で、指定していれば確かめた先はそのリポジトリ（文はデータのリポジトリと言う）
+ */
+export function boardGuide(item: SetupViewItem, board: SetupBoardSource | null = null): Guide {
   const init: Pick<Guide, "commands"> = { commands: item.fix };
   switch (item.state) {
     case "remote_board":
       return {
         short: tr("未取り込み"),
-        status: tr("リモートにチームのボードがあり、このクローンにはまだ取り込んでいません。"),
+        status: board
+          ? tr("データのリポジトリにチームのボードがあり、このクローンにはまだ取り込んでいません。")
+          : tr("リモートにチームのボードがあり、このクローンにはまだ取り込んでいません。"),
         action: { label: tr("チームのボードを取り込む"), act: "init" },
         ...init,
       };
     case "remote_no_board":
       return {
         short: tr("まだない"),
-        status: tr("リモートにボードはありません。"),
-        todo: tr("新しいボードを作り、リモートへ push します。"),
+        status: board
+          ? tr("データのリポジトリにボードはありません。")
+          : tr("リモートにボードはありません。"),
+        todo: board
+          ? tr("新しいボードを作り、データのリポジトリへ push します。")
+          : tr("新しいボードを作り、リモートへ push します。"),
         action: { label: tr("新しいボードを作る"), act: "init" },
         ...init,
       };
@@ -83,7 +114,14 @@ function boardGuide(item: SetupViewItem): Guide {
         alt: {
           when: tr("チームのボードがないと分かっているなら"),
           action: { label: tr("手元だけで新しいボードを作る"), act: "newBoard" },
-          commands: [NEW_BOARD_COMMAND],
+          // 拡張のボタン newBoard と同じ 1 行（packages/vscode/src/setup.ts の setupCommands）
+          commands: [
+            initCommandLine({
+              dataRemote: board?.dataRemote,
+              dataBranch: board?.dataBranch,
+              newBoard: true,
+            }),
+          ],
         },
       };
     case "no_remote":
@@ -198,7 +236,11 @@ function dgCommandGuide(item: SetupViewItem): Guide {
 }
 
 /** 満たさない項目の中身を、項目の id と state から組む */
-export function guideOf(item: SetupViewItem, view: SetupView): Guide {
+export function guideOf(
+  item: SetupViewItem,
+  view: SetupView,
+  board: SetupBoardSource | null = null,
+): Guide {
   switch (item.id) {
     case "folder":
       return {
@@ -236,7 +278,7 @@ export function guideOf(item: SetupViewItem, view: SetupView): Guide {
         },
       };
     case "board":
-      return boardGuide(item);
+      return boardGuide(item, board);
     case "skills_hooks": {
       // core は直すコマンドだけを返す。どちらも入っていないとき（入れるコマンドが 2 つとも並ぶ）だけ言い切り、ほかは古いものを含めて言う
       const none =
@@ -305,8 +347,22 @@ function Commands({ commands }: { commands: readonly string[] }) {
   );
 }
 
-/** 満たさない項目の中身を、状態 → すること → ターミナルで行うなら → 別の道 の順に描く */
-function ItemGuide({ guide }: { guide: Guide }) {
+/**
+ * 満たさない項目の中身を、状態 → すること → ターミナルで行うなら → 別の道 の順に描く。
+ * choose は状態のすぐ後に置く選ぶもの（ボードの選択肢とデータのリポジトリの入力）、after は別の道の代わりに最後に置くもの。
+ * board は人が指定したデータの置き場所で、ボタンの dg init（init・newBoard）に渡す
+ */
+function ItemGuide({
+  guide,
+  board = null,
+  choose,
+  after,
+}: {
+  guide: Guide;
+  board?: SetupBoardSource | null;
+  choose?: ReactNode;
+  after?: ReactNode;
+}) {
   const host = useHost();
   const store = useStore();
   const button = (action: GuideAction, primary: boolean) => {
@@ -325,12 +381,13 @@ function ItemGuide({ guide }: { guide: Guide }) {
     const { setupAct } = host;
     if (!setupAct) return null;
     const act = action.act;
+    const source = board && (act === "init" || act === "newBoard") ? board : undefined;
     return (
       <button
         type="button"
         className={className}
         onClick={() =>
-          void setupAct(act).catch((error: unknown) => {
+          void setupAct(act, source).catch((error: unknown) => {
             const f = failureOf(error);
             store.notify({ kind: "error", text: f.message, detail: f.detail });
           })
@@ -347,6 +404,7 @@ function ItemGuide({ guide }: { guide: Guide }) {
     <div className="setup-guide">
       <p className="setup-status">{guide.status}</p>
       {guide.detail ? <pre className="setup-output">{guide.detail}</pre> : null}
+      {choose}
       {guide.todo ? <p>{guide.todo}</p> : null}
       {guide.place ? (
         <>
@@ -374,15 +432,167 @@ function ItemGuide({ guide }: { guide: Guide }) {
           <Commands commands={otherCommands} />
         </div>
       ) : null}
+      {after}
       {guide.note ? <p className="muted setup-note">{guide.note}</p> : null}
     </div>
   );
 }
 
+/** 選ばせるボードの状態：リモートにボードがない・コードのリモートがない（新しく作るか、チームのボードが別のリポジトリにあるか） */
+const CHOICE_STATES: ReadonlySet<string | undefined> = new Set(["remote_no_board", "no_remote"]);
+
+/**
+ * データのリポジトリ（URL か remote 名）とブランチを入れる欄。確かめると、チェックリストがそこを確かめ直す
+ * （ボードがあるか・届くか・名前が正しいかが、dg init を流す前に分かる）。applied は指定を確かめた後で、やめる道も出す
+ */
+function BoardSourceForm({ applied }: { applied: SetupBoardSource | null }) {
+  const store = useStore();
+  const [remote, setRemote] = useState(applied?.dataRemote ?? "");
+  const [branch, setBranch] = useState(applied?.dataBranch ?? DEFAULT_DATA_BRANCH);
+  const source: SetupBoardSource = {
+    dataRemote: remote.trim(),
+    ...(branch.trim() ? { dataBranch: branch.trim() } : {}),
+  };
+  const changed =
+    applied === null ||
+    source.dataRemote !== applied.dataRemote ||
+    source.dataBranch !== applied.dataBranch;
+  return (
+    <div className="setup-source">
+      <label className="setup-field">
+        <span>{tr("データのリポジトリ（URL か remote 名）")}</span>
+        <input
+          type="text"
+          value={remote}
+          placeholder="git@github.com:team/kanban.git"
+          spellCheck={false}
+          onChange={(e) => setRemote(e.target.value)}
+        />
+      </label>
+      <label className="setup-field">
+        <span>{tr("ブランチ")}</span>
+        <input
+          type="text"
+          value={branch}
+          spellCheck={false}
+          onChange={(e) => setBranch(e.target.value)}
+        />
+      </label>
+      <button
+        type="button"
+        className={applied ? "" : "primary"}
+        disabled={source.dataRemote === "" || !changed || store.checkingSetup}
+        onClick={() => void store.chooseSetupBoard(source)}
+      >
+        {tr("このリポジトリを確かめる")}
+      </button>
+      {applied === null && source.dataRemote !== "" ? (
+        <>
+          {/* 確かめる前でも、ターミナルで打つ人のために、確かめた後のボタンと同じ 1 行を見せる */}
+          <p className="setup-slot">{tr("ターミナルで行うなら")}</p>
+          <Commands
+            commands={[
+              initCommandLine({ dataRemote: source.dataRemote, dataBranch: source.dataBranch }),
+            ]}
+          />
+        </>
+      ) : null}
+      {applied ? (
+        <button
+          type="button"
+          className="link"
+          disabled={store.checkingSetup}
+          onClick={() => void store.chooseSetupBoard(null)}
+        >
+          {tr("コードのリモートのボードを使う")}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * ボードの項目の中身。チームのボードが別のリポジトリにあるチームのために、データの置き場所を指定する道を出す
+ * （チェックリスト案の UI 案 B・D）：
+ * - リモートにボードがない・コードのリモートがない：「新しいボードを作る」と「チームのボードは別のリポジトリにある」を選ばせる
+ * - リモートにボードがある：条件を書いた別の道として「データのリポジトリを指定する」を出す
+ * - 指定した後：確かめた結果（データのリポジトリを見た状態）と入れた値を出し、ボタンの dg init に --data-remote・--data-branch を付ける
+ */
+function BoardItemGuide({ item }: { item: SetupViewItem }) {
+  const store = useStore();
+  const board = store.setupBoard;
+  const [other, setOther] = useState(false);
+  const guide = boardGuide(item, board);
+  if (board)
+    return (
+      <ItemGuide
+        guide={guide}
+        board={board}
+        choose={
+          <>
+            <p className="setup-slot">{tr("確かめたデータのリポジトリ")}</p>
+            <BoardSourceForm
+              key={`${board.dataRemote}\n${board.dataBranch ?? ""}`}
+              applied={board}
+            />
+          </>
+        }
+      />
+    );
+  if (CHOICE_STATES.has(item.state)) {
+    const choose = (
+      <fieldset className="setup-choice">
+        <legend className="setup-slot">{tr("どちらかを選ぶ")}</legend>
+        <label>
+          <input
+            type="radio"
+            name="setup-board"
+            checked={!other}
+            onChange={() => setOther(false)}
+          />
+          {tr("新しいボードを作る")}
+        </label>
+        <label>
+          <input type="radio" name="setup-board" checked={other} onChange={() => setOther(true)} />
+          {tr("チームのボードは別のリポジトリにある")}
+        </label>
+        {other ? <BoardSourceForm applied={null} /> : null}
+      </fieldset>
+    );
+    // 別のリポジトリを選んだ間は、新しく作るボタンとコマンドを出さない（選んだ道の操作は欄の「確かめる」だけ）
+    return (
+      <ItemGuide
+        guide={other ? { short: guide.short, status: guide.status } : guide}
+        choose={choose}
+      />
+    );
+  }
+  if (item.state === "remote_board")
+    return (
+      <ItemGuide
+        guide={guide}
+        after={
+          <div className="setup-alt">
+            <p className="setup-slot">{tr("使うボードが別のリポジトリにあるなら")}</p>
+            {other ? (
+              <BoardSourceForm applied={null} />
+            ) : (
+              <button type="button" onClick={() => setOther(true)}>
+                {tr("データのリポジトリを指定する")}
+              </button>
+            )}
+          </div>
+        }
+      />
+    );
+  return <ItemGuide guide={guide} />;
+}
+
 function Item({ item, view, open }: { item: SetupViewItem; view: SetupView; open: boolean }) {
+  const store = useStore();
   const kind =
     item.status === "unmet" && item.level === "recommended" ? "recommended" : item.status;
-  const guide = item.status === "unmet" ? guideOf(item, view) : undefined;
+  const guide = item.status === "unmet" ? guideOf(item, view, store.setupBoard) : undefined;
   return (
     <li className={`setup-item ${kind}`}>
       <span className="setup-mark" role="img" aria-label={tr(MARKS[kind].label)}>
@@ -395,7 +605,13 @@ function Item({ item, view, open }: { item: SetupViewItem; view: SetupView; open
         ) : null}
         {guide ? <span className="setup-short">{guide.short}</span> : null}
       </span>
-      {guide && open ? <ItemGuide guide={guide} /> : null}
+      {guide && open ? (
+        item.id === "board" ? (
+          <BoardItemGuide item={item} />
+        ) : (
+          <ItemGuide guide={guide} />
+        )
+      ) : null}
     </li>
   );
 }

@@ -1694,6 +1694,8 @@ To do it in a terminal
 dg init
 [title] Copy dg init
 [aria-label] Copy dg init
+If the board to use is in another repository
+Specify the data repository
 [aria-label] Not checked yet
 ·
 Skills and hooks

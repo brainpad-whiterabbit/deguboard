@@ -6,6 +6,7 @@ import {
   toCommandFailure,
   type CommandClient,
   type SetupAction,
+  type SetupBoardSource,
   type SetupView,
   type TerminalChoice,
   type TerminalSendResult,
@@ -158,9 +159,12 @@ export interface WebviewActions {
    * 導入のチェックリスト（UI-12）を確かめ直して返す。bandDismissed は、推奨の項目の帯を出す画面が伝える、
    * 人が帯を「このリポジトリでは出さない」にしているか（帯を出さない画面からは undefined）
    */
-  setup(bandDismissed?: boolean): SetupView | Promise<SetupView>;
-  /** チェックリストのボタンの操作（フォルダを開く・deguboard のターミナルで実行する・dg コマンドを入れる）。失敗は拡張が通知する */
-  setupAct(act: SetupAction): void | Promise<void>;
+  setup(bandDismissed?: boolean, board?: SetupBoardSource): SetupView | Promise<SetupView>;
+  /**
+   * チェックリストのボタンの操作（フォルダを開く・deguboard のターミナルで実行する・dg コマンドを入れる）。失敗は拡張が通知する。
+   * board は、人がボードの項目で指定したデータの置き場所（init・newBoard の dg init に渡す）
+   */
+  setupAct(act: SetupAction, board?: SetupBoardSource): void | Promise<void>;
 }
 
 /** Webview からの要求を CommandClient（か actions）に通し、同じ id の応答にする。失敗は ok: false で返す */
@@ -188,7 +192,7 @@ export async function handleRequest(
         return { id: request.id, ok: true, data: actions.terminals(), warnings: [], write: null };
       }
       if (request.name === "setup") {
-        const data = await actions.setup(request.bandDismissed);
+        const data = await actions.setup(request.bandDismissed, request.board);
         return { id: request.id, ok: true, data, warnings: [], write: null };
       }
       if (request.name === "sendToTerminal") {
@@ -197,7 +201,7 @@ export async function handleRequest(
       } else if (request.name === "copy") await actions.copy(request.text);
       else if (request.name === "show") await actions.show(request.route);
       else if (request.name === "open") await actions.open(request.route);
-      else if (request.name === "setupAct") await actions.setupAct(request.act);
+      else if (request.name === "setupAct") await actions.setupAct(request.act, request.board);
       return { id: request.id, ok: true, data: null, warnings: [], write: null };
     }
     const result = await client.run(request.name, request.input);
@@ -213,6 +217,18 @@ export async function handleRequest(
   }
 }
 
+/** setup・setupAct の board（省いてよい）。データのリモートは空でない文字列、ブランチは省くか文字列 */
+function isBoardSource(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (typeof value !== "object" || value === null) return false;
+  const m = value as { dataRemote?: unknown; dataBranch?: unknown };
+  return (
+    typeof m.dataRemote === "string" &&
+    m.dataRemote !== "" &&
+    (m.dataBranch === undefined || typeof m.dataBranch === "string")
+  );
+}
+
 export function isWebviewRequest(value: unknown): value is WebviewRequest {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Partial<WebviewRequest>;
@@ -226,11 +242,16 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
       if (v.name === "copy") return typeof (v as { text?: unknown }).text === "string";
       if (v.name === "terminals") return true;
       if (v.name === "setup") {
-        const dismissed = (v as { bandDismissed?: unknown }).bandDismissed;
-        return dismissed === undefined || typeof dismissed === "boolean";
+        const m = v as { bandDismissed?: unknown; board?: unknown };
+        return (
+          (m.bandDismissed === undefined || typeof m.bandDismissed === "boolean") &&
+          isBoardSource(m.board)
+        );
       }
-      if (v.name === "setupAct")
-        return (SETUP_ACTIONS as readonly unknown[]).includes((v as { act?: unknown }).act);
+      if (v.name === "setupAct") {
+        const m = v as { act?: unknown; board?: unknown };
+        return (SETUP_ACTIONS as readonly unknown[]).includes(m.act) && isBoardSource(m.board);
+      }
       if (v.name === "sendToTerminal") {
         const m = v as { terminal?: unknown; text?: unknown };
         return typeof m.terminal === "number" && typeof m.text === "string";

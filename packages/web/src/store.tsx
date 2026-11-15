@@ -10,7 +10,13 @@
 // 必須の項目を満たさなければ needsSetup にして画面にチェックリストを出させる。読めたときは、推奨の項目の帯を出す入口（setupBand）で、
 // 人が帯を出さないと決めていない間だけ確かめて、帯に使う
 
-import type { CommandClient, CommandFailure, SetupView, StatusView } from "@deguboard/core";
+import type {
+  CommandClient,
+  CommandFailure,
+  SetupBoardSource,
+  SetupView,
+  StatusView,
+} from "@deguboard/core";
 import {
   createContext,
   useCallback,
@@ -21,7 +27,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { failureOf } from "./client/http.js";
+import { failureOf, type SetupOptions } from "./client/http.js";
 import type {
   ConfigShowView,
   EpicRow,
@@ -110,6 +116,13 @@ export interface Store {
   checkingSetup: boolean;
   /** 導入のチェックリストを確かめ直す。必須を満たさない間は一覧も読み直し、満たしたらいつもの画面に変わる */
   recheckSetup(): Promise<void>;
+  /**
+   * 人がボードの項目で指定したデータの置き場所（チームのボードが別のリポジトリにあるとき）。指定していなければ null で、
+   * コードのリモートを確かめる。確かめ直すたびにこれを付けて頼み、ボタンの dg init にも同じ値を渡す
+   */
+  setupBoard: SetupBoardSource | null;
+  /** データの置き場所を決めて（null でやめて）、確かめ直す */
+  chooseSetupBoard(board: SetupBoardSource | null): Promise<void>;
   notice: Notice | null;
   /** すべて読み直す */
   reload(): Promise<void>;
@@ -133,7 +146,7 @@ export function StoreProvider({
 }: {
   /** setup（導入のチェックリストを確かめる口）は dg serve と Webview の client が持つ。持たなければチェックリストを出さない */
   client: CommandClient & {
-    setup?: ((options?: { bandDismissed?: boolean | undefined }) => Promise<SetupView>) | undefined;
+    setup?: ((options?: SetupOptions) => Promise<SetupView>) | undefined;
   };
   /**
    * 前回の一覧の置き場。渡さなければ（dg serve）残さない。画面の見た目の状態と同じ置き場（host.state）で、
@@ -173,6 +186,9 @@ export function StoreProvider({
   const setupSeq = useRef(0);
   // 最後に確かめた結果。reload が、確かめ直すかを決めるのに読む（state を依存に入れると reload が作り直され、最初の読み込みが走り直す）
   const setupRef = useRef<SetupView | null>(null);
+  const [setupBoard, setSetupBoard] = useState<SetupBoardSource | null>(null);
+  // readSetup が読む今の値。state を依存に入れると reload が作り直され、最初の読み込みが走り直すので ref で渡す
+  const setupBoardRef = useRef<SetupBoardSource | null>(null);
 
   /** 人が推奨の項目の帯を「このリポジトリでは出さない」にしているか（帯の SetupBand が見た目の状態に残す） */
   const bandDismissed = useCallback(
@@ -188,7 +204,12 @@ export function StoreProvider({
     if (!client.setup) return null;
     const seq = ++setupSeq.current;
     try {
-      const view = await client.setup(setupBand ? { bandDismissed: bandDismissed() } : undefined);
+      const board = setupBoardRef.current;
+      const options: SetupOptions = {
+        ...(setupBand ? { bandDismissed: bandDismissed() } : {}),
+        ...(board ? { board } : {}),
+      };
+      const view = await client.setup(Object.keys(options).length > 0 ? options : undefined);
       if (seq === setupSeq.current) {
         setupRef.current = view;
         setSetup(view);
@@ -281,6 +302,15 @@ export function StoreProvider({
     }
   }, [needsSetup, reload, readSetup]);
 
+  const chooseSetupBoard = useCallback(
+    async (board: SetupBoardSource | null) => {
+      setupBoardRef.current = board;
+      setSetupBoard(board);
+      await recheckSetup();
+    },
+    [recheckSetup],
+  );
+
   useEffect(() => {
     // 最初の読み込み。reload は読み込み中の印（setLoading(true)）を同期で立てるが、外（コマンド）から読む始まりの印なので残す
     // oxlint-disable-next-line react/set-state-in-effect
@@ -329,6 +359,8 @@ export function StoreProvider({
       needsSetup,
       checkingSetup,
       recheckSetup,
+      setupBoard,
+      chooseSetupBoard,
       notice,
       reload,
       run,
@@ -352,6 +384,8 @@ export function StoreProvider({
       needsSetup,
       checkingSetup,
       recheckSetup,
+      setupBoard,
+      chooseSetupBoard,
       notice,
       reload,
       run,

@@ -337,6 +337,46 @@ describe("Webview の要求", () => {
     expect(isWebviewRequest({ id: 1, kind: "action", name: "setupAct" })).toBe(false);
   });
 
+  it("setup と setupAct の board（人がボードの項目で指定したデータの置き場所）を actions にそのまま渡す。形の違う board は受け付けない", async () => {
+    const board = { dataRemote: "git@github.com:team/kanban.git", dataBranch: "kanban" };
+    const seen: unknown[] = [];
+    const actions = {
+      open: () => {},
+      show: () => {},
+      copy: () => {},
+      terminals: () => [],
+      sendToTerminal: () => {},
+      setup: (_dismissed?: boolean, b?: unknown): SetupView => {
+        seen.push(["setup", b]);
+        return { ready: false, items: [], cwd: null };
+      },
+      setupAct: (act: SetupAction, b?: unknown) => void seen.push([act, b]),
+    };
+    await handleRequest(fakeClient(), { id: 1, kind: "action", name: "setup", board }, actions);
+    await handleRequest(
+      fakeClient(),
+      { id: 2, kind: "action", name: "setupAct", act: "init", board },
+      actions,
+    );
+    expect(seen).toEqual([
+      ["setup", board],
+      ["init", board],
+    ]);
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "setup", board })).toBe(true);
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "setupAct", act: "init", board })).toBe(
+      true,
+    );
+    for (const bad of [
+      { dataRemote: "" },
+      { dataRemote: 1 },
+      { dataRemote: "a", dataBranch: 2 },
+      "a",
+    ])
+      expect(
+        isWebviewRequest({ id: 1, kind: "action", name: "setupAct", act: "init", board: bad }),
+      ).toBe(false);
+  });
+
   it("要求の形を確かめる", () => {
     expect(isWebviewRequest({ id: 1, kind: "action", name: "terminals" })).toBe(true);
     expect(

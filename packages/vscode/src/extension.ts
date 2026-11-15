@@ -31,6 +31,7 @@ import {
   type CommandClient,
   type ResolveSide,
   type SetupAction,
+  type SetupBoardSource,
   type SetupView,
   type SkillFile,
   type StatusView,
@@ -87,7 +88,7 @@ import {
   autoRecheck,
   buildSetupView,
   type DgCommandFacts,
-  skillsHooksCommands,
+  setupCommands,
   supportedPlatform,
 } from "./setup.js";
 import { pickedSide, syncNotice } from "./sync-resolve.js";
@@ -554,8 +555,8 @@ async function resolveSidebar(
       copy: copyToClipboard,
       terminals: listTerminals,
       sendToTerminal,
-      setup: (bandDismissed) => readSetup(folder, bandDismissed),
-      setupAct: (act) => setupAct(context, folder, act),
+      setup: (bandDismissed, board) => readSetup(folder, bandDismissed, board),
+      setupAct: (act, board) => setupAct(context, folder, act, board),
     },
   });
 }
@@ -571,11 +572,13 @@ function folderKey(folder: vscode.WorkspaceFolder | undefined): string {
  * フォルダがない・OS が対応していないときは core を確かめず、必須を満たすまでは PATH の dg も確かめない。
  * 確かめたついでに、人がターミナルで直したことを拾う見張りを張る（watchSetup）。必須を満たさない間は、データ worktree ができるのを待つ見張りも
  * 張り直す（git init の前は張れないので。watchData → watchInit）。
- * bandDismissed は左パネルが伝える、人が推奨の項目の帯を出さないと決めているか（エディタのパネルは伝えないので、前の値のまま）
+ * bandDismissed は左パネルが伝える、人が推奨の項目の帯を出さないと決めているか（エディタのパネルは伝えないので、前の値のまま）。
+ * board は、人がボードの項目で指定したデータの置き場所（dg init 前のボードを、コードのリモートの代わりにそこで確かめる）
  */
 async function readSetup(
   folder: vscode.WorkspaceFolder | undefined,
   bandDismissed?: boolean,
+  board?: SetupBoardSource,
 ): Promise<SetupView> {
   const key = folderKey(folder);
   if (bandDismissed === true) setupBandDismissed.add(key);
@@ -583,7 +586,12 @@ async function readSetup(
   const cwd = folder?.uri.fsPath;
   const core =
     cwd !== undefined && supportedPlatform(process.platform)
-      ? await checkSetup({ cwd, env: process.env })
+      ? await checkSetup({
+          cwd,
+          env: process.env,
+          dataRemote: board?.dataRemote,
+          dataBranch: board?.dataBranch,
+        })
       : undefined;
   const view = buildSetupView({
     folder: cwd,
@@ -662,12 +670,13 @@ function postSetup(): void {
 
 /**
  * チェックリストのボタンの操作（UI-12）。フォルダを開く・dg コマンドを入れるほかは、deguboard のターミナルでコマンドを実行する。
- * 「Skill と hooks を入れる」は、最後に確かめた項目の直すコマンドを流す（setup.ts の skillsHooksCommands）
+ * 流すコマンドは setup.ts の setupCommands が決める（dg init には、人がボードの項目で指定したデータの置き場所 board を渡す）
  */
 async function setupAct(
   context: vscode.ExtensionContext,
   folder: vscode.WorkspaceFolder | undefined,
   act: SetupAction,
+  board?: SetupBoardSource,
 ): Promise<void> {
   if (act === "openFolder") {
     await vscode.commands.executeCommand("workbench.action.files.openFolder");
@@ -678,12 +687,7 @@ async function setupAct(
     return;
   }
   if (!folder) return;
-  const commands = {
-    gitInit: ["git init"],
-    init: ["dg init"],
-    newBoard: ["dg init --new-board"],
-    installSkillsHooks: skillsHooksCommands(setupViews.get(folderKey(folder))),
-  }[act];
+  const commands = setupCommands(act, setupViews.get(folderKey(folder)), board);
   if (commands.length > 0) await runInSetupTerminal(context, folder, commands);
 }
 
@@ -989,8 +993,8 @@ async function openPanel(
       copy: copyToClipboard,
       terminals: listTerminals,
       sendToTerminal,
-      setup: (bandDismissed) => readSetup(folder, bandDismissed),
-      setupAct: (act) => setupAct(context, folder, act),
+      setup: (bandDismissed, board) => readSetup(folder, bandDismissed, board),
+      setupAct: (act, board) => setupAct(context, folder, act, board),
     },
   });
 }

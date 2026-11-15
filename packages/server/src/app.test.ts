@@ -379,6 +379,32 @@ describe("HTTP サーバー", () => {
     expect(after.data.ready).toBe(true);
   });
 
+  it("POST /api/setup の data_remote・data_branch は、dg init 前のボードをそのデータの置き場所で確かめる", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const s = await serve(local.dir);
+    const setup = async (body: unknown) =>
+      (await (
+        await fetch(`${s.url}api/setup`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        })
+      ).json()) as any;
+    const missing = await setup({ data_remote: "kanban" });
+    expect(missing.data.items[2]).toMatchObject({ state: "data_remote_missing", fix: [] });
+    const invalid = await setup({ data_remote: "kanban", data_branch: "a..b" });
+    expect(invalid.data.items[2]).toMatchObject({ state: "data_branch_invalid" });
+  });
+
+  it("GET /api/setup は問い合わせの data_remote を使わない（Origin のない別サイトの GET で任意の URL へ届かせない）", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const s = await serve(local.dir);
+    const got = (await (await fetch(`${s.url}api/setup?data_remote=kanban`)).json()) as any;
+    expect(got.data.items[2]).toMatchObject({ state: "no_remote", fix: ["dg init"] });
+  });
+
   it("GET /api/status が同期の状態を返し、静的ファイルは index.html に落ちる", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});

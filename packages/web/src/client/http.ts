@@ -4,6 +4,7 @@ import type {
   CommandClient,
   CommandFailure,
   CommandResult,
+  SetupBoardSource,
   SetupView,
   StatusView,
 } from "@deguboard/core";
@@ -28,9 +29,18 @@ type Envelope<T> =
   | { ok: true; data: T; warnings?: string[]; write?: CommandResult<T>["write"] | null }
   | { ok: false; error: CommandFailure };
 
+/**
+ * 確かめるときに付けるもの。board は人がボードの項目で指定したデータの置き場所（dg init 前のボードをそこで確かめる）。
+ * bandDismissed は Webview だけが拡張ホストに伝える（client/webview.ts）
+ */
+export interface SetupOptions {
+  bandDismissed?: boolean | undefined;
+  board?: SetupBoardSource | undefined;
+}
+
 /** 導入のチェックリスト（UI-12）を確かめ直して返す口を持つ CommandClient。dg serve と Webview の両方の実装が持つ */
 export interface SetupClient extends CommandClient {
-  setup(): Promise<SetupView>;
+  setup(options?: SetupOptions): Promise<SetupView>;
 }
 
 export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch): SetupClient {
@@ -76,8 +86,22 @@ export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch):
       if (!body.ok) throw new ClientError(body.error);
       return body.data;
     },
-    async setup(): Promise<SetupView> {
-      const body = await call<SetupView>("/api/setup");
+    async setup(options): Promise<SetupView> {
+      // データの置き場所は POST の JSON で渡す（dg serve は GET の問い合わせでは ls-remote しない。server/src/app.ts）
+      const board = options?.board;
+      const body = await call<SetupView>(
+        "/api/setup",
+        board
+          ? {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                data_remote: board.dataRemote,
+                data_branch: board.dataBranch,
+              }),
+            }
+          : undefined,
+      );
       if (!body.ok) throw new ClientError(body.error);
       return body.data;
     },

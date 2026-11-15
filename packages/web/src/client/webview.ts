@@ -4,6 +4,7 @@
 import type {
   CommandResult,
   SetupAction,
+  SetupBoardSource,
   SetupView,
   StatusView,
   TerminalChoice,
@@ -13,7 +14,7 @@ import type {
   WebviewResponse,
 } from "@deguboard/core";
 import { trCoreMessage } from "../l10n.js";
-import { ClientError, type SetupClient } from "./http.js";
+import { ClientError, type SetupClient, type SetupOptions } from "./http.js";
 
 /** acquireVsCodeApi() が返すもののうち使う部分 */
 export interface WebviewHost {
@@ -34,11 +35,15 @@ export interface WebviewClient extends SetupClient {
   sendToTerminal(terminal: number, text: string): Promise<TerminalSendResult | null>;
   /**
    * 導入のチェックリストを確かめ直してもらう（UI-12）。拡張ホストが dg setup check の項目に、フォルダ・OS・dg コマンドを足して返す。
-   * bandDismissed は、推奨の項目の帯を出す画面が、人が帯を出さないと決めているかを伝える（store.tsx の readSetup）
+   * bandDismissed は、推奨の項目の帯を出す画面が、人が帯を出さないと決めているかを伝える（store.tsx の readSetup）。
+   * board は、人がボードの項目で指定したデータの置き場所
    */
-  setup(options?: { bandDismissed?: boolean | undefined }): Promise<SetupView>;
-  /** チェックリストのボタンの操作を頼む（フォルダを開く、deguboard のターミナルで git init・dg init などを実行する、dg コマンドを入れる） */
-  setupAct(act: SetupAction): Promise<void>;
+  setup(options?: SetupOptions): Promise<SetupView>;
+  /**
+   * チェックリストのボタンの操作を頼む（フォルダを開く、deguboard のターミナルで git init・dg init などを実行する、dg コマンドを入れる）。
+   * board を渡すと、dg init に --data-remote・--data-branch を付ける
+   */
+  setupAct(act: SetupAction, board?: SetupBoardSource): Promise<void>;
   /** 拡張ホストからの通知を受ける。戻り値で購読を外す */
   onEvent(listener: (event: WebviewEvent) => void): () => void;
 }
@@ -106,10 +111,11 @@ export function createWebviewClient(
     async setup(options): Promise<SetupView> {
       const dismissed = options?.bandDismissed;
       const flag = dismissed === undefined ? {} : { bandDismissed: dismissed };
-      return (await send({ kind: "action", name: "setup", ...flag })).data as SetupView;
+      const board = options?.board ? { board: options.board } : {};
+      return (await send({ kind: "action", name: "setup", ...flag, ...board })).data as SetupView;
     },
-    async setupAct(act: SetupAction): Promise<void> {
-      await send({ kind: "action", name: "setupAct", act });
+    async setupAct(act: SetupAction, board?: SetupBoardSource): Promise<void> {
+      await send({ kind: "action", name: "setupAct", act, ...(board ? { board } : {}) });
     },
     onEvent(listener) {
       listeners.add(listener);
