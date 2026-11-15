@@ -33,6 +33,7 @@ const run = (over: Partial<Run> = {}): Run => ({
   tools: null,
   session: null,
   review: null,
+  waited_seconds: null,
   waiting_since: null,
   settling_since: null,
   ...over,

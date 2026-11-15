@@ -29,7 +29,13 @@
 import { appendFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { collectRunUsage, hookAgentNames, hooksOf, type HookEvent } from "../agents/index.js";
+import {
+  collectRunUsage,
+  collectRunWaits,
+  hookAgentNames,
+  hooksOf,
+  type HookEvent,
+} from "../agents/index.js";
 import { OperationError } from "../errors.js";
 import { collectBranchFacts, lastPushedAt } from "../git/facts.js";
 import { withWrite } from "../git/write.js";
@@ -39,6 +45,7 @@ import {
   FINDING_CAUSES,
   FINDING_SEVERITIES,
   REVIEW_STEP,
+  waitedSeconds,
   type Run,
   type RunId,
   type RunResult,
@@ -455,14 +462,16 @@ async function adoptReviewRecord(
     finished_at: finishedAt,
   };
   const { others } = await usageContext(ctx, (await readRunningRuns(ctx.repo)).runs);
-  const collected = await collectRunUsage(ctx.config, {
+  const query = {
     run: adopted,
     finishedAt,
     env: ctx.env ?? process.env,
     topLevel: ctx.repo.topLevel,
     others,
     transcript,
-  });
+  };
+  const collected = await collectRunUsage(ctx.config, query);
+  const waits = await collectRunWaits(ctx.config, query);
   const written = await withWrite(
     ctx,
     async () => {
@@ -487,6 +496,8 @@ async function adoptReviewRecord(
             ),
           },
           tools: collected.tools ?? doc.data.tools,
+          // 引き取った記録も、閉じる Run と同じく待ちを範囲で切って書く
+          waited_seconds: waitedSeconds(waits.intervals, startedAt, finishedAt),
           ...(newer ? { review: newer } : {}),
         })
       ).data;
@@ -494,7 +505,7 @@ async function adoptReviewRecord(
     { message: (run) => `Take over review record ${run.id}: ${run.ticket} review ${run.result}` },
   );
   warnings.push(
-    ...collected.warnings.map((w) => `Run ${record.id}: ${w}`),
+    ...[...collected.warnings, ...waits.warnings].map((w) => `Run ${record.id}: ${w}`),
     ...written.write.warnings,
   );
   view.done.push(
@@ -758,14 +769,17 @@ async function closeSubagentRun(
 ): Promise<void> {
   const { others } = await usageContext(ctx, (await readRunningRuns(ctx.repo)).runs);
   const now = ctx.now();
-  const collected = await collectRunUsage(ctx.config, {
+  const query = {
     run,
     finishedAt: toIsoDateTime(now),
     env: ctx.env ?? process.env,
     topLevel: ctx.repo.topLevel,
     others,
     transcript,
-  });
+  };
+  const collected = await collectRunUsage(ctx.config, query);
+  // 待ちは会話記録から数える。止まって待っている印（waiting_since）はフックの処理の時刻なので使わない
+  const waits = await collectRunWaits(ctx.config, query);
   const closed = await finishRun(ctx, run.id, {
     result: decided.result,
     error: decided.error,
@@ -775,9 +789,13 @@ async function closeSubagentRun(
     model: collected.model ?? undefined,
     usage: collected.usage,
     tools: collected.tools,
+    waits: waits.intervals,
     now,
   });
-  warnings.push(...collected.warnings.map((w) => `Run ${run.id}: ${w}`), ...closed.write.warnings);
+  warnings.push(
+    ...[...collected.warnings, ...waits.warnings].map((w) => `Run ${run.id}: ${w}`),
+    ...closed.write.warnings,
+  );
   view.done.push(
     `Closed the ${run.step} Run ${run.id} for ${run.ticket} with ${closed.run.result}`,
   );

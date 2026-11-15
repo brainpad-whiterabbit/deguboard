@@ -22,6 +22,17 @@
 //     hook に拒まれた呼び出しにも Claude Code が同じ印を付ける（2026-11-14 に Claude Code 2.1 の記録で確かめた）。読むのは印だけで、
 //     結果の文（content）は読まない。成功した結果は印がないか false。数えた呼び出しがあるのに結果が 1 つも見つからない記録は、
 //     印を読めないものとして errors を書かない（0 にしない）
+//   - 待ちの区間（readTranscriptWaits）：サブエージェントの記録（記録の場所が <session>/subagents/ の下）の、親の依頼を待った空き。
+//     入力の行（user の行のうち tool_result を持たないもの）の出どころを origin.kind で見分け、coordinator（親が続きを頼んだ依頼）の
+//     入力では、その前の user・assistant の行の時刻から入力の時刻までを待ちにする。origin のない入力（最初の依頼と harness の催促）・
+//     task-notification（自分のバックグラウンドのコマンドの通知）・human・peer の入力で続いた空きは作業。tool_use から tool_result までは
+//     入力で区切られないので作業で、結果の返っていない tool_use が残っている間に来た coordinator の入力までの空きも作業にする。
+//     読むのは行の種類・時刻・origin.kind・tool_use と tool_result の id だけで、入力の文は読まない。知らない形の入力（知らない
+//     origin.kind、origin が物でない、content が文字列でも配列でもない）が 1 つでもあれば、推し量らずに null と警告にする。
+//     親のセッションの記録・場所のない Run（親が自分で開いた Run）は、人の入力を待つ間と作業を分けられないので null（警告はしない）。
+//     読めないファイルも null（使用量の取り込みが同じ理由を警告するので、警告を重ねない）。
+//     止まった応答の途中で届いた coordinator の入力は直前の行からの短い空きを待ちに数える（項目では見分けられない）
+//     （2026-11-15 に Claude Code 2.1 の記録で origin.kind の 4 種類を確かめた）
 //   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）。ツールは名前を種類に変えて数だけを返す
 //   - 判定（detect）：Claude Code は実行するコマンドの環境に CLAUDECODE=1 と AI_AGENT（claude-code_<版>_<種類> の形）を付ける。
 //     どちらかがあれば Claude Code が呼んだとみなす（2026-11 に Claude Code 2.1 の Bash の環境で確かめた）
@@ -33,7 +44,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
-import type { ToolKind } from "../../model/run.js";
+import type { ToolKind, WaitInterval } from "../../model/run.js";
 import type { AgentAdapter, AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 import {
   bindFile,
@@ -319,7 +330,109 @@ export const claudeCodeAdapter: AgentAdapter = {
     }
     return collected(query, best);
   },
+  async readTranscriptWaits(query) {
+    const file = query.transcript;
+    // 親のセッションの記録と場所のない Run は、人の入力を待つ間と作業を分けられない
+    if (!file || !isSubagentFile(file)) return { intervals: null, warnings: [] };
+    const readable = await stat(file)
+      .then((s) => s.isFile())
+      .catch(() => false);
+    // 読めないファイルは使用量の取り込み（fromLocation）が同じ理由を警告するので、ここでは重ねない
+    if (!readable) return { intervals: null, warnings: [] };
+    const intervals = await scanWaits(file, Date.parse(query.finishedAt) + 999);
+    if (intervals) return { intervals, warnings: [] };
+    return {
+      intervals: null,
+      warnings: [
+        `The Claude Code conversation record has an input of an unknown form, so the waits are not counted. waited_seconds of Run ${query.run.id} is left as null`,
+      ],
+    };
+  },
 };
+
+/** 入力の出どころ（origin.kind）のうち、形を知っているもの。coordinator だけが親の依頼で、ほかは待ちにしない */
+const KNOWN_ORIGINS: ReadonlySet<string> = new Set([
+  "coordinator",
+  "task-notification",
+  "human",
+  "peer",
+]);
+
+/**
+ * 入力の行（tool_result を持たない user の行）の出どころ。coordinator は親の依頼、other はほかの知っている形
+ * （origin のない最初の依頼と harness の催促を含む）、undefined は知らない形
+ */
+function inputOrigin(entry: Record<string, unknown>): "coordinator" | "other" | undefined {
+  const origin = entry["origin"];
+  if (origin === undefined || origin === null) return "other";
+  if (typeof origin !== "object") return undefined;
+  const kind = (origin as Record<string, unknown>)["kind"];
+  if (typeof kind !== "string" || !KNOWN_ORIGINS.has(kind)) return undefined;
+  return kind === "coordinator" ? "coordinator" : "other";
+}
+
+/** content の中の、type が合うブロックの id（key の項目）。配列でなければ空 */
+function blockIds(content: unknown, type: string, key: string): string[] {
+  if (!Array.isArray(content)) return [];
+  return (content as unknown[]).flatMap((block) => {
+    if (typeof block !== "object" || block === null) return [];
+    const b = block as Record<string, unknown>;
+    return b["type"] === type ? [typeof b[key] === "string" ? b[key] : ""] : [];
+  });
+}
+
+/**
+ * サブエージェントの記録から、親の依頼を待った区間を読む（冒頭のコメントの「待ちの区間」）。知らない形の入力があれば undefined。
+ * to（Run の終わり）を過ぎた user・assistant の行を 1 つ読んだところで読むのをやめる
+ */
+async function scanWaits(file: string, to: number): Promise<WaitInterval[] | undefined> {
+  const intervals: WaitInterval[] = [];
+  /** 直前の user・assistant の行の時刻 */
+  let last = NaN;
+  /** 結果の返っていない tool_use の id */
+  const pending = new Set<string>();
+  const input = createReadStream(file);
+  try {
+    const lines = createInterface({ input, crlfDelay: Infinity });
+    for await (const line of lines) {
+      // 終わりを過ぎた行を 1 つ読んだら、その後の空きは Run の範囲に入らない。終わりをまたぐ待ち（PR の作成時刻などで
+      // 閉じる Run。RN-6）は、終わりを過ぎた最初の行が親の依頼なら区間になり、閉じる側が終わりで切る
+      if (last > to) break;
+      // user・assistant のほかの行（api-request・attachment など）は JSON を読まない
+      if (!line.includes('"user"') && !line.includes('"assistant"')) continue;
+      const entry = parse(line);
+      const type = entry?.["type"];
+      if (!entry || (type !== "user" && type !== "assistant")) continue;
+      const at = timeOf(entry);
+      if (Number.isNaN(at)) continue;
+      const message = entry["message"];
+      const content =
+        typeof message === "object" && message !== null
+          ? (message as Record<string, unknown>)["content"]
+          : undefined;
+      if (type === "assistant") {
+        for (const id of blockIds(content, "tool_use", "id")) pending.add(id);
+      } else {
+        const results = blockIds(content, "tool_result", "tool_use_id");
+        if (results.length > 0) {
+          for (const id of results) pending.delete(id);
+        } else {
+          if (typeof content !== "string" && !Array.isArray(content)) return undefined;
+          const origin = inputOrigin(entry);
+          if (origin === undefined) return undefined;
+          if (origin === "coordinator" && pending.size === 0 && at > last)
+            intervals.push({ from: last, to: at });
+          // 入力で次のターンが始まる。結果の返らなかった呼び出しは、もう待たない
+          pending.clear();
+        }
+      }
+      last = at;
+    }
+  } finally {
+    input.destroy();
+  }
+  return intervals;
+}
 
 /** 積んだ応答から返す値。期間の応答がなければ null、すべて後に始めた Run に譲ったなら 0 */
 function collected(query: UsageQuery, best: Scan): CollectedUsage {

@@ -1014,6 +1014,112 @@ describe("サブエージェントの止まりと再開（RN-7）", () => {
     expect(run).not.toHaveProperty("waiting_since", expect.any(String));
   });
 
+  it("閉じた Run に、親の依頼を待った秒数を会話記録から数えて書く。t929 の手直しの記録の形では待ちが 4h04m25s で、範囲の外の待ちは入らず、数えられない Run は null（t958）", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    /** t929 の手直しの Run（r20261114-222048-c4ad）の記録の、行の種類・時刻・origin だけを写したもの */
+    const record = async (file: string, prompt: string) => {
+      const user = (timestamp: string, content: unknown, over: object = {}) => ({
+        type: "user",
+        timestamp,
+        message: { role: "user", content },
+        ...over,
+      });
+      const use = (timestamp: string, id: string) => ({
+        type: "assistant",
+        timestamp,
+        message: { id: `m-${id}`, content: [{ type: "tool_use", id, name: "Bash", input: {} }] },
+      });
+      const result = (timestamp: string, id: string) =>
+        user(timestamp, [{ type: "tool_result", tool_use_id: id, content: "結果" }]);
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(
+        file,
+        [
+          user("2026-11-14T22:20:47.402Z", prompt),
+          use("2026-11-14T22:22:37.763Z", "u1"),
+          result("2026-11-14T22:23:05.278Z", "u1"),
+          // 報告を返していないことの harness の催促（origin がない）
+          user("2026-11-14T22:23:17.391Z", "催促", { isMeta: true }),
+          // 報告を返す呼び出しとその結果。ここから親が人に質問している間、止まって待つ
+          use("2026-11-14T22:23:23.751Z", "u2"),
+          result("2026-11-14T22:23:23.863Z", "u2"),
+          user("2026-11-15T02:27:49.060Z", "続きの依頼", {
+            isMeta: true,
+            origin: { kind: "coordinator" },
+          }),
+          use("2026-11-15T02:27:53.097Z", "u3"),
+          result("2026-11-15T02:27:53.354Z", "u3"),
+          // 自分のバックグラウンドのコマンドの通知で続いた空きは作業
+          user("2026-11-15T02:30:31.757Z", "通知", {
+            origin: { kind: "task-notification", producer: "session-task" },
+          }),
+          use("2026-11-15T02:30:42.315Z", "u4"),
+          result("2026-11-15T02:30:43.045Z", "u4"),
+        ]
+          .map((l) => JSON.stringify(l))
+          .join("\n") + "\n",
+      );
+    };
+    const closedAt = (iso: string, agentId: string) => {
+      ctx.now = () => new Date(iso);
+      return stop(ctx, subagent(agentId), agentId);
+    };
+    const listed = async (ticket: string) =>
+      ((await runCommand(runList, ctx, { ticket })).data as RunView[]).map((r) => [
+        r.started_at,
+        r.finished_at,
+        r.duration_seconds,
+        r.waited_seconds,
+        r.active_seconds,
+      ]);
+
+    // t929 の手直しと同じ開始と終了：経過時間 4h09m56s のうち、待ちが 4h04m25s で作業が 5m31s
+    const first = "deguboard: ticket=t1 step=review\n\n見直す";
+    ctx.now = () => new Date("2026-11-14T22:20:48Z");
+    await call(ctx, "PostToolUse", launched(parent, "a1", first));
+    await record(subagent("a1"), first);
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 0, passed: true });
+    const whole = await closedAt("2026-11-15T02:30:44Z", "a1");
+    expect(whole.view.done).toEqual([expect.stringContaining("with success")]);
+    expect(whole.warnings.filter((w) => w.includes("waited_seconds"))).toEqual([]);
+    expect(await listed("t1")).toEqual([
+      [
+        "2026-11-14T22:20:48Z",
+        "2026-11-15T02:30:44Z",
+        4 * 3600 + 9 * 60 + 56,
+        4 * 3600 + 4 * 60 + 25,
+        5 * 60 + 31,
+      ],
+    ]);
+
+    // 待ちの途中で開いた Run（同じ記録を先に使った Run の後など）は、開始より前の待ちを入れない
+    const second = "deguboard: ticket=t2 step=review\n\n見直す";
+    ctx.now = () => new Date("2026-11-15T02:00:00Z");
+    await call(ctx, "PostToolUse", launched(parent, "a2", second));
+    await record(subagent("a2"), second);
+    await runCommand(runReviewResult, ctx, { ticket: "t2", heavy: 0, light: 0, passed: true });
+    await closedAt("2026-11-15T02:30:44Z", "a2");
+    expect(await listed("t2")).toEqual([
+      ["2026-11-15T02:00:00Z", "2026-11-15T02:30:44Z", 1844, 27 * 60 + 49, 175],
+    ]);
+
+    // 親が自分で開いた Run（記録の場所がない）は、待ちを数えられないので 0 でなく null
+    ctx.now = () => new Date("2026-11-15T03:00:00Z");
+    const own = (
+      await runCommand(runStart, ctx, { ticket: "t1", step: "implement", agent: "claude-code" })
+    ).data as Run;
+    ctx.now = () => new Date("2026-11-15T03:10:00Z");
+    const finished = await runCommand(runFinish, ctx, { run: own.id, result: "success" });
+    expect(finished.data).toMatchObject({ id: own.id, waited_seconds: null });
+    expect((await listed("t1"))[1]).toEqual([
+      "2026-11-15T03:00:00Z",
+      "2026-11-15T03:10:00Z",
+      600,
+      null,
+      null,
+    ]);
+  });
+
   it("記録の最後が api-request のままなら待ち、上限までに書かれなければ閉じずに警告し、dg sync が数えて閉じる", async () => {
     const { ctx, parent, subagent } = await prepared();
     hookTiming.settleMs = 150;

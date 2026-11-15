@@ -2,10 +2,16 @@ import { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:f
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Run } from "../model/run.js";
+import { waitedSeconds, type Run } from "../model/run.js";
 import { claudeCodeAdapter, inSession, projectDirName } from "./adapters/claude-code.js";
 import { bindFile, sightings } from "./adapters/transcript.js";
-import { agentNames, collectRunUsage, detectAgent, type UsageQuery } from "./index.js";
+import {
+  agentNames,
+  collectRunUsage,
+  collectRunWaits,
+  detectAgent,
+  type UsageQuery,
+} from "./index.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -41,6 +47,7 @@ const run = (over: Partial<Run> = {}): Run => ({
   tools: null,
   session: null,
   review: null,
+  waited_seconds: null,
   waiting_since: null,
   settling_since: null,
   ...over,
@@ -850,6 +857,230 @@ describe("Claude Code の Adapter", () => {
       expect(inSession(p("s10.jsonl"), "s1")).toBe(false);
       expect(inSession(p("s2", "subagents", "agent-a.jsonl"), "s1")).toBe(false);
     });
+  });
+
+  describe("待ちの区間（RN-1。t958）", () => {
+    /** 入力の行（tool_result を持たない user の行）。origin を省けば origin のない入力（最初の依頼・harness の催促） */
+    const input = (minutes: number, origin?: unknown, content: unknown = "入力の文") => ({
+      type: "user",
+      timestamp: at(minutes),
+      ...(origin === undefined ? {} : { origin }),
+      message: { role: "user", content },
+    });
+    const coordinator = { kind: "coordinator" };
+    const waitsOf = async (lines: unknown[], over: Partial<UsageQuery> = {}) => {
+      const { projectDir, query } = await setup();
+      const file = path.join(projectDir, "s1", "subagents", "agent-a.jsonl");
+      await writeTranscript(file, lines);
+      return claudeCodeAdapter.readTranscriptWaits!(query({ transcript: file, ...over }));
+    };
+    const span = (from: number, to: number) => ({
+      from: Date.parse(at(from)),
+      to: Date.parse(at(to)),
+    });
+
+    it("親の依頼（origin.kind が coordinator）で続いた空きだけを、前の行の時刻から入力の時刻までの待ちにする", async () => {
+      const got = await waitsOf([
+        input(0),
+        toolUse("m1", 1, [["u1", "Bash"]]),
+        toolResult(2, [["u1"]]),
+        assistant("m2", 3, [1, 1, 1, 1]), // ターンの終わり
+        input(10, coordinator), // 親が続きを頼んだ：3 分〜10 分が待ち
+        assistant("m3", 11, [1, 1, 1, 1]),
+        input(20, coordinator), // 2 回目の待ち：11 分〜20 分
+        assistant("m4", 21, [1, 1, 1, 1]),
+      ]);
+      expect(got).toEqual({ intervals: [span(3, 10), span(11, 20)], warnings: [] });
+    });
+
+    it("ほかの入力（origin のない催促・バックグラウンドのコマンドの通知・人・ほかのエージェント）で続いた空きと、ツールの結果を待つ間は作業にする", async () => {
+      const got = await waitsOf([
+        input(0),
+        toolUse("m1", 1, [["u1", "Bash"]]),
+        toolResult(9, [["u1"]]), // 8 分かかったコマンドの結果を待つ間
+        assistant("m2", 10, [1, 1, 1, 1]),
+        input(15, undefined), // harness の催促
+        assistant("m3", 16, [1, 1, 1, 1]),
+        input(20, { kind: "task-notification", producer: "session-task" }),
+        assistant("m4", 21, [1, 1, 1, 1]),
+        input(24, { kind: "human" }),
+        input(26, { kind: "peer", from: "a1", body: "報告の文" }),
+        // 文字列でなく text のブロックで来る入力も、origin で見分ける
+        input(28, undefined, [{ type: "text", text: "入力の文" }]),
+      ]);
+      expect(got).toEqual({ intervals: [], warnings: [] });
+    });
+
+    it("結果の返っていない tool_use が残っている間に来た親の依頼までの空きは作業にし、その後の待ちは数える", async () => {
+      const got = await waitsOf([
+        input(0),
+        toolUse("m1", 1, [["u1", "Edit"]]), // 結果が返らないまま
+        input(5, coordinator),
+        assistant("m2", 6, [1, 1, 1, 1]),
+        input(9, coordinator), // 返らなかった呼び出しは、次の入力からは待たない
+      ]);
+      expect(got.intervals).toEqual([span(6, 9)]);
+    });
+
+    it("知らない形の入力（知らない origin.kind・物でない origin・文字列でも配列でもない content）が 1 つでもあれば、推し量らずに null にして警告する", async () => {
+      const waited = [assistant("m1", 1, [1, 1, 1, 1]), input(5, coordinator)];
+      for (const unknown of [
+        input(8, { kind: "scheduler" }),
+        input(8, { producer: "session-task" }),
+        input(8, "coordinator"),
+        input(8, coordinator, { text: "入力の文" }),
+        { type: "user", timestamp: at(8), origin: coordinator },
+      ]) {
+        const got = await waitsOf([input(0), ...waited, unknown]);
+        expect(got.intervals).toBeNull();
+        expect(got.warnings).toEqual([expect.stringContaining("unknown form")]);
+        expect(got.warnings[0]).toContain(RUN_ID);
+        // 入力の文も origin の値も警告に書かない（MT-4）
+        expect(got.warnings[0]).not.toMatch(/入力の文|scheduler/);
+      }
+    });
+
+    it("Run の終わりをまたぐ待ちは区間にし（切るのは閉じる側）、終わりを過ぎた行を 1 つ読んだ後は読まない（その後の知らない形の入力で null にしない）", async () => {
+      const got = await waitsOf([
+        input(0),
+        assistant("m1", 1, [1, 1, 1, 1]),
+        input(5, coordinator),
+        assistant("m2", 25, [1, 1, 1, 1]),
+        input(45, coordinator), // 終わり（30 分）をまたぐ待ち
+        assistant("m3", 46, [1, 1, 1, 1]),
+        input(50, { kind: "scheduler" }),
+        input(60, coordinator),
+      ]);
+      expect(got).toEqual({ intervals: [span(1, 5), span(25, 45)], warnings: [] });
+    });
+
+    it("user・assistant のほかの行と、時刻のない行は、待ちの始まりにも終わりにもしない", async () => {
+      const got = await waitsOf([
+        input(0),
+        assistant("m1", 1, [1, 1, 1, 1]),
+        { type: "attachment", timestamp: at(2), attachment: { type: "user" } },
+        { type: "api-request", timestamp: at(3), params: { role: "assistant" } },
+        { type: "user", message: { role: "user", content: "時刻のない入力" }, origin: coordinator },
+        input(5, coordinator),
+      ]);
+      expect(got.intervals).toEqual([span(1, 5)]);
+    });
+
+    it("親のセッションの記録と、場所のない Run（親が自分で開いた Run）は、警告なしで null にする", async () => {
+      const { projectDir, query } = await setup();
+      const file = path.join(projectDir, "s1.jsonl");
+      await writeTranscript(file, [assistant("m1", 1, [1, 1, 1, 1]), input(5, coordinator)]);
+      const none = { intervals: null, warnings: [] };
+      expect(await claudeCodeAdapter.readTranscriptWaits!(query({ transcript: file }))).toEqual(
+        none,
+      );
+      expect(await claudeCodeAdapter.readTranscriptWaits!(query())).toEqual(none);
+    });
+
+    it("場所のファイルを読めなければ null にする（警告は使用量の取り込みが同じ理由で出すので重ねない）", async () => {
+      const { projectDir, query } = await setup();
+      const missing = path.join(projectDir, "gone", "subagents", "agent-x.jsonl");
+      const got = await claudeCodeAdapter.readTranscriptWaits!(query({ transcript: missing }));
+      expect(got).toEqual({ intervals: null, warnings: [] });
+    });
+
+    it("t929 の手直しの記録の形：報告を返してから親の依頼が入るまでの 4h04m25s が待ちで、催促と通知で続いた空きは入らない", async () => {
+      /** t929 の手直しの Run（r20261114-222048-c4ad）の記録の、行の種類・時刻・origin だけを写したもの */
+      const stamped = (line: object, timestamp: string) => ({ ...line, timestamp });
+      const got = await waitsOf(
+        [
+          stamped(input(0), "2026-11-14T22:20:47.402Z"),
+          stamped(toolUse("m1", 0, [["u1", "Bash"]]), "2026-11-14T22:22:37.763Z"),
+          stamped(toolResult(0, [["u1"]]), "2026-11-14T22:23:05.278Z"),
+          stamped(assistant("m2", 0, [1, 1, 1, 1]), "2026-11-14T22:23:17.375Z"),
+          // 報告を返していないことの harness の催促
+          stamped({ ...input(0), isMeta: true }, "2026-11-14T22:23:17.391Z"),
+          // 報告を返す呼び出しとその結果。ここでターンが終わる
+          stamped(toolUse("m3", 0, [["u2", "SubagentHandback"]]), "2026-11-14T22:23:23.751Z"),
+          stamped(toolResult(0, [["u2"]]), "2026-11-14T22:23:23.863Z"),
+          // 親が人に質問している間。人の答えを受けて、親が続きを頼んだ
+          stamped({ ...input(0, coordinator), isMeta: true }, "2026-11-15T02:27:49.060Z"),
+          stamped(toolUse("m4", 0, [["u3", "Bash"]]), "2026-11-15T02:27:53.097Z"),
+          stamped(toolResult(0, [["u3"]]), "2026-11-15T02:27:53.354Z"),
+          // バックグラウンドのコマンドの通知
+          stamped(
+            input(0, { kind: "task-notification", producer: "session-task" }),
+            "2026-11-15T02:30:31.757Z",
+          ),
+          stamped(toolUse("m5", 0, [["u4", "Bash"]]), "2026-11-15T02:30:42.315Z"),
+          stamped(toolResult(0, [["u4"]]), "2026-11-15T02:30:43.045Z"),
+        ],
+        {
+          run: run({ id: "r20261114-222048-c4ad", started_at: "2026-11-14T22:20:48Z" }),
+          finishedAt: "2026-11-15T02:30:44Z",
+        },
+      );
+      expect(got.warnings).toEqual([]);
+      expect(got.intervals).toEqual([
+        {
+          from: Date.parse("2026-11-14T22:23:23.863Z"),
+          to: Date.parse("2026-11-15T02:27:49.060Z"),
+        },
+      ]);
+      // 閉じる側が範囲で切って足す値（4h04m25s）。経過時間は 4h09m56s のままで、作業は 5m31s
+      const waited = waitedSeconds(got.intervals, "2026-11-14T22:20:48Z", "2026-11-15T02:30:44Z");
+      expect(waited).toBe(4 * 3600 + 4 * 60 + 25);
+      expect(4 * 3600 + 9 * 60 + 56 - waited!).toBe(5 * 60 + 31);
+    });
+  });
+});
+
+describe("待った秒数（waitedSeconds。RN-1）", () => {
+  const ms = (minutes: number) => Date.parse(at(minutes));
+
+  it("区間を started_at から finished_at の範囲で切って足し、秒に丸める", () => {
+    const intervals = [
+      { from: ms(-10), to: ms(2) }, // 開始の前から（同じ記録を先に使った Run の待ち）：2 分だけ
+      { from: ms(5), to: ms(6) + 400 }, // 60.4 秒
+      { from: ms(25), to: ms(45) }, // 終了の後まで：5 分だけ
+      { from: ms(50), to: ms(60) }, // 範囲の外
+    ];
+    expect(waitedSeconds(intervals, STARTED, FINISHED)).toBe(120 + 60 + 300);
+  });
+
+  it("重なる区間は二重に数えず、実行時間を超えない", () => {
+    const intervals = [
+      { from: ms(-5), to: ms(20) },
+      { from: ms(10), to: ms(40) },
+    ];
+    expect(waitedSeconds(intervals, STARTED, FINISHED)).toBe(30 * 60);
+  });
+
+  it("区間が 0 個なら 0（待たなかった）、数えられていなければ（null）0 でなく null", () => {
+    expect(waitedSeconds([], STARTED, FINISHED)).toBe(0);
+    expect(waitedSeconds(null, STARTED, FINISHED)).toBeNull();
+    expect(waitedSeconds([{ from: ms(1), to: ms(2) }], "いつか", FINISHED)).toBeNull();
+  });
+});
+
+describe("待ちの取り込み（RN-1）", () => {
+  const config = (read: boolean) => ({ metrics: { read_transcripts: read } });
+  const none = { intervals: null, warnings: [] };
+
+  it("待ちを数えない Adapter・Adapter のない agent・読む許可のないときは、警告なしで null にする", async () => {
+    const { query } = await setup();
+    const spy = vi.spyOn(claudeCodeAdapter, "readTranscriptWaits");
+    for (const agent of ["codex", "copilot", "someone"])
+      expect(await collectRunWaits(config(true), query({ run: run({ agent }) }))).toEqual(none);
+    expect(await collectRunWaits(config(false), query())).toEqual(none);
+    const refused = await setup({ DEGUBOARD_NO_TRANSCRIPTS: "1" });
+    expect(await collectRunWaits(config(true), refused.query())).toEqual(none);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("Adapter が例外を投げたら null にし、メッセージでなくコードだけを警告に出す", async () => {
+    const { query } = await setup();
+    const error = Object.assign(new Error("/home/someone/secret を読めない"), { code: "EACCES" });
+    vi.spyOn(claudeCodeAdapter, "readTranscriptWaits").mockRejectedValue(error);
+    const got = await collectRunWaits(config(true), query());
+    expect(got.intervals).toBeNull();
+    expect(got.warnings).toEqual([expect.stringContaining("EACCES")]);
+    expect(got.warnings.join("")).not.toContain("secret");
   });
 });
 

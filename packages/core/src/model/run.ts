@@ -203,6 +203,13 @@ export const runSchema = z.looseObject({
    */
   capture: z.literal("none").optional(),
   /**
+   * 親の依頼を待った秒数（RN-1）。閉じるときに Adapter が会話記録から数えた待ちの区間を、started_at〜finished_at で切って足した値。
+   * 実行時間（finished_at − started_at）はこの待ちを含み、作業時間は表示と集計のたびに実行時間から引いて出す（model/metrics.ts）。
+   * 数えられない Run（実行中、親が自分で開いた Run、待ちを数えない Adapter の Run、記録を読めなかった Run）は null で、0 で補わない（RN-2）。
+   * この項目より前に書いた Run にはキーがないので、読むときに null にそろえる
+   */
+  waited_seconds: z.number().int().nonnegative().nullable().default(null),
+  /**
    * 止まって待っている印（RN-7）。サブエージェントが step を終えた事実のないまま止まった時刻（親への質問など）。
    * 実行中の記録にだけ置き、閉じた Run（Git）には書かない。再開（同じ agent_id の起動）で消す。この項目より前の記録とは null にそろえる
    */
@@ -214,6 +221,37 @@ export const runSchema = z.looseObject({
   settling_since: isoDateTime.nullable().default(null),
 });
 export type Run = z.output<typeof runSchema>;
+
+/** 待ちの区間。時刻はエポックからのミリ秒で、from < to */
+export interface WaitInterval {
+  from: number;
+  to: number;
+}
+
+/**
+ * 待ちの区間を Run の範囲（started_at〜finished_at）で切って足した秒数（四捨五入）。区間が数えられていない（null）か、
+ * 範囲の時刻が読めなければ null。重なる区間は二重に数えない。範囲で切るので、実行時間を超えない
+ */
+export function waitedSeconds(
+  intervals: readonly WaitInterval[] | null,
+  startedAt: string,
+  finishedAt: string,
+): number | null {
+  if (intervals === null) return null;
+  const start = Date.parse(startedAt);
+  const end = Date.parse(finishedAt);
+  if (Number.isNaN(start) || Number.isNaN(end)) return null;
+  let total = 0;
+  let covered = start;
+  for (const { from, to } of [...intervals].sort((a, b) => a.from - b.from)) {
+    const lo = Math.max(from, covered);
+    const hi = Math.min(to, end);
+    if (hi <= lo) continue;
+    total += hi - lo;
+    covered = hi;
+  }
+  return Math.round(total / 1000);
+}
 
 /** どれも取れていない使用量 */
 export function emptyUsage(): RunUsage {

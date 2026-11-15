@@ -9,6 +9,7 @@ import type {
   AgentAdapter,
   AgentEnv,
   CollectedUsage,
+  CollectedWaits,
   HookSupport,
   SkillDirs,
   SkillQuery,
@@ -157,9 +158,41 @@ export async function collectRunUsage(
   try {
     return await adapter.readTranscriptUsage(query);
   } catch (e) {
-    // メッセージはパスや中身を含みうるので、コード（なければ例外の名前）だけを出す
-    const code = (e as { code?: unknown } | null)?.code;
-    const reason = typeof code === "string" ? code : e instanceof Error ? e.name : "unknown";
-    return skipped(`Cannot read the ${adapter.name} conversation record (${reason})`);
+    return skipped(`Cannot read the ${adapter.name} conversation record (${errorCode(e)})`);
+  }
+}
+
+/** メッセージはパスや中身を含みうるので、コード（なければ例外の名前）だけを出す */
+function errorCode(e: unknown): string {
+  const code = (e as { code?: unknown } | null)?.code;
+  return typeof code === "string" ? code : e instanceof Error ? e.name : "unknown";
+}
+
+/**
+ * finish の前に、Run の agent の Adapter で、親の依頼を待った区間を取り込む（RN-1）。使用量と同じ会話記録を、同じ許可で読む。
+ * 数えられなければ intervals は null で、例外にしない（RN-2）。Adapter がない・待ちを数えない・読む許可がないときは、
+ * 警告を出さない（Adapter と許可は collectRunUsage が同じ理由を警告する。待ちを数えない Adapter は欠けでなく仕様）
+ */
+export async function collectRunWaits(
+  config: Pick<Config, "metrics">,
+  query: UsageQuery,
+): Promise<CollectedWaits> {
+  const adapter = findAdapter(query.run.agent);
+  if (
+    !adapter?.readTranscriptWaits ||
+    !config.metrics.read_transcripts ||
+    refusedOnThisMachine(query.env)
+  ) {
+    return { intervals: null, warnings: [] };
+  }
+  try {
+    return await adapter.readTranscriptWaits(query);
+  } catch (e) {
+    return {
+      intervals: null,
+      warnings: [
+        `Cannot read the waits from the ${adapter.name} conversation record (${errorCode(e)}). waited_seconds is left as null`,
+      ],
+    };
   }
 }

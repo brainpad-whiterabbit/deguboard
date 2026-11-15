@@ -178,6 +178,54 @@ describe("run", () => {
     expect((await listed({ running: true })).map((r) => r.id)).toEqual([t3.id]);
   });
 
+  it("閉じた Run に待った秒数 waited_seconds を、渡された区間を started_at から finished_at の範囲で切って書き、list は作業時間 active_seconds も返す。区間のない Run は 0 でなく null（t958）", async () => {
+    const ctx = await prepared();
+    await runCommand(ticketCreate, ctx, { title: "C" });
+    const t1 = await start(ctx, "t1");
+    const t2 = await start(ctx, "t2");
+    const t3 = await start(ctx, "t3");
+    const from = Date.parse(t1.started_at);
+    const closed = await finishRun(ctx, t1.id, {
+      result: "success",
+      now: new Date(from + 600_000),
+      waits: [
+        { from: from - 60_000, to: from + 30_000 }, // 開始の前から：30 秒だけ
+        { from: from + 100_000, to: from + 160_000 }, // 60 秒
+        { from: from + 590_000, to: from + 900_000 }, // 終了の後まで：10 秒だけ
+      ],
+    });
+    expect(closed.run.waited_seconds).toBe(100);
+    // 区間を渡さない（数えられない）Run と、待たなかった Run
+    await finishRun(ctx, t2.id, { result: "success", now: new Date(from + 90_000) });
+    const none = await finishRun(ctx, t3.id, {
+      result: "success",
+      now: new Date(from + 90_000),
+      waits: [],
+    });
+    expect(none.run.waited_seconds).toBe(0);
+    const listed = (await runCommand(runList, ctx, {})).data as RunView[];
+    // 実行時間（duration_seconds）は待ちを含む経過時間のまま。同じ秒に開いた Run の並びは ID の乱数で決まるので、チケットの順に並べて比べる
+    expect(
+      listed
+        .map((r) => [r.ticket, r.duration_seconds, r.waited_seconds, r.active_seconds])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    ).toEqual([
+      ["t1", 600, 100, 500],
+      ["t2", expect.any(Number), null, null],
+      ["t3", expect.any(Number), 0, expect.any(Number)],
+    ]);
+    // 数えられない Run もキーを省かずに null で書く（RN-1）
+    expect(ctx.store.runs.get(t2.id)!.raw).toHaveProperty("waited_seconds", null);
+    // 実行中の Run は待ちも作業時間も null
+    const t4 = await start(ctx, "t1");
+    const running = ((await runCommand(runList, ctx, { running: true })).data as RunView[])[0]!;
+    expect([running.id, running.waited_seconds, running.active_seconds]).toEqual([
+      t4.id,
+      null,
+      null,
+    ]);
+  });
+
   it("list は Iteration（チケットの今の値）で絞れ、番号だけの指定も読む", async () => {
     const ctx = await prepared();
     await runCommand(iterationCreate, ctx, { name: "S1" });
@@ -1544,6 +1592,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
         "tools",
         "session",
         "review",
+        "waited_seconds",
       ].sort(),
     );
     expect(saved["usage"]).toEqual({ input: 7, output: 14, cache_read: 700, cache_write: 70 });

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { measureRuns, placeRun, runDurationSeconds, summarizeRuns } from "./metrics.js";
+import {
+  measureRuns,
+  placeRun,
+  runActiveSeconds,
+  runDurationSeconds,
+  summarizeRuns,
+} from "./metrics.js";
 import { emptyCauseCounts, emptyUsage, type CauseCounts, type Run } from "./run.js";
 import type { Ticket } from "./ticket.js";
 
@@ -20,6 +26,7 @@ function run(id: string, over: Partial<Run> = {}): Run {
     tools: null,
     session: null,
     review: null,
+    waited_seconds: null,
     waiting_since: null,
     settling_since: null,
     ...over,
@@ -49,6 +56,33 @@ describe("Run の集計", () => {
     expect(none.input).toBeNull();
     expect(none.missing.input).toBe(1);
     expect(summarizeRuns([])).toMatchObject({ runs: 0, input: null, duration_seconds: null });
+  });
+
+  it("待った時間と作業時間（実行時間 − 待ち）を足し、待ちの欠けた Run は 0 として足さずに missing に数える（t958）", () => {
+    const m = summarizeRuns([
+      // 60 秒のうち 45 秒待った
+      run("00", { waited_seconds: 45 }),
+      // 待たなかった（0 は欠けでない）
+      run("01", { waited_seconds: 0 }),
+      // 待ちを数えられなかった Run（親が自分で開いた Run・この項目より前の Run）
+      run("02"),
+      // 実行中の Run は実行時間も待ちもない
+      run("03", { finished_at: null, result: null }),
+      // 会話記録を取らずに作った見直しの記録は、取れなかった値ではないので欠けに数えない
+      run("04", { step: "review", capture: "none" }),
+    ]);
+    expect(m).toMatchObject({ duration_seconds: 180, waited_seconds: 45, active_seconds: 75 });
+    expect(m.missing).toMatchObject({ duration_seconds: 1, waited_seconds: 2, active_seconds: 2 });
+    // 待ちのある Run が 1 つもなければ、0 でなく null
+    const none = summarizeRuns([run("05")]);
+    expect(none).toMatchObject({
+      duration_seconds: 60,
+      waited_seconds: null,
+      active_seconds: null,
+    });
+    expect(runActiveSeconds(run("06", { waited_seconds: 45 }))).toBe(15);
+    expect(runActiveSeconds(run("07"))).toBeNull();
+    expect(runActiveSeconds(run("08", { waited_seconds: 5, finished_at: null }))).toBeNull();
   });
 
   it("ツールの回数は種類ごとに足し、null の Run は足さずに missing.tools に数える。すべて欠ければ null", () => {

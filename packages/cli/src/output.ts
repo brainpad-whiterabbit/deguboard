@@ -117,6 +117,8 @@ const COLUMNS: Record<string, string[]> = {
     "results",
     "retries",
     "duration_seconds",
+    "active_seconds",
+    "waited_seconds",
     "input",
     "output",
     "cache_read",

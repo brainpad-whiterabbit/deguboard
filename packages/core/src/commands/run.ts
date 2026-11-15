@@ -7,13 +7,20 @@ import path from "node:path";
 import {
   agentNames,
   collectRunUsage,
+  collectRunWaits,
   detectAgent,
   hooksOf,
   sessionFromEnv,
   type RunSpan,
 } from "../agents/index.js";
 import { toIsoDateTime, type Status } from "../model/common.js";
-import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
+import {
+  filterRuns,
+  placeRun,
+  runActiveSeconds,
+  runDurationSeconds,
+  type MetricFilter,
+} from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
 import { compareIds } from "../model/id.js";
 import {
@@ -65,9 +72,14 @@ import { idShapeOf, iterationRef, ticketRef } from "./helpers.js";
 
 /**
  * 一覧の 1 件。running は deguboard-local/runs/ にだけある終わっていない Run。
- * duration_seconds は metrics.show の集計と同じ実行時間（終わっていなければ null）
+ * duration_seconds は metrics.show の集計と同じ実行時間（終わっていなければ null）で、親の依頼を待った時間（waited_seconds）を含む。
+ * active_seconds は実行時間から待ちを引いた作業時間（どちらかが null なら null）
  */
-export type RunView = Run & { running: boolean; duration_seconds: number | null };
+export type RunView = Run & {
+  running: boolean;
+  duration_seconds: number | null;
+  active_seconds: number | null;
+};
 
 /**
  * Adapter が期間の重なる Run と応答を分けるための、閉じた Run とこのマシンで実行中の Run の期間と、
@@ -453,20 +465,23 @@ export async function closeOpenedRun(
   const finishedAt = input.finishedAt ?? toIsoDateTime(now);
   const local = (await readRunningRuns(ctx.repo)).runs;
   const { others, transcriptOf } = await usageContext(ctx, local);
-  const collected = await collectRunUsage(ctx.config, {
+  const query = {
     run: running.data,
     finishedAt,
     env: ctx.env ?? process.env,
     topLevel: ctx.repo.topLevel,
     others,
     transcript: transcriptOf(running.data.id),
-  });
+  };
+  const collected = await collectRunUsage(ctx.config, query);
+  const waits = await collectRunWaits(ctx.config, query);
   const run = await closeRun(ctx.store, ctx.repo, running.data.id, {
     result: input.result,
     error: input.error,
     model: collected.model ?? undefined,
     usage: collected.usage,
     tools: collected.tools,
+    waits: waits.intervals,
     finishedAt,
     now,
   });
@@ -474,7 +489,7 @@ export async function closeOpenedRun(
     run,
     warnings: [
       `Closed the ${openedRunWord(input.opener)} Run ${run.id} of ${run.ticket} with ${run.result} (finished_at ${run.finished_at})`,
-      ...collected.warnings.map((w) => `Run ${run.id}: ${w}`),
+      ...[...collected.warnings, ...waits.warnings].map((w) => `Run ${run.id}: ${w}`),
     ],
   };
 }
@@ -778,17 +793,19 @@ export const runFinish = defineCommand({
     // 実行中の記録がなければ取り込まず、finishRun が見つからない・終わっていると拒否する
     const usage = running ? await usageContext(ctx, local) : undefined;
     if (running && input.result !== "interrupted") await rejectLiveSubagentRun(ctx, running.data);
-    const collected =
+    const query =
       running && usage
-        ? await collectRunUsage(ctx.config, {
+        ? {
             run: running.data,
             finishedAt: toIsoDateTime(now),
             env: ctx.env ?? process.env,
             topLevel: ctx.repo.topLevel,
             others: usage.others,
             transcript: usage.transcriptOf(id),
-          })
+          }
         : undefined;
+    const collected = query ? await collectRunUsage(ctx.config, query) : undefined;
+    const waits = query ? await collectRunWaits(ctx.config, query) : undefined;
     try {
       const { run, write } = await finishRun(ctx, id, {
         result: input.result,
@@ -799,9 +816,10 @@ export const runFinish = defineCommand({
         model: collected?.model ?? input.model,
         usage: collected?.usage,
         tools: collected?.tools,
+        waits: waits?.intervals,
         now,
       });
-      return ok(run, write, collected?.warnings ?? []);
+      return ok(run, write, [...(collected?.warnings ?? []), ...(waits?.warnings ?? [])]);
     } catch (e) {
       // 上で見た後に別の操作（ticket update --pr・sync、別のプロセスの finish）が閉じたか、索引が古い（長く動く serve・mcp）。
       // 集計を読み直し、閉じていれば同じく記録を変えずに返す
@@ -1177,7 +1195,7 @@ export const runList = defineCommand({
   name: "run.list",
   group: "run",
   summary:
-    "List Runs in start order. Also lists unfinished Runs (running: true, from deguboard-local/runs/ on this machine). Iteration follows each ticket's current value (same as metrics.show). duration_seconds is the run time (null if unfinished)",
+    "List Runs in start order. Also lists unfinished Runs (running: true, from deguboard-local/runs/ on this machine). Iteration follows each ticket's current value (same as metrics.show). duration_seconds is the elapsed time from started_at to finished_at (null if unfinished), and it includes waited_seconds, the time the Run waited for a request from its parent (counted from the conversation record when the Run is closed; null when it could not be counted: an unfinished Run, a Run the parent opened itself, a Run of an agent whose Adapter does not count waits, or a Run from before waits were recorded). active_seconds is duration_seconds minus waited_seconds (null when either is null)",
   input: z.object({
     ticket: ticketRef.optional().describe("Only Runs of this ticket"),
     iteration: iterationRef
@@ -1193,7 +1211,12 @@ export const runList = defineCommand({
     const ticket = input.ticket ? ctx.store.require("ticket", input.ticket).data.id : undefined;
     const { runs, warnings } = await collectRuns(ctx, input, ticket, input.running);
     const items: RunView[] = runs
-      .map(({ run, running }) => ({ ...run, running, duration_seconds: runDurationSeconds(run) }))
+      .map(({ run, running }) => ({
+        ...run,
+        running,
+        duration_seconds: runDurationSeconds(run),
+        active_seconds: runActiveSeconds(run),
+      }))
       .sort((a, b) => a.id.localeCompare(b.id));
     return ok(items, undefined, warnings);
   },

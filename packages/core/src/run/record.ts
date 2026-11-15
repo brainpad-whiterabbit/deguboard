@@ -21,12 +21,14 @@ import {
   isRunId,
   newRunId,
   runSchema,
+  waitedSeconds,
   type Run,
   type RunId,
   type RunResult,
   type RunReview,
   type RunTools,
   type RunUsage,
+  type WaitInterval,
 } from "../model/run.js";
 import { createDoc, readDoc, type Doc } from "../storage/documents.js";
 import { writeFileAtomic } from "../storage/atomic.js";
@@ -667,6 +669,7 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       session: input.session ?? null,
       review: null,
       ...(input.head ? { head: input.head } : {}),
+      waited_seconds: null,
       waiting_since: null,
       settling_since: null,
     };
@@ -710,6 +713,12 @@ export interface FinishRunInput {
   usage?: { [K in keyof RunUsage]?: RunUsage[K] | undefined } | undefined;
   /** 会話記録から数えたツールの回数。渡さなければ実行中の記録の値（start は null を書く） */
   tools?: RunTools | null | undefined;
+  /**
+   * 会話記録から数えた、親の依頼を待った区間（Adapter・collectRunWaits）。閉じるときに started_at〜finished_at で切って
+   * waited_seconds に足す。渡さないか null（数えられない Run）なら waited_seconds は null（0 で補わない。RN-2）。
+   * フックの待ちの印（waiting_since）はフックの処理の時刻で、閉じるときに消えるので、数には使わない
+   */
+  waits?: readonly WaitInterval[] | null | undefined;
   /**
    * 終了時刻（ISO）。渡さなければ now。チケットの操作に付随して閉じるとき、PR の作成時刻など実際に終わった時刻にする（RN-6）。
    * 開始より前なら開始の時刻に揃える
@@ -761,12 +770,15 @@ async function closeRunLocked(
 ): Promise<Run> {
   const local = await readRunningLocked(repo, id);
   const decided = input.decide?.(local.data) ?? { result: input.result, error: input.error };
-  const finishedAt = input.finishedAt ?? toIsoDateTime(input.now);
+  const given = input.finishedAt ?? toIsoDateTime(input.now);
+  const finishedAt = given < local.data.started_at ? local.data.started_at : given;
   // 実行中の記録に重ねる。中の未知のキーは残す（DT-2）。実行中の記録は集計を書くまで書き換えない
   const base = local.raw;
   const closed: Record<string, unknown> = {
     ...base,
-    finished_at: finishedAt < local.data.started_at ? local.data.started_at : finishedAt,
+    finished_at: finishedAt,
+    // 待ちは書く範囲（開始〜終了）で切る。同じ記録を先に使った Run の待ちと、終了より後の待ちを入れない
+    waited_seconds: waitedSeconds(input.waits ?? null, local.data.started_at, finishedAt),
     result: decided.result,
     error: decided.error ?? null,
     retries: input.retries ?? local.data.retries,
