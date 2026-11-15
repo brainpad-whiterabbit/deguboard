@@ -279,30 +279,55 @@ describe("行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
     });
 
   /**
-   * 行の位置と大きさが続けて 3 回同じになるまで待って返す。
-   * カンバンの見出しは目標・何日目・件数をあとから非同期に出すので、出た直後の行はまだ動くことがあり、
-   * 動く前に測った座標で帯を押すと行の本体に当たって詳細へ移る。落ち着かなければ理由を言って短い時間で落とす
+   * 行の左端の帯（6px）を、押す点が行の要素そのもの（帯）に当たることを確かめてから押し、押した click が行に届いたことも確かめる。
+   * 不安定だった理由：前は行の位置が続けて 3 回同じになるのを待ってから、測った座標を page.mouse.click で押していた。
+   * 測ってから押すまでの間にも、カンバンの見出しが目標・何日目・件数をあとから出したり、15 秒ごとの更新（store.tsx の STATUS_POLL_MS）で
+   * 出し直したり、選択の帯（ask-menu.tsx の SelectionBar）が出入りしたりして行が動く。動いた後の座標は帯ではない要素に当たり、
+   * 選択が変わらず data-selected の待ちが時間切れになりうる。待ち時間を延ばしても、測ってから押すまでの隙は消えない。
+   * （s36 の作業中に 3 回中 2 回落ちた。このテストの最後の待ちも別の理由で落ちていた。理由は下のテストのコメント）
+   * そこで、位置を測るのと当たりを確かめる（elementFromPoint が行の要素そのものを返す）のを 1 回の evaluate で行い、当たるときだけ押す。
+   * それでも押す瞬間に動いて外れたら、捕捉の段階で受けた click の target でそれが分かるので、選択も画面も変わっていないことを確かめて押し直す
    */
-  async function settledBox(page: Page, row: Locator, timeout = 5_000) {
+  async function clickStripWhenHit(page: Page, row: Locator, timeout = 5_000): Promise<void> {
     const deadline = Date.now() + timeout;
+    const hash = () => new URL(page.url()).hash;
     let last = "";
-    let same = 0;
     for (;;) {
-      const box = await row.boundingBox();
-      const key = JSON.stringify(box);
-      same = box && key === last ? same + 1 : 0;
-      last = key;
-      if (box && same >= 2) return box;
+      const before = { hash: hash(), selected: await row.getAttribute("data-selected") };
+      const probe = await row.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const x = r.left + 6;
+        const y = r.top + r.height / 2;
+        const hit = document.elementFromPoint(x, y);
+        return { x, y, hit: hit === el, what: hit ? `${hit.tagName}.${hit.className}` : "なし" };
+      });
+      if (probe.hit) {
+        // 押した click が行の要素そのものに届いたか（ask-menu.tsx の onClickCapture が帯と見なす条件）を、行の捕捉より先に受けて残す
+        await row.evaluate((el) => {
+          delete document.documentElement.dataset.stripClick;
+          window.addEventListener(
+            "click",
+            (e) => (document.documentElement.dataset.stripClick = String(e.target === el)),
+            { capture: true, once: true },
+          );
+        });
+        await page.mouse.click(probe.x, probe.y);
+        const landed = await page.evaluate(() => document.documentElement.dataset.stripClick);
+        if (landed === "true") return;
+        last = `押した瞬間に行が動いて外れた（click の target が行でない: ${landed ?? "click なし"}）`;
+        // 外れた click が詳細を開いたり選択を変えたりしていたら、押し直さずに落とす
+        expect(hash(), `${last}。外れた click で画面が変わった`).toBe(before.hash);
+        expect(
+          await row.getAttribute("data-selected"),
+          `${last}。外れた click で選択が変わった`,
+        ).toBe(before.selected);
+      } else {
+        last = `押す点 (${probe.x}, ${probe.y}) が行の帯でなく ${probe.what} に当たる`;
+      }
       if (Date.now() > deadline)
-        throw new Error(`行の位置が ${timeout}ms のあいだ落ち着かない（最後に測った位置: ${key}）`);
+        throw new Error(`${timeout}ms のあいだ行の帯を押せない（最後: ${last}）`);
       await page.waitForTimeout(50);
     }
-  }
-
-  /** 描画が落ち着いてから行の左端の帯（6px）を押す */
-  async function clickSettledStrip(page: Page, row: Locator): Promise<void> {
-    const box = await settledBox(page, row);
-    await page.mouse.click(box.x + 6, box.y + box.height / 2);
   }
 
   it("帯を押すと、その 1 件を選ぶ・外すの切り替えになり、詳細は開かない。行の本体を押すと詳細を開き選択を外す", async () => {
@@ -315,12 +340,12 @@ describe("行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
       await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
       const row = todoRow(page);
       await row.waitFor();
-      await clickSettledStrip(page, row);
+      await clickStripWhenHit(page, row);
       await expect
         .poll(() => row.getAttribute("data-selected"), { ...wait, message: "帯を押して選ぶ" })
         .toBe("");
       expect(hash(), "詳細は開かない").toBe("#/board");
-      await clickSettledStrip(page, row);
+      await clickStripWhenHit(page, row);
       await expect
         .poll(() => row.getAttribute("data-selected"), {
           ...wait,
@@ -329,19 +354,22 @@ describe("行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
         .toBeNull();
       expect(hash(), "詳細は開かない").toBe("#/board");
 
-      await clickSettledStrip(page, row);
+      await clickStripWhenHit(page, row);
       await expect
         .poll(() => row.getAttribute("data-selected"), { ...wait, message: "帯を押して選ぶ" })
         .toBe("");
       expect(hash(), "詳細は開かない").toBe("#/board");
       await row.locator('a[href="#/tickets/t1"]').first().click();
       await expect.poll(hash, { ...wait, message: "行の本体は詳細を開く" }).toBe("#/tickets/t1");
+      // 左パネルは詳細を開くとバックログに替わり（app.tsx の sidebarRoute）、カンバンの行はなくなる。
+      // 前はカンバンの行の data-selected を待っていたので、行が消える前に読めたときだけ通り、消えた後は行を待って時間切れになった。
+      // ここでは画面のどこにも選んだ行と選択の帯が残らないことを見る（ふつうのクリックで外すことは selection.test.tsx が確かめる）
       await expect
-        .poll(() => row.getAttribute("data-selected"), {
+        .poll(() => page.locator("[data-selected], .selection-bar").count(), {
           ...wait,
           message: "詳細を開くと選択は外れる",
         })
-        .toBeNull();
+        .toBe(0);
     } finally {
       await page.close();
     }
