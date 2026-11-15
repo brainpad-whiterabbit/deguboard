@@ -46,7 +46,7 @@ const STATUS_FETCH_INTERVAL_MS = 60_000;
  */
 const STATUS_FETCH_TIMEOUT_MS = 8_000;
 
-export interface LocalClient extends CommandClient {
+interface LocalClient extends CommandClient {
   /** 入口が出すコマンド（store の要るものだけ） */
   readonly commands: readonly AnyCommand[];
 }
