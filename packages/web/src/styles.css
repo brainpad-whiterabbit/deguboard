@@ -1871,7 +1871,8 @@ textarea.body {
   min-width: 0;
 }
 /* カンバンの見出しでは見出しの余白に合わせ、行の幅いっぱいに置く */
-.sidebar-head .epic-chips {
+.sidebar-head .epic-chips,
+.board-band-drop .epic-chips {
   padding: 0;
 }
 .epic-chips .chip-label {
@@ -2057,11 +2058,17 @@ textarea.body {
   display: none;
 }
 /* --dg-page-pad は .page の余白（上の端に貼り付けるものは、この分だけ上にずらして余白を埋める）。
-   --dg-sticky-band-h は上の端に残す 1 行の帯の高さ（components/sticky-band.tsx の STICKY_BAND_PX と同じ） */
+   --dg-sticky-band-row-h は上の端に残す 1 行の帯の高さ（components/sticky-band.tsx の STICKY_BAND_PX と同じ）。
+   --dg-sticky-band-h は帯の全体の高さで、帯の下に貼り付く見出しはこの分だけ下げる（絞り込みの札の行を出すと伸びる） */
 [data-surface="sidebar"] .page {
   --dg-page-pad: 0.5rem;
-  --dg-sticky-band-h: 26px;
+  --dg-sticky-band-row-h: 26px;
+  --dg-sticky-filter-h: 22px;
+  --dg-sticky-band-h: var(--dg-sticky-band-row-h);
   padding: var(--dg-page-pad);
+}
+[data-surface="sidebar"] .page:has(.sticky-band .board-band-filters) {
+  --dg-sticky-band-h: calc(var(--dg-sticky-band-row-h) + var(--dg-sticky-filter-h));
 }
 /* 上の端に残す 1 行の帯（components/sticky-band.tsx）。高さ 0 の sticky の箱に帯を重ねて描くので、出し入れで一覧が動かない。
    帯は .page の上と左右の余白まで塗り、帯の下に貼り付く見出し（z-index: 2）より上に出す。
@@ -2075,28 +2082,80 @@ textarea.body {
 .page:has(> section > .sticky-band) {
   scroll-padding-top: calc(var(--dg-sticky-band-h) * 2);
 }
-/* [data-ask-spot] の position: relative に負けないよう、箱の子として指す */
-.sticky-band > .sticky-band-bar {
+/* 帯の中の部品は上の端に貼り付いて見えているので、フォーカスや押したときに寄せ先の分だけ一覧を上へ戻さない（戻すと見出しが見えて帯が消える） */
+.sticky-band-stack * {
+  scroll-margin-top: calc(var(--dg-sticky-band-h) * -2);
+}
+/* 帯と、その下に積む行（絞り込みの札・開いた欄）をまとめて一覧の上に重ねる */
+.sticky-band > .sticky-band-stack {
   position: absolute;
   top: 0;
   left: calc(-1 * var(--dg-page-pad, 0px));
   right: calc(-1 * var(--dg-page-pad, 0px));
   box-sizing: border-box;
-  height: var(--dg-sticky-band-h, 26px);
+  background: var(--vscode-sideBar-background);
+  border-bottom: 1px solid var(--dg-border);
+  box-shadow: 0 2px 4px -2px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
+}
+.sticky-band-stack > .sticky-band-bar {
+  box-sizing: border-box;
+  height: var(--dg-sticky-band-row-h, 26px);
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 calc(var(--dg-page-pad, 0px) + 0.25rem);
   background: var(--vscode-sideBar-background);
-  border-bottom: 1px solid var(--dg-border);
-  box-shadow: 0 2px 4px -2px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
 }
-.sticky-band > .sticky-band-bar[data-ask-spot="active"] {
+.sticky-band-stack > .sticky-band-bar[data-ask-spot="active"] {
   background: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 }
-/* カンバンの帯（board.tsx の BoardBand）：番号（選んでいる札と同じ塗り）・名前（入らなければ「…」）は一番上へ戻すボタン、右に小さな進みの帯と n/m */
-.sticky-band > .sticky-band-bar[data-ask-spot] {
+/* カンバンの帯（board.tsx の BoardBand）：番号（選んでいる札と同じ塗り）・名前（入らなければ「…」）は一番上へ戻すボタン、右に小さな進みの帯と n/m と ▾ */
+.sticky-band-stack > .sticky-band-bar[data-ask-spot] {
   padding-right: calc(var(--dg-page-pad, 0px) + 28px);
+}
+/* ▾ は札の列を重ねて開閉する。開いている間は押した見た目にする（.filter-toggle と同じ） */
+.board-band-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 3px;
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  border-color: transparent;
+  border-radius: 3px;
+}
+.board-band-toggle:hover,
+.board-band-toggle.open {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+/* 絞っている間の帯の 2 行目（絞り込みの札）。高さは --dg-sticky-filter-h に決め、札は折り返さずに文字を省く */
+.sticky-band-stack > .board-band-filters {
+  box-sizing: border-box;
+  height: var(--dg-sticky-filter-h, 22px);
+  flex-wrap: nowrap;
+  align-items: center;
+  overflow: hidden;
+  margin: 0;
+  padding: 0 calc(var(--dg-page-pad, 0px) + 0.25rem) 3px;
+}
+.board-band-filters .filter-chip {
+  flex: 0 1 auto;
+}
+/* ▾ で重ねる札の列（BoardBandDrop）：Iteration の札の列と漏斗／Epic の札の列／担当の欄／状態ごとの件数。高すぎれば中だけスクロールする */
+.sticky-band-stack > .board-band-drop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px calc(var(--dg-page-pad, 0px) + 0.25rem) 6px;
+  border-top: 1px solid var(--dg-border);
+}
+/* 行・Epic の札の列・状態ごとの件数の形は、見出し（.sidebar-head）の規則を共に使う */
+.board-band-drop .board-filters.compact {
+  margin: 0;
+  padding: 0;
 }
 .board-band .board-band-top {
   flex: 1;
@@ -2190,7 +2249,8 @@ textarea.body {
 }
 /* 見出しの行・期間・目標の形は、左パネルのバックログの区画の見出し（.sidebar-section）と共通 */
 .sidebar-head .head-line,
-.sidebar-section .head-line {
+.sidebar-section .head-line,
+.board-band-drop .head-line {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2253,7 +2313,8 @@ textarea.body {
   font-size: 0.92em;
 }
 /* 状態ごとの件数（帯の下）。丸印と数字を帯と同じ並びで詰める */
-.sidebar-head .status-counts {
+.sidebar-head .status-counts,
+.board-band-drop .status-counts {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2261,7 +2322,8 @@ textarea.body {
   font-size: 0.92em;
   color: var(--vscode-descriptionForeground);
 }
-.sidebar-head .status-count {
+.sidebar-head .status-count,
+.board-band-drop .status-count {
   display: inline-flex;
   align-items: center;
   gap: 4px;
