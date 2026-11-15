@@ -10,8 +10,9 @@
 // 外枠に描いた模した画面で、エージェントが dg を動かした結果（起票・割り当て・計画・状態の遷移）は、台本が一時リポジトリで実際に dg のコマンドを流して左パネルに反映させる。
 // import.gif は README の頼み方に合わせて普通の言葉で頼み（Skill は Claude Code が選ぶ。t878）、ほかの 4 本は Ask Agent から Skill の形の依頼文をコピーして貼る（小窓から手軽に頼めることを見せる）。
 // 左パネルとエディタのパネル（チケットの詳細）は、拡張ホストの代わりの小さな仲立ち（vscodeShim）で Webview として動かし、
-// 詳細を開く・コピー・読み直しを拡張と同じ通り道で受ける。ターミナルに出す数字（retro.gif の要約と Keep / Problem / Try など）は見本で、
-// 流れは dg guide retro に合わせる（振り返りはチャットで答え、報告書のファイルは書かない）。
+// 詳細を開く・コピー・読み直しを拡張と同じ通り道で受ける。ターミナルに出す数字（retro.gif の要約・指標の値と推移・Keep / Problem / Try など）は見本で、
+// 流れは dg guide retro に合わせる（チームの観点の定義のない観点にだけ指標を提案し、承認した定義を dg retro metric で記録し、
+// 定義のある指標の推移と、指標の ID と数字を根拠にした Keep / Problem / Try を見せる。振り返りはチャットで答え、報告書のファイルは書かない）。
 // 言語ごとに変わるのは、画面の表示言語（<html data-language>）・見本のチケットの文・ターミナルの文・外枠の文で、どれも TEXT に置く。台本の操作と時間は言語によらず同じ。
 // CSS の 760x460 を 1.5 倍の解像度で撮る（GIF は 1140x690。README の表示幅 560px の 2 倍で文字がにじまない。t458）。
 // plan.gif と work.gif だけは 3 段の依存グラフが収まるように左パネルを広げ、830x460（GIF は 1245x690、README の表示幅は 612px）で撮る（PLAN_SIDE）。
@@ -23,6 +24,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { chromium } from "playwright-core";
+import { RECOMMENDED_RETRO_METRICS } from "../packages/core/dist/model/retro-recommended.js";
 import { startServer } from "../packages/server/dist/index.js";
 import { checkGif, encodeGif } from "./lib/gif.mjs";
 
@@ -172,24 +174,33 @@ const TEXT = {
         "Keep search terms",
       ],
       summary: "● s2: 5/5 done · 19 runs · 2 h 11 min · 2.4M tokens",
-      head: "  step       time  tokens",
-      perLine: "  Per changed line: 310 output tokens",
+      heavy: "  review + fix: 53% of time · 48% of tokens",
       counts: "  9 retries · 2 heavy findings · 1 failure",
-      ask: "? Which viewpoints? (multi-select)",
-      rework: "  ◉ 1. Rework: 9 retries, 2 heavy findings",
-      efficiency: "  ◉ 2. Efficiency: 310 output tokens per line",
-      others: "  ○ 3. Flow  ○ 4. Outcome  ○ 5. Comparison",
-      keep: "  Keep    t4 t6 t8 passed review first time",
-      problem: [
-        "  Problem review→fix looped 7 times on t5 t7:",
-        "          1.1M tokens (48% of s2)",
+      proposal: "● Metrics to propose (cost is already defined)",
+      ask: "? Approve which metrics? (multi-select)",
+      spec: ["  ◉ 1. spec · ticket-caused-rework-rate", "        s2: 40% (2 / 5 reviewed tickets)"],
+      others: ["  ○ 2. review · first-pass-rate  s2: 60% (3/5)", "  ○ 3. Approve none"],
+      recorded: "✓ Recorded spec · ticket-caused-rework-rate",
+      trend: "● Trend s1 → s2",
+      trendRows: [
+        "  spec · ticket-caused-rework-rate  33% → 40%  worse",
+        "  cost · tokens-per-line     output 380 → 310  better",
       ],
-      try: ["  Try #3  Write checkable acceptance criteria", "          when filing → File"],
+      keep: "  Keep    cost · tokens-per-line: output 380 → 310",
+      problem: [
+        "  Problem spec · ticket-caused-rework-rate 40%:",
+        "          t5 t7 reworked for unclear criteria",
+      ],
+      try: [
+        "  Try #3  Write checkable acceptance criteria",
+        "          when filing (aim: below 20%) → File",
+      ],
       reflect: "? Reflect which Try rows?",
       file: "#3 File",
       skip: "Do not reflect",
       ticket: "Write checkable acceptance criteria when filing",
-      ticketAccept: "Retries per ticket go down in the next Iteration",
+      ticketAccept:
+        "spec · ticket-caused-rework-rate is below 20% in the next Iteration (40% in s2)",
       filed: "✓ Filed t11 (retro-s2)",
     },
   },
@@ -294,25 +305,37 @@ const TEXT = {
       ],
       current: ["履歴を読みやすくする", "履歴の行に期間を見せる", "検索の言葉を残す"],
       summary: "● s2：5/5 done · Run 19 回 · 2 時間 11 分 · 2.4M トークン",
-      // 全角の文字は半角の 2 つ分の幅なので、下の行の数字と揃うように空白を詰める
-      head: "  工程      時間 トークン",
-      perLine: "  変えた 1 行あたり：出力トークン 310",
+      heavy: "  見直し + 手直し：時間の 53% · トークンの 48%",
       counts: "  やり直し 9 回 · 重い指摘 2 件 · 失敗 1 回",
-      ask: "? どの観点で見ますか？（複数選択）",
-      rework: "  ◉ 1. やり直し：9 回、重い指摘 2 件",
-      efficiency: "  ◉ 2. 効率：1 行あたり出力トークン 310",
-      others: "  ○ 3. 流れ  ○ 4. 成果  ○ 5. 比較",
-      keep: "  Keep    t4 t6 t8 は 1 回目で見直しを通った",
-      problem: [
-        "  Problem t5 t7 で見直し→手直しが 7 回回った：",
-        "          1.1M トークン（s2 の 48%）",
+      proposal: "● 定義のない観点の指標の案（cost は承認済み）",
+      ask: "? どの指標を承認しますか？（複数選択）",
+      spec: [
+        "  ◉ 1. spec · ticket-caused-rework-rate",
+        "        s2：40%（見直したチケット 5 件中 2 件）",
       ],
-      try: ["  Try #3  起票のときに確かめられる受け入れ条件", "          を書く → 起票"],
+      others: ["  ○ 2. review · first-pass-rate  s2：60%（3/5）", "  ○ 3. 承認しない"],
+      recorded: "✓ spec · ticket-caused-rework-rate を記録しました",
+      trend: "● 推移 s1 → s2",
+      // 全角の文字は半角のちょうど 2 つ分の幅で描かれないので、数字の前には全角の文字を置かず（output は metrics show の欄の名前）、上の行の数字と揃える
+      trendRows: [
+        "  spec · ticket-caused-rework-rate  33% → 40%  悪化",
+        "  cost · tokens-per-line     output 380 → 310  改善",
+      ],
+      keep: "  Keep    cost · tokens-per-line：output 380 → 310",
+      problem: [
+        "  Problem spec · ticket-caused-rework-rate 40%：",
+        "          t5 t7 は条件があいまいでやり直した",
+      ],
+      try: [
+        "  Try #3  起票のときに確かめられる受け入れ条件",
+        "          を書く（目標 20% 未満）→ 起票",
+      ],
       reflect: "? どの Try を反映しますか？",
       file: "#3 を起票",
       skip: "反映しない",
       ticket: "起票のときに確かめられる受け入れ条件を書く",
-      ticketAccept: "次の Iteration でチケットあたりのやり直しが減る",
+      ticketAccept:
+        "次の Iteration で spec · ticket-caused-rework-rate が 20% 未満になる（s2 は 40%）",
       filed: "✓ t11 を起票しました（retro-s2）",
     },
   },
@@ -443,9 +466,22 @@ async function workRepo(dir, t) {
   return work;
 }
 
-/** retro.gif の見本：閉じた Iteration が 2 つ（新しい s2 を振り返る）と、進行中が 1 つ */
+/** 推薦の指標の定義を dg retro metric の引数にする（人が承認した体で config.yaml に記録する） */
+function retroMetricArgs(perspective, id) {
+  const m = RECOMMENDED_RETRO_METRICS[perspective][id];
+  const args = ["retro", "metric", perspective, id, "--definition", m.definition];
+  for (const source of m.sources) args.push("--source", source);
+  if (m.unmeasured) args.push("--unmeasured", m.unmeasured);
+  return args;
+}
+
+/**
+ * retro.gif の見本：閉じた Iteration が 2 つ（新しい s2 を振り返る）と、進行中が 1 つ。
+ * 前回（s1）の振り返りで cost · tokens-per-line だけを承認した体で、ほかの観点には定義がない
+ */
 async function retroRepo(dir, t) {
   const work = await initRepo(dir);
+  await dg(work, retroMetricArgs("cost", "tokens-per-line"));
   const done = ["in_progress", "review", "done"];
   for (const [n, [goal, titles]] of t.retro.sprints.entries()) {
     const id = `s${n + 1}`;
@@ -749,15 +785,22 @@ async function termEnter(rec) {
 
 /** 出力の欄に 1 行足して ms ミリ秒止める。kind は色（dot はエージェントの発言の ●、tool は道具の呼び出し） */
 async function termSay(rec, kind, html, ms = 600) {
-  await rec.page.evaluate(
-    ([kind, html]) => {
+  await termBlock(rec, [[kind, html]], ms);
+}
+
+/**
+ * 出力の欄に複数の行（[kind, html] の並び）を 1 コマで足して ms ミリ秒止める。
+ * 行が足されるたびに出力の欄の全体が上に送られ、GIF ではそのコマが欄の全体を書き直すので、まとめて出す行を 1 コマにして大きさを抑える
+ */
+async function termBlock(rec, lines, ms = 600) {
+  await rec.page.evaluate((lines) => {
+    for (const [kind, html] of lines) {
       const line = document.createElement("div");
       line.className = kind;
       line.innerHTML = html;
       document.querySelector(".term-lines").append(line);
-    },
-    [kind, html],
-  );
+    }
+  }, lines);
   await rec.hold(ms);
 }
 
@@ -981,8 +1024,11 @@ async function workFlow(rec, app, { work, t }) {
 }
 
 /**
- * 履歴で閉じた Iteration の Retrospect を頼み、dg guide retro の流れで答える：数字の要約（工程ごとの所要時間とトークンの割合・1 行あたりのトークン）→
- * 観点を選ぶ → トークンを根拠に含む Keep / Problem / Try → 承認した Try を起票。振り返りはチャットで答え、ファイルは書かない
+ * 履歴で閉じた Iteration の Retrospect を頼み、dg guide retro の流れで答える：数字の要約（20 秒に収めるため、工程ごとの割合は重い工程だけの 1 行）→
+ * チームの観点（retro.perspectives）のうち定義のない観点にだけ推薦の指標を s2 の値と一緒に提案し（承認済みの cost · tokens-per-line には提案しない）、
+ * 承認した spec · ticket-caused-rework-rate を dg retro metric で記録する → 定義のある指標の s1 → s2 の推移 →
+ * 指標の ID と数字を根拠にした Keep / Problem / Try（Problem と Try は spec · ticket-caused-rework-rate の数字でつなぐ）→ 承認した Try を起票。
+ * 振り返りはチャットで答え、指標の結果もファイルも書かない（書くのは承認した指標の定義と起票だけ）
  */
 async function retroFlow(rec, app, { work, t }) {
   await setupAgent(rec, { file: "claude", code: "", term: "auto" });
@@ -990,27 +1036,65 @@ async function retroFlow(rec, app, { work, t }) {
   const row = app.locator("summary.history-row", { hasText: t.retro.sprints[1][0] });
   await askAndPaste(rec, app, row.locator(".ask-bubble").first(), t.menu.retro);
   await termSay(rec, "tool", "● Bash(<i>dg metrics show --iteration s2 --by step</i>)", 500);
-  await termSay(rec, "dot", t.retro.summary, 150);
-  await termSay(rec, "dim", t.retro.head, 100);
-  await termSay(rec, "dim", "  implement   40%     46%", 100);
-  await termSay(rec, "prob", "  review      29%     25%", 100);
-  await termSay(rec, "prob", "  fix         24%     23%", 100);
-  await termSay(rec, "dim", t.retro.perLine, 100);
-  await termSay(rec, "dim", t.retro.counts, 800);
-  await termSay(rec, "ask", t.retro.ask, 100);
-  await termSay(rec, "sel", t.retro.rework, 100);
-  await termSay(rec, "sel", t.retro.efficiency, 100);
-  await termSay(rec, "dim", t.retro.others, 500);
-  await termChoose(rec, "1 2");
-  await termSay(rec, "tool", "● Bash(<i>dg metrics show --iteration s2 --by ticket</i>)", 600);
-  await termSay(rec, "keep", t.retro.keep, 150);
-  await termSay(rec, "prob", t.retro.problem[0], 50);
-  await termSay(rec, "prob", t.retro.problem[1], 150);
-  await termSay(rec, "try", t.retro.try[0], 50);
-  await termSay(rec, "try", t.retro.try[1], 800);
-  await termSay(rec, "ask", t.retro.reflect, 100);
-  await termSay(rec, "sel", `  ❯ 1. ${t.retro.file}`, 100);
-  await termSay(rec, "dim", `    2. ${t.retro.skip}`, 500);
+  await termBlock(
+    rec,
+    [
+      ["dot", t.retro.summary],
+      ["prob", t.retro.heavy],
+      ["dim", t.retro.counts],
+    ],
+    1100,
+  );
+  await termBlock(
+    rec,
+    [
+      ["dot", t.retro.proposal],
+      ["ask", t.retro.ask],
+      ["sel", t.retro.spec[0]],
+      ["sel", t.retro.spec[1]],
+      ["dim", t.retro.others[0]],
+      ["dim", t.retro.others[1]],
+    ],
+    1600,
+  );
+  await termChoose(rec, "1");
+  await dgSteps(rec, work, [retroMetricArgs("spec", "ticket-caused-rework-rate")]);
+  await termSay(
+    rec,
+    "tool",
+    "● Bash(<i>dg retro metric spec ticket-caused-rework-rate …</i>)",
+    300,
+  );
+  await termSay(rec, "ok", t.retro.recorded, 400);
+  await termBlock(
+    rec,
+    [
+      ["dot", t.retro.trend],
+      ["dim", t.retro.trendRows[0]],
+      ["dim", t.retro.trendRows[1]],
+    ],
+    1300,
+  );
+  await termBlock(
+    rec,
+    [
+      ["keep", t.retro.keep],
+      ["prob", t.retro.problem[0]],
+      ["prob", t.retro.problem[1]],
+      ["try", t.retro.try[0]],
+      ["try", t.retro.try[1]],
+    ],
+    1600,
+  );
+  await termBlock(
+    rec,
+    [
+      ["ask", t.retro.reflect],
+      ["sel", `  ❯ 1. ${t.retro.file}`],
+      ["dim", `    2. ${t.retro.skip}`],
+    ],
+    700,
+  );
   await termChoose(rec, "1");
   await dgSteps(rec, work, [
     [

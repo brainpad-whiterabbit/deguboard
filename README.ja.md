@@ -55,7 +55,7 @@ Claude Code では、「s3 を計画して」のように普通の言葉で言�
 
 終わった Iteration で **エージェントに頼む** → **振り返る** を選びます。エージェントが実績（工程ごとの所要時間とトークン、失敗、やり直し）を見せ、チームが承認した観点ごとの指標を傾向つきで計算して、承認した改善を起票します。承認した指標がまだない観点には、エージェントが推薦の指標を示すので、承認したものだけを採ります。
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.ja.gif" alt="ボトルネックを調べる" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.ja.gif" alt="指標を承認し、その推移から改善を起票する" width="560">
 
 トークンは、会話記録から使用量を取り込む設定を有効にしたときだけ集計されます（Claude Code・Codex・Copilot CLI）。設定するには次のとおりにします。
 
