@@ -1,0 +1,37 @@
+id: p140
+tickets: [t982, t979, t980, t981, t983, t984, t985, t986, t987, t988, t989]
+after:
+  t989:
+    - t982
+  t985:
+    - t984
+pending_approval: true
+details:
+  t982:
+    scope: README の --auto とマージの説明だけを直す
+    tier: light
+  t989:
+    scope: トークン集計の設定の説明を README から usage の新しい節へ移す
+    approach: README.md と usage.md を t982 が先に直すので、その後に移す
+    tier: light
+  t984:
+    scope: requirements.md 5.1 の ID のない項と check-docs.mjs の検査
+    tier: standard
+  t985:
+    scope: ブランチ名の上限の文の出どころと、ID だけの値と英語の内容がないときの案内
+    approach: requirements.md を t984 が先に直すので、その後に ST-3 を直す
+    tier: standard
+  t983:
+    tier: light
+  t979:
+    tier: standard
+  t980:
+    tier: standard
+  t981:
+    tier: standard
+  t986:
+    tier: standard
+  t987:
+    tier: standard
+  t988:
+    tier: standard
