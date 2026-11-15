@@ -1,0 +1,29 @@
+id: p141
+tickets: [t990, t994, t995, t993, t996]
+after:
+  t993:
+    - t990
+  t996:
+    - t990
+pending_approval: true
+details:
+  t990:
+    scope: docs/how-it-works.md と .ja.md を足し、Overview の SVG 図 2 つ・Run の記録の Mermaid 図、README の How it works の節と Documentation の一覧、ADR-001 の書く範囲まで。次の一手の節は t996
+    approach: 合意した下書きのプレビューを元に書き、ADR・要件・development.md の細部は写さずにリンクで引く
+    tier: light
+  t994:
+    scope: dg guide import に差し込む補足を docs/guide-notes/ に足し、書く場所をファイルで確かめる案内と根拠（s36 の 10 件・t984）を書く
+    approach: 既存の guide-notes（plan.md など）の形と差し込みの仕組みに合わせて import の補足を新しく足す
+    tier: light
+  t995:
+    scope: docs/guide-notes/plan.md に、requirements.md の同じ項を変える見込みのチケットを after でつなぐ案内と根拠（11/27）を足す
+    approach: 既存の補足の書き方に合わせて段落を 1 つ足す
+    tier: light
+  t993:
+    scope: README.ja.md の冒頭を合意した文に、両 README の題名にアイコン、Tips・ヒントにカンバンの操作の箇条を足す。英語版の冒頭は変えない
+    approach: t990 がマージした後の README に、チケット本文の合意した文をそのまま入れ、アイコンは絶対 URL で指す
+    tier: light
+  t996:
+    scope: how-it-works の日英に「エージェントが次の一手を決める仕組み」の節と SVG 図 2 つを足し、必要なら ADR-001 の行を直す
+    approach: t990 の図の形に合わせて描き、手の一覧・品質ゲート・理由は dg guide work・dg next --help・usage.md・ADR-011・ADR-030 へのリンクで引く
+    tier: light
