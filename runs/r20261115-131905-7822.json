@@ -1,0 +1,37 @@
+{
+  "id": "r20261115-131905-7822",
+  "ticket": "t1000",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-15T13:19:05Z",
+  "finished_at": "2026-11-15T13:20:50Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "次の一手の図の代替テキストが、検査結果を事実に挙げている（英語版）",
+    "次の一手の図の代替テキストが、検査結果を事実に挙げている（日本語版）",
+    "Core モジュール箱の副テキストが狭い箱からはみ出すおそれがある（SVG）",
+    "Core モジュール箱の右端が、上の commands バーと説明文の右端に揃っていない（SVG）"
+  ],
+  "usage": {
+    "input": 22,
+    "output": 13416,
+    "cache_read": 482305,
+    "cache_write": 43705
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 4,
+    "bash": 9,
+    "other": 1,
+    "read_before_write": 6,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "b9a27ee7-5f63-4ae0-ae1d-d37bdb2b62f0",
+  "review": null,
+  "waited_seconds": 0
+}
