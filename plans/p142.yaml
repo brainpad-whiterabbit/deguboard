@@ -7,7 +7,7 @@ after:
     - t990
   t998:
     - t993
-pending_approval: true
+pending_approval: false
 details:
   t990:
     scope: docs/how-it-works.md と .ja.md を足し、Overview の SVG 図 2 つ・Run の記録の Mermaid 図、README の How it works の節と Documentation の一覧、ADR-001 の書く範囲まで。次の一手の節は t996
@@ -25,3 +25,5 @@ details:
     scope: "README.md に ## Requirements、README.ja.md に ## 動作環境 を Installation の前に置き、Installation の冒頭の前提の 1 文を消す。Tips の Other agents は残す"
     approach: t993 がマージした後の README に足し、版と必須ツールは requirements.md・packages/vscode/package.json の engines.vscode と照らして書く
     tier: light
+approved_by: maji/agent
+approved_at: 2026-11-15T12:16:37Z
