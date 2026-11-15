@@ -820,6 +820,14 @@ Modified
 [placeholder] e.g. docs/notes.md
 [title] Reset to default 
 Reset to Default
+[title] Document inserted into config
+Settings
+guide.notes.config
+[title] Default: 
+Modified
+[placeholder] e.g. docs/notes.md
+[title] Reset to default 
+Reset to Default
 [title] Document inserted into all
 All
 guide.notes.all

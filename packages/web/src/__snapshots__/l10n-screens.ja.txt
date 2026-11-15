@@ -822,6 +822,14 @@ guide.notes.retro
 [placeholder] 例 docs/notes.md
 [title] 既定の  に戻す
 既定に戻す
+[title] 差し込む文書（設定）
+設定
+guide.notes.config
+[title] 既定は 
+変更あり
+[placeholder] 例 docs/notes.md
+[title] 既定の  に戻す
+既定に戻す
 [title] 差し込む文書（一気通し）
 一気通し
 guide.notes.all

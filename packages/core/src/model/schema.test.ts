@@ -459,6 +459,7 @@ describe("スキーマ", () => {
       "guide.notes.status",
       "guide.notes.explain",
       "guide.notes.retro",
+      "guide.notes.config",
       "guide.notes.all",
       "priority.high",
       "priority.medium",

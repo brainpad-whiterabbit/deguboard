@@ -6,6 +6,7 @@
  * discuss は人と論点を決めてから、その結論の反映を import・change に任せる。status は進んでいる作業の様子を読むだけで、データを書き換えない。
  * explain も読むだけで、チケット・Epic・Iteration の中身を文字の図を入れて人に説明する。
  * retro も流れの外で、閉じた Iteration を数字とチケットから振り返り、承認を得た Try だけを起票する。
+ * config も流れの外で、deguboard の設定（config.yaml）の項目を人に説明し、頼まれた変更を前と後の差の承認を得てから書く。
  * frontmatter に description を持つトピックは dg<トピック> の Skill として配る（AG-2）。overview・run・parallel・review は Skill を持たず、ほかのトピックから読む
  */
 export const GUIDE_TOPICS = [
@@ -26,6 +27,7 @@ export const GUIDE_TOPICS = [
   "status",
   "explain",
   "retro",
+  "config",
   "all",
 ] as const;
 export type GuideTopic = (typeof GUIDE_TOPICS)[number];

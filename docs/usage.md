@@ -24,6 +24,7 @@ The Skills are for Claude Code. Say the request in plain words, or type the comm
 | `dgdiscuss` | Settles the open points of tickets, an Epic, or an Iteration with a human       | "Let's discuss t12"                         | `/dgdiscuss t12`        |
 | `dgstatus`  | Tells where the work on an in-progress ticket is, and why it stopped            | "How far has t12 got?"                      | `/dgstatus t12`         |
 | `dgexplain` | Explains what a ticket, Epic, or Iteration is about, with text diagrams         | "Explain t12"                               | `/dgexplain t12`        |
+| `dgconfig`  | Explains the settings, and changes them after you approve before → after        | "What is commit.mode?"                      | `/dgconfig commit.mode` |
 
 ## Hand off everything
 

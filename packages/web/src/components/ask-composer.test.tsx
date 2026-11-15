@@ -193,6 +193,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       "閉じる",
       "再開する",
       "やめる",
+      "設定を説明・変更する",
       "自由に",
     ]);
     // おすすめ（先頭）を選んだ状態で始まり、欄の頭に Skill の札を出す。対象の札はない
@@ -201,6 +202,23 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(within(composer()).queryByRole("button", { name: /を外す$/ })).toBeNull();
     expect(document.activeElement).toBe(within(composer()).getByRole("textbox", { name: "指示" }));
   });
+
+  it.each([
+    ["ja", "設定を説明・変更する", "全文"],
+    ["en", "Explain or change settings", "Full text"],
+  ] as const)(
+    "対象なしの入力欄の設定の候補は表示言語（%s）の名前で出て、選ぶと /dgconfig を呼ぶ依頼文になる",
+    async (language, label, fullText) => {
+      setLanguage(language);
+      const view = mountWebview(askClient());
+      await screen.findByText("見直す");
+      view.ask([]);
+      // 候補の名前は core が英語で返し、画面が表示言語に訳す（CORE_LABELS）
+      fireEvent.click(await screen.findByRole("button", { name: label }));
+      fireEvent.click(screen.getByRole("button", { name: fullText }));
+      await waitFor(() => expect(screen.getByLabelText(fullText).textContent).toBe("/dgconfig"));
+    },
+  );
 
   it("候補・札・指示・全文・形式の切り替え・コピーがあり、対象を × で外すと札と 1 行目から消える", async () => {
     const client = askClient();
