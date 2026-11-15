@@ -623,6 +623,30 @@ describe("dg guide", () => {
     ).toContain("current setting: `true`");
   });
 
+  it("import の優先度の判断基準は、既定のままなら英語の既定で、config.yaml に書いた値（日本語の古い既定の写しも）は書いたまま出す（t941）", async () => {
+    const importGuide = await readGuide("import");
+    const config = defaultConfig();
+    const criteria = (c: typeof config) =>
+      (["high", "medium", "low"] as const).map(
+        (level) =>
+          fillPlaceholders(importGuide, c)
+            .split("\n")
+            .find((line) => new RegExp(`^- ${level}( \\(default\\))?: `).test(line)) ?? "",
+      );
+    const shown = criteria(config);
+    expect(shown).toEqual([
+      `- high: ${config.priority.high}`,
+      `- medium (default): ${config.priority.medium}`,
+      `- low: ${config.priority.low}`,
+    ]);
+    for (const line of shown) expect(line).toMatch(/^[\x20-\x7e]+$/);
+    const written = {
+      ...config,
+      priority: { ...config.priority, high: "利用者に見える不具合・ほかのチケットを止めている" },
+    };
+    expect(criteria(written)[0]).toBe("- high: 利用者に見える不具合・ほかのチケットを止めている");
+  });
+
   it("plan・work・done は Plan を作り、人の承認で approve し、順と範囲を読んで進め、終わったら閉じると案内する", async () => {
     const plan = await readGuide("plan");
     const work = await readGuide("work");

@@ -208,9 +208,9 @@ Start one subagent for each viewpoint, and run them side by side. This session o
 
 | Severity | Applies to          | priority |
 | -------- | ------------------- | -------- |
-| High     | 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている   | high     |
-| Medium   | 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存 | medium   |
-| Low      | 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討    | low      |
+| High     | User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets   | high     |
+| Medium   | New features and improvements, missing or unstable tests, inconsistencies in internal docs, convention violations that do no harm yet, and dependencies that are far out of date | medium   |
+| Low      | Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent    | low      |
 
 The place suggested for a finding is the target (fixed before release). Only findings that need a design decision, wait for something outside, cannot be fixed in one PR, or fit another theme are suggested to be left out of the target (unassigned), with the reason given.
 
@@ -623,9 +623,9 @@ Turns the requirements, research results, and review findings settled in the con
 
 Choose \`priority\` by these criteria (they can be changed in \`priority\` of \`config.yaml\`).
 
-- high: 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
-- medium (default): 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
-- low: 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
+- high: User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets
+- medium (default): New features and improvements, missing or unstable tests, inconsistencies in internal docs, convention violations that do no harm yet, and dependencies that are far out of date
+- low: Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent
 
 ## How to write a good ticket
 

@@ -266,6 +266,13 @@ describe("スキーマ", () => {
     expect(defaultConfig().retro.perspectives["outcome"]?.name).toBe("Outcome");
   });
 
+  it("優先度の判断基準の既定は 3 つとも空でない英語の文で持つ（画面が既定のままの値を表示言語に訳す。t941）", () => {
+    const { priority } = defaultConfig();
+    for (const level of ["high", "medium", "low"] as const) {
+      expect(priority[level], level).toMatch(/^[\x20-\x7e]+$/);
+    }
+  });
+
   it("推薦の指標は既定の観点ごとの 11 指標で、承認した定義と同じ形（数え方・出どころ・測れないもの）を英語で持ち、既定の観点の定義には入れない（t939）", () => {
     expect(
       Object.entries(RECOMMENDED_RETRO_METRICS).map(([id, metrics]) => [id, Object.keys(metrics)]),

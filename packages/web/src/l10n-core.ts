@@ -491,26 +491,26 @@ export const CORE_MESSAGES: CoreTextTable = {
  * dg の既定の値の訳（shownDefault・storedDefault。UI-11）。鍵は core が持つ既定の文そのもので、値は表示言語ごとの訳。
  * 画面は値が既定と同じときだけここを引くので、書き換えた値は鍵と同じ文でない限り訳さず、訳のない言語では既定の文のまま出す。
  * 既定の値を訳して出す項目は、ここに鍵を足すだけでよい（判定と引き方は l10n.ts の 1 か所）。
- * 優先度の判断基準（config の priority.*）は core が日本語で持つので英語の訳を置く（意味は dg guide import の「Priority criteria」と揃える）。
- * 振り返りの既定の観点（retro.perspectives）の名前と問いは core が英語で持つので日本語の訳を置く
+ * 優先度の判断基準（config の priority.*）と振り返りの既定の観点（retro.perspectives）の名前と問いは core が英語で持つので、日本語の訳を置く
  * （名前と問いの両方が既定のままの観点だけを訳す。判定は設定画面の shownRetroPerspectives）。
  * 鍵が core の既定の文にあることは l10n.test.ts が確かめる
  */
 export const DEFAULT_VALUES: CoreTextTable = {
   // priority.high
-  "利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている":
+  "User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets":
     {
-      en: "User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets",
+      ja: "利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている",
     },
   // priority.medium
-  "機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存":
+  "New features and improvements, missing or unstable tests, inconsistencies in internal docs, convention violations that do no harm yet, and dependencies that are far out of date":
     {
-      en: "New features and improvements, missing or unstable tests, inconsistencies in internal docs, convention violations that do no harm yet, and dependencies that are far out of date",
+      ja: "機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存",
     },
   // priority.low
-  "使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討": {
-    en: "Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent",
-  },
+  "Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent":
+    {
+      ja: "使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討",
+    },
   // retro.perspectives.outcome（名前・問い）
   Outcome: { ja: "成果" },
   "Was the goal met? What was finished, dropped, and carried over?": {
