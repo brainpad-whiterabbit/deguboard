@@ -1,0 +1,34 @@
+{
+  "id": "r20261115-073406-bfb6",
+  "ticket": "t966",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-15T07:34:06Z",
+  "finished_at": "2026-11-15T07:45:17Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "もう一度の claim が渡された短い値を組み立てずに記録済みのブランチ名と比べるので、案内どおりの値が拒まれる"
+  ],
+  "usage": {
+    "input": 36,
+    "output": 7073,
+    "cache_read": 775581,
+    "cache_write": 45705
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 4,
+    "bash": 12,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "8e03b902-5f8a-4ae2-a49e-44ad5632c5c9",
+  "review": null,
+  "waited_seconds": 0
+}
