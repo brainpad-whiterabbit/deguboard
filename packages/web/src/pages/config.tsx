@@ -3,8 +3,9 @@
 // 振り返りの観点（retro.perspectives）は観点ごとの入れ子で 1 つの欄に収まらず fields に入らないので、チームのタブの「振り返り」の節に
 // view.team から読むだけで出す（入力欄は置かない。書くのは振り返りの dg retro。観点はチームだけが持つので自分のタブには出さない）。
 // 名前と問いが既定（view.defaults）のままの観点は表示言語の訳で出し、書き換えた観点は書いたまま出す（shownRetroPerspectives）。
-// 最初は観点の行（名前・問い・指標の数）だけを出し、観点を開くと指標の ID と要約（数え方の最初の文）、指標を開くと全文・出どころ・測れないものを出す。
-// 検索は観点の名前・問いと、指標の ID・数え方・出どころ・測れないものに当て、当たった観点と指標を開いて出す。
+// 観点はほかの項目と同じ行（名前・ID・指標の数、下に問い）、指標はその子の行（ID と数え方の最初の文）で出し、指標の全文・出どころ・
+// 測れないものは「詳しく」に畳む。既定と違う観点（名前・問いを変えた、足した）にはほかの項目と同じ左の線と「変更あり」を付ける（retroChanges）。
+// 検索は観点の名前・問いと、指標の ID・数え方・出どころ・測れないものに当て、当たった指標の「詳しく」を開いて出す。
 // 項目の文は短く出す：要約（summary）1 行をいつも出し、詳しい説明（description）の全文は「詳しく」に畳む。例（example）は入力欄のプレースホルダに、
 // 空のときの動き（empty）は欄の下の 1 行に、選択肢のある項目は選んでいる値の説明（option_descriptions）だけを出す。
 // guide.notes.* は同じ説明の項目なので、説明を 1 つだけ出し、差し込む先ごとの行の表にする。
@@ -551,6 +552,12 @@ export function ConfigPage() {
         : [],
     [view, tab, query],
   );
+  /** 既定と違う観点。訳す前の書いたままの観点を既定と比べる */
+  const retroChanged = useMemo(
+    () =>
+      retroChanges(view?.team.retro?.perspectives ?? {}, view?.defaults?.retro?.perspectives ?? {}),
+    [view],
+  );
   const hasRetro = tab === "team" && view?.team.retro?.perspectives !== undefined;
 
   const overrides = view ? Object.keys(view.local).length : 0;
@@ -641,7 +648,7 @@ export function ConfigPage() {
           );
         })}
         {hasRetro && (retro.length > 0 || !query.trim()) ? (
-          <RetroSection perspectives={retro} />
+          <RetroSection perspectives={retro} changes={retroChanged} />
         ) : null}
       </div>
     </div>
@@ -883,12 +890,23 @@ function FieldHints({ field, current }: { field: ConfigField; current: unknown }
   );
 }
 
-/** 詳しい説明の全文。畳んで出し、検索が詳しい説明にだけ当たったときは開いて出す（開いた後は利用者が開け閉めできる） */
-function FieldDetail({ text, open }: { text: string; open: boolean }) {
+/**
+ * 詳しい説明の全文。畳んで出し、検索が詳しい説明にだけ当たったときは開いて出す（開いた後は利用者が開け閉めできる）。
+ * children を渡すと、文の代わりにそれを畳む（振り返りの指標の全文・出どころ・測れないもの）
+ */
+function FieldDetail({
+  text,
+  open,
+  children,
+}: {
+  text?: string;
+  open: boolean;
+  children?: ReactNode;
+}) {
   return (
     <details className="config-more" open={open}>
       <summary>{tr("詳しく")}</summary>
-      <p className="config-detail muted">{text}</p>
+      {children ?? <p className="config-detail muted">{text}</p>}
     </details>
   );
 }
@@ -919,10 +937,13 @@ function NotesTable({
   );
 }
 
-/** 指標の 1 行の要約：数え方の最初の文（最初の「。」まで）。「。」がなければ全文 */
+/**
+ * 指標の 1 行の要約：数え方の最初の文。日本語の「。」と英語の文の終わり（「. 」）のうち先に来るところまでで切り、
+ * どちらもなければ全文（推薦の指標と新しいリポジトリの既定は英語で書くので、英語の文も切る）
+ */
 export function metricSummary(definition: string): string {
-  const end = definition.indexOf("。");
-  return end < 0 ? definition : definition.slice(0, end + 1);
+  const ends = [definition.indexOf("。"), definition.indexOf(". ")].filter((i) => i >= 0);
+  return ends.length === 0 ? definition : definition.slice(0, Math.min(...ends) + 1);
 }
 
 /**
@@ -936,7 +957,7 @@ export function shownRetroPerspectives(
 ): Record<string, RetroPerspective> {
   return Object.fromEntries(
     Object.entries(perspectives).map(([id, p]) => {
-      const d = Object.hasOwn(defaults, id) ? defaults[id] : undefined;
+      const d = defaultPerspectiveOf(id, defaults);
       if (d === undefined || p.name !== d.name || p.question !== d.question) return [id, p];
       return [
         id,
@@ -950,17 +971,42 @@ export function shownRetroPerspectives(
   );
 }
 
-/** 振り返りの節に出す観点 1 つ。open は検索に当たったので開いて出す */
+function defaultPerspectiveOf(
+  id: string,
+  defaults: Record<string, RetroPerspective>,
+): RetroPerspective | undefined {
+  return Object.hasOwn(defaults, id) ? defaults[id] : undefined;
+}
+
+/**
+ * 既定と違う観点（ほかの項目の「変更あり」と同じ印を付ける）。値は名前か問いを書き換えた観点の既定の観点で、既定にない ID の観点は "added"。
+ * 既定と同じかは shownRetroPerspectives と同じく名前と問いで決める（指標は既定が空なので比べない）。
+ * 既定を渡さない古い応答では比べられないので、どの観点にも印を付けない
+ */
+export function retroChanges(
+  perspectives: Record<string, RetroPerspective>,
+  defaults: Record<string, RetroPerspective>,
+): Record<string, RetroPerspective | "added"> {
+  if (Object.keys(defaults).length === 0) return {};
+  const out: Record<string, RetroPerspective | "added"> = {};
+  for (const [id, p] of Object.entries(perspectives)) {
+    const d = defaultPerspectiveOf(id, defaults);
+    if (d === undefined) out[id] = "added";
+    else if (p.name !== d.name || p.question !== d.question) out[id] = d;
+  }
+  return out;
+}
+
+/** 振り返りの節に出す観点 1 つ。指標の open は検索に当たったので「詳しく」を開いて出す */
 export interface RetroMatch {
   id: string;
   perspective: RetroPerspective;
-  open: boolean;
   metrics: { id: string; metric: RetroMetric; open: boolean }[];
 }
 
 /**
- * 振り返りの節に出す観点と指標。検索語が空ならすべてを閉じて出す。検索語があれば、名前・問いに当たった観点は指標をすべて、
- * 指標の ID・数え方・出どころ・測れないものに当たった観点はその指標だけを出し、出す観点と当たった指標を開く（大文字小文字は区別しない）
+ * 振り返りの節に出す観点と指標。検索語が空ならすべてを、「詳しく」を閉じて出す。検索語があれば、名前・問いに当たった観点は指標をすべて、
+ * 指標の ID・数え方・出どころ・測れないものに当たった観点はその指標だけを出し、当たった指標の「詳しく」を開く（大文字小文字は区別しない）
  */
 export function retroMatches(
   perspectives: Record<string, RetroPerspective>,
@@ -978,21 +1024,29 @@ export function retroMatches(
         [mid, metric.definition, metric.unmeasured, ...metric.sources].some((s) => hit(s)),
     }));
     if (!q) {
-      out.push({ id, perspective, open: false, metrics });
+      out.push({ id, perspective, metrics });
       continue;
     }
     const own = hit(perspective.name) || hit(perspective.question);
     const shown = own ? metrics : metrics.filter((m) => m.open);
-    if (own || shown.length > 0) out.push({ id, perspective, open: true, metrics: shown });
+    if (own || shown.length > 0) out.push({ id, perspective, metrics: shown });
   }
   return out;
 }
 
 /**
  * チームのタブの「振り返り」の節。読むだけで入力欄は置かない（観点と定義は振り返りの dg retro が検査して書く）。
- * 観点 → 指標の 2 段で畳み、検索で当たったものは開いて出す（開いた後は利用者が開け閉めできる。FieldDetail と同じ）
+ * 観点はほかの項目と同じ行（名前・ID・札、その下に問いを 1 行の説明として折り返して出す）、指標はその子の行（ID と数え方の最初の文）にし、
+ * 指標の全文・出どころ・測れないものは「詳しく」（FieldDetail）に畳む。検索で当たった指標は「詳しく」を開いて出す。
+ * changes は既定と違う観点（retroChanges）で、ほかの項目と同じ左の線と「変更あり」の札を付ける
  */
-function RetroSection({ perspectives }: { perspectives: RetroMatch[] }) {
+function RetroSection({
+  perspectives,
+  changes,
+}: {
+  perspectives: RetroMatch[];
+  changes: Record<string, RetroPerspective | "added">;
+}) {
   return (
     <section className="config-group config-retro" aria-labelledby="config-group-retro">
       <h3 id="config-group-retro">{tr("振り返り")}</h3>
@@ -1003,38 +1057,52 @@ function RetroSection({ perspectives }: { perspectives: RetroMatch[] }) {
         )}
       </p>
       {perspectives.length === 0 ? <p className="empty">{tr("観点がない")}</p> : null}
-      {perspectives.map(({ id, perspective, open, metrics }) => {
+      {perspectives.map(({ id, perspective, metrics }) => {
         const count = Object.keys(perspective.metrics).length;
+        const change = Object.hasOwn(changes, id) ? changes[id] : undefined;
         return (
-          <details key={id} className="config-retro-perspective" data-perspective={id} open={open}>
-            <summary>
+          <div
+            key={id}
+            className={`config-field config-retro-perspective${change !== undefined ? " modified" : ""}`}
+            data-perspective={id}
+          >
+            <div className="config-field-head">
               <strong className="config-name">{perspective.name}</strong>
-              <span className="config-retro-question muted">{perspective.question}</span>
-              {count > 0 ? (
-                <span className="badge">{tr("指標 {0}", count)}</span>
-              ) : (
-                <span className="badge config-retro-none">{tr("定義なし")}</span>
-              )}
-            </summary>
-            <div className="config-retro-metrics">
-              {count === 0 ? (
-                <p className="muted">
-                  {tr("指標の定義はまだない。振り返りで提案し、人が承認するとここに出る")}
-                </p>
-              ) : null}
-              {metrics.map((m) => (
-                <details
-                  key={m.id}
-                  className="config-retro-metric"
-                  data-metric={`${id}.${m.id}`}
-                  open={m.open}
+              <code className="config-key">{id}</code>
+              {change !== undefined ? (
+                <span
+                  className="badge config-modified"
+                  title={
+                    change === "added"
+                      ? tr("既定にない観点")
+                      : tr(
+                          "既定は {0}",
+                          `${String(shownDefault(change.name, change.name))}: ${String(shownDefault(change.question, change.question))}`,
+                        )
+                  }
                 >
-                  <summary>
-                    <code>{m.id}</code>
-                    <span className="config-retro-summary">
-                      {metricSummary(m.metric.definition)}
-                    </span>
-                  </summary>
+                  {tr("変更あり")}
+                </span>
+              ) : null}
+              {count > 0 ? (
+                <span className="badge config-retro-count">{tr("指標 {0}", count)}</span>
+              ) : (
+                <span className="badge config-retro-none">{tr("指標なし")}</span>
+              )}
+            </div>
+            <p className="config-summary muted config-retro-question">{perspective.question}</p>
+            {count === 0 ? (
+              <p className="config-hint muted">
+                {tr("指標は振り返りで提案し、人が承認するとここに出る")}
+              </p>
+            ) : null}
+            {metrics.map((m) => (
+              <div key={m.id} className="config-retro-metric" data-metric={`${id}.${m.id}`}>
+                <div className="config-field-head">
+                  <code className="config-key">{m.id}</code>
+                  <span className="config-retro-summary">{metricSummary(m.metric.definition)}</span>
+                </div>
+                <FieldDetail open={m.open}>
                   <dl className="config-detail">
                     <dt>{tr("数え方")}</dt>
                     <dd>{m.metric.definition}</dd>
@@ -1055,10 +1123,10 @@ function RetroSection({ perspectives }: { perspectives: RetroMatch[] }) {
                       </>
                     ) : null}
                   </dl>
-                </details>
-              ))}
-            </div>
-          </details>
+                </FieldDetail>
+              </div>
+            ))}
+          </div>
         );
       })}
     </section>

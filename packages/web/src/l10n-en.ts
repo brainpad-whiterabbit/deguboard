@@ -464,9 +464,10 @@ export const EN: Readonly<Record<string, string>> = {
     "Perspectives of the retrospective and the metric definitions a person approved. Read-only here: {0} writes the definitions approved in a retrospective",
   観点がない: "No perspectives",
   "指標 {0}": "Metrics: {0}",
-  定義なし: "No definitions",
-  "指標の定義はまだない。振り返りで提案し、人が承認するとここに出る":
-    "No metric definitions yet. They are proposed in a retrospective and appear here once a person approves them",
+  指標なし: "No metrics",
+  "指標は振り返りで提案し、人が承認するとここに出る":
+    "Metrics are proposed in a retrospective and appear here once a person approves them",
+  既定にない観点: "Not one of the default perspectives",
   数え方: "How to count",
   数字の出どころ: "Where the numbers come from",
   この指標で測れないもの: "What this metric cannot measure",

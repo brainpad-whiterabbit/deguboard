@@ -3,7 +3,7 @@
 // - カンバンにチケットの行が出て、タブ（バックログ）に切り替えても戻しても行が出ること
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
-// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面と振り返りの節・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
 import { access } from "node:fs/promises";
@@ -18,6 +18,9 @@ import {
   openContext,
   planApprove,
   planCreate,
+  RECOMMENDED_RETRO_METRICS,
+  retroMetric,
+  retroPerspective,
   runCommand,
   ticketClaim,
   ticketCreate,
@@ -74,6 +77,20 @@ beforeAll(async () => {
     iteration: "s1",
   });
   await runCommand(ticketClaim, ctx, { ticket: "t3", without_branch: true });
+  // 設定画面の振り返りの節を撮るため、review に推薦の指標を 2 つ記録し、cost の問いを書き換え（変更あり）、既定にない観点 flow を足す（変更あり・指標なし）
+  for (const id of ["first-pass-rate", "rounds-per-reviewed"] as const) {
+    const metric = RECOMMENDED_RETRO_METRICS["review"]![id]!;
+    await runCommand(retroMetric, ctx, { perspective: "review", id, ...metric });
+  }
+  await runCommand(retroPerspective, ctx, {
+    id: "cost",
+    question: "Where did the time and the tokens go, by ticket and by step?",
+  });
+  await runCommand(retroPerspective, ctx, {
+    id: "flow",
+    name: "Flow",
+    question: "Did the work move from claim to merge without waiting for people?",
+  });
   display = await ensureDisplay();
   host = await launchHost(fixture.cloneA, display);
   sidebar = await host.openSidebar();
@@ -182,6 +199,38 @@ describe("VS Code の実機の左パネル", () => {
       await host.setTheme(theme);
       const shot = await host.screenshot("config", theme);
       await access(shot.sidebar);
+    }
+    // 振り返りの節：観点の行と指標の子の行（1 つ目の指標の「詳しく」を開く）、下の方の変更ありの観点（問いを書き換えた cost・足した flow）を撮る。
+    // 上に貼り付くタブの説明に観点の行の頭が隠れないよう、行の頭を説明の下に出す
+    const review = sidebar.locator('[data-perspective="review"]');
+    await review.locator('[data-metric="review.first-pass-rate"] .config-more > summary').click();
+    await sidebar.locator('[data-perspective="flow"].modified').waitFor();
+    for (const [name, id] of [
+      ["config-retro", "review"],
+      ["config-retro-modified", "cost"],
+    ] as const) {
+      await sidebar.locator(`[data-perspective="${id}"]`).evaluate((el) => {
+        el.scrollIntoView({ block: "start" });
+        const note = document.querySelector(".config-scope");
+        const covered = note
+          ? note.getBoundingClientRect().bottom - el.getBoundingClientRect().top + 8
+          : 0;
+        let box = el.parentElement;
+        while (
+          box &&
+          !(
+            box.scrollHeight > box.clientHeight &&
+            /auto|scroll/.test(getComputedStyle(box).overflowY)
+          )
+        )
+          box = box.parentElement;
+        if (covered > 0) (box ?? document.scrollingElement)?.scrollBy(0, -covered);
+      });
+      for (const theme of ["dark", "light"] as const) {
+        await host.setTheme(theme);
+        const shot = await host.screenshot(name, theme);
+        await access(shot.sidebar);
+      }
     }
     await sidebar.locator("body").evaluate(() => {
       location.hash = "#/board";
