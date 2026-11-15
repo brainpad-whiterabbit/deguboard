@@ -290,6 +290,12 @@ export const OPEN_AT_SESSION_END_ERROR = "Still open when the session ended";
 /** ticket unclaim が開いたままの実装・手直しの Run を閉じるときのエラー（RN-6） */
 export const UNCLAIMED_ERROR = "Returned to todo by ticket unclaim";
 
+/** 照合が、todo に戻ったチケットの実装の Run を閉じるときのエラー（RN-6） */
+export const RECONCILE_TODO_ERROR = "Went back to todo during reconcile";
+
+/** 照合が、ほかの主体の claim になったチケットの実装の Run を閉じるときのエラー（RN-6） */
+export const RECONCILE_TAKEN_ERROR = "Became claimed by another actor during reconcile";
+
 /** 記録のパスがサブエージェントの記録（<session>/subagents/ の下）か。印で頼んだサブエージェントの Run の見分けに使う */
 export const isSubagentTranscript = (p: string | undefined): p is string =>
   p !== undefined && path.basename(path.dirname(p)) === "subagents";
