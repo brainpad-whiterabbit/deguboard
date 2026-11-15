@@ -2,12 +2,13 @@
 // 1 行に step・結果の丸印・model と再試行・開始と作業時間を出し、開くと残りを出す。見出しには件数・結果の内訳・トークンの合計を出す。
 // 時間は待ちを除いた作業時間（active_seconds）を主に出し、待ちを数えられない Run は経過時間に待ちが不明なことを添える（ADR-029）。
 // 取れなかったトークン数（null）は 0 と見せず「—」で出し、合計でも取れなかった Run があれば「+ —」を付ける（RN-2）。
-// 結果と数の書き方は run-parts.tsx
+// 結果と数と時間の書き方は run-parts.tsx
 
 import { useCommandData } from "../command-data.js";
 import type { RunView } from "../types.js";
 import {
   formatDuration,
+  formatRunTime,
   formatTokens,
   NO_VALUE,
   RESULT_KEYS,
@@ -122,23 +123,6 @@ function RunsSummary({ runs }: { runs: RunView[] }) {
       </span>
     </small>
   );
-}
-
-/**
- * 1 行の時間。待ちを除いた作業時間を主に出し、待ちがあれば添える。待ちを数えられない Run（waited_seconds が null）は
- * 経過時間に待ちが不明なことを添える（経過時間を作業時間と見せない）。終わっていない Run は「—」。
- * カンバンの行の Run の丸（row-end.tsx の runPipDetails）も、閉じた Run にはこの書き方を使う
- */
-export function formatRunTime(
-  r: Pick<RunView, "active_seconds" | "waited_seconds" | "duration_seconds">,
-): string {
-  if (typeof r.active_seconds === "number") {
-    return r.waited_seconds
-      ? tr("{0}（待ち {1}）", formatDuration(r.active_seconds), formatDuration(r.waited_seconds))
-      : formatDuration(r.active_seconds);
-  }
-  if (r.duration_seconds === null) return NO_VALUE;
-  return tr("{0}（待ちは不明）", formatDuration(r.duration_seconds));
 }
 
 /** 1 行の時間の説明（title）。作業時間なら経過時間も示す */

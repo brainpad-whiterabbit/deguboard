@@ -9,12 +9,12 @@ import { RowPriority } from "./parts.js";
 import { openPlanByTicket, planColor, waitsOf } from "./plan-graph.js";
 import {
   formatDuration,
+  formatRunTime,
   RESULT_LABELS,
   runErrorText,
   runResultKey,
   type RunResultKey,
 } from "./run-parts.js";
-import { formatRunTime } from "./ticket-runs.js";
 import { formatTime } from "./timeline.js";
 import {
   isOwnAssignee,

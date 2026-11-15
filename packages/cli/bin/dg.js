@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 // ビルド済みの dist（fast-hook と main）を呼ぶだけ。mise run build で dist を作る
 // コンパイルキャッシュを有効にしてから速い経路を試し、受け持たない入力を main に回す流れは、同梱の dg.mjs の入口（src/bundle.ts）と
-// 共通の run-entry.mjs に置く。ここに置くのは、この入口だけが持つ次の 2 つ。
-// 速い経路のファイルが読めないときは、速さを諦めて main に回す（t777）。
-// main も読めないときは dist が無いか古いので、直し方を英語で出して終える。ほかの読み込みの失敗は握りつぶさない
-// Node が 24 より古いときは、dist を読む前に直し方を英語で出して終える（t782）。dist と依存は Node 24 以上向け（engines）なので、
-// 古い node では読み込みや実行がどこで壊れるか分からない。拡張の起動ファイルは current の node を検査せずに使うが、
-// それは拡張ホストの node で、engines により 24 以上に決まる。ここはどの node で呼ばれても見る。
-// 終了コードは PreToolUse のフック（hook PreToolUse）だけ 2 にする。Claude Code は PreToolUse の終了コード 1 を
-// ツールを止めない誤りとして扱うので、1 だとフックの守りが黙って外れる。2 はツールの呼び出しを拒む。ほかのコマンドは 1
-// dist をビルドしたコミットがこの worktree の今の HEAD と違えば、mise run build を案内する警告を stderr に出してから動く（t973。
-// 判定は build-info.mjs）。束ねた dg.mjs は VSIX の中にあり git の checkout から動かないので、この入口だけが持つ
+// 共通の run-entry.mjs に置く。ここに置くのは、この入口だけが持つ次の 3 つ（動く順）。
+// 1. Node が 24 より古いときは、dist を読む前に直し方を英語で出して終える（t782。判定は node-version.mjs）。dist と依存は
+//    Node 24 以上向け（engines）なので、古い node では読み込みや実行がどこで壊れるか分からない。拡張の起動ファイルは
+//    current の node を検査せずに使うが、それは拡張ホストの node で、engines により 24 以上に決まる。ここはどの node で呼ばれても見る。
+//    終了コードは PreToolUse のフック（hook PreToolUse）だけ 2 にする。Claude Code は PreToolUse の終了コード 1 を
+//    ツールを止めない誤りとして扱うので、1 だとフックの守りが黙って外れる。2 はツールの呼び出しを拒む。ほかのコマンドは 1
+// 2. dist をビルドしたコミットがこの worktree の今の HEAD と違えば、mise run build を案内する警告を stderr に出してから動く（t973。
+//    判定は build-info.mjs）。束ねた dg.mjs は VSIX の中にあり git の checkout から動かないので、この入口だけが持つ
+// 3. dist の読み込みの失敗の扱い。速い経路のファイルが読めないときは、速さを諦めて main に回す（t777）。
+//    main も読めないときは dist が無いか古いので、直し方を英語で出して終える。ほかの読み込みの失敗は握りつぶさない
 import { fileURLToPath } from "node:url";
 import { staleDistWarningOf } from "./build-info.mjs";
 import { nodeVersionExitCodeOf, nodeVersionProblemOf } from "./node-version.mjs";
