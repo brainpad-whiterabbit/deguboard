@@ -2102,6 +2102,12 @@ textarea.body {
 .sticky-band-stack * {
   scroll-margin-top: calc(-1 * var(--dg-sticky-scroll-pad, 0px));
 }
+/* 左パネルのバックログと履歴の貼り付いた検索欄（文字を打つ欄）は、Chromium がフォーカスで寄せるときに scroll-margin を見ず寄せ先（scroll-padding）だけを見るので、
+   検索欄にフォーカスがある間は寄せ先を外す（外さないと、キーで検索欄へ戻ったときに一覧が上へ動く） */
+[data-surface="sidebar"] .page:has(> section > .backlog-search input:focus),
+[data-surface="sidebar"] .page:has(> section > .history-search input:focus) {
+  scroll-padding-top: 0;
+}
 /* 帯と、その下に積む行（絞り込みの札・開いた欄）をまとめて一覧の上に重ねる */
 .sticky-band > .sticky-band-stack {
   position: absolute;
@@ -2851,11 +2857,7 @@ textarea.body {
 }
 /* 貼り付いた段と見出しは上の端に見えているので、フォーカスや押したときに寄せ先の分だけ一覧を戻さない（戻すと読んでいた所から動く）。
    寄せ先を貼り付く位置までにするので、貼り付いていない見出しへ移ったときは、上の段に隠れない所までだけ戻す。
-   検索欄（文字を打つ欄）は、Chromium がフォーカスで寄せるときに scroll-margin を見ず寄せ先（scroll-padding）だけを見るので、
-   検索欄にフォーカスがある間は寄せ先を外す（外さないと、キーで検索欄へ戻ったときに一覧が上へ動く） */
-[data-surface="sidebar"] .page:has(> section > .history-search input:focus) {
-  scroll-padding-top: 0;
-}
+   検索欄にフォーカスがある間は、バックログと同じに寄せ先を外す（.sticky-band-stack の規則の下） */
 [data-surface="sidebar"] .result-switch *,
 [data-surface="sidebar"] .history-item > summary.history-row,
 [data-surface="sidebar"] .history-item > summary.history-row * {
