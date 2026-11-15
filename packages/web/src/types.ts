@@ -176,6 +176,11 @@ export interface WorkflowView {
   transitions: readonly TransitionConstraint[];
   /** 同じ id の同梱の雛形（core の文のまま）。雛形のない Workflow は null。名前とラベルが既定のままかを比べる（shownWorkflow） */
   template: Pick<WorkflowDefinitionInput, "name" | "fields" | "steps"> | null;
+  /**
+   * labels を書き換えていなければ出る Status の表示名（雛形の labels と core の既定。core の文のまま）。labels と同じ文なら訳す（shownWorkflow）。
+   * 前の版の画面が残した cache の Workflow にはないので省けるようにし、ないときは訳さない
+   */
+  default_labels?: Record<Status, string>;
 }
 
 /**
