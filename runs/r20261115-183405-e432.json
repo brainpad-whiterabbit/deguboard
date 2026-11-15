@@ -1,0 +1,35 @@
+{
+  "id": "r20261115-183405-e432",
+  "ticket": "t1007",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-15T18:34:05Z",
+  "finished_at": "2026-11-15T18:46:41Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "Automatic rechecks keep running on every terminal command end and window focus after the recommended band is dismissed",
+    "The first successful load reads the setup on a host that never shows the recommended band"
+  ],
+  "usage": {
+    "input": 50,
+    "output": 41991,
+    "cache_read": 2401477,
+    "cache_write": 130123
+  },
+  "tools": {
+    "read": 26,
+    "search": 0,
+    "write": 65,
+    "bash": 17,
+    "other": 1,
+    "read_before_write": 12,
+    "search_before_write": 0,
+    "errors": 2
+  },
+  "session": "6296b215-326e-44d8-985a-825ffa47ebfb",
+  "review": null,
+  "waited_seconds": 0
+}
