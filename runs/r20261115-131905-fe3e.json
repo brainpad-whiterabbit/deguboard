@@ -1,0 +1,38 @@
+{
+  "id": "r20261115-131905-fe3e",
+  "ticket": "t1001",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-15T13:19:05Z",
+  "finished_at": "2026-11-15T13:29:06Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "規約の本文 CLAUDE の一文を main の文に戻し、ADR 側は判断と参照だけにする（重い）",
+    "受け入れ条件 1 のため、ADR-001 から規約の文と重複する記述を外す（重い）",
+    "言語の節を縮めて消えた、日英の相互リンクと例外の案内を規約の文に戻す（軽い）",
+    "ADR の書き方の例外（残すのは約束や理由が消えるもの）を規約の文に戻す（軽い）",
+    "l10n-core のコメントの引用を ADR-001 の今の文に合わせる（軽い）"
+  ],
+  "usage": {
+    "input": 124,
+    "output": 57862,
+    "cache_read": 6937237,
+    "cache_write": 125837
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 13,
+    "bash": 23,
+    "other": 26,
+    "read_before_write": 2,
+    "search_before_write": 0,
+    "errors": 2
+  },
+  "session": "b9a27ee7-5f63-4ae0-ae1d-d37bdb2b62f0",
+  "review": null,
+  "waited_seconds": 0
+}
