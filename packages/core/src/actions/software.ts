@@ -19,8 +19,12 @@ const refName = z
     isSafeBranchName,
     "Cannot be used as a branch name (it starts with - or contains characters git does not allow)",
   );
-const branchName = refName.describe("ブランチ名（feat/xxx など）");
-const baseName = refName.optional().describe("元にするブランチ。省略時は git.base_branch");
+const branchName = refName.describe(
+  "Work branch name, given in full. For ticket work dg names it `<id>-<English words>` (for example `t12-fix-login`)",
+);
+const baseName = refName
+  .optional()
+  .describe("Branch to start from. Defaults to git.base_branch when omitted");
 // Action はチケットを知らないので、claim --no-worktree の後に切るときは呼び手がチケットの branch_base を渡す。
 // 取り込み直した base から切ると、main が進んでいれば起点が記録とずれ、コミットのないブランチがマージ済みに見える（ST-4）
 const startCommit = z
@@ -28,7 +32,7 @@ const startCommit = z
   .regex(/^[0-9a-f]{40}([0-9a-f]{24})?$/, "start is a commit SHA")
   .optional()
   .describe(
-    "切る起点のコミットの SHA。チケットの branch_base を渡すと claim の記録と同じ起点から切る。省略時は取り込んだ base の先端",
+    "SHA of the commit to start from. Pass the ticket's branch_base to start from the same commit that claim recorded. Defaults to the tip of the fetched base when omitted",
   );
 
 export const createWorktreeAction = defineAction({
@@ -42,7 +46,7 @@ export const createWorktreeAction = defineAction({
       .string()
       .min(1)
       .optional()
-      .describe("worktree の場所。省略時は worktree.root/<ブランチ名>"),
+      .describe("Worktree location. Defaults to worktree.root/<branch name> when omitted"),
   }),
   confirm: false,
   async run(ctx, input) {
@@ -108,7 +112,11 @@ export const createPrAction = defineAction({
   input: z.object({
     title: z.string().min(1),
     body: z.string().default(""),
-    branch: branchName.optional().describe("PR にするブランチ。省略時は作業ディレクトリのブランチ"),
+    branch: branchName
+      .optional()
+      .describe(
+        "Branch to open the PR from. Defaults to the branch checked out in the working directory",
+      ),
     base: baseName,
     draft: z.boolean().default(false),
   }),
