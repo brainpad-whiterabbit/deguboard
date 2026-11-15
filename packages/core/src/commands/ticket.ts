@@ -10,6 +10,7 @@ import { STATUSES, isTerminal, slugSchema, statusSchema, type Status } from "../
 import { parseId, type TicketId } from "../model/id.js";
 import { FINDING_CAUSES, type RunId } from "../model/run.js";
 import {
+  BRANCH_VALUE_MAX,
   GATE_LEVELS,
   PRIORITIES,
   parseAcceptance,
@@ -553,11 +554,8 @@ export const ticketShow = defineCommand({
   },
 });
 
-/** `--branch` に渡せる値の長さの上限（`<id>-` を付ける前の値） */
-const BRANCH_VALUE_MAX = 50;
-
 /** `--branch` の説明に足す、名前の形と値に使える文字の案内（claim と update で同じ文） */
-const BRANCH_NAME_HELP = `The name is recorded as <id>-<value> (t12-fix-login): give short English words as the value, in lowercase letters, digits, and hyphens, up to ${BRANCH_VALUE_MAX} characters. A value that already starts with this ticket's ID and a hyphen is used as is. A value that starts with another ticket's ID is rejected`;
+const BRANCH_NAME_HELP = `The name is recorded as <id>-<value> (t12-fix-login): give short English words as the value, in lowercase letters, digits, and hyphens, up to ${BRANCH_VALUE_MAX} characters. A value that already starts with this ticket's ID and a hyphen, or that is only this ticket's ID (t12), is used as is. A value that starts with another ticket's ID is rejected`;
 
 export const ticketUpdate = defineCommand({
   name: "ticket.update",

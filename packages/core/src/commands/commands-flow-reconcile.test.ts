@@ -971,6 +971,10 @@ describe("チケットの流れ（照合と claim）", () => {
       branch: "t2-sync-warning",
     });
     expect(own.data.branch).toBe("t2-sync-warning");
+    // 自分の ID だけの値も受けて、そのまま使う（英語の内容がないときの既定の名前と同じ形。t985）
+    const idOnly = await runCommand(ticketUpdate, ctx, { ticket: "t2", branch: "t2" });
+    expect(idOnly.data.branch).toBe("t2");
+    await runCommand(ticketUpdate, ctx, { ticket: "t2", branch: "t2-sync-warning" });
 
     // update も同じ組み立て。組み立てた名前が記録済みと同じなら何も変えない
     const updated = await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "retry" });
