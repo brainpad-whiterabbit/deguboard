@@ -303,12 +303,17 @@ export function ProgressBar({ progress, short }: { progress: Progress; short?: b
 
 /**
  * Status ごとの色の細い帯と「n/m done」（左パネルのカンバンの見出し）。並びと色は ProgressBar と同じ（done が左、--dg-status-*）。
- * 斜線にはせず、数字に done の比を書く
+ * 斜線にはせず、数字に done の比を書く。short は上の端に残す 1 行の帯（components/sticky-band.tsx）の小さな帯で、数字は n/m だけ
  */
-export function StatusBand({ progress }: { progress: Progress }) {
+export function StatusBand({ progress, short }: { progress: Progress; short?: boolean }) {
   return (
-    <StackedProgress progress={progress} className="progress status-band" partial={false}>
-      {progress.done}/{progress.total} done
+    <StackedProgress
+      progress={progress}
+      className={short ? "progress status-band short" : "progress status-band"}
+      partial={false}
+    >
+      {progress.done}/{progress.total}
+      {short ? null : " done"}
     </StackedProgress>
   );
 }

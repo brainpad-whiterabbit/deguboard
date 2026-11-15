@@ -1,0 +1,62 @@
+// 左パネルの一覧で、見出しが上に抜けたら上の端に残す 1 行の帯の仕組み（UI-2。バックログ・履歴も同じ仕組みを使う）。
+// 見出しの中の目印の要素（カンバンなら進みの帯の行）が帯の下に隠れたかを IntersectionObserver で見て、隠れている間だけ帯を出す。
+// スクロールの量で決めないのは、見出しの高さが目標の行数や絞り込みの札で変わるため。
+// 帯は高さ 0 の sticky の箱の中に重ねて描くので、出し入れで一覧が動かない（滑り込ませると、細かくスクロールしたときにちらつく）。
+// 帯の下に貼り付く見出し（状態の節の見出しなど）は、styles.css の --dg-sticky-band-h の分だけ下げて貼り付ける
+
+import { useEffect, useState, type ReactNode } from "react";
+
+/** 帯の高さ（px）。styles.css の --dg-sticky-band-h と同じ値にする */
+export const STICKY_BAND_PX = 26;
+
+/**
+ * 目印の要素が、一覧（.page）の上の端から帯の高さまでの所より上へ抜けたか。
+ * 返す ref を目印の要素に付ける。抜けていれば past が true で、戻れば false。
+ * 下に外れている（まだ見えていない）間は抜けたとしない。IntersectionObserver がない所（テストの jsdom）では常に false
+ */
+export function useScrolledPast<T extends Element>(): {
+  ref: (el: T | null) => void;
+  past: boolean;
+} {
+  const [el, setEl] = useState<T | null>(null);
+  const [past, setPast] = useState(false);
+  useEffect(() => {
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setPast(false);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        // rootBounds は rootMargin で帯の高さを除いた後の矩形
+        const top = entry.rootBounds?.top ?? 0;
+        setPast(!entry.isIntersecting && entry.boundingClientRect.bottom <= top);
+      },
+      {
+        root: el.closest(".page"),
+        rootMargin: `-${STICKY_BAND_PX}px 0px 0px 0px`,
+        threshold: 0,
+      },
+    );
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      setPast(false);
+    };
+  }, [el]);
+  return { ref: setEl, past };
+}
+
+/**
+ * 上の端に残す帯。shown の間だけ中身を描く（隠れている間はフォーカスも読み上げも届かない）。
+ * 置く場所は、帯を残したい範囲（一覧の全体）を包む要素の先頭
+ */
+export function StickyBand({ shown, children }: { shown: boolean; children: ReactNode }) {
+  return <div className="sticky-band">{shown ? children : null}</div>;
+}
+
+/** from を含む一覧（.page）を一番上まで戻す */
+export function scrollPageToTop(from: HTMLElement): void {
+  const page = from.closest<HTMLElement>(".page");
+  if (page) page.scrollTop = 0;
+}

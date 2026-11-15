@@ -13,7 +13,9 @@
 // In Progress と Review の行（ほかの状態は実行中の Run があるとき）の右端の下の段には、チケットの Run を 1 回 1 つの丸で並べ（row-end.tsx の RunPips）、
 // 最後の Run が返事待ちか失敗・中断の行は地の色を変える。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
-// 左パネルの行・状態の節の見出し・Iteration の見出し・選んでいる Epic の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）。
+// 左パネルでは、見出しの進みの帯の行が上へ抜けたら、上の端に 1 行の帯（BoardBand。番号・名前・小さな進みの帯・n/m）を出し、
+// 状態の節の見出しをその下に貼り付ける（components/sticky-band.tsx と styles.css の .sticky-band）。帯と貼り付きは左パネルの形（data-surface が sidebar）だけ。
+// 左パネルの行・状態の節の見出し・Iteration の見出しと帯・選んでいる Epic の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // 表示だけで書き込まない。チケットを進める・片付ける・やめる・done を取り消すと、Iteration の作成・閉じるは、吹き出しから
 // エージェントに頼む（ADR-027）。Status を直に選んで変える操作はなく、Iteration の開始は着手（claim）の手順が行う
@@ -26,6 +28,7 @@ import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic
 import { EpicFilterHead } from "../components/epic-head.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { PlanBand } from "../components/plan-band.js";
+import { scrollPageToTop, StickyBand, useScrolledPast } from "../components/sticky-band.js";
 import { activeDay, IterationGoal, shortPeriod } from "../components/iteration-parts.js";
 import { openPlanByTicket } from "../components/plan-graph.js";
 import {
@@ -209,8 +212,18 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     />
   ) : undefined;
 
+  // 見出しの進みの帯の行が上へ抜けたか（左パネルだけ。上の端の 1 行の帯を出す）
+  const sidebar = host.surface === "sidebar";
+  const scrolled = useScrolledPast<HTMLDivElement>();
+  const progress = ticketProgress(tickets);
+
   return (
     <section>
+      {sidebar ? (
+        <StickyBand shown={scrolled.past}>
+          <BoardBand selection={selection} progress={progress} />
+        </StickyBand>
+      ) : null}
       {/* 見出しを 2 段と進みの帯に詰め、詳細は出さない */}
       <BoardHead
         open={open}
@@ -218,7 +231,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         tickets={chipTickets}
         selection={selection}
         // 帯は絞り込み（Epic・担当）の後のチケットで数える
-        progress={ticketProgress(tickets)}
+        progress={progress}
+        bandRef={sidebar ? scrolled.ref : undefined}
         onSelect={select}
         epics={epicRow}
         epicHead={epicHead}
@@ -341,12 +355,15 @@ function BoardHead({
   tickets,
   selection,
   progress,
+  bandRef,
   onSelect,
   epics,
   epicHead,
   filter,
 }: {
   open: Iteration[];
+  /** 進みの帯の行に付ける目印（useScrolledPast の ref）。この行が上へ抜けたら上の端に 1 行の帯を出す。左パネルでなければ undefined */
+  bandRef?: (el: HTMLDivElement | null) => void;
   /** 札の進みを数えるチケット。閉じた Iteration・Epic の終わったチケットを除き（hideClosedFinished）、Epic・担当の絞り込みとは関係なく一定 */
   tickets: readonly Ticket[];
   selection: Selection;
@@ -410,13 +427,54 @@ function BoardHead({
       {epicHead}
       {open.length > 0 ? (
         <>
-          <div className="head-line">
+          <div className="head-line" ref={bandRef}>
             <StatusBand progress={progress} />
           </div>
           <StatusCounts progress={progress} />
         </>
       ) : null}
     </header>
+  );
+}
+
+/**
+ * 見出しが上に抜けたら上の端に残す 1 行の帯（UI-2）。選んでいる Iteration の番号・名前（入らなければ「…」）・小さな進みの帯・n/m。
+ * 「すべて」は番号の代わりに「すべて」を出し、名前は出さない。進みは見出しの帯と同じ数え方（絞り込みの後。「すべて」は planned と active の合計）。
+ * 番号と名前は一覧を一番上へ戻すボタン（詳細へは見出しの名前のリンクから）。
+ * 帯は見出しと同じく選んでいる Iteration を頼む場所にする（「すべて」のときは出さない）
+ */
+function BoardBand({ selection, progress }: { selection: Selection; progress: Progress }) {
+  const it = selection.kind === "iteration" ? selection.iteration : undefined;
+  const spot = useAskSpot(
+    it
+      ? {
+          targets: [it.id],
+          label: tr("Iteration の見出し {0}", it.id),
+          section: ASK_SECTIONS.boardHeading,
+          menu: it.id,
+        }
+      : null,
+  );
+  return (
+    <div className="sticky-band-bar board-band" {...(it ? spot.props : {})}>
+      <button
+        type="button"
+        className="board-band-top"
+        title={tr("一覧の一番上へ戻る")}
+        onClick={(e) => scrollPageToTop(e.currentTarget)}
+      >
+        {it ? (
+          <>
+            <code className="board-band-id">{it.id}</code>
+            <span className="board-band-name">{it.name}</span>
+          </>
+        ) : (
+          <span className="board-band-id all">{tr("すべて")}</span>
+        )}
+      </button>
+      <StatusBand progress={progress} short />
+      {spot.overlay}
+    </div>
   );
 }
 
@@ -593,7 +651,8 @@ export function ticketProgress(tickets: readonly Pick<Ticket, "status">[]): Prog
 /**
  * 状態ごとの節。縦に積む（UI-12）。開閉は host.state に覚える。
  * 見出しに状態の丸印と件数。枠と背景のないペイン風の見出しで、空の節は見出しの 1 行だけにする。
- * 件数は、終わった状態（isFinished）の節では塗らずに数字だけにする
+ * 件数は、終わった状態（isFinished）の節では塗らずに数字だけにする。
+ * 左パネルでは見出しを上の端の帯（BoardBand）の下に貼り付け、次の節の見出しに押し出されて入れ替わる（styles.css。貼り付いても押せば開閉し、頼める）
  */
 function Column({
   status,
