@@ -5,7 +5,7 @@ after:
     - t982
   t985:
     - t984
-pending_approval: true
+pending_approval: false
 details:
   t982:
     scope: README の --auto とマージの説明だけを直す
@@ -35,3 +35,5 @@ details:
     tier: standard
   t988:
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-15T09:54:21Z
