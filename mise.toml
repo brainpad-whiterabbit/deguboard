@@ -15,7 +15,7 @@ description = "依存を lockfile どおりに入れ、dist と VSIX をビル�
 depends = ["setup"]
 run = ["pnpm run vsix", "pnpm run vsix:install"]
 
-# .oxfmtrc.json で guide-*.md を整形の対象から外す。表の列をそろえる空白を入れないため。guide の表のセルは短く、表は手で書く（ADR-001）
+# .oxfmtrc.json で guide-*.md を整形の対象から外す。表の列をそろえる空白を入れないため。guide の表のセルは短く、表は手で書く
 [tasks.format]
 description = "oxfmt でコードと設定ファイルの書式を整える"
 run = "pnpm run format"
