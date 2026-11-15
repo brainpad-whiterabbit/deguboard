@@ -9,14 +9,7 @@
 // ボードの項目だけは、チームのボードが別のリポジトリにあるときのために、データのリポジトリとブランチを入れて確かめ直す道を持つ（BoardItemGuide。
 // 入れた値は store.setupBoard に持ち、確かめ直しとボタンの dg init の --data-remote・--data-branch に渡す）
 
-import {
-  DEFAULT_DATA_BRANCH,
-  initCommandLine,
-  type SetupAction,
-  type SetupBoardSource,
-  type SetupView,
-  type SetupViewItem,
-} from "@deguboard/core";
+import type { SetupAction, SetupBoardSource, SetupView, SetupViewItem } from "@deguboard/core";
 import { useState, type ReactNode } from "react";
 import { failureOf } from "../client/http.js";
 import { useHost, useUiState } from "../host.js";
@@ -56,6 +49,28 @@ export interface Guide {
 }
 
 const RECHECK = msg("もう一度確かめる");
+
+// web は core の実行時のコードを取り込めない（ADR-033）ので、次の 2 つは core の写し。
+// core の DEFAULT_DATA_BRANCH・initCommandLine と同じ値になることは setup-checklist.test.tsx が確かめる
+
+/** データのブランチの既定（dg init の --data-branch を省いたとき） */
+export const DEFAULT_DATA_BRANCH = "deguboard";
+
+/** 拡張のボタンが流す dg init の 1 行（core の initCommandLine の写し。値はシェルにそのまま渡せる形に囲む） */
+export function initCommandLine(options: {
+  dataRemote?: string | undefined;
+  dataBranch?: string | undefined;
+  newBoard?: boolean | undefined;
+}): string {
+  const arg = (value: string) =>
+    /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
+  return [
+    "dg init",
+    ...(options.newBoard ? ["--new-board"] : []),
+    ...(options.dataRemote ? ["--data-remote", arg(options.dataRemote)] : []),
+    ...(options.dataBranch ? ["--data-branch", arg(options.dataBranch)] : []),
+  ].join(" ");
+}
 
 /**
  * ボードの項目の中身。state は core の BoardState（dg init がすることを先に確かめた結果）。

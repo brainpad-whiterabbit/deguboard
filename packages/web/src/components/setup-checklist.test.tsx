@@ -1,14 +1,38 @@
 // @vitest-environment jsdom
-import type { SetupAction, SetupView, SetupViewItem } from "@deguboard/core";
+import {
+  DEFAULT_DATA_BRANCH as CORE_DEFAULT_DATA_BRANCH,
+  initCommandLine as coreInitCommandLine,
+  type SetupAction,
+  type SetupView,
+  type SetupViewItem,
+} from "@deguboard/core";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HostProvider, type Host } from "../host.js";
 import { StoreProvider, useStore } from "../store.js";
 import { mockClient, setupView } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
-import { guideOf, SetupChecklist } from "./setup-checklist.js";
+import {
+  DEFAULT_DATA_BRANCH,
+  guideOf,
+  initCommandLine,
+  SetupChecklist,
+} from "./setup-checklist.js";
 
 afterEach(cleanup);
+
+describe("core の写し（web は core の実行時のコードを取り込めない）", () => {
+  it("データのブランチの既定と dg init の 1 行が core と同じ", () => {
+    expect(DEFAULT_DATA_BRANCH).toBe(CORE_DEFAULT_DATA_BRANCH);
+    for (const options of [
+      {},
+      { dataRemote: "git@github.com:team/kanban.git", dataBranch: "kanban" },
+      { dataRemote: "kanban", newBoard: true },
+      { dataRemote: "/srv/my repo; rm -rf ~", dataBranch: "a'b", newBoard: true },
+    ])
+      expect(initCommandLine(options)).toBe(coreInitCommandLine(options));
+  });
+});
 
 /** VS Code の中（ボタンの操作を拡張ホストに頼める）の Host。acts に頼んだ操作が入る */
 function vscodeHost(acts: SetupAction[] = []): Host {
