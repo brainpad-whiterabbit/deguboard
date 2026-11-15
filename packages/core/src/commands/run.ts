@@ -1228,12 +1228,23 @@ export const RECENT_RUN_LIMIT = 3;
 
 /**
  * Run の要約の 1 件（カンバンの行に並べる分だけ。使用量・ツールの回数は run.list で読む）。
+ * 時間は run.list と同じ waited_seconds・duration_seconds・active_seconds で、カンバンの行もチケット詳細と同じく作業時間を出せるようにする。
  * 止まって待っている印と書き終わりを待つ印は実行中の記録にしかないので、実行中の Run にだけキーを置く（RN-7）
  */
 export type RunSummary = Pick<
   Run,
-  "id" | "step" | "result" | "started_at" | "finished_at" | "review" | "retries" | "error"
-> & { running: boolean } & Partial<Pick<Run, "waiting_since" | "settling_since">>;
+  | "id"
+  | "step"
+  | "result"
+  | "started_at"
+  | "finished_at"
+  | "review"
+  | "retries"
+  | "error"
+  | "waited_seconds"
+> &
+  Pick<RunView, "running" | "duration_seconds" | "active_seconds"> &
+  Partial<Pick<Run, "waiting_since" | "settling_since">>;
 
 /**
  * チケットごとの Run の要約。total はそのチケットの全部の Run の件数で、runs は新しい順に RECENT_RUN_LIMIT 件まで。
@@ -1256,6 +1267,9 @@ function runSummary(run: Run, running: boolean): RunSummary {
     review: run.review,
     retries: run.retries,
     error: run.error,
+    waited_seconds: run.waited_seconds,
+    duration_seconds: runDurationSeconds(run),
+    active_seconds: runActiveSeconds(run),
     running,
     ...(running ? { waiting_since: run.waiting_since, settling_since: run.settling_since } : {}),
   };
@@ -1264,7 +1278,7 @@ function runSummary(run: Run, running: boolean): RunSummary {
 export const runRecent = defineCommand({
   name: "run.recent",
   group: "run",
-  summary: `Summarize the Runs of each ticket: total (the number of all its Runs), running (whether any of its Runs is unfinished, including ones older than runs), and runs (the newest ${RECENT_RUN_LIMIT}, newest first). One summary has id, step, result, started_at, finished_at, review, retries (the number of findings fixed), error, and running; an unfinished Run (running: true, from deguboard-local/runs/ on this machine) also has waiting_since and settling_since. Tickets with no Run are left out. Iteration follows each ticket's current value (same as run.list). Read the usage and the full list with run.list`,
+  summary: `Summarize the Runs of each ticket: total (the number of all its Runs), running (whether any of its Runs is unfinished, including ones older than runs), and runs (the newest ${RECENT_RUN_LIMIT}, newest first). One summary has id, step, result, started_at, finished_at, review, retries (the number of findings fixed), error, waited_seconds, duration_seconds, active_seconds (the same as run.list), and running; an unfinished Run (running: true, from deguboard-local/runs/ on this machine) also has waiting_since and settling_since. Tickets with no Run are left out. Iteration follows each ticket's current value (same as run.list). Read the usage and the full list with run.list`,
   input: z.object({
     iteration: iterationRef
       .optional()

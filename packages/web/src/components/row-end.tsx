@@ -14,6 +14,7 @@ import {
   runResultKey,
   type RunResultKey,
 } from "./run-parts.js";
+import { formatRunTime } from "./ticket-runs.js";
 import { formatTime } from "./timeline.js";
 import {
   isOwnAssignee,
@@ -197,18 +198,23 @@ export function runPipCaption(
 }
 
 /**
- * 丸に重ねたとき・Tab で移ったときに出す行：手と結果、開始の時刻とかかった時間（実行中は今までの時間）、
- * 直した指摘の数（retries が 1 以上）、見直しの指摘の数（review があれば）、失敗・中断の理由（error）
+ * 丸に重ねたとき・Tab で移ったときに出す行：手と結果、開始の時刻とかかった時間、
+ * 直した指摘の数（retries が 1 以上）、見直しの指摘の数（review があれば）、失敗・中断の理由（error）。
+ * かかった時間は、閉じた Run ならチケット詳細の Run の行と同じ書き方（formatRunTime。待ちを除いた作業時間、待ちが不明なら経過時間と不明なこと）、
+ * 実行中なら今までの経過（待ちは閉じるときに数えるので、まだ分からない）
  */
 export function runPipDetails(
   run: RunSummary,
   stepLabel: (step: string) => string,
   now: number,
 ): string[] {
-  const seconds = ((run.running ? now : msOf(run.finished_at)) - msOf(run.started_at)) / 1000;
+  const seconds = (now - msOf(run.started_at)) / 1000;
+  const time = run.running
+    ? formatDuration(Number.isFinite(seconds) ? Math.max(0, seconds) : null)
+    : formatRunTime(run);
   const lines = [
     `${stepLabel(run.step)} · ${tr(PIP_LABELS[runPipKey(run)])}`,
-    `${formatTime(run.started_at)} · ${formatDuration(Number.isFinite(seconds) ? Math.max(0, seconds) : null)}`,
+    `${formatTime(run.started_at)} · ${time}`,
   ];
   if (run.retries > 0) lines.push(tr("直した指摘 {0}", run.retries));
   if (run.review) lines.push(tr("指摘 重い {0} / 軽い {1}", run.review.heavy, run.review.light));

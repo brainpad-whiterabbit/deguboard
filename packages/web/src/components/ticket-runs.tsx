@@ -126,9 +126,12 @@ function RunsSummary({ runs }: { runs: RunView[] }) {
 
 /**
  * 1 行の時間。待ちを除いた作業時間を主に出し、待ちがあれば添える。待ちを数えられない Run（waited_seconds が null）は
- * 経過時間に待ちが不明なことを添える（経過時間を作業時間と見せない）。終わっていない Run は「—」
+ * 経過時間に待ちが不明なことを添える（経過時間を作業時間と見せない）。終わっていない Run は「—」。
+ * カンバンの行の Run の丸（row-end.tsx の runPipDetails）も、閉じた Run にはこの書き方を使う
  */
-export function formatRunTime(r: RunView): string {
+export function formatRunTime(
+  r: Pick<RunView, "active_seconds" | "waited_seconds" | "duration_seconds">,
+): string {
   if (typeof r.active_seconds === "number") {
     return r.waited_seconds
       ? tr("{0}（待ち {1}）", formatDuration(r.active_seconds), formatDuration(r.waited_seconds))

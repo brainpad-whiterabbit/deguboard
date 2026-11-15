@@ -54,19 +54,36 @@ export function ticket(partial: Partial<TicketRow> & { id: string }): TicketRow 
 
 /**
  * run.recent の Run の要約の 1 件。省けば閉じた implement の Run で、結果はなし（未完了）。
- * running を真にすると実行中の Run として waiting_since・settling_since を null で置く（core と同じく閉じた Run には置かない）
+ * running を真にすると実行中の Run として waiting_since・settling_since を null で置く（core と同じく閉じた Run には置かない）。
+ * 時間は core と同じく、duration_seconds を開始と終了から、active_seconds を待ち（waited_seconds。省けば不明の null）から求める
  */
 export function runSummary(partial: Partial<RunSummary> = {}): RunSummary {
   const running = partial.running ?? false;
+  const started_at = partial.started_at ?? "2026-11-14T01:00:00Z";
+  const finished_at =
+    partial.finished_at !== undefined
+      ? partial.finished_at
+      : running
+        ? null
+        : "2026-11-14T01:10:00Z";
+  const waited_seconds = partial.waited_seconds ?? null;
+  const duration_seconds =
+    finished_at === null ? null : (Date.parse(finished_at) - Date.parse(started_at)) / 1000;
   return {
     id: "r20261114-010000-aaaa",
     step: "implement",
     result: null,
-    started_at: "2026-11-14T01:00:00Z",
-    finished_at: running ? null : "2026-11-14T01:10:00Z",
+    started_at,
+    finished_at,
     review: null,
     retries: 0,
     error: null,
+    waited_seconds,
+    duration_seconds,
+    active_seconds:
+      duration_seconds === null || waited_seconds === null
+        ? null
+        : Math.max(0, duration_seconds - waited_seconds),
     running,
     ...(running ? { waiting_since: null, settling_since: null } : {}),
     ...partial,
