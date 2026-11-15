@@ -1,4 +1,4 @@
-// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・packages・scripts・test の ADR 番号が先頭のコメントの外にあること（ファイルと行を出す）と、先頭のコメントの異なる番号が 2 つ以上ないこと・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・packages のテスト以外の文字列（コメントの外）にある要件 ID（ファイルと行を出す）・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
+// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・packages・scripts・test の ADR 番号が先頭のコメントの外にあること（ファイルと行を出す）と、先頭のコメントの異なる番号が 2 つ以上ないこと・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・英語版と日本語版（README.md と README.ja.md、docs/usage.md と docs/usage.ja.md、docs/how-it-works.md と docs/how-it-works.ja.md）の節の構成のずれ・コードとテストの要件 ID・packages のテスト以外の文字列（コメントの外）にある要件 ID（ファイルと行を出す）・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行（CSS などは先頭の /* の塊）で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
 // 要件の 1 項は字下げのない箇条書きの項目（「- XX-N」の項と ID のない項）とその下の字下げした行を、行のまま（記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える（節の前文は数えない）。置き換え済みかは各 ADR のステータスの「置き換え（ADR-0xx）」から読み、packages・scripts・test のコードの ADR-0xx の参照すべて（コメント・テスト名・文字列）を照らし、置き換えの先を置き換え済みでなくなるまでたどって今の判断を出す。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、判断と理由を書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
@@ -141,18 +141,28 @@ for (const rel of filesUnder(["packages/vscode/src", "packages/vscode/media"], [
   }
 }
 
-// 節の構成の検査：README.ja.md は README.md と同じ節の構成で置く（CLAUDE.md）。# から ### の見出しの数と階層の並びを比べる。見出しの文言は訳すので比べない
-const readmeHeadings = await outlineOf("README.md");
-const readmeJaHeadings = await outlineOf("README.ja.md");
-for (let i = 0; i < Math.max(readmeHeadings.length, readmeJaHeadings.length); i++) {
-  const en = readmeHeadings[i];
-  const ja = readmeJaHeadings[i];
-  if (en?.level === ja?.level) continue;
-  const show = (h) => (h ? `${"#".repeat(h.level)} ${h.text}（${h.line} 行目）` : "（なし）");
-  errors.push(
-    `README.ja.md: ${i + 1} 番目の見出しの階層が README.md とずれている: README.md は ${show(en)}、README.ja.md は ${show(ja)}（見出しは README.md が ${readmeHeadings.length} 個、README.ja.md が ${readmeJaHeadings.length} 個）`,
-  );
-  break; // 1 つずれると後ろはすべてずれるので、最初の 1 か所だけ出す
+// 節の構成の検査：日本語版は英語版と同じ節の構成で置く（CLAUDE.md）。# から ### の見出しの数と階層の並びを比べる。見出しの文言は訳すので比べない。
+// 対ごとに最初の 1 か所だけ出す（1 つずれると後ろはすべてずれるので）
+const TRANSLATION_PAIRS = [
+  ["README.md", "README.ja.md"],
+  ["docs/usage.md", "docs/usage.ja.md"],
+  ["docs/how-it-works.md", "docs/how-it-works.ja.md"],
+];
+const show = (h) => (h ? `${"#".repeat(h.level)} ${h.text}（${h.line} 行目）` : "（なし）");
+const pairHeadingCounts = [];
+for (const [enRel, jaRel] of TRANSLATION_PAIRS) {
+  const enHeadings = await outlineOf(enRel);
+  const jaHeadings = await outlineOf(jaRel);
+  pairHeadingCounts.push(`${jaRel} ${jaHeadings.length} 個`);
+  for (let i = 0; i < Math.max(enHeadings.length, jaHeadings.length); i++) {
+    const en = enHeadings[i];
+    const ja = jaHeadings[i];
+    if (en?.level === ja?.level) continue;
+    errors.push(
+      `${jaRel}: ${i + 1} 番目の見出しの階層が ${enRel} とずれている: ${enRel} は ${show(en)}、${jaRel} は ${show(ja)}（見出しは ${enRel} が ${enHeadings.length} 個、${jaRel} が ${jaHeadings.length} 個）`,
+    );
+    break;
+  }
 }
 
 // 要件 ID：コードとテストが参照する ID は、requirements.md の箇条書き（「- TK-1 …」）で定義されたものに限る。定義にない番号の参照を指摘する。
@@ -319,7 +329,7 @@ for (const rel of sources) {
 }
 
 // ADR 番号の参照の実在：範囲の追跡ファイル（docs・packages・scripts の下と、ルートのファイル）の地の文・コメント・文字列の ADR-0xx が、docs/adr の番号にあること。
-// 拡張では絞らず、バイナリの拡張子（画像・フォント・アーカイブなど）だけ除く。test の本文は読まない（フィクスチャがあるため）。test の先頭コメントは上の先頭コメントの検査で見る。
+// 拡張では絞らず、バイナリの拡張子（画像・フォント・アーカイブなど）だけ除く。docs/images の SVG はテキストなので含める（図の中の番号も、ADR を消すと指す先がなくなるため）。test の本文は読まない（フィクスチャがあるため）。test の先頭コメントは上の先頭コメントの検査で見る。
 // 置き換え済みの ADR は本文を消してよく、消した後に参照が残ると指す先がないので、ここで見つける。dist の成果物は読まない
 const BINARY_EXTS = [
   ".png",
@@ -528,7 +538,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(
-  `check:docs: ADR ${adrFiles.length} 件（最後に使った番号 ADR-${lastUsed} 以内、${ADR_WARN_CHARS} 字超の警告 ${warnings.length} 件）、ADR 番号の参照 ${adrRefFileCount} 件が実在、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、packages のコード ${requirementPlacementFiles.length} 件の文字列に要件 ID なし、要件 ${requirementItemCount} 項が ${REQUIREMENT_ITEM_MAX_CHARS} 字以内、コードとテストの ADR の参照 ${adrRefCount} 件に置き換え済みなし、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし`,
+  `check:docs: ADR ${adrFiles.length} 件（最後に使った番号 ADR-${lastUsed} 以内、${ADR_WARN_CHARS} 字超の警告 ${warnings.length} 件）、ADR 番号の参照 ${adrRefFileCount} 件が実在、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、日本語版の見出し（${pairHeadingCounts.join("・")}）が英語版と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、packages のコード ${requirementPlacementFiles.length} 件の文字列に要件 ID なし、要件 ${requirementItemCount} 項が ${REQUIREMENT_ITEM_MAX_CHARS} 字以内、コードとテストの ADR の参照 ${adrRefCount} 件に置き換え済みなし、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし`,
 );
 
 /** ファイルの先頭のコメント（shebang を除く）。// の行と、先頭の /* … *\/ の塊（CSS の先頭コメント）を行ごとに返す。それ以外の行で止める */
