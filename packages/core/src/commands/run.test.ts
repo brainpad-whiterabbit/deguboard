@@ -277,7 +277,7 @@ describe("run", () => {
     expect(recent.warnings).toEqual([]);
     const closed = ctx.store.runs;
     // 閉じた Run の時間は run.list と同じ値（ここでは待ちを数えていないので作業時間は null）
-    const timesOf = (id: string) => {
+    const timesOf = (id: Run["id"]) => {
       const data = closed.get(id)!.data;
       expect(data.waited_seconds).toBeNull();
       return {
