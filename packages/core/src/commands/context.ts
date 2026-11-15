@@ -39,6 +39,8 @@ export interface ContextOptions {
         remote?: string | undefined;
         dataRemote?: string | undefined;
         dataBranch?: string | undefined;
+        /** データのリモートに届かなくても、手元だけで新しいボードを作る（init の --new-board） */
+        newBoard?: boolean | undefined;
       }
     | undefined;
   /** マージドライバとして登録する、dg を呼ぶ argv の前置。入口（CLI）が自分の呼び方を渡す */
@@ -135,7 +137,9 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     }
     const remote =
       initDataRemote ?? (await resolveRemote(paths, opts.initialize.remote ?? DEFAULT_REMOTE));
-    worktree = await ensureDeguboardWorktree(paths, remote, initDataBranch ?? DEFAULT_DATA_BRANCH);
+    worktree = await ensureDeguboardWorktree(paths, remote, initDataBranch ?? DEFAULT_DATA_BRANCH, {
+      newBoard: opts.initialize.newBoard,
+    });
   }
   // 個人の設定（deguboard-local/config.yaml）もここで重ねるので、CLI・HTTP・VS Code 拡張は同じ値を読む。
   // 読みの結果は deguboard-local/store-cache/ に残し、次の呼び出し（CLI は毎回別のプロセス）は変わったファイルだけを読む

@@ -191,6 +191,53 @@ describe("dg", () => {
     expect(list.out).toContain("t1  in_progress  high      Login validation");
   });
 
+  it("init は、remote に届かなければボードを作らずに止まり、--new-board なら手元だけで作る。届けばボードの有無で作るか取り込む（t1005）", async () => {
+    const f = await fixture();
+    // 届いてボードがない：orphan を作って送る
+    const first = await dg(f.cloneA, ["--json", "init"]);
+    expect(first.json()).toMatchObject({ ok: true, data: { worktree: "orphan" } });
+    // 届いてボードがある：取り込む
+    const joined = await dg(f.cloneB, ["--json", "init"]);
+    expect(joined.json()).toMatchObject({ ok: true, data: { worktree: "from_remote" } });
+
+    // 届かない：ボードを作らずに失敗し、やり直すか --new-board を付けるかを案内する
+    const g = await fixture();
+    await git(g.cloneA, ["remote", "set-url", "origin", path.join(g.root, "nonexistent.git")]);
+    const stopped = await dg(g.cloneA, ["--json", "init"]);
+    expect(stopped.code).toBe(1);
+    expect(stopped.json().error).toMatchObject({
+      code: "GIT_ERROR",
+      message: expect.stringMatching(/run dg init again.*dg init --new-board.*separate board/),
+    });
+    const branches = await git(g.cloneA, ["branch", "--list", "deguboard"]);
+    expect(branches.stdout).toBe("");
+    const worktrees = await git(g.cloneA, ["worktree", "list", "--porcelain"]);
+    expect(worktrees.stdout).not.toContain(path.join(".git", "deguboard"));
+
+    // --new-board：届かなくても手元だけで新しいボードを作る
+    const created = await dg(g.cloneA, ["--json", "init", "--new-board"]);
+    expect(created.json()).toMatchObject({ ok: true, data: { worktree: "orphan" } });
+    const listed = await dg(g.cloneA, ["--json", "ticket", "list"]);
+    expect(listed.json()).toMatchObject({ ok: true, data: [] });
+  });
+
+  it("init --help は --new-board がチームのボードと別のボードになりうることを示す（t1005）", async () => {
+    const f = await fixture();
+    const help = await dg(f.cloneA, ["init", "--help"]);
+    expect(help.out.replace(/\s+/g, " ")).toMatch(/--new-board .*separate board/);
+  });
+
+  it("Git リポジトリの外で呼ぶと、git init でリポジトリを作ってやり直す案内を出す（t1005）", async () => {
+    const outside = await mkdtemp(path.join(os.tmpdir(), "deguboard-outside-"));
+    cleanups.push(() => rm(outside, { recursive: true, force: true }));
+    const ran = await dg(outside, ["--json", "ticket", "list"]);
+    expect(ran.code).toBe(1);
+    expect(ran.json().error).toMatchObject({
+      code: "GIT_ERROR",
+      message: expect.stringMatching(/not inside a Git repository.*git init.*run dg again/),
+    });
+  });
+
   it("init は書き込みがあればコミットを案内し、2 人目の clone の書き込みのない init では「作業ツリーに残した」を出さない", async () => {
     const f = await fixture();
     const first = await dg(f.cloneA, ["init"]);
