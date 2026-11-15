@@ -268,7 +268,6 @@ export function StoreProvider({
       epics,
       iterations,
       plans,
-      workflow,
       shownWf,
       me,
       ticketRuns,
