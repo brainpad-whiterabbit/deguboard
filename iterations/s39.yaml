@@ -1,0 +1,4 @@
+id: s39
+name: sprint39
+goal: エージェントに任せる範囲と人の承認を、workflow.yaml の 1 か所で決められるようにする（e37）
+status: planned
