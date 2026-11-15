@@ -57,13 +57,7 @@ Claude Code では、「s3 を計画して」のように普通の言葉で言�
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.ja.gif" alt="指標を承認し、その推移から改善を起票する" width="560">
 
-トークンは、会話記録から使用量を取り込む設定を有効にしたときだけ集計されます（Claude Code・Codex・Copilot CLI）。設定するには次のとおりにします。
-
-```sh
-dg config set metrics.read_transcripts true
-```
-
-設定はチームで共有されます。自分のマシンだけ止めるときは `DEGUBOARD_NO_TRANSCRIPTS=1` を設定します。
+トークンは、会話記録から使用量を取り込む設定を有効にしたときだけ集計されます。有効にするしかたは[トークンを数える](docs/usage.ja.md#トークンを数える)にあります。
 
 ## ヒント
 

@@ -57,13 +57,7 @@ Choose **Ask Agent** → **Retrospect** on a finished Iteration. The agent shows
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="Approving a metric and filing an improvement from its trend" width="560">
 
-Tokens are counted only when deguboard reads usage from conversation transcripts (Claude Code, Codex, and Copilot CLI). To turn it on:
-
-```sh
-dg config set metrics.read_transcripts true
-```
-
-The setting is shared with your team. To turn it off on your own machine only, set `DEGUBOARD_NO_TRANSCRIPTS=1`.
+Tokens are counted only when deguboard reads usage from conversation transcripts. [Count tokens](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#count-tokens) in the usage guide explains how to turn it on.
 
 ## Tips
 

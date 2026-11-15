@@ -110,6 +110,16 @@ dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-api
 - Read access can only be split by repository. Everyone who can read the dedicated repository can read every kanban in it. Keep a kanban that only some people may see in a repository of its own.
 - To rename the data branch of an existing board, follow the steps of the previous section on the same remote: in step 1 run `git push <data remote> deguboard:<new name>`, in step 2 run `dg config set git.data_branch <new name>` and `dg sync`, and in step 4 delete the old branch. To move a board into a shared repository under a new name, rename the branch first and then move it to the repository, one move at a time. Changing both at once makes the next command push to the old branch name in the new repository, which may be another board's branch.
 
+## Count tokens
+
+Tokens are counted only when deguboard reads usage from conversation transcripts (Claude Code, Codex, and Copilot CLI). To turn it on:
+
+```sh
+dg config set metrics.read_transcripts true
+```
+
+The setting is shared with your team. To turn it off on your own machine only, set `DEGUBOARD_NO_TRANSCRIPTS=1`.
+
 ## Notifications
 
 When there are Plans awaiting approval or tickets in review, the count appears in the sidebar title (for example, "DEGUBOARD: Awaiting Approval/Review 3"), and a notification appears when the count goes up. Press "Open" in the notification to open the details. The number on the Activity Bar icon is separate: it is the total of unpushed commits and remote updates that have not been pulled.
@@ -144,7 +154,7 @@ Where the hooks do not reach the agent:
 
 - Runs are recorded only from the agent's own `dg run` calls. Sub-agents' Runs are not opened and closed automatically, so the parent agent may implement and fix the ticket itself, and it opens and closes the Run with `dg run`. The guides say so.
 - The guard against direct edits to the data and against ready or merge without `dg` does not work. Nothing stops a direct edit of `.git/deguboard/` or a `gh pr merge` that skips `dg pr merge`, and at the end of a response, a change made outside `dg` is not reported.
-- Tokens are counted only for agents that can read their conversation records: Claude Code, Codex, and Copilot CLI today. Set `metrics.read_transcripts` to count them (see the README).
+- Tokens are counted only for agents that can read their conversation records: Claude Code, Codex, and Copilot CLI today. Turn on the setting described in [Count tokens](#count-tokens) to count them.
 - An agent that cannot start a reviewer asks a person to review the PR, and writes in the PR body that the PR was not reviewed by a reviewer.
 
 ## Use it from Claude Desktop (MCP)
