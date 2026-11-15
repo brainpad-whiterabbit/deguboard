@@ -1,0 +1,34 @@
+{
+  "id": "r20261115-123556-5a2f",
+  "ticket": "t998",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-15T12:35:56Z",
+  "finished_at": "2026-11-15T12:39:01Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "README.md の Agent の項が Claude Code だけが対応するように読める（README.ja.md の主に対応と合わせる）"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 3333,
+    "cache_read": 325803,
+    "cache_write": 30330
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 2,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "b9a27ee7-5f63-4ae0-ae1d-d37bdb2b62f0",
+  "review": null,
+  "waited_seconds": 0
+}
