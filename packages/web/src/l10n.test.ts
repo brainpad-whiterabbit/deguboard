@@ -7,6 +7,11 @@ import {
   configFields,
   defaultConfig,
   flattenConfig,
+  NO_PR_ERROR,
+  OPEN_AT_SESSION_END_ERROR,
+  REVIEW_UNRECORDED,
+  STALE_SESSION_ERROR,
+  UNCLAIMED_ERROR,
   WORKFLOW_TEMPLATES,
   type AskSubject,
   type WorkflowDefinition,
@@ -374,6 +379,24 @@ describe("core が返すエラー・警告の文の訳（UI-11）", () => {
     setLanguage("en");
     expect(trCoreMessage("訳のない文")).toBe("訳のない文");
     expect(trCoreMessage("")).toBe("");
+  });
+  it("core が Run の error に書く定数は、どれも CORE_MESSAGES の鍵にあって日本語の訳を持つ（t950）", () => {
+    // 上の検査は表の鍵が core にあるかの向きだけなので、定数を足したり文を書き換えたりして表を直し忘れると、
+    // 日本語の画面に英語の error が出る。core のソースで error に渡す定数の名前を拾い、ここの一覧と突き合わせて足し忘れにも気づく
+    const constants: Record<string, string> = {
+      NO_PR_ERROR,
+      OPEN_AT_SESSION_END_ERROR,
+      REVIEW_UNRECORDED,
+      STALE_SESSION_ERROR,
+      UNCLAIMED_ERROR,
+    };
+    const used = new Set(
+      [...coreSource().matchAll(/\berror: ([A-Z][A-Z0-9_]+)\b/g)].map((m) => m[1]),
+    );
+    expect([...used].sort()).toEqual(Object.keys(constants).sort());
+    for (const [name, text] of Object.entries(constants)) {
+      expect(CORE_MESSAGES[text]?.ja, `${name}: ${text}`).toMatch(JAPANESE);
+    }
   });
 });
 
