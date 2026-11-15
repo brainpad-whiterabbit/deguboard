@@ -56,7 +56,7 @@ export function readBody(req: IncomingMessage, limit = 4 * 1024 * 1024): Promise
     req.on("data", (chunk: Buffer) => {
       size += chunk.length;
       if (size > limit) {
-        reject(new Error("リクエストが大きすぎる"));
+        reject(new Error("The request body is too large"));
         req.destroy();
         return;
       }

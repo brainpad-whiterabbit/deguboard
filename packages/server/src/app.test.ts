@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { request, type IncomingMessage } from "node:http";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { commands, findCommand, openContext, runCommand, init } from "@deguboard/core";
 import {
@@ -10,6 +11,7 @@ import {
 } from "../../core/test/helpers/git-fixture.js";
 import { describeCommands, guard } from "./app.js";
 import { startServer, type RunningServer } from "./server.js";
+import { readBody } from "./static.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -157,6 +159,44 @@ describe("HTTP サーバー", () => {
       body: "{",
     });
     expect(badJson.status).toBe(400);
+  });
+
+  it("応答の文（JSON のエラーと、静的ファイルがないときの案内と 404）は英語で、日本語を含まない（CL-8・t948）", async () => {
+    const japanese = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    const json = { "content-type": "application/json" };
+    const badJson = await raw(s, "POST", "api/commands/ticket.list", { headers: json, body: "{" });
+    expect(badJson.body.error).toEqual({
+      code: "INVALID_JSON",
+      message: "The request body is not JSON",
+    });
+    const missing = await raw(s, "GET", "api/nope");
+    expect(missing.body.error).toEqual({ code: "NOT_FOUND", message: "No API at /api/nope" });
+    const refused = [
+      await raw(s, "GET", "", { headers: { host: "evil.example" } }),
+      await raw(s, "GET", "", { headers: { origin: "null" } }),
+      await raw(s, "POST", "api/commands/ticket.list", { body: "{}" }),
+      await raw(s, "GET", "%"),
+    ];
+    for (const res of [badJson, missing, ...refused]) {
+      expect(res.body.error.message).not.toMatch(japanese);
+    }
+    const landing = await raw(s, "GET", "");
+    expect(landing.body).toBe(
+      "deguboard server. The API is at /api/commands. The web screen is not served\n",
+    );
+    // 静的ファイルを配るときの 404（ルートの外）
+    const web = path.join(f.root, "web");
+    await mkdir(web, { recursive: true });
+    const withWeb = await serve(f.cloneA, web);
+    const outside = await raw(withWeb, "GET", "..%2F..%2Fetc%2Fpasswd");
+    expect(outside).toEqual({ status: 404, body: "Not found\n" });
+    // 大きすぎる本文の文（readBody）
+    await expect(readBody(Readable.from([Buffer.alloc(8)]) as IncomingMessage, 4)).rejects.toThrow(
+      "The request body is too large",
+    );
   });
 
   it("壊れた percent-encoding と URL として読めない要求先は、API と静的ファイルの両方で 400 を返し、プロセスは落ちない（t752）", async () => {

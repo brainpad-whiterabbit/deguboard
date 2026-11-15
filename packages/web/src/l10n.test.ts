@@ -337,24 +337,27 @@ describe("core が返す決まった文の訳", () => {
   });
 });
 
-/** core のソース（テストを除く）。CORE_MESSAGES の鍵が core の文に合うかを確かめる */
-function coreSource(): string {
-  const coreDir = resolve(srcDir, "../../core/src");
+/** packages/<name>/src のソース（テストを除く）。CORE_MESSAGES の鍵が core と server の文に合うかを確かめる */
+function packageSource(name: "core" | "server"): string {
   const walk = (dir: string): string[] =>
-    readdirSync(dir).flatMap((name) => {
-      const path = resolve(dir, name);
+    readdirSync(dir).flatMap((entry) => {
+      const path = resolve(dir, entry);
       return statSync(path).isDirectory() ? walk(path) : [path];
     });
-  return walk(coreDir)
+  return walk(resolve(srcDir, `../../${name}/src`))
     .filter((p) => p.endsWith(".ts") && !p.endsWith(".test.ts"))
     .map((p) => readFileSync(p, "utf8"))
     .join("\n");
 }
 
+function coreSource(): string {
+  return packageSource("core");
+}
+
 describe("core が返すエラー・警告の文の訳（UI-11）", () => {
-  it("鍵の {0} 以外の部分はどれも core のソースにあり、{0}・{1} は現れる順に書く", () => {
-    // core の文言を書き換えたら、ここで訳の鍵が合わなくなって気づく
-    const source = coreSource();
+  it("鍵の {0} 以外の部分はどれも core か server のソースにあり、{0}・{1} は現れる順に書く", () => {
+    // core と server の文言を書き換えたら、ここで訳の鍵が合わなくなって気づく
+    const source = `${coreSource()}\n${packageSource("server")}`;
     for (const key of Object.keys(CORE_MESSAGES)) {
       const numbers = [...key.matchAll(/\{(\d+)\}/g)].map((m) => Number(m[1]));
       expect(numbers, key).toEqual(numbers.map((_, i) => i));
@@ -399,6 +402,32 @@ describe("core が返すエラー・警告の文の訳（UI-11）", () => {
     for (const [name, text] of Object.entries(constants)) {
       expect(CORE_MESSAGES[text]?.ja, `${name}: ${text}`).toMatch(JAPANESE);
     }
+  });
+  it("dg serve が JSON で返すエラーの文は英語で、どれも CORE_MESSAGES の鍵にあって日本語の画面では訳す（t948）", () => {
+    // server のソースの message: の文字列と new Error の文を拾う（可変の部分 ${…} は {0}・{1} にする）。
+    // 文を足したり書き換えたりして表を直し忘れると、日本語の画面に英語のエラーが出るので気づく
+    const source = packageSource("server");
+    const texts = [
+      ...source.matchAll(/\bmessage: (?:"([^"]*)"|`([^`]*)`)/g),
+      ...source.matchAll(/new Error\("([^"]*)"\)/g),
+    ].map((m) => {
+      let n = 0;
+      return (m[1] ?? m[2]!).replace(/\$\{[^}]*\}/g, () => `{${n++}}`);
+    });
+    // 拾い方が壊れて 0 件で通らないように、Host を断る文と大きすぎる本文の文が入っていることを確かめる
+    expect(texts).toContain("The request body is too large");
+    expect(texts.some((t) => t.startsWith("Refused a request for the host name"))).toBe(true);
+    for (const text of texts) {
+      expect(text).not.toMatch(JAPANESE);
+      expect(CORE_MESSAGES[text]?.ja, text).toMatch(JAPANESE);
+    }
+    setLanguage("ja");
+    expect(trCoreMessage("No API at /api/nope")).toBe("/api/nope という API はない");
+    expect(trCoreMessage('Refused a request whose URL cannot be read: "/a:b"')).toBe(
+      'URL を読めない要求を断った: "/a:b"',
+    );
+    setLanguage("en");
+    expect(trCoreMessage("No API at /api/nope")).toBe("No API at /api/nope");
   });
 });
 

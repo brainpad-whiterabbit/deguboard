@@ -4,6 +4,7 @@
 //   GET  /api/status              同期の状態（未 push・未取り込み・読めないファイル）
 //   それ以外                        staticDir があれば静的ファイル（web）
 // どの要求も、先に guard で Host・Origin・Content-Type を見て、ブラウザを踏み台にした要求を断る（UI-8）
+// 応答の文（エラーと案内）は dg の出力なので英語で書き（CL-8）、画面に出る JSON のエラーの文は web の CORE_MESSAGES で表示言語に訳す（UI-11）
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isIP } from "node:net";
@@ -185,7 +186,7 @@ export function createApp(options: AppOptions): Handler {
           } catch {
             json(res, 400, {
               ok: false,
-              error: { code: "INVALID_JSON", message: "本文が JSON ではない" },
+              error: { code: "INVALID_JSON", message: "The request body is not JSON" },
             });
             return;
           }
@@ -200,7 +201,7 @@ export function createApp(options: AppOptions): Handler {
       if (url.pathname.startsWith("/api/")) {
         json(res, 404, {
           ok: false,
-          error: { code: "NOT_FOUND", message: `${url.pathname} はない` },
+          error: { code: "NOT_FOUND", message: `No API at ${url.pathname}` },
         });
         return;
       }
@@ -213,8 +214,8 @@ export function createApp(options: AppOptions): Handler {
       res.writeHead(options.staticDir ? 404 : 200, { "content-type": "text/plain; charset=utf-8" });
       res.end(
         options.staticDir
-          ? "見つからない"
-          : "deguboard server。API は /api/commands。画面（web）はまだ配信していない\n",
+          ? "Not found\n"
+          : "deguboard server. The API is at /api/commands. The web screen is not served\n",
       );
     } catch (error) {
       // 静的ファイルを流し始めた後の失敗は、応答を書けないので接続を閉じる（書くと例外になり、落ちる）
