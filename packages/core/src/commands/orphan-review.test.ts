@@ -646,6 +646,59 @@ describe("前景の見直し役が返ったとき、起動のフックが先に�
     expect(reviewRuns(ctx)).toHaveLength(1);
   });
 
+  it("引き取った記録にも、親の依頼を待った秒数を起動から返るまでの範囲で切って書く。知らない形の入力がある記録では null（t958）", async () => {
+    /** 見直し役が later(2) に結果を書き、sync が記録にしてから later(3) に返る。記録の行は起動（返る 90 秒前）からの秒数で書く */
+    const adopted = async (lines: (at: (seconds: number) => string) => object[]) => {
+      const { ctx, parent, transcript } = await withTranscripts();
+      await hold(ctx, later(2), false);
+      await runCommand(sync, ctx, {});
+      const returnedAt = later(3);
+      const at = (seconds: number) =>
+        new Date(returnedAt.getTime() - 90_000 + seconds * 1000).toISOString();
+      await writeFile(
+        transcript,
+        lines(at)
+          .map((l) => JSON.stringify(l))
+          .join("\n") + "\n",
+      );
+      await returned(ctx, parent, returnedAt, 90_000);
+      const [run] = reviewRuns(ctx);
+      expect(run).not.toHaveProperty("capture", "none");
+      return run;
+    };
+    const user = (timestamp: string, over: object = {}) => ({
+      type: "user",
+      timestamp,
+      message: { content: PROMPT },
+      ...over,
+    });
+    const answer = (timestamp: string, id: string) => ({
+      type: "assistant",
+      timestamp,
+      message: { id, content: "答え" },
+    });
+
+    // 起動より前の待ち（20 秒）は範囲の外で、範囲の中の親の依頼を待った 30 秒だけが入る
+    const counted = await adopted((at) => [
+      user(at(-40)),
+      answer(at(-30), "m0"),
+      user(at(-10), { origin: { kind: "coordinator" } }),
+      answer(at(10), "m1"),
+      user(at(40), { origin: { kind: "coordinator" } }),
+      answer(at(50), "m2"),
+    ]);
+    expect(counted).toMatchObject({ waited_seconds: 30 });
+
+    // 知らない origin.kind の入力がある記録は、推し量らずに null
+    const unknown = await adopted((at) => [
+      user(at(0)),
+      answer(at(10), "m1"),
+      user(at(40), { origin: { kind: "知らない出どころ" } }),
+      answer(at(50), "m2"),
+    ]);
+    expect(unknown).toMatchObject({ waited_seconds: null });
+  });
+
   it("記録を書いた後に見直し役が結果を書き直していたら（保留になる）、引き取りで記録の結果をその新しい結果に置き換え、回もその記録に結び付ける", async () => {
     const { ctx, parent } = await withTranscripts();
     // later(2) に重い指摘で書き、sync が記録にした後、later(2.5) に通った結果で呼び直す（結果のある閉じた記録には書けず保留）
