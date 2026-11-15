@@ -1,3 +1,5 @@
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import { composeGuide } from "../guide/guide.js";
@@ -7,7 +9,7 @@ import { runCommand } from "./define.js";
 import { next, type NextStep } from "./next.js";
 import { runReviewResult } from "./run.js";
 import { findCommand } from "./registry.js";
-import { init } from "./setup.js";
+import { configSet, init } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
 
@@ -209,6 +211,22 @@ describe("dg brief と dg next の文（EX-3）", () => {
     const implement = (await runCommand(brief, ctx, { ticket: "t1", role: "implement" })).data;
     const next1 = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
     expect(next1.brief).toBe(implement.text);
+  });
+
+  it("実装の文は guide.notes.work の文書を手順の中に入れる（見出しを外すときに落とさない。t972）", async () => {
+    const ctx = await prepared();
+    await writeFile(
+      path.join(ctx.repo.topLevel, "work-notes.md"),
+      "書いたコマンドは書いた形で回す\n",
+    );
+    await runCommand(configSet, ctx, { key: "guide.notes.work", value: "work-notes.md" });
+    const reopened = await openContext({ cwd: ctx.repo.topLevel, actor: ctx.actor });
+    const text = (await runCommand(brief, reopened, { ticket: "t1", role: "implement" })).data.text;
+    const steps = text.slice(
+      text.indexOf("--- Steps: Implement ---"),
+      text.indexOf("--- End of steps ---"),
+    );
+    expect(steps).toContain("書いたコマンドは書いた形で回す");
   });
 
   it("手直しの文は --findings を渡さなければ、最新の見直しの記録から重い指摘と受け入れ条件の軽い指摘を入れる。参考節の軽い指摘は入れない（t600）", async () => {
