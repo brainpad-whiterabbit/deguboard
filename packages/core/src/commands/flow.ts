@@ -49,13 +49,16 @@ export interface FlowFacts {
   targets: readonly FlowTicket[];
   /**
    * 見直しとリリースの判定で「すべて done か abandoned」を見るチケット。Iteration の指定では対象と同じ、
-   * チケットの指定では対象とその Iteration のチケット（guide-all の「Deciding the target」）。<S> がなければ空
+   * チケットの指定では対象とその Iteration のチケット（guide-all の「Deciding the target」）。<S> がなければ空。
+   * ラベル release-<S> のチケット（リリースの段で起票する 2 つ）は除く。リリースの段の途中で残っていても、リリースを返し続けるため
    */
   releaseScope: readonly FlowTicket[];
   /** 割り当ての候補（Iteration に入っていない todo。ラベル audit-<S> を除く） */
   candidates: readonly string[];
   /** ラベル audit-<S> のチケットがある（状態と所属は問わない） */
   auditLabeled: boolean;
+  /** ラベル release-<S> のチケットがある（状態は問わない）。リリースの段を始めたので、見直しも終えたとみなす */
+  releaseLabeled: boolean;
   /** 対象のチケットを含む承認待ちの Plan（番号順） */
   pendingPlans: readonly { id: string; tickets: readonly string[] }[];
   /**
@@ -63,7 +66,7 @@ export interface FlowFacts {
    * finished は Plan のチケットが「終わった」（isFinishedSet）こと。終わったものは規則 4 で閉じる
    */
   approvedPlans: readonly { id: string; unfinished: readonly string[]; finished: boolean }[];
-  /** 対象のうち、開いた Plan に入っていない todo */
+  /** 対象のうち、開いた Plan に入っていない todo（ラベル release-<S> を除く。リリースの手順で進めるので計画しない） */
   unplanned: readonly string[];
   /** --no-assign */
   noAssign: boolean;
@@ -81,9 +84,15 @@ export interface FlowStage {
   tickets: string[];
 }
 
-/** 見直し済み：ラベル audit-<S> のチケットがあるか、この実行で見直しを終えた */
-export function isAudited(facts: Pick<FlowFacts, "auditLabeled">, memory: FlowMemory): boolean {
-  return facts.auditLabeled || memory.audited;
+/**
+ * 見直し済み：ラベル audit-<S> のチケットがあるか、この実行で見直しを終えたか、リリースの段を始めた（ラベル release-<S> のチケットがある）。
+ * 指摘のない見直しは audit-<S> を残さないので、リリースの途中で 1 から呼び直したときに見直しへ戻さないよう release-<S> も数える
+ */
+export function isAudited(
+  facts: Pick<FlowFacts, "auditLabeled" | "releaseLabeled">,
+  memory: FlowMemory,
+): boolean {
+  return facts.auditLabeled || facts.releaseLabeled || memory.audited;
 }
 
 const allFinished = (tickets: readonly FlowTicket[]) => isFinishedSet(tickets.map((t) => t.status));
@@ -457,6 +466,10 @@ export function flowFactsOf(
   const target = resolveTargets(store, refs);
   const s = target.iteration;
   const auditLabel = s ? `audit-${s}` : undefined;
+  // リリースの手順で起票したチケット。リリースを始めたことは audit-<S> と同じく事実から決め、resume に覚えない
+  // （同じ引数で 1 から呼び直しても、リリースの段に戻れる）
+  const releaseLabel = s ? `release-${s}` : undefined;
+  const isRelease = (t: Ticket) => releaseLabel !== undefined && t.labels.includes(releaseLabel);
   const all = sortedDocs(store.tickets.values()).map((d) => d.data);
   const ids = new Set(target.tickets.map((t) => t.id));
   const iteration = s ? store.iterations.get(s as IterationId)?.data : undefined;
@@ -472,12 +485,13 @@ export function flowFactsOf(
               !(auditLabel && t.labels.includes(auditLabel)),
           )
         : target.tickets.filter((t) => t.status === "todo" && t.iteration === undefined);
-  const releaseScope =
+  const releaseScope = (
     s === null
       ? []
       : target.kind === "iteration"
         ? target.tickets
-        : [...target.tickets, ...all.filter((t) => t.iteration === s && !ids.has(t.id))];
+        : [...target.tickets, ...all.filter((t) => t.iteration === s && !ids.has(t.id))]
+  ).filter((t) => !isRelease(t));
   const plans = sortedDocs(store.plans.values()).filter(
     (p) => p.data.closed_at === undefined && p.data.tickets.some((t) => ids.has(t)),
   );
@@ -494,6 +508,7 @@ export function flowFactsOf(
     releaseScope,
     candidates: candidates.map((t) => t.id),
     auditLabeled: auditLabel !== undefined && all.some((t) => t.labels.includes(auditLabel)),
+    releaseLabeled: all.some(isRelease),
     pendingPlans: plans
       .filter((p) => p.data.pending_approval)
       .map((p) => ({ id: p.id, tickets: p.data.tickets })),
@@ -509,13 +524,18 @@ export function flowFactsOf(
         finished: isFinishedSet(p.data.tickets.map(statusOf)),
       })),
     unplanned: target.tickets
-      .filter((t) => t.status === "todo" && !inOpenPlan.has(t.id))
+      .filter((t) => t.status === "todo" && !inOpenPlan.has(t.id) && !isRelease(t))
       .map((t) => t.id),
     noAssign,
   };
   // 同じ段階が続いたかは、段階を決める事実に加えて、対象のチケットの更新と Run の出入りで見る
-  // （作業の段階で見直しや手直しが進めば、チケットの状態が同じでも事実は変わった）
-  const watched = new Set([...ids, ...releaseScope.map((t) => t.id)]);
+  // （作業の段階で見直しや手直しが進めば、チケットの状態が同じでも事実は変わった）。
+  // release-<S> のチケットも見る（リリースの PR が進めば、リリースの段が続いても止めない）
+  const watched = new Set([
+    ...ids,
+    ...releaseScope.map((t) => t.id),
+    ...all.filter((t) => t.iteration === s && isRelease(t)).map((t) => t.id),
+  ]);
   const runs = [...store.runs.values()]
     .map((d) => d.data)
     .filter((r) => watched.has(r.ticket))
@@ -569,8 +589,8 @@ export const flowNext = defineCommand({
     "The target is one Iteration, one Plan, or one or more tickets. The stage is the first of these eight rules that applies, in order " +
     "(1 assign: assignment is not finished in this run, <S> is not audited, some todo is neither labeled audit-<S> nor in an Iteration, and --no-assign is not given / " +
     "2 check: not yet checked in this run / 3 plan: an approval-waiting Plan includes the target / 4 work: an approved Plan that includes the target has unfinished tickets, and if none, an approved open Plan that includes the target is finished (close: plan close) / " +
-    "5 plan: an open Plan does not include some todo / 6 audit: all tickets of <S> are done or abandoned but not yet audited / 7 release: the same, and audited / 8 stop. If <S> is closed, nothing is assigned, and the flow stops as finished before 6 and 7). " +
-    "Audited means a ticket with the label audit-<S> exists, or the audit was finished in this run. For a ticket or Plan target, <S> is the ticket's Iteration (only when it is a single one), and audit and release apply only when all tickets in that Iteration are finished. " +
+    "5 plan: an open Plan does not include some todo / 6 audit: all tickets of <S> are done or abandoned but not yet audited / 7 release: the same, and audited. Tickets labeled release-<S> (the two release tickets that the release steps file) are not counted in 6 and 7 nor planned in 5, so release keeps returning until <S> is closed / 8 stop. If <S> is closed, nothing is assigned, and the flow stops as finished before 6 and 7). " +
+    "Audited means a ticket with the label audit-<S> or release-<S> exists, or the audit was finished in this run.For a ticket or Plan target, <S> is the ticket's Iteration (only when it is a single one), and audit and release apply only when all tickets in that Iteration are finished. " +
     "Passing the returned resume to --resume in the next call marks the assignment, check, and audit that it returned as finished, and skips them. If resume is missing, unreadable, or for a different target, it starts again from assign and check. " +
     "When stopped without finishing a stage (such as stopping at the audit findings table), do not pass that resume (passing it would skip that stage). " +
     "Stages in config's flow.skip are skipped without reading their rules. If the facts (tickets, Plans, Runs) have not changed for the same stage as the previous return, it returns stop. Returns the stage's section (guide), the commands to call (commands; with --gate, the work stage sets the level on tickets whose level differs before next), and whether approval is needed (approval; auto_ok says whether --auto chooses it without asking, following config's auto.decisions and auto.merge; decisions a person makes are not included). Writes nothing",
