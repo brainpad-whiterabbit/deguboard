@@ -59,6 +59,10 @@ Claude Code では、「s3 を計画して」のように普通の言葉で言�
 
 トークンは、会話記録から使用量を取り込む設定を有効にしたときだけ集計されます。有効にするしかたは[トークンを数える](docs/usage.ja.md#トークンを数える)にあります。
 
+## 仕組み
+
+チケットと Run はリポジトリのブランチに置き、画面もエージェントも同じ `dg` のコマンドを通り、フックがエージェントの手を借りずに Run を記録します。全体の構成と Run が記録する範囲は、[図で示しています](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/how-it-works.ja.md)。
+
 ## ヒント
 
 細部は[使い方の細部](docs/usage.ja.md)にあります。
@@ -83,6 +87,7 @@ Claude Code では、「s3 を計画して」のように普通の言葉で言�
 ## ドキュメント
 
 - [使い方の細部](docs/usage.ja.md)：この README に収めない使い方
+- [仕組み](docs/how-it-works.ja.md)：全体の構成と、Run が記録する範囲を図で示します
 - [要件定義書](docs/requirements.md)：今の仕様の正本
 - [ADR](docs/adr/README.md)：設計判断の背景と理由
 - [開発ガイド](docs/development.md)：このリポジトリで開発する人向け

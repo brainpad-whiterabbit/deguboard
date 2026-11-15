@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="arch" viewBox="0 0 910 660" role="img" aria-label="deguboard's architecture. People and agents go through the entry points (the VS Code extension, dg serve, the CLI and MCP, dg hook), and every entry point calls the command definitions of Core. Core reads and writes the data branch, the work branches, and deguboard-local on this machine, and connects to the Git remote, GitHub, and the transcripts">
+  <style>
+    .arch text { font-size: 13px; fill: #1f2328; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .arch text.sub { font-size: 11px; fill: #59636e; }
+    .arch text.strong { font-weight: 600; fill: #0969da; }
+    .arch .layer text { font-weight: 600; fill: #59636e; }
+    .arch .rows line { stroke: #d1d9e0; stroke-dasharray: 2 4; }
+    .arch .box { fill: #f6f8fa; stroke: #1f2328; stroke-opacity: .55; stroke-width: 1; }
+    .arch .box.core { fill: none; stroke: #0969da; stroke-opacity: 1; stroke-width: 2; }
+    .arch .box.inner { fill: #ffffff; stroke-opacity: .4; }
+    .arch .arrow line, .arch .arrow polyline { stroke: #1f2328; stroke-width: 1.3; }
+    .arch .arrow .dash { stroke-dasharray: 5 4; }
+    .arch .label text { font-size: 11px; fill: #59636e; }
+    .arch .head { fill: #1f2328; }
+    @media (prefers-color-scheme: dark) {
+      .arch text { fill: #e6edf3; }
+      .arch text.sub { fill: #9198a1; }
+      .arch text.strong { fill: #4493f8; }
+      .arch .layer text { fill: #9198a1; }
+      .arch .rows line { stroke: #3d444d; }
+      .arch .box { fill: #151b23; stroke: #e6edf3; }
+      .arch .box.core { fill: none; stroke: #4493f8; }
+      .arch .box.inner { fill: #0d1117; }
+      .arch .arrow line, .arch .arrow polyline { stroke: #e6edf3; }
+      .arch .label text { fill: #9198a1; }
+      .arch .head { fill: #e6edf3; }
+    }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="head" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+  <g class="layer">
+    <text x="16" y="45">Users</text>
+    <text x="16" y="129">UI</text>
+    <text x="16" y="221">Entry points</text>
+    <text x="16" y="370">Core</text>
+    <text x="16" y="514">Storage</text>
+    <text x="16" y="530" class="sub">(this machine)</text>
+    <text x="16" y="619">Outside</text>
+  </g>
+  <g class="rows">
+    <line x1="140" y1="80" x2="895" y2="80"/>
+    <line x1="140" y1="170" x2="895" y2="170"/>
+    <line x1="140" y1="265" x2="895" y2="265"/>
+    <line x1="140" y1="468" x2="895" y2="468"/>
+    <line x1="140" y1="570" x2="895" y2="570"/>
+  </g>
+  <rect class="box" x="150" y="20" width="315" height="40" rx="20"/>
+  <text x="307" y="45" text-anchor="middle">Human</text>
+  <rect class="box" x="560" y="20" width="315" height="40" rx="20"/>
+  <text x="717" y="45" text-anchor="middle">AI agent (Claude Code and others)</text>
+  <rect class="box" x="150" y="100" width="315" height="50" rx="6"/>
+  <text x="307" y="121" text-anchor="middle">Screens (React)</text>
+  <text x="307" y="139" text-anchor="middle" class="sub">in a VS Code Webview or a browser</text>
+  <rect class="box" x="150" y="190" width="150" height="52" rx="6"/>
+  <text x="225" y="212" text-anchor="middle">VS Code extension</text>
+  <text x="225" y="230" text-anchor="middle" class="sub">extension host</text>
+  <rect class="box" x="315" y="190" width="150" height="52" rx="6"/>
+  <text x="390" y="212" text-anchor="middle">dg serve</text>
+  <text x="390" y="230" text-anchor="middle" class="sub">HTTP</text>
+  <rect class="box" x="560" y="190" width="150" height="52" rx="6"/>
+  <text x="635" y="212" text-anchor="middle">CLI dg</text>
+  <text x="635" y="230" text-anchor="middle" class="sub">and MCP (dg mcp)</text>
+  <rect class="box" x="725" y="190" width="150" height="52" rx="6"/>
+  <text x="800" y="212" text-anchor="middle">dg hook</text>
+  <text x="800" y="230" text-anchor="middle" class="sub">entry for hooks</text>
+  <rect class="box core" x="150" y="285" width="725" height="160" rx="8"/>
+  <text x="166" y="306" class="strong">Core (packages/core)</text>
+  <text x="859" y="306" text-anchor="end" class="sub">dependency rules: ADR-033</text>
+  <rect class="box inner" x="166" y="318" width="693" height="36" rx="5"/>
+  <text x="512" y="341" text-anchor="middle">commands/ — every operation is defined here; entry points only map them</text>
+  <g>
+    <rect class="box inner" x="166" y="370" width="93" height="56" rx="5"/>
+    <text x="212" y="394" text-anchor="middle">model</text>
+    <text x="212" y="412" text-anchor="middle" class="sub">schemas</text>
+    <rect class="box inner" x="266" y="370" width="93" height="56" rx="5"/>
+    <text x="312" y="394" text-anchor="middle">storage</text>
+    <text x="312" y="412" text-anchor="middle" class="sub">files, index</text>
+    <rect class="box inner" x="366" y="370" width="93" height="56" rx="5"/>
+    <text x="412" y="394" text-anchor="middle">workflow</text>
+    <text x="412" y="412" text-anchor="middle" class="sub">transitions</text>
+    <rect class="box inner" x="466" y="370" width="93" height="56" rx="5"/>
+    <text x="512" y="394" text-anchor="middle">git</text>
+    <text x="512" y="412" text-anchor="middle" class="sub">sync, reconcile</text>
+    <rect class="box inner" x="566" y="370" width="93" height="56" rx="5"/>
+    <text x="612" y="394" text-anchor="middle">run</text>
+    <text x="612" y="412" text-anchor="middle" class="sub">Run records</text>
+    <rect class="box inner" x="666" y="370" width="93" height="56" rx="5"/>
+    <text x="712" y="394" text-anchor="middle">agents</text>
+    <text x="712" y="412" text-anchor="middle" class="sub">per product</text>
+    <rect class="box inner" x="766" y="370" width="93" height="56" rx="5"/>
+    <text x="812" y="394" text-anchor="middle">guide</text>
+    <text x="812" y="412" text-anchor="middle" class="sub">step texts</text>
+  </g>
+  <rect class="box" x="150" y="490" width="300" height="56" rx="6"/>
+  <text x="300" y="513" text-anchor="middle">Branch deguboard</text>
+  <text x="300" y="532" text-anchor="middle" class="sub">tickets, Plans, Runs, … (.git/deguboard/)</text>
+  <rect class="box" x="465" y="490" width="200" height="56" rx="6"/>
+  <text x="565" y="513" text-anchor="middle">Work branches, worktrees</text>
+  <text x="565" y="532" text-anchor="middle" class="sub">code</text>
+  <rect class="box" x="680" y="490" width="195" height="56" rx="6"/>
+  <text x="777" y="513" text-anchor="middle">deguboard-local/</text>
+  <text x="777" y="532" text-anchor="middle" class="sub">running Runs, locks (not in Git)</text>
+  <rect class="box" x="150" y="590" width="515" height="50" rx="6"/>
+  <text x="407" y="611" text-anchor="middle">Git remote, GitHub</text>
+  <text x="407" y="629" text-anchor="middle" class="sub">data and code shared by push; PRs read with gh</text>
+  <rect class="box" x="680" y="590" width="195" height="50" rx="6"/>
+  <text x="777" y="611" text-anchor="middle">Transcripts</text>
+  <text x="777" y="629" text-anchor="middle" class="sub">written by the agent product</text>
+  <g class="arrow" marker-end="url(#arrow)">
+    <line x1="307" y1="60" x2="307" y2="98"/>
+    <line x1="225" y1="150" x2="225" y2="188"/>
+    <line x1="390" y1="150" x2="390" y2="188"/>
+    <line x1="635" y1="60" x2="635" y2="188"/>
+    <line x1="800" y1="60" x2="800" y2="188" class="dash"/>
+    <line x1="225" y1="242" x2="225" y2="283"/>
+    <line x1="390" y1="242" x2="390" y2="283"/>
+    <line x1="635" y1="242" x2="635" y2="283"/>
+    <line x1="800" y1="242" x2="800" y2="283"/>
+    <line x1="300" y1="445" x2="300" y2="488"/>
+    <line x1="565" y1="445" x2="565" y2="488"/>
+    <line x1="777" y1="445" x2="777" y2="488"/>
+    <line x1="300" y1="546" x2="300" y2="588"/>
+    <line x1="565" y1="546" x2="565" y2="588"/>
+    <polyline points="875,400 896,400 896,615 877,615" fill="none" marker-end="none" marker-start="url(#arrow)"/>
+  </g>
+  <g class="label">
+    <text x="313" y="84">views, operates</text>
+    <text x="231" y="174">postMessage</text>
+    <text x="396" y="174">HTTP</text>
+    <text x="629" y="128" text-anchor="end">calls dg</text>
+    <text x="629" y="143" text-anchor="end">(steps via dg guide)</text>
+    <text x="806" y="128">launch and stop</text>
+    <text x="806" y="143">events (harness)</text>
+    <text x="231" y="270">calls</text>
+    <text x="306" y="473">commits</text>
+    <text x="571" y="473">creates worktrees</text>
+    <text x="783" y="473">running records</text>
+    <text x="306" y="575">push, fetch</text>
+    <text x="571" y="575">push, PRs</text>
+    <text x="900" y="507" text-anchor="middle" transform="rotate(90 900 507)">reads usage</text>
+  </g>
+</svg>
