@@ -24,6 +24,8 @@ function which(name: string): string {
 
 const SH = which("sh");
 const GIT = which("git");
+// flock は util-linux のコマンドで、macOS の既定などには無い。lock を取る場合を見るテスト（it.skipIf(!FLOCK)）は
+// flock が無いと確かめようがないので飛ばす。flock が無いときに lock なしで回すことは「flock がなければ」のテストが見る
 const FLOCK = which("flock");
 
 let dir: string;
