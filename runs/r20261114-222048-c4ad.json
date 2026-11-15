@@ -1,0 +1,40 @@
+{
+  "id": "r20261114-222048-c4ad",
+  "ticket": "t929",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-14T22:20:48Z",
+  "finished_at": "2026-11-15T02:30:44Z",
+  "result": "success",
+  "error": null,
+  "retries": 8,
+  "retry_reasons": [
+    "CLAUDE.md の言語の規則に docs/guide-notes/ を英語の例外として足す",
+    "ADR-001 の表の行と言語の決めを、文書の配置の決まりの範囲どおりに直す",
+    "ADR-001 の省いた理由（読み手は番号を引けない、言語を問わず、前提）を戻す",
+    "ADR-001 の採らなかった案の退けた理由と、要件の 1 項の上限の説明を戻す",
+    "ADR-001 の背景・理由・採らなかった案で範囲外に削った記述を戻す",
+    "ADR-001 の表に経緯（根拠の数字）を書く範囲を明記する",
+    "plan.md の取り込み直しの訳語を、取り込み直しの意味どおりに直す",
+    "development.md に写した上限・位置・既定値の細部を消し、正本への案内だけにする"
+  ],
+  "usage": {
+    "input": 58,
+    "output": 21790,
+    "cache_read": 1603585,
+    "cache_write": 144992
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 8,
+    "bash": 16,
+    "other": 2,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "2ca0961d-cdbb-4232-9597-25eaec87b355",
+  "review": null
+}
