@@ -86,10 +86,11 @@ Each finding of a review has a `cause`, one of seven kinds (their meanings are i
 
 ## Files and references of the tickets
 
-- `metrics sources --iteration <S>` gives, for each ticket, `files` (the paths that its merged PR changed) and `refs` (the IDs of other tickets written in its title and body). Use it for metrics about the overlap between PRs (the same file in `files` of two tickets) and about tickets that came from other tickets (a ticket whose `refs` has a ticket of an earlier Iteration, such as a defect that passed the review or the audit). Do not count them by hand from `git log` or the bodies
+- `metrics sources --iteration <S>` gives, for each ticket, `files` (the paths that its merged PR changed), `refs` (the IDs of other tickets written in its title and body), and `origin` and `origin_cause` (the tickets whose change caused the defect that this ticket fixes, and the kind of cause, as recorded on the ticket). Use it for metrics about the overlap between PRs (the same file in `files` of two tickets) and about defects that passed the review or the audit (a ticket of `<S>` that is in the `origin` of a later ticket). Do not count them by hand from `git log` or the bodies
+- Count the defects that passed the review only from `origin`, not from `refs`. `origin` is never filled in from `refs`, and tickets filed before `origin` was recorded have none: an empty `origin` does not mean that no defect passed, so write an Iteration from before as "unmeasured", not 0
 - `files` is null when it could not be read, with the reason in `files_unknown` (no PR recorded, a PR not merged, `gh` not available, a PR with more than 100 files, or not read because of `--limit`: `unread` counts those, so raise `--limit`). Null is not "no files": leave such a ticket out of the metric and give the count of them with the number, and write "unmeasured" when most of the tickets are null
 - `refs` tells only that the ID is written, not why. When the metric needs the reason (it came from that ticket, it depends on it, it is only an example), read the ticket with `ticket show` and say in the definition how to tell
-- `refs` of the tickets of `<S>` holds only what those tickets mention. To find the tickets that mention a ticket of `<S>`, read `metrics sources` of the later Iteration (or with no filter) and look for the ID in their `refs`
+- `refs` and `origin` of the tickets of `<S>` hold only what those tickets mention or record. To find the tickets that mention a ticket of `<S>` or fix its defect, read `metrics sources` of the later Iteration (or with no filter) and look for the ID in their `refs` or `origin`
 
 ## Tokens per changed line
 

@@ -563,6 +563,18 @@ describe("dg guide", () => {
     expect(section(retro, "## Gaps in the measurement")).toContain("`files_unknown`");
   });
 
+  it("retro はすり抜けた不具合を記録した origin で数え、refs で数える案内を残さず、記録のない古い Iteration を 0 にしない（t946）", async () => {
+    const retro = await readGuide("retro");
+    const sources = section(retro, "## Files and references of the tickets");
+    for (const word of ["`origin`", "`origin_cause`", "in the `origin` of a later ticket"])
+      expect(sources, word).toContain(word);
+    const count = lineWith(sources, "Count the defects that passed the review");
+    expect(count).toContain("only from `origin`, not from `refs`");
+    expect(count).toContain('"unmeasured", not 0');
+    // 前の案内（refs に前の Iteration のチケットがあるものを、すり抜けた不具合として数える）は残さない
+    expect(retro).not.toContain("a ticket whose `refs` has a ticket of an earlier Iteration");
+  });
+
   it("retro は根拠つきの Keep / Problem / Try の表と Try の扱いを示し、承認まで書き換えず、起票は guide import に従って retro-<S> を付け、Iteration は付けない", async () => {
     const retro = await readGuide("retro");
     const table = section(retro, "## Keep / Problem / Try");

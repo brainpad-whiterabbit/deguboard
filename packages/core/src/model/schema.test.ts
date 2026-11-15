@@ -321,6 +321,24 @@ describe("スキーマ", () => {
     );
   });
 
+  it("すり抜けた不具合の割合は、記録した origin と origin_cause で数え、refs と本文からは数えず、記録のない古い Iteration は測れないものにする（t946）", () => {
+    const m = RECOMMENDED_RETRO_METRICS["review"]?.["escaped-defect-rate"];
+    expect(m?.sources).toEqual([
+      "dg metrics sources --limit 1 (tickets[].origin, origin_cause, iteration; files is not read)",
+      "dg metrics show --iteration <S> --by ticket (reviews.recorded)",
+    ]);
+    expect(m?.definition).toContain("recorded origin");
+    expect(m?.definition).toContain("origin_cause");
+    expect(m?.definition).toContain("Do not count from refs or the bodies");
+    expect(m?.definition).toContain("as unmeasured, not 0");
+    expect(m?.unmeasured).toContain("fixes whose origin was not recorded");
+    // 本文を読む出どころ（ticket show）と refs の出どころは残さない
+    for (const source of m?.sources ?? []) {
+      expect(source).not.toContain("refs");
+      expect(source).not.toContain("ticket show");
+    }
+  });
+
   it("振り返りの観点は、名前・問い・指標の定義（数え方の文と出どころのコマンド）をスキーマが検査する（t847）", () => {
     const metric = { definition: "done の数 ÷ 入れた数", sources: ["dg iteration show <S>"] };
     const parsed = configSchema.parse({

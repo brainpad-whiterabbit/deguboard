@@ -38,14 +38,13 @@ export const RECOMMENDED_RETRO_METRICS: Readonly<
     },
     "escaped-defect-rate": {
       definition:
-        "Of the tickets of <S> that have one or more review records, the share that has one or more tickets filed later (a ticket whose refs has the ticket's ID and whose ID is larger) whose body says it fixes wrong behavior of the ticket's merged change (defects and unstable tests included). Cleanup of light findings a review left, drift of documents from before, the Try of a retrospective, findings a review judged out of scope, and feature additions are not counted. Give the pairs of tickets counted with it",
+        "Of the tickets of <S> that have one or more review records, the share that is in the recorded origin of one or more other tickets (tickets[].origin of metrics sources with no filter). Do not count from refs or the bodies. Give the pairs of tickets counted and the count of each origin_cause with it. Tickets filed before origin was recorded have none, so treat an Iteration earlier than the Iteration of the first ticket with a recorded origin (the smallest ID whose origin is not empty) as unmeasured, not 0",
       sources: [
-        "dg metrics sources --limit 1 (tickets[].refs; files is not read)",
-        "dg ticket show <t> (body)",
+        "dg metrics sources --limit 1 (tickets[].origin, origin_cause, iteration; files is not read)",
         "dg metrics show --iteration <S> --by ticket (reviews.recorded)",
       ],
       unmeasured:
-        "Defects not found yet (the count can grow in later Iterations, so a recent Iteration comes out lower), and defects fixed without being made a ticket",
+        "Defects not found yet (the count can grow in later Iterations, so a recent Iteration comes out lower), defects fixed without being made a ticket, and fixes whose origin was not recorded",
     },
   },
   spec: {
