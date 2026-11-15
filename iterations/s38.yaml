@@ -1,0 +1,4 @@
+id: s38
+name: sprint38
+goal: VS Code の拡張を入れた人が、左パネルのチェックリストだけで導入を終えられるようにする（e36）。あわせて、hooks の処理を core に寄せ、dg flow next がリリースの段に戻らない不具合を直す
+status: planned
