@@ -23,7 +23,7 @@ after:
     - t969
   t977:
     - t974
-pending_approval: true
+pending_approval: false
 details:
   t973:
     scope: Record the source commit in dist at build, warn on stderr from dg.js when it differs from HEAD, and write the post-merge rebuild step in guide.notes.done
@@ -89,3 +89,5 @@ details:
     scope: Open Ask from each config screen row with dg ask --action config --key, and /dgretro from retro perspective rows
     approach: Build candidates and prompts in the core ask command with schema-checked keys, and have the config page only render them
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-15T05:46:35Z
