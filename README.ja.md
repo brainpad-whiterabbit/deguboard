@@ -12,9 +12,15 @@ Git リポジトリの中で動く、AI エージェントと一緒に使うカ�
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/flow.ja.png" alt="開発の流れ：エージェントが思いつきをチケットにして順番を計画し、Iteration の中で品質ゲートを通しながら並列に実装してチケットごとの時間とトークンを報告し、リリースと振り返りに進む。チームの全員が同じボードを見て、人はチケット・計画・リリースを承認し、Iteration を監視し、何を改善するかを選ぶ" width="800">
 
-## 導入
+## 動作環境
 
-deguboard は Linux と macOS で動きます。Git 2.30 以上が要り、PR の状態をチケットに映すには GitHub CLI（`gh`）も要ります。
+- **OS**：Linux または macOS。
+- **VS Code**：1.123 以上のデスクトップ版。
+- **Git**：2.30 以上。
+- **GitHub CLI（`gh`）**：任意。PR の状態をチケットに映すときだけ要ります。
+- **エージェント**：Claude Code を主に対応しています。Skill とフックは Claude Code 向けです。シェルを使えるほかのエージェント（Codex・Copilot CLI など）でも `dg` は使えますが、フックが届かないので、エージェントの計測（Run とトークン）の精度が落ち、データとマージの守りも効きません。違いは[他のエージェントで使う](docs/usage.ja.md#他のエージェントで使う)にあります。
+
+## 導入
 
 1. **拡張を入れる**：[GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を取得し、`code --install-extension deguboard-vscode.vsix` で入れて、ウィンドウを再読み込みします。
 2. **リポジトリで始める**：リポジトリを開き、Activity Bar の deguboard のアイコンを押して、**このリポジトリで始める** を押します。ボードを作り、Claude Code の Skill（`/dgplan` など）とフックをそのマシンに入れます。足された `.claude/.gitignore` をコミットします。

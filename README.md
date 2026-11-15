@@ -10,9 +10,15 @@ An agentic kanban board inside your Git repository, with the development flow bu
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/flow.png" alt="The development flow: an agent turns your idea into tickets and plans the order, agents work in parallel through the quality gate in each Iteration and report the time and tokens per ticket, then release and retrospect; your whole team sees the same board, and you approve the tickets, the plan, and the release, monitor the Iteration, and choose what to improve" width="800">
 
-## Installation
+## Requirements
 
-deguboard runs on Linux and macOS. It needs Git 2.30 or later, and the GitHub CLI (`gh`) to show pull request status on tickets.
+- **OS**: Linux or macOS.
+- **VS Code**: 1.123 or later, the desktop edition.
+- **Git**: 2.30 or later.
+- **GitHub CLI (`gh`)**: optional. It is needed only to show pull request status on tickets.
+- **Agent**: Claude Code is the supported agent, and the Skills and hooks are made for it. Other agents that can run a shell, such as Codex and Copilot CLI, can also use `dg`, but without the hooks the measurement of agent Runs and tokens is less accurate, and the guards on data and merges do not work. See [Use other agents](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-other-agents) in the usage guide.
+
+## Installation
 
 1. **Install the extension**: Download `deguboard-vscode.vsix` from [GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases), run `code --install-extension deguboard-vscode.vsix`, and reload the VS Code window.
 2. **Start with the repository**: Open your repository, click the deguboard icon in the Activity Bar, and press **Start with this repository**. It creates the board and installs the Skills (such as `/dgplan`) and the hooks for Claude Code on your machine. Commit the `.claude/.gitignore` it adds.
