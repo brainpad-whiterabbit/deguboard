@@ -57,10 +57,11 @@ guide:
     review: ""
     audit: ""
     release: ""
-    done: ""
+    done: docs/guide-notes/done.md
     change: ""
     discuss: ""
     status: ""
+    explain: ""
     retro: ""
     all: ""
 commit:
