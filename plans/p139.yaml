@@ -1,0 +1,91 @@
+id: p139
+tickets: [t973, t974, t962, t976, t975, t978, t972, t969, t977, t952, t963, t966, t964, t967, t965, t968]
+after:
+  t972:
+    - t973
+  t969:
+    - t973
+  t966:
+    - t969
+  t963:
+    - t962
+  t964:
+    - t963
+  t965:
+    - t964
+  t952:
+    - t974
+  t967:
+    - t952
+  t968:
+    - t967
+    - t962
+    - t969
+  t977:
+    - t974
+pending_approval: true
+details:
+  t973:
+    scope: Record the source commit in dist at build, warn on stderr from dg.js when it differs from HEAD, and write the post-merge rebuild step in guide.notes.done
+    approach: Write a build-info file in the build task, read HEAD from the git files in dg.js without spawning git, and keep JSON output and exit codes unchanged
+    tier: standard
+  t974:
+    scope: Turn the two reconcile Run errors into core constants with Japanese translations in CORE_MESSAGES
+    approach: Add constants next to the existing Run error constants and extend the test that matches constants against the translation table
+    tier: standard
+  t962:
+    scope: "Board only: a sticky one-line band when the head scrolls out, and sticky status section headers under it"
+    approach: Detect the head leaving with an IntersectionObserver and use CSS sticky for the band and section headers, as a mechanism t963-t965 can reuse
+    tier: standard
+  t976:
+    scope: Show active time in the kanban row Run summary the same way as the ticket detail Run rows
+    approach: Reuse the time formatting of ticket-runs.tsx in row-end.tsx instead of duplicating it
+    tier: standard
+  t975:
+    scope: Send the too-large error response before closing the connection in readBody
+    approach: Stop reading and respond with the status and English message, then close after the response finishes
+    tier: standard
+  t978:
+    scope: Remove the obsolete snapshots reported by guide.test.ts
+    approach: Run the file alone, confirm each obsolete snapshot has no current test, and remove them with the snapshot update
+    tier: light
+  t972:
+    scope: Write docs/guide-notes/work.md with the two lessons and point guide.notes.work to it; bundled guide-work.md is unchanged
+    approach: Check whether dg brief's implement text includes guide.notes and make it include them if it does not
+    tier: standard
+  t969:
+    scope: Re-record retro.gif and retro.ja.gif with the current retro flow under 20 seconds and 1MB
+    approach: Rewrite the retroFlow script in record-gifs.mjs to the sample in the ticket and record with mise run gifs
+    tier: standard
+  t977:
+    scope: Find why the run finish model-name test failed under load and remove the cause
+    approach: Read the order of writes and timestamps in the test and run finish, state the cause in a comment, and make the test independent of timing
+    tier: heavy
+  t952:
+    scope: Translate default Status display names on screen only, leaving rewritten names as written
+    approach: Use the same default-value translation mechanism as the Workflow step labels from t940 and t942
+    tier: standard
+  t963:
+    scope: Open the chip rows over the list from the band's dropdown, and show active filter chips on the band
+    approach: Reuse the existing IterationChips and FilterChips inside an overlay with keyboard and aria-expanded support
+    tier: standard
+  t966:
+    scope: dg builds work branch names as <id>-<english content>, enforces them, and explains the rule in help, dg next, and guide work
+    approach: Put the naming and validation in core ticket.ts so claim and update share it, and update ST-3 and remove the rule sentence from development.md
+    tier: heavy
+  t964:
+    scope: Keep the backlog search row, active filter row, and Iteration section headers sticky
+    approach: Reuse the sticky mechanism from t962 in backlog.tsx
+    tier: standard
+  t967:
+    scope: Add the config guide topic and the /dgconfig Skill, and offer it from the left panel's top Ask
+    approach: Add the topic and Skill files in core and the candidate in the ask command, with screen translation of the candidate name
+    tier: heavy
+  t965:
+    scope: Keep the history search row and the per-view headers sticky in all three views
+    approach: Reuse the sticky mechanism from t962 in history.tsx and history-rows.tsx
+    tier: standard
+  t968:
+    scope: Open Ask from each config screen row with dg ask --action config --key, and /dgretro from retro perspective rows
+    approach: Build candidates and prompts in the core ask command with schema-checked keys, and have the config page only render them
+    tier: heavy
