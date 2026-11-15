@@ -3,6 +3,10 @@
 // dg.js はそれを、dist のある worktree の今の HEAD と比べ、違えば mise run build を案内する英語の警告を stderr に出す。
 // マージのあとに main の worktree で git pull しても dist は古いまま残り、フックと mise run dg が古い dg のまま動くため。
 // 警告だけで、JSON の出力と終了コードは変えない（フックの答えを変えない）。
+// 比べるのはコミットだけなので、作業用の worktree では文書だけのコミットでも、ビルドし直すまで毎回の dg に出る（t986）。
+// ビルドの入力が変わったときだけに絞るには、記録したコミットからの差分を git に聞くことになり、警告が出る間は
+// dg の呼び出し（フックを含む）のたびに git を起動する。入力の一覧を読み違えると古い dist を黙って見逃すので、絞らずに、
+// 警告の文と案内（dg guide done に差し込む補足と docs/development.md）で、ビルドが読まないファイルだけの差分なら無視してよいと伝える。
 // dg は呼び出しのたびに起動するので、git を起動せずに .git のファイル（HEAD・refs・packed-refs）を読む。
 // 読めないとき（build-info.json がない・git の checkout でない・reftable など読めない形）は判定できないので黙る。
 // このファイルは node の組み込みのほかを読まない
@@ -86,7 +90,7 @@ export function staleDistWarningOf(rootPath) {
   if (head === undefined || head === built) return undefined;
   return [
     `dg: warning: the built CLI in dist/ was built from commit ${built.slice(0, 12)}, but HEAD of ${root} is ${head.slice(0, 12)}, so dg may run old code.`,
-    `Run \`mise run build\` in ${root} to rebuild it (this run goes on with the old build).`,
+    `Run \`mise run build\` in ${root} to rebuild it (this run goes on with the old build). If the commits since that build change only files that the build does not read, such as docs/, you can ignore this.`,
     "",
   ].join("\n");
 }
