@@ -189,12 +189,12 @@ describe("claim の worktree の作成", () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "A" });
-    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/t1" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1" });
     // 既定の worktree.root は ../<repo>.worktrees
     const expected = path.join(
       path.dirname(f.cloneA),
       `${path.basename(f.cloneA)}.worktrees`,
-      "feat/t1",
+      "t1",
     );
     expect(claimed.data.worktree).toBe(expected);
     expect((await runCommand(ticketShow, ctx, { ticket: "t1" })).data.worktree).toBe(
@@ -205,8 +205,8 @@ describe("claim の worktree の作成", () => {
     expect(head).toBe(await out(f.cloneA, ["rev-parse", "origin/main"]));
     // 切った起点の SHA をチケットに記録する（照合が作業のないブランチをマージ済みにしないため。ST-4・t764）
     expect(claimed.data.branch_base).toBe(head);
-    expect(await out(expected, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/t1");
-    const upstream = await runGit(expected, ["config", "--get", "branch.feat/t1.merge"], {
+    expect(await out(expected, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("t1");
+    const upstream = await runGit(expected, ["config", "--get", "branch.t1.merge"], {
       allowFailure: true,
     });
     expect(upstream).toMatchObject({ code: 1, stdout: "" });
@@ -219,17 +219,17 @@ describe("claim の worktree の作成", () => {
     const custom = path.join(f.root, "custom-wt");
     const a = await runCommand(ticketClaim, ctx, {
       ticket: "t1",
-      branch: "feat/a",
+      branch: "t1-a",
       worktree_path: custom,
     });
     expect(a.data.worktree).toBe(custom);
     const b = await runCommand(ticketClaim, ctx, {
       ticket: "t2",
-      branch: "feat/b",
+      branch: "t2-b",
       no_worktree: true,
     });
     expect(b.data.worktree).toBeNull();
-    expect(await out(f.cloneA, ["branch", "--list", "feat/b"])).toBe("");
+    expect(await out(f.cloneA, ["branch", "--list", "t2-b"])).toBe("");
     const c = await runCommand(ticketClaim, ctx, { ticket: "t3", without_branch: true });
     expect(c.data.worktree).toBeNull();
     // ブランチのない作業は起点も記録しない。worktree を作らない claim も起点は記録する
@@ -245,26 +245,26 @@ describe("claim の worktree の作成", () => {
     const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketCreate, ctx, { title: "B" });
-    const first = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/again" });
+    const first = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-again" });
     const dir = first.data.worktree!;
     // 作業のコミットを残したまま worktree だけ消し、unclaim して claim し直す
     await git(dir, ["commit", "-q", "--allow-empty", "-m", "途中"]);
     const tip = await out(dir, ["rev-parse", "HEAD"]);
     await git(f.cloneA, ["worktree", "remove", dir]);
     await runCommand(ticketUnclaim, ctx, { ticket: "t1" });
-    const again = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/again" });
+    const again = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-again" });
     expect(again.data.worktree).toBe(dir);
     expect(await out(dir, ["rev-parse", "HEAD"])).toBe(tip);
     // 場所がふさがっていれば作れない。claim は済み、理由は warnings
     const blocked = await runCommand(ticketClaim, ctx, {
       ticket: "t2",
-      branch: "feat/blocked",
+      branch: "t2-blocked",
       worktree_path: dir,
     });
     expect(blocked.data).toMatchObject({ status: "in_progress", worktree: null });
     // 警告は手で作る場所（依頼の path）も書く。作れなかったときに場所が分かるように（t617）
     expect(blocked.warnings.join("\n")).toContain(
-      `Could not create the worktree of branch feat/blocked`,
+      `Could not create the worktree of branch t2-blocked`,
     );
     expect(blocked.warnings.join("\n")).toContain(
       `create the worktree in ${dir} by hand and continue`,
@@ -287,7 +287,7 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "A" });
-    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/empty" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-empty" });
     const dir = claimed.data.worktree!;
     expect(claimed.data.status).toBe("in_progress");
     expect(existsSync(path.join(dir, "setup-ran.txt"))).toBe(false);
@@ -302,7 +302,7 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
       "console.error('原因の行'); process.exit(4)",
     ]);
     await runCommand(ticketCreate, ctx, { title: "A" });
-    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/stderr" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-stderr" });
     expect(claimed.warnings.join("\n")).toContain("exit code 4");
     expect(claimed.warnings.join("\n")).toContain("end of stderr: 原因の行");
   });
@@ -311,7 +311,7 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
     const f = await fixture();
     const ctx = await withSetup(f.cloneA, marker);
     await runCommand(ticketCreate, ctx, { title: "A" });
-    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/setup" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-setup" });
     const dir = claimed.data.worktree!;
     expect(existsSync(path.join(dir, "setup-ran.txt"))).toBe(true);
     expect(existsSync(path.join(f.cloneA, "setup-ran.txt"))).toBe(false);
@@ -322,7 +322,7 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
     const f = await fixture();
     const ctx = await withSetup(f.cloneA, ["node", "-e", "process.exit(3)"]);
     await runCommand(ticketCreate, ctx, { title: "A" });
-    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/exit" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-exit" });
     expect(claimed.data).toMatchObject({ status: "in_progress" });
     expect(claimed.data.worktree).toBeTruthy();
     const text = claimed.warnings.join("\n");
@@ -335,7 +335,7 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
     const f = await fixture();
     const ctx = await withSetup(f.cloneA, ["deguboard-no-such-command-t621"]);
     await runCommand(ticketCreate, ctx, { title: "A" });
-    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/missing" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-missing" });
     expect(claimed.data).toMatchObject({ status: "in_progress" });
     expect(claimed.warnings.join("\n")).toContain(
       "worktree setup command (deguboard-no-such-command-t621) could not be run",

@@ -160,7 +160,7 @@ async function fakeGh(root: string) {
       // dg pr ready が読む PR の本文（gh api）。本文は空
       `case "$1" in api) echo '{"body":""}'; exit 0;; esac`,
       'case "$3" in',
-      `  feat/t1|7) echo '${json}';;`,
+      `  t1|7) echo '${json}';;`,
       '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
       "esac",
       "",
@@ -178,7 +178,7 @@ async function fakeGh(root: string) {
 
 const later = (minutes: number) => new Date(Date.now() + minutes * 60_000);
 
-/** t1 を feat/t1 で Run なしに claim し、1 コミット push して PR #7 を記録した文脈（フックのない環境） */
+/** t1 を t1 で Run なしに claim し、1 コミット push して PR #7 を記録した文脈（フックのない環境） */
 async function prepared() {
   const f = await createFixture();
   cleanups.push(f.cleanup);
@@ -193,12 +193,12 @@ async function prepared() {
   await runCommand(ticketClaim, ctx, {
     no_worktree: true,
     ticket: "t1",
-    branch: "feat/t1",
+    branch: "t1",
     no_run: true,
   });
-  await git(f.cloneA, ["checkout", "-qb", "feat/t1"]);
+  await git(f.cloneA, ["checkout", "-qb", "t1"]);
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
-  await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+  await git(f.cloneA, ["push", "-q", "origin", "t1"]);
   await fakeGh(f.root);
   await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 7 });
   /** コミッタの時刻を at にした直しを push する */
@@ -206,7 +206,7 @@ async function prepared() {
     await runGit(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "直し"], {
       env: { GIT_COMMITTER_DATE: at.toISOString() },
     });
-    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
   };
   return { f, ctx, pushAt };
 }

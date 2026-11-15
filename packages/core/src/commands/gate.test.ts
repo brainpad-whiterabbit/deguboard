@@ -32,7 +32,7 @@ async function fakeGh(root: string, cases: () => Record<string, string>) {
         // __TIP__ は今のリモートの追跡 ref の先端に置き換える（PR の先端が push で進むのを写す。t750）
         ...Object.entries(cases()).map(
           ([key, json]) =>
-            `  ${key}) echo '${json}' | sed "s|__TIP__|$(git rev-parse -q --verify refs/remotes/origin/feat/t1)|";;`,
+            `  ${key}) echo '${json}' | sed "s|__TIP__|$(git rev-parse -q --verify refs/remotes/origin/t1)|";;`,
         ),
         '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
         "esac",
@@ -63,7 +63,7 @@ const pr = (
     ...over,
   });
 
-/** 雛形の準備（テストファイルで 1 度だけ走る）：init（software-development）・t1 を feat/t1 で claim して 1 コミット push */
+/** 雛形の準備（テストファイルで 1 度だけ走る）：init（software-development）・t1 を t1 で claim して 1 コミット push */
 async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {
@@ -77,12 +77,12 @@ async function prepareRepo(f: Layout): Promise<void> {
   await runCommand(ticketClaim, ctx, {
     no_worktree: true,
     ticket: "t1",
-    branch: "feat/t1",
+    branch: "t1",
     no_run: true,
   });
-  await git(f.cloneA, ["checkout", "-qb", "feat/t1"]);
+  await git(f.cloneA, ["checkout", "-qb", "t1"]);
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
-  await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+  await git(f.cloneA, ["push", "-q", "origin", "t1"]);
 }
 
 /** prepareRepo を済ませた雛形から写し、PR #7（偽の gh）がある文脈 */
@@ -92,7 +92,7 @@ async function prepared() {
   const actor = { kind: "agent" as const, user: "eiki" };
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   let state = { pr: pr() };
-  const rewrite = await fakeGh(f.root, () => ({ "feat/t1": state.pr, "7": state.pr }));
+  const rewrite = await fakeGh(f.root, () => ({ t1: state.pr, "7": state.pr }));
   const setPr = async (json: string) => {
     state = { pr: json };
     await rewrite();
@@ -187,7 +187,7 @@ describe("dg gate（品質ゲート。t532）", () => {
     await review(ctx, later(1), 0);
     // 見直しの後に新しいコミットを push すると、見直した SHA がリモートの先端と違う
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "見直しの後"]);
-    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
     const before = await judge(ctx, "ready");
     expect(before.conditions.find((c) => c.id === "review")!.detail).toContain(
       "No review of the last push",
@@ -201,15 +201,15 @@ describe("dg gate（品質ゲート。t532）", () => {
   it("見直しは開いたときのローカルの先端の SHA を記録し、見直しの前に別の clone で作ったコミットを後で push すると review を満たさない（t763）", async () => {
     const { ctx, f } = await prepared();
     // 別の clone で、見直しより前の時刻のコミットを作っておく（push は見直しの後）
-    await git(f.cloneB, ["fetch", "-q", "origin", "feat/t1"]);
-    await git(f.cloneB, ["checkout", "-qb", "feat/t1", "FETCH_HEAD"]);
+    await git(f.cloneB, ["fetch", "-q", "origin", "t1"]);
+    await git(f.cloneB, ["checkout", "-qb", "t1", "FETCH_HEAD"]);
     await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "見直しの前に作った"]);
     const reviewed = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
     await review(ctx, later(1), 0);
     const run = [...ctx.store.runs.values()].find((d) => d.data.step === "review")!.data;
     expect(run.head).toBe(reviewed);
     expect(failed(await judge(ctx, "ready"))).toEqual([]);
-    await git(f.cloneB, ["push", "-q", "origin", "feat/t1"]);
+    await git(f.cloneB, ["push", "-q", "origin", "t1"]);
     // コミットの時刻は見直しの開始より前なので、時刻で比べると通ってしまう。SHA で比べるので落ちる
     const view = await judge(ctx, "ready");
     expect(failed(view)).toEqual(["review"]);
@@ -224,7 +224,7 @@ describe("dg gate（品質ゲート。t532）", () => {
     await review(ctx, later(1), 0);
     // push の前は、見直した SHA がリモートの先端と違うので満たさない
     expect(failed(await judge(ctx, "ready"))).toEqual(["review"]);
-    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
     expect(failed(await judge(ctx, "ready"))).toEqual([]);
   });
 
@@ -313,7 +313,7 @@ describe("dg gate（品質ゲート。t532）", () => {
     const { f, ctx } = await prepared();
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
     // 追跡 ref を消し、fetch が失敗するリモートに向け直す（判定は PR の事実と記録だけで足りることを見る）
-    await git(f.cloneA, ["update-ref", "-d", "refs/remotes/origin/feat/t1"]);
+    await git(f.cloneA, ["update-ref", "-d", "refs/remotes/origin/t1"]);
     await git(f.cloneA, ["remote", "set-url", "origin", path.join(f.root, "no-such-remote.git")]);
     await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
     expect(failed(await judge(ctx, "ready"))).toEqual([]);
@@ -378,7 +378,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     await setCode(3);
     // 新しいコミットを push して見直す（前のコミットの結果は使わない）
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "直し"]);
-    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
     await review(ctx, later(2), 0);
     const view = await judge(ctx, "ready");
     expect(failed(view)).toEqual(["check"]);
@@ -454,7 +454,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
     // 通った結果はコミットごとに覚えるので、検査を落とすには新しいコミットが要る
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "直し"]);
-    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
     expect(failed(await judge(ctx))).toEqual(["check"]);
   });
 
@@ -500,7 +500,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(check(await only()).detail).toContain("reused the remembered result");
     expect(await runs()).toBe(1);
     // push した後の ready は、同じコミットの覚えた結果を使う
-    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
     await review(ctx, later(1), 0);
     expect(failed(await judge(ctx, "ready"))).toEqual([]);
     expect(await runs()).toBe(1);
@@ -547,7 +547,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
         }
         await git(base.f.cloneA, ["add", "--", ...files]);
         await git(base.f.cloneA, ["commit", "-q", "-m", "変更"]);
-        await git(base.f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+        await git(base.f.cloneA, ["push", "-q", "origin", "t1"]);
       };
       return { ...base, ctx, lines, commit };
     }
@@ -638,7 +638,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
       await writeFile(path.join(f.cloneA, "docs", "b.md"), "x\n");
       await git(f.cloneA, ["add", "--", "docs/b.md"]);
       await git(f.cloneA, ["commit", "-q", "-m", "書き直し"]);
-      await git(f.cloneA, ["push", "-q", "-f", "origin", "feat/t1"]);
+      await git(f.cloneA, ["push", "-q", "-f", "origin", "t1"]);
       await review(ctx, later(2), 0);
       const view = await judge(ctx, "ready");
       expect(check(view).detail).toContain(
@@ -656,9 +656,9 @@ describe("dg gate の検査（actions.test。t601）", () => {
       await writeFile(path.join(f.cloneA, "docs", "m.md"), "x\n");
       await git(f.cloneA, ["add", "--", "docs/m.md"]);
       await git(f.cloneA, ["commit", "-q", "-m", "main の変更"]);
-      await git(f.cloneA, ["checkout", "-q", "feat/t1"]);
+      await git(f.cloneA, ["checkout", "-q", "t1"]);
       await git(f.cloneA, ["merge", "-q", "--no-ff", "-m", "main を取り込む", "main-side"]);
-      await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+      await git(f.cloneA, ["push", "-q", "origin", "t1"]);
       await review(ctx, later(2), 0);
       const view = await judge(ctx, "ready");
       expect(check(view).detail).toContain("because a merge commit came after commit");

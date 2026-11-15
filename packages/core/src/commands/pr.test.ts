@@ -39,9 +39,9 @@ async function fakeGh(root: string, pr: () => string) {
   // このファイルがあると、gh pr merge はマージを済ませた状態（mergedView の JSON）にしてから失敗する（t686。ブランチの削除の失敗を写す）
   const mergedThenFail = path.join(root, "gh-merged-then-fail");
   const mergedView = path.join(root, "gh-merged-view.json");
-  // このファイルがあると、gh pr merge は比べる前に feat/t1 へ push する（判定の後に PR の先端が進むのを写す。t750）
+  // このファイルがあると、gh pr merge は比べる前に t1 へ push する（判定の後に PR の先端が進むのを写す。t750）
   const pushBeforeMerge = path.join(root, "gh-push-before-merge");
-  // このファイルがあると、gh pr merge はリモートとローカルの feat/t1 を消す（本物の gh の --delete-branch を写す。t849）
+  // このファイルがあると、gh pr merge はリモートとローカルの t1 を消す（本物の gh の --delete-branch を写す。t849）
   const deleteOnMerge = path.join(root, "gh-delete-on-merge");
   // このファイルがあると、承認者のコメントの書き込み（gh api の POST）だけ失敗する（t883）
   const failComment = path.join(root, "gh-fail-comment");
@@ -61,7 +61,7 @@ async function fakeGh(root: string, pr: () => string) {
         `    echo "api PATCH pulls/7" >> '${log}'; cp "$6" '${edited}'; exit 0`,
         "  fi",
         '  if [ "$2" = "repos/{owner}/{repo}/pulls/7" ]; then',
-        `    if [ -f '${failBody}' ]; then echo "gh の失敗" >&2; exit 1; fi; sed "s|__TIP__|$(git ls-remote origin refs/heads/feat/t1 | cut -f1)|" '${viewFile}'; exit 0`,
+        `    if [ -f '${failBody}' ]; then echo "gh の失敗" >&2; exit 1; fi; sed "s|__TIP__|$(git ls-remote origin refs/heads/t1 | cut -f1)|" '${viewFile}'; exit 0`,
         "  fi",
         // 承認者のコメント（REST の issues の comments。-f body=<文>）を記録に書き足す（t883）
         '  if [ "$2" = --method ] && [ "$3" = POST ] && [ "$4" = "repos/{owner}/{repo}/issues/7/comments" ] && [ "$5" = -f ]; then',
@@ -72,9 +72,9 @@ async function fakeGh(root: string, pr: () => string) {
         "fi",
         'case "$2" in',
         // __TIP__ は今のリモートの先端（ls-remote。追跡 ref は fetch するまで古い）に置き換える（PR の先端が push で進むのを写す。t750）
-        `  view) if [ "$5" = body ]; then ${projectCards}; fi; sed "s|__TIP__|$(git ls-remote origin refs/heads/feat/t1 | cut -f1)|" '${viewFile}';;`,
+        `  view) if [ "$5" = body ]; then ${projectCards}; fi; sed "s|__TIP__|$(git ls-remote origin refs/heads/t1 | cut -f1)|" '${viewFile}';;`,
         // gh pr merge は --match-head-commit の値がリモートの先端と違えば拒む（GitHub と同じく、判定していないコミットをマージしない。t750）
-        `  merge) if [ -f '${pushBeforeMerge}' ]; then rm -f '${pushBeforeMerge}'; git commit -q --allow-empty -m "gh の間の作業"; git push -q origin feat/t1; fi; want=""; prev=""; for a in "$@"; do if [ "$prev" = --match-head-commit ]; then want="$a"; fi; prev="$a"; done; if [ -n "$want" ] && [ "$want" != "$(git ls-remote origin refs/heads/feat/t1 | cut -f1)" ]; then echo "Head branch was modified. Review and try the merge again." >&2; exit 1; fi; if [ -f '${mergedThenFail}' ]; then cp '${mergedView}' '${viewFile}'; echo "gh の失敗" >&2; exit 1; fi; if [ -f '${failMerge}' ]; then echo "gh の失敗" >&2; exit 1; fi; echo "$@" >> '${log}'; if [ -f '${deleteOnMerge}' ]; then git push -q origin --delete feat/t1; git branch -q -D feat/t1; fi;;`,
+        `  merge) if [ -f '${pushBeforeMerge}' ]; then rm -f '${pushBeforeMerge}'; git commit -q --allow-empty -m "gh の間の作業"; git push -q origin t1; fi; want=""; prev=""; for a in "$@"; do if [ "$prev" = --match-head-commit ]; then want="$a"; fi; prev="$a"; done; if [ -n "$want" ] && [ "$want" != "$(git ls-remote origin refs/heads/t1 | cut -f1)" ]; then echo "Head branch was modified. Review and try the merge again." >&2; exit 1; fi; if [ -f '${mergedThenFail}' ]; then cp '${mergedView}' '${viewFile}'; echo "gh の失敗" >&2; exit 1; fi; if [ -f '${failMerge}' ]; then echo "gh の失敗" >&2; exit 1; fi; echo "$@" >> '${log}'; if [ -f '${deleteOnMerge}' ]; then git push -q origin --delete t1; git branch -q -D t1; fi;;`,
         `  ready) echo "$@" >> '${log}';;`,
         `  edit) ${projectCards};;`,
         "  *) exit 1;;",
@@ -120,7 +120,7 @@ async function fakeGh(root: string, pr: () => string) {
   };
 }
 
-/** t1 を feat/t1 で claim して 1 コミット push し、PR #7（偽の gh。draft）がある文脈 */
+/** t1 を t1 で claim して 1 コミット push し、PR #7（偽の gh。draft）がある文脈 */
 async function prepared() {
   const f = await createFixture();
   cleanups.push(f.cleanup);
@@ -136,12 +136,12 @@ async function prepared() {
   await runCommand(ticketClaim, ctx, {
     no_worktree: true,
     ticket: "t1",
-    branch: "feat/t1",
+    branch: "t1",
     no_run: true,
   });
-  await git(f.cloneA, ["checkout", "-qb", "feat/t1"]);
+  await git(f.cloneA, ["checkout", "-qb", "t1"]);
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
-  await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+  await git(f.cloneA, ["push", "-q", "origin", "t1"]);
   const state = { draft: true, noHead: false, conflict: false };
   // 今の push した先端（PR の headRefOid。偽の gh が __TIP__ をリモートの先端に置き換える）
   const tip = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
@@ -495,11 +495,11 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     await passedReview(ctx);
     await undraft();
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
-    // feat/t1 を cloneA から外し、別の worktree に checkout する
+    // t1 を cloneA から外し、別の worktree に checkout する
     const main = ctx.repo.topLevel;
     await git(main, ["checkout", "-q", "main"]);
     const wt = path.join(path.dirname(main), "wt-t1");
-    await git(main, ["worktree", "add", "-q", wt, "feat/t1"]);
+    await git(main, ["worktree", "add", "-q", wt, "t1"]);
     // その worktree から呼ぶと、自分の作業ツリーは消さない
     const inner = await openContext({ cwd: wt, actor: ctx.actor });
     const fromInside = await runCommand(prMerge, inner, { ticket: "t1", delete_branch: true });
@@ -523,7 +523,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const main = ctx.repo.topLevel;
     await git(main, ["checkout", "-q", "main"]);
     const wt = path.join(path.dirname(main), "wt-t1");
-    await git(main, ["worktree", "add", "-q", wt, "feat/t1"]);
+    await git(main, ["worktree", "add", "-q", wt, "t1"]);
     const kept = await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false });
     expect((kept.data as PrAdvanceView).removed).toBeUndefined();
     expect(existsSync(wt)).toBe(true);
@@ -533,11 +533,11 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(merged.warnings).toEqual([]);
     expect((merged.data as PrAdvanceView).removed).toEqual({
       worktree: wt,
-      local_branch: "feat/t1",
-      remote_branch: "origin/feat/t1",
+      local_branch: "t1",
+      remote_branch: "origin/t1",
     });
     expect(existsSync(wt)).toBe(false);
-    expect((await git(main, ["branch", "--list", "feat/t1"])).stdout.trim()).toBe("");
+    expect((await git(main, ["branch", "--list", "t1"])).stdout.trim()).toBe("");
   });
 
   it("--delete-branch で gh pr merge が失敗したら、消した作業ブランチの worktree を同じパスに戻し、エラーの detail にその扱いを出す。原因を直した後の再実行はマージできる（t643）", async () => {
@@ -548,7 +548,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const main = ctx.repo.topLevel;
     await git(main, ["checkout", "-q", "main"]);
     const wt = path.join(path.dirname(main), "wt-t1");
-    await git(main, ["worktree", "add", "-q", wt, "feat/t1"]);
+    await git(main, ["worktree", "add", "-q", wt, "t1"]);
     await failMergeCall();
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }));
     expect(err).toBeInstanceOf(OperationError);
@@ -557,7 +557,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(err!.detail).toContain("was restored (you can continue working)");
     // 同じパスに、作業ブランチを checkout した worktree が戻っている
     expect(existsSync(wt)).toBe(true);
-    expect((await git(wt, ["branch", "--show-current"])).stdout.trim()).toBe("feat/t1");
+    expect((await git(wt, ["branch", "--show-current"])).stdout.trim()).toBe("t1");
     expect((await git(main, ["worktree", "list"])).stdout).toContain("wt-t1");
     expect(await calls()).toEqual([]);
     // 原因を直した後は、同じ呼び方でマージでき、今度は worktree を消してから gh を呼ぶ
@@ -585,7 +585,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const main = ctx.repo.topLevel;
     await git(main, ["checkout", "-q", "main"]);
     const wt = path.join(path.dirname(main), "wt-t1");
-    await git(main, ["worktree", "add", "-q", wt, "feat/t1"]);
+    await git(main, ["worktree", "add", "-q", wt, "t1"]);
     await failMergeCall();
     return { ctx, main, wt, calls, mergedThenFail };
   }
@@ -665,11 +665,11 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     await passedReview(ctx);
     await undraft();
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
-    // feat/t1 を main の worktree から外し、別の worktree に checkout する（検査はその worktree で回る）
+    // t1 を main の worktree から外し、別の worktree に checkout する（検査はその worktree で回る）
     const main = ctx.repo.topLevel;
     await git(main, ["checkout", "-q", "main"]);
     const wt = path.join(path.dirname(main), "wt-t1");
-    await git(main, ["worktree", "add", "-q", wt, "feat/t1"]);
+    await git(main, ["worktree", "add", "-q", wt, "t1"]);
     // --delete-branch でも、品質ゲートを通らなければ worktree は消さない（消すのは通った後だけ）
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }));
     expect(err).toBeInstanceOf(OperationError);
@@ -894,7 +894,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     // 判定の後にコミットを push する（PR の先端が進む）
     await new Promise((resolve) => setTimeout(resolve, 1100));
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "判定の後の作業"]);
-    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
     expect(err).toBeInstanceOf(OperationError);
     expect(err!.code).toBe("GATE_FAILED");
@@ -912,7 +912,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
     expect(err!.message).toContain("Head branch was modified");
     expect(await calls()).toEqual([]);
-    const remoteTip = (await git(f.cloneA, ["ls-remote", "origin", "refs/heads/feat/t1"])).stdout
+    const remoteTip = (await git(f.cloneA, ["ls-remote", "origin", "refs/heads/t1"])).stdout
       .trim()
       .split(/\s+/)[0];
     expect(remoteTip).not.toBe(tip);
@@ -924,10 +924,10 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     await undraft();
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
     // 別の clone から push する。この clone は fetch しないので、追跡 ref（作業ブランチの最新）は古いまま
-    await git(f.cloneB, ["fetch", "-q", "origin", "feat/t1"]);
-    await git(f.cloneB, ["checkout", "-q", "-B", "feat/t1", "FETCH_HEAD"]);
+    await git(f.cloneB, ["fetch", "-q", "origin", "t1"]);
+    await git(f.cloneB, ["checkout", "-q", "-B", "t1", "FETCH_HEAD"]);
     await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "別の clone の作業"]);
-    await git(f.cloneB, ["push", "-q", "origin", "feat/t1"]);
+    await git(f.cloneB, ["push", "-q", "origin", "t1"]);
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
     expect(err).toBeInstanceOf(OperationError);
     expect(err!.code).toBe("GATE_FAILED");

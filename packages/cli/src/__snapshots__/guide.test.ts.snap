@@ -1353,7 +1353,8 @@ The agent merges a PR only after a human approves that merge (the one exception 
 - If the assignee (\`assignee\` of \`ticket show\`) is another user, avoid the ticket
 - When \`lint.require_iteration\` is true (current setting: \`false\`), claim puts a ticket with no \`iteration\` into an Iteration, starts the planned Iteration, creates the worktree of the work branch, and runs config's \`worktree.setup\` (the preparation commands) in it. For how the Iteration is chosen, see \`ticket claim --help\`. If \`warnings\` says there is no Iteration to put it in, that several are planned so none was chosen, that it could not be started, that the worktree could not be created, or that a preparation command stopped, ask a human for the Iteration (going on without one causes \`lint_iteration_missing\`). Make the worktree by hand at the place the warning shows (when \`worktree\` is null; the default is \`../<repo>.worktrees/<branch name>\`), and run the preparation commands the warning shows by hand. Keep going with the work
 - The preparation commands can take several minutes, and claim does not return until they finish (limit: 10 minutes). If that is longer than the caller's limit (such as the default 2 minutes of an agent's Bash), lengthen the time you give the claim. If it is cut off midway, the claim and the implementation Run remain, but no warning appears. Run config's \`worktree.setup\` by hand in the worktree
-- On \`CLAIM_LOST\`, go to another ticket. On \`BRANCH_IN_USE\`, change the \`--branch\` name and claim again
+- **Branch name**: dg records the work branch as \`<id>-<value>\` (for example \`t12-fix-login\`), so that the ticket's branch can be found by its ID. Give \`--branch\` only the value: short English words for the content, in lowercase letters, digits, and hyphens, up to 50 characters (no \`/\`, so no \`feat/\` in front). A value that already starts with the ticket's own ID and a hyphen is used as is, and one that starts with another ticket's ID is rejected. Without \`--branch\`, the name is \`<id>-<slug of the title>\` when the title is ASCII only, and \`<id>\` otherwise
+- On \`CLAIM_LOST\`, go to another ticket. On \`BRANCH_IN_USE\`, change the \`--branch\` value and claim again
 
 ## Implement (up to a draft PR)
 
@@ -1384,7 +1385,7 @@ Work that does not change repository files (data maintenance, checks, research) 
 1. \`dg --json --actor agent ticket claim <id> --without-branch\` (claim opens a Run). Treat \`warnings\` as in "Before and after claim"
 2. Confirm the acceptance criteria one item at a time, and attach with \`ticket check\` only the items that are met
 3. When all of them are attached, \`dg --json --actor agent ticket move <id> done\`. If items that cannot be attached remain, \`ticket move <id> review\`, and report the remaining items and reasons to a human (a human sets done)
-4. If you need to change repository files midway, record it with \`ticket update <id> --branch <type>/<content>\`, and move to the flow above. When the branch is no longer needed, use \`--branch none\`
+4. If you need to change repository files midway, record it with \`ticket update <id> --branch <short-english-words>\` (the name is built as in "Before and after claim"), and move to the flow above. When the branch is no longer needed, use \`--branch none\`
 
 ## Status
 
