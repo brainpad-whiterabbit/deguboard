@@ -338,8 +338,8 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
     cleanups.push(() => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
     await mkdir(path.join(root, "bin"));
     await cp(normalBin, path.join(root, "bin", "dg.js"));
-    // bin/dg.js は Node の版を確かめる判定（t782）と、入口に共通の流れ（t788）を読む。写しにも置く
-    for (const file of ["node-version.mjs", "run-entry.mjs"])
+    // bin/dg.js は Node の版を確かめる判定（t782）と、入口に共通の流れ（t788）と、dist が古いかの判定（t973）を読む。写しにも置く
+    for (const file of ["node-version.mjs", "run-entry.mjs", "build-info.mjs"])
       await cp(path.join(cliRoot, "bin", file), path.join(root, "bin", file));
     await cp(path.join(cliRoot, "package.json"), path.join(root, "package.json"));
     await cp(path.join(cliRoot, "dist"), path.join(root, "dist"), { recursive: true });
@@ -380,7 +380,11 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
     await symlink(path.join(core, "node_modules"), path.join(coreCopy, "node_modules"), "dir");
   }
 
-  /** bin/dg.js を子プロセスで動かす。DEGUBOARD_ の環境変数は外して、結果を呼び出しの間で比べられるようにする */
+  /**
+   * bin/dg.js を子プロセスで動かす。DEGUBOARD_ の環境変数は外して、結果を呼び出しの間で比べられるようにする。
+   * dist が今の HEAD のものでないときの警告（t973）は stderr から外す。この worktree の dg.js は、コミットのあとビルドし直すまで
+   * 警告を出すが、git の checkout の外に写した dg.js は出さないので、比べると食い違う（警告そのものは test/scripts/dg-stale-dist.test.ts）
+   */
   function dg(bin: string, args: readonly string[], cwd: string, stdin: string) {
     const env = Object.fromEntries(
       Object.entries(process.env).filter(([k]) => !k.startsWith("DEGUBOARD_")),
@@ -391,7 +395,16 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
       let stderr = "";
       child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
       child.stderr.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
-      child.on("close", (code) => done({ code: code ?? -1, stdout, stderr }));
+      child.on("close", (code) =>
+        done({
+          code: code ?? -1,
+          stdout,
+          stderr: stderr.replace(
+            /^dg: warning: the built CLI in dist\/.*\nRun `mise run build` in .*\n/m,
+            "",
+          ),
+        }),
+      );
       child.stdin.end(stdin);
     });
   }
