@@ -55,7 +55,7 @@ The Board shows the tickets of an Iteration in columns by status, and the band a
 
 Choose **Ask Agent** → **Retrospect** on a finished Iteration. The agent shows the actuals (duration and tokens per step, failures, and rework), computes the metrics your team approved for each perspective with their trend, and files the improvements you approve as tickets. For a perspective with no approved metric yet, the agent proposes a recommended metric, and only the ones you approve are adopted.
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="Finding bottlenecks" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="Approving a metric and filing an improvement from its trend" width="560">
 
 Tokens are counted only when deguboard reads usage from conversation transcripts (Claude Code, Codex, and Copilot CLI). To turn it on:
 
