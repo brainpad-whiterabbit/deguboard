@@ -79,7 +79,7 @@ export interface FoundId {
  * 既知の誤検出（仕様）：コードの変数名の `e1`・`t1`、`s3://` の s3、`?id=t12` のように、形が合えば拾う。
  * 使う側は存在する ID にしか印を付けないので、実害は存在する番号と偶然重なるときだけ。
  * web の目標の ID のリンク（packages/web/src/components/parts.tsx の TEXT_ID）は同じ規則を写している。
- * web は core を `import type` でしか読まない（ADR-033）ため。変えるときは両方を直す
+ * web は core を `import type` でしか読まない（Vite が node のモジュールを束ねない）ため。変えるときは両方を直す
  */
 const ID_IN_TEXT = /(?<![\w/.-])[tsep][1-9]\d*(?![\w/]|[-.]\w)/g;
 
