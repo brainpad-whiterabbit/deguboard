@@ -9,7 +9,7 @@ import { toggleRoute } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
 import type { ConfigField, ConfigShowView, RetroPerspective } from "../types.js";
-import { configFields, GUIDE_TOPICS } from "@deguboard/core";
+import { configFields, defaultConfig, GUIDE_TOPICS } from "@deguboard/core";
 import {
   CONFIRM_KEYS,
   clearsToDefault,
@@ -19,6 +19,7 @@ import {
   fieldMatch,
   metricSummary,
   nameOf,
+  shownRetroPerspectives,
   valueAt,
 } from "./config.js";
 
@@ -215,7 +216,13 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
   };
   client.handlers["config.show"] = (input) =>
     (input as { fields?: boolean }).fields
-      ? { config: merged(), team: config, local: { ...local }, fields: FIELDS }
+      ? {
+          config: merged(),
+          team: config,
+          local: { ...local },
+          defaults: defaultConfig(),
+          fields: FIELDS,
+        }
       : merged();
   client.handlers["config.set"] = (input) => {
     const { key, local: toLocal } = input as { key: string; value: unknown; local?: boolean };
@@ -1532,5 +1539,81 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
     } finally {
       setLanguage("ja");
     }
+  });
+
+  describe("既定の観点の訳（t939）", () => {
+    const DEFAULTS = defaultConfig().retro.perspectives;
+    const jaOf = (text: string) => DEFAULT_VALUES[text]!.ja!;
+    /**
+     * outcome・review は既定のまま（review は指標を持つ）。spec は名前だけ、cost は問いだけを書き換えた観点。
+     * flow は既定にない ID で、名前と問いが既定の outcome と同じ文の観点
+     */
+    const perspectives = (): Record<string, RetroPerspective> => ({
+      outcome: structuredClone(DEFAULTS["outcome"]!),
+      review: { ...structuredClone(DEFAULTS["review"]!), metrics: RETRO["review"]!.metrics },
+      spec: { ...structuredClone(DEFAULTS["spec"]!), name: "Ticket quality" },
+      cost: { ...structuredClone(DEFAULTS["cost"]!), question: "Where did the tokens go?" },
+      flow: structuredClone(DEFAULTS["outcome"]!),
+    });
+    const client = () => {
+      const { client, config } = configClient();
+      Object.assign(config, { retro: { perspectives: perspectives() } });
+      return client;
+    };
+    const rows = () =>
+      [...document.querySelectorAll("[data-perspective]")].map((e) => [
+        e.getAttribute("data-perspective"),
+        e.querySelector(".config-name")!.textContent,
+        e.querySelector(".config-retro-question")!.textContent,
+      ]);
+
+    it("既定の 7 観点は名前と問いのどちらも日本語の訳を持つ", () => {
+      expect(Object.keys(DEFAULTS)).toHaveLength(7);
+      for (const [id, p] of Object.entries(DEFAULTS)) {
+        expect(DEFAULT_VALUES[p.name]?.ja, id).toBeTruthy();
+        expect(DEFAULT_VALUES[p.question]?.ja, id).toBeTruthy();
+      }
+    });
+
+    it("日本語の表示では、名前と問いの両方が既定のままの観点を日本語の訳で出し、片方でも書き換えた観点と既定にない観点は書いたまま出す", async () => {
+      mount(client());
+      await screen.findByText("コミットの仕方");
+      const d = DEFAULTS;
+      expect(rows()).toEqual([
+        ["outcome", "成果", jaOf(d["outcome"]!.question)],
+        ["review", "見直しの効き目", jaOf(d["review"]!.question)],
+        // 名前だけ書き換えた：問いも訳さない
+        ["spec", "Ticket quality", d["spec"]!.question],
+        // 問いだけ書き換えた：名前も訳さない
+        ["cost", "Cost", "Where did the tokens go?"],
+        // 既定にない ID：同じ文でも既定とみなさない
+        ["flow", "Outcome", d["outcome"]!.question],
+      ]);
+      // 指標を持つ観点も、名前と問いが既定のままなら訳す（指標の定義は訳さない）
+      expect(perspectiveOf("review").querySelector(".badge")!.textContent).toBe("指標 2");
+      // 検索は出している文（訳）に当てる
+      fireEvent.change(screen.getByLabelText("設定を検索"), { target: { value: "成果" } });
+      expect(rows().map((r) => r[0])).toEqual(["outcome"]);
+    });
+
+    it("英語の表示では、既定のままの観点を core の英語の文のまま出す", async () => {
+      setLanguage("en");
+      try {
+        mount(client());
+        await screen.findByText("Commit mode");
+        const d = DEFAULTS;
+        expect(rows().slice(0, 2)).toEqual([
+          ["outcome", "Outcome", d["outcome"]!.question],
+          ["review", "Review effectiveness", d["review"]!.question],
+        ]);
+      } finally {
+        setLanguage("ja");
+      }
+    });
+
+    it("shownRetroPerspectives は既定を渡さなければ（古い応答）、どの観点も書いたまま返す", () => {
+      const written = perspectives();
+      expect(shownRetroPerspectives(written, {})).toEqual(written);
+    });
   });
 });

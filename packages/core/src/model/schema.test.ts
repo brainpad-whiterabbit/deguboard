@@ -11,9 +11,13 @@ import {
   overlayLocalConfig,
 } from "./config.js";
 import { planSchema } from "./plan.js";
+import { RECOMMENDED_RETRO_METRICS, recommendedRetroMetricsTable } from "./retro-recommended.js";
 import { emptyUsage, isRunId, newRunId, runSchema } from "./run.js";
 import { ticketSchema } from "./ticket.js";
 import { workflowDefinitionSchema } from "./workflow.js";
+
+/** 日本語の文字（かな・漢字・全角の記号）。英語で持つ既定の文に混ざっていないかを確かめる */
+const JAPANESE = /[　-ヿ一-鿿＀-￯]/;
 
 /** agent ごとのモデル名の項目（models.<agent>.<tier>）。呼んだ agent を判定できる Adapter の一覧の順 */
 const AGENT_MODEL_KEYS = ["claude-code", "codex"].flatMap((agent) =>
@@ -243,21 +247,71 @@ describe("スキーマ", () => {
   it("振り返りの観点の既定は Agentic-Agile の評価の枠組みにもとづく 7 つで、どれも名前と問いを持ち、指標の定義は空（t847）", () => {
     const perspectives = defaultConfig().retro.perspectives;
     expect(Object.entries(perspectives).map(([id, p]) => [id, p.name])).toEqual([
-      ["outcome", "成果"],
-      ["review", "見直しの効き目"],
-      ["spec", "仕様の質"],
-      ["slicing", "分け方"],
-      ["stability", "エージェントの安定"],
-      ["cost", "コスト"],
-      ["improvement", "改善の追跡"],
+      ["outcome", "Outcome"],
+      ["review", "Review effectiveness"],
+      ["spec", "Spec quality"],
+      ["slicing", "Slicing"],
+      ["stability", "Agent stability"],
+      ["cost", "Cost"],
+      ["improvement", "Improvement tracking"],
     ]);
     for (const [id, p] of Object.entries(perspectives)) {
-      expect(p.question, id).not.toBe("");
+      // 名前と問いは英語で持つ（画面が既定のままの観点を表示言語に訳す。t939）
+      expect(p.name, id).not.toMatch(JAPANESE);
+      expect(p.question, id).toMatch(/^[\x20-\x7e]+\?$/);
       expect(p.metrics, id).toEqual({});
     }
     // 既定は呼ぶたびに別の実体（片方を書き換えても既定は変わらない）
     perspectives["outcome"]!.name = "x";
-    expect(defaultConfig().retro.perspectives["outcome"]?.name).toBe("成果");
+    expect(defaultConfig().retro.perspectives["outcome"]?.name).toBe("Outcome");
+  });
+
+  it("推薦の指標は既定の観点ごとの 11 指標で、承認した定義と同じ形（数え方・出どころ・測れないもの）を英語で持ち、既定の観点の定義には入れない（t939）", () => {
+    expect(
+      Object.entries(RECOMMENDED_RETRO_METRICS).map(([id, metrics]) => [id, Object.keys(metrics)]),
+    ).toEqual([
+      ["outcome", ["done-rate"]],
+      [
+        "review",
+        ["heavy-per-reviewed", "first-pass-rate", "rounds-per-reviewed", "escaped-defect-rate"],
+      ],
+      ["spec", ["ticket-caused-rework-rate"]],
+      ["slicing", ["size-spread", "concurrent-overlap-rate"]],
+      ["stability", ["failed-run-rate"]],
+      ["cost", ["tokens-per-line"]],
+      ["improvement", ["prev-try-done-rate"]],
+    ]);
+    const perspectives = defaultConfig().retro.perspectives;
+    for (const [id, metrics] of Object.entries(RECOMMENDED_RETRO_METRICS)) {
+      // 推薦は既定の観点にだけ持ち、既定の観点そのものは指標を持たない
+      expect(perspectives[id]?.metrics, id).toEqual({});
+      // 承認されたらそのまま dg retro metric で書ける形（スキーマに合い、ID は slug）
+      expect(
+        configSchema.safeParse({
+          retro: { perspectives: { [id]: { name: "n", question: "q", metrics } } },
+        }).success,
+        id,
+      ).toBe(true);
+      for (const [metric, m] of Object.entries(metrics)) {
+        expect(m.unmeasured, metric).toBeTruthy();
+        for (const text of [m.definition, m.unmeasured!, ...m.sources])
+          expect(text, metric).not.toMatch(JAPANESE);
+        // 出どころは dg か gh のコマンド
+        for (const source of m.sources) expect(source, metric).toMatch(/^(dg|gh) /);
+      }
+    }
+    // 表は 1 指標 1 行で、出どころはコードの書式
+    const table = recommendedRetroMetricsTable().split("\n");
+    expect(table[0]).toBe("| Perspective | Metric ID | How to count | Sources | Unmeasured part |");
+    expect(table).toHaveLength(2 + 11);
+    expect(table[2]).toBe(
+      "| `outcome` | `done-rate` | Of the tickets that were in the Iteration when it closed, the share that is done (completed ÷ (completed + carried_over)) | `dg iteration show <S> (completed, carried_over)` | Whether the goal statement itself was met |",
+    );
+    expect(
+      table.find((row) => row.startsWith("| `slicing` | `concurrent-overlap-rate` ")),
+    ).toContain(
+      "`dg metrics sources --iteration <S> (tickets[].files, files_unknown)`; `dg ticket list --iteration <S> --include-abandoned (branch_at, pr)`; `gh pr view <PR> --json mergedAt`",
+    );
   });
 
   it("振り返りの観点は、名前・問い・指標の定義（数え方の文と出どころのコマンド）をスキーマが検査する（t847）", () => {
@@ -303,7 +357,7 @@ describe("スキーマ", () => {
     const { config, ignored } = overlayLocalConfig(team, {
       retro: { perspectives: { outcome: { name: "自分の成果" } } },
     });
-    expect(config.retro.perspectives["outcome"]?.name).toBe("成果");
+    expect(config.retro.perspectives["outcome"]?.name).toBe("Outcome");
     expect(ignored.map((i) => i.key)).toEqual(["retro.perspectives.outcome.name"]);
   });
 

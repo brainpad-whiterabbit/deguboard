@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildSkills, defaultConfig } from "@deguboard/core";
+import { buildSkills, defaultConfig, recommendedRetroMetricsTable } from "@deguboard/core";
 import { cliEnv } from "../../core/test/helpers/env.js";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
 import { GUIDE_TOPICS, fillPlaceholders, readGuide, readGuideMeta, renderGuide } from "./guide.js";
@@ -368,7 +368,8 @@ describe("dg guide", () => {
     for (const word of [
       "`retro.perspectives` of `config.yaml`",
       "none has a definition",
-      "dg has no metrics of its own",
+      "dg adopts no metric by itself",
+      "It holds recommended metrics for the default perspectives",
       "not a formula that dg runs",
       "only when a human asks",
       "`dg retro perspective <id> --name <name> --question <question>`",
@@ -404,20 +405,46 @@ describe("dg guide", () => {
       "record it only after approval",
     ])
       expect(proposing, word).toContain(word);
-    // 既定の観点ごとの候補。1 行あたりのトークン（t846）はコストの観点の候補に残し、output と input_cache を足さない
-    for (const [id, source] of [
-      ["outcome", "iteration show <S>"],
-      ["review", "total.reviews.heavy"],
-      ["spec", "metrics show --iteration <S> --by ticket"],
-      ["slicing", "`lines`"],
-      ["stability", "total.results"],
-      ["cost", "total.lines.per_line"],
-      ["improvement", "ticket list --label retro-<previous S>"],
-    ] as const)
-      expect(lineWith(proposing, `| \`${id}\` `), id).toContain(source);
-    expect(lineWith(proposing, "| `cost` ")).toContain("never added into one number");
     expect(section(retro, "## Tokens per changed line")).toContain(
       "do not add them into one number",
+    );
+  });
+
+  it("retro の候補の表は core の推薦の指標から作り、採用した指標が 1 つもない観点にだけ推薦を提示する（t939）", async () => {
+    const retro = await readGuide("retro");
+    const proposing = section(retro, "## Proposing metrics");
+    // 差し込みの印は残らず、表は推薦の指標の表そのもの（guide に写しを持たない）
+    expect(proposing).not.toContain("{{recommended_metrics}}");
+    expect(proposing).toContain(recommendedRetroMetricsTable());
+    const rows = proposing.split("\n").filter((line) => /^\| `[a-z-]+` \| `[a-z-]+` \|/.test(line));
+    expect(rows.map((row) => row.split(" | ").slice(0, 2).join(" "))).toEqual([
+      "| `outcome` `done-rate`",
+      "| `review` `heavy-per-reviewed`",
+      "| `review` `first-pass-rate`",
+      "| `review` `rounds-per-reviewed`",
+      "| `review` `escaped-defect-rate`",
+      "| `spec` `ticket-caused-rework-rate`",
+      "| `slicing` `size-spread`",
+      "| `slicing` `concurrent-overlap-rate`",
+      "| `stability` `failed-run-rate`",
+      "| `cost` `tokens-per-line`",
+      "| `improvement` `prev-try-done-rate`",
+    ]);
+    // 1 行あたりのトークン（t846）は output と input_cache を足さない
+    expect(lineWith(proposing, "| `cost` ")).toContain("do not add them together");
+    // 前の表にあって推薦にない候補（spec のやり直しのない割合・stability のやり直しの数・cost の段階ごとの割合）は残さない
+    for (const gone of ["no retry and no heavy finding", "total.retries", "--by step"])
+      expect(proposing, gone).not.toContain(gone);
+    // 推薦を出すのは、採用した指標が 1 つもない観点だけ
+    for (const word of [
+      "Propose only for a perspective that has no adopted metric",
+      "do not show the recommended metrics for it",
+      "propose its recommended metrics",
+      "none is adopted until a human approves it",
+    ])
+      expect(proposing, word).toContain(word);
+    expect(step(section(retro, "## Retrospective steps"), 3)).toContain(
+      "A perspective that has one or more adopted metrics gets no proposal",
     );
   });
 
@@ -492,13 +519,17 @@ describe("dg guide", () => {
     expect(kinds).not.toContain("If no test was there to miss");
   });
 
-  it("retro の改善の追跡の候補は、retro-<前の S> のラベルのチケットの状態から前回の Try が終わったかを数える", async () => {
-    const tries = lineWith(
-      section(await readGuide("retro"), "## Proposing metrics"),
-      "| `improvement` ",
-    );
-    for (const word of ["--include-abandoned", "done is finished", "todo", "abandoned is dropped"])
+  it("retro の改善の追跡の推薦は、retro-<前の S> のラベルのチケットの状態から前回の Try が終わったかを数える", async () => {
+    const proposing = section(await readGuide("retro"), "## Proposing metrics");
+    const tries = lineWith(proposing, "| `improvement` ");
+    for (const word of [
+      "ticket list --label retro-<previous S> --include-abandoned (status)",
+      "the share that is done",
+      "abandoned ones are in the denominator too",
+    ])
       expect(tries, word).toContain(word);
+    // ラベルのチケットがなければ、前の振り返りは Try を起票していない（割合にしない）
+    expect(lineWith(proposing, "`<previous S>` is")).toContain("filed no Try");
   });
 
   it("retro は計測の抜け（missing・estimated_runs・no_runs）を注意書きに添え、抜けのある値は推し量らず「未計測」と書く", async () => {

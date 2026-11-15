@@ -26,7 +26,7 @@ In the steps below, `<S>` is the ID of the target Iteration.
    - Retries and heavy findings: `total.retries` and `total.reviews.heavy`
    - Carry-overs: `carried_over` of `iteration show <S>`, and any ticket of `ticket list` that is neither done nor abandoned
    - Gaps in the measurement, as notes (see the "Gaps in the measurement" section below)
-3. **Propose metrics for the perspectives with no definition**: for each target perspective whose `metrics` is empty, propose metrics that the data at hand can fill, in the table of the "Proposing metrics" section below. Ask once, with multiple selection (`#`), which proposals to approve (include "Approve none"). Record only the approved ones, each with `dg retro metric` (see "Proposing metrics"). Write nothing until approval is obtained. If every target perspective has a definition, do not ask
+3. **Propose metrics for the perspectives with no definition**: for each target perspective whose `metrics` is empty, propose its recommended metrics with the value computed for `<S>` (for a perspective that has no recommended metric, metrics that the data at hand can fill), in the table of the "Proposing metrics" section below. A perspective that has one or more adopted metrics gets no proposal. Ask once, with multiple selection (`#`), which proposals to approve (include "Approve none"). Record only the approved ones, each with `dg retro metric` (see "Proposing metrics"). Write nothing until approval is obtained. If every target perspective has a definition, do not ask
 4. **Compute the defined metrics and show the trend**: for each target perspective that has definitions (those just approved included), compute every metric by its definition, for `<S>` and for the recent Iterations, and show the table of the "Computing the metrics and the trend" section below. A perspective that still has no definition is one row, "unmeasured (no approved definition)"
 5. **Show Keep / Problem / Try**: in the table of the "Keep / Problem / Try" section below, with the notes on the gaps
 6. **Get approval**: ask once, with multiple selection (`#`), which Try rows to reflect (include "Do not reflect"). Write nothing until approval is obtained. If there is no Try row to reflect, do not ask
@@ -38,7 +38,7 @@ Reading and computing proceed without waiting for approval. Approval is asked at
 
 - The perspectives are the team's, in `retro.perspectives` of `config.yaml`: each has an ID, a name, a question, and the approved metric definitions (`metrics`: metric ID → `definition`, `sources`, and `unmeasured`). Show the name and the question as they are written
 - The defaults are seven, from the evaluation framework of Agentic-Agile, and none has a definition: `outcome`, `review` (how well the review works), `spec` (the quality of the tickets), `slicing` (how the work was divided), `stability` (of the agents), `cost`, and `improvement` (whether the Try of the previous retrospectives worked)
-- dg has no metrics of its own. What to measure differs from team to team, so a metric exists only once a human has approved its definition
+- dg adopts no metric by itself. It holds recommended metrics for the default perspectives (see "Proposing metrics"), but what to measure differs from team to team, so a metric is adopted only once a human has approved its definition
 - A definition is not a formula that dg runs. It is a sentence that says how to count, and the commands the numbers come from. Read it and compute from it each time
 - Change the perspectives themselves only when a human asks: `dg retro perspective <id> --name <name> --question <question>` adds one or changes its name or question, and `dg retro remove <perspective> [metric]` removes a perspective or one definition. Do not edit `config.yaml` directly, and do not use `dg config set` for them
 
@@ -47,25 +47,22 @@ Reading and computing proceed without waiting for approval. Approval is asked at
 | #   | Perspective | Metric ID | How to count | Sources | Unmeasured part |
 | --- | ----------- | --------- | ------------ | ------- | --------------- |
 
-- Propose only what can be computed now from what dg and `gh` return: `metrics show`, `metrics sources`, `run list`, `ticket list`, `ticket show`, `iteration show`, `history`, and `gh pr view`. Run the sources for `<S>` before proposing, and show the value they give next to the proposal, so that the human approves a metric that is seen to work
+- Propose only for a perspective that has no adopted metric (its `metrics` is empty). A perspective that has even one adopted metric is left as the team decided: do not show the recommended metrics for it
+- For such a perspective, propose its recommended metrics (the table "Recommended metrics" below) as they are written there: the metric ID, how to count, the sources, and the unmeasured part. Only when the perspective has no recommended metric (one the team added), or when a human asks for another metric, write a proposal of your own by the rules below
+- Propose only what can be computed now from what dg and `gh` return: `metrics show`, `metrics sources`, `run list`, `ticket list`, `ticket show`, `iteration show`, `history`, and `gh pr view`. Run the sources for `<S>` before proposing, and show the value they give next to the proposal (a recommended metric included), so that the human approves a metric that is seen to work. A recommended metric whose sources give no value for `<S>` is shown as "unmeasured" with the reason
 - "How to count" is one sentence: what is divided by what (or what is counted), and over which tickets or Runs. Write it so that another agent reading only the sentence and the sources gets the same number. Prefer a rate or a number per ticket to a bare count, because the Iterations differ in size
 - "Sources" are the commands with the fields to read, with `<S>` for the Iteration (for example `dg metrics show --iteration <S> --by ticket (retries, reviews.heavy)`)
 - "Unmeasured part" is the part of the perspective's question that the metric does not answer. Write it honestly; if no data at hand answers the question at all, propose nothing for that perspective and say what data would be needed
-- Keep the proposals few: one or two metrics for a perspective. A perspective can get more later
+- Keep your own proposals few: one or two metrics for a perspective. A perspective can get more later
 - Record an approved proposal with `dg --json --actor agent retro metric <perspective> <metric ID> --definition "<how to count>" --source "<command (fields)>" [--source ...] [--unmeasured "<unmeasured part>"]`. Write the definition in the words that were approved. It replaces a metric of the same ID as a whole
 - To change a definition that exists, propose the new one the same way and record it only after approval. The results are not stored, so the earlier Iterations are computed again by the new definition and stay comparable
 
-Candidates for the default perspectives (starting points; propose what fits the data of this repository):
+Recommended metrics (dg holds them for the default perspectives; none is adopted until a human approves it):
 
-| Perspective   | Candidates                                                                                                                                                                                                                                                                                               |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `outcome`     | The done tickets over the tickets that were in the Iteration when it closed (`iteration show <S>`: `completed`, `carried_over`; `ticket list --iteration <S> --include-abandoned`)                                                                                                                        |
-| `review`      | The heavy findings per reviewed ticket, and the share of the reviews that passed (`metrics show --iteration <S>`: `total.reviews.heavy`, `passed`, `recorded`)                                                                                                                                            |
-| `spec`        | The share of the tickets with no retry and no heavy finding (`metrics show --iteration <S> --by ticket`: `retries`, `reviews.heavy`). When the cause matters, the share of the heavy findings whose cause is `ticket` (see "Causes of rework")                                                                  |
-| `slicing`     | The spread of the changed lines and of the time per ticket (`metrics show --iteration <S> --by ticket`: `lines`, `duration_seconds`), such as the largest over the median. The share of the tickets whose PR changed a file that another ticket's PR of the Iteration also changed (`metrics sources --iteration <S>`: `files`; see "Files and references of the tickets") |
-| `stability`   | The share of the Runs that failed or were interrupted (`metrics show --iteration <S>`: `total.results`), and the retries per ticket (`total.retries`)                                                                                                                                                     |
-| `cost`        | The tokens per changed line, `output` and `input_cache` read separately and never added into one number (`metrics show --iteration <S>`: `total.lines.per_line`, with `lines.missing`); the share of time and of tokens per step (`--by step`). See "Tokens per changed line"                             |
-| `improvement` | The share of the Try of the previous retrospective that is done (`ticket list --label retro-<previous S> --include-abandoned`: done is finished, in_progress or review is under way, todo is not started, abandoned is dropped). If no ticket has the label, the previous retrospective filed no Try      |
+{{recommended_metrics}}
+
+- `<previous S>` is the Iteration whose retrospective came just before (the one closed just before `<S>`). If no ticket has the label `retro-<previous S>`, the previous retrospective filed no Try: say so instead of giving a rate
+- How to read the fields that the recommended metrics use is in the sections "Causes of rework", "Files and references of the tickets", and "Tokens per changed line" below
 
 ## Computing the metrics and the trend
 

@@ -34,7 +34,7 @@ Iteration の流れ（段階・次の 1 手・止まる判定・自動で選ん�
 
 ### guide の読み込みは Core に置く
 
-- guide の本文（guide-*.md）と読み込み（frontmatter の分離・節の切り出し・共通の節 `{{choices}}` の差し込み・config の値と `guide.notes` の埋め込み）は Core に置く。`dg next`・`dg brief`・`dg flow next` は、指す節の本文を Core の中で読んで返す
+- guide の本文（guide-*.md）と読み込み（frontmatter の分離・節の切り出し・共通の節 `{{choices}}` と core のデータから作る表（`{{recommended_metrics}}`）の差し込み・config の値と `guide.notes` の埋め込み）は Core に置く。`dg next`・`dg brief`・`dg flow next` は、指す節の本文を Core の中で読んで返す
 - `dg guide` と `dg skill install` は CLI だけの操作のまま（AG-4）で、Core の読み込みを写す
 - Core が読むのは同梱の静的な文書だけで、VS Code API・HTTP・React には依存しない（ADR-033 の依存の向きは変えない）。束ねられる入口（VS Code 拡張）でも読めるようにする方法は実装の細部
 

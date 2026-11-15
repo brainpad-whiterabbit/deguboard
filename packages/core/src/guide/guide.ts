@@ -1,4 +1,4 @@
-// guide の本文（guide-*.md・同じフォルダ）の読み込み（ADR-030）。frontmatter の分離・{{choices}} の差し込み・config の値の埋め込み・
+// guide の本文（guide-*.md・同じフォルダ）の読み込み（ADR-030）。frontmatter の分離・{{choices}} と推薦の指標の表（{{recommended_metrics}}）の差し込み・config の値の埋め込み・
 // guide.notes の文書の差し込みと、節の本文の取り出しを Core が行う。dg guide（CLI）・dg next・dg brief・dg flow next はここを写す。
 // 読む場所は import.meta.url からの相対。ビルドでは core の dist/ に guide-*.md をコピーし（root の package.json の build）、
 // 束ねた拡張（VS Code）は bundle（dist/extension.cjs）の隣に置く（packages/vscode/package.json の build）。ずれると読めないので両方を直す。
@@ -11,6 +11,7 @@ import { parse as parseYaml } from "yaml";
 import { bundleLayout } from "../bundle-layout.js";
 import { UsageError } from "../errors.js";
 import { type Config } from "../model/config.js";
+import { recommendedRetroMetricsTable } from "../model/retro-recommended.js";
 import { findGuideSection } from "./sections.js";
 import { GUIDE_TOPICS, type GuideTopic } from "./topics.js";
 
@@ -80,11 +81,14 @@ function insertNotes(body: string, notes: string): string {
 
 /**
  * 本文を返す。notes があれば題名の直後に差し込み、`{{choices}}` の行は共通の "Asking with choices" の節（guide-choices.md）に置き換える。
+ * `{{recommended_metrics}}` の行は、core が持つ振り返りの推薦の指標の表に置き換える（表を guide に写さず、データから作る）。
  * notes は readGuideNotes の text（既定は差し込まない）
  */
 export async function readGuide(topic: string, notes = ""): Promise<string> {
   const { body: raw } = await readGuideFile(topic);
-  const body = insertNotes(raw, notes);
+  const body = insertNotes(raw, notes).replace(/^\{\{recommended_metrics\}\}$/m, () =>
+    recommendedRetroMetricsTable(),
+  );
   if (!/^\{\{choices\}\}$/m.test(body)) return body;
   const choices = (await readFile(guideFile("guide-choices.md"), "utf8")).trim();
   return body.replace(/^\{\{choices\}\}$/m, () => choices);
