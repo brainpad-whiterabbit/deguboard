@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { request, type IncomingMessage } from "node:http";
+import { connect } from "node:net";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
@@ -199,49 +200,43 @@ describe("HTTP サーバー", () => {
     );
   });
 
-  it("本文が上限を超えた要求に、413 と英語の文の応答を返してから接続を閉じる（t975）", async () => {
+  it("本文が上限を超えた要求に、413 と英語の文の応答を返し、残りの本文を読み捨てて接続を使い続ける（t975）", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
     const s = await serve(f.cloneA);
-    // 上限（4 MiB）を超える本文。送り終える前にサーバーが閉じても、先に届いた応答を受け取る
-    const res = await new Promise<{ status: number; body: any; connection: string | undefined }>(
-      (resolve, reject) => {
-        const req = request(
-          {
-            host: "127.0.0.1",
-            port: s.port,
-            method: "POST",
-            path: "/api/commands/ticket.list",
-            headers: { "content-type": "application/json" },
-          },
-          (response) => {
-            let text = "";
-            response.setEncoding("utf8");
-            response.on("data", (chunk: string) => (text += chunk));
-            response.on("end", () =>
-              resolve({
-                status: response.statusCode ?? 0,
-                body: JSON.parse(text),
-                connection: response.headers.connection,
-              }),
-            );
+    const host = `127.0.0.1:${s.port}`;
+    // 上限（4 MiB）を超える本文の要求と、同じ接続の次の要求を、送り終えてから読み始める。
+    // 応答の直後にサーバーが接続を壊すと、送り終える前に RST で切られて書き込みが失敗する
+    const big = 5 * 1024 * 1024;
+    const next = JSON.stringify({ input: {} });
+    const text = await new Promise<string>((resolve, reject) => {
+      const socket = connect(s.port, "127.0.0.1", () => {
+        socket.write(
+          `POST /api/commands/ticket.list HTTP/1.1\r\nhost: ${host}\r\ncontent-type: application/json\r\ncontent-length: ${big}\r\n\r\n`,
+        );
+        socket.write(Buffer.alloc(big, 0x20));
+        socket.write(
+          `POST /api/commands/ticket.list HTTP/1.1\r\nhost: ${host}\r\ncontent-type: application/json\r\ncontent-length: ${Buffer.byteLength(next)}\r\nconnection: close\r\n\r\n${next}`,
+          (error) => {
+            if (error) return reject(error);
+            let received = "";
+            socket.setEncoding("utf8");
+            socket.on("data", (chunk: string) => (received += chunk));
+            socket.on("end", () => resolve(received));
           },
         );
-        // 応答の後に送りかけの本文が切られて出るエラー（EPIPE・ECONNRESET）は無視する。応答がなければ失敗
-        req.on("error", (error) => setTimeout(() => reject(error), 1000));
-        req.end(Buffer.alloc(5 * 1024 * 1024, 0x20));
-      },
-    );
-    expect(res).toEqual({
-      status: 413,
-      body: {
-        ok: false,
-        error: { code: "BODY_TOO_LARGE", message: "The request body is too large" },
-      },
-      connection: "close",
+      });
+      socket.on("error", reject);
     });
-    // 閉じたのはその接続だけで、サーバーは次の要求に応える
-    expect((await post(s, "ticket.list", {})).status).toBe(200);
+    // 1 つ目は 413 と英語の文、2 つ目は同じ接続で答えた 200（本文はどちらも chunked の 1 塊）
+    const responses = [
+      ...text.matchAll(/HTTP\/1\.1 (\d+) [^\r]*\r\n[\s\S]*?\r\n\r\n[0-9a-f]+\r\n(.*)\r\n/g),
+    ];
+    expect(responses.map((m) => Number(m[1]))).toEqual([413, 200]);
+    expect(JSON.parse(responses[0]![2]!)).toEqual({
+      ok: false,
+      error: { code: "BODY_TOO_LARGE", message: "The request body is too large" },
+    });
   });
 
   it("壊れた percent-encoding と URL として読めない要求先は、API と静的ファイルの両方で 400 を返し、プロセスは落ちない（t752）", async () => {

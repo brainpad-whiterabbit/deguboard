@@ -223,11 +223,9 @@ export function createApp(options: AppOptions): Handler {
         res.destroy();
         return;
       }
-      // 本文が大きすぎる要求は、残りの本文を読まないので接続を使い続けられない。
-      // 応答を書き終えてから閉じる（先に閉じると応答がクライアントに届かない）
+      // 本文が大きすぎる要求は、応答を書き終えてから残りの本文を読み捨てる（閉じ方は discardRest）
       if (error instanceof BodyTooLargeError) {
-        res.setHeader("connection", "close");
-        res.on("finish", () => req.destroy());
+        res.on("finish", () => discardRest(req));
         json(res, 413, { ok: false, error: { code: "BODY_TOO_LARGE", message: error.message } });
         return;
       }
@@ -255,6 +253,35 @@ export function createApp(options: AppOptions): Handler {
 
 function toJson(result: CommandResult<unknown>) {
   return { ok: true, data: result.data, warnings: result.warnings, write: result.write ?? null };
+}
+
+/** 413 の後に読み捨てる残りの本文の上限。超えたら、または時間を過ぎたら接続を壊す */
+const DISCARD_LIMIT = 16 * 1024 * 1024;
+const DISCARD_TIMEOUT_MS = 10_000;
+
+/**
+ * 本文が大きすぎた要求の残りの本文を読み捨て、接続をそのまま使い続ける（413 の応答を書き終えた後に呼ぶ）。
+ * 応答の直後に閉じると、受け取って読んでいない本文がカーネルに残り、Linux は FIN の代わりに RST を送るので、
+ * クライアントがまだ読んでいない応答を捨てうる。`connection: close` を付けても、Node が応答を送り終えた直後に
+ * 接続を壊すので同じことが起きる。送り続けるクライアントが接続を握り続けないよう、量と時間に上限を置き、
+ * 超えたら壊す（そこまで待てば応答はクライアントに読まれている見込みが高い）
+ */
+function discardRest(req: IncomingMessage): void {
+  if (req.complete) return;
+  let discarded = 0;
+  const timer = setTimeout(() => req.destroy(), DISCARD_TIMEOUT_MS);
+  timer.unref();
+  const stop = () => clearTimeout(timer);
+  req.on("data", (chunk: Buffer) => {
+    discarded += chunk.length;
+    if (discarded > DISCARD_LIMIT) {
+      stop();
+      req.destroy();
+    }
+  });
+  req.once("end", stop);
+  req.once("close", stop);
+  req.resume();
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
