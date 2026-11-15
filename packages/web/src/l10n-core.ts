@@ -1,7 +1,7 @@
 // 画面が引く core の文の訳の表（UI-11・t649）。鍵は core の文そのもの（可変の部分は {0}・{1}）で、値は表示言語ごとの訳。
 // 表示言語の訳がない言語では core の文のまま出す（l10n.ts の trCore・trCoreMessage・configDescription）。
 // CORE_LABELS は core の頼むの候補の名前と Plan の承認の状態の英語の文を鍵に、ja に日本語の訳を持つ。候補の名前は dg ask・ask-menu が CLI・MCP にも返す dg の出力なので、
-// ADR-001 の「dg がエージェントと利用者に出す文は英語」に当たり、画面の定型の文として表示言語で出すのは web の役目にする（t834）。CORE_MESSAGES は core のエラー・警告と dg serve の HTTP のエラーの英語の文を鍵に、ja に日本語の訳を持つ（t651・t948）。
+// ADR-001 の「言語」の節（dg が出す文は英語で持つ）に当たり、画面の定型の文として表示言語で出すのは web の役目にする（t834）。CORE_MESSAGES は core のエラー・警告と dg serve の HTTP のエラーの英語の文を鍵に、ja に日本語の訳を持つ（t651・t948）。
 // CONFIG_DESCRIPTIONS は設定の項目の文（説明・要約・空のときの動き・選択肢ごとの説明）の英語の文を鍵にし、値に ja の訳を持つ（英語の表示では鍵の英語の文をそのまま出す）。
 // DEFAULT_VALUES は dg の既定の値（core が持つ文）を鍵に、既定のままの値を出すときの訳を持つ（l10n.ts の shownDefault）。
 // 鍵が core の候補の名前・Plan の承認の状態・エラーと警告の文・設定の項目の文・既定の値に合うことと、訳の揃いは l10n.test.ts が確かめる。
