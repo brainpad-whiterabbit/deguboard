@@ -238,6 +238,58 @@ describe("dg", () => {
     });
   });
 
+  it("setup check は、リポジトリの外でも init の前でも、導入の項目を上から順に core の判定のまま返す（t1006）", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "deguboard-home-"));
+    const outside = await mkdtemp(path.join(os.tmpdir(), "deguboard-outside-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    cleanups.push(() => rm(outside, { recursive: true, force: true }));
+    const env = { HOME: home };
+    const ids = ["git", "repository", "board", "skills_hooks", "gitignore"];
+
+    // リポジトリの外：失敗にせず、満たさない項目と待ちの項目を返す
+    const out = await dg(outside, ["--json", "setup", "check"], env);
+    expect(out.code).toBe(0);
+    expect(out.json()).toMatchObject({ ok: true, data: { ready: false }, warnings: [] });
+    const items = out.json().data.items as Array<Record<string, unknown>>;
+    expect(items.map((i) => i["id"])).toEqual(ids);
+    expect(items.map((i) => i["status"])).toEqual(["ok", "unmet", "pending", "pending", "pending"]);
+    for (const item of items)
+      expect(Object.keys(item)).toEqual(
+        expect.arrayContaining(["id", "label", "level", "status", "message", "fix"]),
+      );
+    expect(items[1]).toMatchObject({ level: "required", fix: ["git init"] });
+
+    // init の前：ボードの項目が remote の状態を返し、--data-branch は確かめる先と直すコマンドに写る
+    const f = await fixture();
+    const before = await dg(f.cloneA, ["--json", "setup", "check"], env);
+    expect(before.json().data.items[2]).toMatchObject({
+      status: "unmet",
+      state: "remote_no_board",
+      fix: ["dg init"],
+    });
+    const branch = await dg(
+      f.cloneA,
+      ["--json", "setup", "check", "--data-branch", "deguboard-web"],
+      env,
+    );
+    expect(branch.json().data.items[2]).toMatchObject({
+      fix: ["dg init --data-branch deguboard-web"],
+    });
+
+    // init の後：必須を満たし、推奨の項目は満たさなくても終了コードは 0。人向けの出力は項目ごとの行と直すコマンド
+    await dg(f.cloneA, ["--json", "init"], env);
+    const after = await dg(f.cloneA, ["setup", "check"], env);
+    expect(after.code).toBe(0);
+    const lines = after.out.split("\n");
+    expect(lines[2]).toMatch(/^ok {7}Board \(required\): The board is set up/);
+    expect(lines[3]).toMatch(/^unmet {4}Skills and hooks \(recommended\): .*dg hooks check$/);
+    expect(lines.slice(4, 6)).toEqual([
+      "         fix: dg hooks install",
+      "         fix: dg skill install",
+    ]);
+    expect((await dg(f.cloneA, ["--json", "setup", "check"], env)).json().data.ready).toBe(true);
+  });
+
   it("init は書き込みがあればコミットを案内し、2 人目の clone の書き込みのない init では「作業ツリーに残した」を出さない", async () => {
     const f = await fixture();
     const first = await dg(f.cloneA, ["init"]);

@@ -67,6 +67,49 @@ function remoteUnreachableError(
   );
 }
 
+/** 手元に deguboard ブランチ（LOCAL_DATA_BRANCH）があるか。あれば init はリモートを見ずにそれを checkout する */
+export function hasLocalDataBranch(paths: RepoPaths): Promise<boolean> {
+  return branchExists(paths, `refs/heads/${LOCAL_DATA_BRANCH}`);
+}
+
+/**
+ * データのリモートにボード（データのブランチ）があるか。board は届いてある、no_board は届いてない、
+ * unreachable は届かなかった（接続・認証・時間切れ。detail は git の標準エラー）
+ */
+export type RemoteBoard =
+  | { state: "board" }
+  | { state: "no_board" }
+  | { state: "unreachable"; detail: string };
+
+/**
+ * データのリモート（名前か URL）に dataBranch があるかを ls-remote で確かめる。何も書かず、fetch もしない。
+ * init（ensureDeguboardWorktree）と dg setup check（commands/setup-check.ts）が同じ確かめ方を通す
+ */
+export async function probeRemoteBoard(
+  topLevel: string,
+  remote: string,
+  dataBranch: string,
+): Promise<RemoteBoard> {
+  // 名前の末尾が合うだけのほかのブランチ（team/deguboard など）に当たらないよう、完全な ref で引く
+  const remoteHas = await runGit(
+    topLevel,
+    ["ls-remote", "--exit-code", "--heads", remote, `refs/heads/${dataBranch}`],
+    {
+      allowFailure: true,
+      timeoutMs: 30_000,
+    },
+  ).catch((error: unknown) => {
+    // 時間切れも届かないとみなす（GitError の timeout は allowFailure でも投げられる）
+    if (error instanceof GitError && error.kind === "timeout")
+      return { stdout: "", stderr: error.message, code: -1 };
+    throw error;
+  });
+  // --exit-code の 2 は「届いて、そのブランチがない」。それ以外の失敗は届かなかった（接続・認証・時間切れ）
+  if (remoteHas.code === 0) return { state: "board" };
+  if (remoteHas.code === 2) return { state: "no_board" };
+  return { state: "unreachable", detail: remoteHas.stderr.trim() };
+}
+
 /**
  * 既にあればそのまま、ローカルに deguboard ブランチ（LOCAL_DATA_BRANCH）があればそれを、データのリモートにデータのブランチ（dataBranch）が
  * あればそれを追うブランチを、なければ orphan を作って checkout する。データのリモートに届かなければ、newBoard のときだけ orphan を作り、
@@ -85,31 +128,17 @@ export async function ensureDeguboardWorktree(
   await git(["worktree", "prune"]);
   if (await hasWorktree(paths)) return "existing";
 
-  if (await branchExists(paths, `refs/heads/${LOCAL_DATA_BRANCH}`)) {
+  if (await hasLocalDataBranch(paths)) {
     await git(["worktree", "add", paths.dataDir, LOCAL_DATA_BRANCH]);
     return "local_branch";
   }
   if (remote) {
-    // 名前の末尾が合うだけのほかのブランチ（team/deguboard など）に当たらないよう、完全な ref で引く
-    const remoteHas = await runGit(
-      paths.topLevel,
-      ["ls-remote", "--exit-code", "--heads", remote, `refs/heads/${dataBranch}`],
-      {
-        allowFailure: true,
-        timeoutMs: 30_000,
-      },
-    ).catch((error: unknown) => {
-      // 時間切れも届かないとみなす（GitError の timeout は allowFailure でも投げられる）
-      if (error instanceof GitError && error.kind === "timeout")
-        return { stdout: "", stderr: error.message, code: -1 };
-      throw error;
-    });
-    // --exit-code の 2 は「届いて、そのブランチがない」。それ以外の失敗は届かなかった（接続・認証・時間切れ）。
+    const found = await probeRemoteBoard(paths.topLevel, remote, dataBranch);
     // なぜ止める：届かないまま orphan を作ると、チームのボードと履歴を共有しない別のボードができ、後の sync が
     // DATA_HISTORY_UNRELATED で止まるまで気づけない（SY-1）。手元だけで始めるのは newBoard で人が選ぶ
-    if (remoteHas.code !== 0 && remoteHas.code !== 2 && !options.newBoard)
-      throw remoteUnreachableError(remote, dataBranch, remoteHas.stderr.trim());
-    if (remoteHas.code === 0) {
+    if (found.state === "unreachable" && !options.newBoard)
+      throw remoteUnreachableError(remote, dataBranch, found.detail);
+    if (found.state === "board") {
       await git([
         "fetch",
         remote,
