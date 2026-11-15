@@ -163,6 +163,7 @@ export function fixture(partial: Partial<Fixture> = {}): Fixture {
         abandoned: "Abandoned",
       },
       transitions: [],
+      template: null,
     },
     status: {
       ahead: 0,

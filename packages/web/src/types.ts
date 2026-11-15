@@ -36,6 +36,7 @@ import type {
   TransitionConstraint,
   WhoamiView,
   WorkflowDefinition,
+  WorkflowDefinitionInput,
 } from "@deguboard/core";
 import { msg } from "./l10n.js";
 
@@ -173,6 +174,8 @@ export interface WorkflowView {
   definition: WorkflowDefinition;
   labels: Record<Status, string>;
   transitions: readonly TransitionConstraint[];
+  /** 同じ id の同梱の雛形（core の文のまま）。雛形のない Workflow は null。名前とラベルが既定のままかを比べる（shownWorkflow） */
+  template: Pick<WorkflowDefinitionInput, "name" | "fields" | "steps"> | null;
 }
 
 /**

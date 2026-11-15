@@ -49,6 +49,29 @@ const strict = {
   steps: [{ id: "implement" }, { id: "review" }],
 };
 
+describe("workflow show", () => {
+  it("同じ id の同梱の雛形を template に添え、雛形のない Workflow は null にする（画面が既定のままの名前とラベルを訳すのに使う）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    // 書き換えた Workflow にも、比べる元の雛形（書き換える前の文）を添える
+    await runCommand(workflowSet, ctx, { workflow: "general", definition: strict });
+    const general = await runCommand(workflowShow, ctx, { workflow: "general" });
+    expect(general.data.definition.name).toBe("Strict General");
+    expect(general.data.template).toMatchObject({ id: "general", name: "General" });
+    expect(general.data.template?.steps?.map((s) => s.label)).toContain("Investigate");
+    const sd = await runCommand(workflowShow, ctx, { workflow: "software-development" });
+    expect(sd.data.template?.fields).toEqual([
+      { id: "estimate", type: "number", label: "Estimate" },
+    ]);
+    await runCommand(workflowSet, ctx, {
+      workflow: "research",
+      definition: { id: "research", name: "Research" },
+    });
+    const research = await runCommand(workflowShow, ctx, { workflow: "research" });
+    expect(research.data.template).toBeNull();
+  });
+});
+
 describe("workflow set", () => {
   it("検証を通った定義で置き換え、1 コミットで push し、前と後と変わった項目を返す", async () => {
     const f = await fixture();
