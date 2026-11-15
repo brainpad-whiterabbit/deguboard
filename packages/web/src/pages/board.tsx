@@ -5,7 +5,7 @@
 // Epic の札の列は、選んでいる範囲のチケットがある開いた Epic と「なし」（件数は範囲の Epic のないチケット）。絞っている Epic は残す。
 // 開いた Epic がなければ列を出さない。開いた Iteration がなければ Epic の列・進みの帯・一覧を出さず、バックログへ案内する（NoOpenIteration）。絞り込みの値はハッシュに持つ。
 // VS Code の左パネルに出し、見出しは Iteration の札・Epic の札・選んでいるものの名前（active は何日目か）・目標（3 行まで）と進みの帯・状態ごとの件数に詰め、詳細は出さない。
-// 担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
+// 担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、絞っている間は見出しの下に値の札（× で外す）を出す（上の端の帯では Epic の札も出す）。状態の節はペイン風の見出しにする。
 // Epic で絞っている間は、Iteration の見出しの下に選んでいる Epic の見出し（components/epic-head.tsx。× で外す）を出す。
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
@@ -15,12 +15,14 @@
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 左パネルでは、見出しの進みの帯の行が上へ抜けたら、上の端に 1 行の帯（BoardBand。番号・名前・小さな進みの帯・n/m）を出し、
 // 状態の節の見出しをその下に貼り付ける（components/sticky-band.tsx と styles.css の .sticky-band）。帯と貼り付きは左パネルの形（data-surface が sidebar）だけ。
+// 帯の右端の ▾ は、Iteration・Epic の札の列・担当の漏斗・状態ごとの件数を一覧の上に重ねて開き（BoardBandDrop）、上へ戻らずに切り替えられる。
+// Epic・担当で絞っている間は、帯の 2 行目に絞り込みの札（× で外す）を出す。
 // 左パネルの行・状態の節の見出し・Iteration の見出しと帯・選んでいる Epic の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // 表示だけで書き込まない。チケットを進める・片付ける・やめる・done を取り消すと、Iteration の作成・閉じるは、吹き出しから
 // エージェントに頼む（ADR-027）。Status を直に選んで変える操作はなく、Iteration の開始は着手（claim）の手順が行う
 
-import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { AskRow, StatusBand, StatusCounts, StatusDot, DetailLink } from "../components/parts.js";
 import { formatShortTime } from "../components/date-time.js";
@@ -57,6 +59,7 @@ import {
   ITERATION_LABELS,
   matchesEpic,
   NO_CLAIM,
+  NO_EPIC,
   type Epic,
   type Iteration,
   type Progress,
@@ -190,16 +193,20 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   // 札に触れている間は、その Epic の行を光らせる（UI-10。Epic で絞っている間は光らせない）
   const epicHighlight = useEpicHighlight(query.epic ?? "");
 
-  // Epic の札の列。選んだ札は Epic の絞り込みを切り替える（もう一度押すと外れる）
-  const epicRow = hasOpenEpic ? (
-    <EpicChipRow
-      epics={epicChips}
-      noEpic={noEpic}
-      selected={query.epic ?? ""}
-      onSelect={(epic) => setFilter({ epic: query.epic === epic ? undefined : epic })}
-      onHighlight={epicHighlight.onHighlight}
-    />
-  ) : undefined;
+  // Epic の札の列。選んだ札は Epic の絞り込みを切り替える（もう一度押すと外れる）。after は切り替えた後に呼ぶ（帯の ▾ で重ねた札を閉じる）
+  const epicRowOf = (after?: () => void) =>
+    hasOpenEpic ? (
+      <EpicChipRow
+        epics={epicChips}
+        noEpic={noEpic}
+        selected={query.epic ?? ""}
+        onSelect={(epic) => {
+          setFilter({ epic: query.epic === epic ? undefined : epic });
+          after?.();
+        }}
+        onHighlight={epicHighlight.onHighlight}
+      />
+    ) : undefined;
   // 選んでいる Epic の見出し。絞っている間だけ出し、閉じた Epic で絞ったとき（札の列に出ない）も出す。
   // 「なし」の件数と頼む対象は、絞って見えているチケット（Epic・担当の絞り込みの後）
   const epicHead = query.epic ? (
@@ -216,12 +223,68 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   const sidebar = host.surface === "sidebar";
   const scrolled = useScrolledPast<HTMLDivElement>();
   const progress = ticketProgress(tickets);
+  // 帯の ▾ で札の列を重ねて開いているか。帯が消えたら（見出しが見えたら）閉じ、次に帯が出たときは閉じた形で出す
+  const [dropOpen, setDropOpen] = useState(false);
+  const [bandShown, setBandShown] = useState(scrolled.past);
+  if (bandShown !== scrolled.past) {
+    setBandShown(scrolled.past);
+    if (!scrolled.past) setDropOpen(false);
+  }
+  const closeDrop = () => setDropOpen(false);
+  const sectionRef = useRef<HTMLElement>(null);
 
   return (
-    <section>
+    <section ref={sectionRef}>
       {sidebar ? (
         <StickyBand shown={scrolled.past}>
-          <BoardBand selection={selection} progress={progress} />
+          <BoardBand
+            selection={selection}
+            progress={progress}
+            open={dropOpen}
+            onToggle={() => setDropOpen(!dropOpen)}
+            onClose={closeDrop}
+            filters={
+              <FilterChips
+                className="board-band-filters"
+                epic={
+                  query.epic
+                    ? epicFilterLabel(
+                        query.epic,
+                        store.epics.find((e) => e.id === query.epic),
+                      )
+                    : undefined
+                }
+                assignee={query.assignee}
+                onClear={setFilter}
+              />
+            }
+            drop={
+              <BoardBandDrop
+                iterations={
+                  <IterationChips
+                    open={open}
+                    tickets={chipTickets}
+                    selection={selection}
+                    // Iteration を切り替えたら一覧の中身が入れ替わるので、閉じて一番上へ戻す
+                    onSelect={(iteration) => {
+                      closeDrop();
+                      if (sectionRef.current) scrollPageToTop(sectionRef.current);
+                      select(iteration);
+                    }}
+                  />
+                }
+                // Epic・担当は閉じるだけで、読んでいた位置を保つ
+                epics={epicRowOf(closeDrop)}
+                claims={claims}
+                assignee={query.assignee}
+                onAssignee={(assignee) => {
+                  setFilter({ assignee });
+                  closeDrop();
+                }}
+                progress={progress}
+              />
+            }
+          />
         </StickyBand>
       ) : null}
       {/* 見出しを 2 段と進みの帯に詰め、詳細は出さない */}
@@ -234,7 +297,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         progress={progress}
         bandRef={sidebar ? scrolled.ref : undefined}
         onSelect={select}
-        epics={epicRow}
+        epics={epicRowOf()}
         epicHead={epicHead}
         // 漏斗は担当の絞り込みだけ。担当がいなければ出さない
         filter={
@@ -248,24 +311,12 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         }
       />
       {filtersOpen && claims.length > 0 ? (
-        <div className="board-filters compact" id="board-filters">
-          <label>
-            {trNode(
-              "担当{0}",
-              <select
-                value={query.assignee ?? ""}
-                onChange={(e) => setFilter({ assignee: e.target.value || undefined })}
-              >
-                <option value="">{tr("すべて")}</option>
-                {claims.map((c) => (
-                  <option key={c} value={c} title={c}>
-                    {c === NO_CLAIM ? tr("なし") : actorLabel(c)}
-                  </option>
-                ))}
-              </select>,
-            )}
-          </label>
-        </div>
+        <AssigneeFilter
+          id="board-filters"
+          claims={claims}
+          assignee={query.assignee}
+          onChange={(assignee) => setFilter({ assignee })}
+        />
       ) : null}
       <FilterChips assignee={query.assignee} onClear={setFilter} />
       {open.length === 0 ? (
@@ -441,10 +492,50 @@ function BoardHead({
  * 見出しが上に抜けたら上の端に残す 1 行の帯（UI-2）。選んでいる Iteration の番号・名前（入らなければ「…」）・小さな進みの帯・n/m。
  * 「すべて」は番号の代わりに「すべて」を出し、名前は出さない。進みは見出しの帯と同じ数え方（絞り込みの後。「すべて」は planned と active の合計）。
  * 番号と名前は一覧を一番上へ戻すボタン（詳細へは見出しの名前のリンクから）。
- * 帯は見出しと同じく選んでいる Iteration を頼む場所にする（「すべて」のときは出さない）
+ * 帯は見出しと同じく選んでいる Iteration を頼む場所にする（「すべて」のときは出さない）。
+ * 右端の ▾（open・onToggle）は札の列（drop）を帯の下に重ねて開閉し、aria-expanded で開閉を示す。開いている間は一覧をスクロールしても閉じず、
+ * 帯の外を押すか Esc で閉じる（Esc は ▾ へフォーカスを戻す。頼む一覧などが先に Esc を使ったら閉じない）。
+ * filters は絞っている間だけ帯の 2 行目に出す絞り込みの札（FilterChips。絞っていなければ何も描かない）
  */
-function BoardBand({ selection, progress }: { selection: Selection; progress: Progress }) {
+function BoardBand({
+  selection,
+  progress,
+  open,
+  onToggle,
+  onClose,
+  filters,
+  drop,
+}: {
+  selection: Selection;
+  progress: Progress;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  filters: ReactNode;
+  /** ▾ で重ねる札の列（BoardBandDrop） */
+  drop: ReactNode;
+}) {
   const it = selection.kind === "iteration" ? selection.iteration : undefined;
+  const toggle = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    // 帯の外は帯の箱（.sticky-band）の外。重ねた札の列も箱の中に描くので、札を押しても閉じない（札の操作が閉じる）
+    const box = toggle.current?.closest(".sticky-band");
+    const onPointer = (e: PointerEvent) => {
+      if (box && e.target instanceof Node && !box.contains(e.target)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      onClose();
+      toggle.current?.focus();
+    };
+    document.addEventListener("pointerdown", onPointer, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
   const spot = useAskSpot(
     it
       ? {
@@ -456,24 +547,134 @@ function BoardBand({ selection, progress }: { selection: Selection; progress: Pr
       : null,
   );
   return (
-    <div className="sticky-band-bar board-band" {...(it ? spot.props : {})}>
-      <button
-        type="button"
-        className="board-band-top"
-        title={tr("一覧の一番上へ戻る")}
-        onClick={(e) => scrollPageToTop(e.currentTarget)}
-      >
-        {it ? (
-          <>
-            <code className="board-band-id">{it.id}</code>
-            <span className="board-band-name">{it.name}</span>
-          </>
-        ) : (
-          <span className="board-band-id all">{tr("すべて")}</span>
+    <>
+      <div className="sticky-band-bar board-band" {...(it ? spot.props : {})}>
+        <button
+          type="button"
+          className="board-band-top"
+          title={tr("一覧の一番上へ戻る")}
+          onClick={(e) => scrollPageToTop(e.currentTarget)}
+        >
+          {it ? (
+            <>
+              <code className="board-band-id">{it.id}</code>
+              <span className="board-band-name">{it.name}</span>
+            </>
+          ) : (
+            <span className="board-band-id all">{tr("すべて")}</span>
+          )}
+        </button>
+        <StatusBand progress={progress} short />
+        <button
+          ref={toggle}
+          type="button"
+          className={`board-band-toggle${open ? " open" : ""}`}
+          aria-label={tr("Iteration・Epic・担当を切り替える")}
+          title={tr("Iteration・Epic・担当を切り替える")}
+          aria-expanded={open}
+          aria-controls={open ? "board-band-drop" : undefined}
+          onClick={onToggle}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d={open ? "M4 10l4-4 4 4" : "M4 6l4 4 4-4"}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
+          </svg>
+        </button>
+        {spot.overlay}
+      </div>
+      {filters}
+      {open ? (
+        <div className="board-band-drop" id="board-band-drop">
+          {drop}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * 帯の ▾ で一覧の上に重ねる札の列（UI-2）。見出しと同じ Iteration の札の列と担当の漏斗、Epic の札の列、状態ごとの件数で、目標と期間は重ねない。
+ * 漏斗は重ねた札の中に担当の欄を開く（見出しの漏斗の開閉とは別にし、見出しの高さを変えて一覧を動かさない）。
+ * 札・担当を切り替えたら閉じるのは呼ぶ側（iterations・epics・onAssignee）
+ */
+function BoardBandDrop({
+  iterations,
+  epics,
+  claims,
+  assignee,
+  onAssignee,
+  progress,
+}: {
+  /** Iteration の札の列（IterationChips） */
+  iterations: ReactNode;
+  /** Epic の札の列（EpicChipRow）。開いた Epic がなければ undefined */
+  epics: ReactNode;
+  /** 担当の候補（claimOptions）。空なら漏斗を出さない */
+  claims: readonly string[];
+  assignee: string | undefined;
+  onAssignee: (assignee: string | undefined) => void;
+  progress: Progress;
+}) {
+  const [filterOpen, setFilterOpen] = useState(false);
+  return (
+    <>
+      <div className="head-line">
+        {iterations}
+        {claims.length > 0 ? (
+          <FilterToggle
+            open={filterOpen}
+            active={!!assignee}
+            title={tr("担当で絞り込む")}
+            controls="board-band-assignee"
+            onToggle={() => setFilterOpen(!filterOpen)}
+          />
+        ) : null}
+      </div>
+      {epics}
+      {filterOpen && claims.length > 0 ? (
+        <AssigneeFilter
+          id="board-band-assignee"
+          claims={claims}
+          assignee={assignee}
+          onChange={onAssignee}
+        />
+      ) : null}
+      <StatusCounts progress={progress} />
+    </>
+  );
+}
+
+/** 担当の絞り込みの欄（漏斗で開く小さな 1 行）。見出しの下と、帯の ▾ で重ねた札の中で使う */
+function AssigneeFilter({
+  id,
+  claims,
+  assignee,
+  onChange,
+}: {
+  id: string;
+  claims: readonly string[];
+  assignee: string | undefined;
+  onChange: (assignee: string | undefined) => void;
+}) {
+  return (
+    <div className="board-filters compact" id={id}>
+      <label>
+        {trNode(
+          "担当{0}",
+          <select value={assignee ?? ""} onChange={(e) => onChange(e.target.value || undefined)}>
+            <option value="">{tr("すべて")}</option>
+            {claims.map((c) => (
+              <option key={c} value={c} title={c}>
+                {c === NO_CLAIM ? tr("なし") : actorLabel(c)}
+              </option>
+            ))}
+          </select>,
         )}
-      </button>
-      <StatusBand progress={progress} short />
-      {spot.overlay}
+      </label>
     </div>
   );
 }
@@ -599,31 +800,70 @@ function ProgressRing({ progress }: { progress: Progress }) {
   );
 }
 
+/** 帯の絞り込みの札に出す Epic の名前。「なし」は「Epic なし」、一覧にない ID は ID だけ */
+function epicFilterLabel(
+  selected: string,
+  epic: Pick<Epic, "id" | "title"> | undefined,
+): { name: string; text: ReactNode; title: string } {
+  if (selected === NO_EPIC)
+    return { name: tr("なし"), text: tr("Epic なし"), title: tr("Epic なし") };
+  if (!epic) return { name: selected, text: <code>{selected}</code>, title: selected };
+  return {
+    name: epic.id,
+    text: (
+      <>
+        <code>{epic.id}</code> {epic.title}
+      </>
+    ),
+    title: `${epic.id} ${epic.title}`,
+  };
+}
+
 /**
- * 左パネルのカンバンで絞っている担当の札（例「担当 eiki/agent ×」）。× で外す。絞っていなければ何も出さない。
- * Epic の絞り込みは、選んでいる Epic の見出し（EpicFilterHead）が × を持つので、ここには出さない
+ * 左パネルのカンバンで絞っている値の札（例「e4 Webview ×」「担当 eiki/agent ×」）。× で外す。絞っていなければ何も出さない。
+ * 見出しの下では担当だけを出し（Epic の絞り込みは、選んでいる Epic の見出し EpicFilterHead が × を持つ）、
+ * 上の端の帯の 2 行目では Epic（epic）も出す（見出しが流れても、絞っていることに気づけて上へ戻らずに外せる）
  */
 function FilterChips({
+  className,
+  epic,
   assignee,
   onClear,
 }: {
+  className?: string;
+  /** 絞っている Epic の札の名前（epicFilterLabel）。札を出さないなら undefined */
+  epic?: ReturnType<typeof epicFilterLabel> | undefined;
   assignee: string | undefined;
   onClear: (patch: Partial<BoardQuery>) => void;
 }) {
-  if (!assignee) return null;
-  const who = assignee === NO_CLAIM ? tr("なし") : actorLabel(assignee);
+  if (!assignee && !epic) return null;
+  const who = assignee === NO_CLAIM ? tr("なし") : assignee ? actorLabel(assignee) : "";
   return (
-    <div className="filter-chips">
-      <span className="filter-chip" title={assignee === NO_CLAIM ? tr("担当なし") : assignee}>
-        <span className="filter-chip-text">{trNode("担当 {0}", who)}</span>
-        <button
-          type="button"
-          aria-label={tr("担当 {0} の絞り込みを外す", who)}
-          onClick={() => onClear({ assignee: undefined })}
-        >
-          ×
-        </button>
-      </span>
+    <div className={`filter-chips${className ? ` ${className}` : ""}`}>
+      {epic ? (
+        <span className="filter-chip" title={epic.title}>
+          <span className="filter-chip-text">{epic.text}</span>
+          <button
+            type="button"
+            aria-label={tr("Epic {0} の絞り込みを外す", epic.name)}
+            onClick={() => onClear({ epic: undefined })}
+          >
+            ×
+          </button>
+        </span>
+      ) : null}
+      {assignee ? (
+        <span className="filter-chip" title={assignee === NO_CLAIM ? tr("担当なし") : assignee}>
+          <span className="filter-chip-text">{trNode("担当 {0}", who)}</span>
+          <button
+            type="button"
+            aria-label={tr("担当 {0} の絞り込みを外す", who)}
+            onClick={() => onClear({ assignee: undefined })}
+          >
+            ×
+          </button>
+        </span>
+      ) : null}
     </div>
   );
 }

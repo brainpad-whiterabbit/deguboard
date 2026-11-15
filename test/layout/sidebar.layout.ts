@@ -793,6 +793,133 @@ describe.each(SCHEMES)("左パネルのカンバンの上の端に残す帯（%s
       await context.close();
     }
   });
+
+  // 帯の ▾ で札の列を一覧の上に重ねて開き、Epic で絞っている間は帯の 2 行目に絞り込みの札を出す（t963）
+  it("幅 300px で、絞っている間は帯の 2 行目に札を出して節の見出しをその下に貼り付け、▾ で開いた札の列は一覧を動かさずに重なり、帯の外を押すと閉じる", async () => {
+    const context = await browser.newContext({
+      viewport: { width: 300, height: 360 },
+      colorScheme: scheme,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${server.url}?surface=sidebar#/board?epic=e1`, {
+        waitUntil: "networkidle",
+      });
+      await page.locator(".board .column").first().waitFor();
+      await page.evaluate(() => {
+        const main = document.querySelector<HTMLElement>(".page")!;
+        const mark = document.querySelector<HTMLElement>(".sidebar-head .status-band")!;
+        main.scrollTop = mark.getBoundingClientRect().bottom - main.getBoundingClientRect().top;
+      });
+      await page.locator(".sticky-band-bar").waitFor();
+      const filtered = await page.evaluate(async () => {
+        const main = document.querySelector<HTMLElement>(".page")!;
+        const box = main.getBoundingClientRect();
+        const bar = document
+          .querySelector<HTMLElement>(".sticky-band-bar")!
+          .getBoundingClientRect();
+        const filters = document.querySelector<HTMLElement>(".sticky-band .board-band-filters")!;
+        const rect = filters.getBoundingClientRect();
+        const first = document.querySelector<HTMLElement>(".board > details.column[open]")!;
+        const offset = first.getBoundingClientRect().top - box.top + main.scrollTop;
+        // 最初の節の見出しが帯の下に貼り付くまで送る
+        main.scrollTop = offset;
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        return {
+          text: filters.textContent,
+          barBottom: bar.bottom,
+          top: rect.top,
+          height: rect.height,
+          right: rect.right,
+          pageRight: box.right,
+          stackBottom: document.querySelector(".sticky-band-stack")!.getBoundingClientRect().bottom,
+          summaryTop: first.querySelector("summary")!.getBoundingClientRect().top,
+        };
+      });
+      expect(filtered.text, "Epic の札").toMatch(/^e1 .+×$/);
+      expect(Math.abs(filtered.top - filtered.barBottom), "札は帯の下の行").toBeLessThanOrEqual(1);
+      expect(filtered.height, "札の行の高さ").toBe(22);
+      expect(filtered.right, "札の行が幅に収まる").toBeLessThanOrEqual(filtered.pageRight + 0.5);
+      expect(
+        Math.abs(filtered.summaryTop - filtered.stackBottom),
+        "節の見出しは札の行の下に貼り付く",
+      ).toBeLessThanOrEqual(1);
+
+      const before = await page.evaluate(() => {
+        const main = document.querySelector<HTMLElement>(".page")!;
+        return {
+          scrollTop: main.scrollTop,
+          boardOffset:
+            document.querySelector(".board")!.getBoundingClientRect().top -
+            main.getBoundingClientRect().top +
+            main.scrollTop,
+        };
+      });
+      const toggle = page.getByRole("button", { name: "Iteration・Epic・担当を切り替える" });
+      // 押しても、帯の部品へ寄せるスクロール（scroll-padding-top）で一覧が上へ戻って帯が消えない
+      await toggle.click();
+      await page.locator("#board-band-drop").waitFor();
+      const dropped = await page.evaluate(() => {
+        const main = document.querySelector<HTMLElement>(".page")!;
+        const box = main.getBoundingClientRect();
+        const drop = document.querySelector<HTMLElement>("#board-band-drop")!;
+        const rect = drop.getBoundingClientRect();
+        return {
+          top: rect.top,
+          filtersBottom: document
+            .querySelector(".sticky-band .board-band-filters")!
+            .getBoundingClientRect().bottom,
+          left: rect.left - box.left,
+          right: box.right - rect.right,
+          bg: getComputedStyle(drop.closest(".sticky-band-stack")!).backgroundColor,
+          chips: !!drop.querySelector(".iteration-chips") && !!drop.querySelector(".epic-chips"),
+          counts: !!drop.querySelector(".status-counts"),
+          scrollTop: main.scrollTop,
+          boardOffset:
+            document.querySelector(".board")!.getBoundingClientRect().top -
+            box.top +
+            main.scrollTop,
+          pageScroll: main.scrollWidth,
+          pageClient: main.clientWidth,
+        };
+      });
+      expect(
+        Math.abs(dropped.top - dropped.filtersBottom),
+        "札の列は帯の下に重ねる",
+      ).toBeLessThanOrEqual(1);
+      expect(
+        Math.abs(dropped.left) + Math.abs(dropped.right),
+        "左右の余白まで塗る",
+      ).toBeLessThanOrEqual(1);
+      expect(dropped.bg, "下の行が透けないよう塗る").not.toBe("rgba(0, 0, 0, 0)");
+      expect(dropped.chips && dropped.counts, "札の列と件数").toBe(true);
+      expect(dropped.scrollTop, "開いても位置は変わらない").toBe(before.scrollTop);
+      expect(dropped.boardOffset, "開いても一覧は動かない").toBe(before.boardOffset);
+      expect(dropped.pageScroll, "画面が横に溢れない").toBeLessThanOrEqual(dropped.pageClient);
+      expect(await toggle.getAttribute("aria-expanded")).toBe("true");
+
+      // 帯の外（一覧の下のほう）を押すと閉じる
+      await page.mouse.click(150, 340);
+      await page.waitForFunction(() => !document.querySelector("#board-band-drop"));
+      expect(await toggle.getAttribute("aria-expanded")).toBe("false");
+
+      // キーボードで開き、Esc で閉じる。フォーカスしても一覧は動かない
+      await toggle.focus();
+      await page.keyboard.press("Enter");
+      await page.locator("#board-band-drop").waitFor();
+      await page.keyboard.press("Escape");
+      await page.waitForFunction(() => !document.querySelector("#board-band-drop"));
+      expect(
+        await page.evaluate(() => document.activeElement?.classList.contains("board-band-toggle")),
+        "Esc で ▾ へフォーカスを戻す",
+      ).toBe(true);
+      expect(await page.evaluate(() => document.querySelector(".page")!.scrollTop)).toBe(
+        before.scrollTop,
+      );
+    } finally {
+      await context.close();
+    }
+  });
 });
 
 describe.each(SCHEMES)("履歴の中止の行（%s）", (scheme) => {

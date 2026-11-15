@@ -44,10 +44,15 @@ export function useScrolledPast<T extends Element>(): {
 
 /**
  * 上の端に残す帯。shown の間だけ中身を描く（隠れている間はフォーカスも読み上げも届かない）。
+ * 中身は縦に積む（1 行の帯 .sticky-band-bar と、その下に出す絞り込みの札や開いた欄）。積んだ全体を一覧の上に重ねる。
  * 置く場所は、帯を残したい範囲（一覧の全体）を包む要素の先頭
  */
 export function StickyBand({ shown, children }: { shown: boolean; children: ReactNode }) {
-  return <div className="sticky-band">{shown ? children : null}</div>;
+  return (
+    <div className="sticky-band">
+      {shown ? <div className="sticky-band-stack">{children}</div> : null}
+    </div>
+  );
 }
 
 /** from を含む一覧（.page）を一番上まで戻す */
