@@ -171,3 +171,21 @@ Where the hooks do not reach the agent:
   }
 }
 ```
+
+## What it writes and runs
+
+Board data is stored in `.git/deguboard/`. At startup, the extension writes outside `.git` only these two things:
+
+- The `dg` launcher, which terminals and hooks call, and its `current` file pointing to the bundled `dg`, in `~/.local/share/deguboard/`.
+- The dg Skills (`dg*`) already installed in the repository's `.claude/skills/` and in `~/.claude/skills/`. It updates them only where an older version of `dg` wrote them. It does not overwrite a Skill written by a newer `dg`, and it keeps a Skill you edited by hand and shows a warning.
+
+It does not install a Skill that is not already there by itself. Where some dg Skills are installed, a notice lists the missing bundled ones:
+
+- **Install** installs them. In the repository, it also adds a line per installed Skill to `.claude/.gitignore`, as `dg skill install` does (commit it).
+- **Don't show again** stops the notice for those Skills.
+
+`~/.local/bin/dg` is written only by "Install dg command" and removed by "Uninstall dg command".
+
+The extension runs only `git`, `gh`, and `dg --version`, and only in trusted folders.
+
+The Skills only tell the agent to read `dg guide`. The hooks only call `dg hook <event>`, which records Runs and refuses to mark a PR ready, merge it, or write to the data outside `dg`. See both with `--dry-run`.

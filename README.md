@@ -76,8 +76,7 @@ The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deg
 ## Security and privacy
 
 - The extension sends no telemetry and starts no HTTP server. Its only network access is `git` connecting to your remotes and `gh` connecting to GitHub.
-- Board data is stored in `.git/deguboard/`. At startup, the extension writes outside `.git` only two things: the `dg` launcher, which terminals and hooks call, and its `current` file pointing to the bundled `dg`, in `~/.local/share/deguboard/`; and the dg Skills (`dg*`) already installed in the repository's `.claude/skills/` and in `~/.claude/skills/`, which it updates only where an older version of `dg` wrote them (it does not install a Skill that is not already there by itself: where some dg Skills are installed, it lists the missing bundled ones in a notice and installs them only when you choose **Install**, which in the repository also adds a line per installed Skill to `.claude/.gitignore` as `dg skill install` does (commit it), and **Don't show again** stops the notice for those Skills; it does not overwrite a Skill written by a newer `dg`, and a Skill you edited by hand is kept and a warning is shown). `~/.local/bin/dg` is written only by "Install dg command" and removed by "Uninstall dg command". The extension runs only `git`, `gh`, and `dg --version`, and only in trusted folders.
-- The Skills only tell the agent to read `dg guide`. The hooks only call `dg hook <event>`, which records runs and refuses to mark a PR ready, merge it, or write to the data outside `dg`. See both with `--dry-run`.
+- What the extension writes, which commands it runs, and what the Skills and hooks do are in [What it writes and runs](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#what-it-writes-and-runs) in the usage guide.
 - See [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) for how to report vulnerabilities.
 
 ## Documentation
