@@ -419,6 +419,7 @@ describe("Skill の本文", () => {
       "dgstatus",
       "dgexplain",
       "dgretro",
+      "dgconfig",
       "dgall",
     ]);
     for (const s of skills) {

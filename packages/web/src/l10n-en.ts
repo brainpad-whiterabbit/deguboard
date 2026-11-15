@@ -378,6 +378,7 @@ export const EN: Readonly<Record<string, string>> = {
   "差し込む文書（様子）": "Document inserted into status",
   "差し込む文書（説明）": "Document inserted into explain",
   "差し込む文書（振り返り）": "Document inserted into retro",
+  "差し込む文書（設定）": "Document inserted into config",
   "差し込む文書（一気通し）": "Document inserted into all",
   概要: "Overview",
   チケットの起票: "Import",

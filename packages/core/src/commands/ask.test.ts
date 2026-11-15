@@ -730,7 +730,7 @@ describe("頼むことの候補", () => {
     expect(en).toContain("file only the improvements I approve as tickets");
   });
 
-  it("対象なしの候補は、Skill を持つ頼むことを流れの順にすべて出し、先頭は起票（discuss は change の直後、status は work の直後、explain は status の直後）", () => {
+  it("対象なしの候補は、Skill を持つ頼むことを流れの順にすべて出し、先頭は起票（discuss は change の直後、status は work の直後、explain は status の直後、config は自由にの直前）", () => {
     expect(askActions([])).toEqual([
       "create",
       "create_iteration",
@@ -749,6 +749,7 @@ describe("頼むことの候補", () => {
       "close",
       "reopen",
       "abandon",
+      "config",
       "free",
     ]);
     // 対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、履歴の見出しからだけ頼むもの（振り返り）は出さない
@@ -794,8 +795,8 @@ describe("頼むことの候補", () => {
   });
 
   it("対象なしの文章だけの形は、聞く対象があるものは 1 行目で対象を先に聞かせる。聞く対象がない依頼文は 1 行目がそのまま依頼文", () => {
-    // 聞く対象がない依頼文（create 系・点検）は ASK_FIRST を前置しない
-    const direct = new Set(["create", "create_iteration", "create_epic", "check"]);
+    // 聞く対象がない依頼文（create 系・点検・設定）は ASK_FIRST を前置しない
+    const direct = new Set(["create", "create_iteration", "create_epic", "check", "config"]);
     for (const language of ["ja", "en"] as const)
       for (const action of askActions([])) {
         if (action === "free") continue;
@@ -1069,6 +1070,67 @@ describe("頼むことの候補", () => {
     ]);
     // 読むだけなので、人に限った操作に当たらない
     expect(askHumanChecks("explain", [ticket()])).toEqual([]);
+  });
+
+  it("設定の説明と変更は対象なしの候補にだけ、自由にの直前に出て、おすすめにならない。対象があると候補になく UsageError", () => {
+    expect(askActions([]).slice(-2)).toEqual(["config", "free"]);
+    for (const language of ["ja", "en"] as const)
+      expect(
+        askCandidates([], undefined, language).find((c) => c.action === "config"),
+      ).toMatchObject({
+        label: "Explain or change settings",
+        skill: "/dgconfig",
+        skill_summary: SKILL_SUMMARY["dgconfig"]![language],
+        recommended: false,
+      });
+    expect(askMeaning("config", [])).toBe(
+      "deguboard の設定の項目を説明し、変更は前と後の差の承認を得てから書きます。",
+    );
+    expect(askMeaning("config", [], undefined, "en")).toBe(
+      "Explain the deguboard settings, and write a change only after approval of before → after.",
+    );
+    // 対象（チケット・Iteration・Epic・Plan・場所つき）のある候補には出ない
+    for (const [s, within] of SAMPLES)
+      if (s.length > 0) expect(askActions(s, within), JSON.stringify(s)).not.toContain("config");
+    expect(askActions([iteration("closed")], undefined, "historyRow")).not.toContain("config");
+    expect(() => buildAsk({ subjects: [ticket()], action: "config" })).toThrow(
+      /config is not a candidate/,
+    );
+  });
+
+  it("設定の説明と変更は Skill の形で /dgconfig だけになり、文章だけの形は承認を得てから dg config set で書く 1 文と dg の呼び方と guide の一文になる", () => {
+    // 頼みごとの 1 行は添えない（どの項目をどうするかは指示か Skill が聞く）。指示は次の行
+    expect(buildAsk({ subjects: [], action: "config", format: "skill" })).toMatchObject({
+      kind: "prompt",
+      skill: "/dgconfig",
+      text: "/dgconfig",
+    });
+    expect(
+      buildAsk({ subjects: [], action: "config", format: "skill", note: "commit.mode を each に" })
+        .text,
+    ).toBe("/dgconfig\ncommit.mode を each に");
+    // 聞く対象の ID がないので、対象を先に聞かせる行（ASK_FIRST）を置かない
+    expect(buildAsk({ subjects: [], action: "config", format: "text" }).text).toBe(
+      [
+        "deguboard の設定（config.yaml）の項目を説明してください。変更は、項目ごとの前と後の差とチームか個人（--local）かを見せて、承認を得てから dg config set で書いてください。",
+        ASK_DG_USAGE,
+        askGuideLine("/dgconfig"),
+      ].join("\n"),
+    );
+    expect(askGuideLine("/dgconfig")).toContain("`dg guide config`");
+    expect(buildAsk({ subjects: [], action: "config", format: "text", language: "en" }).text).toBe(
+      [
+        "Explain the deguboard settings (config.yaml). For a change, show before → after and team or personal (--local) for each item, and write it with dg config set only after I approve.",
+        ASK_DG_USAGE_EN,
+        askGuideLine("/dgconfig", "en"),
+      ].join("\n"),
+    );
+    // 書くのは Skill の手順が承認を得てからなので、頼むことを人のコマンドに回さない（config.set が actor.human_only でも依頼文のまま）
+    expect(askHumanChecks("config", [])).toEqual([]);
+    expect(buildAsk({ subjects: [], action: "config", humanOnly: ["config.set"] })).toMatchObject({
+      kind: "prompt",
+      text: "/dgconfig",
+    });
   });
 
   it("止まったものの再開は、1 行目に実行中の Run のないチケットだけを並べる", () => {
@@ -1372,7 +1434,7 @@ describe("Skill の 1 文（skill_summary・UI-15）", () => {
 
   it("Skill の名前に文がなければ例外", () => {
     expect(() => skillSummary("dgnone")).toThrow();
-    expect(Object.keys(SKILL_SUMMARY)).toHaveLength(14);
+    expect(Object.keys(SKILL_SUMMARY)).toHaveLength(15);
     expect(skillSummary("dgretro", "ja")).toMatch(/[぀-ヿ一-鿿]/);
     expect(skillSummary("dgretro", "en")).not.toMatch(/[぀-ヿ一-鿿]/);
   });

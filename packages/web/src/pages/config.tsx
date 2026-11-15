@@ -115,6 +115,7 @@ const NAMES: Record<string, string> = {
   "guide.notes.status": msg("差し込む文書（様子）"),
   "guide.notes.explain": msg("差し込む文書（説明）"),
   "guide.notes.retro": msg("差し込む文書（振り返り）"),
+  "guide.notes.config": msg("差し込む文書（設定）"),
   "guide.notes.all": msg("差し込む文書（一気通し）"),
 };
 
@@ -140,6 +141,7 @@ const NOTE_LABELS: Record<string, string> = {
   status: msg("様子"),
   explain: msg("説明"),
   retro: msg("振り返り"),
+  config: msg("設定"),
   all: msg("一気通し"),
 };
 

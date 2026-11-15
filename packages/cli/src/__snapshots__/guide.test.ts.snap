@@ -355,6 +355,68 @@ After reporting the result (including when there were no findings), ask with the
 - **Stop here**"
 `;
 
+exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > config 1`] = `
+"# Settings (config)
+
+Explains the settings of deguboard (\`config.yaml\`) to a human, and changes them when a human asks. Reading and explaining proceed without approval. Every change is written only after a human approves its before → after, with \`dg config set\`. Do not edit \`config.yaml\` or the personal settings file (\`deguboard-local/config.yaml\`) directly. The perspectives of the retrospective (\`retro.perspectives\`) are not written here: they go to \`dg retro\` (see "The perspectives of the retrospective" below).
+
+## Deciding the target
+
+- The keys after the Skill call (\`/dgconfig commit.mode work.parallel\`), or the items named in the instruction, are the targets. A group (\`models\`, \`actions\`) means every item under it. The instruction says whether to explain or to change, and gives the new value
+- A question ("what is \`commit.mode\`?", "what do you recommend?") asks for an explanation: explain and stop, without proposing to write. Change only when a human asks for a change
+- A name that is not among the \`fields\` of \`config show --fields\`: say so and show the keys that are close. Do not guess
+- No target given: show the items whose value differs from the default (key, value, default, scope) and the groups of the rest, and ask what to explain or change, with the choices below
+
+## Asking with choices
+
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
+
+- When the agent can offer choices, ask with that mechanism (for example, the AskUserQuestion tool in Claude Code). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
+
+## Reading
+
+\`dg --json --actor agent config show --fields\` returns everything this guide reads (it does not write):
+
+- \`fields\`: every leaf item, with its \`key\`, \`type\`, \`options\`, \`option_descriptions\`, \`summary\`, \`description\`, \`example\`, \`empty\` (what an empty value does), \`default\`, \`scope\`, and \`clears_to_default\`
+- \`config\`: the value in effect, read in the order personal > team > default. \`team\`: the team's value, without the personal overrides. \`local\`: the personal overrides on this machine (key → value). \`defaults\`: every default
+- \`retro.perspectives\` is not in \`fields\`. Its value is in \`config\`, and its default in \`defaults\`
+
+## Explaining
+
+Answer in the language the human used, in plain words. For each target item, give:
+
+- **Meaning**: what the item decides and which commands or behavior it changes, from \`description\`. For an item with choices, what each choice does (\`option_descriptions\`); for an item that can be empty, what an empty value does (\`empty\`); for a number, the allowed range
+- **Current value**: the value in effect (\`config\`). When \`local\` has the key, say that it is a personal override on this machine, and give the team's value (\`team\`) too
+- **Default**: \`default\`, and whether the current value is the default
+- **Scope**: \`team\` is decided only by the team's \`config.yaml\`, which everyone shares through the data branch. \`local\` can also be overridden per person with \`--local\` (the personal file is not in Git, and is never committed or pushed)
+- **Recommended value**: only when the repository gives a basis for it, and always together with that basis (the file and what it says). For example, the check command that the repository's task file or agent instructions name is a basis for \`actions.test\`, and the remote's default branch is a basis for \`git.base_branch\`. When the repository gives no basis, say that there is no recommendation. Do not recommend from general preference, and do not present the default as a recommendation
+
+For several items, use one table with the columns item, meaning, current, default, and scope, and add the recommendations with their basis below it. Explaining writes nothing.
+
+## Changing
+
+1. **Read**: \`config show --fields\`. Keep the current value of each item to change as "before" (the team's value from \`team\`, the personal override from \`local\`)
+2. **Decide where to write, per item**: the team's \`config.yaml\` (changes the value for everyone) or the personal settings (\`--local\`: only this person, on this machine). An item whose \`scope\` is \`team\` can only be written to the team's file. For an item whose \`scope\` is \`local\`, use what the instruction says; if it does not say, put the question in the approval of step 3. When the team's value changes while \`local\` has the key, say that the value in effect on this machine stays the personal one
+3. **Approval**: show a table with one row per item (item, before, after, where: team or personal (\`--local\`), and what the change affects, from \`description\`), and ask with choices. Ask for every change, even when the instruction settles the value: a setting changes how every later command behaves, for the whole team when it is written to the team's file. Write nothing until approval is obtained
+4. **Write**: only the approved rows, one call per item: \`dg --json --actor agent config set <key> <value>\`, with \`--local\` for the personal settings. To remove a value and return to the default (with \`--local\`, to the team's value), use \`config unset <key>\`. How values are written (lists, empty values, numbers) is in \`dg config set --help\`
+5. **When refused**: on \`TRANSITION_REJECTED\` (the operation is in \`actor.human_only\`), do not retry in another way; give the human the exact command to run (without \`--actor agent\`). On \`VALIDATION_FAILED\`, show \`error.message\` and ask for the value again; do not pick another value yourself
+6. **Report**: for each item, before → after, where it was written, the value in effect now, and the \`warnings\` of the result
+
+Moving the data to another remote or branch (\`git.data_remote\`, \`git.data_branch\`) is more than one write: follow the "Data in another repository" section of \`dg guide overview\`.
+
+## The perspectives of the retrospective
+
+\`retro.perspectives\` is nested by perspective (ID → name, question, and the approved metric definitions), and \`config set\` refuses it. Explain it by reading it from \`config\` (each perspective's ID, name, question, and how many metrics it has). Send every change to \`dg retro\`: \`dg retro perspective\` adds a perspective or changes its name or question, \`dg retro remove\` removes a perspective or one definition, and \`dg retro metric\` records a metric definition. Run them by the "Perspectives" section of \`dg guide retro\`, with the same approval of before → after as in "Changing". Metric definitions are proposed and approved in the retrospective itself, so do not make them up here.
+
+## Choosing the next step
+
+This guide asks no choices of its own for the next step. It ends with the explanation or the report. If the human asks for a change after an explanation, continue with "Changing". To propose metrics for the perspectives of the retrospective, name \`dg guide retro\` (if a Skill is available, \`/dgretro <S>\`) in one line, and do not start it here."
+`;
+
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > discuss 1`] = `
 "# Discussion (discuss)
 
@@ -758,6 +820,7 @@ By default, agents can run every operation. Limits are added in the settings.
 | status   | dgstatus  | Tells where an in-progress ticket is, why it has stopped, and the next step, from the ticket, \`next\`, Runs, and the PR, without changing data (recommends resuming, does not resume) | When asked how the work on a ticket is going |
 | explain  | dgexplain | Explains to a human what tickets, an Epic, or an Iteration are about (a one-sentence summary, text diagrams in the reply, an example, the terms reworded, the acceptance criteria as a plain checklist), from the ticket and the code and ADRs it involves, without changing data or files | When asked what a ticket, Epic, or Iteration is about |
 | retro    | dgretro   | Looks back on a closed Iteration: a summary of the numbers, metric proposals for the team's perspectives (\`retro.perspectives\`) that have no approved definition, the defined metrics with their trend, Keep / Problem / Try with a basis, and filing the approved Try with the label \`retro-<S>\` | When asked to look back on a closed Iteration |
+| config   | dgconfig  | Explains the settings (\`config.yaml\`) to a human (meaning, current value, default, scope; a recommended value only with a basis from the repository), and changes them with \`config set\` after approval of before → after and team or personal (\`--local\`); \`retro.perspectives\` goes to \`dg retro\` | When asked what a setting means or to change the settings |
 | all      | dgall     | Advances assign → check → plan → work → audit → release, taking the stage from the state (can resume with the same arguments)                  | When asked to "carry s3 through to the end"                        |
 
 Read with \`dg guide <topic>\`. Where the agent has Skills (such as Claude Code), the Skill that \`dg skill install\` installs (such as \`/dgimport\`) reads the topic. The only ask from the screen (\`dg ask\`) that has no Skill is free; its request text is plain text without a topic. A Skill is optional. Without one, read \`dg guide <topic>\` and proceed with the same steps. Where the agent has hooks (such as Claude Code), \`dg hooks install\` can also install hooks, and \`dg hooks check\` confirms whether they are installed, whether they work, and whether their input has the right shape (it warns when something is missing). It also warns when an installed dg Skill is older than this dg; update it with \`dg skill install\`. For the list of commands, see \`dg --help\`. For each command's options, see \`dg <group> <operation> --help\`."

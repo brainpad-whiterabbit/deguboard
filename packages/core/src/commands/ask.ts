@@ -48,6 +48,7 @@ export const ASK_ACTIONS = [
   "status",
   "explain",
   "retro",
+  "config",
   "free",
 ] as const;
 export type AskAction = (typeof ASK_ACTIONS)[number];
@@ -198,6 +199,10 @@ export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage,
   dgretro: {
     ja: "閉じた Iteration を数字の要約とチームの観点の指標から振り返り、根拠つきの Keep / Problem / Try を示して、承認を得た改善を起票します。",
     en: "Looks back on a closed Iteration from a summary of its numbers and the metrics of the team's perspectives, gives Keep / Problem / Try with a basis, and files the approved improvements as tickets.",
+  },
+  dgconfig: {
+    ja: "deguboard の設定の項目（意味・今の値・既定の値・範囲）を説明し、変更は前と後の差とチームか個人かを見せて、承認を得てから書きます。",
+    en: "Explains the deguboard settings (meaning, current value, default, scope), and changes them after showing before → after and team or personal and getting approval.",
   },
 };
 
@@ -954,6 +959,19 @@ const ACTIONS: Record<AskAction, ActionDef> = {
         `Look back on ${idList(s, lang)}: show a summary of its numbers, propose metrics for the perspectives that have no definition and record only the definitions I approve, compute the defined metrics with the trend against the recent Iterations, give Keep / Problem / Try with a basis, and file only the improvements I approve as tickets.`,
       ),
   },
+  // deguboard の設定（config.yaml）の説明と変更。対象の ID を持たず、対象なしの候補（baseActions）にだけ出る。
+  // どの項目をどうするかは指示か Skill が聞くので、頼みごとの 1 行も、対象を先に聞かせる行（ASK_FIRST）も付けない
+  config: {
+    skill: "dgconfig",
+    noTargetOk: true,
+    label: () => "Explain or change settings",
+    text: (_s, _w, lang) =>
+      say(
+        lang,
+        "deguboard の設定（config.yaml）の項目を説明してください。変更は、項目ごとの前と後の差とチームか個人（--local）かを見せて、承認を得てから dg config set で書いてください。",
+        "Explain the deguboard settings (config.yaml). For a change, show before → after and team or personal (--local) for each item, and write it with dg config set only after I approve.",
+      ),
+  },
   free: {
     skill: null,
     label: () => "Free-form",
@@ -1216,6 +1234,12 @@ const MEANING: Record<
       `${idList(s, lang)} を数字の要約とチームの観点の指標から振り返り、承認を得た改善を起票します。`,
       `Look back on ${idList(s, lang)} from a summary of its numbers and the metrics of the team's perspectives, and file the approved improvements as tickets.`,
     ),
+  config: (_s, _w, lang) =>
+    say(
+      lang,
+      "deguboard の設定の項目を説明し、変更は前と後の差の承認を得てから書きます。",
+      "Explain the deguboard settings, and write a change only after approval of before → after.",
+    ),
   free: (s, _w, lang) =>
     s.length > 0
       ? say(
@@ -1291,7 +1315,7 @@ function afterChange(actions: readonly AskAction[], action: AskAction): AskActio
 }
 
 function baseActions(s: Subjects, place?: AskPlace): AskAction[] {
-  // 対象なしは、Skill を持つ頼むことを流れの順にすべて出し（Skill が対象を聞く）、最後に自由に。対象がないと意味のないもの（外す・分ける・done の取り消し・止まった作業の再開（resume）・承認）と、閉じた Iteration の振り返るは出さない。閉じた Iteration・Epic の再開（reopen）は対象なしでも出す
+  // 対象なしは、Skill を持つ頼むことを流れの順にすべて出し（Skill が対象を聞く）、その後に設定の説明と変更（config。対象の ID を持たないので、ここにだけ出す）、最後に自由に。対象がないと意味のないもの（外す・分ける・done の取り消し・止まった作業の再開（resume）・承認）と、閉じた Iteration の振り返るは出さない。閉じた Iteration・Epic の再開（reopen）は対象なしでも出す
   if (s.length === 0)
     return [
       "create",
@@ -1311,6 +1335,7 @@ function baseActions(s: Subjects, place?: AskPlace): AskAction[] {
       "close",
       "reopen",
       "abandon",
+      "config",
       "free",
     ];
 
@@ -1380,7 +1405,7 @@ function baseActions(s: Subjects, place?: AskPlace): AskAction[] {
 
 /**
  * 対象のない候補の頼むことの 1 文（UI-15）。ID の代わりに対象を指す言葉で書き、空白で始めない。
- * 対象なしの候補（baseActions）に出ないものは置かない。ここにない候補（起票・Iteration・Epic・点検・自由に）は、対象がなくても MEANING の文を使う
+ * 対象なしの候補（baseActions）に出ないものは置かない。ここにない候補（起票・Iteration・Epic・点検・設定・自由に）は、対象がなくても MEANING の文を使う
  */
 const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
   change: { ja: "指示のとおりに直します。", en: "Edit as instructed." },
@@ -1672,7 +1697,7 @@ export const ask = defineCommand({
       .array(z.string().min(1))
       .default([])
       .describe(
-        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target: the candidates are the actions that start without a target (creating a ticket, Iteration, or Epic, assigning, checking, planning, working, reading the status of work, explaining a target, running everything, marking done, releasing, changing, discussing, closing, reopening, abandoning, or a free instruction), and the Skill or the agent asks for the target",
+        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target: the candidates are the actions that start without a target (creating a ticket, Iteration, or Epic, assigning, checking, planning, working, reading the status of work, explaining a target, running everything, marking done, releasing, changing, discussing, closing, reopening, abandoning, explaining or changing the settings, or a free instruction), and the Skill or the agent asks for the target",
       ),
     action: z
       .enum(ASK_ACTIONS)

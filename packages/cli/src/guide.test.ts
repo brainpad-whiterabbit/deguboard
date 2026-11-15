@@ -96,6 +96,7 @@ const ENGLISH_TOPICS = new Set([
   "status",
   "explain",
   "retro",
+  "config",
   "all",
 ]);
 
@@ -1077,6 +1078,114 @@ describe("dg guide", () => {
     expect(target).toContain("No target given: ask which ticket, Epic, or Iteration");
     expect(target).toContain("A Plan (`p3`) is not a target");
     expect(section(guide, "## Choosing the next step")).toContain("asks no choices of its own");
+  });
+
+  it("config は項目の意味・今の値・既定の値・範囲を config show --fields から説明し、おすすめの値はリポジトリに根拠があるときだけ根拠と一緒に出す", async () => {
+    const guide = await readGuide("config");
+    // 読むのは config show --fields だけで、項目の文・効く値・チームの値・個人の上書き・既定を引く
+    const reading = section(guide, "## Reading");
+    for (const word of [
+      "`dg --json --actor agent config show --fields`",
+      "`fields`",
+      "`config`",
+      "`team`",
+      "`local`",
+      "`defaults`",
+    ])
+      expect(reading, word).toContain(word);
+    const explaining = section(guide, "## Explaining");
+    expect(bullet(explaining, "Meaning")).toContain("`description`");
+    for (const word of ["value in effect", "personal override", "the team's value"])
+      expect(bullet(explaining, "Current value"), word).toContain(word);
+    expect(bullet(explaining, "Default")).toContain("`default`");
+    for (const word of ["`team`", "`local`", "`--local`", "not in Git"])
+      expect(bullet(explaining, "Scope"), word).toContain(word);
+    // おすすめは根拠があるときだけ。根拠がなければ勧めず、既定を勧めとして出さない
+    const recommended = bullet(explaining, "Recommended value");
+    for (const word of [
+      "only when the repository gives a basis",
+      "together with that basis",
+      "say that there is no recommendation",
+      "Do not recommend from general preference",
+      "do not present the default as a recommendation",
+    ])
+      expect(recommended, word).toContain(word);
+    expect(explaining).toContain("Explaining writes nothing");
+    // 聞かれただけなら説明で止め、書く提案に進まない。対象は項目の名前で、ないときは選択肢で聞く
+    const target = section(guide, "## Deciding the target");
+    expect(target).toContain("`/dgconfig commit.mode work.parallel`");
+    expect(target).toContain("explain and stop, without proposing to write");
+    expect(target).toContain("No target given");
+    expect(target).toContain("Do not guess");
+  });
+
+  it("config の変更は、項目ごとの前と後の差とチームか個人（--local）かを見せて人の承認を得てから dg config set で書き、retro.perspectives は dg retro に回す", async () => {
+    const guide = await readGuide("config");
+    const intro = guide.split("\n## ")[0]!;
+    for (const word of [
+      "only after a human approves its before → after",
+      "`dg config set`",
+      "Do not edit `config.yaml`",
+      "`retro.perspectives`",
+      "`dg retro`",
+    ])
+      expect(intro, word).toContain(word);
+    const changing = section(guide, "## Changing");
+    // 書く先（チームか個人か）を項目ごとに決める。scope が team の項目は個人に書けない
+    for (const word of [
+      "per item",
+      "`--local`",
+      "An item whose `scope` is `team` can only be written to the team's file",
+    ])
+      expect(step(changing, 2), word).toContain(word);
+    // 承認：指示で値が決まっていても、どの変更でも聞く。承認まで書かない
+    for (const word of [
+      "one row per item",
+      "before, after",
+      "team or personal (`--local`)",
+      "ask with choices",
+      "Ask for every change, even when the instruction settles the value",
+      "Write nothing until approval is obtained",
+    ])
+      expect(step(changing, 3), word).toContain(word);
+    // 書くのは承認の後で、承認された行だけを 1 項目 1 回
+    for (const word of [
+      "only the approved rows",
+      "`dg --json --actor agent config set <key> <value>`",
+      "`--local`",
+      "`config unset <key>`",
+      "`dg config set --help`",
+    ])
+      expect(step(changing, 4), word).toContain(word);
+    expect(changing.indexOf("**Approval**")).toBeLessThan(changing.indexOf("**Write**"));
+    for (const word of ["TRANSITION_REJECTED", "exact command", "VALIDATION_FAILED"])
+      expect(step(changing, 5), word).toContain(word);
+    for (const word of ["before → after", "where it was written", "`warnings`"])
+      expect(step(changing, 6), word).toContain(word);
+    // 振り返りの観点は config set で書かず、dg retro のコマンドに回す
+    const retro = section(guide, "## The perspectives of the retrospective");
+    for (const word of [
+      "`config set` refuses it",
+      "Send every change to `dg retro`",
+      "`dg retro perspective`",
+      "`dg retro remove`",
+      "`dg retro metric`",
+      "`dg guide retro`",
+      "approval of before → after",
+    ])
+      expect(retro, word).toContain(word);
+    expect(guide).not.toContain("config set retro");
+    expect(section(guide, "## Choosing the next step")).toContain("asks no choices of its own");
+  });
+
+  it("dg guide config は、config の説明と変更の手順を出す", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "dg-guide-config-"));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const result = await dg(dir, ["guide", "config"]);
+    expect(result.code).toBe(0);
+    for (const word of ["# Settings (config)", "## Explaining", "## Changing"])
+      expect(result.out, word).toContain(word);
+    expect(lineWith(await readGuide("overview"), "| config ")).toContain("dgconfig");
   });
 
   it("change は操作ごとの前提を確かめ、当たるときだけ前後を示して承認を得て、dg を 1 回呼び、拒否されたら人にコマンドを渡す", async () => {

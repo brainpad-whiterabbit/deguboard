@@ -172,6 +172,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - チームの `config.yaml` はデータのブランチ（既定は `deguboard`）で全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）
 - 値は「個人 > チーム > 既定」の順に読み、どの入口も Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する（細部は `dg config set --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
+- 項目の説明と変更はエージェントに頼める（`/dgconfig`。AG-2）。エージェントは、項目ごとの前と後の差とチームか個人かを見せて人の承認を得てから `dg config set` で書く（手順は `dg guide config`）
 
 - `default_workflow`：自分の `workflow` を持たないチケットの Workflow（省けば `general`。TK-1）。チームだけが持つ
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧（検査しない呼び出しは `packages/core/src/commands/define.ts`）。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
@@ -233,7 +234,7 @@ updated_at: 2026-10-31T05:10:00Z
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。コード中の ID から要約と詳細を開け、コマンドで ID か題からも探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせ（設定で切れる）、`dg init` 前は始め方を出し、VS Code ではボタンで初期化を実行できる。細部は `packages/vscode/package.json`・`src/extension.ts`
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
 - UI-14 設定画面：チームの `config.yaml` の項目（5.10）と個人で上書きできる項目を分けて直せ、上書きは外せる。影響の大きい項目は保存前に確かめ、`retro.perspectives` は読むだけ。VS Code の settings.json は使わない（細部は `packages/web/src/pages/config.tsx` とそのテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
-- UI-15 エージェントに頼む：行・見出しから `dg ask` の依頼文を作って頼め、データには書き込まない。VS Code では開いているターミナルにも送れる。細部は `packages/web/src/components/ask-menu.tsx`・`packages/vscode/src/terminals.ts` のテスト
+- UI-15 エージェントに頼む：行・見出しから `dg ask` の依頼文を作って頼め、データには書き込まない。対象を選ばずに頼むときは、設定の説明と変更（5.10）も頼める。VS Code では開いているターミナルにも送れる。細部は `packages/web/src/components/ask-menu.tsx`・`packages/vscode/src/terminals.ts` のテスト
 - UI-16 VS Code 拡張は、制限モードと仮想ワークスペースでは動かない（理由は `packages/vscode/package.json` の `capabilities`）
 
 画面の並び・文言・印などの細部は `packages/web/src/`・`packages/vscode/src/` のコードとテストが正本。
