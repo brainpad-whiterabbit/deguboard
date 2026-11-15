@@ -43,22 +43,32 @@ export function terminalInput(text: string): TerminalInput {
 }
 
 /**
- * 始め方の画面のボタンがターミナルに入れる 1 行（Enter まで送る）。起動ファイル（launcher.ts）の絶対パスで
- * dg init・dg skill install・dg hooks install を &&（途中で失敗したら続けない）でつなぐ。PATH の dg は使わない。
+ * 導入のチェックリストのボタン（UI-12）がターミナルに入れる 1 行（Enter まで送る）。commands（git init・dg init・dg skill install など）を
+ * &&（途中で失敗したら続けない）でつなぐ。dg は起動ファイル（launcher.ts）の絶対パスで呼び、PATH の dg は使わない。
+ * 先頭で cwd（確かめたフォルダ）へ移る：開いたままの deguboard のターミナルを使い回すので、人が中で移動していても、画面に見せたフォルダで実行する。
  * パスはシングルクォートで囲む（空白や ' を含んでも 1 つの引数のまま。sh・bash・zsh・fish で同じに読める）
  */
-export function startCommandLine(launcher: string): string {
-  const quoted = `'${launcher.replace(/'/g, `'\\''`)}'`;
-  return ["init", "skill install", "hooks install"].map((c) => `${quoted} ${c}`).join(" && ");
+export function setupCommandLine(
+  launcher: string,
+  cwd: string,
+  commands: readonly string[],
+): string {
+  const quote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
+  return [
+    `cd ${quote(cwd)}`,
+    ...commands.map((c) =>
+      c === "dg" || c.startsWith("dg ") ? `${quote(launcher)}${c.slice(2)}` : c,
+    ),
+  ].join(" && ");
 }
 
-/** 始め方のボタンが開くターミナルの名前（ほかの処理は同じ名前のターミナルを開かない） */
+/** チェックリストのボタンが開くターミナルの名前（ほかの処理は同じ名前のターミナルを開かない） */
 export const START_TERMINAL_NAME = "deguboard";
 
 /**
- * 始め方のボタンが次に何をするかを決める。閉じていない deguboard のターミナル（exitStatus がない）を再利用し、新しく開かない。
- * - running（始めの 1 行を送り、まだ終わっていないと分かっているターミナル）があれば、送らずに見せるだけにする。
- *   1 回目の init が終わる前の 2 回目で init・skill install・hooks install が二重に走り、同時に競うため
+ * チェックリストのボタンが次に何をするかを決める。閉じていない deguboard のターミナル（exitStatus がない）を再利用し、新しく開かない。
+ * - running（ボタンの 1 行を送り、まだ終わっていないと分かっているターミナル）があれば、送らずに見せるだけにする。
+ *   1 回目の init が終わる前の 2 回目で同じコマンドが二重に走り、同時に競うため
  * - running でなければ、開いているもの（前の実行が終わった、または失敗したターミナル）に同じ 1 行を送り直す。
  *   開いたままのターミナルを見せるだけだと、dg init などが失敗した後のやり直しができないため
  * - 開いているものがなければ、terminal は undefined（新しく開く）

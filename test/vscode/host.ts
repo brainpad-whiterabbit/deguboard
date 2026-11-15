@@ -6,7 +6,7 @@
 //   Electron が Node として起動して画面が出ないので、ELECTRON_*・VSCODE_*・NODE_OPTIONS を外して渡す（cleanEnv）
 // - ウィンドウ全体（ワークベンチと Webview）の CSP 違反（Chromium が Console の error に出す）と捕まえていない例外（pageerror）を集め、
 //   あれば検査を落とす（WebviewWatch。Playwright の console・pageerror は OOPIF の Webview の分も page に届く）
-// - 起動の PATH にビルド済みの dg（packages/cli/bin）を足し、「dg が PATH にない」の通知がスクリーンショットに写らないようにする
+// - 起動の PATH にビルド済みの dg（packages/cli/bin）を足し、導入のチェックリストの dg コマンドの項目（PATH に dg がない）がスクリーンショットに写らないようにする
 // - HOME は一時ディレクトリにする。拡張は起動のたびに起動ファイルを ~/.local/share/deguboard/ に書き、個人の置き場所
 //   （~/.claude/skills）の古い Skill を作業ブランチの版に更新するので、本物の HOME を渡すと開発者の手元を書き換える（t863）
 // VS Code の API に触れない純粋な部分（cleanEnv・isCspViolation・pickDisplay）は host.test.ts が確かめる

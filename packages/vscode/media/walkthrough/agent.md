@@ -1,6 +1,6 @@
 # 3. Ask an agent
 
-If you use Claude Code, the Skills (such as `/dgimport`) are already installed by **Start with this repository** in step 1, so you do not need to run anything here. Only if you ran `dg init` yourself in a terminal, run `dg skill install` and `dg hooks install` once in that terminal. Git does not track the Skills or the hooks (the two commands add them to `.claude/.gitignore`, which you commit), so everyone who clones the repository runs `dg skill install` and `dg hooks install` too.
+If you use Claude Code, install the Skills (such as `/dgimport`) and the hooks: open the band above the usual views in the sidebar and press **Install the Skills and hooks**. To do it in a terminal instead, run `dg skill install` and `dg hooks install` once. Git does not track the Skills or the hooks (the two commands add them to `.claude/.gitignore`, which you commit), so everyone who clones the repository installs them too.
 
 For other agents, ask them to "read `dg guide`, then proceed with `dg`".
 

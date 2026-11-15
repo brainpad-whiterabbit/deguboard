@@ -20,6 +20,7 @@ import {
   mockClient,
   plan,
   runSummary,
+  setupView,
   ticket,
 } from "./test-helpers.js";
 
@@ -65,6 +66,11 @@ function hostOf(
   return { surface, open, show, copy: async () => {}, state: createUiState(memoryBackend()) };
 }
 
+/** VS Code の拡張ホストの中の Host（推奨の項目の帯は、拡張ホストの中の左パネルにだけ出る） */
+function extensionHost(surface: Host["surface"] = "sidebar"): Host {
+  return { ...hostOf(surface), extension: true };
+}
+
 /** 左パネルのカンバンの Epic・担当の絞り込みの欄（漏斗）を開いた Host */
 function boardFiltersOpen(): Host {
   const host = hostOf("sidebar");
@@ -93,7 +99,8 @@ function mountWithBridge(
   {
     surface = "sidebar",
     readRunning = true,
-  }: { surface?: "sidebar" | "panel"; readRunning?: boolean } = {},
+    host = hostOf(surface),
+  }: { surface?: "sidebar" | "panel"; readRunning?: boolean; host?: Host } = {},
 ) {
   let send: ((event: WebviewEvent) => void) | undefined;
   const bridge: WebviewClient = {
@@ -104,7 +111,8 @@ function mountWithBridge(
     copy: async () => {},
     terminals: async () => [],
     sendToTerminal: async () => null,
-    startRepository: async () => {},
+    setup: async () => ({ ready: true, items: [], cwd: null }),
+    setupAct: async () => {},
     onEvent: (listener) => {
       send = listener;
       return () => (send = undefined);
@@ -112,7 +120,7 @@ function mountWithBridge(
   };
   render(
     <StoreProvider client={client} readRunning={readRunning}>
-      <HostProvider host={hostOf(surface)}>
+      <HostProvider host={host}>
         <HostBridge client={bridge} />
         <App />
       </HostProvider>
@@ -1209,24 +1217,154 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/backlog");
   });
 
-  it("dg init 前（NOT_INITIALIZED）は始め方を出し、エラーの通知は出さない。init の後の reload の event でいつもの画面に変わる", async () => {
+  it("dg init 前（NOT_INITIALIZED）は一覧の代わりに導入のチェックリストを出し、エラーの通知は出さない。init の後の reload の event でいつもの画面に変わる", async () => {
     const client = boardClient();
-    const notInitialized = () => {
+    const original = client.handlers["config.show"]!;
+    client.handlers["config.show"] = () => {
       throw new ClientError({ code: "NOT_INITIALIZED", message: "初期化されていない" });
     };
-    const original = client.handlers["config.show"]!;
-    client.handlers["config.show"] = notInitialized;
+    let view = setupView({ board: { status: "unmet", state: "no_remote", fix: ["dg init"] } });
+    client.setup = async () => view;
     const send = mountWithBridge(client, { readRunning: false });
     expect(await screen.findByRole("heading", { name: "deguboard を始める" })).toBeTruthy();
-    // dg init のコマンドが出て、押すとコピーする（データには何も書かない）
+    // 満たさない最初の項目（ボード）に dg init のコマンドが出る（データには何も書かない）
     expect(screen.getByText("dg init")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(client.calls.some((c) => c.name === "sync" || c.name.endsWith(".create"))).toBe(false);
 
     client.handlers["config.show"] = original;
+    view = setupView();
     act(() => send()({ kind: "event", name: "reload" }));
     expect(await screen.findByText("ログイン")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "deguboard を始める" })).toBeNull();
+  });
+
+  it("Git リポジトリの外（一覧がほかのエラーで読めず、必須を満たさない）もチェックリストを出し、エラーの通知を出さない。setup の event で確かめ直し、必須を満たすといつもの画面に変わる", async () => {
+    const client = boardClient();
+    const original = client.handlers["config.show"]!;
+    client.handlers["config.show"] = () => {
+      throw new ClientError({ code: "GIT_ERROR", message: "/work is not inside a Git repository" });
+    };
+    let view = setupView({ repository: { status: "unmet", fix: ["git init"] } });
+    client.setup = async () => view;
+    const send = mountWithBridge(client, { readRunning: false });
+    expect(await screen.findByText("このフォルダは Git リポジトリではありません。")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    // 人がターミナルで git init と dg init を済ませた：拡張ホストの見張りが setup の event を送る
+    client.handlers["config.show"] = original;
+    view = setupView();
+    act(() => send()({ kind: "event", name: "setup" }));
+    expect(await screen.findByText("ログイン")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "deguboard を始める" })).toBeNull();
+  });
+
+  it("手の「確かめ直す」でも確かめ直し、必須を満たすといつもの画面に変わる", async () => {
+    const client = boardClient();
+    const original = client.handlers["config.show"]!;
+    client.handlers["config.show"] = () => {
+      throw new ClientError({ code: "GIT_ERROR", message: "git not found" });
+    };
+    let view = setupView({ git: { status: "unmet" } });
+    client.setup = async () => view;
+    mountWithBridge(client, { readRunning: false });
+    await screen.findByText("使える git（2.30 以上）が PATH にありません。");
+    client.handlers["config.show"] = original;
+    view = setupView();
+    fireEvent.click(screen.getByRole("button", { name: "確かめ直す" }));
+    expect(await screen.findByText("ログイン")).toBeTruthy();
+  });
+
+  it("必須を満たしているのに一覧を読めないときは、チェックリストを出さずにエラーの通知を出す", async () => {
+    const client = boardClient();
+    client.handlers["config.show"] = () => {
+      throw new ClientError({ code: "INVALID_DATA", message: "config.yaml を読めない" });
+    };
+    client.setup = async () => setupView();
+    mountWithBridge(client, { readRunning: false });
+    expect((await screen.findByRole("alert")).textContent).toContain("config.yaml を読めない");
+    expect(screen.queryByRole("heading", { name: "deguboard を始める" })).toBeNull();
+  });
+
+  it("推奨の項目が欠けている間は、いつもの画面の上に帯を出す。開くと項目をその場で直せ、戻るといつもの画面に戻る", async () => {
+    const client = boardClient();
+    let view = setupView({
+      skills_hooks: { status: "unmet", fix: ["dg hooks install", "dg skill install"] },
+      dg_command: { status: "unmet", state: "missing" },
+    });
+    client.setup = async () => view;
+    const send = mountWithBridge(client, { readRunning: false, host: extensionHost() });
+    await screen.findByText("ログイン");
+    const band = await screen.findByText(
+      "推奨の 2 項目が未完了です（Skill と hooks・dg コマンド）。",
+    );
+    expect(band.closest("[role='status']")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "残りの項目を開く" }));
+    expect(screen.getByRole("heading", { name: "セットアップ" })).toBeTruthy();
+    expect(screen.getByText("必須の 5 項目")).toBeTruthy();
+    // 推奨の満たさない項目は、どちらも開いて直し方を出す
+    expect(screen.getByText("このマシンに dg の Skill と hooks が入っていません。")).toBeTruthy();
+    expect(
+      screen.getByText("PATH に dg がなく、ターミナルとエージェントから dg を呼べません。"),
+    ).toBeTruthy();
+    expect(screen.queryByText("ログイン")).toBeNull();
+
+    // 直した後の setup の event で、その場の項目が満たした印に変わる
+    view = setupView({ dg_command: { status: "unmet", state: "missing" } });
+    act(() => send()({ kind: "event", name: "setup" }));
+    await waitFor(() =>
+      expect(screen.queryByText("このマシンに dg の Skill と hooks が入っていません。")).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "いつもの画面に戻る" }));
+    expect(screen.getByText("ログイン")).toBeTruthy();
+    expect(screen.getByText("推奨の 1 項目が未完了です（dg コマンド）。")).toBeTruthy();
+  });
+
+  it("帯は「このリポジトリでは出さない」で消え、見た目の状態に残って次に開いても出ない。推奨をすべて満たしていれば初めから出ない", async () => {
+    const client = boardClient();
+    const setup = vi.fn(async () => setupView({ skills_hooks: { status: "unmet", fix: [] } }));
+    client.setup = setup;
+    /** 一覧を描き、導入の項目を確かめた結果が画面に届くまで待つ */
+    const settled = async (calls: number) => {
+      await screen.findByText("ログイン");
+      await waitFor(() => expect(setup).toHaveBeenCalledTimes(calls));
+      await act(async () => {});
+    };
+    const host = extensionHost();
+    mount(client, host);
+    await settled(1);
+    fireEvent.click(screen.getByRole("button", { name: "このリポジトリでは出さない" }));
+    expect(screen.queryByText(/推奨の 1 項目が未完了です/)).toBeNull();
+    cleanup();
+    mount(client, host);
+    await settled(2);
+    expect(screen.queryByText(/推奨の 1 項目が未完了です/)).toBeNull();
+    // 残したのはこのリポジトリの見た目の状態だけ。ほかのリポジトリ（別の見た目の状態）では出る
+    cleanup();
+    mount(client, extensionHost());
+    await settled(3);
+    expect(screen.getByText(/推奨の 1 項目が未完了です/)).toBeTruthy();
+
+    cleanup();
+    setup.mockImplementation(async () => setupView());
+    mount(client, extensionHost());
+    await settled(4);
+    expect(screen.queryByText(/未完了です/)).toBeNull();
+  });
+
+  it("推奨の帯は VS Code の左パネルにだけ出す。エディタのパネルと、開発用の dg serve（拡張ホストがない）には出さない", async () => {
+    for (const host of [extensionHost("panel"), hostOf("sidebar")]) {
+      const client = boardClient();
+      const setup = vi.fn(async () => setupView({ skills_hooks: { status: "unmet", fix: [] } }));
+      client.setup = setup;
+      window.location.hash = host.surface === "panel" ? "#/tickets/t1" : "#/board";
+      mount(client, host);
+      await waitFor(() => expect(setup).toHaveBeenCalled());
+      await act(async () => {});
+      expect(screen.queryByText(/推奨の 1 項目が未完了です/)).toBeNull();
+      cleanup();
+    }
   });
 
   it("拡張ホストから toggle の event が来ると、設定画面と来る前の画面を切り替える（ビューのタイトル行の歯車）", async () => {

@@ -124,27 +124,121 @@ export const EN: Readonly<Record<string, string>> = {
   "完了 {0} ・ 持ち越し {1}": "Done {0} · Carried over {1}",
   // components/iteration-plans.tsx
   "{0} の詳細を開く": "Open details of {0}",
-  // components/onboarding.tsx
-  "1. 初期化する": "1. Initialize the repository",
-  "このリポジトリにチケットを置く場所を作ります。ターミナルで実行します。":
-    "Create a place for tickets in this repository. Run it in a terminal.",
-  "2. チケットを起こす": "2. Create a ticket",
-  "やりたいことを 1 件のチケットにします。": "Turn what you want to do into a ticket.",
-  'dg ticket create "最初のチケット"': 'dg ticket create "First ticket"',
-  "3. エージェントに頼む": "3. Ask an agent",
-  "Skill を入れると、エージェントが手順を読んでチケットを進めます。":
-    "With the Skills installed, agents read the steps and work on tickets.",
+  // components/setup-checklist.tsx
   "deguboard を始める": "Get Started with deguboard",
-  "このリポジトリはまだ deguboard を使っていません。{0} が PATH にあれば、次の順で始められます。コピーしてターミナルで実行してください。":
-    "This repository does not use deguboard yet. If {0} is on your PATH, start with the steps below. Copy each command and run it in a terminal.",
-  "このリポジトリはまだ deguboard を使っていません。下のボタンを押すと、専用のターミナルで dg init・dg skill install・dg hooks install を順に実行します。dg が PATH になくても動きます。":
-    "This repository does not use deguboard yet. Press the button below to run dg init, dg skill install, and dg hooks install in order in a new terminal. It works even when dg is not on your PATH.",
-  このリポジトリで始める: "Start with this repository",
-  "手で進めるなら、次のコマンドをコピーしてターミナルで実行してください。":
-    "To do it by hand, copy the commands below and run them in a terminal.",
+  セットアップ: "Setup",
+  確かめ直す: "Check again",
+  もう一度確かめる: "Check again",
+  "上から順に確かめています。満たしていない項目を直すと、自動で確かめ直し、必須の項目をすべて満たすといつもの画面に変わります。":
+    "The items are checked from the top. When you fix an unmet item, they are checked again automatically, and the usual view appears once every required item is met.",
+  "必須の {0} 項目": "{0} required items",
+  推奨: "Recommended",
+  いつもの画面に戻る: "Back to the usual view",
+  "推奨の {0} 項目が未完了です（{1}）。": "{0} recommended items are not done ({1}).",
+  残りの項目を開く: "Open the remaining items",
+  このリポジトリでは出さない: "Do not show in this repository",
+  フォルダ: "Folder",
+  "Git リポジトリ": "Git repository",
+  ボード: "Board",
+  "Skill と hooks": "Skills and hooks",
+  "dg コマンド": "dg command",
+  満たしている: "Met",
+  満たしていない: "Not met",
+  推奨の項目が未完了: "Recommended item not done",
+  まだ確かめていない: "Not checked yet",
   "{0} をコピー": "Copy {0}",
-  "1 を済ませると、開き直さなくてもいつもの画面に変わります。":
-    "After step 1, the usual view appears without reopening.",
+  ターミナルで行うなら: "To do it in a terminal",
+  ターミナルで実行する: "Run in a terminal",
+  開いていない: "Not open",
+  "フォルダを開いていません。": "No folder is open.",
+  "deguboard を使うリポジトリのフォルダを開きます。":
+    "Open the folder of the repository to use deguboard in.",
+  フォルダを開く: "Open a folder",
+  非対応: "Not supported",
+  "この OS（{0}）では deguboard は動きません。": "deguboard does not run on this OS ({0}).",
+  "WSL か Remote（SSH・Dev Containers）で、Linux か macOS のフォルダを開き直します。":
+    "Reopen a folder on Linux or macOS with WSL or Remote (SSH, Dev Containers).",
+  見つからない: "Not found",
+  "使える git（2.30 以上）が PATH にありません。": "No usable git (2.30 or later) is on your PATH.",
+  "git 2.30 以上を入れてから、確かめ直します。": "Install git 2.30 or later, then check again.",
+  リポジトリではない: "Not a repository",
+  "このフォルダは Git リポジトリではありません。": "This folder is not a Git repository.",
+  次のフォルダに作る: "Created in this folder",
+  "このフォルダに git init する": "Run git init in this folder",
+  別のフォルダで使うつもりなら: "If you meant to use another folder",
+  フォルダを開き直す: "Open another folder",
+  未取り込み: "Not taken in",
+  "リモートにチームのボードがあり、このクローンにはまだ取り込んでいません。":
+    "The remote has the team's board, and this clone has not taken it in yet.",
+  チームのボードを取り込む: "Take in the team's board",
+  まだない: "Not set up",
+  "リモートにボードはありません。": "The remote has no board.",
+  "新しいボードを作り、リモートへ push します。":
+    "This creates a new board and pushes it to the remote.",
+  新しいボードを作る: "Create a new board",
+  リモートに届かない: "Remote not reached",
+  "リモートに届かないため、チームのボードがあるか分からず、ボードはまだ作っていません。":
+    "The remote cannot be reached, so whether the team has a board is unknown, and no board was created.",
+  "ネットワーク・認証（ssh 鍵や gh auth）・リモートの URL を直してから、確かめ直します。":
+    "Fix the network, the credentials (ssh keys or gh auth), or the remote's URL, then check again.",
+  チームのボードがないと分かっているなら: "If you know the team has no board",
+  手元だけで新しいボードを作る: "Create a new board on this machine only",
+  "このリポジトリにはコードのリモートがなく、取り込むチームのボードがありません。":
+    "This repository has no remote for the code, so there is no team board to take in.",
+  "このマシンだけのボードを作ります。": "This creates a board that stays on this machine.",
+  "worktree がない": "No worktree",
+  "このクローンにはボードのブランチがあり、その worktree がありません。":
+    "This clone has the board's branch but no worktree for it.",
+  "ボードの worktree を作り直す": "Set up the board's worktree again",
+  リモートがない: "No such remote",
+  "データのリモートに渡した名前のリモートが、このクローンにありません。":
+    "This clone has no remote with the name given for the data remote.",
+  "git remote add で足すか、URL を渡してから、確かめ直します。":
+    "Add it with git remote add, or pass the URL, then check again.",
+  名前が正しくない: "Invalid name",
+  "データのブランチに渡した名前を、dg init が受け付けません。":
+    "dg init rejects the name given for the data branch.",
+  "名前を直してから、確かめ直します。": "Fix the name, then check again.",
+  "このクローンにはまだボードがありません。": "This clone has no board yet.",
+  ボードを用意する: "Set up the board",
+  そろっていない: "Incomplete",
+  "このマシンに dg の Skill と hooks が入っていません。":
+    "The dg Skills and hooks are not installed on this machine.",
+  "このマシンの dg の Skill と hooks に、入っていないものか古いものがあります。":
+    "Some of the dg Skills and hooks on this machine are missing or out of date.",
+  "入れると、Claude Code が手順を読んでチケットを進め、Run が記録されます。":
+    "With them installed, Claude Code reads the steps to work on tickets, and Runs are recorded.",
+  "Skill と hooks を入れる": "Install the Skills and hooks",
+  "PATH にない": "Not on PATH",
+  "この判定は拡張から見た PATH によります。シェルの設定を変えた後は、VS Code を開き直すと反映されます。":
+    "This is judged by the PATH that the extension sees. After you change your shell profile, reopen VS Code to apply it.",
+  "{0} は張ってありますが、{1} が PATH にないため、ターミナルとエージェントから dg を呼べません。":
+    "{0} is linked, but {1} is not on your PATH, so terminals and agents cannot call dg.",
+  "次の 1 行をシェルの設定に足し、VS Code と、開いているターミナルとエージェントを開き直します。":
+    "Add this line to your shell profile, then reopen VS Code and the open terminals and agents.",
+  "{0} はすでにあり、deguboard の起動ファイルではなく {1} を指しているため、dg コマンドを入れられません。":
+    "{0} already exists and points to {1}, not to the deguboard launcher, so the dg command cannot be installed.",
+  "{0} はすでにあり、シンボリックリンクではないため、dg コマンドを入れられません。":
+    "{0} already exists and is not a symbolic link, so the dg command cannot be installed.",
+  "中身を確かめ、要らなければ自分で消してから、dg コマンドを入れます。":
+    "Check it, remove it yourself if you do not need it, then install the dg command.",
+  "dg コマンドを入れる": "Install the dg command",
+  版が違う: "Version differs",
+  "PATH の dg（{0}）のメジャー版が、拡張の dg（{1}）と違います。":
+    "The major version of the dg on your PATH ({0}) differs from the extension's dg ({1}).",
+  "どちらかを更新してメジャー版をそろえてから、確かめ直します。":
+    "Update one of them so that the major versions match, then check again.",
+  動かない: "Not working",
+  "PATH の dg が動きません（dg --version が失敗しました）。":
+    "The dg on your PATH does not work (dg --version failed).",
+  "PATH の dg を直してから、確かめ直します。": "Fix the dg on your PATH, then check again.",
+  "PATH に dg がなく、ターミナルとエージェントから dg を呼べません。":
+    "dg is not on your PATH, so terminals and agents cannot call dg.",
+  "拡張に同梱した dg を {0} に張ります。": "This links the dg bundled in the extension to {0}.",
+  未コミット: "Not committed",
+  "{0} にコミットしていない変更があります。": "{0} has uncommitted changes.",
+  "コミットすると、各自の設定と dg の Skill が、ほかの人のクローンで追跡の候補に出なくなります。リポジトリの最上位で、次のコマンドを実行します。":
+    "Once it is committed, each person's settings and dg Skills stop showing up as untracked in other people's clones. Run these commands at the repository root.",
   // components/parts.tsx
   上に並ぶ: "listed first",
   既定の並び: "default order",
@@ -569,4 +663,9 @@ export const EN_ONE: Readonly<Record<string, { arg: number; text: string }>> = {
     text: ". {0} run had no value and is not in the total",
   },
   "Epic をあと {0} 本出す": { arg: 0, text: "Show {0} more Epic" },
+  "必須の {0} 項目": { arg: 0, text: "{0} required item" },
+  "推奨の {0} 項目が未完了です（{1}）。": {
+    arg: 0,
+    text: "{0} recommended item is not done ({1}).",
+  },
 };

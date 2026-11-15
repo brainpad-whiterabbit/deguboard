@@ -1,6 +1,12 @@
-// CommandClient の HTTP 実装。dg serve の /api/commands/<name> と /api/status を呼ぶ（ADR-027）
+// CommandClient の HTTP 実装。dg serve の /api/commands/<name>・/api/status・/api/setup を呼ぶ（ADR-027）
 
-import type { CommandClient, CommandFailure, CommandResult, StatusView } from "@deguboard/core";
+import type {
+  CommandClient,
+  CommandFailure,
+  CommandResult,
+  SetupView,
+  StatusView,
+} from "@deguboard/core";
 import { tr, trCoreMessage } from "../l10n.js";
 
 /**
@@ -22,7 +28,12 @@ type Envelope<T> =
   | { ok: true; data: T; warnings?: string[]; write?: CommandResult<T>["write"] | null }
   | { ok: false; error: CommandFailure };
 
-export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch): CommandClient {
+/** 導入のチェックリスト（UI-12）を確かめ直して返す口を持つ CommandClient。dg serve と Webview の両方の実装が持つ */
+export interface SetupClient extends CommandClient {
+  setup(): Promise<SetupView>;
+}
+
+export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch): SetupClient {
   const call = async <T>(path: string, init?: RequestInit): Promise<Envelope<T>> => {
     let res: Response;
     try {
@@ -62,6 +73,11 @@ export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch):
     },
     async status(): Promise<StatusView> {
       const body = await call<StatusView>("/api/status");
+      if (!body.ok) throw new ClientError(body.error);
+      return body.data;
+    },
+    async setup(): Promise<SetupView> {
+      const body = await call<SetupView>("/api/setup");
       if (!body.ok) throw new ClientError(body.error);
       return body.data;
     },

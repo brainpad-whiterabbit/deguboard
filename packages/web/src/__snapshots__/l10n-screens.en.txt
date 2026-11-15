@@ -1664,28 +1664,317 @@ Ctrl+↵
 Copy
 ✓ Copied. Paste it into the agent's input
 
-## dg init 前の始め方
+## dg init 前の導入のチェックリスト（リモートにチームのボードがある）
 [aria-label] Views
 Board
 Backlog
 History
 Get Started with deguboard
-This repository does not use deguboard yet. If
-dg
-is on your PATH, start with the steps below. Copy each command and run it in a terminal.
-1. Initialize the repository
-Create a place for tickets in this repository. Run it in a terminal.
+Check again
+The items are checked from the top. When you fix an unmet item, they are checked again automatically, and the usual view appears once every required item is met.
+[aria-label] Met
+✓
+Folder
+[aria-label] Met
+✓
+OS
+[aria-label] Met
+✓
+git
+[aria-label] Met
+✓
+Git repository
+[aria-label] Not met
+✗
+Board
+Not taken in
+The remote has the team's board, and this clone has not taken it in yet.
+Take in the team's board
+To do it in a terminal
 dg init
 [title] Copy dg init
 [aria-label] Copy dg init
-2. Create a ticket
-Turn what you want to do into a ticket.
-dg ticket create "First ticket"
-[title] Copy dg ticket create "First ticket"
-[aria-label] Copy dg ticket create "First ticket"
-3. Ask an agent
-With the Skills installed, agents read the steps and work on tickets.
+[aria-label] Not checked yet
+·
+Skills and hooks
+[aria-label] Not checked yet
+·
+dg command
+[aria-label] Not checked yet
+·
+.claude/.gitignore
+
+## Git リポジトリの外の導入のチェックリスト
+[aria-label] Views
+Board
+Backlog
+History
+Get Started with deguboard
+Check again
+The items are checked from the top. When you fix an unmet item, they are checked again automatically, and the usual view appears once every required item is met.
+[aria-label] Met
+✓
+Folder
+[aria-label] Met
+✓
+OS
+[aria-label] Met
+✓
+git
+[aria-label] Not met
+✗
+Git repository
+Not a repository
+This folder is not a Git repository.
+Created in this folder
+/work/repo
+Run git init in this folder
+To do it in a terminal
+git init
+[title] Copy git init
+[aria-label] Copy git init
+If you meant to use another folder
+Open another folder
+[aria-label] Not checked yet
+·
+Board
+[aria-label] Not checked yet
+·
+Skills and hooks
+[aria-label] Not checked yet
+·
+dg command
+[aria-label] Not checked yet
+·
+.claude/.gitignore
+
+## リモートに届かないときの導入のチェックリスト
+[aria-label] Views
+Board
+Backlog
+History
+Get Started with deguboard
+Check again
+The items are checked from the top. When you fix an unmet item, they are checked again automatically, and the usual view appears once every required item is met.
+[aria-label] Met
+✓
+Folder
+[aria-label] Met
+✓
+OS
+[aria-label] Met
+✓
+git
+[aria-label] Met
+✓
+Git repository
+[aria-label] Not met
+✗
+Board
+Remote not reached
+The remote cannot be reached, so whether the team has a board is unknown, and no board was created.
+fatal: Could not read from remote repository.
+Fix the network, the credentials (ssh keys or gh auth), or the remote's URL, then check again.
+Check again
+If you know the team has no board
+Create a new board on this machine only
+To do it in a terminal
+dg init --new-board
+[title] Copy dg init --new-board
+[aria-label] Copy dg init --new-board
+[aria-label] Not checked yet
+·
+Skills and hooks
+[aria-label] Not checked yet
+·
+dg command
+[aria-label] Not checked yet
+·
+.claude/.gitignore
+
+## 推奨の項目が欠けているときの帯
+[aria-label] Views
+Board
+Backlog
+History
+3 recommended items are not done (Skills and hooks, dg command, .claude/.gitignore).
+Open the remaining items
+Do not show in this repository
+Hover over a row to show a bubble for asking an agent
+[title] Close (don't show again)
+[aria-label] Dismiss tip
+×
+[aria-label] Iteration
+[title] All (planned and active Iterations)
+All
+1
+/
+4
+[title] s1 最初の Iteration (Active)
+Started 11-01 12:00
+Goal 目標データの文
+s1
+1
+/
+3
+[title] s2 次の Iteration (Planned)
+s2
+0
+/
+1
+[title] Filter by assignee
+[aria-label] Filter
+Epic
+[aria-label] Filter by Epic
+[title] e1 最初の版 · 0/1 done
+[aria-label] e1 最初の版
+e1
+[title] Filter by tickets without an Epic
+None
+2
+最初の Iteration
+11/01–
+Day 4
+[title] 目標データの文
+目標データの文
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Iteration heading s1)
+[title] Done 1 / Code Review 1 / In Progress 1
+1
+/
+3
+done
+[title] Done 1
+[aria-label] Done 1
+1
+[title] Code Review 1
+[aria-label] Code Review 1
+1
+[title] In Progress 1
+[aria-label] In Progress 1
+1
+[aria-label] Plans
+Plans
+1
+[aria-label] Dependency graph of p1
+[title] Open details of p1
+p1
+Active
+[title] Code Review 1 / In Progress 1
+0
+/
+2
+Working
+[title] API
+t2
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Plan band p1)
+[aria-label] Todo
+Todo
+0
+[aria-label] In Progress
+In Progress
+1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Status section In Progress)
+t2
+[title] API
+API
+[title] Priority high (listed first)
+high
+[title] eiki/agent · No runs
+[aria-label] eiki/agent · No runs
+E
+[title] Plan p1
+p1
+[aria-label] 3 runs. Latest: implement · 3d
+[aria-label] implement · Success, 2026-11-01 00:00 · 20m 0s (waited 10m 0s), Fixed findings 1
+implement · Success
+2026-11-01 00:00 · 20m 0s (waited 10m 0s)
+Fixed findings 1
+[aria-label] implement · Failure, 2026-11-01 00:00 · 30m 0s (wait unknown), テストが落ちた
+implement · Failure
+2026-11-01 00:00 · 30m 0s (wait unknown)
+テストが落ちた
+[aria-label] implement · Running, 2026-11-01 00:00 · 84h 0m, Fixed findings 1
+implement · Running
+2026-11-01 00:00 · 84h 0m
+Fixed findings 1
+implement · 3d
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t2)
+[aria-label] Code Review
+Code Review
+1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Status section Code Review)
+t3
+[title] 題データの三
+題データの三
+[title] Plan p1
+p1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t3)
+[aria-label] Done
+Done
+1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Status section Done)
+t1
+[title] ログイン
+ログイン
+#
+12
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t1)
+
+## 帯から開いた推奨の項目
+[aria-label] Views
+Board
+Backlog
+History
+Setup
+Check again
+[aria-label] Met
+✓
+5 required items
+Recommended
+[aria-label] Recommended item not done
+!
+Skills and hooks
+Incomplete
+The dg Skills and hooks are not installed on this machine.
+With them installed, Claude Code reads the steps to work on tickets, and Runs are recorded.
+Install the Skills and hooks
+To do it in a terminal
+dg hooks install
+[title] Copy dg hooks install
+[aria-label] Copy dg hooks install
 dg skill install
 [title] Copy dg skill install
 [aria-label] Copy dg skill install
-After step 1, the usual view appears without reopening.
+[aria-label] Recommended item not done
+!
+dg command
+Not on PATH
+/home/u/.local/bin/dg is linked, but /home/u/.local/bin is not on your PATH, so terminals and agents cannot call dg.
+Add this line to your shell profile, then reopen VS Code and the open terminals and agents.
+Run in a terminal
+export PATH=$HOME/.local/bin:$PATH
+[title] Copy export PATH=$HOME/.local/bin:$PATH
+[aria-label] Copy export PATH=$HOME/.local/bin:$PATH
+This is judged by the PATH that the extension sees. After you change your shell profile, reopen VS Code to apply it.
+[aria-label] Recommended item not done
+!
+.claude/.gitignore
+Not committed
+.claude/.gitignore has uncommitted changes.
+Once it is committed, each person's settings and dg Skills stop showing up as untracked in other people's clones. Run these commands at the repository root.
+Run in a terminal
+git add .claude/.gitignore
+[title] Copy git add .claude/.gitignore
+[aria-label] Copy git add .claude/.gitignore
+git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore
+[title] Copy git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore
+[aria-label] Copy git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore
+Back to the usual view

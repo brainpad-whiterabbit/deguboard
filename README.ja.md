@@ -23,10 +23,10 @@ Git リポジトリの中で動く、AI エージェントと一緒に使うカ�
 ## 導入
 
 1. **拡張を入れる**：[GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を取得し、`code --install-extension deguboard-vscode.vsix` で入れて、ウィンドウを再読み込みします。
-2. **リポジトリで始める**：リポジトリを開き、Activity Bar の deguboard のアイコンを押して、**このリポジトリで始める** を押します。ボードを作り、Claude Code の Skill（`/dgplan` など）とフックをそのマシンに入れます。足された `.claude/.gitignore` をコミットします。
+2. **リポジトリで始める**：リポジトリを開き、Activity Bar の deguboard のアイコンを押して、サイドバーのチェックリストに沿って進めます。満たしていない最初の項目に、ボタンと実行するコマンドが出ます。ボードができるといつもの画面に変わり、その上の帯から Claude Code の Skill（`/dgplan` など）とフックをそのマシンに入れます。足された `.claude/.gitignore` をコミットします。
 3. **ターミナルを使う人だけ**：`dg` を自分で呼ぶなら、コマンドパレットの **dg コマンドを入れる** を実行します。
 
-チームの仲間は、拡張を入れて clone し、同じボタンを押せば同じボードが見えます。
+チームの仲間は、拡張を入れて clone し、同じチェックリストに沿って進めれば同じボードが見えます。
 
 ## 使い方
 

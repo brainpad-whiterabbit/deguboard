@@ -205,7 +205,7 @@ export function linkPathOf(home: string = homedir()): string {
   return path.join(home, ".local", "bin", "dg");
 }
 
-/** 起動ファイル本体のパス。linkDg と unlinkDg はこれを指すリンクだけを自分のものとみなし、始め方のボタンは絶対パスで呼ぶ */
+/** 起動ファイル本体のパス。linkDg と unlinkDg はこれを指すリンクだけを自分のものとみなし、導入のチェックリストのボタンは絶対パスで呼ぶ */
 export function launcherFileOf(home: string = homedir()): string {
   return path.join(launcherDir(home), "dg");
 }
@@ -222,6 +222,21 @@ async function linkStateOf(
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "none" };
     throw error;
   }
+}
+
+/** ~/.local/bin/dg の今の状態：ない（none）、起動ファイルを指すリンク（ours）、ほかの dg のリンク（target あり）か通常のファイルなど（other） */
+export type DgLink = { kind: "none" } | { kind: "ours" } | { kind: "other"; target?: string };
+
+/** ~/.local/bin/dg の今の状態を見る（導入のチェックリストの dg コマンドの項目が使う）。書かない */
+export async function dgLinkOf(options: { home?: string } = {}): Promise<DgLink> {
+  const home = options.home ?? homedir();
+  const state = await linkStateOf(linkPathOf(home));
+  if (state.kind === "none") return { kind: "none" };
+  if (state.kind === "link")
+    return state.target === launcherFileOf(home)
+      ? { kind: "ours" }
+      : { kind: "other", target: state.target };
+  return { kind: "other" };
 }
 
 export type LinkOutcome =

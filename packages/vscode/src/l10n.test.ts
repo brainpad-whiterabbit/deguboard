@@ -3,7 +3,6 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { approvalMessage, viewTitle } from "./approvals.js";
-import { dgAdvice } from "./dg.js";
 import { type Bundle, bundleTranslator, format, setTranslator, t } from "./l10n.js";
 
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -74,7 +73,6 @@ describe("t と訳の表", () => {
         { kind: "ticket", id: "t2" },
       ]),
     ).toBe("deguboard: New items awaiting approval or review (Plan p58, t1 and 1 more)");
-    expect(dgAdvice({ kind: "missing" }, "1.0.0")?.text).toMatch(/^dg is not on your PATH\./);
   });
 });
 

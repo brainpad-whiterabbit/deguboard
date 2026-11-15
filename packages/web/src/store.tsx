@@ -5,9 +5,11 @@
 // 操作している人（whoami。主体の ID・ユーザ名と、本人とみなす ID の own_ids）も一覧と一緒に読み、me に持つ（担当者が自分かの判定に使う）。
 // チケットごとの Run の要約（run.recent。件数と新しい順 3 件。このマシンの実行中の Run を含む）は、
 // readRunning のとき（左パネルのカンバンの行の Run の並びに使う）だけ、ほかの一覧を描いた後に遅れて読む。
-// cache には残さない（前回の「実行中」を次に開いたときに出さない）
+// cache には残さない（前回の「実行中」を次に開いたときに出さない）。
+// 一覧を読めないとき（dg init 前・Git リポジトリの外・git がない）は、エラーの通知を出す前に導入のチェックリスト（client.setup。UI-12）を確かめ、
+// 必須の項目を満たさなければ needsSetup にして画面にチェックリストを出させる。読めたときも確かめて、推奨の項目の帯に使う
 
-import type { CommandClient, CommandFailure, StatusView } from "@deguboard/core";
+import type { CommandClient, CommandFailure, SetupView, StatusView } from "@deguboard/core";
 import {
   createContext,
   useCallback,
@@ -99,8 +101,14 @@ export interface Store {
   loading: boolean;
   /** 最初の読み込みが終わったか。終わるまで画面は空状態の文言を出さない */
   loaded: boolean;
-  /** データ worktree がまだない（dg init 前。core が NOT_INITIALIZED を返した）。画面は一覧の代わりに始め方を出す */
-  notInitialized: boolean;
+  /** 導入のチェックリスト（最後に確かめた結果）。確かめる口のない client と、確かめる前は null */
+  setup: SetupView | null;
+  /** 一覧を読めず、導入の必須の項目を満たさない（dg init 前・Git リポジトリの外・git がない）。画面は一覧の代わりにチェックリストを出す */
+  needsSetup: boolean;
+  /** 導入のチェックリストを確かめ直している最中（手で確かめ直すボタンを止める） */
+  checkingSetup: boolean;
+  /** 導入のチェックリストを確かめ直す。必須を満たさない間は一覧も読み直し、満たしたらいつもの画面に変わる */
+  recheckSetup(): Promise<void>;
   notice: Notice | null;
   /** すべて読み直す */
   reload(): Promise<void>;
@@ -121,7 +129,8 @@ export function StoreProvider({
   readRunning = false,
   children,
 }: {
-  client: CommandClient;
+  /** setup（導入のチェックリストを確かめる口）は dg serve と Webview の client が持つ。持たなければチェックリストを出さない */
+  client: CommandClient & { setup?: (() => Promise<SetupView>) | undefined };
   /** 前回の一覧の置き場。渡さなければ（dg serve）残さない */
   cache?: UiState | undefined;
   /** チケットごとの Run の要約を読む（左パネル。カンバンの行の Run の並びに使う） */
@@ -145,7 +154,29 @@ export function StoreProvider({
   // 前回の一覧があれば、それを読み終えたものとして先に描く
   const [loaded, setLoaded] = useState(!!cached);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [notInitialized, setNotInitialized] = useState(false);
+  const [setup, setSetup] = useState<SetupView | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(false);
+  // 確かめ直しが重なったとき、古い結果で上書きしない
+  const setupSeq = useRef(0);
+  // 最後に確かめた結果。reload が、確かめ直すかを決めるのに読む（state を依存に入れると reload が作り直され、最初の読み込みが走り直す）
+  const setupRef = useRef<SetupView | null>(null);
+
+  /** 導入のチェックリストを確かめて持つ。確かめる口がない・確かめられないときは null（前の結果のまま） */
+  const readSetup = useCallback(async (): Promise<SetupView | null> => {
+    if (!client.setup) return null;
+    const seq = ++setupSeq.current;
+    try {
+      const view = await client.setup();
+      if (seq === setupSeq.current) {
+        setupRef.current = view;
+        setSetup(view);
+      }
+      return view;
+    } catch {
+      return null;
+    }
+  }, [client]);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -162,7 +193,7 @@ export function StoreProvider({
         client.run<ConfigShowView>("config.show", { fields: true }),
         client.run<WhoamiView>("whoami"),
       ]);
-      setNotInitialized(false);
+      setNeedsSetup(false);
       setMe(whoami.data);
       if (config.data.config?.priority) setPriorityCriteria(priorityCriteriaOf(config.data));
       const [t, e, i, p, w] = await Promise.all([
@@ -189,6 +220,9 @@ export function StoreProvider({
       } satisfies Snapshot);
       for (const key of OLD_SNAPSHOT_KEYS) cache?.remove(key);
       void refreshStatus();
+      // 推奨の項目（Skill と hooks・dg コマンドなど）の帯のために確かめる。一覧を描くのを待たせない。
+      // 確かめるのは最初と、必須を満たした直後だけ（読み直しのたびに git と dg を起こさない。その後の変化は入口が setup の通知で知らせる）
+      if (!setupRef.current?.ready) void readSetup();
       if (readRunning) {
         // 行の Run の並び（UI-2）のためだけなので、ほかの一覧を描くのを待たせない。読めなければ前の値のまま（最初なら並びを出さない）
         const seq = ++runningSeq.current;
@@ -202,14 +236,28 @@ export function StoreProvider({
       }
     } catch (error) {
       const f = failureOf(error);
-      // 初期化前は失敗ではなく始まりの状態。エラーの通知は出さず、始め方を出す
-      if (f.code === "NOT_INITIALIZED") setNotInitialized(true);
+      // 導入の途中（dg init 前・Git リポジトリの外・git がない）は失敗ではなく始まりの状態。エラーの通知は出さず、チェックリストを出す。
+      // init が終わった直後は、確かめた結果が先に必須を満たすことがある（見張りの読み直しでいつもの画面に変わる）
+      const view = await readSetup();
+      if (view && (!view.ready || f.code === "NOT_INITIALIZED")) setNeedsSetup(true);
       else setNotice({ kind: "error", text: f.message, detail: f.detail });
     } finally {
       setLoading(false);
       setLoaded(true);
     }
-  }, [client, cache, readRunning, refreshStatus]);
+  }, [client, cache, readRunning, refreshStatus, readSetup]);
+
+  const recheckSetup = useCallback(async () => {
+    setCheckingSetup(true);
+    try {
+      if (needsSetup) return await reload();
+      // いつもの画面を出している間は項目だけを確かめ直す。必須を満たさなくなっていたら一覧も読み直す
+      const view = await readSetup();
+      if (view && !view.ready) await reload();
+    } finally {
+      setCheckingSetup(false);
+    }
+  }, [needsSetup, reload, readSetup]);
 
   useEffect(() => {
     // 最初の読み込み。reload は読み込み中の印（setLoading(true)）を同期で立てるが、外（コマンド）から読む始まりの印なので残す
@@ -255,7 +303,10 @@ export function StoreProvider({
       priorityCriteria,
       loading,
       loaded,
-      notInitialized,
+      setup,
+      needsSetup,
+      checkingSetup,
+      recheckSetup,
       notice,
       reload,
       run,
@@ -275,7 +326,10 @@ export function StoreProvider({
       priorityCriteria,
       loading,
       loaded,
-      notInitialized,
+      setup,
+      needsSetup,
+      checkingSetup,
+      recheckSetup,
       notice,
       reload,
       run,

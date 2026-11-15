@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isLauncherPath, launcherFrom, setBundleLayout } from "@deguboard/core";
 import {
   compareVersions,
+  dgLinkOf,
   formatCurrent,
   installLauncher,
   LAUNCHER_SCRIPT,
@@ -277,6 +278,20 @@ describe("~/.local/bin/dg の張りと外し", () => {
     rmSync(linkPathOf(home));
     writeFileSync(linkPathOf(home), "other");
     expect(await linkDg({ home })).toEqual({ kind: "occupied" });
+    expect(await readFile(linkPathOf(home), "utf8")).toBe("other");
+  });
+
+  it("今の状態を、ない・起動ファイルへのリンク・ほかの dg（張り先つき）・通常のファイルに見分ける（書かない）", async () => {
+    expect(await dgLinkOf({ home })).toEqual({ kind: "none" });
+    await installLauncher(mine(), { dir });
+    await linkDg({ home });
+    expect(await dgLinkOf({ home })).toEqual({ kind: "ours" });
+    rmSync(linkPathOf(home));
+    symlinkSync("/elsewhere/dg.js", linkPathOf(home));
+    expect(await dgLinkOf({ home })).toEqual({ kind: "other", target: "/elsewhere/dg.js" });
+    rmSync(linkPathOf(home));
+    writeFileSync(linkPathOf(home), "other");
+    expect(await dgLinkOf({ home })).toEqual({ kind: "other" });
     expect(await readFile(linkPathOf(home), "utf8")).toBe("other");
   });
 

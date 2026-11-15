@@ -1666,28 +1666,317 @@ Ctrl+↵
 コピー
 ✓ コピーしました。エージェントの入力欄に貼ってください
 
-## dg init 前の始め方
+## dg init 前の導入のチェックリスト（リモートにチームのボードがある）
 [aria-label] 画面
 カンバン
 バックログ
 履歴
 deguboard を始める
-このリポジトリはまだ deguboard を使っていません。
-dg
-が PATH にあれば、次の順で始められます。コピーしてターミナルで実行してください。
-1. 初期化する
-このリポジトリにチケットを置く場所を作ります。ターミナルで実行します。
+確かめ直す
+上から順に確かめています。満たしていない項目を直すと、自動で確かめ直し、必須の項目をすべて満たすといつもの画面に変わります。
+[aria-label] 満たしている
+✓
+フォルダ
+[aria-label] 満たしている
+✓
+OS
+[aria-label] 満たしている
+✓
+git
+[aria-label] 満たしている
+✓
+Git リポジトリ
+[aria-label] 満たしていない
+✗
+ボード
+未取り込み
+リモートにチームのボードがあり、このクローンにはまだ取り込んでいません。
+チームのボードを取り込む
+ターミナルで行うなら
 dg init
 [title] dg init をコピー
 [aria-label] dg init をコピー
-2. チケットを起こす
-やりたいことを 1 件のチケットにします。
-dg ticket create "最初のチケット"
-[title] dg ticket create "最初のチケット" をコピー
-[aria-label] dg ticket create "最初のチケット" をコピー
-3. エージェントに頼む
-Skill を入れると、エージェントが手順を読んでチケットを進めます。
+[aria-label] まだ確かめていない
+·
+Skill と hooks
+[aria-label] まだ確かめていない
+·
+dg コマンド
+[aria-label] まだ確かめていない
+·
+.claude/.gitignore
+
+## Git リポジトリの外の導入のチェックリスト
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+deguboard を始める
+確かめ直す
+上から順に確かめています。満たしていない項目を直すと、自動で確かめ直し、必須の項目をすべて満たすといつもの画面に変わります。
+[aria-label] 満たしている
+✓
+フォルダ
+[aria-label] 満たしている
+✓
+OS
+[aria-label] 満たしている
+✓
+git
+[aria-label] 満たしていない
+✗
+Git リポジトリ
+リポジトリではない
+このフォルダは Git リポジトリではありません。
+次のフォルダに作る
+/work/repo
+このフォルダに git init する
+ターミナルで行うなら
+git init
+[title] git init をコピー
+[aria-label] git init をコピー
+別のフォルダで使うつもりなら
+フォルダを開き直す
+[aria-label] まだ確かめていない
+·
+ボード
+[aria-label] まだ確かめていない
+·
+Skill と hooks
+[aria-label] まだ確かめていない
+·
+dg コマンド
+[aria-label] まだ確かめていない
+·
+.claude/.gitignore
+
+## リモートに届かないときの導入のチェックリスト
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+deguboard を始める
+確かめ直す
+上から順に確かめています。満たしていない項目を直すと、自動で確かめ直し、必須の項目をすべて満たすといつもの画面に変わります。
+[aria-label] 満たしている
+✓
+フォルダ
+[aria-label] 満たしている
+✓
+OS
+[aria-label] 満たしている
+✓
+git
+[aria-label] 満たしている
+✓
+Git リポジトリ
+[aria-label] 満たしていない
+✗
+ボード
+リモートに届かない
+リモートに届かないため、チームのボードがあるか分からず、ボードはまだ作っていません。
+fatal: Could not read from remote repository.
+ネットワーク・認証（ssh 鍵や gh auth）・リモートの URL を直してから、確かめ直します。
+もう一度確かめる
+チームのボードがないと分かっているなら
+手元だけで新しいボードを作る
+ターミナルで行うなら
+dg init --new-board
+[title] dg init --new-board をコピー
+[aria-label] dg init --new-board をコピー
+[aria-label] まだ確かめていない
+·
+Skill と hooks
+[aria-label] まだ確かめていない
+·
+dg コマンド
+[aria-label] まだ確かめていない
+·
+.claude/.gitignore
+
+## 推奨の項目が欠けているときの帯
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+推奨の 3 項目が未完了です（Skill と hooks・dg コマンド・.claude/.gitignore）。
+残りの項目を開く
+このリポジトリでは出さない
+行にマウスを載せると出る吹き出しで、エージェントに頼めます
+[title] 閉じる（もう出さない）
+[aria-label] 案内を閉じる
+×
+[aria-label] Iteration
+[title] すべて（planned と active の Iteration）
+すべて
+1
+/
+4
+[title] s1 最初の Iteration（進行中）
+開始 11-01 12:00
+目標 目標データの文
+s1
+1
+/
+3
+[title] s2 次の Iteration（予定）
+s2
+0
+/
+1
+[title] 担当で絞り込む
+[aria-label] 絞り込み
+Epic
+[aria-label] Epic で絞る
+[title] e1 最初の版・完了 0/1
+[aria-label] e1 最初の版
+e1
+[title] Epic のないチケットで絞る
+なし
+2
+最初の Iteration
+11/01–
+4 日目
+[title] 目標データの文
+目標データの文
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（Iteration の見出し s1）
+[title] Done 1 / Code Review 1 / In Progress 1
+1
+/
+3
+done
+[title] Done 1
+[aria-label] Done 1
+1
+[title] Code Review 1
+[aria-label] Code Review 1
+1
+[title] In Progress 1
+[aria-label] In Progress 1
+1
+[aria-label] 実行計画
+実行計画
+1
+[aria-label] p1 の依存グラフ
+[title] p1 の詳細を開く
+p1
+進行中
+[title] Code Review 1 / In Progress 1
+0
+/
+2
+作業中
+[title] API
+t2
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（Plan の帯 p1）
+[aria-label] Todo
+Todo
+0
+[aria-label] In Progress
+In Progress
+1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（状態の節 In Progress）
+t2
+[title] API
+API
+[title] 優先度 high（上に並ぶ）
+high
+[title] eiki/agent · Run なし
+[aria-label] eiki/agent · Run なし
+E
+[title] Plan p1
+p1
+[aria-label] Run 3 回。最後は implement · 3日
+[aria-label] implement · 成功、2026-11-01 00:00 · 20分 0秒（待ち 10分 0秒）、直した指摘 1
+implement · 成功
+2026-11-01 00:00 · 20分 0秒（待ち 10分 0秒）
+直した指摘 1
+[aria-label] implement · 失敗、2026-11-01 00:00 · 30分 0秒（待ちは不明）、テストが落ちた
+implement · 失敗
+2026-11-01 00:00 · 30分 0秒（待ちは不明）
+テストが落ちた
+[aria-label] implement · 実行中、2026-11-01 00:00 · 84時間 0分、直した指摘 1
+implement · 実行中
+2026-11-01 00:00 · 84時間 0分
+直した指摘 1
+implement · 3日
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t2）
+[aria-label] Code Review
+Code Review
+1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（状態の節 Code Review）
+t3
+[title] 題データの三
+題データの三
+[title] Plan p1
+p1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t3）
+[aria-label] Done
+Done
+1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（状態の節 Done）
+t1
+[title] ログイン
+ログイン
+#
+12
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t1）
+
+## 帯から開いた推奨の項目
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+セットアップ
+確かめ直す
+[aria-label] 満たしている
+✓
+必須の 5 項目
+推奨
+[aria-label] 推奨の項目が未完了
+!
+Skill と hooks
+そろっていない
+このマシンに dg の Skill と hooks が入っていません。
+入れると、Claude Code が手順を読んでチケットを進め、Run が記録されます。
+Skill と hooks を入れる
+ターミナルで行うなら
+dg hooks install
+[title] dg hooks install をコピー
+[aria-label] dg hooks install をコピー
 dg skill install
 [title] dg skill install をコピー
 [aria-label] dg skill install をコピー
-1 を済ませると、開き直さなくてもいつもの画面に変わります。
+[aria-label] 推奨の項目が未完了
+!
+dg コマンド
+PATH にない
+/home/u/.local/bin/dg は張ってありますが、/home/u/.local/bin が PATH にないため、ターミナルとエージェントから dg を呼べません。
+次の 1 行をシェルの設定に足し、VS Code と、開いているターミナルとエージェントを開き直します。
+ターミナルで実行する
+export PATH=$HOME/.local/bin:$PATH
+[title] export PATH=$HOME/.local/bin:$PATH をコピー
+[aria-label] export PATH=$HOME/.local/bin:$PATH をコピー
+この判定は拡張から見た PATH によります。シェルの設定を変えた後は、VS Code を開き直すと反映されます。
+[aria-label] 推奨の項目が未完了
+!
+.claude/.gitignore
+未コミット
+.claude/.gitignore にコミットしていない変更があります。
+コミットすると、各自の設定と dg の Skill が、ほかの人のクローンで追跡の候補に出なくなります。リポジトリの最上位で、次のコマンドを実行します。
+ターミナルで実行する
+git add .claude/.gitignore
+[title] git add .claude/.gitignore をコピー
+[aria-label] git add .claude/.gitignore をコピー
+git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore
+[title] git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore をコピー
+[aria-label] git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore をコピー
+いつもの画面に戻る

@@ -43,6 +43,25 @@ export function initWatchTarget(commonDir: string): WatchTarget {
 }
 
 /**
+ * 導入のチェックリスト（UI-12）を確かめ直すために見張る対象。人がターミナルで直したことを拾う：
+ * - フォルダの直下に .git ができる（git init）
+ * - agent の設定のディレクトリ（ignoreFile の親。.claude/）の中が変わる（dg skill install・dg hooks install）。
+ *   base はフォルダにする（まだないディレクトリを base にすると、できた瞬間の追加しか出ない。initWatchTarget と同じ理由）
+ * - ~/.local/bin/dg が張られる・外れる（link。dg コマンド）
+ * ボード（dg init）は initWatchTarget が、ほかの変化（git を入れた・コミットした）はターミナルの実行の終わりとウィンドウに戻ったことが拾う
+ * （extension.ts）。ignoreFile は core の項目が返す、リポジトリの最上位からの相対パス（.claude/.gitignore）
+ */
+export function setupWatchTargets(folder: string, link: string, ignoreFile: string): WatchTarget[] {
+  const agentDir = path.dirname(ignoreFile).split(path.sep).join("/");
+  return [
+    { base: folder, pattern: ".git" },
+    // .gitignore は名前で挙げる（isWatched の glob は ** を . で始まる名前に当てない。initWatchTarget の .git と同じ）
+    { base: folder, pattern: `${agentDir}/{${path.basename(ignoreFile)},**}` },
+    { base: path.dirname(link), pattern: path.basename(link) },
+  ];
+}
+
+/**
  * git common dir の絶対パス（core の resolveRepoPaths が解く）。リポジトリでないフォルダや git が動かないときは undefined（見張らない）。
  * git は拡張では呼ばず、core に任せる
  */

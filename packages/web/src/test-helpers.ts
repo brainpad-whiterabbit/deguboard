@@ -13,7 +13,13 @@ import {
   type AskMenu,
   type AskSubject,
 } from "@deguboard/core";
-import type { CommandClient, CommandResult, StatusView } from "@deguboard/core";
+import type {
+  CommandClient,
+  CommandResult,
+  SetupView,
+  SetupViewItem,
+  StatusView,
+} from "@deguboard/core";
 import { ClientError } from "./client/http.js";
 import type {
   EpicRow,
@@ -202,6 +208,38 @@ export interface MockClient extends CommandClient {
   /** コマンド名ごとの応答を差し替える */
   handlers: Record<string, (input: unknown) => unknown>;
   data: Fixture;
+  /** 導入のチェックリストを確かめる口。既定はない（テストが足す） */
+  setup?: (() => Promise<SetupView>) | undefined;
+}
+
+/** 導入のチェックリストの 1 項目。省けば満たしている必須の項目で、message は画面に出ないので空 */
+export function setupItem(
+  partial: Partial<SetupViewItem> & { id: SetupViewItem["id"] },
+): SetupViewItem {
+  return { label: partial.id, level: "required", status: "ok", message: "", fix: [], ...partial };
+}
+
+const SETUP_REQUIRED: SetupViewItem["id"][] = ["folder", "os", "git", "repository", "board"];
+const SETUP_RECOMMENDED: SetupViewItem["id"][] = ["skills_hooks", "dg_command", "gitignore"];
+
+/**
+ * VS Code 拡張が返す形の導入のチェックリスト（必須 5 項目・推奨 3 項目）。省けばすべて満たす。changes で項目を書き換える。
+ * 入口と同じく、必須の項目を満たさなければ、その後の項目を pending にし、ready を偽にする
+ */
+export function setupView(
+  changes: Partial<Record<SetupViewItem["id"], Partial<SetupViewItem>>> = {},
+): SetupView {
+  let blocked = false;
+  const items = [...SETUP_REQUIRED, ...SETUP_RECOMMENDED].map((id) => {
+    const level: SetupViewItem["level"] = SETUP_REQUIRED.includes(id) ? "required" : "recommended";
+    const head = { id, level, ...(id === "gitignore" ? { label: ".claude/.gitignore" } : {}) };
+    const item = blocked
+      ? setupItem({ ...head, status: "pending" })
+      : setupItem({ ...head, ...changes[id] });
+    if (level === "required" && item.status !== "ok") blocked = true;
+    return item;
+  });
+  return { ready: !blocked, items, cwd: "/work/repo" };
 }
 
 /** mockClient の ticket.show・ticket.update が返す本文 */
