@@ -329,7 +329,11 @@ export function BacklogPage() {
           active={active.length > 0}
           title={tr("Status・優先度・ラベル・担当で絞り込む")}
           controls="backlog-filters"
-          onToggle={() => setFiltersOpen(!filtersOpen)}
+          onToggle={(e) => {
+            // 絞り込みの欄は検索の行の下の流れに開くので、貼り付いた漏斗で開いたら一覧を一番上へ戻して欄を見せる
+            if (sidebar && !filtersOpen) scrollPageToTop(e.currentTarget);
+            setFiltersOpen(!filtersOpen);
+          }}
         />
       </div>
       {sidebar ? (

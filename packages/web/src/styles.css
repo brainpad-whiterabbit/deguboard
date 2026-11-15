@@ -2089,11 +2089,18 @@ textarea.body {
   height: 0;
 }
 .page:has(> section > .sticky-band) {
-  scroll-padding-top: calc(var(--dg-sticky-band-h) * 2);
+  --dg-sticky-scroll-pad: calc(var(--dg-sticky-band-h) * 2);
+  scroll-padding-top: var(--dg-sticky-scroll-pad);
+}
+/* バックログの区画の見出しは 2 段（番号・名前・件数と、状態・期間・目標）で帯の高さより高いので、
+   寄せ先は検索の行（と札の行）の高さに 2 段の見出しが収まる高さを足す */
+[data-surface="sidebar"] .page:has(> section > .backlog-search) {
+  --dg-sticky-section-h: 48px;
+  --dg-sticky-scroll-pad: calc(var(--dg-sticky-band-h) + var(--dg-sticky-section-h));
 }
 /* 帯の中の部品は上の端に貼り付いて見えているので、フォーカスや押したときに寄せ先の分だけ一覧を上へ戻さない（戻すと見出しが見えて帯が消える） */
 .sticky-band-stack * {
-  scroll-margin-top: calc(var(--dg-sticky-band-h) * -2);
+  scroll-margin-top: calc(-1 * var(--dg-sticky-scroll-pad, 0px));
 }
 /* 帯と、その下に積む行（絞り込みの札・開いた欄）をまとめて一覧の上に重ねる */
 .sticky-band > .sticky-band-stack {

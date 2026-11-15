@@ -952,6 +952,8 @@ describe.each(SCHEMES)("左パネルのバックログの上の端に残す検�
         const firstTop = first!.getBoundingClientRect().top;
         const row = first!.parentElement!.querySelector(".ticket-row")!.getBoundingClientRect();
         const bg = getComputedStyle(first!).backgroundColor;
+        const headBottom = first!.getBoundingClientRect().bottom - box.top;
+        const pad = parseFloat(getComputedStyle(main).scrollPaddingTop);
         // 次の区画の見出しが検索の行の下の所に来るまで送る。後ろの区画が短く一覧の終わりで止まるので、下に余白を足して送れるようにする
         main.style.paddingBottom = "600px";
         main.scrollTop = offset(second!.parentElement!) - 32;
@@ -964,6 +966,8 @@ describe.each(SCHEMES)("左パネルのバックログの上の端に残す検�
           firstTop,
           rowTop: row.top,
           bg,
+          headBottom,
+          pad,
           secondTop: second!.getBoundingClientRect().top,
           firstBottom: first!.getBoundingClientRect().bottom,
           stillTop: search.getBoundingClientRect().top - box.top,
@@ -980,6 +984,8 @@ describe.each(SCHEMES)("左パネルのバックログの上の端に残す検�
       ).toBeLessThanOrEqual(1);
       expect(stuck.rowTop, "行は区画の見出しの下をくぐる").toBeLessThan(stuck.firstTop);
       expect(stuck.bg, "区画の見出しも塗る").not.toBe("rgba(0, 0, 0, 0)");
+      // キーで上へ行を移っても、検索の行と 2 段の区画の見出しの下に行が隠れないよう、寄せ先はその下まで下げる
+      expect(stuck.pad, "寄せ先は貼り付いた見出しの下").toBeGreaterThanOrEqual(stuck.headBottom);
       expect(
         Math.abs(stuck.secondTop - stuck.searchBottom),
         "次の区画の見出しが検索の行の下に来る",
@@ -1035,6 +1041,8 @@ describe.each(SCHEMES)("左パネルのバックログの上の端に残す検�
           layoutOffset,
           stackBottom: stack.getBoundingClientRect().bottom,
           summaryTop: first.querySelector("summary")!.getBoundingClientRect().top,
+          summaryBottom: first.querySelector("summary")!.getBoundingClientRect().bottom - box.top,
+          pad: parseFloat(getComputedStyle(main).scrollPaddingTop),
         };
       });
       expect(filtered.text, "効いている条件の札と件数").toMatch(/^優先度 high×\d+ \/ \d+ 件$/);
@@ -1053,6 +1061,9 @@ describe.each(SCHEMES)("左パネルのバックログの上の端に残す検�
         Math.abs(filtered.summaryTop - filtered.stackBottom),
         "区画の見出しは札の行の下に貼り付く",
       ).toBeLessThanOrEqual(1);
+      expect(filtered.pad, "札の行を出しても寄せ先は貼り付いた見出しの下").toBeGreaterThanOrEqual(
+        filtered.summaryBottom,
+      );
 
       // 貼り付いた検索欄に打ち込むと一番上へ戻る
       await page.getByRole("searchbox", { name: "検索" }).fill("番号");

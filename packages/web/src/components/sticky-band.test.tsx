@@ -329,6 +329,20 @@ describe("左パネルのバックログで検索の行の下に重ねる効い�
     expect(page.scrollTop).toBe(0);
   });
 
+  it("貼り付いた漏斗で絞り込みの欄を開くと、欄が見えるよう一覧を一番上へ戻す。閉じるときは戻さない", async () => {
+    await mountBacklog();
+    const page = document.querySelector<HTMLElement>(".page")!;
+    const funnel = screen.getByRole("button", { name: "絞り込み" });
+    page.scrollTop = 400;
+    fireEvent.click(funnel);
+    expect(document.getElementById("backlog-filters")).toBeTruthy();
+    expect(page.scrollTop).toBe(0);
+    page.scrollTop = 400;
+    fireEvent.click(funnel);
+    expect(document.getElementById("backlog-filters")).toBeNull();
+    expect(page.scrollTop).toBe(400);
+  });
+
   it("区画の見出しは、貼り付いても頼む場所のままで、吹き出しと Shift+F10 で頼む一覧を開く", async () => {
     await mountBacklog();
     const summary = document.querySelector<HTMLElement>(".backlog-section > summary")!;
