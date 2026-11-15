@@ -51,7 +51,7 @@ depends = ["build"]
 run = "pnpm run test:vscode"
 
 [tasks.build]
-description = "core・server・cli を tsc で、web と vscode を Vite で dist にビルドする（dg を動かすのに要る）"
+description = "core・server・cli を tsc で、web と vscode を Vite で dist にビルドし、ビルドしたコミットを packages/cli/dist/build-info.json に書く（dg を動かすのに要る。dg.js はこのコミットが HEAD と違えば警告する）"
 run = "pnpm run build"
 
 [tasks.vsix]

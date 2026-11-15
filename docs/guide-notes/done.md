@@ -1,0 +1,2 @@
+After a PR is merged and `git pull --ff-only` has brought it into the main worktree, run `mise run build` in the main worktree before you run `dg` again. The hooks and `mise run dg --` run the built dist of the main worktree, and `git pull` does not rebuild it, so they keep running the code from before the merge.
+If dg warns on stderr that the built CLI in dist/ was built from another commit than HEAD, run `mise run build` in the worktree that the warning names. The command that printed the warning still ran with the old build; run it again if its result matters.

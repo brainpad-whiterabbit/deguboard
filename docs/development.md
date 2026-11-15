@@ -37,7 +37,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 このリポジトリに固有の決まり：
 
-- `dg` は `mise run install`・`setup`・`build` のいずれかのあと `mise run dg -- <引数>` で動く。`core`・`server`・`cli` を変えた PR を取り込んだら、もう一度 `mise run build` する
+- `dg` は `mise run install`・`setup`・`build` のいずれかのあと `mise run dg -- <引数>` で動く。`core`・`server`・`cli` を変えた PR を取り込んだら、もう一度 `mise run build` する（`bin/dg.js` は、dist をビルドしたコミットがその worktree の今の HEAD と違えば、stderr に英語で警告する）
 - Claude が呼ぶときは `DEGUBOARD_ACTOR=agent`（CLAUDE.md）。人の操作は既定の human のまま
 - worktree は `../deguboard.worktrees/<ブランチ名>` に置く（`dg` の `worktree.root` の既定と同じで、リポジトリの外なので `.gitignore` は要らない）。ブランチ名は `<種類>/<内容>`（例：`docs/branch-strategy`、`feat/ticket-create`、`fix/sync-warning`）。`mise trust` と `node_modules` は worktree ごとに要る。worktree では `mise run setup`（依存とビルドだけ）を使い、`mise run install` は使わない（作業中のブランチの拡張で VS Code の拡張を差し替えてしまう）。`dg ticket claim` は worktree を作り、config の `worktree.setup`（このリポジトリは `mise run setup`）をそこで回すので、手で作るのは claim しない作業のときだけ（その場合も `mise run setup` を手で回す）
 
@@ -66,7 +66,7 @@ mise run dg -- guide done      # マージ後の後始末
 
   ```sh
   mise run dg -- pr merge <チケット ID> --approved-by human --delete-branch
-  git pull --ff-only && mise run dg -- sync
+  git pull --ff-only && mise run build && mise run dg -- sync
   ```
 
   マージで消えなかった worktree とブランチ（人が GitHub の画面でマージしたときなど）は、チケットを done にする `dg sync` が消す。未コミットの変更やマージしていないコミットが残るものは消さず、理由と消し方を warnings に出すので、要るものを退避してから手で消す
@@ -76,7 +76,7 @@ mise run dg -- guide done      # マージ後の後始末
 ## ビルドとテスト
 
 - TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。`mise run typecheck` は `noEmit` で検査する
-- `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` と `vscode` を `dist/` に出す。tsc は消えたソースの出力を消さないので、増分の `tsc -b` のあとで `scripts/prune-dist.mjs` が `core`・`server`・`cli` の `dist/` から今のソースに対応しない出力を消す（`dist/` を先に消さないのは、ビルド中もフックが呼ぶ `dg` を動かし続けるため）。`dg` をリポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
+- `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` と `vscode` を `dist/` に出す。tsc は消えたソースの出力を消さないので、増分の `tsc -b` のあとで `scripts/prune-dist.mjs` が `core`・`server`・`cli` の `dist/` から今のソースに対応しない出力を消す（`dist/` を先に消さないのは、ビルド中もフックが呼ぶ `dg` を動かし続けるため）。最後に `scripts/write-build-info.mjs` が、ビルドしたコミットを `packages/cli/dist/build-info.json` に書く（比べるのは `packages/cli/bin/build-info.mjs`）。`dg` をリポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
 - `@deguboard/core` と `@deguboard/server` の `exports` は条件つきで、テストと型検査・vscode のビルド（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。テストの前にビルドは要らない
 - テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` と `test/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
 - snapshot（`toMatchSnapshot`・`toMatchFileSnapshot`・`toMatchInlineSnapshot` の期待値）を書き直すのは `mise run test -- <ファイル> -u` で行う（`-u` は vitest の `--update` で値を取れるので、ファイルを先に書く。後ろに書くと `-u` の値になり、全テストが更新モードで走る）。書き直すのは本文や画面の文言を意図して変えたときだけで、できた差分を読んでからコミットする
@@ -157,7 +157,7 @@ README の GIF（`packages/vscode/images/`）は、画面を変えたら `mise r
 
 ## guide.notes の文書（docs/guide-notes/）
 
-このリポジトリの作業の補足（判断・止める条件）は、`dg guide` に差し込む文書として `docs/guide-notes/<トピック>.md` に置く。差し込むのは config の項目 `guide.notes.<トピック>` で、このリポジトリでは `guide.notes.plan` が `docs/guide-notes/plan.md` を指す。文書は英語で書く（[ADR-001](adr/ADR-001-doc-strategy.md)）。項目は `packages/core/src/model/config.ts` の `noteField`、読み込みは `packages/core/src/guide/guide.ts` の `readGuideNotes` が正本。
+このリポジトリの作業の補足（判断・止める条件）は、`dg guide` に差し込む文書として `docs/guide-notes/<トピック>.md` に置く。差し込むのは config の項目 `guide.notes.<トピック>` で、このリポジトリでは `guide.notes.plan` が `docs/guide-notes/plan.md` を、`guide.notes.done` が `docs/guide-notes/done.md` を指す。文書は英語で書く（[ADR-001](adr/ADR-001-doc-strategy.md)）。項目は `packages/core/src/model/config.ts` の `noteField`、読み込みは `packages/core/src/guide/guide.ts` の `readGuideNotes` が正本。
 
 ## リリース
 
