@@ -19,7 +19,7 @@ deguboard は、Agentic-Agile の考え方（[マニフェスト](https://github
 
 - **利用者**：個人、および同じ Git リポジトリを共有する小規模チーム
 - **実行環境**：Linux / macOS。`dg` は拡張に同梱し、ターミナルから使うときは「dg コマンドを入れる」で張る。画面は VS Code 1.123 以上（デスクトップ）の拡張だけ。`dg serve` は開発用（配置の確認とスクリーンショット）で、利用者の入口ではない（[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
-- **必須ツール**：git 2.30 以上。GitHub CLI（`gh`）は `dg pr ready`・`dg pr merge` と、PR の事実を照合に使うときに要る（gh がなくても照合は Git の事実で成り立つ。ST-6）
+- **必須ツール**：git 2.30 以上。GitHub CLI（`gh`）は `dg pr ready`・`dg pr merge` と、PR の事実を照合に使うときに要る（ST-6・EX-6）
 - **リポジトリ**：Git リポジトリ。リモートは任意（なければ同期なしで動く）。`git.base_branch` を作業ブランチの元と「マージ済み」の判定に使う
 - **エージェント**：`dg` を Bash から呼べるものなら何でも。Skill は Claude Code 向けに配る
 

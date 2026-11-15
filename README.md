@@ -15,7 +15,7 @@ An agentic kanban board inside your Git repository, with the development flow bu
 - **OS**: Linux or macOS.
 - **VS Code**: 1.123 or later, the desktop edition.
 - **Git**: 2.30 or later.
-- **GitHub CLI (`gh`)**: optional. It is needed for `dg pr ready` and `dg pr merge`, and to show pull request status on tickets. The rest of the board works without it.
+- **GitHub CLI (`gh`)**: optional. The pull request steps (opening, marking ready, and merging PRs, through `dg pr ready`, `dg pr merge`, and the agent's workflow actions) and showing pull request status on tickets need it. The board, the tickets, and reconciliation by Git facts work without it.
 - **Agent**: Claude Code is the primary supported agent, and the Skills and hooks are made for it. Other agents that can run a shell, such as Codex and Copilot CLI, can also use `dg`, but without the hooks the measurement of agent Runs and tokens is less accurate, and the guards on data and merges do not work. See [Use other agents](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-other-agents) in the usage guide.
 
 ## Installation
