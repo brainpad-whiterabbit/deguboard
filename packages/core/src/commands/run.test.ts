@@ -6,6 +6,7 @@ import {
   readFile,
   rm,
   symlink,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -1842,10 +1843,14 @@ describe("run finish のモデル名と finished_at", () => {
       // 数えるのは Run の ID が出た後の行
       const intro = { type: "user", timestamp: run.started_at, message: { content: run.id } };
       await mkdir(projectDir, { recursive: true });
-      await writeFile(
-        path.join(projectDir, `${run.id}.jsonl`),
-        [intro, line].map((l) => JSON.stringify(l)).join("\n") + "\n",
-      );
+      const file = path.join(projectDir, `${run.id}.jsonl`);
+      await writeFile(file, [intro, line].map((l) => JSON.stringify(l)).join("\n") + "\n");
+      // ファイルの更新時刻を、最後の行の時刻に決める。決めないと、finish が確率でこの記録を読まない（t977）：
+      // Adapter は更新時刻が started_at（秒に切り捨てた start の時刻）より前のファイルを探す範囲から外す（transcript.ts の fresh）。
+      // ファイルシステムが付ける更新時刻は最後のタイマー割り込みの時刻で、Date.now() より数ミリ秒遅れる。
+      // start が秒の境目の直後で、この書き込みが次の割り込みより前だと、更新時刻が境目の手前（started_at より前）になり、
+      // モデル名が会話記録でなく finish・start の別名になった
+      await utimes(file, new Date(at), new Date(at));
       return run;
     };
     return { ctx, startWith };
