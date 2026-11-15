@@ -1602,7 +1602,13 @@ describe("画面", () => {
         "t2",
         [
           runningSummary({ id: "r3" }),
-          runSummary({ id: "r2", step: "fix", result: "success", retries: 2 }),
+          runSummary({
+            id: "r2",
+            step: "fix",
+            result: "success",
+            retries: 2,
+            waited_seconds: 120,
+          }),
           runSummary({
             id: "r1",
             step: "review",
@@ -1644,7 +1650,8 @@ describe("画面", () => {
     const fix = pips[1]!.closest(".run-pip-wrap")!.querySelector(".run-pip-tip")!;
     expect([...fix.children].map((c) => c.textContent)).toEqual([
       "fix · 成功",
-      `${formatTime("2026-11-14T01:00:00Z")} · 10分 0秒`,
+      // 閉じた Run はチケット詳細の Run の行と同じく、待ちを除いた作業時間に待ちを添える
+      `${formatTime("2026-11-14T01:00:00Z")} · 8分 0秒（待ち 2分 0秒）`,
       "直した指摘 2",
     ]);
     expect(pips[0]!.getAttribute("aria-label")).toContain("指摘 重い 1 / 軽い 0");

@@ -91,13 +91,13 @@ E
 [title] Plan p1
 p1
 [aria-label] 3 runs. Latest: implement · 3d
-[aria-label] implement · Success, 2026-11-01 00:00 · 30m 0s, Fixed findings 1
+[aria-label] implement · Success, 2026-11-01 00:00 · 20m 0s (waited 10m 0s), Fixed findings 1
 implement · Success
-2026-11-01 00:00 · 30m 0s
+2026-11-01 00:00 · 20m 0s (waited 10m 0s)
 Fixed findings 1
-[aria-label] implement · Failure, 2026-11-01 00:00 · 30m 0s, テストが落ちた
+[aria-label] implement · Failure, 2026-11-01 00:00 · 30m 0s (wait unknown), テストが落ちた
 implement · Failure
-2026-11-01 00:00 · 30m 0s
+2026-11-01 00:00 · 30m 0s (wait unknown)
 テストが落ちた
 [aria-label] implement · Running, 2026-11-01 00:00 · 84h 0m, Fixed findings 1
 implement · Running
@@ -1457,13 +1457,13 @@ E
 [title] Plan p1
 p1
 [aria-label] 3 runs. Latest: implement · 3d
-[aria-label] implement · Success, 2026-11-01 00:00 · 30m 0s, Fixed findings 1
+[aria-label] implement · Success, 2026-11-01 00:00 · 20m 0s (waited 10m 0s), Fixed findings 1
 implement · Success
-2026-11-01 00:00 · 30m 0s
+2026-11-01 00:00 · 20m 0s (waited 10m 0s)
 Fixed findings 1
-[aria-label] implement · Failure, 2026-11-01 00:00 · 30m 0s, テストが落ちた
+[aria-label] implement · Failure, 2026-11-01 00:00 · 30m 0s (wait unknown), テストが落ちた
 implement · Failure
-2026-11-01 00:00 · 30m 0s
+2026-11-01 00:00 · 30m 0s (wait unknown)
 テストが落ちた
 [aria-label] implement · Running, 2026-11-01 00:00 · 84h 0m, Fixed findings 1
 implement · Running

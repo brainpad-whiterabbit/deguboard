@@ -276,6 +276,17 @@ describe("run", () => {
     const recent = await runCommand(runRecent, ctx, {});
     expect(recent.warnings).toEqual([]);
     const closed = ctx.store.runs;
+    // 閉じた Run の時間は run.list と同じ値（ここでは待ちを数えていないので作業時間は null）
+    const timesOf = (id: Run["id"]) => {
+      const data = closed.get(id)!.data;
+      expect(data.waited_seconds).toBeNull();
+      return {
+        waited_seconds: null,
+        duration_seconds: (Date.parse(data.finished_at!) - Date.parse(data.started_at)) / 1000,
+        active_seconds: null,
+      };
+    };
+    const runningTimes = { waited_seconds: null, duration_seconds: null, active_seconds: null };
     expect(recent.data).toEqual([
       {
         ticket: "t1",
@@ -291,6 +302,7 @@ describe("run", () => {
             review: null,
             retries: 0,
             error: null,
+            ...runningTimes,
             running: true,
             waiting_since: waitingSince,
             settling_since: null,
@@ -305,6 +317,7 @@ describe("run", () => {
             review: null,
             retries: 2,
             error: "テストが落ちた",
+            ...timesOf(failed.id),
             running: false,
           },
           {
@@ -316,6 +329,7 @@ describe("run", () => {
             review: { heavy: 1, light: 0, passed: false },
             retries: 0,
             error: null,
+            ...timesOf(reviewed.id),
             running: false,
           },
         ],
@@ -334,6 +348,7 @@ describe("run", () => {
             review: null,
             retries: 0,
             error: null,
+            ...runningTimes,
             running: true,
             waiting_since: null,
             settling_since: null,

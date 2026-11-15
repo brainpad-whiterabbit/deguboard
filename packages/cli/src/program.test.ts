@@ -319,6 +319,12 @@ describe("dg", () => {
               review: null,
               retries: 0,
               error: "tests failed",
+              // 時間は run list と同じ（codex の Run は待ちを数えないので作業時間は null）
+              waited_seconds: null,
+              duration_seconds:
+                (Date.parse(finished.json().data.finished_at) - Date.parse(closed.started_at)) /
+                1000,
+              active_seconds: null,
               running: false,
             },
           ],
@@ -337,6 +343,9 @@ describe("dg", () => {
               review: null,
               retries: 0,
               error: null,
+              waited_seconds: null,
+              duration_seconds: null,
+              active_seconds: null,
               running: true,
               waiting_since: null,
               settling_since: null,

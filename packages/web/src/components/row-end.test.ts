@@ -206,17 +206,18 @@ describe("カンバンの行の Run の並び", () => {
     expect(runPipCaption(closed, label, now)).toBe("review · 2時間前");
   });
 
-  it("丸の説明は手・結果・開始の時刻とかかった時間に、直した指摘の数・見直しの指摘の数・失敗の理由を足す", () => {
+  it("丸の説明は手・結果・開始の時刻とかかった時間（閉じた Run は待ちを除いた作業時間）に、直した指摘の数・見直しの指摘の数・失敗の理由を足す", () => {
     const fix = runSummary({
       step: "fix",
       result: "success",
       started_at: "2026-11-14T01:00:00Z",
       finished_at: "2026-11-14T01:03:20Z",
       retries: 2,
+      waited_seconds: 60,
     });
     expect(runPipDetails(fix, label, now)).toEqual([
       "fix · 成功",
-      `${formatTime("2026-11-14T01:00:00Z")} · 3分 20秒`,
+      `${formatTime("2026-11-14T01:00:00Z")} · 2分 20秒（待ち 1分 0秒）`,
       "直した指摘 2",
     ]);
     const review = runSummary({
@@ -228,6 +229,13 @@ describe("カンバンの行の Run の並び", () => {
     expect(runPipDetails(review, label, now)[0]).toBe("review · 重い指摘");
     const failed = runSummary({ result: "failure", error: "テストが落ちた" });
     expect(runPipDetails(failed, label, now).at(-1)).toBe("テストが落ちた");
+    // 待ちのない閉じた Run は作業時間だけ、待ちを数えられない Run は経過時間に待ちが不明なことを添える（チケット詳細の Run の行と同じ）
+    expect(runPipDetails({ ...fix, waited_seconds: 0, active_seconds: 200 }, label, now)[1]).toBe(
+      `${formatTime("2026-11-14T01:00:00Z")} · 3分 20秒`,
+    );
+    expect(
+      runPipDetails({ ...fix, waited_seconds: null, active_seconds: null }, label, now)[1],
+    ).toBe(`${formatTime("2026-11-14T01:00:00Z")} · 3分 20秒（待ちは不明）`);
     // 実行中は今までの時間
     expect(runPipDetails(running, label, now)[1]).toBe(
       `${formatTime(running.started_at)} · 12分 0秒`,
