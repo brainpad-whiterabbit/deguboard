@@ -79,6 +79,7 @@ mise run dg -- guide done      # マージ後の後始末
 - `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` と `vscode` を `dist/` に出す。tsc は消えたソースの出力を消さないので、増分の `tsc -b` のあとで `scripts/prune-dist.mjs` が `core`・`server`・`cli` の `dist/` から今のソースに対応しない出力を消す（`dist/` を先に消さないのは、ビルド中もフックが呼ぶ `dg` を動かし続けるため）。`dg` をリポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
 - `@deguboard/core` と `@deguboard/server` の `exports` は条件つきで、テストと型検査・vscode のビルド（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。テストの前にビルドは要らない
 - テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` と `test/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
+- snapshot（`toMatchSnapshot`・`toMatchFileSnapshot`・`toMatchInlineSnapshot` の期待値）を書き直すのは `mise run test -- -u <ファイル>` で行う（`-u` は vitest の `--update`）。書き直すのは本文や画面の文言を意図して変えたときだけで、できた差分を読んでからコミットする
 - vitest のワーカー数は既定で CPU 数の半分にしている（全体のテストと `test:related` が重なっても CPU を取り合いすぎないため。理由と測った値は `vitest.config.ts` のコメント）。変えるときは環境変数 `DEGUBOARD_TEST_MAX_WORKERS` に数か `75%` のような割合を渡す（それ以外の値と 0 はエラーで止まる）
 - パッケージをまたぐテストは `test/` に置く。`e2e/routes.test.ts` は CLI・HTTP・Webview の 3 経路の結果とコミットの一致（CL-6）を、`layout/` は画面の配置と吹き出しの一覧を（`mise run test:layout`）、`vscode/` は VS Code の実機の左パネルを（`mise run test:vscode`）確かめる（ブラウザと VS Code が要るので check に入れない）
 - Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う。fixture が開発者のグローバル設定と裏の git maintenance からテストを切り離す（方法は fixture のコメント）。テストごとに同じ準備（init・チケット・commit など）をするなら `createFixtureFrom(key, setup)` で、テストファイルごとに 1 度だけ準備した雛形から写す（写した先の絶対パスは付け替える。方法は fixture のコメント）。データをコードとは別のリポジトリに置くテストは、`addDataRemote` でデータ用の bare リモートを足す
@@ -123,10 +124,10 @@ core の `commands` を commander（`program.ts`）と MCP のツール（`mcp.t
 - `guide-overview.md` の表（トピックの名前・Skill の名前・いつ読むか）
 - `packages/core/src/model/schema.test.ts` の `guide.notes.<トピック>` の一覧
 - Skill を持つトピックは `packages/core/src/commands/ask.ts` の `SKILL_SUMMARY` に ja・en の文を足し、`ask.test.ts` の個数（`toHaveLength`）を合わせる。Skill を持たないトピックは `packages/cli/src/guide.test.ts` の「Skill を持つトピックは対象の決め方・選択肢で聞く節・次の手順を持ち、本文に frontmatter を残さない」のテストで、Skill を持たないトピックの並び（`topic === "overview" || …`）に足す
-- `packages/cli/src/guide.test.ts` の `ENGLISH_TOPICS`（本文が英語のトピックの集合）に足す。guide の出力の snapshot（`packages/cli/src/__snapshots__/guide.test.ts.snap`）は、意図して本文を変えたときだけ書き直す
+- `packages/cli/src/guide.test.ts` の `ENGLISH_TOPICS`（本文が英語のトピックの集合）に足す。guide の出力の snapshot（`packages/cli/src/__snapshots__/guide.test.ts.snap`）は、書き直す手順を「[ビルドとテスト](#ビルドとテスト)」の節から引く
 - Skill を持つトピックは `packages/cli/src/skill.test.ts` の Skill の名前の一覧に足す
 - `.claude/.gitignore` に `skills/dg<トピック>/` の行が `dg skill install` で足されるので、その行をコミットに含める
-- 設定の画面の表示（web）: `packages/web/src/pages/config.tsx` の `NAMES`（`guide.notes.<トピック>` の「差し込む文書（…）」）と `NOTE_LABELS`（表の行の名前）、英語の訳は `packages/web/src/l10n-en.ts`、画面の文言の snapshot（`packages/web/src/__snapshots__/l10n-screens.ja.txt`・`.en.txt`）は、`l10n-screens.test.tsx` が出す差分を読んで書き直す
+- 設定の画面の表示（web）: `packages/web/src/pages/config.tsx` の `NAMES`（`guide.notes.<トピック>` の「差し込む文書（…）」）と `NOTE_LABELS`（表の行の名前）、英語の訳は `packages/web/src/l10n-en.ts`、画面の文言の snapshot（`packages/web/src/__snapshots__/l10n-screens.ja.txt`・`.en.txt`）は、書き直す手順を「[ビルドとテスト](#ビルドとテスト)」の節から引き、`l10n-screens.test.tsx` が出す差分を読んでから書き直す
 
 ### `packages/server`（`@deguboard/server`）
 
