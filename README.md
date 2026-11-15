@@ -53,7 +53,7 @@ The Board shows the tickets of an Iteration in columns by status, and the band a
 
 ### History: retrospect and improve
 
-Choose **Ask Agent** → **Retrospect** on a finished Iteration. The agent shows the actuals (duration and tokens per step, failures, and rework), computes the metrics your team approved for each perspective with their trend, and files the improvements you approve as tickets.
+Choose **Ask Agent** → **Retrospect** on a finished Iteration. The agent shows the actuals (duration and tokens per step, failures, and rework), computes the metrics your team approved for each perspective with their trend, and files the improvements you approve as tickets. For a perspective with no approved metric yet, the agent proposes a recommended metric, and only the ones you approve are adopted.
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="Finding bottlenecks" width="560">
 
