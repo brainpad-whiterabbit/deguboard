@@ -9,6 +9,7 @@
 // - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
 // 行数は要素の枠の中に見えている行だけを数える（2 行で切られて隠れた行は数えない）
 // カンバンの行の右端（担当の印・Plan の番号など）は、行の枠からはみ出さず、タイトルと重ならないことも確かめる
+// カンバンをスクロールして見出しが抜けたら、上の端の 1 行の帯と、その下に貼り付く状態の節の見出しが出ることも確かめる
 // 設定画面（#/config）は、確認の帯を開き、長い worktree.root と actions.test のリストを入れた状態で、部品が幅からはみ出さないことを別に確かめる。
 // guide.notes.* の表の変更した行の印が 1 つだけであることも、左パネルとパネルの配置で確かめる
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
@@ -661,6 +662,138 @@ describe.each(
     });
   },
 );
+
+// 見出しの進みの帯の行が上へ抜けたら、上の端に 1 行の帯を出し、状態の節の見出しをその下に貼り付ける（UI-2、t962）。
+// 帯は一覧を動かさずに出し入れし、節の見出しは次の節の見出しに押し出されて入れ替わる
+describe.each(SCHEMES)("左パネルのカンバンの上の端に残す帯（%s）", (scheme) => {
+  it("幅 300px で、見出しが抜けたら 1 行の帯を上の端に出して一覧は動かさず、節の見出しは帯の下に貼り付いて次の節に押し出され、下の行が透けない", async () => {
+    const context = await browser.newContext({
+      viewport: { width: 300, height: 360 },
+      colorScheme: scheme,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+      await page.locator(".board .column").first().waitFor();
+      const before = await page.evaluate(() => {
+        const main = document.querySelector<HTMLElement>(".page")!;
+        const box = main.getBoundingClientRect();
+        const mark = document.querySelector<HTMLElement>(".sidebar-head .status-band")!;
+        return {
+          banded: !!document.querySelector(".sticky-band-bar"),
+          // 進みの帯の行が上の端（帯の高さの所）より上へ抜けるまで送る量
+          past: mark.getBoundingClientRect().bottom - box.top - 20,
+          boardOffset:
+            document.querySelector(".board")!.getBoundingClientRect().top -
+            box.top +
+            main.scrollTop,
+        };
+      });
+      expect(before.banded, "見出しが見えている間は帯を出さない").toBe(false);
+
+      // 帯を出す前後で、行の一覧の中の位置が変わらない（帯は動かさずに重ねる）
+      await page.evaluate((y) => {
+        document.querySelector<HTMLElement>(".page")!.scrollTop = y;
+      }, before.past);
+      await page.locator(".sticky-band-bar").waitFor();
+      const stuck = await page.evaluate(async () => {
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        const main = document.querySelector<HTMLElement>(".page")!;
+        const box = main.getBoundingClientRect();
+        const bar = document.querySelector<HTMLElement>(".sticky-band-bar")!;
+        const rect = bar.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(bar.querySelector(".board-band-top")!);
+        // 行の数は文字の矩形で数える。今の行の下端より下から始まったら次の行（大きさの違う番号と名前の上端のずれで誤らない）
+        let lines = 0;
+        let lineBottom = -Infinity;
+        for (const r of [...range.getClientRects()]
+          .filter((r) => r.width > 0)
+          .sort((a, b) => a.top - b.top)) {
+          if (r.top >= lineBottom - 1) {
+            lines++;
+            lineBottom = r.bottom;
+          } else lineBottom = Math.max(lineBottom, r.bottom);
+        }
+        const board = document.querySelector<HTMLElement>(".board")!;
+        return {
+          text: bar.textContent,
+          top: rect.top - box.top,
+          height: rect.height,
+          left: rect.left - box.left,
+          right: box.right - rect.right,
+          lines,
+          bg: getComputedStyle(bar).backgroundColor,
+          boardOffset: board.getBoundingClientRect().top - box.top + main.scrollTop,
+          pageScroll: main.scrollWidth,
+          pageClient: main.clientWidth,
+        };
+      });
+      expect(stuck.text, "番号・名前・n/m").toMatch(/^s2今週\d+\/\d+$/);
+      expect(Math.abs(stuck.top), "一覧の上の端に貼り付く").toBeLessThanOrEqual(1);
+      expect(stuck.height, "帯の高さ").toBe(26);
+      expect(stuck.lines, "番号と名前は 1 行").toBe(1);
+      expect(
+        Math.abs(stuck.left) + Math.abs(stuck.right),
+        "左右の余白まで塗る",
+      ).toBeLessThanOrEqual(1);
+      expect(stuck.bg, "下の行が透けないよう塗る").not.toBe("rgba(0, 0, 0, 0)");
+      expect(stuck.pageScroll, "画面が横に溢れない").toBeLessThanOrEqual(stuck.pageClient);
+      expect(stuck.boardOffset, "帯を出しても一覧は動かない").toBe(before.boardOffset);
+
+      // 最初の節（Todo）の見出しが帯の下に貼り付くまで送り、さらに次の節の見出しが来たら押し出されて入れ替わる
+      const sections = await page.evaluate(async () => {
+        const main = document.querySelector<HTMLElement>(".page")!;
+        const box = main.getBoundingClientRect();
+        const [first, second] = [
+          ...document.querySelectorAll<HTMLElement>(".board > details.column[open]"),
+        ].map((d) => d.querySelector<HTMLElement>("summary")!);
+        const bandBottom = document
+          .querySelector(".sticky-band-bar")!
+          .getBoundingClientRect().bottom;
+        const offset = (el: HTMLElement) =>
+          el.getBoundingClientRect().top - box.top + main.scrollTop;
+        // 最初の節の見出しの元の位置から少し先へ
+        main.scrollTop = offset(first!.parentElement!) - 26 + 30;
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        const firstTop = first!.getBoundingClientRect().top;
+        const row = first!.parentElement!.querySelector(".rows")!.getBoundingClientRect();
+        const bg = getComputedStyle(first!).backgroundColor;
+        // 次の節の見出しが帯の下の所に来るまで送る
+        main.scrollTop = offset(second!.parentElement!) - 26;
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        return {
+          bandBottom,
+          firstTop,
+          rowTop: row.top,
+          bg,
+          secondTop: second!.getBoundingClientRect().top,
+          firstBottom: first!.getBoundingClientRect().bottom,
+        };
+      });
+      expect(
+        Math.abs(sections.firstTop - sections.bandBottom),
+        "節の見出しは帯の下",
+      ).toBeLessThanOrEqual(1);
+      expect(sections.rowTop, "行は節の見出しの下をくぐる").toBeLessThan(sections.firstTop);
+      expect(sections.bg, "節の見出しも塗る").not.toBe("rgba(0, 0, 0, 0)");
+      expect(
+        Math.abs(sections.secondTop - sections.bandBottom),
+        "次の節の見出しが帯の下に来る",
+      ).toBeLessThanOrEqual(1);
+      expect(sections.firstBottom, "前の節の見出しは押し出される").toBeLessThanOrEqual(
+        sections.secondTop + 1,
+      );
+
+      // 帯の名前を押すと一番上へ戻り、帯が消える
+      await page.locator(".board-band-top").click();
+      await page.waitForFunction(() => !document.querySelector(".sticky-band-bar"));
+      expect(await page.evaluate(() => document.querySelector(".page")!.scrollTop)).toBe(0);
+    } finally {
+      await context.close();
+    }
+  });
+});
 
 describe.each(SCHEMES)("履歴の中止の行（%s）", (scheme) => {
   it("点は塗らない輪（border）で、完了の点は塗り、タイトルは薄く打ち消し線がない", async () => {

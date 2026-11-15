@@ -2056,8 +2056,92 @@ textarea.body {
 [data-surface="sidebar"] .spacer {
   display: none;
 }
+/* --dg-page-pad は .page の余白（上の端に貼り付けるものは、この分だけ上にずらして余白を埋める）。
+   --dg-sticky-band-h は上の端に残す 1 行の帯の高さ（components/sticky-band.tsx の STICKY_BAND_PX と同じ） */
 [data-surface="sidebar"] .page {
-  padding: 0.5rem;
+  --dg-page-pad: 0.5rem;
+  --dg-sticky-band-h: 26px;
+  padding: var(--dg-page-pad);
+}
+/* 上の端に残す 1 行の帯（components/sticky-band.tsx）。高さ 0 の sticky の箱に帯を重ねて描くので、出し入れで一覧が動かない。
+   帯は .page の上と左右の余白まで塗り、帯の下に貼り付く見出し（z-index: 2）より上に出す。
+   キーで行へ移ったとき、帯と貼り付いた見出しの下に行が隠れないよう、スクロールの寄せ先を下げる */
+.sticky-band {
+  position: sticky;
+  top: calc(-1 * var(--dg-page-pad, 0px));
+  z-index: 3;
+  height: 0;
+}
+.page:has(> section > .sticky-band) {
+  scroll-padding-top: calc(var(--dg-sticky-band-h) * 2);
+}
+/* [data-ask-spot] の position: relative に負けないよう、箱の子として指す */
+.sticky-band > .sticky-band-bar {
+  position: absolute;
+  top: 0;
+  left: calc(-1 * var(--dg-page-pad, 0px));
+  right: calc(-1 * var(--dg-page-pad, 0px));
+  box-sizing: border-box;
+  height: var(--dg-sticky-band-h, 26px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 calc(var(--dg-page-pad, 0px) + 0.25rem);
+  background: var(--vscode-sideBar-background);
+  border-bottom: 1px solid var(--dg-border);
+  box-shadow: 0 2px 4px -2px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
+}
+.sticky-band > .sticky-band-bar[data-ask-spot="active"] {
+  background: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
+}
+/* カンバンの帯（board.tsx の BoardBand）：番号（選んでいる札と同じ塗り）・名前（入らなければ「…」）は一番上へ戻すボタン、右に小さな進みの帯と n/m */
+.sticky-band > .sticky-band-bar[data-ask-spot] {
+  padding-right: calc(var(--dg-page-pad, 0px) + 28px);
+}
+.board-band .board-band-top {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: left;
+}
+.board-band .board-band-top:hover .board-band-name {
+  text-decoration: underline;
+}
+.board-band-id {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 16px;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+.board-band-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.board-band .status-band.short {
+  flex: none;
+  gap: 6px;
+}
+.board-band .status-band.short .bar {
+  flex: none;
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+}
+.board-band .status-band.short .muted {
+  font-size: 0.92em;
+  font-variant-numeric: tabular-nums;
 }
 [data-surface="sidebar"] .toolbar {
   gap: 0.35rem;
@@ -2357,8 +2441,19 @@ textarea.body {
 [data-surface="sidebar"] .column:first-child {
   border-top: 0;
 }
+/* 節の見出しは上の端の帯（.sticky-band）の下に貼り付く。貼り付く範囲は節（details）の中だけなので、次の節の見出しに押し出されて入れ替わる。
+   下の行が透けないよう地の色で塗り、.page の左右の余白も影で塗る（頼む一覧を開いている間の地の色は [data-ask-spot="active"] に任せる） */
 [data-surface="sidebar"] .column > summary {
+  position: sticky;
+  top: calc(var(--dg-sticky-band-h) - var(--dg-page-pad));
+  z-index: 2;
   padding: 3px 0.25rem;
+}
+[data-surface="sidebar"] .column > summary:not([data-ask-spot="active"]) {
+  background: var(--vscode-sideBar-background);
+  box-shadow:
+    calc(-1 * var(--dg-page-pad)) 0 0 var(--vscode-sideBar-background),
+    var(--dg-page-pad) 0 0 var(--vscode-sideBar-background);
 }
 /* 見出しは大文字に変えず、config のラベルのとおりに出す（実行計画の帯の見出しも同じ形） */
 [data-surface="sidebar"] .column h2,
