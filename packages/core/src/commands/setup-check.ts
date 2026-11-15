@@ -1,12 +1,13 @@
-// dg setup check：導入の項目（git の版・Git リポジトリ・ボード・Skill と hooks・.claude/.gitignore）を上から順に確かめ、
+// dg setup check：導入の項目（git の版・Git リポジトリ・ボード・Skill と hooks・agent の設定のディレクトリの .gitignore）を上から順に確かめ、
 // 満たすか・状態の文・必須か推奨か・直すコマンドを返す。読むだけで、何も書かない（remote も ls-remote で見るだけで fetch しない）。
 // 判定はここ（core）に置き、CLI（packages/cli/src/program.ts）は引数と結果を写すだけにする。VS Code 拡張も core から同じ checkSetup を呼ぶ（ADR-033）。
 // コマンドの一覧（registry.ts）には入れない。一覧のコマンドは文脈（リポジトリかストア）を開いてから動くが、
 // この確かめは git がない・リポジトリの外・dg init の前でも結果を返すので、文脈を開かずに cwd と env だけで動く（hook-settings.ts と同じ形）。
 // 拡張でしか確かめられない項目（作業フォルダ・OS・PATH の dg）はここに入れず、拡張が足す
 
-import { dirname, join, relative } from "node:path";
-import type { AgentEnv } from "../agents/index.js";
+import { dirname, join, parse, relative } from "node:path";
+import { DEFAULT_HOOK_AGENT } from "../agents/fast-hooks.js";
+import { hooksOf, type AgentEnv } from "../agents/index.js";
 import {
   GitError,
   hasLocalDataBranch,
@@ -173,6 +174,20 @@ async function checkBoard(paths: RepoPaths, options: SetupCheckOptions): Promise
 }
 
 /**
+ * フックを持つ agent の製品名と、その設定のディレクトリの .gitignore（リポジトリの最上位からの相対パス）。
+ * 製品の名前と置き場所は Adapter が決めるので、ここには書かない（AG-5）
+ */
+function agentSettings(): { product: string; ignoreFile: string } {
+  const hooks = hooksOf(DEFAULT_HOOK_AGENT);
+  if (!hooks) throw new Error(`agent ${DEFAULT_HOOK_AGENT} has no hooks`);
+  const root = parse(process.cwd()).root;
+  return {
+    product: hooks.product,
+    ignoreFile: join(relative(root, dirname(hooks.settings.local(root))), ".gitignore"),
+  };
+}
+
+/**
  * Skill と hooks が入っているか：どれかの設定（リポジトリの local・project、個人）にすべてのイベントの dg のフックがあり、
  * どれかの置き場所に dg の Skill があって、古い版の dg が書いたものがない。動くか（ハンドラ・届いた記録）は見ず、dg hooks check に任せる
  */
@@ -180,12 +195,13 @@ async function checkSkillsAndHooks(
   hookStates: readonly HookInstallState[],
   topLevel: string,
   env: AgentEnv,
+  product: string,
 ): Promise<Checked> {
   const problems: string[] = [];
   const fix: string[] = [];
   const hooksIn = hookStates.filter((s) => s.installed);
   if (hooksIn.length === 0) {
-    problems.push("The dg hooks are not in the Claude Code settings");
+    problems.push(`The dg hooks are not in the ${product} settings`);
     fix.push("dg hooks install");
   }
   const skills = await skillInstallStateOf({ topLevel, env });
@@ -219,15 +235,8 @@ async function checkSkillsAndHooks(
  * コミットされていないと、ほかの人のクローンで各自の設定と Skill が追跡の候補に出る。dg はコミットせず、コマンドを返すだけにする
  * （作業ブランチに勝手にコミットしない）。ファイルがない（どちらも入れていない）ときと、git が無視しているときは満たすとする
  */
-async function checkGitignore(
-  hookStates: readonly HookInstallState[],
-  topLevel: string,
-): Promise<Checked> {
-  const local = hookStates.find((s) => s.scope === "local");
-  if (!local) return ok("No settings directory to check");
-  const file = join(dirname(local.file), ".gitignore");
-  const shown = relative(topLevel, file);
-  if (!(await pathExists(file)))
+async function checkGitignore(topLevel: string, shown: string): Promise<Checked> {
+  if (!(await pathExists(join(topLevel, shown))))
     return ok(`${shown} does not exist yet (dg hooks install and dg skill install write it)`);
   const status = await runGit(topLevel, ["status", "--porcelain", "--", shown]);
   if (status.stdout.trim() === "") return ok(`${shown} is committed`);
@@ -243,10 +252,8 @@ async function checkGitignore(
  */
 export async function checkSetup(options: SetupCheckOptions): Promise<SetupCheckResult> {
   let paths: RepoPaths | undefined;
-  let hookStates: HookInstallState[] | undefined;
   const topLevel = () => paths!.topLevel;
-  const hooks = async () =>
-    (hookStates ??= await hookInstallStateOf({ topLevel: topLevel(), env: options.env }));
+  const agent = agentSettings();
   const steps: Array<
     Pick<SetupCheckItem, "id" | "label" | "level"> & { check(): Promise<Checked> }
   > = [
@@ -277,13 +284,19 @@ export async function checkSetup(options: SetupCheckOptions): Promise<SetupCheck
       id: "skills_hooks",
       label: "Skills and hooks",
       level: "recommended",
-      check: async () => checkSkillsAndHooks(await hooks(), topLevel(), options.env),
+      check: async () =>
+        checkSkillsAndHooks(
+          await hookInstallStateOf({ topLevel: topLevel(), env: options.env }),
+          topLevel(),
+          options.env,
+          agent.product,
+        ),
     },
     {
       id: "gitignore",
-      label: ".claude/.gitignore",
+      label: agent.ignoreFile,
       level: "recommended",
-      check: async () => checkGitignore(await hooks(), topLevel()),
+      check: () => checkGitignore(topLevel(), agent.ignoreFile),
     },
   ];
   const items: SetupCheckItem[] = [];
