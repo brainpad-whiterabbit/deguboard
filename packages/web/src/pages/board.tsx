@@ -363,7 +363,7 @@ function BoardHead({
 }: {
   open: Iteration[];
   /** 進みの帯の行に付ける目印（useScrolledPast の ref）。この行が上へ抜けたら上の端に 1 行の帯を出す。左パネルでなければ undefined */
-  bandRef?: (el: HTMLDivElement | null) => void;
+  bandRef: ((el: HTMLDivElement | null) => void) | undefined;
   /** 札の進みを数えるチケット。閉じた Iteration・Epic の終わったチケットを除き（hideClosedFinished）、Epic・担当の絞り込みとは関係なく一定 */
   tickets: readonly Ticket[];
   selection: Selection;
