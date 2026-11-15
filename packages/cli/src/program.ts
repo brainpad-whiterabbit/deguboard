@@ -13,26 +13,25 @@ import {
   pickUser,
   ACTION_NAMES,
   bundleLayout,
+  checkHooks,
+  hookScope,
+  installHooks,
+  launcherFrom,
   runCommand,
   runMergeDriver,
+  uninstallHooks,
   UsageError,
   type ActorInfo,
   type AnyCommand,
   type CommandResult,
+  type HandlerStatus,
 } from "@deguboard/core";
 import { Argument, Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import { toErrorView, type ErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
-import { launcherFrom } from "./launcher-env.js";
 import { installSkill, skillInstallWarnings } from "./skill.js";
-import {
-  checkHooks,
-  hookScope,
-  installHooks,
-  uninstallHooks,
-  type HandlerStatus,
-} from "./hooks.js";
+import { selfCommand } from "./hooks.js";
 import { addServeCommands } from "./serve.js";
 import { bindInputs, collectInput, shapesOf } from "./options.js";
 import {
@@ -261,7 +260,8 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       }
     });
 
-  // hooks も CLI の責務。書くイベントと置き場所は Adapter の hooks が決め、フックが呼ぶのは core の hook コマンド（AG-5・AG-9）
+  // hooks も CLI だけの操作（AG-4）。判定と書き込みは core の commands/hook-settings.ts にあり、ここは引数と結果を写す。
+  // 書くイベントと置き場所は Adapter の hooks が決め、フックが呼ぶのは core の hook コマンド（AG-5・AG-9）
   const hooksCmd = program
     .command("hooks")
     .description("Operations on harness (Claude Code) hooks")
@@ -308,7 +308,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
             };
             const result =
               action === "install"
-                ? await installHooks({ ...base, command: opts.command })
+                ? await installHooks({ ...base, command: opts.command, self: selfCommand })
                 : await uninstallHooks(base);
             const { warnings, ...data } = result;
             if (global.json)

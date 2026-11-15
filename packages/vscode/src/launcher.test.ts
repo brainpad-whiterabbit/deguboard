@@ -15,12 +15,14 @@ import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { isLauncherPath, launcherFrom, setBundleLayout } from "@deguboard/core";
 import {
   compareVersions,
   formatCurrent,
   installLauncher,
   LAUNCHER_SCRIPT,
   launcherDir,
+  launcherFileOf,
   linkDg,
   linkPathOf,
   onPath,
@@ -91,6 +93,22 @@ const mine = (over: Partial<Current> = {}): Current => ({
 describe("launcherDir", () => {
   it("ホームの .local/share/deguboard に置く", () => {
     expect(launcherDir("/home/u")).toBe(path.join("/home/u", ".local", "share", "deguboard"));
+  });
+
+  it("起動ファイルの場所と、起動ファイルが dg に渡す環境変数の名前は、dg が読む側（core の commands/launcher-env.ts）と同じ", () => {
+    // 置く・消すのは拡張（launcher.ts）、読むのは dg（core）で、場所と名前だけを両方が持つ（t1003）
+    expect(isLauncherPath(launcherFileOf(), {})).toBe(true);
+    const name = /(\w+)=\$launcher /.exec(LAUNCHER_SCRIPT)?.[1];
+    expect(name).toBeDefined();
+    // 起動ファイル経由で動くのは束ねた dg
+    setBundleLayout({ entry: "/ext/dist/cli/dg.mjs", guideDir: "/ext/dist", version: "0.24.0" });
+    try {
+      expect(launcherFrom({ [name!]: "/home/u/.local/share/deguboard/dg" })).toBe(
+        "/home/u/.local/share/deguboard/dg",
+      );
+    } finally {
+      setBundleLayout(undefined);
+    }
   });
 });
 

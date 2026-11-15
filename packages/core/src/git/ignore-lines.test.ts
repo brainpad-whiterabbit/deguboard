@@ -1,11 +1,13 @@
 // ignore-lines.ts の ensureIgnoreLines を直接確かめる（t805）。dg skill install・dg hooks install と拡張の Install のテストは入れる流れを通してだけ見るので、
-// 行が重ならないことと、末尾に改行のない .gitignore に足す場合をここで見る
+// 行が重ならないことと、末尾に改行のない .gitignore に足す場合をここで見る。追跡済みのファイルの検出（trackedFiles）も見る（t1003）
 
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ensureIgnoreLines } from "./ignore-lines.js";
+import { createFixture } from "../../test/helpers/git-fixture.js";
+import { ensureIgnoreLines, trackedFiles } from "./ignore-lines.js";
+import { runGit } from "./run.js";
 
 let dir: string;
 
@@ -15,6 +17,33 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
+});
+
+describe("trackedFiles", () => {
+  it("ファイルとディレクトリの下の、追跡しているファイルだけを最上位からの相対パスで返す（無視の行より前に追跡したものも）", async () => {
+    const fixture = await createFixture();
+    try {
+      const top = fixture.cloneA;
+      const claude = path.join(top, ".claude");
+      await mkdir(path.join(claude, "skills", "dg 作業"), { recursive: true });
+      await writeFile(path.join(claude, "settings.local.json"), "{}\n");
+      await writeFile(path.join(claude, "skills", "dg 作業", "SKILL.md"), "# x\n");
+      await writeFile(path.join(claude, "skills", "untracked.md"), "# y\n");
+      expect(await trackedFiles(top, claude)).toEqual([]);
+
+      await ensureIgnoreLines(path.join(claude, ".gitignore"), ["settings.local.json"]);
+      await runGit(top, ["add", "-f", ".claude/settings.local.json", ".claude/skills/dg 作業"]);
+      expect(await trackedFiles(top, path.join(claude, "settings.local.json"))).toEqual([
+        ".claude/settings.local.json",
+      ]);
+      // 空白や ASCII でない名前も、引用やエスケープをせずにそのまま返す
+      expect(await trackedFiles(top, path.join(claude, "skills"))).toEqual([
+        ".claude/skills/dg 作業/SKILL.md",
+      ]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
 });
 
 describe("ensureIgnoreLines", () => {

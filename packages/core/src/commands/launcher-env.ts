@@ -3,13 +3,15 @@
 // 起動ファイルの外（clone の dg）では付かないので、今までどおり node と dg.js の絶対パスを書く。
 // 環境変数は子プロセス（git とそのフック、そこから起きたスクリプト）にも引き継がれるので、起動ファイルが起こした束ねた dg だけが読む。
 // 子で動く clone の dg は束ねていないので読まず、起動ファイルを書かない。
+// 起動ファイルを置く・消すのは拡張の入口（launcher.ts）だけで、ここは dg が読む側。両方が同じ場所と変数の名前を見ることは
+// packages/vscode/src/launcher.test.ts が確かめる
 
 import { homedir } from "node:os";
 import path from "node:path";
-import { bundleLayout } from "@deguboard/core";
+import { bundleLayout } from "../bundle-layout.js";
 
 /** 起動ファイルが渡す環境変数の名前（launcher.ts の中身と揃える） */
-export const LAUNCHER_ENV = "DEGUBOARD_LAUNCHER";
+const LAUNCHER_ENV = "DEGUBOARD_LAUNCHER";
 
 type Env = Readonly<Record<string, string | undefined>>;
 

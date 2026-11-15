@@ -16,11 +16,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { hookArgv, hooksOf, resolveRepoPaths } from "@deguboard/core";
+import { hookArgv, hooksOf, installHooks, resolveRepoPaths } from "@deguboard/core";
 import { fastHookEventOf } from "@deguboard/core/fast-hook";
 import { createFixture, createFixtureFrom, git } from "../../core/test/helpers/git-fixture.js";
 import { tryFastHook } from "./fast-hook.js";
-import { installHooks } from "./hooks.js";
+import { selfCommand } from "./hooks.js";
 import { run } from "./program.js";
 import {
   DEFAULT_HOOK_AGENT,
@@ -197,6 +197,7 @@ describe("PreToolUse と Stop の速い経路が受け持つ引数（t768・t786
       scope: "project",
       env: {},
       command: "dg",
+      self: selfCommand,
       dryRun: true,
     });
     const settings = JSON.parse(result.content!) as {
