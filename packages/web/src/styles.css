@@ -2059,16 +2059,25 @@ textarea.body {
 }
 /* --dg-page-pad は .page の余白（上の端に貼り付けるものは、この分だけ上にずらして余白を埋める）。
    --dg-sticky-band-row-h は上の端に残す 1 行の帯の高さ（components/sticky-band.tsx の STICKY_BAND_PX と同じ）。
-   --dg-sticky-band-h は帯の全体の高さで、帯の下に貼り付く見出しはこの分だけ下げる（絞り込みの札の行を出すと伸びる） */
+   --dg-sticky-band-h は帯の全体の高さで、帯の下に貼り付く見出しはこの分だけ下げる（絞り込みの札の行を出すと伸びる）。
+   --dg-sticky-search-h は上の端に貼り付ける検索の行の高さ（バックログ。sticky-band.tsx の STICKY_SEARCH_PX と同じ） */
 [data-surface="sidebar"] .page {
   --dg-page-pad: 0.5rem;
   --dg-sticky-band-row-h: 26px;
   --dg-sticky-filter-h: 22px;
+  --dg-sticky-search-h: 32px;
   --dg-sticky-band-h: var(--dg-sticky-band-row-h);
   padding: var(--dg-page-pad);
 }
 [data-surface="sidebar"] .page:has(.sticky-band .board-band-filters) {
   --dg-sticky-band-h: calc(var(--dg-sticky-band-row-h) + var(--dg-sticky-filter-h));
+}
+/* バックログは貼り付けた検索の行が帯の代わりで、その下に効いている条件の札の行を重ねると伸びる */
+[data-surface="sidebar"] .page:has(> section > .backlog-search) {
+  --dg-sticky-band-h: var(--dg-sticky-search-h);
+}
+[data-surface="sidebar"] .page:has(> section > .sticky-band .backlog-band-filters) {
+  --dg-sticky-band-h: calc(var(--dg-sticky-search-h) + var(--dg-sticky-filter-h));
 }
 /* 上の端に残す 1 行の帯（components/sticky-band.tsx）。高さ 0 の sticky の箱に帯を重ねて描くので、出し入れで一覧が動かない。
    帯は .page の上と左右の余白まで塗り、帯の下に貼り付く見出し（z-index: 2）より上に出す。
@@ -2129,8 +2138,9 @@ textarea.body {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
 }
-/* 絞っている間の帯の 2 行目（絞り込みの札）。高さは --dg-sticky-filter-h に決め、札は折り返さずに文字を省く */
-.sticky-band-stack > .board-band-filters {
+/* 絞っている間の帯の 2 行目（絞り込みの札。バックログは検索の行の下に重ねる行）。高さは --dg-sticky-filter-h に決め、札は折り返さずに文字を省く */
+.sticky-band-stack > .board-band-filters,
+.sticky-band-stack > .backlog-band-filters {
   box-sizing: border-box;
   height: var(--dg-sticky-filter-h, 22px);
   flex-wrap: nowrap;
@@ -2139,8 +2149,18 @@ textarea.body {
   margin: 0;
   padding: 0 calc(var(--dg-page-pad, 0px) + 0.25rem) 3px;
 }
-.board-band-filters .filter-chip {
+.board-band-filters .filter-chip,
+.backlog-band-filters .filter-chip {
   flex: 0 1 auto;
+}
+/* バックログの札の行は検索の行の下に重ね、右端に「n / m 件」を出す */
+[data-surface="sidebar"] .page > section > .backlog-search + .sticky-band {
+  top: calc(var(--dg-sticky-search-h) - var(--dg-page-pad));
+}
+.backlog-band-filters .count {
+  flex: none;
+  margin-left: auto;
+  font-size: 0.92em;
 }
 /* ▾ で重ねる札の列（BoardBandDrop）：Iteration の札の列と漏斗／Epic の札の列／担当の欄／状態ごとの件数。高すぎれば中だけスクロールする */
 .sticky-band-stack > .board-band-drop {
@@ -2469,9 +2489,21 @@ textarea.body {
   flex: none;
   font-size: 0.92em;
 }
-/* 左パネルのバックログの検索欄は、右端に漏斗（.filter-toggle）を置いて 1 行に収める */
+/* 左パネルのバックログの検索欄は、右端に漏斗（.filter-toggle）を置いて 1 行に収める。
+   スクロールしても上の端に貼り付けて残す（高さは --dg-sticky-search-h）。下の行が透けないよう地の色で塗り、.page の左右の余白も影で塗る */
 [data-surface="sidebar"] .toolbar.backlog-search {
   flex-wrap: nowrap;
+  position: sticky;
+  top: calc(-1 * var(--dg-page-pad));
+  z-index: 3;
+  box-sizing: border-box;
+  height: var(--dg-sticky-search-h);
+  margin-bottom: 2px;
+  padding: 3px 0;
+  background: var(--vscode-sideBar-background);
+  box-shadow:
+    calc(-1 * var(--dg-page-pad)) 0 0 var(--vscode-sideBar-background),
+    var(--dg-page-pad) 0 0 var(--vscode-sideBar-background);
 }
 [data-surface="sidebar"] .toolbar.backlog-search input[type="search"] {
   flex: 1 1 auto;
@@ -2553,6 +2585,16 @@ textarea.body {
 [data-surface="sidebar"] .backlog-layout {
   grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
+}
+/* バックログの区画の見出しは検索の行（絞っている間は札の行も）の下に貼り付く。貼り付く範囲は区画（details）の中だけなので、
+   次の区画の見出しに押し出されて入れ替わる。下の行が透けないよう地の色で塗る（頼む一覧を開いている間の地の色は [data-ask-spot="active"] に任せる） */
+[data-surface="sidebar"] .backlog-section.sidebar-section > summary {
+  position: sticky;
+  top: calc(var(--dg-sticky-band-h) - var(--dg-page-pad));
+  z-index: 2;
+}
+[data-surface="sidebar"] .backlog-section.sidebar-section > summary:not([data-ask-spot="active"]) {
+  background: var(--vscode-sideBar-background);
 }
 /* 履歴（pages/history.tsx）：開いた行の中の一覧（中止と持ち越しは「中止 N 件」「持ち越し N 件」の小見出し .history-group h3 で分ける）。Epic の見方はタイトルを 2 行まで、中止の行は薄く */
 .history-groups {
