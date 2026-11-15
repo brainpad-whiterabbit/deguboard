@@ -9,6 +9,8 @@ import {
   flattenConfig,
   NO_PR_ERROR,
   OPEN_AT_SESSION_END_ERROR,
+  RECONCILE_TAKEN_ERROR,
+  RECONCILE_TODO_ERROR,
   REVIEW_UNRECORDED,
   STALE_SESSION_ERROR,
   UNCLAIMED_ERROR,
@@ -391,14 +393,17 @@ describe("core が返すエラー・警告の文の訳（UI-11）", () => {
     const constants: Record<string, string> = {
       NO_PR_ERROR,
       OPEN_AT_SESSION_END_ERROR,
+      RECONCILE_TAKEN_ERROR,
+      RECONCILE_TODO_ERROR,
       REVIEW_UNRECORDED,
       STALE_SESSION_ERROR,
       UNCLAIMED_ERROR,
     };
-    const used = new Set(
-      [...coreSource().matchAll(/\berror: ([A-Z][A-Z0-9_]+)\b/g)].map((m) => m[1]),
-    );
+    const source = coreSource();
+    const used = new Set([...source.matchAll(/\berror: ([A-Z][A-Z0-9_]+)\b/g)].map((m) => m[1]));
     expect([...used].sort()).toEqual(Object.keys(constants).sort());
+    // 定数の名前しか拾わないので、error に文を直書きすると上の突き合わせをすり抜ける（t974）。直書きを残さない
+    expect([...source.matchAll(/\berror: ["'`][^"'`]*["'`]/g)].map((m) => m[0])).toEqual([]);
     for (const [name, text] of Object.entries(constants)) {
       expect(CORE_MESSAGES[text]?.ja, `${name}: ${text}`).toMatch(JAPANESE);
     }

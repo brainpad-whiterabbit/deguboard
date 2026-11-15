@@ -91,6 +91,8 @@ import {
   findOpenedRun,
   fixRunFinishedAt,
   openedStepOf,
+  RECONCILE_TAKEN_ERROR,
+  RECONCILE_TODO_ERROR,
   runsClosedByMove,
   sessionOf,
 } from "./run.js";
@@ -583,21 +585,9 @@ async function reconcileAll(
     // 戻った（todo）か、ほかの主体の claim になったチケットの実装の Run は failure で閉じる（unclaim と同じ）。自分のユーザの claim は触らない
     if (run.data.step !== openedStepOf(ctx, doc.data, "claim")) continue;
     if (doc.data.status === "todo") {
-      await closeImplRun(
-        ctx,
-        doc,
-        run,
-        { result: "failure", error: "Went back to todo during reconcile" },
-        out,
-      );
+      await closeImplRun(ctx, doc, run, { result: "failure", error: RECONCILE_TODO_ERROR }, out);
     } else if (doc.data.assignee !== undefined && !sameUser(doc.data.assignee, ctx.actor.id)) {
-      await closeImplRun(
-        ctx,
-        doc,
-        run,
-        { result: "failure", error: "Became claimed by another actor during reconcile" },
-        out,
-      );
+      await closeImplRun(ctx, doc, run, { result: "failure", error: RECONCILE_TAKEN_ERROR }, out);
     }
   }
   return { changed, prRecorded, linesRecorded, runsClosed, reviewsRecorded, merged };

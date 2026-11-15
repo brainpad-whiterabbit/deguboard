@@ -468,6 +468,10 @@ export const CORE_MESSAGES: CoreTextTable = {
   "No PR when the sub-agent ended": { ja: "サブエージェントが終わったとき PR がない" },
   "Still open when the session ended": { ja: "セッションが終わったとき開いたままだった" },
   "Returned to todo by ticket unclaim": { ja: "ticket unclaim で todo に戻した" },
+  "Went back to todo during reconcile": { ja: "照合のとき todo に戻っていた" },
+  "Became claimed by another actor during reconcile": {
+    ja: "照合のとき、ほかの主体が claim していた",
+  },
   "The reviewer ended without recording a result (write it with dg run review-result)": {
     ja: "見直し役が結果を記録せずに終わった（dg run review-result で書く）",
   },
