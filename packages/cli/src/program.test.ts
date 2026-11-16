@@ -32,21 +32,6 @@ interface Ran {
   };
 }
 
-/** 制約を書いた workflow.yaml を clone のデータディレクトリに直に置き、dg adopt で取り込む（SY-8） */
-async function writeStrictWorkflow(clone: string): Promise<void> {
-  await writeFile(
-    path.join(clone, ".git/deguboard/workflow.yaml"),
-    [
-      "transitions:",
-      "  - { from: todo, to: done, by: [] }",
-      "  - { from: todo, to: abandoned, by: [human] }",
-      "",
-    ].join("\n"),
-  );
-  const adopted = await dg(clone, ["--json", "adopt"]);
-  expect(adopted.json()).toMatchObject({ ok: true, data: { adopted: true } });
-}
-
 /** dg を in-process で動かす */
 async function dg(cwd: string, argv: string[], env: NodeJS.ProcessEnv = {}): Promise<Ran> {
   const out: string[] = [];
@@ -469,7 +454,7 @@ describe("dg", () => {
   it("拒否された遷移は終了コード 1 と error.code、入力の誤りと未知のコマンドは 2", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
-    await writeStrictWorkflow(f.cloneA);
+    // 既定の Workflow：done へ進むには pr_merged が要る
     await dg(f.cloneA, ["ticket", "create", "A"]);
     const rejected = await dg(f.cloneA, ["--json", "ticket", "move", "1", "done"]);
     expect(rejected.code).toBe(1);
@@ -477,8 +462,31 @@ describe("dg", () => {
     const human = await dg(f.cloneA, ["ticket", "move", "1", "done"]);
     expect(human.code).toBe(1);
     expect(human.err).toContain(
-      "Error: The Workflow does not allow this actor to move from todo to done",
+      "Error: The conditions for moving t1 from todo to done are not met: pr_merged",
     );
+    // 人は --override "理由" で越え、エージェントの --override は拒否される
+    const byAgent = await dg(f.cloneA, [
+      "--json",
+      "--actor",
+      "agent",
+      "ticket",
+      "move",
+      "1",
+      "review",
+      "--override",
+      "急ぎ",
+    ]);
+    expect(byAgent.json().error?.code).toBe("TRANSITION_REJECTED");
+    const forced = await dg(f.cloneA, [
+      "--json",
+      "ticket",
+      "move",
+      "1",
+      "done",
+      "--override",
+      "PR なし",
+    ]);
+    expect(forced.json().data).toMatchObject({ status: "done" });
 
     expect((await dg(f.cloneA, ["ticket", "create", "x", "--priority", "nope"])).code).toBe(2);
     expect((await dg(f.cloneA, ["ticket", "nope"])).code).toBe(2);
@@ -572,10 +580,9 @@ describe("dg", () => {
     expect(before.json().error?.code).toBe("NOT_INITIALIZED");
   });
 
-  it("--actor agent では by: [human] の遷移が拒否され、環境変数 DEGUBOARD_ACTOR も効く", async () => {
+  it("--actor agent では人の承認が要る動き（既定の exceptions.abandon は always_ask）が承認なしでは拒否され、環境変数 DEGUBOARD_ACTOR も効く", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
-    await writeStrictWorkflow(f.cloneA);
     await dg(f.cloneA, ["ticket", "create", "A"]);
     const viaOption = await dg(f.cloneA, [
       "--json",

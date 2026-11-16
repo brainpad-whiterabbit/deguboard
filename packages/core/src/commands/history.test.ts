@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { writeOpenWorkflow } from "../../test/helpers/commands-context.js";
 import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
 import { readHistory, type HistoryLog } from "../git/history.js";
 import { createLocalClient } from "./local.js";
@@ -35,6 +36,8 @@ async function scenarioRepo(f: Layout): Promise<void> {
   const actor = { kind: "human" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
   const ctx = await openContext({ cwd: f.cloneA, actor });
+  // 手で done に動かしてまとめたコミットに入れる（既定は done に pr_merged を求め、理由を付けた強制はその場でコミットする）
+  await writeOpenWorkflow(ctx);
   await runCommand(ticketCreate, ctx, { title: "A" });
   await runCommand(ticketCreate, ctx, { title: "B" });
   await runCommand(epicCreate, ctx, { title: "E" });

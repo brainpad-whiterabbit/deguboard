@@ -544,7 +544,10 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       await git(f.cloneA, ["branch", `${t}`]);
       await runCommand(ticketUpdate, agent, { ticket: t, pr: t === "t1" ? 41 : 42 });
     }
-    await runCommand(ticketMove, agent, { ticket: "t2", status: "done" });
+    // done は pr_merged が要るので、人が理由を付けて動かす（人の索引は agent の書き込みを知らないので、読み直してから）
+    await human.store.rescan();
+    await runCommand(ticketMove, human, { ticket: "t2", status: "done", override: "PR なし" });
+    await agent.store.rescan();
     const missing = async () =>
       (await runCommand(lint, agent, {})).data.issues
         .filter((i) => i.code === "lint_run_implement_missing")
@@ -815,7 +818,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         })
       ).data.run!;
       await human.store.rescan();
-      await runCommand(ticketMove, human, { ticket: "t2", status: "done" });
+      await runCommand(ticketMove, human, { ticket: "t2", status: "done", override: "PR なし" });
       await agent.store.rescan();
       expect((await peekRunningRuns(agent.repo)).map((r) => r.id).sort()).toEqual(
         expect.arrayContaining([fix2, fix3]),
@@ -911,12 +914,12 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     await runCommand(sync, other, {});
     clock = new Date("2026-11-06T01:00:00Z");
     await runCommand(ticketMove, other, { ticket: "t1", status: "abandoned" });
-    await runCommand(ticketMove, other, { ticket: "t2", status: "done" });
+    await runCommand(ticketMove, other, { ticket: "t2", status: "done", override: "PR なし" });
     await runCommand(ticketUnclaim, other, { ticket: "t3" });
     await runCommand(ticketUnclaim, other, { ticket: "t4" });
     // PR のある done：別のマシンが PR を記録して done にした。実装の Run は PR の作成時刻で success になる
     await runCommand(ticketUpdate, other, { ticket: "t6", pr: 46 });
-    await runCommand(ticketMove, other, { ticket: "t6", status: "done" });
+    await runCommand(ticketMove, other, { ticket: "t6", status: "done", override: "PR なし" });
     const hanako = await openContext({
       cwd: f.cloneB,
       actor: { kind: "human", user: "hanako" },

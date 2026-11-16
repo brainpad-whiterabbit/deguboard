@@ -87,12 +87,12 @@ Work that does not change repository files (data maintenance, checks, research) 
 
 1. `dg --json --actor agent ticket claim <id> --without-branch` (claim opens a Run). Treat `warnings` as in "Before and after claim"
 2. Confirm the acceptance criteria one item at a time, and attach with `ticket check` only the items that are met
-3. When all of them are attached, `dg --json --actor agent ticket move <id> done`. If items that cannot be attached remain, `ticket move <id> review`, and report the remaining items and reasons to a human (a human sets done)
+3. When all of them are attached, `dg --json --actor agent ticket move <id> done`. The Workflow's review → done boundary judges the move (see `dg guide overview`): when it asks for a human's approval and a human instructed or approved finishing this ticket, add `--approved-by human`. The boundary's `requires` on branch and PR facts (by default `pr_merged`) do not apply to a ticket started with `--without-branch`. If items that cannot be attached remain, `ticket move <id> review`, and report the remaining items and reasons to a human (a human sets done)
 4. If you need to change repository files midway, record it with `ticket update <id> --branch <short-english-words>` (the name is built as in "Before and after claim"), and move to the flow above. When the branch is no longer needed, use `--branch none`
 
 ## Status
 
-- Advance `status` yourself only from in_progress to review. done is set by reconcile (merge). Run `ticket move <id> done` only when reconcile does not advance it, or when a human has instructed it (for the limits, see `dg guide overview`)
+- Advance `status` yourself only from in_progress to review. done is set by reconcile (merge). Run `ticket move <id> done` only when reconcile does not advance it, or when a human has instructed it; a human's instruction is the approval, so pass `--approved-by human` (for the limits, and for a move refused because the PR is not merged, see `dg guide overview`)
 - To stop implementing, run `dg --json --actor agent ticket unclaim <id>` (the ticket goes back to todo. For how Runs are handled, see `dg guide run`)
 - If you find other work midway, do not mix it into this ticket. Propose filing it with `dg guide import`
 

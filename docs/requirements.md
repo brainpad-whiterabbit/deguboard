@@ -144,15 +144,15 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.8 Workflow（`workflow.yaml`）
 
-Workflow はカンバンに 1 つで、チケットごとには選ばない。項目は状態 `states`・境目 `boundaries`・例外の動き `exceptions`・列の上限 `wip`・流れの段階 `flow`・カンバンの管理 `governance` の 6 つ。遷移の制約 `transitions`・照合 `reconcile` は、6 つの項目に置き換えるまで前の形のまま読む（WF-1・WF-2）。どの項目も省け、省いた項目は Core の既定になる（ファイルがなくても同じ）。今の値は `dg workflow show`、項目と形は `packages/core/src/model/workflow.ts`、既定は `packages/core/src/workflow/resolve.ts` が正本（理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）。
+Workflow はカンバンに 1 つで、チケットごとには選ばない。項目は状態 `states`・境目 `boundaries`・例外の動き `exceptions`・列の上限 `wip`・流れの段階 `flow`・カンバンの管理 `governance` の 6 つ。照合 `reconcile` は、Core が固定で持つ形に置き換えるまで前の形のまま読む（WF-2）。どの項目も省け、省いた項目は Core の既定になる（ファイルがなくても同じ）。今の値は `dg workflow show`、項目と形は `packages/core/src/model/workflow.ts`、既定は `packages/core/src/workflow/resolve.ts` が正本（理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）。
 
-- WF-1 Status は 5 つ（3. 用語）で、増やせず、変えられるのは `states` の表示名 `label` だけ。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。`transitions` は遷移に主体 `by`（`[]` で禁止）と条件 `requires`（AND）の制約を足すだけ（検査は ST-2）
-- WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`・`branch_exists`・`branch_pushed`・`branch_merged`・`pr_open`・`pr_draft`・`pr_merged`）とその否定（`!pr_draft`）だけで、利用者のスクリプトは実行しない。`deps_done` は `depends_on` がすべて done か abandoned のとき真
+- WF-1 Status は 5 つ（3. 用語）で、増やせず、変えられるのは `states` の表示名 `label` だけ。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。境目は前へ進む隣どうしの 3 つ。権限の値は `human_only`・`always_ask`・`ask_unless_auto`・`anyone`・`agent_only` の 5 つ（判定は ST-2）
+- WF-2 境目の `requires`（越える条件の AND。満たしても自動では進めない）と `reconcile.when` に書けるのは組み込みの事実（`deps_done`・`branch_exists`・`branch_pushed`・`branch_merged`・`pr_open`・`pr_draft`・`pr_merged`）とその否定だけで、スクリプトは実行しない。`deps_done` は `depends_on` がすべて done か abandoned のとき真
 - WF-3 増やした Status・3 つでない境目・未知の値と条件と段階・重複などの誤りは、読み込み時と `dg workflow validate` で指摘し、誤りのある Workflow は使わない。未知の項目は警告にとどめる（検査の項目は `packages/core/src/workflow/validate.ts`）
 - WF-4 同梱するのは既定の `workflow.yaml` を 1 つだけで、`dg init` が置く（既にあれば書き換えない）。進め方の違いは値を書き換えて表す
 - WF-5 Run の step の語彙（investigate・implement・review・fix・merge）と Run を開く操作（RN-5）は Core が持ち、`run start` は語彙にない step を拒否する。手続きは YAML に書かず、既定の手続きは Core が（EX-3）、各手のやり方は `dg guide` が持つ
 - WF-6 `dg workflow set` は `workflow.yaml` を作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す（細部は `dg workflow set --help`）。前の版の `workflows/` は読まず、`workflow.yaml` がないのに残っていれば警告する
-- WF-7 `boundaries` の `requires`・`decide` と `exceptions`・`flow`・`governance` の権限の値は、形を読んで検査するだけで、操作の判定にはまだ使わない
+- WF-7 `flow`・`governance` の権限の値は、形を読んで検査するだけで、操作の判定にはまだ使わない（`boundaries` と `exceptions` の判定は ST-2）
 - WF-8 `wip` は列ごとのチケットの数の上限で、config の `work.parallel`（同時に動かすサブエージェントの数）とは別のもの。上限を超える列があると `dg next` と `dg flow next` は警告し、着手の手の前に先の列を進める手を返すが、着手は拒否しない（細部は `dg next --help`）
 
 ### 5.9 Run（`runs/`）
@@ -176,7 +176,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - 値は「個人 > チーム > 既定」の順に読み、どの入口も Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する（細部は `dg config set --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 - 項目の説明と変更はエージェントに頼める（`/dgconfig`。AG-2）。エージェントは、項目ごとの前と後の差とチームか個人かを見せて人の承認を得てから `dg config set` で書く（手順は `dg guide config`）
 
-- `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧（検査しない呼び出しは `packages/core/src/commands/define.ts`）。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
+- `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧（検査しない呼び出しは `packages/core/src/commands/define.ts`）。チケットの Status の動きを人に限るのは Workflow の `boundaries` と `exceptions`（ST-2）
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないときと、取り込んだ config でこの値が変わったときは、push する操作は止まって次の手を示し、ほかの操作は警告して続く（エラーと戻し方は `dg guide overview`）
 - `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push する。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく止まり、別のカンバンのブランチを指したときは取り込まずに止まる（エラーと戻し方は `dg guide overview`）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。`dg next` が implement・fix の手の `model` に返す（EX-5）。`models.<agent>.<tier>` があれば、呼んだ agent ではそれを先に使う（引く順は `dg next --help`）
@@ -199,14 +199,15 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 ### 6.2 状態遷移と照合
 
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
-- ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
+- ST-2 Status を変える操作は Workflow で判定する。前へ進む操作は越える境目すべての `requires` と `decide`、ほかの動きは `exceptions` に従う。エージェントは値により人の承認（`--approved-by`）が要るか拒否され、人は `agent_only` と満たさない `requires` を `--override` の理由で越える。同じ Status への move は拒否する（細部は `dg ticket move --help`）
 - ST-3 `claim` は todo のチケットの `assignee` を自分にし、`branch` を記録して in_progress に進める（Run は RN-5）。ブランチ名は dg が `<id>-<英語の内容>`、内容がなければ `<id>` にする。Iteration の追加と開始・worktree の作成と準備ができなければ警告して成功する。todo 以外と使えないブランチ名は拒み、別のユーザの担当は上書きして警告する（細部は `ticket claim --help`）
 - ST-4 照合は `dg sync` と画面の同期（UI-6）で行う。`branch` のあるチケットの事実を Git から集め、`reconcile` 規則を上から評価し、前進するときだけ書き換える（`done`・`abandoned` には触れない）。先端が claim の起点（TK-10）のままのブランチはマージ済みにしない。`merge.delete_branch` が true なら、done にしたチケットの残った worktree とブランチを消す（作業が残れば消さず警告する）
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む。結果（`reconciled`）には根拠の条件（`when`）を含める。細部は `packages/core/src/git/facts.ts`・`workflow/reconcile.ts`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)
 - ST-6 PR の事実は `gh` が使えるときだけ取る（なくても照合は Git の事実で成り立つ）。ブランチ名で見つけた PR の番号を `pr` に記録し（記録済みは書き換えない）、実装の Run を閉じる（RN-6）。`branch_at` より前に作られた、開いていない（マージ済みか閉じた）PR は前の作業のものとして使わず警告する（細部は `packages/core/src/git/facts.ts`）
 - ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee`・`branch`・`branch_at`・`branch_base`・`pr` を消す（前の作業の PR を次の claim に残さない。実装・手直しの Run は RN-6）。ほかの claim は強制の指定で外す。生存監視はしない
-- ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻すときも claim と `pr` を外す（`abandoned` は `pr` を残す）。これらを人だけに限るなら Workflow の `by: [human]` で書く
+- ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻すときも claim と `pr` を外す（`abandoned` は `pr` を残す）。誰が行えるかは Workflow の `exceptions` の値で決まる（ST-2）
 - ST-9 自分（同じユーザの人と AI）が claim 済みで `pr` のある in_progress・review のチケットのもう一度の claim は手直しの開始とみなし、チケットを変えずに手直しの Run だけ開く（RN-5、細部は `ticket claim --help`）
+- ST-10 ブランチなしで着手したチケット（`claim --without-branch`）には、境目の `requires` のうちブランチと PR の事実の条件を当てない。PR の要らない作業は `decide` の値だけで done に進む（ST-2、細部は `dg ticket move --help`）
 
 ### 6.3 Git 同期と排他
 
@@ -271,7 +272,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - EX-1 deguboard はエージェントを起動しない。エージェントが `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
 - EX-3 段階に進める既定の手続きは Core が持つ。チケットは `dg next`・`dg gate`・`dg brief`、Iteration の流れは `dg flow next` が返す（EX-8）。段階は保存せず都度求め、`ticket show` の `stage` も同じ。ゲートは他条件が未達で検査を省いたとき `not_run: true` を返す（理由は ADR-011 と [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
-- EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
+- EX-4 Workflow が人に限った（`human_only`）Status の動きは、エージェントからは行えない。人の承認が要る動きは、エージェントが承認者を `--approved-by` で渡して行い、承認者は履歴に残る（ST-2）
 - EX-5 `dg next` は読み取りだけで、次の 1 手・開く step・呼ぶコマンド・人に聞くことを返す。サブエージェントに渡す手（implement・review・fix）は役の手順の本文と、手直しなら直す指摘を入れた文（brief）を返す。モデル（`model`）は implement・fix の手が返す。low・free の段（TK-9）は見直しを飛ばし、人の判断が要るものは人を待つ手になる。着手順は PL-6 と `ticket list --ready` に従う（EX-3）
 - EX-6 `dg pr ready`・`dg pr merge` は段（TK-9）の条件を満たすときだけ gh を呼び、ほかは `GATE_FAILED` で返す。出す前に直さなかった軽い指摘を本文に足す。merge は判定したコミットに固定し、gh が失敗してもマージ済みなら成功。条件の外のマージは EX-10、ready は人が行う（AG-10。細部は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - EX-7 `--auto` は `auto.decisions` の戻せる判断を自動で選ぶ（`approved_by` は agent）。PR は人の承認で agent が承認者を残してマージし、聞かないのは `--auto` で `auto.merge` が true のときの品質ゲートを通った PR だけ。リリース・abandoned・done の取り消し・Epic・Iteration を閉じるは人が決め、`auto.decisions` に足せない（`dg guide all`）
@@ -281,7 +282,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 ## 7. 非機能要件
 
-機能要件と重なる項は 6 章に置く（オフライン SY-6、Core の共有 CL-6、原子的な書き込み DT-1、競合 SY-4、遷移の制約 ST-2、Run の復旧 EX-2、バインド UI-8、コマンドの実行 WF-2・AG-7）。消した番号は再利用しない。
+機能要件と重なる項は 6 章に置く（オフライン SY-6、Core の共有 CL-6、原子的な書き込み DT-1、競合 SY-4、Status の変更の判定 ST-2、Run の復旧 EX-2、バインド UI-8、コマンドの実行 WF-2・AG-7）。消した番号は再利用しない。
 
 - NF-3 データ形式は人と AI の両方が読める（Markdown・YAML・JSON）
 - NF-10 Git 管理するログと実績に秘密情報を含めない

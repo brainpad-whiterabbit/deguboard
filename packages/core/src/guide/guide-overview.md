@@ -5,7 +5,7 @@ deguboard is a ticket tool that is managed with Git. You (the AI agent) call `dg
 ## Rules to follow every time
 
 - Always call `dg` with `--json` and read the result's `ok` and `data`. A failure has `error.code` and `error.message`. Exit codes: 0 success / 1 failure / 2 usage error
-- Always pass `--actor agent` on every call (environment variables may not persist across Bash calls). Operations limited to humans are refused for agents (`TRANSITION_REJECTED`). When refused, ask a human
+- Always pass `--actor agent` on every call (environment variables may not persist across Bash calls). Operations limited to humans, and operations that need a human's approval called without `--approved-by`, are refused for agents (`TRANSITION_REJECTED`). When refused, follow "Operations that may be limited to humans" below
 - You are recorded as `<user>/agent` (for example `eiki/agent`). The user is decided in this order: `--user`, `DEGUBOARD_USER`, git config `deguboard.user`, git `user.name`, OS user name (the source is shown as `user_source` in `whoami`). A human is recorded as `<user>`. A ticket's creator (`created_by`) and assignee (`assignee`) are stored in this form. The `--created-by` and `--assignee` options also accept the shorthands `human` (the user) and `agent` (the user's AI)
 - Do not edit data files directly (under `.git/deguboard/`). Read them with `dg … show --json`. Changes written outside dg are found the next time dg runs, and dg stops writing (see "Changes outside dg" below)
 - Ticket IDs can be `t12` or `12`. Epics are `e3`, Iterations are `s3`. When calling from outside the repository, use `-C <dir>`
@@ -48,10 +48,15 @@ dg checks the data repository (the deguboard worktree) for changes that did not 
 
 ## Operations that may be limited to humans
 
-By default, agents can run every operation. Limits are added in the settings.
+The board's Workflow (`workflow.yaml`) decides who may change a ticket's Status, and the settings can limit commands.
 
+- By Status change: `ticket claim`, `ticket move`, `ticket unclaim`, `pr ready`, and `pr merge` are judged by the Workflow. A move forward follows the boundaries it crosses (`requires` and `decide`; skipping a boundary crosses every one in between), a move to abandoned follows `exceptions.abandon`, a move back from done or abandoned follows `exceptions.reopen`, and any other move back (including unclaim) follows `exceptions.back`. `moves` of `dg --json --actor agent workflow show` gives, for each move, what applies to the agent:
+  - `allow`: run it without asking
+  - `approval` (the value is `always_ask` or `ask_unless_auto`): it needs a human's approval. Ask a human, and only when approved, run the same command with `--approved-by human` (`human` is the user who approved; dg records the approver). A human's instruction to do exactly that operation ("abandon t12", "merge it") is the approval, so pass `--approved-by human` without asking again. Never pass `--approved-by` when no human approved or instructed it. Without it, the command is refused
+  - `reject` (the value is `human_only`): the agent cannot run it, even with `--approved-by`. Give the human the exact command to run (without `--actor agent`)
+- A move forward whose `requires` are not met (for example, `ticket move <id> done` while the PR is not merged, by default) is refused for everyone. `requires` on branch and PR facts do not apply to a ticket started with no branch (`claim --without-branch`), so work that needs no PR goes to done by the `decide` value alone. Only a human can go ahead, with `--override "reason"`; the agent's `--override` is always refused. Do not ask a human to override in order to get around a condition; tell the human which condition is not met
+- These limits are guard rails against mistakes: dg knows the caller only from `--actor`, so never call `dg` without `--actor agent`, and never use `gh` or edit data to do what dg refused
 - By command: a command listed in `actor.human_only` in `config.yaml` is refused for the agent. Current setting: {{actor.human_only}}. Examples: `plan.approve` (limit approving a Plan to humans), `epic.close`, `iteration.close`
-- By ticket transition: a transition whose Workflow `transitions` marks `by: [human]` (such as making a ticket abandoned, or moving it back from done) is refused for the agent. The transitions are in the board's `workflow.yaml`. Check with `dg --json --actor agent workflow show`
 - Making a ticket abandoned, undoing done, and closing or reopening an Epic or Iteration are decisions for humans. Even when they are not refused, if no human has instructed them, confirm with a human before running them. When a human has asked for one, follow `dg guide change`
 - Stay within the stage a human asked for. Answer a consultation or a wish ("I'd like a feature like this", "what do you think?") or reply with a proposal, and stop there. Filing tickets, starting work (claim), and merging go only as far as the stage a human asked for. Calling a Skill counts as asking for the whole range that Skill covers. What a human explicitly instructs is done as instructed, even when it bypasses the quality gate or the usual steps
 - Approving a Plan (`plan approve`) is done only when a human has approved it, even when it is not refused (see `dg guide plan`)

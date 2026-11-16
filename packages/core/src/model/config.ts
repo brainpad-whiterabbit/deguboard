@@ -482,10 +482,10 @@ export const configSchema = z.looseObject({
       human_only: described(z.array(z.string().min(1)).default([]), {
         summary: "Command names rejected for agents",
         description:
-          "Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by",
+          "Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket Status moves are restricted with the Workflow's boundaries and exceptions",
         example: ["epic.close"],
         empty:
-          "Every command is allowed. Ticket transitions are still restricted with the Workflow's by",
+          "Every command is allowed. Ticket Status moves are still restricted with the Workflow's boundaries and exceptions",
       }),
     })
     .prefault({}),

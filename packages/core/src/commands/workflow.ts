@@ -8,14 +8,14 @@ import { RUN_STEPS } from "../model/run.js";
 import { pathExists } from "../storage/exists.js";
 import { formatIssue } from "../storage/issue.js";
 import { RETIRED_WORKFLOWS_DIR, WORKFLOW_FILE } from "../storage/paths.js";
-import { DEFAULT_WORKFLOW, writtenForm } from "../workflow/resolve.js";
+import { DEFAULT_WORKFLOW, movePermissions, writtenForm } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
 
 export const workflowShow = defineCommand({
   name: "workflow.show",
   group: "workflow",
   summary:
-    "Show the board's Workflow (workflow.yaml). definition has every item with the items the file omits filled in from the defaults (states, boundaries, exceptions, wip, flow, governance, and transitions, reconcile), in the shape dg workflow set takes. exists is false when there is no workflow.yaml, and everything is then the default. transitions are the constraints composed for each from→to: a transition that is not written is allowed for anyone without conditions. default_labels are the Status labels when states is omitted, and steps are the Run steps, which dg fixes",
+    "Show the board's Workflow (workflow.yaml). definition has every item with the items the file omits filled in from the defaults (states, boundaries, exceptions, wip, flow, governance, and reconcile), in the shape dg workflow set takes. exists is false when there is no workflow.yaml, and everything is then the default. moves gives, for every move from one Status to another, the policy that judges it (the boundaries it crosses, or exceptions.abandon, back, or reopen), its requires, and what the values mean for a person and for an agent: allow (goes ahead), approval (an agent needs a person's approval, --approved-by), override (a person needs --override), or reject (dg ticket move --help). default_labels are the Status labels when states is omitted, and steps are the Run steps, which dg fixes",
   input: z.object({}),
   write: false,
   needs: "store",
@@ -26,7 +26,7 @@ export const workflowShow = defineCommand({
       exists: w.exists,
       definition: writtenForm(w.resolved),
       labels: w.resolved.labels,
-      transitions: w.resolved.transitions,
+      moves: movePermissions(w.resolved),
       // 書き換えていなければ出る Status の表示名。画面が labels と比べて既定のままなら訳す（UI-11）。画面は既定の写しを持たない
       default_labels: DEFAULT_WORKFLOW.labels,
       // Run の step の語彙と表示名は Core が持つ（WF-5）。画面は表示名を訳して出す

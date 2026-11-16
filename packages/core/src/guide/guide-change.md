@@ -22,8 +22,8 @@ Carries out one change that a human asked for: edit, close, reopen, abandon, or 
 | edit      | Epic                      | `dg --json --actor agent epic update <e3> --title … --body …` (only what changes)                                                           |
 | close     | Iteration / Epic          | `dg --json --actor agent iteration close <s3>` / `epic close <e3>`                                                                          |
 | reopen    | Iteration / Epic          | `dg --json --actor agent iteration reopen <s3>` / `epic reopen <e3>`                                                                        |
-| abandon   | Ticket                    | `dg --json --actor agent ticket move <t12> abandoned`, after writing the reason in the body                                                 |
-| undo done | Ticket (done)             | `dg --json --actor agent ticket move <t12> <todo/in_progress/review>`, after writing the reason in the body                                 |
+| abandon   | Ticket                    | `dg --json --actor agent ticket move <t12> abandoned --approved-by human`, after writing the reason in the body                             |
+| undo done | Ticket (done)             | `dg --json --actor agent ticket move <t12> <todo/in_progress/review> --approved-by human`, after writing the reason in the body             |
 
 Editing a ticket covers the title, summary, acceptance criteria, priority, labels, and dependencies. `--label` and `--depends-on` replace the whole list, so pass the existing values too. `--acceptance` replaces only the acceptance criteria section and keeps the marks of items with the same text. Iteration, Epic, gate level, assignee, and Workflow are not changed here (assignment is `dg guide assign`; lowering the gate level needs its own instruction).
 
@@ -37,8 +37,8 @@ Editing a ticket covers the title, summary, acceptance criteria, priority, label
    - **undo done**: the Status to return to (todo, in_progress, or review) and the reason must be in the instruction. If either is missing, ask for it
    - **edit**: work out before → after for each field. If the instruction does not settle the new value (for example "make it shorter" with several possible wordings), propose the new value
 3. **Approval**: when a precondition above is hit, or the new value is your proposal, show before → after (and the material, such as the list of unfinished tickets) and ask with choices. When nothing is hit and the instruction settles the content, the request is already the human's instruction, so do not ask again
-4. **Write once**: call `dg` once per target with the command in the table above, except abandon and undo done, which first write the reason with `ticket update --body` and then call `ticket move`. Do not split the change itself into several calls, and do not write anything the change did not ask for
-5. **When refused**: if `dg` returns `TRANSITION_REJECTED` (the operation is in `actor.human_only`, or the Workflow's `by` limits the transition to humans), do not retry in another way. Give the human the exact command to run (without `--actor agent`), with the reason from `error.message`
+4. **Write once**: call `dg` once per target with the command in the table above, except abandon and undo done, which first write the reason with `ticket update --body` and then call `ticket move`. Do not split the change itself into several calls, and do not write anything the change did not ask for. The human's request for abandon or undo done is the approval the Workflow asks for by default (`always_ask`), so pass `--approved-by human` (`human` is the user who asked; dg records the approver in the history)
+5. **When refused**: if `dg` returns `TRANSITION_REJECTED` (the operation is in `actor.human_only`, or the board's Workflow limits the move to humans with `human_only`, which `--approved-by` does not pass), do not retry in another way. Give the human the exact command to run (without `--actor agent` and `--approved-by`), with the reason from `error.message`
 6. **Report**: the target, before → after, and the `warnings` of the result (for example, tickets carried over by closing)
 
 {{choices}}

@@ -109,10 +109,10 @@ describe("用意", () => {
     // done のチケットは未チェックが残っていても（F）、全部付いていても（G）指摘しない。未チェックは照合で done に進めたときだけ sync が警告する
     await runCommand(ticketCreate, ctx, { title: "F", acceptance: ["a", "b", "c"] });
     await runCommand(ticketCheck, ctx, { ticket: "t6", items: [2] });
-    await runCommand(ticketMove, ctx, { ticket: "t6", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t6", status: "done", override: "PR なし" });
     await runCommand(ticketCreate, ctx, { title: "G", acceptance: ["a"] });
     await runCommand(ticketCheck, ctx, { ticket: "t7", all: true });
-    await runCommand(ticketMove, ctx, { ticket: "t7", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t7", status: "done", override: "PR なし" });
     // 英語の名前の節も日本語と同じに読む（H は指摘なし、I は項目が空）
     await runCommand(ticketCreate, ctx, {
       title: "H",
@@ -510,7 +510,7 @@ describe("用意", () => {
     await runCommand(planCreate, ctx, { tickets: ["t2"] });
     await runCommand(planCreate, ctx, { tickets: ["t3"] });
     for (const ticket of ["t2", "t3"])
-      await runCommand(ticketMove, ctx, { ticket, status: "done" });
+      await runCommand(ticketMove, ctx, { ticket, status: "done", override: "PR なし" });
     await runCommand(planClose, ctx, { plan: "p2" });
     const l = await runCommand(lint, ctx, {});
     expect(l.data.issues.map((i) => [i.id, i.code, i.message])).toEqual([
@@ -556,7 +556,7 @@ describe("用意", () => {
     expect(outer.data.issues.map((i) => i.message)).toEqual([
       "after and depends_on form a cycle: t1 →(after) t2 →(depends_on) t3 →(depends_on) t1",
     ]);
-    await runCommand(ticketMove, ctx, { ticket: "t3", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t3", status: "done", override: "PR なし" });
     const outerDone = await runCommand(lint, ctx, {});
     expect(outerDone.data.issues.map((i) => i.code)).not.toContain("lint_plan_wait_cycle");
     // 閉じた Plan は指摘しない
@@ -585,7 +585,7 @@ describe("用意", () => {
     for (const ticket of ["t3", "t4", "t8"])
       await runCommand(ticketMove, ctx, { ticket, status: "in_progress" });
     for (const ticket of ["t5", "t6", "t7"])
-      await runCommand(ticketMove, ctx, { ticket, status: "done" });
+      await runCommand(ticketMove, ctx, { ticket, status: "done", override: "PR なし" });
     await runCommand(epicClose, ctx, { epic: "e1", force: true });
     const missing = async () =>
       (await runCommand(lint, ctx, {})).data.issues

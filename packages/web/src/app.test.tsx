@@ -371,12 +371,21 @@ describe("画面", () => {
   const statusOptions = () =>
     [...(screen.getByLabelText("Status") as HTMLSelectElement).options].map((o) => o.value);
 
-  it("エディタのパネルの Status の選択は、カンバンの 1 つの Workflow（workflow.yaml）の遷移で絞り、by が空の遷移の先を出さない。表示名は states の label で出す", async () => {
+  it("エディタのパネルの Status の選択は、カンバンの 1 つの Workflow（workflow.yaml）の権限で絞り、人に --override の要る動きの先を出さない。表示名は states の label で出す", async () => {
     window.location.hash = "#/tickets/t9";
     const data = fixture({ tickets: [ticket({ id: "t9", title: "別の流れ" })] });
     data.workflow = {
       labels: { ...data.workflow.labels, todo: "Backlog" },
-      transitions: [{ from: "todo", to: "done", by: [], requires: [] }],
+      moves: [
+        {
+          from: "todo",
+          to: "done",
+          policy: "boundaries todo → in_progress, in_progress → review, review → done",
+          requires: [],
+          human: "override",
+          agent: "allow",
+        },
+      ],
     };
     const client = mockClient(data);
     mount(client, hostOf("panel"));

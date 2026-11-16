@@ -15,6 +15,7 @@ import { prMerge, prReady, type PrAdvanceView } from "./pr.js";
 import { runFinish, runHandoff, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
 import { ticketCheck, ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
+import { workflowSet } from "./workflow.js";
 
 const cleanups: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
@@ -121,12 +122,18 @@ async function fakeGh(root: string, pr: () => string) {
   };
 }
 
-/** t1 を t1 で claim して 1 コミット push し、PR #7（偽の gh。draft）がある文脈 */
-async function prepared() {
+/**
+ * t1 を t1 で claim して 1 コミット push し、PR #7（偽の gh。draft）がある文脈。
+ * autoMerge は config の auto.merge。既定の Workflow の review → done は ask_unless_auto なので、true ならエージェントが聞かずにマージできる
+ * （品質ゲートと gh の呼び方を確かめるテストは true で回す）
+ */
+async function prepared(autoMerge = true) {
   const f = await createFixture();
   cleanups.push(f.cleanup);
   const actor = { kind: "agent" as const, user: "eiki" };
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
+  const first = await openContext({ cwd: f.cloneA, initialize: {}, actor });
+  await runCommand(init, first, {});
+  if (autoMerge) await runCommand(configSet, first, { key: "auto.merge", value: "true" });
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, {
     title: "A",
@@ -951,5 +958,126 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(err!.code).toBe("GATE_FAILED");
     expect(err!.detail).toContain("head: cannot read the PR head commit from gh");
     expect(await calls()).toEqual([]);
+  });
+});
+
+describe("dg pr ready・dg pr merge の権限（境目の decide。WF-1）", () => {
+  /** 品質ゲートを通る状態（見直し済み・draft でない・受け入れ条件に印）にする */
+  async function mergeable(autoMerge = false) {
+    const p = await prepared(autoMerge);
+    await passedReview(p.ctx);
+    await p.undraft();
+    await runCommand(ticketCheck, p.ctx, { ticket: "t1", items: [1] });
+    const human = await openContext({ cwd: p.f.cloneA, actor: { kind: "human", user: "eiki" } });
+    return { ...p, human };
+  }
+  const setBoundary = (ctx: CommandContext, from: string, to: string, decide: string) =>
+    runCommand(workflowSet, ctx, { definition: { boundaries: [{ from, to, decide }] } });
+  const mergeCall = (tip: string) => `pr merge 7 --squash --match-head-commit ${tip}`;
+
+  it("既定（review → done は ask_unless_auto）：エージェントのマージは --approved-by がなければ拒否され gh を呼ばず、付ければ通る。人は聞かずに通る", async () => {
+    const { ctx, human, tip, calls } = await mergeable();
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
+    expect(err).toBeInstanceOf(OperationError);
+    expect(err!.code).toBe("TRANSITION_REJECTED");
+    expect(err!.message).toContain("asks for a person's approval for merging the PR of t1");
+    expect(err!.message).toContain("ask_unless_auto");
+    expect(err!.detail).toContain("--approved-by human");
+    expect(await calls()).toEqual([]);
+    const approved = await runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" });
+    expect(approved.data).toMatchObject({ action: "merge", approved_by: "eiki" });
+    const byHuman = await runCommand(prMerge, human, { ticket: "t1" });
+    expect(byHuman.data).toMatchObject({ action: "merge", approved_by: null });
+    expect((await calls()).filter((c) => c.startsWith("pr merge"))).toEqual([
+      mergeCall(tip),
+      mergeCall(tip),
+    ]);
+  });
+
+  it("ask_unless_auto は config の auto.merge が true のときだけ聞かずに通り、always_ask は auto.merge が true でも --approved-by が要る", async () => {
+    const { ctx, tip, calls } = await mergeable(true);
+    expect((await runCommand(prMerge, ctx, { ticket: "t1" })).data).toMatchObject({
+      approved_by: null,
+    });
+    await setBoundary(ctx, "review", "done", "always_ask");
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
+    expect(err!.code).toBe("TRANSITION_REJECTED");
+    expect(err!.message).toContain("always_ask");
+    await runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" });
+    expect((await calls()).filter((c) => c.startsWith("pr merge"))).toEqual([
+      mergeCall(tip),
+      mergeCall(tip),
+    ]);
+  });
+
+  it("human_only はエージェントを --approved-by があっても拒否し、anyone と agent_only は聞かずに通す", async () => {
+    const { ctx, tip, calls } = await mergeable();
+    await setBoundary(ctx, "review", "done", "human_only");
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
+    expect(err!.code).toBe("TRANSITION_REJECTED");
+    expect(err!.message).toContain("limits merging the PR of t1 to a person");
+    expect(await calls()).toEqual([]);
+    for (const decide of ["anyone", "agent_only"]) {
+      await setBoundary(ctx, "review", "done", decide);
+      expect((await runCommand(prMerge, ctx, { ticket: "t1" })).data).toMatchObject({
+        approved_by: null,
+      });
+    }
+    expect(await calls()).toEqual([mergeCall(tip), mergeCall(tip)]);
+  });
+
+  it("agent_only は人を拒否し、人は --override の理由で越えて理由が PR のコメントに残る。エージェントの --override は値によらず拒否される", async () => {
+    const { ctx, human, tip, calls } = await mergeable();
+    await setBoundary(ctx, "review", "done", "agent_only");
+    await human.store.rescan();
+    const err = await rejection(runCommand(prMerge, human, { ticket: "t1" }));
+    expect(err!.code).toBe("TRANSITION_REJECTED");
+    expect(err!.message).toContain("leaves merging the PR of t1 to an agent");
+    expect(err!.detail).toContain("--override");
+    const byAgent = await rejection(
+      runCommand(prMerge, ctx, { ticket: "t1", override: "急ぎ", approved_by: "human" }),
+    );
+    expect(byAgent!.code).toBe("TRANSITION_REJECTED");
+    expect(byAgent!.message).toContain("--override is for a person only");
+    expect(await calls()).toEqual([]);
+    const forced = await runCommand(prMerge, human, { ticket: "t1", override: "緊急の修正" });
+    expect(forced.data).toMatchObject({ action: "merge", approved_by: null });
+    expect(await calls()).toEqual([
+      mergeCall(tip),
+      "api POST issues/7/comments body=Merged with `dg pr merge` by eiki. eiki forced it with --override: 緊急の修正",
+    ]);
+  });
+
+  it("飛ばすマージ（in_progress のままのチケット）は、間の境目（in_progress → review）の値も効く", async () => {
+    const { ctx, tip, calls } = await mergeable(true);
+    // t1 は in_progress（照合していない）。review → done は ask_unless_auto で auto.merge は true だが、手前の境目が always_ask
+    await setBoundary(ctx, "in_progress", "review", "always_ask");
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
+    expect(err!.code).toBe("TRANSITION_REJECTED");
+    expect(err!.message).toContain("in_progress → review, review → done: always_ask");
+    await runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" });
+    expect((await calls()).filter((c) => c.startsWith("pr merge"))).toEqual([mergeCall(tip)]);
+  });
+
+  it("pr ready は in_progress → review の decide で判定し、承認者を PR のコメントに残す。品質ゲートを満たさなければ先に GATE_FAILED を返す", async () => {
+    const { ctx, calls } = await prepared(false);
+    await setBoundary(ctx, "in_progress", "review", "always_ask");
+    // 見直しがまだ：承認を求める前に、満たさない条件を返す
+    expect((await rejection(runCommand(prReady, ctx, { ticket: "t1" })))!.code).toBe("GATE_FAILED");
+    await passedReview(ctx);
+    const err = await rejection(runCommand(prReady, ctx, { ticket: "t1" }));
+    expect(err!.code).toBe("TRANSITION_REJECTED");
+    expect(err!.message).toContain("taking the PR of t1 out of draft");
+    expect(await calls()).toEqual([]);
+    const ready = await runCommand(prReady, ctx, { ticket: "t1", approved_by: "human" });
+    expect(ready.data).toMatchObject({ action: "ready" });
+    expect(await calls()).toEqual([
+      "pr ready 7",
+      "api POST issues/7/comments body=Made ready with `dg pr ready` by eiki/agent, after eiki approved the ready.",
+    ]);
+    await setBoundary(ctx, "in_progress", "review", "human_only");
+    expect((await rejection(runCommand(prReady, ctx, { ticket: "t1" })))!.code).toBe(
+      "TRANSITION_REJECTED",
+    );
   });
 });

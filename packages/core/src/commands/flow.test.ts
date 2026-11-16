@@ -471,7 +471,7 @@ describe("dg flow next", () => {
     expect(work.guide.text).not.toContain("Stop here");
     expect(work.guide.text).toContain("return to `flow next`");
 
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
     // 承認済みの Plan のチケットがすべて終わったので、見直しより先に Plan を閉じる（承認は求めない）
     const closing = await flow(ctx, { resume: work.resume });
     expect(closing).toMatchObject({
@@ -539,7 +539,7 @@ describe("dg flow next", () => {
     await runCommand(ticketCreate, ctx, { title: "候補" });
     await runCommand(ticketCreate, ctx, { title: "見直し", labels: ["audit-s1"] });
     await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
     const first = await flow(ctx, {});
     expect(first.stage.name).toBe("check");
     expect((await flow(ctx, { resume: first.resume })).stage.name).toBe("release");
@@ -552,7 +552,7 @@ describe("dg flow next", () => {
     await runCommand(ticketCreate, ctx, { title: "版を上げる PR", labels: ["release-s1"] });
     await runCommand(ticketCreate, ctx, { title: "タグと公開", labels: ["release-s1"] });
     await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2", "t3"] });
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
     // audit-<S> のない（指摘のなかった）見直しのあと、同じ引数で 1 から呼び直す
     const first = await flow(ctx, {});
     expect(first.stage.name).toBe("check");

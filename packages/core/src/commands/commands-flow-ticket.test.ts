@@ -9,6 +9,7 @@ import { recordBaseline } from "../git/outside.js";
 import { osUserName } from "../git/repo.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
+import { history } from "./history.js";
 import { epicAdd, epicClose, epicCreate, epicReopen, epicShow, epicUpdate } from "./epic.js";
 import {
   iterationAdd,
@@ -35,70 +36,350 @@ import {
 import {
   initializedFixture,
   reopenInitialized,
-  writeStrictWorkflow,
+  writeWorkflowYaml,
   runCleanups,
 } from "../../test/helpers/commands-context.js";
 
 afterEach(runCleanups);
 
 describe("チケットの流れ（遷移・担当・編集）", () => {
-  it("既定ではどの遷移も通り、制約を書いた Workflow では by: []・by: [human]・requires: [deps_done] で拒否される", async () => {
+  /** 人と agent の文脈。agent の --approved-by human は自分のユーザ本人（claude）になる */
+  async function humanAndAgent() {
     const f = await initializedFixture();
     const human = await reopenInitialized(f);
-    // 既定（general）：todo → done も、依存が終わっていない claim も、agent の abandoned も通る
+    // 主体だけが違う文脈（索引は人の文脈と同じものを使い、相手が書いた変更を読み直さずに済ませる）
+    const opened = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
+    const agent = { ...human, actor: opened.actor };
+    const workflow = (lines: string[]) => writeWorkflowYaml(human, lines);
+    const subject = async () =>
+      (await git(human.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim();
+    return { f, human, agent, workflow, subject };
+  }
+  const rejected = (p: Promise<unknown>) =>
+    p.then(
+      () => undefined,
+      (e: unknown) => e as { code: string; message: string; detail?: string },
+    );
+
+  it("既定の Workflow：claim と前へ進む move は境目の requires と decide で、abandoned・戻す・done の取り消しは exceptions の値で判定される", async () => {
+    const { human, agent, subject } = await humanAndAgent();
     await runCommand(ticketCreate, human, { title: "A" });
     await runCommand(ticketCreate, human, { title: "B", depends_on: ["t1"] });
-    const agent = await openContext({
-      cwd: f.cloneA,
-      actor: { kind: "agent", user: "claude" },
-    });
-    expect(
-      (await runCommand(ticketMove, human, { ticket: "t1", status: "done" })).data.status,
-    ).toBe("done");
-    const started = (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2" }))
+    // todo → in_progress（requires: deps_done、decide: anyone）：依存が終わるまで claim は誰でも拒否される
+    for (const ctx of [agent, human]) {
+      expect(
+        await rejected(runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2" })),
+      ).toMatchObject({
+        code: "TRANSITION_REJECTED",
+        message:
+          "The conditions for claiming t2 are not met: deps_done (requires of boundaries todo → in_progress)",
+      });
+    }
+    const started = (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1" }))
       .data;
     expect(started.status).toBe("in_progress");
     expect(started.branch_base).toBeDefined();
-    const dropped = (await runCommand(ticketMove, agent, { ticket: "t2", status: "abandoned" }))
-      .data;
+    // abandon は always_ask：エージェントは人の承認（--approved-by）がなければ拒否される
+    expect(
+      await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "abandoned" })),
+    ).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for moving t1 from in_progress to abandoned (exceptions.abandon: always_ask)",
+    });
+    // in_progress → review（条件なし、anyone）と、戻す動き（back: anyone）は、エージェントが聞かずにできる
+    expect(
+      (await runCommand(ticketMove, agent, { ticket: "t1", status: "review" })).data.status,
+    ).toBe("review");
+    expect(
+      (await runCommand(ticketMove, agent, { ticket: "t1", status: "in_progress" })).data.status,
+    ).toBe("in_progress");
+    await runCommand(ticketMove, agent, { ticket: "t1", status: "review" });
+    // review → done（requires: pr_merged、decide: ask_unless_auto）：ブランチのあるチケットは、エージェントは承認が要り、承認があっても条件を満たさなければ拒否される
+    expect(
+      await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "done" })),
+    ).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for moving t1 from review to done (boundaries review → done: ask_unless_auto)",
+    });
+    const unmet = await rejected(
+      runCommand(ticketMove, agent, { ticket: "t1", status: "done", approved_by: "human" }),
+    );
+    expect(unmet).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The conditions for moving t1 from review to done are not met: pr_merged (requires of boundaries review → done)",
+    });
+    expect(unmet!.detail).toContain("Only a person");
+    // 人も条件を満たさなければ拒否され、--override の理由で越える。理由はコミットの文（履歴）に残る
+    const byHuman = await rejected(runCommand(ticketMove, human, { ticket: "t1", status: "done" }));
+    expect(byHuman).toMatchObject({ code: "TRANSITION_REJECTED" });
+    // 画面からは理由を渡せないので、CLI の手順だと案内する
+    expect(byHuman!.detail).toBe(
+      'To go ahead anyway, run the command from the dg CLI with --override "reason" (the board cannot pass it)',
+    );
+    const forced = await runCommand(ticketMove, human, {
+      ticket: "t1",
+      status: "done",
+      override: "PR を使わない\n作業",
+    });
+    expect(forced.data.status).toBe("done");
+    expect(await subject()).toBe(
+      "Move t1 from review to done (override by eiki: PR を使わない 作業)",
+    );
+    const events = (await runCommand(history, human, { ticket: "t1" })).data.events;
+    expect(events.at(-1)).toMatchObject({
+      subject: "Move t1 from review to done (override by eiki: PR を使わない 作業)",
+      changes: [{ field: "status", from: "review", to: "done" }],
+    });
+    // reopen は always_ask：done を戻すのも、エージェントは人の承認がなければ拒否され、承認者を記録して進める
+    expect(
+      await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "review" })),
+    ).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for moving t1 from done to review (exceptions.reopen: always_ask)",
+    });
+    await runCommand(ticketMove, agent, {
+      ticket: "t1",
+      status: "in_progress",
+      approved_by: "human",
+    });
+    expect(await subject()).toBe("Move t1 from done to in_progress (approved by claude)");
+    const dropped = (
+      await runCommand(ticketMove, agent, {
+        ticket: "t1",
+        status: "abandoned",
+        approved_by: "human",
+      })
+    ).data;
+    expect(await subject()).toBe("Move t1 from in_progress to abandoned (approved by claude)");
     expect(dropped.status).toBe("abandoned");
     expect(dropped.assignee).toBeUndefined();
     // ブランチの起点も消す（ST-4）
     expect(dropped.branch_base).toBeUndefined();
-
-    // strict：制約に当たる遷移だけが拒否される
-    await writeStrictWorkflow(human);
-    await runCommand(ticketCreate, human, { title: "C" });
-    await runCommand(ticketCreate, human, { title: "D", depends_on: ["t3"] });
-    await agent.store.rescan();
-    await expect(
-      runCommand(ticketMove, human, { ticket: "t3", status: "done" }),
-    ).rejects.toMatchObject({
-      code: "TRANSITION_REJECTED",
-      message: "The Workflow does not allow this actor to move from todo to done",
-    });
-    await expect(
-      runCommand(ticketClaim, human, { no_worktree: true, ticket: "t4" }),
-    ).rejects.toMatchObject({
-      code: "TRANSITION_REJECTED",
-      message: "The conditions for moving from todo to in_progress are not met: deps_done",
-    });
-    await expect(
-      runCommand(ticketMove, agent, { ticket: "t3", status: "abandoned" }),
-    ).rejects.toMatchObject({
-      code: "TRANSITION_REJECTED",
-    });
-    const abandoned = await runCommand(ticketMove, human, { ticket: "t3", status: "abandoned" });
-    expect(abandoned.data.status).toBe("abandoned");
     const list = await runCommand(ticketList, human, {});
-    expect(list.data.map((t) => t.id)).toEqual(["t1", "t4"]);
+    expect(list.data.map((t) => t.id)).toEqual(["t2"]);
     const all = await runCommand(ticketList, human, { include_abandoned: true });
-    expect(all.data.map((t) => t.id)).toEqual(["t1", "t2", "t3", "t4"]);
+    expect(all.data.map((t) => t.id)).toEqual(["t1", "t2"]);
     // 依存先が abandoned なら deps_done は満たされ、着手できる（WF-2）
     const ready = await runCommand(ticketList, human, { ready: true });
-    expect(ready.data.map((t) => t.id)).toEqual(["t4"]);
-    const claimed = await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t4" });
+    expect(ready.data.map((t) => t.id)).toEqual(["t2"]);
+    const claimed = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2" });
     expect(claimed.data.status).toBe("in_progress");
+  });
+
+  it("既定の Workflow：ブランチなしで着手したチケット（PR の要らない作業）には pr_merged を当てず、エージェントが人の承認を記録して done にできる（ST-10）", async () => {
+    const { human, agent, subject } = await humanAndAgent();
+    await runCommand(ticketCreate, human, { title: "A" });
+    await runCommand(ticketCreate, human, { title: "B" });
+    await runCommand(ticketClaim, agent, { ticket: "t1", without_branch: true, no_run: true });
+    await runCommand(ticketMove, agent, { ticket: "t1", status: "review" });
+    // decide（ask_unless_auto）は当たる：承認がなければ拒否される。満たさない条件（pr_merged）では拒否されない
+    expect(
+      await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "done" })),
+    ).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for moving t1 from review to done (boundaries review → done: ask_unless_auto)",
+    });
+    const done = await runCommand(ticketMove, agent, {
+      ticket: "t1",
+      status: "done",
+      approved_by: "human",
+    });
+    expect(done.data.status).toBe("done");
+    expect(await subject()).toBe("Move t1 from review to done (approved by claude)");
+    // 境目を飛ばす in_progress → done も同じ。人は --override なしで進める
+    await runCommand(ticketClaim, human, { ticket: "t2", without_branch: true });
+    expect(
+      (await runCommand(ticketMove, human, { ticket: "t2", status: "done" })).data.status,
+    ).toBe("done");
+  });
+
+  it("ticket move は境目の decide の 5 つの値の表どおりに、通す・承認を求める・拒否する。承認者と強制の理由はコミットの文に残る", async () => {
+    const { human, agent, workflow, subject } = await humanAndAgent();
+    await runCommand(ticketCreate, human, { title: "A" });
+    await runCommand(ticketClaim, agent, { ticket: "t1", without_branch: true, no_run: true });
+    const boundary = (decide: string) =>
+      workflow(["boundaries:", `  - { from: in_progress, to: review, decide: ${decide} }`]);
+    /** in_progress → review を試し、通ったら戻す（back は anyone）。結果は通ったか、拒否の文の先頭 */
+    const attempt = async (
+      ctx: typeof human,
+      extra: { approved_by?: string; override?: string } = {},
+    ) => {
+      const err = await rejected(
+        runCommand(ticketMove, ctx, { ticket: "t1", status: "review", ...extra }),
+      );
+      if (err) {
+        expect(err.code).toBe("TRANSITION_REJECTED");
+        return err.message.replace(/ for moving .*| moving .*/, "");
+      }
+      // 承認者か強制の理由を渡した move は、まとめ待ちにせずその場でコミットし、文に記録を残す
+      const recorded = extra.approved_by !== undefined || extra.override !== undefined;
+      const note = recorded
+        ? (await subject()).replace("Move t1 from in_progress to review", "passed")
+        : "passed";
+      await runCommand(ticketMove, human, {
+        ticket: "t1",
+        status: "in_progress",
+        override: "戻す",
+      });
+      return note;
+    };
+    const asks = "The Workflow asks for a person's approval";
+    const limits = "The Workflow limits";
+    const leaves = "The Workflow leaves";
+    const approved = "passed (approved by claude)";
+    const forced = "passed (override by eiki: 急ぎ)";
+    // [値, 人, 人（--override）, エージェント, エージェント（--approved-by）]
+    const expected = [
+      ["human_only", "passed", forced, limits, limits],
+      ["always_ask", "passed", forced, asks, approved],
+      ["ask_unless_auto", "passed", forced, asks, approved],
+      ["anyone", "passed", forced, "passed", approved],
+      ["agent_only", leaves, forced, "passed", approved],
+    ];
+    const actual: string[][] = [];
+    for (const [decide] of expected) {
+      await boundary(decide!);
+      actual.push([
+        decide!,
+        await attempt(human),
+        await attempt(human, { override: "急ぎ" }),
+        await attempt(agent),
+        await attempt(agent, { approved_by: "human" }),
+      ]);
+    }
+    expect(actual).toEqual(expected);
+    // エージェントの --override は、値が何でも拒否される。--approved-by に agent の ID は渡せない
+    await boundary("anyone");
+    expect(
+      await rejected(
+        runCommand(ticketMove, agent, { ticket: "t1", status: "review", override: "急ぎ" }),
+      ),
+    ).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message: "--override is for a person only, and an agent cannot use it",
+    });
+    expect(
+      await rejected(
+        runCommand(ticketMove, agent, { ticket: "t1", status: "review", approved_by: "agent" }),
+      ),
+    ).toMatchObject({ code: "VALIDATION_FAILED" });
+    expect((await runCommand(ticketShow, human, { ticket: "t1" })).data.status).toBe("in_progress");
+  });
+
+  it("claim も todo → in_progress の decide で判定され、承認者と強制の理由が claim のコミットの文に残る", async () => {
+    const { human, agent, workflow, subject } = await humanAndAgent();
+    for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, human, { title });
+    const boundary = (decide: string) =>
+      workflow(["boundaries:", `  - { from: todo, to: in_progress, decide: ${decide} }`]);
+    const claim = (ctx: typeof human, ticket: string, extra = {}) =>
+      runCommand(ticketClaim, ctx, { ticket, without_branch: true, no_run: true, ...extra });
+
+    await boundary("always_ask");
+    expect(await rejected(claim(agent, "t1"))).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for claiming t1 (boundaries todo → in_progress: always_ask)",
+    });
+    expect((await claim(agent, "t1", { approved_by: "human" })).data.status).toBe("in_progress");
+    expect(await subject()).toBe("Claim t1: claude/agent (approved by claude)");
+
+    await boundary("human_only");
+    expect(await rejected(claim(agent, "t2", { approved_by: "human" }))).toMatchObject({
+      code: "TRANSITION_REJECTED",
+    });
+    expect((await claim(human, "t2")).data.status).toBe("in_progress");
+
+    await boundary("agent_only");
+    expect(await rejected(claim(human, "t3"))).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow leaves claiming t3 to an agent (boundaries todo → in_progress: agent_only)",
+    });
+    expect((await claim(human, "t3", { override: "担当が不在" })).data.status).toBe("in_progress");
+    expect(await subject()).toBe("Claim t3: eiki (override by eiki: 担当が不在)");
+  });
+
+  it("abandoned へ・戻す（unclaim を含む）・終わった Status から戻す動きは、exceptions の abandon・back・reopen の値で判定される", async () => {
+    const { human, agent, workflow, subject } = await humanAndAgent();
+    await workflow([
+      "exceptions:",
+      "  abandon: always_ask",
+      "  back: agent_only",
+      "  reopen: anyone",
+    ]);
+    await runCommand(ticketCreate, human, { title: "A" });
+    const claim = (ctx: typeof human) =>
+      runCommand(ticketClaim, ctx, { ticket: "t1", without_branch: true, no_run: true });
+    await claim(human);
+    // back（agent_only）：人の unclaim と move は拒否され、--override で越える。エージェントは聞かずにできる
+    expect(await rejected(runCommand(ticketUnclaim, human, { ticket: "t1" }))).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message: "The Workflow leaves unclaiming t1 to an agent (exceptions.back: agent_only)",
+    });
+    expect(
+      await rejected(runCommand(ticketMove, human, { ticket: "t1", status: "todo" })),
+    ).toMatchObject({ code: "TRANSITION_REJECTED" });
+    await runCommand(ticketUnclaim, human, { ticket: "t1", override: "取り違え" });
+    expect(await subject()).toBe("Unclaim t1 (override by eiki: 取り違え)");
+    await claim(agent);
+    expect((await runCommand(ticketUnclaim, agent, { ticket: "t1" })).data.status).toBe("todo");
+    // abandon（always_ask）：エージェントは人の承認があればできる
+    expect(
+      await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "abandoned" })),
+    ).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for moving t1 from todo to abandoned (exceptions.abandon: always_ask)",
+    });
+    await runCommand(ticketMove, agent, { ticket: "t1", status: "abandoned", approved_by: "eiki" });
+    expect(await subject()).toBe("Move t1 from todo to abandoned (approved by eiki)");
+    // reopen（anyone）：abandoned から戻すのも、エージェントが聞かずにできる
+    expect(
+      (await runCommand(ticketMove, agent, { ticket: "t1", status: "todo" })).data.status,
+    ).toBe("todo");
+  });
+
+  it("境目を飛ばす動きは、間の境目をすべて越えたものとして、厳しいほうの値とすべての requires で判定される", async () => {
+    const { human, agent, workflow } = await humanAndAgent();
+    await workflow([
+      "boundaries:",
+      "  - { from: todo, to: in_progress, requires: [deps_done], decide: anyone }",
+      "  - { from: in_progress, to: review, decide: human_only }",
+      "  - { from: review, to: done, decide: anyone }",
+    ]);
+    await runCommand(ticketCreate, human, { title: "A" });
+    await runCommand(ticketCreate, human, { title: "B", depends_on: ["t1"] });
+    await runCommand(ticketClaim, agent, { ticket: "t1", without_branch: true, no_run: true });
+    // in_progress → done は in_progress → review（human_only）も越えるので、review → done が anyone でもエージェントは拒否される
+    expect(
+      await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "done" })),
+    ).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow limits moving t1 from in_progress to done to a person (boundaries in_progress → review, review → done: human_only, anyone)",
+    });
+    // 1 つずつ越えれば、review → done はエージェントが聞かずにできる
+    await runCommand(ticketMove, human, { ticket: "t1", status: "review" });
+    await runCommand(ticketMove, human, { ticket: "t1", status: "in_progress" });
+    await runCommand(ticketMove, human, { ticket: "t1", status: "review" });
+    await runCommand(ticketMove, agent, { ticket: "t1", status: "in_progress" });
+    // 飛ばす動きの条件は、越える境目の requires の和：todo → review は todo → in_progress の deps_done も要る
+    expect(
+      await rejected(runCommand(ticketMove, human, { ticket: "t2", status: "review" })),
+    ).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The conditions for moving t2 from todo to review are not met: deps_done (requires of boundaries todo → in_progress, in_progress → review)",
+    });
+    await runCommand(ticketMove, human, { ticket: "t1", status: "done" });
+    expect(
+      (await runCommand(ticketMove, human, { ticket: "t2", status: "review" })).data.status,
+    ).toBe("review");
   });
 
   it("チケットは workflow も任意フィールドも受けず、前の版が書いた workflow・任意フィールドの値・config の default_workflow は誤りにせずに読む", async () => {
@@ -130,8 +411,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(shown).not.toHaveProperty("workflow");
     expect(shown).toMatchObject({ estimate: 3 });
     expect(human.store.config).not.toHaveProperty("default_workflow");
-    // どちらも Workflow を選ばない：workflow.yaml の制約（todo → done は誰にも許さない）に従う
-    await writeStrictWorkflow(human);
+    // どちらも Workflow を選ばない：カンバンの workflow.yaml（既定。todo → done は pr_merged が要る）に従う
     await expect(
       runCommand(ticketMove, human, { ticket: "t1", status: "done" }),
     ).rejects.toMatchObject({ code: "TRANSITION_REJECTED" });
@@ -177,7 +457,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       ["t3", false],
     ]);
     // 依存先は絞り込んだ一覧に出ないが、done になれば deps_done は真になる
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
     expect(await depsDone()).toEqual([
       ["t2", true],
       ["t3", false],
@@ -193,7 +473,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     await runCommand(ticketCreate, ctx, { title: "済み" });
     await runCommand(ticketCreate, ctx, { title: "途中" });
     await runCommand(ticketCreate, ctx, { title: "やめた" });
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "in_progress" });
     await runCommand(ticketMove, ctx, { ticket: "t3", status: "abandoned" });
     await runCommand(ticketCreate, ctx, { title: "待ち", depends_on: ["t1", "t2", "t3"] });
@@ -951,7 +1231,7 @@ describe("Epic と Iteration", () => {
     expect(added.data).toEqual({ iteration: "s1", tickets: ["t2", "t1"] });
     await runCommand(iterationStart, ctx, { iteration: "1" });
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "in_progress" });
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
     // 所属はチケットの iteration だけで表し、並びは優先度と番号（IT-2・IT-3）
     const shown = await runCommand(iterationShow, ctx, { iteration: "s1" });
     expect(shown.data.items.map((t) => t.id)).toEqual(["t2", "t1"]);
@@ -1101,9 +1381,11 @@ describe("Epic と Iteration", () => {
     expect(agent.store.tickets.get("t1")?.data.iteration).toBeUndefined();
     await runCommand(iterationAdd, agent, { iteration: "s1", tickets: ["t1"] });
     expect(agent.store.tickets.get("t1")?.data.iteration).toBe("s1");
-    // 持ち越しがなければ警告は出ない
+    // 持ち越しがなければ警告は出ない（done は pr_merged が要るので、人が理由を付けて動かす）
     await runCommand(ticketMove, agent, { ticket: "t1", status: "in_progress" });
-    await runCommand(ticketMove, agent, { ticket: "t1", status: "done" });
+    await ctx.store.rescan();
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
+    await agent.store.rescan();
     await runCommand(iterationClose, agent, { iteration: "s1" });
     const again = await runCommand(iterationReopen, agent, { iteration: "s1" });
     expect(again.warnings).toEqual(["Committed the pending changes first"]);

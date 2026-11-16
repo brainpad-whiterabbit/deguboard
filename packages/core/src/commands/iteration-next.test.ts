@@ -61,7 +61,7 @@ describe("iteration.show の next（UI-5 の次の操作）", () => {
     await runCommand(iterationStart, ctx, { iteration: "s2" });
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(iterationAdd, ctx, { iteration: "s2", tickets: ["t1"] });
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
     await runCommand(iterationClose, ctx, { iteration: "s2" });
     expect(await next(ctx, "s2")).toBeNull();
   });

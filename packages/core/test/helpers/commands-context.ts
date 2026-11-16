@@ -43,24 +43,25 @@ export function reopenInitialized(
   return openContext({ cwd: f.cloneA, actor: { kind: "human", user: "eiki" }, ...opts });
 }
 
-/** 制約を書いた workflow.yaml をデータディレクトリに置いて索引を作り直す（カンバンのどのチケットにも効く） */
-export async function writeStrictWorkflow(ctx: CommandContext): Promise<void> {
-  await writeFile(
-    path.join(ctx.repo.dataDir, "workflow.yaml"),
-    [
-      "transitions:",
-      "  - { from: todo, to: in_progress, requires: [deps_done] }",
-      "  - { from: todo, to: done, by: [] }",
-      "  - { from: todo, to: abandoned, by: [human] }",
-      "  - { from: in_progress, to: abandoned, by: [human] }",
-      "  - { from: review, to: abandoned, by: [human] }",
-      "  - { from: done, to: todo, by: [human] }",
-      "",
-    ].join("\n"),
-  );
+/** workflow.yaml をデータディレクトリに置いて索引を作り直す（カンバンのどのチケットにも効く） */
+export async function writeWorkflowYaml(ctx: CommandContext, lines: string[]): Promise<void> {
+  await writeFile(path.join(ctx.repo.dataDir, "workflow.yaml"), [...lines, ""].join("\n"));
   // 利用者が直に置いて dg adopt で取り込んだ状態にする（dg の外の変更の検査の基準。SY-8）
   await recordBaseline(ctx.repo);
   await ctx.store.rescan();
+}
+
+/**
+ * PR を使わない進め方の Workflow にする：review → done に条件を付けず、done と例外の動きを誰でも聞かずにできるようにする。
+ * 既定は done に pr_merged（ブランチのあるチケット）と人の承認を求め、abandoned と done の取り消しにも人の承認を求めるので、Status を動かすのが準備でしかないテスト
+ * （Run・Plan・Iteration・集計など）が、手で動かす前に呼ぶ。別の文脈は呼んだ後に store.rescan() で読む
+ */
+export function writeOpenWorkflow(ctx: CommandContext): Promise<void> {
+  return writeWorkflowYaml(ctx, [
+    "boundaries:",
+    "  - { from: review, to: done, requires: [], decide: anyone }",
+    "exceptions: { abandon: anyone, back: anyone, reopen: anyone }",
+  ]);
 }
 
 /** チケットの depends_on の行を直接書き換える（TK-2 が拒否する循環を、壊れたデータとして作るとき）。rescan は呼び出し側で */

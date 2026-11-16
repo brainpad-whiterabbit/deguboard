@@ -173,10 +173,17 @@ const STEPS: Step[] = [
     input: { ticket: "t1", status: "review" },
     argv: ["ticket", "move", "t1", "review"],
   },
+  // 既定の Workflow は review → done に pr_merged を求める：満たさない move は 3 経路とも拒否され、人が理由を付けて越える
   {
     name: "ticket.move",
     input: { ticket: "t1", status: "done" },
     argv: ["ticket", "move", "t1", "done"],
+    rejected: "TRANSITION_REJECTED",
+  },
+  {
+    name: "ticket.move",
+    input: { ticket: "t1", status: "done", override: "PR を使わない作業" },
+    argv: ["ticket", "move", "t1", "done", "--override", "PR を使わない作業"],
   },
   {
     name: "ticket.move",

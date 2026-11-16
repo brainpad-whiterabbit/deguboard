@@ -662,7 +662,7 @@ describe("Workflow の表示名の表示（UI-11）", () => {
     const { workflow } = validateWorkflow({ states }, "workflow.yaml");
     return {
       labels: workflow!.labels,
-      transitions: [],
+      moves: [],
       default_labels: DEFAULT_WORKFLOW.labels,
       steps: RUN_STEPS,
     };

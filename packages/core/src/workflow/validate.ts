@@ -45,10 +45,16 @@ export function validateWorkflow(raw: unknown, path: string): WorkflowValidation
   const issue = (code: string, message: string, severity: Issue["severity"] = "error") =>
     issues.push({ severity, code, path, message });
 
-  // 未知の項目は警告にとどめ、ほかの項目は読む。新しい版の dg が足した項目を書いた YAML を古い版で読んでも、遷移と照合を止めない
+  // 未知の項目は警告にとどめ、ほかの項目は読む。新しい版の dg が足した項目や、やめた項目（前の版の transitions）を書いた YAML を読んでも、判定と照合を止めない
   for (const key of Object.keys(def)) {
-    if (!WORKFLOW_ITEMS.includes(key))
-      issue("workflow_item_unknown", `Unknown item ${key}. It is not read`, "warning");
+    if (WORKFLOW_ITEMS.includes(key)) continue;
+    issue(
+      "workflow_item_unknown",
+      key === "transitions"
+        ? "transitions is no longer read. Write the conditions (requires) and who decides (decide) of a move forward in boundaries, and the values of the moves back and to abandoned in exceptions (dg workflow show gives the shape)"
+        : `Unknown item ${key}. It is not read`,
+      "warning",
+    );
   }
   for (const s of Object.keys(def.states ?? {})) {
     if (!(STATUSES as readonly string[]).includes(s))
@@ -76,28 +82,6 @@ export function validateWorkflow(raw: unknown, path: string): WorkflowValidation
   });
   validateFlow(def, issue);
 
-  const seen = new Set<string>();
-  def.transitions.forEach((t, i) => {
-    for (const c of t.requires) {
-      if (!parseCondition(c))
-        issue("workflow_condition_unknown", `transitions[${i}]: unknown condition ${c}`);
-    }
-    if (t.from === t.to) {
-      issue(
-        "workflow_transition_self",
-        `transitions[${i}]: ${t.from} → ${t.to} is meaningless. A move to the same Status is always rejected`,
-      );
-      return;
-    }
-    const key = `${t.from}>${t.to}`;
-    if (seen.has(key)) {
-      issue(
-        "workflow_transition_duplicate",
-        `transitions[${i}]: ${t.from} → ${t.to} is duplicated. Merge them into one`,
-      );
-    }
-    seen.add(key);
-  });
   def.reconcile?.forEach((r, i) => {
     for (const c of r.when) {
       if (!parseCondition(c))
