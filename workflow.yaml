@@ -1,1 +1,2 @@
-{}
+flow:
+  release: always_ask
