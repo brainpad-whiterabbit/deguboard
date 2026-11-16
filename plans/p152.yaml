@@ -1,0 +1,36 @@
+id: p152
+tickets: [t1021, t1045, t1047, t1044, t1046, t1048]
+after:
+  t1044:
+    - t1021
+  t1046:
+    - t1045
+  t1048:
+    - t1046
+    - t1047
+pending_approval: true
+details:
+  t1021:
+    scope: 左パネルのタイトル行とコマンドパレットからセットアップの画面を行き来でき、帯を出さないと決めたリポジトリで帯をまた出せるようにする（画面の中の見た目は t1044）
+    approach: UI 案 A のとおり、vscode の view/title にコマンドを足して toggleInSidebar と同じ行き来にし、web は setupOpen の間タブを選ばない見た目にして、帯の再表示を SETUP_BAND_DISMISSED_KEY を消して戻す
+    tier: heavy
+  t1044:
+    scope: セットアップの画面の戻るボタンをなくし、確かめ直しを見出しの ↻ のアイコンにし、満たした推奨の項目も並べる
+    approach: setup-checklist.tsx の部品を直し、l10n-screens の ja・en のスナップショットを更新する
+    tier: standard
+  t1045:
+    scope: rebase の途中かの確認の git の起動を 1 回のコマンドで 1 回以下にする。SY-9 の見分け方は変えない
+    approach: rebase-merge と rebase-apply のパスを 1 回の rev-parse --git-path で引いて GitRepo に覚え、存在の確認はファイルシステムで毎回行う（コマンドの中で rebase を始めるので、状態は覚えない）
+    tier: heavy
+  t1047:
+    scope: init の後の状態だけが要るテストを雛形の写しから始める。init 自身と init のオプションを確かめるテストは残す
+    approach: initialized() の呼び出しを initializedFixture() か createFixtureFrom() に置き換え、残すところに理由のコメントを書く
+    tier: standard
+  t1046:
+    scope: 何もすることのない dg sync の git の起動を 51 回から 25 回以下にする。結果と同期の振る舞いは変えない
+    approach: status・show-ref・rev-parse HEAD の重なる問い合わせを、間に書き込みのない範囲で 1 回の結果を渡して使い回し、残すところに理由を書く
+    tier: heavy
+  t1048:
+    scope: t1046・t1047 の後の時間で選び直した遅いテストファイルの中で、同じ準備から同じ振る舞いを確かめるテストをまとめる
+    approach: 準備を共有できるテストを 1 つにまとめ、要件 ID をすべて残し、組と理由と時間の前後を PR に載せる
+    tier: standard
