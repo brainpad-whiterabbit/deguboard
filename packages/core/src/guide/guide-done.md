@@ -38,7 +38,7 @@ Cleanup after a PR is merged. Work that needs no PR advances to done within `dg 
 
 ## Iteration and Epic
 
-- Closing or reopening an Iteration and Epic is done only on a human's instruction (`dg guide assign`). If one looks closable (the rest are all done or abandoned), tell a human
+- Closing or reopening an Iteration or Epic is judged by the Workflow (`flow.release` and `governance.epic`; with the defaults only a human can do it; `dg guide assign`). If one looks closable (the rest are all done or abandoned), tell a human
 - Epic progress is found each time from `progress` of `dg --json --actor agent epic show <e3>`. It is not saved
 
 {{choices}}

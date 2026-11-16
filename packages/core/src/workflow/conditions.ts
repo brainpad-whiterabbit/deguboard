@@ -101,3 +101,15 @@ export function judgeDecisions(
   }
   return worst;
 }
+
+/**
+ * 聞かずに進める流れ（--auto）が効く場面か：エージェントに人の承認を求め、--auto ならそれを聞かずにできる値の組
+ * （効く値は ask_unless_auto だけ。always_ask や human_only が混ざる飛ばす動きには効かない）。
+ * ここに当たらない場面の --auto は、コマンドが拒否する（聞かずに進めるのをこの場面に限るため。EX-7）
+ */
+export function autoApplies(decisions: readonly Decision[]): boolean {
+  return (
+    judgeDecisions(decisions, "agent") === "approval" &&
+    judgeDecisions(decisions, "agent", true) === "allow"
+  );
+}

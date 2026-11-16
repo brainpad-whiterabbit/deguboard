@@ -2,11 +2,9 @@ import { describe, expect, it } from "vitest";
 import { agentNames, detectableAgentNames } from "../agents/index.js";
 import { findCommand } from "../commands/registry.js";
 import {
-  AUTO_DECISIONS,
   configFields,
   configSchema,
   defaultConfig,
-  FLOW_SKIPS,
   flattenConfig,
   nestedConfigValue,
   overlayLocalConfig,
@@ -95,7 +93,7 @@ describe("スキーマ", () => {
     for (const key of [
       "git.base_branch",
       "metrics.read_transcripts",
-      "auto.merge",
+      "merge.delete_branch",
       "review.heavy_categories",
     ])
       expect(configFields().find((f) => f.key === key)?.scope).toBe("team");
@@ -114,36 +112,19 @@ describe("スキーマ", () => {
     expect(invalid.ignored[0]?.reason).toContain("Invalid value");
   });
 
-  it("auto.decisions と flow.skip は既定で今の --auto の判断と空の一覧で、人が決める判断や stop は入れられない", () => {
-    const c = defaultConfig();
-    expect(c.auto.decisions).toEqual(["assign", "check", "plan", "audit", "accept"]);
-    expect(c.flow.skip).toEqual([]);
-    expect(configSchema.parse({ auto: { decisions: ["accept"] } }).auto.decisions).toEqual([
-      "accept",
-    ]);
-    // 人が決める判断（done の取り消しを含む）は入れられない
-    expect(configSchema.safeParse({ auto: { decisions: ["release"] } }).success).toBe(false);
-    expect(configSchema.safeParse({ auto: { decisions: ["done"] } }).success).toBe(false);
-    expect(configSchema.safeParse({ auto: { decisions: ["work"] } }).success).toBe(false);
-    expect(configSchema.safeParse({ flow: { skip: ["stop"] } }).success).toBe(false);
-    expect(configSchema.parse({ auto: { decisions: [] } }).auto.decisions).toEqual([]);
-    expect(configSchema.parse({ flow: { skip: ["audit", "release"] } }).flow.skip).toEqual([
-      "audit",
-      "release",
-    ]);
-  });
-
-  it("auto.decisions と flow.skip は設定の項目として、チームの範囲で、説明（describe）を持つ", () => {
-    const byKey = new Map(configFields().map((f) => [f.key, f]));
-    expect(byKey.get("auto.decisions")).toMatchObject({
-      type: "list",
-      scope: "team",
-      default: ["assign", "check", "plan", "audit", "accept"],
+  it("auto.merge・auto.decisions・flow.skip は config の項目でなく、前の版の config.yaml に残った値は未知の項目として読み飛ばす", () => {
+    // 聞かずに進める場面は Workflow の ask_unless_auto が、流れから外す段階は workflow.yaml の flow の skip が決める
+    const keys = configFields().map((f) => f.key);
+    for (const key of ["auto.merge", "auto.decisions", "flow.skip"])
+      expect(keys, key).not.toContain(key);
+    expect(Object.keys(defaultConfig())).not.toContain("auto");
+    expect(Object.keys(defaultConfig())).not.toContain("flow");
+    // 前のスキーマでは拒んだ値（人が決める判断・stop）が残っていても、読み込みを止めない
+    const stale = configSchema.safeParse({
+      auto: { merge: true, decisions: ["assign", "release"] },
+      flow: { skip: ["audit", "stop"] },
     });
-    expect(byKey.get("flow.skip")).toMatchObject({ type: "list", scope: "team", default: [] });
-    expect(byKey.get("auto.decisions")?.description).toContain("--auto");
-    expect(byKey.get("auto.decisions")?.description).toContain("accept");
-    expect(byKey.get("flow.skip")?.description).toContain("dg flow next");
+    expect(stale.success).toBe(true);
   });
 
   it("flattenConfig と nestedConfigValue は入れ子とドット区切りを行き来し、空になった入れ子は消す", () => {
@@ -172,23 +153,23 @@ describe("スキーマ", () => {
       commit: { mode: "each" },
       models: { heavy: "opus" },
       push: { mode: "なし" },
-      auto: { merge: true },
+      merge: { delete_branch: true },
       metrics: { read_transcripts: true },
       nope: { x: 1 },
     });
     expect(config.commit.mode).toBe("each");
     expect(config.models).toMatchObject({ light: "haiku", standard: "", heavy: "opus" });
     expect(config.push.mode).toBe("auto");
-    expect(config.auto.merge).toBe(false);
+    expect(config.merge.delete_branch).toBe(false);
     expect(config.metrics.read_transcripts).toBe(false);
     expect(local).toEqual({ "commit.mode": "each", "models.heavy": "opus" });
     expect(ignored.map((i) => i.key)).toEqual([
       "push.mode",
-      "auto.merge",
+      "merge.delete_branch",
       "metrics.read_transcripts",
       "nope.x",
     ]);
-    expect(ignored.find((i) => i.key === "auto.merge")?.reason).toContain("Team-only");
+    expect(ignored.find((i) => i.key === "merge.delete_branch")?.reason).toContain("Team-only");
     expect(ignored.find((i) => i.key === "nope.x")?.reason).toContain("Not in the schema");
     expect(ignored.find((i) => i.key === "push.mode")?.reason).toContain("Invalid value");
     // 個人のファイルがなければ（undefined）チームの値のまま
@@ -427,9 +408,6 @@ describe("スキーマ", () => {
       "actions.test",
       "actions.light_test",
       "actions.light_paths",
-      "auto.merge",
-      "auto.decisions",
-      "flow.skip",
       "work.parallel",
       "merge.method",
       "merge.delete_branch",
@@ -468,7 +446,7 @@ describe("スキーマ", () => {
       options: ["each", "batch", "manual"],
       default: "batch",
     });
-    expect(byKey.get("auto.merge")).toMatchObject({ type: "boolean", default: false });
+    expect(byKey.get("merge.delete_branch")).toMatchObject({ type: "boolean", default: false });
     expect(byKey.get("notify.approvals")).toMatchObject({ type: "boolean", default: true });
     expect(byKey.get("actions.test")).toMatchObject({ type: "list", default: [] });
     // 軽い検査とその対象のパスは既定で空（空ならいつも actions.test を回す。t632）
@@ -531,14 +509,10 @@ describe("スキーマ", () => {
     // 選択肢ごとの説明は、選択肢と過不足なく揃う（選択肢の配列の項目は、スキーマの選択肢と揃う）
     for (const f of fields.filter((x) => x.type === "enum"))
       expect(Object.keys(f.option_descriptions ?? {}), f.key).toEqual(f.options);
-    expect(Object.keys(byKey.get("auto.decisions")?.option_descriptions ?? {})).toEqual([
-      ...AUTO_DECISIONS,
-    ]);
-    expect(Object.keys(byKey.get("flow.skip")?.option_descriptions ?? {})).toEqual([...FLOW_SKIPS]);
     expect(
       fields.filter((f) => f.option_descriptions).map((f) => f.key),
       "選択肢ごとの説明を持つ項目",
-    ).toEqual(["commit.mode", "push.mode", "auto.decisions", "flow.skip", "merge.method"]);
+    ).toEqual(["commit.mode", "push.mode", "merge.method"]);
     expect(byKey.get("push.mode")?.option_descriptions).toEqual({
       auto: "Push on every commit",
       manual: "dg sync pushes (immediate operations push even in manual)",
@@ -572,7 +546,7 @@ describe("スキーマ", () => {
     ]);
     const byKey = new Map(fields.map((f) => [f.key, f]));
     // 既定が空の文字列・選択肢・真偽値・配列は false
-    for (const key of ["models.light", "commit.mode", "auto.merge", "actions.test"])
+    for (const key of ["models.light", "commit.mode", "merge.delete_branch", "actions.test"])
       expect(byKey.get(key)?.clears_to_default, key).toBe(false);
   });
 

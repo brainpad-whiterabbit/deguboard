@@ -1207,11 +1207,11 @@ describe("Epic と Iteration", () => {
       done: 1,
       by_status: { todo: 1, in_progress: 0, review: 0, done: 1, abandoned: 0 },
     });
-    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
-    const closed = await runCommand(iterationClose, agent, { iteration: "s1" });
+    // 閉じるのは既定で人だけ（flow.release。判定は flow-permission.test.ts）
+    const closed = await runCommand(iterationClose, ctx, { iteration: "s1" });
     expect(closed.data).toMatchObject({ status: "closed", completed: 1, carried_over: 1 });
-    expect(agent.store.tickets.get("t2")?.data.iteration).toBeUndefined();
-    expect(agent.store.tickets.get("t1")?.data.iteration).toBe("s1");
+    expect(ctx.store.tickets.get("t2")?.data.iteration).toBeUndefined();
+    expect(ctx.store.tickets.get("t1")?.data.iteration).toBe("s1");
   });
 
   it("update は指定した属性だけを直し、閉じた Iteration も直せる", async () => {
@@ -1330,8 +1330,8 @@ describe("Epic と Iteration", () => {
     await expect(
       runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] }),
     ).rejects.toMatchObject({ code: "REJECTED" });
-    // 既定では agent も再開できる。持ち越しがあれば入れ直しを促す
-    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
+    // 別の文脈（同じ clone のもう 1 人）から再開する。持ち越しがあれば入れ直しを促す
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "claude" } });
     const reopened = await runCommand(iterationReopen, agent, { iteration: "1" });
     expect(reopened.data.status).toBe("active");
     expect(reopened.data.closed_at).toBeUndefined();
@@ -1436,7 +1436,7 @@ describe("Epic と Iteration", () => {
         await runCommand(iterationCreate, b, { name: "Sprint 2" });
       },
     };
-    const racer = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "a" }, hooks });
+    const racer = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "a" }, hooks });
     const reopened = await runCommand(iterationReopen, racer, { iteration: "s1" });
     expect(reopened.data.status).toBe("active");
     expect(reopened.warnings).toEqual([
@@ -1464,7 +1464,7 @@ describe("Epic と Iteration", () => {
         await runCommand(iterationStart, b, { iteration: "s2" });
       },
     };
-    const racer = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "a" }, hooks });
+    const racer = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "a" }, hooks });
     await expect(runCommand(iterationReopen, racer, { iteration: "s1" })).rejects.toMatchObject({
       code: "REJECTED",
       message: expect.stringContaining("s2 is active"),

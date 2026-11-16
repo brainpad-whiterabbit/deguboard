@@ -29,7 +29,7 @@ import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store } from "../storage/store.js";
 import { cyclePath, findPlanCycleCreatedBy } from "../storage/wait-cycle.js";
 import type { Facts } from "../workflow/conditions.js";
-import { operationPolicy, requiresForTicket } from "../workflow/resolve.js";
+import { operationPolicy, requiresForTicket, type Operation } from "../workflow/resolve.js";
 import {
   prepareIterationForClaim,
   prepareWorktreeForClaim,
@@ -41,10 +41,12 @@ import { matchesFilter, ticketFilterSchema } from "./filters.js";
 import { hooksReachSession, hooksSilentWarning, selfRunWarning } from "./hook-sessions.js";
 import { stageFactsOf, stageOf, type Stage } from "./next.js";
 import {
+  ASSIGN_NOTE,
   grantedNote,
   hasRecord,
   permissionFields,
   recordNote,
+  rejectUnjudgedAuto,
   requireOperation,
   requirePermission,
   type Granted,
@@ -522,7 +524,8 @@ export const ticketUpdate = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "Edit a ticket's attributes and body. Change status with ticket.move. Recording a pr closes the implementation Run running on this machine with success, and sets finished_at to the PR's creation time (now, if gh cannot provide it). Lowering the quality gate level (high → low → free) is fixed in Core to a person: an agent's call is rejected with TRANSITION_REJECTED, and workflow.yaml cannot change that (raising it is open to anyone). Changing or removing the assignee of a ticket assigned to another user is judged by the Workflow's governance.reassign (always_ask by default; see dg workflow show --help for the values): an agent passes --approved-by after a person approved it, and the approver is recorded in the commit message",
+    "Edit a ticket's attributes and body. Change status with ticket.move. Recording a pr closes the implementation Run running on this machine with success, and sets finished_at to the PR's creation time (now, if gh cannot provide it). Lowering the quality gate level (high → low → free) is fixed in Core to a person: an agent's call is rejected with TRANSITION_REJECTED, and workflow.yaml cannot change that (raising it is open to anyone). Changing or removing the assignee of a ticket assigned to another user is judged by the Workflow's governance.reassign (always_ask by default; see dg workflow show --help for the values): an agent passes --approved-by after a person approved it, and the approver is recorded in the commit message. Changing the iteration or epic is putting the ticket into or out of it: " +
+    ASSIGN_NOTE,
   input: z.object({
     ticket: ticketRef,
     title: z.string().min(1).optional().describe("Title"),
@@ -620,6 +623,12 @@ export const ticketUpdate = defineCommand({
             ? input.body
             : replaceAcceptance(doc.body, input.acceptance);
         const patch: Record<string, unknown> = { updated_at: nowIso(ctx) };
+        // 権限を判定した操作があったか。なければ --auto が効く場面はないので、下で拒否する
+        let judged = false;
+        const judge = (op: Omit<Operation, "command">, what: string) => {
+          judged = true;
+          requireOperation(ctx, { command: "ticket.update", ...op }, input, what);
+        };
         if (input.title !== undefined) patch["title"] = input.title;
         if (input.priority !== undefined) patch["priority"] = input.priority;
         if (input.labels !== undefined) patch["labels"] = input.labels;
@@ -628,10 +637,8 @@ export const ticketUpdate = defineCommand({
           const before = gateLevelOf(t);
           const after = gateLevelOf({ gate: input.gate ?? undefined });
           if (lowersGate(before, after))
-            requireOperation(
-              ctx,
-              { command: "ticket.update", fixed: "lower_gate" },
-              input,
+            judge(
+              { fixed: "lower_gate" },
               `lowering the quality gate level of ${t.id} from ${before} to ${after}`,
             );
           patch["gate"] = input.gate ?? undefined;
@@ -658,20 +665,23 @@ export const ticketUpdate = defineCommand({
           // ほかのユーザの担当を替える・外すのは、カンバンの管理の操作（governance.reassign）。
           // 自分（同じユーザの人と AI）の担当と、担当のないチケットは誰でも替えられる
           if (t.assignee && !sameUser(t.assignee, ctx.actor.id) && next !== t.assignee)
-            requireOperation(
-              ctx,
-              { command: "ticket.update", governs: "reassign" },
-              input,
-              `changing the assignee of ${t.id} from ${t.assignee}`,
-            );
+            judge({ governs: "reassign" }, `changing the assignee of ${t.id} from ${t.assignee}`);
           patch["assignee"] = next;
           patch["claimed_by"] = undefined;
         }
-        if (input.epic !== undefined)
-          patch["epic"] = input.epic === null ? undefined : requireOpenEpic(store, input.epic);
+        // Epic・Iteration への出し入れは流れの割り当ての段階の操作（flow.assign。epic add・iteration add と同じ）。
+        // 今と同じ値は出し入れでないので判定しない
+        if (input.epic !== undefined) {
+          const epic = input.epic === null ? undefined : requireOpenEpic(store, input.epic);
+          if (epic !== t.epic) judge({ stage: "assign" }, `moving ${t.id} into or out of an Epic`);
+          patch["epic"] = epic;
+        }
         if (input.iteration !== undefined) {
-          patch["iteration"] =
+          const iteration =
             input.iteration === null ? undefined : requireIteration(store, input.iteration);
+          if (iteration !== t.iteration)
+            judge({ stage: "assign" }, `moving ${t.id} into or out of an Iteration`);
+          patch["iteration"] = iteration;
         }
         if (input.depends_on !== undefined) {
           const ids = input.depends_on.map((ref) => store.require("ticket", ref).data.id);
@@ -693,6 +703,7 @@ export const ticketUpdate = defineCommand({
             input.origin === undefined ? t.origin : (patch["origin"] as string[] | undefined),
             input.origin_cause === undefined ? t.origin_cause : patch["origin_cause"],
           );
+        if (!judged) rejectUnjudgedAuto(ctx, input, `this update of ${t.id}`);
         // PR を記録したら実装は終わっている。実行中の実装の Run を PR の作成時刻で閉じる（RN-6）。
         // 検査がすべて通った後に閉じる（拒否される更新で Run だけ閉じない）
         const closed: ClosedRun[] = [];
@@ -1262,7 +1273,7 @@ export const ticketClaim = defineCommand({
     // Iteration の準備の警告は書き込みのやり直し（cas）ごとに作り直し、最後の 1 回の分だけ返す
     let iterationWarnings: string[] = [];
     let planWarnings: string[] = [];
-    let granted: Granted = { approver: null, override: null };
+    let granted: Granted = { approver: null, override: null, auto: false };
     const result = await withWrite(
       ctx,
       async () => {

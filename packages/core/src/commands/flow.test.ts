@@ -4,6 +4,8 @@ import { createFixture } from "../../test/helpers/git-fixture.js";
 import { composeGuide } from "../guide/guide.js";
 import { findGuideSection, guideSections } from "../guide/sections.js";
 import { configSchema } from "../model/config.js";
+import type { Decision } from "../model/workflow.js";
+import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import {
@@ -14,6 +16,8 @@ import {
   flowNext,
   flowStageOf,
   memoryAfter,
+  type FlowApproval,
+  type FlowDecisions,
   type FlowFacts,
   type FlowMemory,
   type FlowNext,
@@ -22,7 +26,7 @@ import {
 import { iterationAdd, iterationClose, iterationCreate } from "./iteration.js";
 import { planApprove, planClose, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
-import { configSet, init } from "./setup.js";
+import { init } from "./setup.js";
 import { ticketCreate, ticketMove } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
 
@@ -261,73 +265,150 @@ describe("flowStageOf の flow.skip（飛ばした段階は返さない）", () 
   });
 });
 
-/** 既定の auto.decisions（config の既定と同じ） */
-const DEFAULT_DECISIONS = ["assign", "check", "plan", "audit", "accept"];
+/** 既定の Workflow の値（flow と、マージを判定する review → done の境目の decide） */
+const DEFAULT_DECISIONS: FlowDecisions = {
+  flow: DEFAULT_WORKFLOW.flow.stages,
+  merge: DEFAULT_WORKFLOW.boundaries.find((b) => b.to === "done")!.decide,
+};
+const STAGES = ["assign", "check", "plan", "work", "audit", "release"] as const;
 
-describe("approvalOf（承認の要否）", () => {
-  it("--auto がなければどの段階も承認を求め、止まるときは求めない", () => {
-    for (const stage of ["assign", "check", "plan", "work", "audit", "release"] as const)
-      expect(
-        approvalOf(stage, { auto: false, autoMerge: true, decisions: DEFAULT_DECISIONS }),
-        stage,
-      ).toMatchObject({ required: true, auto: null, auto_ok: false });
-    expect(
-      approvalOf("stop", { auto: false, autoMerge: false, decisions: DEFAULT_DECISIONS }),
-    ).toMatchObject({ required: false, auto_ok: false });
+describe("approvalOf（承認の要否は Workflow の値から決まる）", () => {
+  it("--auto がなければ既定のどの段階も承認を求め、止まるときは求めない", () => {
+    for (const stage of STAGES)
+      expect(approvalOf(stage, { auto: false, ...DEFAULT_DECISIONS }), stage).toMatchObject({
+        required: true,
+        auto: null,
+        auto_ok: false,
+      });
+    expect(approvalOf("stop", { auto: false, ...DEFAULT_DECISIONS })).toEqual({
+      required: false,
+      what: null,
+      auto: null,
+      auto_ok: false,
+      value: null,
+      agent: "allow",
+    });
   });
 
-  it("既定の auto.decisions では --auto が割り当て・Plan・見直しの表を聞かずに選び、点検の削除や閉じる・リリースは聞く。マージは auto.merge のときだけ", () => {
-    const auto = (stage: Parameters<typeof approvalOf>[0], autoMerge = false) =>
-      approvalOf(stage, { auto: true, autoMerge, decisions: DEFAULT_DECISIONS });
-    expect(auto("assign")).toMatchObject({ required: false, auto_ok: true });
+  it("既定の値では --auto が ask_unless_auto の割り当て・点検の直す行・Plan・マージを聞かずに進め、always_ask の見直しと human_only のリリースは聞く", () => {
+    const auto = (stage: Parameters<typeof approvalOf>[0]) =>
+      approvalOf(stage, { auto: true, ...DEFAULT_DECISIONS });
+    expect(auto("assign")).toEqual({
+      required: false,
+      what: null,
+      auto: "Rows to add",
+      auto_ok: true,
+      value: "flow.assign: ask_unless_auto",
+      agent: "allow",
+    });
     expect(auto("plan")).toMatchObject({
       required: false,
-      auto: "Approving the Plan (plan approve)",
+      auto: "Approving the Plan (plan approve --auto)",
       auto_ok: true,
+      value: "flow.plan: ask_unless_auto",
     });
-    expect(auto("audit")).toMatchObject({ required: false, auto_ok: true });
+    expect(auto("work")).toMatchObject({
+      required: false,
+      auto_ok: true,
+      value: "boundaries review → done: ask_unless_auto",
+    });
+    // 点検の値が決めるのは直す行だけ。削除・abandoned・閉じるはいつも聞く場所に残る
     expect(auto("check")).toMatchObject({
       required: true,
       what: "Deletions, abandoned, and closing",
       auto: "Fix rows that have exactly one way to fix",
       auto_ok: true,
     });
-    expect(auto("release")).toMatchObject({ required: true, auto_ok: false });
-    expect(auto("work")).toMatchObject({ required: true, auto_ok: false });
-    expect(auto("work", true)).toMatchObject({ required: false, auto_ok: true });
+    expect(auto("audit")).toMatchObject({
+      required: true,
+      what: "Findings table",
+      auto_ok: false,
+      value: "flow.audit: always_ask",
+      agent: "approval",
+    });
+    const release = auto("release");
+    expect(release).toMatchObject({
+      required: true,
+      auto: null,
+      auto_ok: false,
+      value: "flow.release: human_only",
+      agent: "reject",
+    });
+    // 人だけになるのは dg が拒否する Iteration を閉じる操作だけ。リリースの PR のマージと公開は、人に聞いた後にエージェントが行う
+    expect(release.what).toBe(
+      "Merging the release PR and publishing (ask a person before each one; when approved, the agent runs them), and closing the Iteration (only a person does it: an agent's call of dg iteration close is rejected, so ask a person to run it)",
+    );
   });
 
-  it("auto.decisions に入らない判断は --auto でも聞いて止まり、auto_ok は false", () => {
-    const only = (
-      decisions: string[],
-      stage: Parameters<typeof approvalOf>[0],
-      autoMerge = false,
-    ) => approvalOf(stage, { auto: true, autoMerge, decisions });
-    expect(only([], "assign")).toMatchObject({
+  it("flow.release が always_ask なら、リリースの段階は人だけの文にならず、マージ・公開・閉じるを人に聞く", () => {
+    for (const auto of [false, true])
+      expect(
+        approvalOf("release", {
+          auto,
+          ...DEFAULT_DECISIONS,
+          flow: { ...DEFAULT_DECISIONS.flow, release: "always_ask" },
+        }),
+      ).toEqual({
+        required: true,
+        what: "Merging the release PR, publishing, and closing",
+        auto: null,
+        auto_ok: false,
+        value: "flow.release: always_ask",
+        agent: "approval",
+      });
+  });
+
+  it("値を変えると承認の要否が変わる：always_ask は --auto でも聞き、anyone は --auto がなくても聞かず、human_only は人に頼む", () => {
+    const withValue = (
+      stage: (typeof STAGES)[number],
+      value: Decision,
+      auto: boolean,
+    ): FlowApproval =>
+      approvalOf(stage, {
+        auto,
+        flow: { ...DEFAULT_DECISIONS.flow, [stage]: value },
+        merge: stage === "work" ? value : DEFAULT_DECISIONS.merge,
+      });
+    for (const stage of ["assign", "plan", "work", "audit", "release"] as const) {
+      expect(withValue(stage, "always_ask", true), stage).toMatchObject({
+        required: true,
+        auto_ok: false,
+        agent: "approval",
+      });
+      // anyone は聞かずに進めるが、--auto が選んだのではないので auto_ok は false
+      for (const auto of [false, true])
+        expect(withValue(stage, "anyone", auto), stage).toMatchObject({
+          required: false,
+          auto: null,
+          auto_ok: false,
+          agent: "allow",
+        });
+      expect(withValue(stage, "ask_unless_auto", false), stage).toMatchObject({
+        required: true,
+        auto_ok: false,
+        agent: "approval",
+      });
+      expect(withValue(stage, "ask_unless_auto", true), stage).toMatchObject({
+        required: false,
+        auto_ok: true,
+      });
+      expect(withValue(stage, "human_only", true), stage).toMatchObject({
+        required: true,
+        auto_ok: false,
+        agent: "reject",
+      });
+    }
+    // 点検は、直す行を聞かずに進める値でも、削除・abandoned・閉じるを聞く
+    expect(withValue("check", "anyone", false)).toMatchObject({
       required: true,
-      what: "Rows to add",
+      what: "Deletions, abandoned, and closing",
       auto_ok: false,
     });
-    expect(only(["plan"], "audit")).toMatchObject({ required: true, what: "Findings table" });
-    expect(only(["audit"], "plan")).toMatchObject({ required: true, auto: null, auto_ok: false });
-    expect(only(["plan"], "check")).toMatchObject({
+    expect(withValue("check", "always_ask", true)).toMatchObject({
       required: true,
       what: "Rows to fix, and deletions, abandoned, and closing",
       auto_ok: false,
     });
-    // マージは auto.decisions ではなく auto.merge で決まる
-    expect(only([], "work")).toMatchObject({ required: true, auto_ok: false });
-  });
-
-  it("人が決める判断（リリース・削除・abandoned・閉じる）は、config で入れても auto_ok にならない", () => {
-    // 検査はスキーマでも拒むが、承認の判定でも人が決める判断を自動にしない（EX-7）
-    const everything = ["assign", "check", "plan", "audit", "release", "work", "stop"];
-    const release = approvalOf("release", { auto: true, autoMerge: true, decisions: everything });
-    expect(release).toMatchObject({ required: true, what: expect.any(String), auto_ok: false });
-    expect(release.auto).toBeNull();
-    const check = approvalOf("check", { auto: true, autoMerge: true, decisions: everything });
-    expect(check.what).toBe("Deletions, abandoned, and closing");
-    expect(check.required).toBe(true);
   });
 });
 
@@ -422,7 +503,7 @@ describe("dg flow next", () => {
         sections: ["When proposing an assignment", "Iteration"],
         command: 'dg guide assign --section "When proposing an assignment" --section Iteration',
       },
-      commands: ["dg --json --actor agent iteration add s1 <tickets to add…>"],
+      commands: ["dg --json --actor agent iteration add s1 <tickets to add…> --approved-by human"],
       approval: { required: true, what: "Rows to add" },
     });
     // guide.text は段階の節の本文を順につないだもの（手順の節の見出しから始まり、config を埋めたもの）
@@ -442,7 +523,10 @@ describe("dg flow next", () => {
     const plan3 = await flow(ctx, { resume: plan5.resume, auto: true });
     expect(plan3).toMatchObject({
       stage: { name: "plan", rule: 3, plan: "p1" },
-      commands: ["dg --json --actor agent plan show p1", "dg --json --actor agent plan approve p1"],
+      commands: [
+        "dg --json --actor agent plan show p1",
+        "dg --json --actor agent plan approve p1 --auto",
+      ],
       approval: { required: false },
     });
     // 承認が得られず、事実が変わらないまま同じ段階が続けば止まる。もう一度呼んでも止まったまま
@@ -485,7 +569,13 @@ describe("dg flow next", () => {
     const release = await flow(ctx, { resume: audit.resume });
     expect(release).toMatchObject({
       stage: { name: "release", rule: 7 },
-      approval: { required: true, what: "Merging the release PR, publishing, and closing" },
+      approval: {
+        required: true,
+        what: expect.stringContaining(
+          "Merging the release PR and publishing (ask a person before each one; when approved, the agent runs them)",
+        ),
+        value: "flow.release: human_only",
+      },
     });
     // resume を失えば、割り当てと点検からやり直す（見直しを終えた事実も失う）
     expect((await flow(ctx, {})).stage.name).toBe("assign");
@@ -501,35 +591,44 @@ describe("dg flow next", () => {
     expect((await flow(ctx, { resume: fresh.resume })).stage.name).toBe("stop");
   });
 
-  it("config の auto.decisions と flow.skip に従い、--auto が聞かずに選ぶ判断と返す段階を決める", async () => {
+  it("workflow.yaml の flow の値と skip に従い、--auto が聞かずに進める場面と返す段階を決める", async () => {
     const ctx = await ready();
     await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
     await runCommand(ticketCreate, ctx, { title: "候補" });
-    // 既定は今までどおり：割り当てを --auto で聞かずに選ぶ（approve の呼び出しは Plan のときだけ）
-    const def = await flow(ctx, { auto: true });
-    expect(def).toMatchObject({
+    const add = "dg --json --actor agent iteration add s1 <tickets to add…>";
+    // 既定（flow.assign は ask_unless_auto）：--auto なら聞かずに進め、コマンドに --auto が付く。なければ承認の後に --approved-by で呼ぶ
+    expect(await flow(ctx, { auto: true })).toMatchObject({
       stage: { name: "assign" },
-      approval: { required: false, auto_ok: true },
+      commands: [`${add} --auto`],
+      approval: { required: false, auto_ok: true, value: "flow.assign: ask_unless_auto" },
     });
-    // 割り当てを auto.decisions から外すと、--auto でも聞いて止まる
-    await runCommand(configSet, ctx, { key: "auto.decisions", value: "check" });
-    const withoutAssign = { ...ctx, config: ctx.store.config };
-    expect(await flow(withoutAssign, { auto: true })).toMatchObject({
+    expect(await flow(ctx, {})).toMatchObject({
+      commands: [`${add} --approved-by human`],
+      approval: { required: true, what: "Rows to add", agent: "approval" },
+    });
+    // always_ask にすると、--auto でも聞いて止まる
+    await runCommand(workflowSet, ctx, { definition: { flow: { assign: "always_ask" } } });
+    expect(await flow(ctx, { auto: true })).toMatchObject({
       stage: { name: "assign" },
+      commands: [`${add} --approved-by human`],
       approval: { required: true, what: "Rows to add", auto_ok: false },
     });
-    // flow.skip に入れた段階は返さず、次の規則へ進む
-    await runCommand(configSet, ctx, { key: "flow.skip", value: "assign" });
-    const skipped = { ...ctx, config: ctx.store.config };
-    expect(await flow(skipped, { auto: true })).toMatchObject({ stage: { name: "check" } });
-    // 人が決める判断は、auto.decisions に入れても auto_ok にならない（検査もスキーマで拒む）
-    const bad = await runCommand(configSet, ctx, { key: "auto.decisions", value: "release" }).then(
-      () => "accepted",
-      () => "rejected",
-    );
-    expect(bad).toBe("rejected");
+    // anyone にすると、--auto がなくても聞かず、コマンドに何も付かない
+    await runCommand(workflowSet, ctx, { definition: { flow: { assign: "anyone" } } });
+    expect(await flow(ctx, {})).toMatchObject({
+      commands: [add],
+      approval: { required: false, auto_ok: false, agent: "allow" },
+    });
+    // human_only にすると、人に頼む文を返す
+    await runCommand(workflowSet, ctx, { definition: { flow: { assign: "human_only" } } });
+    const human = await flow(ctx, { auto: true });
+    expect(human.approval).toMatchObject({ required: true, agent: "reject" });
+    expect(human.commands[0]).toMatch(/^Ask a person to run dg iteration add s1 /);
+    // skip に入れた段階は返さず、次の規則へ進む
+    await runCommand(workflowSet, ctx, { definition: { flow: { skip: ["assign"] } } });
+    expect(await flow(ctx, { auto: true })).toMatchObject({ stage: { name: "check" } });
   });
 
   it("ラベル audit-<S> のチケットがあれば見直し済みで、候補があっても割り当てない", async () => {

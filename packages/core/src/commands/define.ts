@@ -96,10 +96,11 @@ export function ok<O>(data: O, write?: WriteOutcome, warnings: string[] = []): C
 
 /**
  * 入力を検証してから実行する。形の誤りは UsageError（終了コード 2）。
- * 名前だけで操作が決まるコマンド（workflow/resolve.ts の commandOperation：Core に固定の workflow set と、カンバンの管理の
- * 起票・チケットを消す・Epic を閉じる/再開する）は、実行の前に Core の固定と Workflow の governance で判定し、通らなければ
- * TRANSITION_REJECTED で止める（全入口がここを通るので検査は 1 か所）。入力とデータで決まる操作（チームの設定・担当の付け替え・
- * 段を下げる）は、コマンドが同じ判定（permission.ts の requireOperation）を自分で呼ぶ。
+ * 名前だけで操作が決まるコマンド（workflow/resolve.ts の commandOperation：Core に固定の workflow set、流れの段階の
+ * Iteration・Epic への出し入れ・Plan の承認・Iteration を閉じる/再開する、カンバンの管理の起票・チケットを消す・Epic を閉じる/再開する）は、
+ * 実行の前に Core の固定と Workflow の flow・governance で判定し、通らなければ TRANSITION_REJECTED で止める
+ * （全入口がここを通るので検査は 1 か所）。入力とデータで決まる操作（チームの設定・担当の付け替え・段を下げる・
+ * ticket update の Iteration と Epic）は、コマンドが同じ判定（permission.ts の requireOperation）を自分で呼ぶ。
  * ストアを開いていない文脈（storeless）では Workflow がないので検査しない。
  * データのリポジトリに dg の外の変更（SY-7）があれば、書くコマンドは OUTSIDE_CHANGES で止め、読むだけのコマンドは警告を足す
  * （ストアを開かない文脈・初期化の前に動く needs: repo・検査を自分で扱うコマンドでは見ない）。

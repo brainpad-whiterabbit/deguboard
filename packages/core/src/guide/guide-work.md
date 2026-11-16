@@ -33,7 +33,7 @@ For `wait_merge`, `wait_human`, and `wait_deps` with no Plan, there is no other 
 
 ## Merging after approval
 
-The agent merges a PR only after a human approves that merge (the one exception is `--auto` of `dg guide all` with `auto.merge` true; see `dg guide all`).
+The Workflow's review → done boundary judges the merge (`ask_unless_auto` by default; see `dg guide overview`). With the default, the agent merges a PR only after a human approves that merge. The one exception is a flow that a human started with `--auto`: a PR that meets the quality gate is then merged without asking, with `dg pr merge <id> --auto` (see `dg guide all`).
 
 1. Run the `dg --json --actor agent gate <id> --for merge` in `commands` of `wait_merge`. If it does not pass, ask by the "Merging without meeting the gate" section of `dg guide review` instead (a human's approval overrides every unmet condition except `pr`, `mergeable`, and `head`)
 2. Ask a human whether to merge, with the choices "Merge" and "Not yet" (the `ask_human` of `wait_merge`). Ask about the PRs that wait together in one question, and show each PR's number and ticket
@@ -87,7 +87,7 @@ Work that does not change repository files (data maintenance, checks, research) 
 
 1. `dg --json --actor agent ticket claim <id> --without-branch` (claim opens a Run). Treat `warnings` as in "Before and after claim"
 2. Confirm the acceptance criteria one item at a time, and attach with `ticket check` only the items that are met
-3. When all of them are attached, `dg --json --actor agent ticket move <id> done`. The Workflow's review → done boundary judges the move (see `dg guide overview`): when it asks for a human's approval and a human instructed or approved finishing this ticket, add `--approved-by human`. The boundary's `requires` on branch and PR facts (by default `pr_merged`) do not apply to a ticket started with `--without-branch`. If items that cannot be attached remain, `ticket move <id> review`, and report the remaining items and reasons to a human (a human sets done)
+3. When all of them are attached, `dg --json --actor agent ticket move <id> done`. The Workflow's review → done boundary judges the move (see `dg guide overview`): when it asks for a human's approval and a human instructed or approved finishing this ticket, add `--approved-by human`; in a flow that a human started with `--auto`, when the value is `ask_unless_auto` (the default), add `--auto` instead and do not ask. The boundary's `requires` on branch and PR facts (by default `pr_merged`) do not apply to a ticket started with `--without-branch`. If items that cannot be attached remain, `ticket move <id> review`, and report the remaining items and reasons to a human (a human sets done)
 4. If you need to change repository files midway, record it with `ticket update <id> --branch <short-english-words>` (the name is built as in "Before and after claim"), and move to the flow above. When the branch is no longer needed, use `--branch none`
 
 ## Status

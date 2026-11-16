@@ -169,12 +169,12 @@ describe("用意", () => {
     const fl = await runCommand(configSet, ctx, { key: "worktree.root", value: "false" });
     expect(fl.data.worktree.root).toBe("false");
     // 真偽値の項目："true"・"false" は真偽値に直し、ほかの文字列は拒む
-    const on = await runCommand(configSet, ctx, { key: "auto.merge", value: "true" });
-    expect(on.data.auto.merge).toBe(true);
-    const off = await runCommand(configSet, ctx, { key: "auto.merge", value: "false" });
-    expect(off.data.auto.merge).toBe(false);
+    const on = await runCommand(configSet, ctx, { key: "merge.delete_branch", value: "true" });
+    expect(on.data.merge.delete_branch).toBe(true);
+    const off = await runCommand(configSet, ctx, { key: "merge.delete_branch", value: "false" });
+    expect(off.data.merge.delete_branch).toBe(false);
     await expect(
-      runCommand(configSet, ctx, { key: "auto.merge", value: "yes" }),
+      runCommand(configSet, ctx, { key: "merge.delete_branch", value: "yes" }),
     ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     // 数値の項目（work.parallel）：数字の文字列は数値に直し、範囲（1〜10）の外と整数でない値は拒む
     const p = await runCommand(configSet, ctx, { key: "work.parallel", value: "5" });
@@ -209,7 +209,7 @@ describe("用意", () => {
     // 読み直しても保存した値のまま
     const shown = (await runCommand(configShow, ctx, {})).data as ConfigShowView["config"];
     expect(shown.git).toMatchObject({ base_branch: "2026", remote: "true", depth: 3 });
-    expect(shown.auto.merge).toBe(false);
+    expect(shown.merge.delete_branch).toBe(false);
   });
 
   it("config.set は enum の項目（commit.mode）を空・null・値の省略にしても既定に戻さず弾き、値は変わらない", async () => {
@@ -308,7 +308,7 @@ describe("用意", () => {
     const ctx = await initialized(f.cloneA);
     const localFile = path.join(ctx.repo.localDir, "config.yaml");
     for (const [key, value] of [
-      ["auto.merge", "true"],
+      ["merge.delete_branch", "true"],
       ["metrics.read_transcripts", "true"],
       ["git.base_branch", "develop"],
       ["review.heavy_categories", "security"],
@@ -321,7 +321,7 @@ describe("用意", () => {
     }
     await expect(readFile(localFile, "utf8")).rejects.toThrow();
     // チームの値も変わっていない
-    expect(ctx.store.config.auto.merge).toBe(false);
+    expect(ctx.store.config.merge.delete_branch).toBe(false);
     expect(ctx.store.config.commit.mode).toBe("batch");
   });
 
@@ -346,7 +346,7 @@ describe("用意", () => {
     expect(ctx.store.localConfig).toEqual({});
     // チーム専用の項目は --local で外せない（個人の設定には入らない）
     await expect(
-      runCommand(configUnset, ctx, { key: "auto.merge", local: true }),
+      runCommand(configUnset, ctx, { key: "merge.delete_branch", local: true }),
     ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
 
     // --local なしはチームの config.yaml からキーを消して既定に戻す。ほかの書き込みと同じ経路（withWrite）を通る
@@ -360,16 +360,26 @@ describe("用意", () => {
     await runCommand(configSet, ctx, { key: "review.heavy_categories", value: "security" });
     const list = await runCommand(configUnset, ctx, { key: "review.heavy_categories" });
     expect(list.data.review.heavy_categories).toEqual([]);
-    // なくした項目（前の版の config.yaml に残った actor.human_only・merge.approval_overrides）も、unset でファイルから消せる
+    // なくした項目（前の版の config.yaml に残った actor.human_only・merge.approval_overrides・auto.merge・auto.decisions・flow.skip）も、
+    // unset でファイルから消せる。残っていても読まない（誤りにもしない）
     const file = path.join(ctx.repo.dataDir, "config.yaml");
     await runCommand(configSet, ctx, { key: "actor.human_only", value: ["epic.close"] });
     await runCommand(configSet, ctx, { key: "merge.approval_overrides", value: ["review"] });
-    expect(await readFile(file, "utf8")).toContain("human_only");
+    await runCommand(configSet, ctx, { key: "auto.merge", value: "true" });
+    await runCommand(configSet, ctx, { key: "auto.decisions", value: "assign, plan" });
+    await runCommand(configSet, ctx, { key: "flow.skip", value: "audit" });
+    const before = await readFile(file, "utf8");
+    for (const word of ["human_only", "auto:", "decisions:", "flow:", "skip:"])
+      expect(before).toContain(word);
+    expect((await runCommand(validate, ctx, {})).data.ok).toBe(true);
     await runCommand(configUnset, ctx, { key: "actor.human_only" });
     await runCommand(configUnset, ctx, { key: "merge.approval_overrides" });
+    await runCommand(configUnset, ctx, { key: "auto.merge" });
+    await runCommand(configUnset, ctx, { key: "auto.decisions" });
+    await runCommand(configUnset, ctx, { key: "flow.skip" });
     const text = await readFile(file, "utf8");
-    expect(text).not.toContain("human_only");
-    expect(text).not.toContain("approval_overrides");
+    for (const word of ["human_only", "approval_overrides", "auto:", "decisions:", "flow:"])
+      expect(text).not.toContain(word);
   });
 
   it("個人のファイルにあるチーム専用・未知の項目と読めない値は無視して validate が警告し、チームの set は個人の上書きを写さない", async () => {
@@ -381,8 +391,8 @@ describe("用意", () => {
       [
         "commit:",
         "  mode: each",
-        "auto:",
-        "  merge: true",
+        "merge:",
+        "  delete_branch: true",
         "push:",
         "  mode: なし",
         "unknown_key: 1",
@@ -391,7 +401,7 @@ describe("用意", () => {
     );
     const reopened = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "eiki" } });
     expect(reopened.config.commit.mode).toBe("each");
-    expect(reopened.config.auto.merge).toBe(false);
+    expect(reopened.config.merge.delete_branch).toBe(false);
     expect(reopened.config.push.mode).toBe("auto");
     const v = await runCommand(validate, reopened, {});
     expect(v.data.ok).toBe(true);
@@ -400,7 +410,7 @@ describe("用意", () => {
         "warning",
         "deguboard-local/config.yaml",
         "local_config_ignored",
-        "Ignored the personal setting auto.merge",
+        "Ignored the personal setting merge.delete_branch",
       ],
       [
         "warning",
@@ -448,11 +458,11 @@ describe("用意", () => {
     expect(shown.local).toEqual({ "models.light": "my-light", "actions.shell": true });
     const byKey = new Map(shown.fields.map((x) => [x.key, x]));
     expect(byKey.get("models.light")?.scope).toBe("local");
-    expect(byKey.get("auto.merge")?.scope).toBe("team");
+    expect(byKey.get("merge.delete_branch")?.scope).toBe("team");
     // 空にすると既定に戻るか（設定画面が読む）。既定が空でない文字列の項目だけ true
     expect(byKey.get("git.remote")?.clears_to_default).toBe(true);
     expect(byKey.get("models.light")?.clears_to_default).toBe(false);
-    expect(byKey.get("auto.merge")?.clears_to_default).toBe(false);
+    expect(byKey.get("merge.delete_branch")?.clears_to_default).toBe(false);
     // 既定は、チームと個人の値を変えても既定のまま返す。葉の項目は fields の default と同じ値で、
     // fields に入らない振り返りの観点（retro.perspectives）の既定も返す（画面が既定のままかを比べる）
     expect(shown.defaults).toEqual(defaultConfig());

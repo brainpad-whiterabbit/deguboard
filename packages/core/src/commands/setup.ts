@@ -89,6 +89,7 @@ import {
   hasRecord,
   permissionFields,
   recordNote,
+  rejectUnjudgedAuto,
   requireOperation,
   type PermissionInput,
 } from "./permission.js";
@@ -1402,7 +1403,7 @@ function teamWriteOptions(input: PermissionInput & { key: string }): { immediate
 }
 
 const TEAM_CONFIG_NOTE =
-  "Changing the team's config.yaml is judged by the Workflow's governance.config (always_ask by default; see dg workflow show --help for the values): an agent passes --approved-by after a person approved the change, and the approver is recorded in the commit message. Personal settings (--local) are not judged";
+  "Changing the team's config.yaml is judged by the Workflow's governance.config (always_ask by default; see dg workflow show --help for the values): an agent passes --approved-by after a person approved the change, and the approver is recorded in the commit message (--auto goes ahead without asking only when the value is ask_unless_auto). Personal settings (--local) are not judged";
 
 export const configSet = defineCommand({
   name: "config.set",
@@ -1429,6 +1430,7 @@ export const configSet = defineCommand({
         "Write the perspectives of the retrospective with dg retro perspective, dg retro metric, and dg retro remove (dg config unset retro.perspectives returns to the defaults)",
       );
     if (input.local) {
+      rejectUnjudgedAuto(ctx, input, "changing a personal setting");
       // 個人の設定は Git 管理外なので withWrite（取り込み・コミット・push）を通さず、同じマシンの書き込みの排他だけ取る
       const config = await withLock(ctx.repo.localDir, "write", async () => {
         const { rest, field } = splitKey(input.key, true);
@@ -1474,6 +1476,7 @@ export const configUnset = defineCommand({
   needs: "store",
   async run(ctx, input) {
     if (input.local) {
+      rejectUnjudgedAuto(ctx, input, "changing a personal setting");
       const config = await withLock(ctx.repo.localDir, "write", async () => {
         splitKey(input.key, true);
         return ctx.store.writeLocalConfig(input.key, undefined);

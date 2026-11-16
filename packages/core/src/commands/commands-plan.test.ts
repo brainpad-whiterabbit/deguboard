@@ -477,7 +477,7 @@ describe("Plan", () => {
     expect(await shown("t3")).toBeNull();
   });
 
-  it("agent の承認は agent の ID を記録する。なくした config の actor.human_only が残っていても読まない", async () => {
+  it("agent が --auto で聞かずに承認すると agent の ID を、人の承認（--approved-by）で承認するとその人を approved_by に記録する。なくした config の actor.human_only が残っていても読まない", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "A" });
@@ -485,13 +485,14 @@ describe("Plan", () => {
     await runCommand(planCreate, ctx, { tickets: ["t1"] });
     await runCommand(planCreate, ctx, { tickets: ["t2"] });
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
-    const approved = await runCommand(planApprove, agent, { plan: "p1" });
+    const approved = await runCommand(planApprove, agent, { plan: "p1", auto: true });
     expect(approved.data.approved_by).toBe("eiki/agent");
     // 前の版の config.yaml に残った一覧では、もう拒否しない（操作の権限は Workflow と Core の固定だけが決める）
     await runCommand(configSet, ctx, { key: "actor.human_only", value: ["plan.approve"] });
     const agent2 = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
-    expect((await runCommand(planApprove, agent2, { plan: "p2" })).data.approved_by).toBe(
-      "eiki/agent",
-    );
+    expect(
+      (await runCommand(planApprove, agent2, { plan: "p2", approved_by: "human" })).data
+        .approved_by,
+    ).toBe("eiki");
   });
 });

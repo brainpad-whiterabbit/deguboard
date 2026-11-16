@@ -1,10 +1,10 @@
-# ADR-030 Iteration の流れもコードが判定し、guide の節は Core が返し、カスタマイズは config と guide.notes に限る
+# ADR-030 Iteration の流れもコードが判定し、guide の節は Core が返し、カスタマイズは Workflow と config と guide.notes に限る
 
 - ステータス：承認
 
 ## 要約
 
-Iteration の流れ（段階・次の 1 手・止まる判定・自動で選んでよい判断）は `dg flow next` が返し、`dg guide` は各手のやり方だけを書く。会話の中にしかない事実は不透明な値 `resume` で次の呼び出しに渡し、保存しない。利用者が手続きを変える入口は config の項目と `guide.notes` の枠に限る。Skill の印は書いた dg の版を持ち、VS Code 拡張の更新と dg の警告は版で新旧を比べる。
+Iteration の流れ（段階・次の 1 手・止まる判定・承認の要否）は `dg flow next` が返し、`dg guide` は各手のやり方だけを書く。承認の要否は Workflow の権限の値から決め、`--auto` は「値が `ask_unless_auto` の場面を聞かずに進める」の 1 つの意味にして、各コマンドが受けて判定する。会話の中にしかない事実は不透明な値 `resume` で次の呼び出しに渡し、保存しない。利用者が手続きを変える入口は Workflow の値と config の項目と `guide.notes` の枠に限る。Skill の印は書いた dg の版を持ち、VS Code 拡張の更新と dg の警告は版で新旧を比べる。
 
 ## 背景
 
@@ -20,11 +20,20 @@ Iteration の流れ（段階・次の 1 手・止まる判定・自動で選ん�
 
 ## 決定
 
-### 流れの段階と自動で選べる判断はコードが持つ
+### 流れの段階と承認の要否はコードが持つ
 
-- Iteration（かチケットの束）の流れの段階、次の 1 手、止まる判定、`--auto` で自動に選んでよい判断かどうかは Core のコマンド（`dg flow next`）が返す。`dg guide all` は段階の順と判定の規則を書かず、返った手の行い方だけを書く
-- 人が決める穴（やめる・done の取り消し・リリースの PR のマージと公開・Epic と Iteration を閉じる）は、config によらず自動で選ばない手として返す（ADR-011 の「人の判断の穴は残す」を変えない）
+- Iteration（かチケットの束）の流れの段階、次の 1 手、止まる判定、承認の要否は Core のコマンド（`dg flow next`）が返す。`dg guide all` は段階の順と判定の規則を書かず、返った手の行い方だけを書く
+- 承認の要否は、Workflow の権限の値（[ADR-003](ADR-003-status-and-workflow.md)）をエージェントに当てて決める。段階ごとの値は `flow`（assign・check・plan・audit・release・retro）に、作業の段階のマージは review → done の境目の `decide` に書く。既定は assign・check・plan が `ask_unless_auto`、audit・retro が `always_ask`、release が `human_only`
+- `flow` の値のうち、コマンドで止められる操作は dg が判定して拒否する：割り当て（Iteration・Epic への出し入れ）は assign、Plan の承認は plan、Iteration を閉じる・再開するは release。コマンドで止められない場面（点検の直す行・見直しの指摘の表・リリースの PR のマージと公開）は、`dg flow next` が承認の要否として返し、手順が人に聞く
+- assign が判定するのは、すでにあるチケットの出し入れだけ。起票のときの指定（`ticket create`・`import` の `--iteration`・`--epic`）は起票の判定（`governance.create`）に、`claim` が自分で入れる Iteration は config の `lint.require_iteration` に従うので、assign の外に置く（同じ操作を 2 つの値で判定しない）
 - 動かすのは引き続きエージェントで、dg はエージェントを起動も監視もしない（[ADR-028](ADR-028-agents-and-state.md)・EX-1）
+
+### `--auto` は ask_unless_auto の場面を聞かずに進める意味だけを持ち、各コマンドが受ける
+
+- `--auto` の意味は 1 つ：権限の値が `ask_unless_auto` の場面を、人に聞かずに進める。どの判断を聞かずに進めてよいかは Workflow の値だけが決め、config に `--auto` の範囲を書く項目（前の `auto.merge`・`auto.decisions`）は持たない
+- 権限を判定するコマンド（Status の動き・`pr ready`・`pr merge`・流れの段階の操作・カンバンの管理の操作）は `--auto` を受ける。値が `ask_unless_auto` の場面でだけ聞かずに通し、承認者に進めたエージェントを記録する。ほかの場面の `--auto` は拒否する：`always_ask` と `human_only` と Core の固定（[ADR-026](ADR-026-guard-pr-and-data.md)）は越えさせず、聞かない場面（`anyone`）や何も判定しない呼び出しにも付けさせない
+- `--auto` はエージェントだけが渡せ、人の承認（`--approved-by`）や人の強制（`--override`）とは一緒に渡せない。`dg workflow set` は `--auto` を受けない
+- `dg flow next --auto` は、聞かずに進められる場面（`approval.auto_ok`）と、`--auto` を付けたコマンドを返す。値と拒否の文の細部は `core/commands/permission.ts` と各 `--help` が正本
 
 ### 会話の中にしかない事実は resume を写して渡す
 
@@ -38,11 +47,11 @@ Iteration の流れ（段階・次の 1 手・止まる判定・自動で選ん�
 - `dg guide` と `dg skill install` は CLI だけの操作のまま（AG-4）で、Core の読み込みを写す
 - Core が読むのは同梱の静的な文書だけで、VS Code API・HTTP・React には依存しない（ADR-033 の依存の向きは変えない）。束ねられる入口（VS Code 拡張）でも読めるようにする方法は実装の細部
 
-### カスタマイズは config の項目と guide.notes の枠で行う
+### カスタマイズは Workflow の値と config の項目と guide.notes の枠で行う
 
-- 利用者が既定の手続きを変える入口は、`config.yaml` の項目（流れから外す段階・自動で選んでよい判断・マージの方法・検査のコマンドなど。名前は config のスキーマが正本）と、guide の決まった位置に文を差し込む `guide.notes.<topic>` だけにする。項目はコードが読んで判定に効かせ、文を足せるのは `guide.notes` だけ。並列の上限 `work.parallel` の扱いは [ADR-011](ADR-011-procedure-in-code.md) に従う
+- 利用者が既定の手続きを変える入口は、`workflow.yaml` の値（誰に任せるか・聞かずに進めてよい場面・流れから外す段階 `flow` の `skip`。[ADR-003](ADR-003-status-and-workflow.md)）と、`config.yaml` の項目（マージの方法・検査のコマンドなど。名前は config のスキーマが正本）と、guide の決まった位置に文を差し込む `guide.notes.<topic>` だけにする。値と項目はコードが読んで判定に効かせ、文を足せるのは `guide.notes` だけ。並列の上限 `work.parallel` の扱いは [ADR-011](ADR-011-procedure-in-code.md) に従う
 - SKILL.md と guide の書き換えはカスタマイズの前提にしない。Skill は `dg skill install` で最新に保てる形のままにする
-- 修正ループの回数は config に置かない。人が決める穴も config の項目にしない
+- 修正ループの回数は config に置かない
 
 ### Skill の印は書いた dg の版を持ち、自動の更新と警告は版で新旧を比べる
 
@@ -52,11 +61,14 @@ Iteration の流れ（段階・次の 1 手・止まる判定・自動で選ん�
 
 ## 理由
 
-- 段階の判定と自動で選べる判断をコードに置けば、ADR-011 で 1 枚のチケットに得た「毎回同じに守れる」を流れ全体に広げられる。親は 8 つの規則を読まずに 1 手ずつ行える
+- 段階の判定と承認の要否をコードに置けば、ADR-011 で 1 枚のチケットに得た「毎回同じに守れる」を流れ全体に広げられる。親は 8 つの規則を読まずに 1 手ずつ行える
+- 承認の要否を Workflow の値から決めるのは、人とエージェントの分担を書く場所を 1 つにするため。config の `auto.merge`・`auto.decisions` と Workflow の値の両方が「聞くか」を決めると、どちらが効くのかが読めず、片方を緩めてももう片方で止まる
+- `--auto` を各コマンドが受けるのは、聞かずに進めるのを `ask_unless_auto` の場面に限るため。dg は流れが `--auto` で始まったかを知らないので、コマンドに渡されなければ `ask_unless_auto` をいつも聞く値（`always_ask` と同じ）にするか、流れの外でも聞かない値（`anyone` と同じ）にするしかなく、値を分けた意味がなくなる。コマンドが受ければ、dg が場面を照らして、`always_ask`・`human_only`・Core の固定を `--auto` で越える呼び出しを拒否できる。聞かずに進めた跡（承認者がエージェント）も、人の承認と区別して履歴に残る
+- 聞かない場面の `--auto` も拒否するのは、付けたままのコマンドが、値を厳しくした後もそのまま通るように見えるのを防ぎ、`--auto` が効いた操作だけに跡を残すため
 - `resume` を写させるだけにすれば、事実の記録を LLM の組み立てに頼らず、減らしたい確率的な部分を戻さない。保存しないので Git に書く量が増えず、フックのない製品や MCP からも同じに使える。失っても安全側（やり直し）に倒れる
 - `dg next`・`dg brief` は Core のコマンドで、CLI・HTTP・MCP が同じ結果を写す（CL-6）。読み込みを CLI に残すと、節の本文を足す処理が入口に入り、入口ごとに結果がずれる。Core に置けば 1 か所で読み、どの入口でも同じ本文が返る
 - guide は dg の版と一緒に変わる同梱の文書で、Core が読んでも外の仕組みに依存しない
-- 判定に効かせる config の項目はコードが読むので、効くかが LLM 次第にならない。文を足す口を `guide.notes` の 1 つに限れば、SKILL.md と guide を書き換える理由がなくなり、更新を受け取り続けられる。dg が形を知っているので、決まった位置に差し込める
+- 判定に効かせる Workflow の値と config の項目はコードが読むので、効くかが LLM 次第にならない。文を足す口を `guide.notes` の 1 つに限れば、SKILL.md と guide を書き換える理由がなくなり、更新を受け取り続けられる。dg が形を知っているので、決まった位置に差し込める
 - 印に版を持たせるのは、中身の違いだけでは新旧が分からないため。拡張が中身の違う Skill を同梱のものに揃えると、PATH の dg（ソースから動かす dg など）が拡張より新しいときに、拡張は起動のたびに Skill を古いものに戻し、dg はそれを古いと警告して、互いに書き換え合った。同じ版で止めるのは、ソースの dg が版を上げる前に Skill を変えるため。印の形は各自のマシンに残るデータの形なので、ここに書く
 
 ## 採らなかった案
@@ -66,6 +78,9 @@ Iteration の流れ（段階・次の 1 手・止まる判定・自動で選ん�
 - **流れの事実を Run に印として残す**：Git に書く量が増え、Run を実績の記録（[ADR-029](ADR-029-work-metrics.md)）の外の用途に使う
 - **流れの事実をセッションごとに deguboard-local に残す**：フックのない製品ではセッションを見分けられず効かない
 - **resume の中身をエージェントが組み立てる**：事実の記録が LLM 次第に戻り、確率的な飛ばしが残る
+- **`--auto` の範囲を config の項目（`auto.merge`・`auto.decisions`）で決める**：「聞くか」を決める場所が Workflow と 2 つになり、dg はどのコマンドも止められず、守るかが LLM 次第に残る
+- **`--auto` を `dg flow next` だけが受け、各コマンドは受けない**：dg は聞かずに進めた操作を見分けられず、`ask_unless_auto` を `always_ask` か `anyone` と同じに扱うしかない
+- **人が決める穴（リリース・閉じる・やめる）を、値によらず自動で選ばない手として Core に固定する**：分担を書く場所が Workflow と Core に分かれる。緩めると守りが崩れる操作だけを Core に固定し（ADR-026）、ほかは既定の値（`human_only`・`always_ask`）で同じ扱いにする
 - **guide の読み込みを CLI に残し、CLI が next・brief の結果に節を足す**：入口にロジックが入り、HTTP・MCP の結果が CLI とずれる（ADR-033）
 - **入口が guide の読み手を Core に注入する**：すべての入口が同じ読み手を渡す必要があり、渡し忘れた入口だけ結果が欠ける。版と一緒に変わる静的な文書に注入の口は要らない
 - **SKILL.md・guide・CLAUDE.md の書き換えでカスタマイズする**：Skill と guide は更新を受け取れなくなり、CLAUDE.md は dg が形を読めない

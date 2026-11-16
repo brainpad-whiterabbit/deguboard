@@ -8,7 +8,7 @@ import { EPIC_STATUSES, epicBodyTemplate, type Epic } from "../model/epic.js";
 import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import { defineCommand, ok } from "./define.js";
 import { epicRef, nowIso, sortedDocs, ticketRef, ticketsInEpic, withBody } from "./helpers.js";
-import { hasRecord, permissionFields, recordNote } from "./permission.js";
+import { ASSIGN_NOTE, hasRecord, permissionFields, recordNote } from "./permission.js";
 
 export const epicCreate = defineCommand({
   name: "epic.create",
@@ -130,13 +130,14 @@ export const epicUpdate = defineCommand({
 const membership = z.object({
   epic: epicRef,
   tickets: z.array(ticketRef).min(1).describe("Ticket ID (t12 or 12). Can be given more than once"),
+  ...permissionFields,
 });
 
 export const epicAdd = defineCommand({
   name: "epic.add",
   positionals: ["epic", "tickets"],
   group: "epic",
-  summary: "Add tickets to an Epic. Tickets cannot be added to a closed Epic",
+  summary: "Add tickets to an Epic. Tickets cannot be added to a closed Epic. " + ASSIGN_NOTE,
   input: membership,
   write: true,
   needs: "store",
@@ -155,7 +156,10 @@ export const epicAdd = defineCommand({
         }
         return { epic: epic.id, tickets: ids };
       },
-      { message: (r) => `Add ${r.tickets.join(", ")} to ${r.epic}` },
+      {
+        message: (r) => `Add ${r.tickets.join(", ")} to ${r.epic}${recordNote(ctx, input)}`,
+        immediate: hasRecord(input),
+      },
     );
     return ok(result.value, result.write);
   },
@@ -165,7 +169,7 @@ export const epicRemove = defineCommand({
   name: "epic.remove",
   positionals: ["epic", "tickets"],
   group: "epic",
-  summary: "Remove tickets from an Epic",
+  summary: "Remove tickets from an Epic. " + ASSIGN_NOTE,
   input: membership,
   write: true,
   needs: "store",
@@ -184,7 +188,10 @@ export const epicRemove = defineCommand({
         }
         return { epic: epic.id, tickets: ids };
       },
-      { message: (r) => `Remove ${r.tickets.join(", ")} from ${r.epic}` },
+      {
+        message: (r) => `Remove ${r.tickets.join(", ")} from ${r.epic}${recordNote(ctx, input)}`,
+        immediate: hasRecord(input),
+      },
     );
     return ok(result.value, result.write);
   },

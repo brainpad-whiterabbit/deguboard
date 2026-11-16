@@ -24,7 +24,7 @@ Decides the order in which to advance several tickets. The plan is recorded in a
 4. Make an order proposal. Dependencies come first, and higher priority comes first. Show the tickets that can run in parallel (those that do not depend on each other) together. If a ticket's body has a `## References` section (or the Japanese `## 参考`) and the files written there overlap with another ticket's references, do not run them in parallel. Connect them with `after` (put the one that can advance first in front). Tickets without a references section are not judged for this overlap, and their order is decided by dependencies and priority as before. References are an estimate at filing time, so state the overlapping files in the proposal, and let a human fix it at approval
 5. Record it in a Plan awaiting approval (see the "Creating a Plan" section). The result's `data.id` is the Plan's ID
 6. Show it to a human and get approval. Show `items` (the Plan's order), `after`, and `details` from `dg --json --actor agent plan show <p>` in a table (include a tier column), and ask with the choices "Approve", "Revise", and "Keep it awaiting approval". If asked to revise, close it with `plan close <p>` and create it again (a Plan cannot be changed after it is created)
-7. When a human approves, record the approval with `dg --json --actor agent plan approve <p>` (`approved_by` is the acting actor). Do not approve without a human's approval. Do not start tickets in a Plan that is awaiting approval
+7. When a human approves, record the approval with `dg --json --actor agent plan approve <p> --approved-by human` (`approved_by` is the human who approved). Do not start tickets in a Plan that is awaiting approval
 8. Advance an approved Plan following `dg guide work`. If you lose track of the Plan's ID, list open Plans with `dg --json --actor agent plan list --status open`, or find it from the `plan` of `ticket show` (the open Plan the ticket is in)
 
 ## Creating a Plan
@@ -46,7 +46,7 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
 
 ## About approval
 
-Agents can also run `plan approve`, and run it only when a human has approved the Plan. If it is refused (`TRANSITION_REJECTED`), ask a human to run `dg plan approve <p>`.
+The Workflow's `flow.plan` judges `plan approve` (`ask_unless_auto` by default; the values are in the "Operations that may be limited to humans" section of `dg guide overview`). With the default, the agent approves only after a human approved the Plan, with `--approved-by human`; without it the call is refused (`TRANSITION_REJECTED`). In a flow that a human started with `--auto`, the agent approves without asking with `plan approve <p> --auto`, and `approved_by` is the agent. When the board's value is `always_ask`, ask with `--auto` too; when it is `human_only`, ask a human to run `dg plan approve <p>`.
 
 ## Principles of progress
 

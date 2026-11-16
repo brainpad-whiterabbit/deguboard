@@ -364,50 +364,6 @@ Reset to Default
 When empty: The lighter check is not used (actions.test runs)
 Details
 Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file changed since the last commit whose actions.test passed (or against base, when there is none) falls outside, actions.test runs
-Merge PRs automatically
-auto.merge
-[title] Default: false
-Modified
-[title] Ask Agent (Shift+F10)
-[aria-label] Ask Agent (Setting auto.merge)
-Merge PRs that pass the quality gate automatically with --auto
-Off
-[title] Reset to default false
-Reset to Default
-Details
-Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) without asking. Otherwise the agent asks a person and merges only when approved
-Decisions --auto chooses automatically
-auto.decisions
-[title] Default: [assign, check, plan, audit, accept]
-Modified
-[title] Ask Agent (Shift+F10)
-[aria-label] Ask Agent (Setting auto.decisions)
-Decisions --auto chooses without asking
-Empty
-[aria-label] Items
-[placeholder] Add item
-Add
-[title] Reset to default [assign, check, plan, audit, accept]
-Reset to Default
-When empty: --auto chooses nothing without asking
-Details
-Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table / accept: confirming acceptance criteria after reconciling). Decisions a person makes cannot be added; PR merging is set by auto.merge
-Stages to leave out of the flow
-flow.skip
-[title] Default: Empty
-Modified
-[title] Ask Agent (Shift+F10)
-[aria-label] Ask Agent (Setting flow.skip)
-Stages that dg flow next skips
-Empty
-[aria-label] Items
-[placeholder] Add item
-Add
-[title] Reset to default Empty
-Reset to Default
-When empty: No stage is skipped
-Details
-Stages that dg flow next never returns (assign, check, plan, work, audit, release). A skipped stage's rule is not read; the flow moves to the next rule
 Most tickets advanced at the same time
 work.parallel
 [title] Default: 3

@@ -582,7 +582,7 @@ describe("Store", () => {
     // 置くと次の rescan で重なり、変わらなければ覚えた結果を使う
     await writeFile(
       path.join(localDir, "config.yaml"),
-      "commit:\n  mode: each\nauto:\n  merge: true\n",
+      "commit:\n  mode: each\nmerge:\n  delete_branch: true\n",
     );
     await store.rescan();
     expect(store.lastScan.read).toBe(1);
@@ -595,19 +595,21 @@ describe("Store", () => {
     await store.rescan();
     expect(store.lastScan).toEqual({ read: 0, reused: files + 1 });
     expect(store.config.commit.mode).toBe("each");
-    // writeLocalConfig は無視されている項目（auto.merge）を残して葉だけ書き、消して空になればファイルも消す
+    // writeLocalConfig は無視されている項目（merge.delete_branch）を残して葉だけ書き、消して空になればファイルも消す
     await store.writeLocalConfig("models.light", "sonnet");
-    expect(await readFile(path.join(localDir, "config.yaml"), "utf8")).toContain("merge: true");
+    expect(await readFile(path.join(localDir, "config.yaml"), "utf8")).toContain(
+      "delete_branch: true",
+    );
     expect(store.config.models.light).toBe("sonnet");
     await store.writeLocalConfig("commit.mode", undefined);
     expect(store.config.commit.mode).toBe("batch");
     expect(store.localConfig).toEqual({ "models.light": "sonnet" });
-    // 新たに無視される項目（チーム専用）を書こうとすると拒む。前から無視されている auto.merge は書き換えても拒まない
+    // 新たに無視される項目（チーム専用）を書こうとすると拒む。前から無視されている merge.delete_branch は書き換えても拒まない
     await expect(store.writeLocalConfig("metrics.read_transcripts", true)).rejects.toMatchObject({
       code: "VALIDATION_FAILED",
     });
-    await store.writeLocalConfig("auto.merge", false);
-    expect(store.config.auto.merge).toBe(false);
+    await store.writeLocalConfig("merge.delete_branch", false);
+    expect(store.config.merge.delete_branch).toBe(false);
     // localDir を渡さなければ個人の設定は書けない
     const plain = await Store.open(root);
     await expect(plain.writeLocalConfig("commit.mode", "each")).rejects.toMatchObject({

@@ -364,50 +364,6 @@ actions.light_paths
 空のとき: 軽い検査を使わない（actions.test を回す）
 詳しく
 actions.light_paths
-PR を自動でマージする
-auto.merge
-[title] 既定は false
-変更あり
-[title] エージェントに頼む（Shift+F10）
-[aria-label] エージェントに頼む（設定の項目 auto.merge）
---auto で、品質ゲートを満たした PR を自動でマージする
-無効
-[title] 既定の false に戻す
-既定に戻す
-詳しく
-auto.merge
---auto で自動で選ぶ判断
-auto.decisions
-[title] 既定は [assign, check, plan, audit, accept]
-変更あり
-[title] エージェントに頼む（Shift+F10）
-[aria-label] エージェントに頼む（設定の項目 auto.decisions）
---auto で聞かずに選ぶ判断
-空
-[aria-label] 項目
-[placeholder] 項目を足す
-足す
-[title] 既定の [assign, check, plan, audit, accept] に戻す
-既定に戻す
-空のとき: --auto でも聞かずに選ぶ判断はない
-詳しく
-auto.decisions
-流れから外す段階
-flow.skip
-[title] 既定は 空
-変更あり
-[title] エージェントに頼む（Shift+F10）
-[aria-label] エージェントに頼む（設定の項目 flow.skip）
-dg flow next が飛ばす段階
-空
-[aria-label] 項目
-[placeholder] 項目を足す
-足す
-[title] 既定の 空 に戻す
-既定に戻す
-空のとき: どの段階も飛ばさない
-詳しく
-flow.skip
 同時に進めるチケットの上限
 work.parallel
 [title] 既定は 3

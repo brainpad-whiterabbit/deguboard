@@ -20,7 +20,7 @@
 | [ADR-027](ADR-027-screen-vscode-writes-and-asks.md) | 人の画面は VS Code 拡張にし、画面から書くのはチケット詳細と設定だけで、ほかはエージェントに頼む                                             | UI                 |
 | [ADR-028](ADR-028-agents-and-state.md)              | ツールはエージェントを動かさず、状態はブランチの事実で進め、排他は claim の push で決める                                                   | エージェントと照合 |
 | [ADR-029](ADR-029-work-metrics.md)                  | 作業の使用量とツールの回数（失敗した数を含む）は Run ごとに公式の記録から実測し、数だけを Git に写す                                        | 作業の実績         |
-| [ADR-030](ADR-030-flow-and-guide-in-core.md)        | Iteration の流れもコードが判定し、guide の節は Core が返し、カスタマイズは config と guide.notes に限る                                     | ワークフロー       |
+| [ADR-030](ADR-030-flow-and-guide-in-core.md)        | Iteration の流れもコードが判定し、guide の節は Core が返し、カスタマイズは Workflow と config と guide.notes に限る                         | ワークフロー       |
 | [ADR-031](ADR-031-claim-prepares-work.md)           | claim が Iteration への追加と開始、作業ブランチの worktree の作成まで行う                                                                   | ワークフロー       |
 | [ADR-033](ADR-033-architecture.md)                  | アーキテクチャ（索引は印で確かめる読みの結果をディスクに残す）                                                                              | アーキテクチャ     |
 | [ADR-034](ADR-034-storage-and-id.md)                | チケットの保存と ID                                                                                                                         | データ             |
