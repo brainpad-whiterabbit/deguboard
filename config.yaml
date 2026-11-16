@@ -2,7 +2,6 @@ git:
   remote: origin
   base_branch: main
 auto:
-  merge: true
   decisions:
     - assign
     - check
