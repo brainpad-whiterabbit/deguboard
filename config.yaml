@@ -64,7 +64,7 @@ guide:
     discuss: ""
     status: ""
     explain: ""
-    retro: ""
+    retro: docs/guide-notes/retro.md
     config: ""
     all: ""
 commit:
