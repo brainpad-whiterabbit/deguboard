@@ -18,7 +18,6 @@ import {
   hookScope,
   installHooks,
   installSkill,
-  launcherFrom,
   runCommand,
   runMergeDriver,
   skillInstallWarnings,
@@ -33,7 +32,7 @@ import { Argument, Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import { toErrorView, type ErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
-import { selfCommand } from "./hooks.js";
+import { selfCommand, selfMergeDriver } from "./hooks.js";
 import { addServeCommands } from "./serve.js";
 import { bindInputs, collectInput, shapesOf } from "./options.js";
 import {
@@ -52,24 +51,6 @@ import {
 function webDist(): string | undefined {
   const dir = resolve(dirname(fileURLToPath(import.meta.url)), "../web");
   return existsSync(resolve(dir, "index.html")) ? dir : undefined;
-}
-
-/**
- * git がマージドライバとして呼ぶ dg のコマンド（argv の前置）。PATH に dg がなくても（npx・mise run・node_modules/.bin）動くよう、
- * いま動いている node と、このパッケージの bin/dg.js を絶対パスで指す。init と sync のたびに登録し直すので、
- * npx のキャッシュや worktree が消えてパスが古くなっても次の sync で直る。束ねた dg.mjs では、そのファイルを指す。
- * 起動ファイル経由で動いていれば（env に DEGUBOARD_LAUNCHER があれば）、node と dg.mjs の代わりに起動ファイルを指す（t735）
- */
-export function selfMergeDriver(
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): string[] {
-  const launcher = launcherFrom(env);
-  if (launcher !== undefined) return [launcher, "merge-driver"];
-  return [
-    process.execPath,
-    bundleLayout()?.entry ?? fileURLToPath(new URL("../bin/dg.js", import.meta.url)),
-    "merge-driver",
-  ];
 }
 
 export interface ProgramOptions {

@@ -15,7 +15,12 @@ import {
 } from "../../test/helpers/git-fixture.js";
 import { runProcess } from "../git/index.js";
 import { installHooks } from "./hook-settings.js";
-import { checkSetup, type SetupCheckItem, type SetupCheckResult } from "./setup-check.js";
+import {
+  checkSetup,
+  initCommandLine,
+  type SetupCheckItem,
+  type SetupCheckResult,
+} from "./setup-check.js";
 import { writeSkillFiles } from "./skill-files.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -62,6 +67,36 @@ async function initAndPush(clone: string): Promise<void> {
   await openRepo(clone);
   await git(clone, ["push", "--quiet", "origin", "deguboard"]);
 }
+
+describe("チェックリストの dg init の 1 行（initCommandLine）", () => {
+  it("渡した値を --remote・--data-remote・--data-branch に付け、省いた値は付けない", () => {
+    expect(initCommandLine({})).toBe("dg init");
+    expect(
+      initCommandLine({
+        remote: "upstream",
+        dataRemote: "git@github.com:team/kanban.git",
+        dataBranch: "kanban",
+        newBoard: true,
+      }),
+    ).toBe(
+      "dg init --new-board --remote upstream --data-remote git@github.com:team/kanban.git --data-branch kanban",
+    );
+  });
+
+  it("シェルにそのまま渡せない値だけを単一引用符で囲む", () => {
+    expect(initCommandLine({ dataRemote: "https://example.com/a b.git" })).toBe(
+      "dg init --data-remote 'https://example.com/a b.git'",
+    );
+    expect(initCommandLine({ dataRemote: "$(x)", dataBranch: "it's" })).toBe(
+      `dg init --data-remote '$(x)' --data-branch 'it'\\''s'`,
+    );
+    // zsh の EQUALS は先頭の =cmd を展開するので、先頭の = だけを囲む
+    expect(initCommandLine({ dataRemote: "kanban", dataBranch: "=foo" })).toBe(
+      "dg init --data-remote kanban --data-branch '=foo'",
+    );
+    expect(initCommandLine({ dataBranch: "a=b" })).toBe("dg init --data-branch a=b");
+  });
+});
 
 describe("checkSetup：git の版", () => {
   it("git が PATH になければ満たさず、後の項目は確かめずに待ちで返す", async () => {
