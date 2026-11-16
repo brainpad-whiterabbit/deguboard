@@ -29,7 +29,7 @@ PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だ�
 次の操作の権限は Core が持ち、config でも `workflow.yaml`（[ADR-003](ADR-003-status-and-workflow.md)）でも緩められない。判定の順で `workflow.yaml` の値より先に見る。
 
 - フックを外す（`dg hooks uninstall`）：人だけ。エージェントの呼び出しは拒否する
-- チケットの段を下げる（`dg ticket update --gate`）：人だけ。エージェントの呼び出しは拒否する。上げるのは誰でもできる
+- チケットの段を下げる（`dg ticket update --gate`）：人だけ。エージェントの呼び出しは拒否する。上げるのは誰でもできる。`high` より下の段での起票（`dg ticket create`・`dg ticket import`）は下げる操作に数えず、`governance.create` で判定する。起票は人がチケットごと承認し、段もそのとき人が見るため
 - `workflow.yaml` の書き換え（`dg workflow set`）：エージェントにはいつも人の承認（`--approved-by`）を求め、承認者を履歴に残す。聞かずに進める流れ（`--auto`）でも求める
 - 段の条件を満たさない PR のマージ（`dg pr merge`）：呼ぶ主体によらず、いつも人の承認（`--approved-by`）を求める。エージェントは満たさない条件を示して人に聞く。承認者を渡さなければ何も越えず、越えた条件は承認者と一緒に PR に残す
 - 承認があっても越えないのは、PR が開いていること・base と衝突しないこと・判定した先端への固定。ほかの条件（検査・見直し・手直しの回数・受け入れ条件）は承認で越える

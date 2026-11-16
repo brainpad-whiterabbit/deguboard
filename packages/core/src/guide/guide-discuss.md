@@ -42,7 +42,7 @@ Rules for `--deep`:
 
 ## What is reflected
 
-Only the title, body (summary), acceptance criteria, priority, dependencies, and gate level are reflected (for an Iteration: the name and goal; for an Epic: the title and summary). Lowering the gate level needs the human's explicit instruction.
+Only the title, body (summary), acceptance criteria, priority, dependencies, and gate level are reflected (for an Iteration: the name and goal; for an Epic: the title and summary). A raised gate level is reflected like the rest. A lowered gate level (high → low → free) is not reflected by the agent: only a human can lower it and dg refuses the agent's call (fixed in Core), so give the human the exact command, `dg ticket update <t12> --gate <level>`, and reflect the rest.
 
 When the conclusion is a change of Status, of membership (Iteration or Epic), closing, or abandoning, do not do it here. Show the ask that fits and stop:
 

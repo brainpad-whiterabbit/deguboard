@@ -45,7 +45,7 @@ PR を ready にする・マージするときに判定する条件は、チケ�
 | `low`          | 見直しを除く（検査はする）          |
 | `free`         | PR が開いていて、衝突しないことだけ |
 
-段はチケット詳細か `dg ticket update <id> --gate <段>` で付ける。`/dgall`・`/dgwork` に `--gate-high`・`--gate-low`・`--gate-free` を付けると、対象のチケットの段をまとめて決める（付けなければ各チケットの段のまま）。段を下げるのは人の指示があるときだけにする。条件の細部は `dg gate --help`。
+段はチケット詳細か `dg ticket update <id> --gate <段>` で付ける。`/dgall`・`/dgwork` に `--gate-high`・`--gate-low`・`--gate-free` を付けると、対象のチケットの段を指定する（付けなければ各チケットの段のまま）。段を上げるのはその場で反映する。段を下げる（high → low → free）のは人だけができる。エージェントの呼び出しを dg が拒否するので、流れはチケットごとに `dg ticket update <id> --gate <段>` を打つよう人に頼んで待つ。条件の細部は `dg gate --help`。
 
 ## 同期の競合を解く
 

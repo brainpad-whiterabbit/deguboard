@@ -7,6 +7,7 @@ import { OperationError } from "../errors.js";
 import { isAgentActorId, resolveActorRef } from "../model/actor.js";
 import { evaluateAll, judgeDecisions, type Facts } from "../workflow/conditions.js";
 import {
+  DEFAULT_WORKFLOW,
   coreFixedPolicy,
   operationPolicy,
   type Operation,
@@ -138,6 +139,9 @@ export function requirePermission(
 /**
  * カンバンの管理の操作（governance）か Core に固定の操作を、今の主体に当てる（WF-7）。
  * Core に固定の操作は Workflow を読まずに判定する（workflow.yaml に誤りがあっても、workflow set で直せるように）。
+ * カンバンの管理の操作は、workflow.yaml に誤りがあって読めなければ Core の既定の governance で判定する
+ * （起票・チケットを消す・チームの設定は Status の動きと違って Workflow のほかの項目に依らないので、
+ * 定義を直すまで人もエージェントも止めることはしない）。
  * 聞かずに進める流れ（--auto）かを dg は知らないので、ask_unless_auto もいつも承認を求める
  */
 export function requireOperation(
@@ -146,7 +150,8 @@ export function requireOperation(
   input: PermissionInput,
   what: string,
 ): Granted {
-  const policy = coreFixedPolicy(op) ?? operationPolicy(ctx.store.requireWorkflow().resolved, op);
+  const policy =
+    coreFixedPolicy(op) ?? operationPolicy(ctx.store.workflow?.resolved ?? DEFAULT_WORKFLOW, op);
   return requirePermission(ctx, policy, input, what);
 }
 

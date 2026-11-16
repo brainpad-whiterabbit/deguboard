@@ -242,6 +242,47 @@ describe("カンバンの管理の操作は governance の値で判定される"
     expect((await runCommand(ticketCreate, agent, { title: "F" })).data.id).toBe("t6");
   });
 
+  it("workflow.yaml に誤りがあって読めないときは、Core の既定の governance で判定する（NOT_FOUND で止めない）", async () => {
+    const { human, agent, subject } = await humanAndAgent();
+    await runCommand(epicCreate, human, { title: "E", summary: "目的" });
+    // governance を緩めた値ごと読めなくする（未知の事実は誤り）。緩めた値は効かず、既定で判定する
+    await writeWorkflowYaml(human, [
+      "boundaries:",
+      "  - { from: review, to: done, requires: [nope] }",
+      "governance: { delete: anyone, epic: anyone, config: anyone }",
+    ]);
+    expect(human.store.workflow).toBeUndefined();
+
+    // create は既定で anyone：人もエージェントも起票できる（create・import）
+    expect((await runCommand(ticketCreate, human, { title: "A" })).data.id).toBe("t1");
+    expect((await runCommand(ticketCreate, agent, { title: "B" })).data.id).toBe("t2");
+    await runCommand(ticketImport, agent, { drafts: [{ title: "C" }] });
+    expect(human.store.require("ticket", "t3").data.title).toBe("C");
+
+    // delete・epic は既定で human_only：エージェントは拒否され、人はできる
+    expect(await rejected(runCommand(ticketDelete, agent, { ticket: "t1" }))).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message: "The Workflow limits dg ticket delete to a person (governance.delete: human_only)",
+    });
+    expect((await runCommand(ticketDelete, human, { ticket: "t1" })).data.id).toBe("t1");
+    expect(await rejected(runCommand(epicClose, agent, { epic: "e1" }))).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message: "The Workflow limits dg epic close to a person (governance.epic: human_only)",
+    });
+    expect((await runCommand(epicClose, human, { epic: "e1" })).data.status).toBe("closed");
+
+    // config は既定で always_ask：エージェントは承認が要り、人は聞かずに書ける
+    const set = { key: "work.parallel", value: "2" };
+    expect(await rejected(runCommand(configSet, agent, set))).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for changing the team's setting work.parallel (governance.config: always_ask)",
+    });
+    await runCommand(configSet, agent, { ...set, approved_by: "human" });
+    expect(await subject()).toBe("Change config work.parallel (approved by claude)");
+    await runCommand(configUnset, human, { key: "work.parallel" });
+  });
+
   it("名前だけで操作が決まるコマンドのうち、エージェントに拒むものは governance の値から決まる（ask が人のコマンドに回す）", () => {
     expect(commandsRejectedForAgent(resolveWorkflow({}))).toEqual([
       "ticket.delete",

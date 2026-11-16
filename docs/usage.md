@@ -45,7 +45,7 @@ The conditions checked before a PR becomes ready or is merged depend on the tick
 | `low`            | Everything except the review (checks still run) |
 | `free`           | Only that the PR is open and does not conflict  |
 
-Set the level in the ticket details or with `dg ticket update <id> --gate <level>`. Passing `--gate-high`, `--gate-low`, or `--gate-free` to `/dgall` or `/dgwork` sets the level of the target tickets all at once (without them, each ticket keeps its own level). Lower a level only when a person asks for it. The details of the conditions are in `dg gate --help`.
+Set the level in the ticket details or with `dg ticket update <id> --gate <level>`. Passing `--gate-high`, `--gate-low`, or `--gate-free` to `/dgall` or `/dgwork` gives the level for the target tickets (without them, each ticket keeps its own level). Raising a level is applied at once. Lowering a level (high → low → free) can only be done by a person: dg rejects an agent's call, so the flow asks you to run `dg ticket update <id> --gate <level>` for each ticket and waits. The details of the conditions are in `dg gate --help`.
 
 ## Resolve a sync conflict
 
