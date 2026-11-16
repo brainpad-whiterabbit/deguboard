@@ -1,0 +1,13 @@
+id: p150
+tickets: [t1043, t826]
+after: {}
+pending_approval: true
+details:
+  t1043:
+    scope: 公開のワークフロー・そのテスト・ovsx への依存（package.json と lockfile）・development.md のリリースの手順・ADR-008 から Open VSX を外す。README は触らない
+    approach: publish-extension.yml の Open VSX の job を消してテストを Marketplace だけの約束に直し、ovsx を依存から外し、ADR-008 の本文を書き換えて「採らなかった案」に Open VSX に出さない理由を 1 行足す
+    tier: standard
+  t826:
+    scope: README.md と README.ja.md の導入の手順を Marketplace からのインストールに変え、Cursor・VSCodium 向けに GitHub Releases の VSIX の手順を残し、対応する OS（Linux・macOS）を書く
+    approach: Marketplace の拡張のページの絶対 URL と VS Code での入れ方を書き、scripts/vscode-readme.mjs で作る拡張の README にも OS の記述が載ることを確かめる
+    tier: standard
