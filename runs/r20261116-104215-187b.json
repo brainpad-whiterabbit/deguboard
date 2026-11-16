@@ -1,0 +1,34 @@
+{
+  "id": "r20261116-104215-187b",
+  "ticket": "t1031",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-16T10:42:15Z",
+  "finished_at": "2026-11-16T10:43:44Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ST-4 の「done のチケットの worktree とブランチを消す」が、照合で done にしたチケットだけを片付けるコードより約束を広げている"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 4881,
+    "cache_read": 349906,
+    "cache_write": 35205
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 1,
+    "bash": 8,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "23c5636a-4fa2-4fb4-b1a2-d06fa88b11b3",
+  "review": null,
+  "waited_seconds": 0
+}
