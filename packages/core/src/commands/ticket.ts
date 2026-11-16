@@ -6,7 +6,7 @@ import { baseTip, collectBranchFacts, fetchPrCreatedAt, findMergedLeftover } fro
 import { findBranchWorktree } from "../git/worktree.js";
 import { AbortWrite, withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
-import { STATUSES, isTerminal, slugSchema, statusSchema, type Status } from "../model/common.js";
+import { STATUSES, isTerminal, statusSchema, type Status } from "../model/common.js";
 import { parseId, type TicketId } from "../model/id.js";
 import { FINDING_CAUSES, OPENED_STEPS, type RunId, type StepOpener } from "../model/run.js";
 import {
@@ -153,18 +153,9 @@ const ticketAttributes = {
   // 要件 TK-12
   origin: z.array(z.string()).optional().describe(ORIGIN_HELP),
   origin_cause: z.enum(FINDING_CAUSES).optional().describe(ORIGIN_CAUSE_HELP),
-  workflow: slugSchema
-    .optional()
-    .describe(
-      "Kept on the ticket. It no longer selects a Workflow (the board has one workflow.yaml)",
-    ),
   assignee: actorRef
     .optional()
     .describe("Assignee. human for yourself, agent for your own AI, otherwise the ID as-is"),
-  fields: z
-    .record(z.string(), z.unknown())
-    .optional()
-    .describe("Optional fields defined in the Workflow's fields"),
 };
 
 /**
@@ -215,8 +206,6 @@ function buildTicket(
   resolveDep: (ref: string) => TicketId,
 ): Record<string, unknown> {
   const store = ctx.store;
-  // 書き込みの中で取り込み直したストアの Workflow で確かめる
-  const workflow = store.requireWorkflow();
   const epic = input.epic === undefined ? undefined : requireOpenEpic(store, input.epic);
   const iteration =
     input.iteration === undefined ? undefined : requireIteration(store, input.iteration);
@@ -224,7 +213,6 @@ function buildTicket(
   // 元のチケットは今あるチケットだけ。下書きの仮のキーは受けない（不具合は、もうマージされた変更から出る）
   const origin = resolveOrigin(store, input.origin ?? []);
   requireOriginForCause(origin, input.origin_cause);
-  const fields = validateFields(workflow, input.fields);
   const now = nowIso(ctx);
   return {
     title: input.title,
@@ -237,10 +225,8 @@ function buildTicket(
     depends_on,
     ...(origin.length > 0 ? { origin } : {}),
     ...(input.origin_cause ? { origin_cause: input.origin_cause } : {}),
-    ...(input.workflow ? { workflow: input.workflow } : {}),
     created_by: resolveActorRef(ctx.actor, input.created_by ?? ctx.actor.id),
     ...(input.assignee ? { assignee: resolveActorRef(ctx.actor, input.assignee) } : {}),
-    ...fields,
     created_at: now,
     updated_at: now,
   };
@@ -258,44 +244,6 @@ function requireIteration(store: Store, ref: string) {
   if (it.data.status === "closed")
     throw new OperationError("REJECTED", `Iteration ${it.id} is closed`);
   return it.id;
-}
-
-/** Workflow の fields に定義されたものだけを通し、型を確かめる */
-function validateFields(
-  workflow: WorkflowEntry,
-  fields: Record<string, unknown> | undefined,
-): Record<string, unknown> {
-  if (!fields) return {};
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(fields)) {
-    const def = workflow.resolved.fields.find((f) => f.id === key);
-    if (!def)
-      throw new OperationError(
-        "VALIDATION_FAILED",
-        `Field ${key} is not defined in the Workflow's fields`,
-      );
-    if (value === null || value === undefined) {
-      out[key] = undefined;
-      continue;
-    }
-    const okType =
-      def.type === "number"
-        ? typeof value === "number"
-        : def.type === "boolean"
-          ? typeof value === "boolean"
-          : def.type === "enum"
-            ? typeof value === "string" && (def.options ?? []).includes(value)
-            : def.type === "date"
-              ? typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
-              : typeof value === "string";
-    if (!okType)
-      throw new OperationError(
-        "VALIDATION_FAILED",
-        `The value of field ${key} does not match type ${def.type}`,
-      );
-    out[key] = value;
-  }
-  return out;
 }
 
 function resolveExistingDep(store: Store) {
@@ -605,12 +553,6 @@ export const ticketUpdate = defineCommand({
       ),
     iteration: z.string().nullable().optional().describe("Iteration ID"),
     epic: z.string().nullable().optional().describe("Epic ID"),
-    workflow: slugSchema
-      .nullable()
-      .optional()
-      .describe(
-        "Kept on the ticket. It no longer selects a Workflow (the board has one workflow.yaml)",
-      ),
     pr: z
       .number()
       .int()
@@ -694,7 +636,6 @@ export const ticketUpdate = defineCommand({
           patch["iteration"] =
             input.iteration === null ? undefined : requireIteration(store, input.iteration);
         }
-        if (input.workflow !== undefined) patch["workflow"] = input.workflow ?? undefined;
         if (input.depends_on !== undefined) {
           const ids = input.depends_on.map((ref) => store.require("ticket", ref).data.id);
           if (ids.includes(t.id) || wouldCreateCycle(store, t.id, ids)) {
@@ -715,8 +656,6 @@ export const ticketUpdate = defineCommand({
             input.origin === undefined ? t.origin : (patch["origin"] as string[] | undefined),
             input.origin_cause === undefined ? t.origin_cause : patch["origin_cause"],
           );
-        if (input.fields)
-          Object.assign(patch, validateFields(store.requireWorkflow(), input.fields));
         // PR を記録したら実装は終わっている。実行中の実装の Run を PR の作成時刻で閉じる（RN-6）。
         // 検査がすべて通った後に閉じる（拒否される更新で Run だけ閉じない）
         const closed: ClosedRun[] = [];

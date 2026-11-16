@@ -44,14 +44,6 @@ afterEach(() => {
 const FIELDS: ConfigField[] = (
   [
     {
-      key: "default_workflow",
-      type: "string",
-      description: "workflow を持たないチケットの Workflow",
-      default: "general",
-      scope: "team",
-      clears_to_default: true,
-    },
-    {
       key: "git.remote",
       type: "string",
       description:
@@ -195,7 +187,6 @@ const FIELDS: ConfigField[] = (
 function configClient(initialLocal: Record<string, unknown> = {}) {
   const client = mockClient();
   const config = {
-    default_workflow: "general",
     git: { remote: "origin", base_branch: "main" },
     worktree: { root: "../<repo>.worktrees" },
     commit: { mode: "each" },
@@ -314,9 +305,10 @@ describe("設定画面", () => {
       "エージェント",
       "計測",
       "Git",
-      "チケット",
       "ガイドの差し込み",
     ]);
+    // 「既定の Workflow」の項目はない
+    expect(screen.queryByText("既定の Workflow")).toBeNull();
     expect(document.querySelectorAll(".config-field")).toHaveLength(FIELDS.length);
     const commit = fieldOf("commit.mode");
     expect(within(commit).getByText("commit.mode")).toBeTruthy();
@@ -498,13 +490,13 @@ describe("設定画面", () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
-    const input = within(fieldOf("default_workflow")).getByRole<HTMLInputElement>("textbox");
+    const input = within(fieldOf("models.light")).getByRole<HTMLInputElement>("textbox");
     fireEvent.change(input, { target: { value: "bad" } });
     fireEvent.blur(input);
-    expect((await within(fieldOf("default_workflow")).findByRole("alert")).textContent).toContain(
-      "default_workflow の値が正しくない（選択肢にない）",
+    expect((await within(fieldOf("models.light")).findByRole("alert")).textContent).toContain(
+      "models.light の値が正しくない（選択肢にない）",
     );
-    expect(input.value).toBe("general");
+    expect(input.value).toBe("");
     // 上の通知の帯には出さない（項目の下の 1 か所だけ）
     expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
@@ -1295,7 +1287,7 @@ describe("設定画面の部品", () => {
 
   it("入れ子の値を引き、既定との差を中身で比べ、値を短く書く", () => {
     expect(valueAt({ commit: { mode: "each" } }, "commit.mode")).toBe("each");
-    expect(valueAt({ default_workflow: "x" }, "default_workflow")).toBe("x");
+    expect(valueAt({ top: "x" }, "top")).toBe("x");
     expect(valueAt({}, "commit.mode")).toBeUndefined();
     expect(isModified([], [])).toBe(false);
     expect(isModified(["a"], [])).toBe(true);
@@ -1323,20 +1315,22 @@ describe("設定画面の部品", () => {
   it("キーの最上位でまとまりを決め、知らない項目は「その他」", () => {
     expect(groupOf("push.mode")).toBe("commit");
     expect(groupOf("actor.human_only")).toBe("agent");
-    expect(groupOf("default_workflow")).toBe("ticket");
+    expect(groupOf("priority.high")).toBe("ticket");
+    // やめた項目（default_workflow）はどのまとまりにも入らない
+    expect(groupOf("default_workflow")).toBe("other");
     expect(groupOf("new.item")).toBe("other");
-    expect(fieldMatch(FIELDS[1]!, "リモート")).toBe("shown");
-    expect(fieldMatch(FIELDS[1]!, "GIT.REMOTE")).toBe("shown");
-    expect(fieldMatch(FIELDS[1]!, "push")).toBeNull();
+    expect(fieldMatch(FIELDS[0]!, "リモート")).toBe("shown");
+    expect(fieldMatch(FIELDS[0]!, "GIT.REMOTE")).toBe("shown");
+    expect(fieldMatch(FIELDS[0]!, "push")).toBeNull();
   });
 
   it("英語の表示では、検索が英語の説明にも当たる", () => {
     setLanguage("en");
     try {
       // 表示名（Code remote）には含まれず、英語の説明にだけある語
-      expect(fieldMatch(FIELDS[1]!, "WORK BRANCHES")).toBe("shown");
-      expect(fieldMatch(FIELDS[1]!, "pull requests")).toBe("shown");
-      expect(fieldMatch(FIELDS[1]!, "worktree")).toBeNull();
+      expect(fieldMatch(FIELDS[0]!, "WORK BRANCHES")).toBe("shown");
+      expect(fieldMatch(FIELDS[0]!, "pull requests")).toBe("shown");
+      expect(fieldMatch(FIELDS[0]!, "worktree")).toBeNull();
     } finally {
       setLanguage("ja");
     }

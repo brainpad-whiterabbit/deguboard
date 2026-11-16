@@ -232,7 +232,6 @@ describe("用意", () => {
     // 空の扱いは項目の定義の clears_to_default で決まる（既定が空でない文字列の項目だけ true）
     const byKey = new Map(configFields().map((x) => [x.key, x]));
     expect(byKey.get("priority.high")?.clears_to_default).toBe(true);
-    expect(byKey.get("default_workflow")?.clears_to_default).toBe(true);
     expect(byKey.get("models.light")?.clears_to_default).toBe(false);
     expect(byKey.get("actor.human_only")?.clears_to_default).toBe(false);
     // priority.* を書き換えてから空にすると、Core の既定の文に戻る
@@ -242,10 +241,6 @@ describe("用意", () => {
     // 読み直しても既定のまま。キーを消すので config.yaml には書かれない
     const shown = (await runCommand(configShow, ctx, {})).data as ConfigShowView["config"];
     expect(shown.priority.high).toBe(defaults.priority.high);
-    // 最上位の文字列の項目（既定 "general"）も空で既定に戻る
-    await runCommand(configSet, ctx, { key: "default_workflow", value: "software-development" });
-    const wf = await runCommand(configSet, ctx, { key: "default_workflow", value: "" });
-    expect(wf.data.default_workflow).toBe("general");
     // 既定が空の項目（models.*）は空のまま
     await runCommand(configSet, ctx, { key: "models.light", value: "sonnet" });
     const light = await runCommand(configSet, ctx, { key: "models.light", value: "" });

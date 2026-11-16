@@ -19,7 +19,7 @@ import {
   iterationShow,
   iterationStart,
 } from "./iteration.js";
-import { configSet, lint, sync, whoami } from "./setup.js";
+import { configSet, configUnset, lint, sync, whoami } from "./setup.js";
 import {
   ticketCheck,
   ticketClaim,
@@ -68,8 +68,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
 
     // strict：制約に当たる遷移だけが拒否される
     await writeStrictWorkflow(human);
-    await runCommand(ticketCreate, human, { title: "C", workflow: "strict" });
-    await runCommand(ticketCreate, human, { title: "D", depends_on: ["t3"], workflow: "strict" });
+    await runCommand(ticketCreate, human, { title: "C" });
+    await runCommand(ticketCreate, human, { title: "D", depends_on: ["t3"] });
     await agent.store.rescan();
     await expect(
       runCommand(ticketMove, human, { ticket: "t3", status: "done" }),
@@ -101,30 +101,65 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(claimed.data.status).toBe("in_progress");
   });
 
-  it("Workflow はカンバンに 1 つで、チケットの workflow も config の default_workflow も Workflow を選ばない", async () => {
+  it("チケットは workflow も任意フィールドも受けず、前の版が書いた workflow・任意フィールドの値・config の default_workflow は誤りにせずに読む", async () => {
     const f = await initializedFixture();
     const human = await reopenInitialized(f);
-    // 既定の Workflow：todo → done が通る。作ったチケットは project も workflow も持たない
-    const created = await runCommand(ticketCreate, human, { title: "A" });
-    expect(created.data).not.toHaveProperty("project");
-    expect(created.data.workflow).toBeUndefined();
-    expect(await readFile(path.join(human.repo.dataDir, "tickets/t1.md"), "utf8")).not.toMatch(
-      /^(project|workflow):/m,
+    // 入力に workflow と fields を渡しても、チケットには書かない
+    const created = await runCommand(ticketCreate, human, {
+      title: "A",
+      workflow: "strict",
+      fields: { estimate: 3 },
+    });
+    expect(created.data).not.toHaveProperty("workflow");
+    expect(created.data).not.toHaveProperty("estimate");
+    const file = path.join(human.repo.dataDir, "tickets/t1.md");
+    expect(await readFile(file, "utf8")).not.toMatch(/^(project|workflow|estimate):/m);
+
+    // 前の版が書いたチケット（workflow と任意フィールドの値）と config（default_workflow）
+    await writeFile(
+      file,
+      (await readFile(file, "utf8")).replace(/^status:/m, "workflow: strict\nestimate: 3\nstatus:"),
     );
-    await runCommand(ticketCreate, human, { title: "B" });
-    await runCommand(ticketCreate, human, { title: "C", workflow: "general" });
-    expect(
-      (await runCommand(ticketMove, human, { ticket: "t1", status: "done" })).data.status,
-    ).toBe("done");
-    // workflow.yaml に制約（todo → done は誰にも許さない）を書くと、workflow を持つチケット（t3）も持たないチケット（t2）も従う
+    const config = path.join(human.repo.dataDir, "config.yaml");
+    await writeFile(config, `${await readFile(config, "utf8")}default_workflow: strict\n`);
+    await recordBaseline(human.repo);
+    await human.store.rescan();
+    expect(human.store.issues).toEqual([]);
+    // workflow は値に出さない。任意フィールドの値はスキーマにない項目として残る（DT-2）
+    const shown = (await runCommand(ticketShow, human, { ticket: "t1" })).data;
+    expect(shown).not.toHaveProperty("workflow");
+    expect(shown).toMatchObject({ estimate: 3 });
+    expect(human.store.config).not.toHaveProperty("default_workflow");
+    // どちらも Workflow を選ばない：workflow.yaml の制約（todo → done は誰にも許さない）に従う
     await writeStrictWorkflow(human);
-    await runCommand(configSet, human, { key: "default_workflow", value: "nothing" });
-    for (const ticket of ["t2", "t3"])
-      await expect(runCommand(ticketMove, human, { ticket, status: "done" })).rejects.toMatchObject(
-        { code: "TRANSITION_REJECTED" },
-      );
-    // default_workflow が指す名前の定義がなくても起票できる
-    expect((await runCommand(ticketCreate, human, { title: "D" })).data.id).toBe("t4");
+    await expect(
+      runCommand(ticketMove, human, { ticket: "t1", status: "done" }),
+    ).rejects.toMatchObject({ code: "TRANSITION_REJECTED" });
+
+    // チケットを書くと workflow は消え、任意フィールドの値は残る
+    await runCommand(ticketUpdate, human, { ticket: "t1", title: "A2" });
+    const written = await readFile(file, "utf8");
+    expect(written).not.toMatch(/^workflow:/m);
+    expect(written).toMatch(/^estimate: 3$/m);
+    // config を書くと default_workflow は消える
+    await runCommand(configSet, human, { key: "work.parallel", value: "4" });
+    expect(await readFile(config, "utf8")).not.toContain("default_workflow");
+  });
+
+  it("config unset default_workflow は、前の版が書いた default_workflow を config.yaml から消す", async () => {
+    const f = await initializedFixture();
+    const human = await reopenInitialized(f);
+    const config = path.join(human.repo.dataDir, "config.yaml");
+    await writeFile(config, `${await readFile(config, "utf8")}default_workflow: strict\n`);
+    await recordBaseline(human.repo);
+    await human.store.rescan();
+    await runCommand(configUnset, human, { key: "default_workflow" });
+    expect(await readFile(config, "utf8")).not.toContain("default_workflow");
+    // 値は書けない（書いても消える）
+    await runCommand(configSet, human, { key: "default_workflow", value: "strict" }).catch(
+      () => undefined,
+    );
+    expect(await readFile(config, "utf8")).not.toContain("default_workflow");
   });
 
   it("list は各行に deps_done を載せ、show と同じく絞り込みに合わない依存先も見る", async () => {
@@ -468,21 +503,17 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     }
   });
 
-  it("update は属性と本文を直し、循環する依存と未定義のフィールドを拒否する", async () => {
+  it("update は属性と本文を直し、循環する依存を拒否する", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
-    // 任意フィールドは workflow.yaml の fields に定義したものだけを受ける
-    await ctx.store.writeWorkflow({ fields: [{ id: "estimate", type: "number" }] });
-    await recordBaseline(ctx.repo);
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketCreate, ctx, { title: "B", depends_on: ["t1"] });
     const r = await runCommand(ticketUpdate, ctx, {
       ticket: "t1",
       priority: "high",
-      fields: { estimate: 3 },
       body: "## 概要\n\n直した\n",
     });
-    expect(r.data).toMatchObject({ priority: "high", estimate: 3, body: "## 概要\n\n直した\n" });
+    expect(r.data).toMatchObject({ priority: "high", body: "## 概要\n\n直した\n" });
     // acceptance は受け入れ条件の節だけを置き換え、節がなければ足す。body とは同時に指定できない
     const a1 = await runCommand(ticketUpdate, ctx, { ticket: "t1", acceptance: ["a", "b"] });
     expect(a1.data.body).toBe("## 概要\n\n直した\n\n## 受け入れ条件\n\n- [ ] a\n- [ ] b\n");
@@ -509,15 +540,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     await expect(
       runCommand(ticketUpdate, ctx, { ticket: "t1", depends_on: ["t2"] }),
     ).rejects.toMatchObject({ code: "REJECTED" });
-    await expect(
-      runCommand(ticketUpdate, ctx, { ticket: "t1", fields: { nope: 1 } }),
-    ).rejects.toMatchObject({
-      code: "VALIDATION_FAILED",
-    });
     const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
     expect(shown.data.dependents).toEqual(["t2"]);
-    const text = await readFile(path.join(ctx.repo.dataDir, "tickets/t1.md"), "utf8");
-    expect(text).toContain("estimate: 3");
   });
 
   it("ゲートの段（gate。TK-9）は create・import・update で付き、update の null で外れ、段にない値は拒む", async () => {

@@ -58,7 +58,7 @@ describe("worktree の用意", () => {
   it("リモートに deguboard ブランチがあれば取り込んで worktree にする", async () => {
     const f = await fixture();
     const a = await openRepo(f.cloneA);
-    await writeFile(path.join(a.repo.dataDir, "config.yaml"), "default_workflow: general\n");
+    await writeFile(path.join(a.repo.dataDir, "config.yaml"), "commit:\n  mode: each\n");
     await git(a.repo.dataDir, ["add", "-A"]);
     await git(a.repo.dataDir, ["commit", "-qm", "設定"]);
     expect(await push(a.repo)).toEqual({ ok: true });
@@ -66,7 +66,7 @@ describe("worktree の用意", () => {
     const pathsB = await resolveRepoPaths(f.cloneB);
     expect(await ensureDeguboardWorktree(pathsB, "origin", "deguboard")).toBe("from_remote");
     expect(await readFile(path.join(pathsB.dataDir, "config.yaml"), "utf8")).toBe(
-      "default_workflow: general\n",
+      "commit:\n  mode: each\n",
     );
   });
 });

@@ -31,14 +31,13 @@ import {
 import { iterationSchema, RETIRED_ITERATION_KEYS, type Iteration } from "../model/iteration.js";
 import { planSchema, type Plan } from "../model/plan.js";
 import { isRunId, runSchema, type Run, type RunId } from "../model/run.js";
-import { pendingDeps, ticketSchema, type Ticket } from "../model/ticket.js";
+import { pendingDeps, RETIRED_TICKET_KEYS, ticketSchema, type Ticket } from "../model/ticket.js";
 import type { WorkflowDefinition } from "../model/workflow.js";
 import { DEFAULT_WORKFLOW, type ResolvedWorkflow } from "../workflow/resolve.js";
 import { validateWorkflow } from "../workflow/validate.js";
 import { writeFileAtomic } from "./atomic.js";
 import { loadLocalConfig, loadTeamConfig, readYamlFile } from "./config-file.js";
 import { createDoc, readDoc, writeDoc, type Doc, type DocFormat } from "./documents.js";
-import { pathExists } from "./exists.js";
 import { formatIssue, type Issue } from "./issue.js";
 import {
   CONFIG_FILE,
@@ -54,7 +53,7 @@ import {
   ticketPath,
   WORKFLOW_FILE,
 } from "./paths.js";
-import { RETIRED_PROJECTS_DIR } from "./retired-projects.js";
+import { RETIRED_CONFIG_KEYS } from "./retired-projects.js";
 import {
   loadStoreCache,
   saveStoreCache,
@@ -93,8 +92,8 @@ const collections = {
     schema: ticketSchema,
     idOf: (f) => idFromFileName(f, "ticket"),
     pathOf: ticketPath,
-    // Project はやめた（カンバンの中の区切りを持たない）
-    retired: RETIRED_PROJECT_KEYS,
+    // Project（カンバンの中の区切り）と、チケットごとに選ぶ Workflow はやめた
+    retired: RETIRED_TICKET_KEYS,
   } satisfies Collection<Ticket>,
   epic: {
     dir: DIRS.epics,
@@ -359,16 +358,7 @@ export class Store {
     const c = collections[kind] as unknown as Collection<EntityOf<K>>;
     const doc = this.map(kind).get(id);
     if (!doc) throw new OperationError("NOT_FOUND", `${kind} ${id} not found`);
-    // チケットの project は、projects/ が残る間は消さない：消すのを見送った間（git/retire-projects.ts）に書いたチケットから
-    // project が先に消えると、後で消すときにその Project の Workflow を workflow に書けず、Workflow が default_workflow に変わる。
-    // projects/ を消すとき（retireProjects）は workflow を書くのと同じ書き込みで project を明示して消す
-    const keepProject =
-      kind === "ticket" && (await pathExists(path.join(this.root, RETIRED_PROJECTS_DIR)));
-    const retired = Object.fromEntries(
-      (c.retired ?? [])
-        .filter((k) => !(keepProject && (RETIRED_PROJECT_KEYS as readonly string[]).includes(k)))
-        .map((k) => [k, undefined]),
-    );
+    const retired = Object.fromEntries((c.retired ?? []).map((k) => [k, undefined]));
     const next = await writeDoc(this.root, doc, c.schema, { ...retired, ...patch }, body);
     this.map(kind).set(id, next);
     return next;
@@ -391,10 +381,16 @@ export class Store {
     return (doc.toJS() ?? {}) as Record<string, unknown>;
   }
 
-  /** チームの config.yaml を書き換える（最上位の項目ごと。undefined は消す）。返すのは書いたチームの値（個人の上書きを重ねない。画面と CLI が書いた値をそのまま見せるため） */
+  /**
+   * チームの config.yaml を書き換える（最上位の項目ごと。undefined は消す）。返すのは書いたチームの値（個人の上書きを重ねない。画面と CLI が書いた値をそのまま見せるため）。
+   * やめたキー（RETIRED_CONFIG_KEYS）は、書くたびにファイルから消す
+   */
   async writeConfig(patch: Record<string, unknown>): Promise<Config> {
     const { doc } = await this.readConfigDocument();
-    patchYamlDocument(doc, patch);
+    patchYamlDocument(doc, {
+      ...patch,
+      ...Object.fromEntries(RETIRED_CONFIG_KEYS.map((k) => [k, undefined])),
+    });
     const parsed = configSchema.safeParse(doc.toJS() ?? {});
     if (!parsed.success) {
       throw new OperationError(
@@ -594,7 +590,7 @@ export class Store {
       this.workflow = {
         path: WORKFLOW_FILE,
         exists: false,
-        definition: { transitions: [], fields: [] },
+        definition: { transitions: [] },
         resolved: DEFAULT_WORKFLOW,
       };
       // 前の版の workflows/<id>.yaml は読まないので、そこに書いた制約（by の制限など）は黙って既定に戻る。

@@ -190,7 +190,6 @@ function richClient(): MockClient {
     },
   ];
   const config = {
-    default_workflow: "general",
     git: { remote: "origin", data_remote: "", data_branch: "deguboard", base_branch: "main" },
     commit: { mode: "each" },
   };

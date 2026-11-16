@@ -470,7 +470,7 @@ describe("dg", () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     await writeStrictWorkflow(f.cloneA);
-    await dg(f.cloneA, ["ticket", "create", "A", "--workflow", "strict"]);
+    await dg(f.cloneA, ["ticket", "create", "A"]);
     const rejected = await dg(f.cloneA, ["--json", "ticket", "move", "1", "done"]);
     expect(rejected.code).toBe(1);
     expect(rejected.json()).toMatchObject({ ok: false, error: { code: "TRANSITION_REJECTED" } });
@@ -576,7 +576,7 @@ describe("dg", () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     await writeStrictWorkflow(f.cloneA);
-    await dg(f.cloneA, ["ticket", "create", "A", "--workflow", "strict"]);
+    await dg(f.cloneA, ["ticket", "create", "A"]);
     const viaOption = await dg(f.cloneA, [
       "--json",
       "--actor",
@@ -691,12 +691,13 @@ describe("dg", () => {
       ["metrics", "show", "--by", "project"],
     ])
       expect((await dg(f.cloneA, ["--json", ...argv])).code, argv.join(" ")).toBe(2);
-    // config の項目は default_workflow に替わった
+    // config の項目にもない（代わりだった default_workflow もやめた）
     const fields = (await dg(f.cloneA, ["--json", "config", "show", "--fields"])).json().data;
     const keys = (fields.fields as { key: string }[]).map((x) => x.key);
-    expect(keys).toContain("default_workflow");
+    expect(keys).not.toContain("default_workflow");
     expect(keys).not.toContain("default_project");
     expect(fields.config).not.toHaveProperty("default_project");
+    expect(fields.config).not.toHaveProperty("default_workflow");
     // 作ったチケットは project を持たない
     const created = (await dg(f.cloneA, ["--json", "ticket", "create", "A"])).json().data;
     expect(created).not.toHaveProperty("project");
@@ -921,8 +922,8 @@ describe("dg", () => {
   it("外せるオプションのヘルプは外し方を none の 1 つだけ示す", async () => {
     const f = await fixture();
     const help = (await dg(f.cloneA, ["ticket", "update", "--help"])).out;
-    // iteration・epic・workflow・pr・branch・assignee・gate
-    expect(help.match(/\(none to clear\)/g)).toHaveLength(7);
+    // iteration・epic・pr・branch・assignee・gate
+    expect(help.match(/\(none to clear\)/g)).toHaveLength(6);
     expect(help).not.toContain("null");
   });
 

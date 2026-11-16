@@ -17,14 +17,14 @@ import { epicCreate } from "../commands/epic.js";
 import { iterationCreate, iterationUpdate } from "../commands/iteration.js";
 import { planCreate } from "../commands/plan.js";
 import { commit, configSet, sync, validate } from "../commands/setup.js";
-import { ticketCreate, ticketList, ticketShow, ticketUpdate } from "../commands/ticket.js";
+import { ticketCreate, ticketList, ticketUpdate } from "../commands/ticket.js";
 import { pathExists } from "../storage/exists.js";
 import { checkOutside, DG_COMMIT_TRAILER, recordBaseline } from "./outside.js";
 import { push } from "./sync.js";
 
 afterEach(runCleanups);
 
-const REMOVAL = "Remove projects/ (Projects are retired; default_workflow takes their place)";
+const REMOVAL = "Remove projects/ (Projects are retired)";
 
 /** ファイルの id の行の後に project の行を足す（前の dg が書いた形にする） */
 async function addProject(ctx: CommandContext, rel: string, project = "default") {
@@ -72,10 +72,6 @@ const subjects = async (dir: string, rev = "HEAD") =>
   (await git(dir, ["log", "--format=%s", rev])).stdout.trim().split("\n");
 const read = (ctx: CommandContext, rel: string) =>
   readFile(path.join(ctx.repo.dataDir, rel), "utf8");
-/** チケットに残る Workflow の名前（自分の workflow、なければ config の default_workflow）。Workflow はもう選ばないが、Project を消す前後で変えない */
-const workflowOf = async (ctx: CommandContext, ticket: string) =>
-  (await runCommand(ticketShow, ctx, { ticket })).data.workflow ??
-  ctx.store.config.default_workflow;
 const remoteFiles = async (f: Fixture) =>
   (await git(f.remoteDir, ["ls-tree", "-r", "--name-only", "deguboard"])).stdout;
 /** テストの文脈はマージドライバを登録しないので、その警告は除く */
@@ -83,19 +79,18 @@ const warningsOf = (r: { warnings: string[] }) =>
   r.warnings.filter((w) => !w.startsWith("The merge driver is not registered"));
 
 describe("やめた Project の残りを消す", () => {
-  it("読むコマンドは projects/ を消さず、既定の Project の Workflow でチケットを読み、validate が通る", async () => {
+  it("読むコマンドは projects/ を消さず、チケットを読めて、validate が通る", async () => {
     const { ctx } = await legacy("each");
     const head = (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout;
     expect((await runCommand(ticketList, ctx, {})).data.map((t) => t.id)).toEqual(["t1", "t2"]);
     expect((await runCommand(ticketList, ctx, {})).warnings).toEqual([]);
-    expect(await workflowOf(ctx, "t1")).toBe("software-development");
     expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
     expect(await pathExists(path.join(ctx.repo.dataDir, "projects/default.yaml"))).toBe(true);
     expect((await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout).toBe(head);
     expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
   });
 
-  it("書き込みのときに projects/ と default_project と .gitattributes の projects の行を印付きのコミットで一度だけ消し、既定の Workflow を default_workflow に移す。dg の外の変更として止まらない", async () => {
+  it("書き込みのときに projects/ と default_project と .gitattributes の projects の行を印付きのコミットで一度だけ消す。Project が指していた Workflow はどこにも移さない。dg の外の変更として止まらない", async () => {
     // 前の dg は .gitattributes に projects/*.yaml の行（マージドライバを当てるパス）も書いていた
     const { f, ctx } = await legacy("each", async (first) => {
       const file = path.join(first.repo.dataDir, ".gitattributes");
@@ -131,13 +126,12 @@ describe("やめた Project の残りを消す", () => {
     expect(attributes).toContain("tickets/*.md merge=deguboard\n");
     expect(attributes).toContain("iterations/*.yaml merge=deguboard\n");
 
-    // config：default_project は消え、既定の Project の Workflow が default_workflow になる
+    // config：default_project は消え、Project の Workflow（software-development）はどこにも書かない
     const config = await read(ctx, "config.yaml");
     expect(config).not.toContain("default_project");
-    expect(config).toContain("default_workflow: software-development");
-    expect(ctx.store.config.default_workflow).toBe("software-development");
-    expect(await workflowOf(ctx, "t1")).toBe("software-development");
-    expect(await workflowOf(ctx, "t2")).toBe("software-development");
+    expect(config).not.toContain("default_workflow");
+    expect(ctx.store.config).not.toHaveProperty("default_workflow");
+    expect(await read(ctx, "tickets/t1.md")).not.toMatch(/^workflow:/m);
 
     // 書いたチケット（t1）の project は消え、書いていないもの（t2）は読めるまま残る
     expect(await read(ctx, "tickets/t1.md")).not.toContain("project:");
@@ -161,7 +155,6 @@ describe("やめた Project の残りを消す", () => {
       actor: { kind: "human", user: "eiki" },
     });
     expect(await pathExists(path.join(b.repo.dataDir, "projects"))).toBe(false);
-    expect(b.store.config.default_workflow).toBe("software-development");
     expect((await runCommand(validate, b, {})).data).toEqual({ ok: true, issues: [] });
     await runCommand(ticketUpdate, b, { ticket: "t2", priority: "low" });
     expect(await read(b, "tickets/t2.md")).not.toContain("project:");
@@ -198,12 +191,12 @@ describe("やめた Project の残りを消す", () => {
     await writeFile(config, `${await readFile(config, "utf8")}# まとめ待ちの変更\n`);
     await recordBaseline(ctx.repo);
 
-    // 書き込みは見送る：消すコミットを作らず、projects/ も config.yaml の default_project も残り、チケットの Workflow は変わらない
+    // 書き込みは見送る：消すコミットを作らず、projects/ も config.yaml の default_project も残る。書いたチケットの project は消える
     await runCommand(ticketUpdate, ctx, { ticket: "t2", priority: "low" });
     expect(await subjects(ctx.repo.dataDir)).not.toContain(REMOVAL);
     expect(await pathExists(path.join(ctx.repo.dataDir, "projects/default.yaml"))).toBe(true);
     expect(await read(ctx, "config.yaml")).toContain("default_project: default");
-    expect(await workflowOf(ctx, "t1")).toBe("software-development");
+    expect(await read(ctx, "tickets/t2.md")).not.toContain("project:");
     expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe(
       " M config.yaml\n M tickets/t2.md\n",
     );
@@ -225,53 +218,9 @@ describe("やめた Project の残りを消す", () => {
     expect(pending).toContain("+# まとめ待ちの変更");
     expect(await pathExists(path.join(ctx.repo.dataDir, "projects"))).toBe(false);
     expect(await read(ctx, "config.yaml")).toContain("# まとめ待ちの変更");
-    expect(await workflowOf(ctx, "t1")).toBe("software-development");
     expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
     expect(await checkOutside(ctx.repo)).toEqual({ kind: "clean", initial: false });
     expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
-  });
-
-  it("消すのを見送った間に書いた、既定でない Project のチケットは project を持ち続け、後で消すときに workflow が書かれて Workflow が変わらない", async () => {
-    const { ctx } = await legacy("batch", async (first) => {
-      // t2 は Project web（既定の Workflow は general）のチケット
-      await writeFile(
-        path.join(first.repo.dataDir, "projects/web.yaml"),
-        "id: web\nname: Web\nworkflow: general\nstatus: active\n",
-      );
-      const t2 = path.join(first.repo.dataDir, "tickets/t2.md");
-      await writeFile(t2, (await readFile(t2, "utf8")).replace("project: default", "project: web"));
-    });
-    // 前の dg が残したまとめ待ちの変更（config.yaml）で、消すのを見送らせる
-    const config = path.join(ctx.repo.dataDir, "config.yaml");
-    await writeFile(config, `${await readFile(config, "utf8")}# まとめ待ちの変更\n`);
-    await recordBaseline(ctx.repo);
-
-    // 見送った間に t2 を書く：projects/ が残る間は project を消さない（消すと、後で workflow を書けない）
-    await runCommand(ticketUpdate, ctx, { ticket: "t2", priority: "low" });
-    expect(await subjects(ctx.repo.dataDir)).not.toContain(REMOVAL);
-    expect(await pathExists(path.join(ctx.repo.dataDir, "projects/web.yaml"))).toBe(true);
-    const pending = await read(ctx, "tickets/t2.md");
-    expect(pending).toContain("project: web");
-    expect(pending).toContain("priority: low");
-    // Epic・Iteration・Plan の project は Workflow に関わらないので、見送った間も書くときに消える
-    await runCommand(iterationUpdate, ctx, { iteration: "s1", goal: "目標" });
-    expect(await read(ctx, "iterations/s1.yaml")).not.toContain("project:");
-
-    // dg commit：まとめ待ちをコミットした後に消す。t2 は workflow を持ち、project は消える
-    await runCommand(commit, ctx, { message: "まとめ待ち" });
-    expect((await subjects(ctx.repo.dataDir)).slice(0, 2)).toEqual([REMOVAL, "まとめ待ち"]);
-    expect(await pathExists(path.join(ctx.repo.dataDir, "projects"))).toBe(false);
-    const t2 = await read(ctx, "tickets/t2.md");
-    expect(t2).toContain("workflow: general");
-    expect(t2).toContain("priority: low");
-    expect(t2).not.toContain("project:");
-    expect(await workflowOf(ctx, "t2")).toBe("general");
-    expect(await workflowOf(ctx, "t1")).toBe("software-development");
-    expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
-    expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
-    // projects/ が消えた後は、残っていた project（t1）も書くときに消える
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" });
-    expect(await read(ctx, "tickets/t1.md")).not.toContain("project:");
   });
 
   it("commit.mode が batch の同期は、見送ったときも、まとめ待ちをコミットした後に同じ同期で消して push する", async () => {
@@ -295,65 +244,6 @@ describe("やめた Project の残りを消す", () => {
     expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
   });
 
-  it("見送った後の sync --resolve が仮番号を振り直しても、振り直した後の中身で消す：既定でない Project のチケットの参照は新しい番号のまま workflow が書かれる", async () => {
-    const { f, ctx } = await legacy("batch", async (first) => {
-      // t2 は Project web（既定の Workflow は general）のチケット
-      await writeFile(
-        path.join(first.repo.dataDir, "projects/web.yaml"),
-        "id: web\nname: Web\nworkflow: general\nstatus: active\n",
-      );
-      const t2 = path.join(first.repo.dataDir, "tickets/t2.md");
-      await writeFile(t2, (await readFile(t2, "utf8")).replace("project: default", "project: web"));
-    });
-    const b = await openContext({
-      cwd: f.cloneB,
-      initialize: {},
-      actor: { kind: "human", user: "eiki" },
-    });
-    // 前の dg が残したまとめ待ちの変更（config.yaml）で、消すのを見送らせる
-    const config = path.join(ctx.repo.dataDir, "config.yaml");
-    const pend = async (line: string) => {
-      await writeFile(config, `${await readFile(config, "utf8")}${line}\n`);
-      await recordBaseline(ctx.repo);
-    };
-    await pend("# まとめ待ちの変更 1");
-    // オフラインで t3 を起票する（仮番号。起票は即時の操作なので、まとめ待ちを先にコミットする）
-    await git(f.cloneA, ["remote", "set-url", "origin", path.join(f.root, "nonexistent.git")]);
-    const created = await runCommand(ticketCreate, ctx, { title: "C" });
-    expect(created.data.id).toBe("t3");
-    expect(created.write).toMatchObject({ provisional: true });
-    // もう一度見送らせて、Project web の t2 から仮番号の t3 を参照する（まとめ待ち。project は残る）
-    await pend("# まとめ待ちの変更 2");
-    await runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t3"] });
-    expect(await subjects(ctx.repo.dataDir)).not.toContain(REMOVAL);
-    expect(await read(ctx, "tickets/t2.md")).toContain("project: web");
-    // その間に、まだ消していない別の clone が t3 を push する（前の dg のコミット）
-    const other = (await read(b, "tickets/t1.md")).replace(/^id: t1$/m, "id: t3");
-    await writeFile(path.join(b.repo.dataDir, "tickets/t3.md"), other);
-    await git(b.repo.dataDir, ["add", "-A"]);
-    await git(b.repo.dataDir, ["commit", "-q", "-m", "File t3: A", "-m", DG_COMMIT_TRAILER]);
-    expect(await push(b.repo)).toEqual({ ok: true });
-    await git(f.cloneA, ["remote", "set-url", "origin", f.remoteDir]);
-
-    const synced = await runCommand(sync, ctx, { resolve: "local" });
-    expect(synced.data.renumbered).toEqual([{ from: "t3", to: "t4" }]);
-    expect(synced.data.conflicts).toEqual([]);
-    expect(synced.data.pushed).toBe(true);
-    // 同じ同期で消える。t2 は workflow を持ち、参照は振り直した後の番号（t4）のまま
-    expect(await pathExists(path.join(ctx.repo.dataDir, "projects"))).toBe(false);
-    expect(await subjects(ctx.repo.dataDir)).toContain(REMOVAL);
-    const t2 = await read(ctx, "tickets/t2.md");
-    expect(t2).toContain("workflow: general");
-    expect(t2).not.toContain("project:");
-    expect((await runCommand(ticketShow, ctx, { ticket: "t2" })).data.depends_on).toEqual(["t4"]);
-    expect((await runCommand(ticketShow, ctx, { ticket: "t4" })).data.title).toBe("C");
-    expect(await workflowOf(ctx, "t2")).toBe("general");
-    expect(await remoteFiles(f)).not.toContain("projects/");
-    expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
-    expect(await checkOutside(ctx.repo)).toEqual({ kind: "clean", initial: false });
-    expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
-  });
-
   it("まだ消していない clone の同期は、消してから取り込み、相手が先に消していても競合しない", async () => {
     const { f, ctx: a } = await legacy("each");
     const b = await openContext({
@@ -369,12 +259,12 @@ describe("やめた Project の残りを消す", () => {
     expect(synced.data.conflicts).toEqual([]);
     expect(warningsOf(synced)).toEqual([]);
     expect(await pathExists(path.join(b.repo.dataDir, "projects"))).toBe(false);
-    expect(await read(b, "config.yaml")).toContain("default_workflow: software-development");
+    expect(await read(b, "config.yaml")).not.toContain("default_project");
     expect(await checkOutside(b.repo)).toEqual({ kind: "clean", initial: false });
     expect((await runCommand(validate, b, {})).data).toEqual({ ok: true, issues: [] });
   });
 
-  it("既定でない Project のチケットは、その Project の Workflow が既定と違えば workflow に書いて残す", async () => {
+  it("既定でない Project のチケットにも workflow を書かず、project はそのチケットを書くときに消える", async () => {
     const { ctx } = await legacy("each", async (first) => {
       // t2 は Project web（既定の Workflow は general）のチケット
       await writeFile(
@@ -384,13 +274,14 @@ describe("やめた Project の残りを消す", () => {
       const t2 = path.join(first.repo.dataDir, "tickets/t2.md");
       await writeFile(t2, (await readFile(t2, "utf8")).replace("project: default", "project: web"));
     });
-    expect(await workflowOf(ctx, "t1")).toBe("software-development");
     await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" });
     expect(await pathExists(path.join(ctx.repo.dataDir, "projects"))).toBe(false);
-    expect(await workflowOf(ctx, "t1")).toBe("software-development");
-    expect(await workflowOf(ctx, "t2")).toBe("general");
+    // 消すコミットは t2 を書き換えない
+    expect(await read(ctx, "tickets/t2.md")).toContain("project: web");
+    expect(await read(ctx, "tickets/t2.md")).not.toMatch(/^workflow:/m);
+    await runCommand(ticketUpdate, ctx, { ticket: "t2", priority: "low" });
     const t2 = await read(ctx, "tickets/t2.md");
-    expect(t2).toContain("workflow: general");
+    expect(t2).not.toMatch(/^workflow:/m);
     expect(t2).not.toContain("project:");
     expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
     expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });

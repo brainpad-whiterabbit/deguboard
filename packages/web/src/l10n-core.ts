@@ -71,10 +71,6 @@ const GUIDE_NOTES_TEXT =
  * core の文と過不足なく揃うこと（文を書き換えたら鍵も直す）は l10n.test.ts が確かめる
  */
 export const CONFIG_DESCRIPTIONS: CoreTextTable = {
-  // default_workflow
-  "Kept for compatibility. It no longer selects a Workflow (the board has one workflow.yaml)": {
-    ja: "互換のために残している。Workflow は選ばない（Workflow はカンバンに 1 つの workflow.yaml）",
-  },
   // git.remote
   "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set":
     {
@@ -243,10 +239,6 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   },
 
   // --- 要約（summary）。説明と同じ文の項目（git.base_branch）は上の行が兼ねる ---
-  // default_workflow
-  "Kept for compatibility. It no longer selects a Workflow": {
-    ja: "互換のために残している。Workflow は選ばない",
-  },
   // git.remote
   "Git remote of the code (work branches and pull requests)": {
     ja: "コードのリモート（作業ブランチと PR）",
@@ -351,7 +343,7 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   },
 
   // --- 空のときの動き（empty） ---
-  // 既定が空でない文字列の項目（default_workflow・git.*・worktree.root・priority.*）
+  // 既定が空でない文字列の項目（git.*・worktree.root・priority.*）
   "Returns to the default (in personal settings, to the team's value)": {
     ja: "既定に戻る（個人の設定ではチームの値に戻る）",
   },

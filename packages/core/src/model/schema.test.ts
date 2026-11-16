@@ -413,7 +413,6 @@ describe("スキーマ", () => {
   it("configFields は config の葉の項目を既定値・型・説明つきで出す", () => {
     const fields = configFields();
     expect(fields.map((f) => f.key)).toEqual([
-      "default_workflow",
       "git.remote",
       "git.data_remote",
       "git.data_branch",
@@ -580,7 +579,6 @@ describe("スキーマ", () => {
   it("configFields の clears_to_default は、既定が空でない文字列の項目だけ true（config.set と設定画面が空の値の扱いをこれで決める）", () => {
     const fields = configFields();
     expect(fields.filter((f) => f.clears_to_default).map((f) => f.key)).toEqual([
-      "default_workflow",
       "git.remote",
       "git.data_branch",
       "git.base_branch",

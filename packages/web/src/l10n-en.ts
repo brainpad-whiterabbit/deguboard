@@ -307,8 +307,6 @@ export const EN: Readonly<Record<string, string>> = {
   "{0}時間 {1}分": "{0}h {1}m",
   "{0}分 {1}秒": "{0}m {1}s",
   "{0}秒": "{0}s",
-  // components/ticket-fields.tsx
-  未設定: "Not set",
   // components/ticket-props-panel.tsx（属性の名前）
   カンマ区切り: "Comma-separated",
   依存先: "Depends on",
@@ -463,7 +461,6 @@ export const EN: Readonly<Record<string, string>> = {
   基準のブランチ: "Base branch",
   "worktree の置き場所": "Worktree location",
   "worktree の準備のコマンド": "Setup command for worktrees",
-  "既定の Workflow": "Default Workflow",
   "優先度 high の判断基準": "Criteria for priority high",
   "優先度 medium の判断基準": "Criteria for priority medium",
   "優先度 low の判断基準": "Criteria for priority low",
