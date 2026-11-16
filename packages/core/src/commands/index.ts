@@ -17,24 +17,21 @@ export * from "./run.js";
 export * from "./ask.js";
 export * from "./local.js";
 export { hookArgv } from "./hook-argv.js";
-// dg hooks install・uninstall・check の判定と書き込み（CLI が写す）と、フックが入っているかだけを見る hookInstallStateOf
+// dg hooks install・uninstall・check の判定と書き込み（CLI が写す）。入口が呼ぶものだけを公開する
 export {
   checkHooks,
-  hookInstallStateOf,
   hookScope,
   installHooks,
   uninstallHooks,
   type HandlerStatus,
-  type HookInstallState,
 } from "./hook-settings.js";
-// dg setup check の判定（CLI が写し、VS Code 拡張も呼ぶ）
+// dg setup check の判定（CLI が写し、VS Code 拡張も呼ぶ）と、チェックリストの dg init の 1 行。入口が使うものだけを公開する
 export {
   checkSetup,
+  initCommandLine,
   type BoardState,
   type SetupCheckItem,
-  type SetupCheckOptions,
   type SetupCheckResult,
-  type SetupItemId,
 } from "./setup-check.js";
 // 起動ファイル経由で動いているか（フックとマージドライバが書く命令を決める）と、起動ファイルの場所（VS Code 拡張の launcher.ts と揃っているかをテストが見る）
 export { isLauncherPath, launcherFrom } from "./launcher-env.js";
@@ -70,6 +67,5 @@ export {
   WEBVIEW_CONTRACT,
   detailOfRoute,
   detailRouteOf,
-  initCommandLine,
   setupViewOf,
 } from "./client.js";

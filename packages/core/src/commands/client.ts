@@ -4,6 +4,7 @@
 import type { SyncStatus } from "../git/sync.js";
 import { idKindOf, parseId, type IdKind } from "../model/id.js";
 import type { CommandResult } from "./define.js";
+// setup-check.ts からは型だけを取り込む（setup-check.ts はこのファイルを取り込まない。値の取り込みを両向きにしない）
 import type { SetupCheckItem, SetupCheckResult, SetupItemId } from "./setup-check.js";
 
 /** 入口の失敗。CLI の --json のエラーと同じ形 */
@@ -75,33 +76,6 @@ export interface SetupBoardSource {
   dataRemote: string;
   /** データのブランチ。省けば dg init の既定（deguboard） */
   dataBranch?: string | undefined;
-}
-
-/**
- * シェルにそのまま渡せない文字を含む値だけを単一引用符で囲む（チェックリストのコマンドはターミナルに 1 行で送り、コピーもされる）。
- * 先頭の = も囲む：zsh（macOS の既定）の EQUALS が =cmd をコマンドのパスに展開する
- */
-function shellArg(value: string): string {
-  return /^[\w@%+:,./-][\w@%+=:,./-]*$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-/**
- * チェックリストが見せて流す dg init の 1 行。確かめた値（コードのリモート・データのリモートとブランチ）を init にも渡す。
- * newBoard は、リモートに届かないときに人が選んで手元だけで始める --new-board
- */
-export function initCommandLine(options: {
-  remote?: string | undefined;
-  dataRemote?: string | undefined;
-  dataBranch?: string | undefined;
-  newBoard?: boolean | undefined;
-}): string {
-  return [
-    "dg init",
-    ...(options.newBoard ? ["--new-board"] : []),
-    ...(options.remote ? ["--remote", shellArg(options.remote)] : []),
-    ...(options.dataRemote ? ["--data-remote", shellArg(options.dataRemote)] : []),
-    ...(options.dataBranch ? ["--data-branch", shellArg(options.dataBranch)] : []),
-  ].join(" ");
 }
 
 /** dg setup check の結果を画面のチェックリストの形にする（入口が足す項目のない dg serve はこれだけを返す） */

@@ -20,8 +20,8 @@ import {
   type RepoPaths,
 } from "../git/index.js";
 import { dataBranchProblem, DEFAULT_DATA_BRANCH, DEFAULT_REMOTE } from "../model/config.js";
+import { shellQuote } from "../shell-quote.js";
 import { pathExists } from "../storage/exists.js";
-import { initCommandLine } from "./client.js";
 import { hookInstallStateOf, type HookInstallState } from "./hook-settings.js";
 import { skillInstallStateOf } from "./skill-files.js";
 
@@ -97,6 +97,26 @@ const unmet = (message: string, fix: string[], extra: Partial<Checked> = {}): Ch
   fix,
   ...extra,
 });
+
+/**
+ * チェックリストが見せて流す dg init の 1 行（ボードの項目の直すコマンド。VS Code 拡張のボタンも同じ行を流す）。
+ * 確かめた値（コードのリモート・データのリモートとブランチ）を init にも渡す。値は shellQuote で囲む（ターミナルに 1 行で送り、コピーもされる）。
+ * newBoard は、リモートに届かないときに人が選んで手元だけで始める --new-board
+ */
+export function initCommandLine(options: {
+  remote?: string | undefined;
+  dataRemote?: string | undefined;
+  dataBranch?: string | undefined;
+  newBoard?: boolean | undefined;
+}): string {
+  return [
+    "dg init",
+    ...(options.newBoard ? ["--new-board"] : []),
+    ...(options.remote ? ["--remote", shellQuote(options.remote)] : []),
+    ...(options.dataRemote ? ["--data-remote", shellQuote(options.dataRemote)] : []),
+    ...(options.dataBranch ? ["--data-branch", shellQuote(options.dataBranch)] : []),
+  ].join(" ");
+}
 
 const HOOKS_CHECK_NOTE =
   "This item only looks at whether they are installed. To see whether the hooks work, run dg hooks check";

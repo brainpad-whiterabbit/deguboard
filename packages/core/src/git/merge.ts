@@ -5,6 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 import { access, appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { shellQuote } from "../shell-quote.js";
 import { joinFrontmatter, splitFrontmatter } from "../storage/frontmatter.js";
 import {
   cloneYamlDocument,
@@ -401,12 +402,7 @@ export async function runMergeDriver(
   return outcome === undefined && r.code === 0 ? 0 : 1;
 }
 
-/** sh -c で渡す引数のクォート（git はドライバをシェルで動かす） */
-function shellQuote(arg: string): string {
-  return /^[\w@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`;
-}
-
-/** git config に登録するドライバのコマンド行 */
+/** git config に登録するドライバのコマンド行（git はドライバをシェルで動かすので、語は shellQuote で囲む） */
 export function mergeDriverCommandLine(command: readonly string[]): string {
   return [...command.map(shellQuote), "%O", "%A", "%B", "%P"].join(" ");
 }

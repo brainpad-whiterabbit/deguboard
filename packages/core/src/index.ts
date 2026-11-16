@@ -24,3 +24,5 @@ export type { GuideMeta, GuideNotes, GuideText } from "./guide/guide.js";
 export { GUIDE_TOPICS, type GuideTopic } from "./guide/topics.js";
 // 束ねた CLI（VS Code 拡張に同梱する dg.mjs）の入口が、import.meta.url から引けない場所を置く
 export { bundleLayout, setBundleLayout, type BundleLayout } from "./bundle-layout.js";
+// シェルに渡す引数を囲む処理は 1 つにし、VS Code 拡張がターミナルに入れる 1 行もこれで囲む
+export { shellQuote } from "./shell-quote.js";

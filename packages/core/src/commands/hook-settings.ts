@@ -363,7 +363,7 @@ export interface HookInstallState {
 /**
  * リポジトリ（topLevel の下の local と project）と個人（env の HOME の下）の設定を見て、dg のフックが入っているかを設定ごとに返す。
  * topLevel を省くと個人の設定だけを見る（リポジトリの外）。設定を読むだけで、ハンドラは動かさず、届いた記録も見ない
- * （動くかまで確かめるのは checkHooks）。フックが入っているかだけを軽く知りたい入口のためのもの
+ * （動くかまで確かめるのは checkHooks）。dg setup check（setup-check.ts）が Skill と hooks の項目で使う。core の外には公開しない
  */
 export async function hookInstallStateOf(query: {
   topLevel?: string | undefined;

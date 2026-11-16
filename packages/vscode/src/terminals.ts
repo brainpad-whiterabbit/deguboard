@@ -1,7 +1,7 @@
 // 頼む小窓の依頼文を、すでに開いているターミナルの入力へ送る部分のうち、VS Code の API に触れない純粋な処理（UI-15・ADR-027）。
 // 拡張はターミナルを起動しない（EX-1）。送り先は vscode.window.terminals の中から人が選ぶ
 
-import type { TerminalChoice } from "@deguboard/core";
+import { shellQuote, type TerminalChoice } from "@deguboard/core";
 import { t } from "./l10n.js";
 
 /**
@@ -46,18 +46,17 @@ export function terminalInput(text: string): TerminalInput {
  * 導入のチェックリストのボタン（UI-12）がターミナルに入れる 1 行（Enter まで送る）。commands（git init・dg init・dg skill install など）を
  * &&（途中で失敗したら続けない）でつなぐ。dg は起動ファイル（launcher.ts）の絶対パスで呼び、PATH の dg は使わない。
  * 先頭で cwd（確かめたフォルダ）へ移る：開いたままの deguboard のターミナルを使い回すので、人が中で移動していても、画面に見せたフォルダで実行する。
- * パスはシングルクォートで囲む（空白や ' を含んでも 1 つの引数のまま。sh・bash・zsh・fish で同じに読める）
+ * パスは core の shellQuote で囲む（そのまま渡せないパスだけをシングルクォートで囲み、空白や ' を含んでも 1 つの引数のまま。sh・bash・zsh・fish で同じに読める）
  */
 export function setupCommandLine(
   launcher: string,
   cwd: string,
   commands: readonly string[],
 ): string {
-  const quote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
   return [
-    `cd ${quote(cwd)}`,
+    `cd ${shellQuote(cwd)}`,
     ...commands.map((c) =>
-      c === "dg" || c.startsWith("dg ") ? `${quote(launcher)}${c.slice(2)}` : c,
+      c === "dg" || c.startsWith("dg ") ? `${shellQuote(launcher)}${c.slice(2)}` : c,
     ),
   ].join(" && ");
 }

@@ -5,7 +5,8 @@
 
 import { MessageChannel } from "node:worker_threads";
 import { afterEach, describe, expect, it } from "vitest";
-import { run as runCli, selfMergeDriver } from "../../packages/cli/src/program.js";
+import { selfMergeDriver } from "../../packages/cli/src/hooks.js";
+import { run as runCli } from "../../packages/cli/src/program.js";
 import {
   createLocalClient,
   init,

@@ -1,11 +1,12 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { commands, setBundleLayout } from "@deguboard/core";
 import { createFixture, git, type Fixture } from "../../core/test/helpers/git-fixture.js";
-import { run, selfMergeDriver } from "./program.js";
+import { selfCommand, selfMergeDriver } from "./hooks.js";
+import { run } from "./program.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -979,6 +980,20 @@ describe("束ねた dg.mjs（VS Code 拡張に同梱する CLI）", () => {
 
   it("配置がなければ、マージドライバは bin/dg.js を指す", () => {
     expect(selfMergeDriver()[1]).toMatch(/[/\\]bin[/\\]dg\.js$/);
+  });
+
+  it("マージドライバはフックと同じ selfCommand に merge-driver を足した並びで、起動ファイルのリンクは実パスに辿る", async () => {
+    expect(selfMergeDriver({})).toEqual([...selfCommand(), "merge-driver"]);
+
+    const dir = await realpath(await mkdtemp(path.join(os.tmpdir(), "deguboard-self-")));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const entry = path.join(dir, "dg.mjs");
+    const link = path.join(dir, "link.mjs");
+    await writeFile(entry, "");
+    await symlink(entry, link);
+    setBundleLayout({ entry: link, guideDir: dir, version: "9.8.7" });
+    expect(selfCommand()).toEqual([process.execPath, entry]);
+    expect(selfMergeDriver({})).toEqual([process.execPath, entry, "merge-driver"]);
   });
 
   it("起動ファイル経由（DEGUBOARD_LAUNCHER があるとき）のマージドライバは、node と dg.mjs の代わりに起動ファイルを指す（t735）", async () => {

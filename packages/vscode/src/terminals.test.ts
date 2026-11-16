@@ -89,13 +89,19 @@ describe("setupCommandLine（チェックリストのボタンが入れる 1 行
   it("フォルダへ移ってからコマンドを && でつなぎ、dg は起動ファイルの絶対パスで呼ぶ（PATH の dg は使わない）。git はそのまま呼ぶ", () => {
     const launcher = "/home/u/.local/share/deguboard/dg";
     expect(setupCommandLine(launcher, "/work/repo", ["dg skill install", "dg hooks install"])).toBe(
-      `cd '/work/repo' && '${launcher}' skill install && '${launcher}' hooks install`,
+      `cd /work/repo && ${launcher} skill install && ${launcher} hooks install`,
     );
     expect(setupCommandLine(launcher, "/work/repo", ["dg init --new-board"])).toBe(
-      `cd '/work/repo' && '${launcher}' init --new-board`,
+      `cd /work/repo && ${launcher} init --new-board`,
     );
     expect(setupCommandLine(launcher, "/work/repo", ["git init"])).toBe(
-      "cd '/work/repo' && git init",
+      "cd /work/repo && git init",
+    );
+  });
+
+  it("そのまま渡せないパスだけを単一引用符で囲む（core の shellQuote）", () => {
+    expect(setupCommandLine("/opt/my tools/dg", "/work/it's here", ["dg init"])).toBe(
+      `cd '/work/it'\\''s here' && '/opt/my tools/dg' init`,
     );
   });
 
