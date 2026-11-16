@@ -10,7 +10,7 @@ after:
   t1026:
     - t1025
     - t1029
-pending_approval: true
+pending_approval: false
 details:
   t1022:
     scope: workflow.yaml の 6 項目の形・読み書き・検査と init・workflow コマンドの置き換えまで。権限の判定は入れない
@@ -68,3 +68,5 @@ details:
     scope: "@types/vscode を engines.vscode の下限と同じ系にする"
     approach: npm に公開された版を確かめてから package.json と lock を直し、型と実機のテストを回す
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-16T03:18:18Z
