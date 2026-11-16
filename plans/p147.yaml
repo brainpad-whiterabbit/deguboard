@@ -12,7 +12,7 @@ after:
     - t1023
     - t1025
     - t1028
-pending_approval: true
+pending_approval: false
 details:
   t1022:
     scope: workflow.yaml の 6 項目の形・読み書き・検査と init・workflow コマンドの置き換えまで。権限の判定は入れない
@@ -54,3 +54,5 @@ details:
     scope: 設定画面に Workflow のタブを足し、workflow.yaml を読むだけで出して行から /dgconfig に頼める。編集の操作は入れない
     approach: dg workflow show --json が既定で埋めた値と既定との差を返し、web の設定画面は今の部品で写すだけにし、dgconfig の手順を workflow.yaml に広げる
     tier: heavy
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-16T04:25:50Z
