@@ -1,8 +1,6 @@
 git:
   remote: origin
   base_branch: main
-actor:
-  human_only: []
 auto:
   merge: true
   decisions:
