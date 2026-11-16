@@ -27,9 +27,13 @@ import {
   emptyCauseCounts,
   FINDING_CAUSES,
   isRunId,
+  isRunStep,
+  OPENED_STEPS,
   REVIEW_STEP,
   RUN_RESULTS,
+  RUN_STEPS,
   type Run,
+  type StepOpener,
   reviewFindingSchema,
   type ReviewFinding,
   type RunReview,
@@ -65,9 +69,7 @@ import {
   type PrunedTranscript,
 } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
-import { DEFAULT_OPENED_STEPS, findStep, stepOpenedOn } from "../workflow/resolve.js";
 import type { Ticket } from "../model/ticket.js";
-import type { StepOpener } from "../model/workflow.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { idShapeOf, iterationRef, ticketRef } from "./helpers.js";
 
@@ -129,9 +131,9 @@ export function agentFromEnv(
 }
 
 /**
- * Run を開く（run start と、agent の ticket claim が共有する。RN-5）。step がチケットの Workflow の steps になければ
+ * Run を開く（run start と、agent の ticket claim が共有する。RN-5）。step が Core の語彙（RUN_STEPS。WF-5）になければ
  * VALIDATION_FAILED、同じチケットと step の Run が実行中なら startRun が ALREADY_EXISTS。
- * Workflow が読めない・Adapter のない agent・このマシンで同じ agent の Run が開いたままは警告して開く。
+ * Adapter のない agent・このマシンで同じ agent の Run が開いたままは警告して開く。
  * 同じチケットの開いたままの手直しの Run は、この Run の開始を区切りとして閉じてから開く（closePreviousFixRun。reopensFix のない同じ step の二重起動では閉じずに拒む）。
  * retryReasons はもう一度の claim が開く手直しの Run に、直す指摘を最初から残すためのもの。
  * session・transcript は会話記録の場所（MT-2）。session は Run に、transcript はこのマシンの deguboard-local/transcripts/ に置く。
@@ -166,18 +168,10 @@ export async function openRun(
       `transcript accepts only files under the place where ${agent} keeps conversation records`,
     );
   }
-  const workflow = ctx.store.workflowFor(ticket);
-  if (workflow) {
-    const found = findStep(workflow.resolved, step);
-    if (!found.ok) {
-      throw new OperationError(
-        "VALIDATION_FAILED",
-        `step ${step} is not in the steps of Workflow ${workflow.resolved.id} (${found.known.join(", ")})`,
-      );
-    }
-  } else {
-    warnings.push(
-      `The Workflow of ${ticket.id} is not found or cannot be read, so step ${step} was not checked`,
+  if (!isRunStep(step)) {
+    throw new OperationError(
+      "VALIDATION_FAILED",
+      `step ${step} is not a Run step (${RUN_STEPS.map((s) => s.id).join(", ")})`,
     );
   }
   if (!agentNames().includes(agent)) {
@@ -195,7 +189,7 @@ export async function openRun(
   const duplicate = (await readRunningRuns(ctx.repo)).runs.some(
     (r) => r.data.ticket === ticket.id && r.data.step === step,
   );
-  if (!duplicate || (input.reopensFix === true && step === openedStepOf(ctx, ticket, "reclaim"))) {
+  if (!duplicate || (input.reopensFix === true && step === OPENED_STEPS.reclaim)) {
     await closePreviousFixRunOrWarn(ctx, ticket, { step, session, startedAt }, warnings);
   }
   // 同じ会話記録で期間が重なると、応答は後に始めた Run にだけ数える（同じ応答を二重に数えないため。MT-2）。閉じ忘れに気づけるように知らせる
@@ -403,12 +397,6 @@ export const transcriptFields = {
     ),
 };
 
-/** チケットの操作が開く Run の step（RN-5）。Workflow が読めなければ既定の名前（claim が開く step も同じ） */
-export function openedStepOf(ctx: CommandContext, ticket: Ticket, opener: StepOpener): string {
-  const wf = ctx.store.workflowFor(ticket);
-  return wf ? stepOpenedOn(wf.resolved, opener) : DEFAULT_OPENED_STEPS[opener];
-}
-
 /** 操作が開く Run の呼び名（警告とコミットメッセージ）。claim は実装、reclaim は手直し */
 export const openedRunLabel = (opener: StepOpener): string =>
   opener === "claim" ? "implementation" : "fix";
@@ -427,7 +415,7 @@ export async function findOpenedRun(
   opener: StepOpener,
   running?: readonly Doc<Run>[],
 ): Promise<Doc<Run> | undefined> {
-  const step = openedStepOf(ctx, ticket, opener);
+  const step = OPENED_STEPS[opener];
   const runs = running ?? (await readRunningRuns(ctx.repo)).runs;
   return runs.find((r) => r.data.ticket === ticket.id && r.data.step === step);
 }
@@ -657,7 +645,7 @@ async function closePreviousFixRun(
   return closed.run;
 }
 
-/** 空白・改行を含まない 1 語。step の語彙は openRun がチケットの Workflow の steps（WF-5）で確かめる。ticket claim の --agent も同じ形 */
+/** 空白・改行を含まない 1 語。step の語彙は openRun が Core の語彙（RUN_STEPS。WF-5）で確かめる。ticket claim の --agent も同じ形 */
 export const token = z.string().regex(/^\S+$/, "One word with no spaces or line breaks");
 
 export const runStart = defineCommand({
@@ -665,10 +653,10 @@ export const runStart = defineCommand({
   positionals: ["ticket", "step"],
   group: "run",
   summary:
-    "Start a Run. The running record is kept only in deguboard-local/runs/ and is not put into Git. Rejected if a Run for the same ticket and step is running, or if the step is not in the ticket's Workflow steps. Warns and starts if a Run for the same agent is running on this machine. An agent name with no Adapter is recorded without rejection, with a warning. An open fix Run on the same ticket is closed with success at the last push after its start (or at this start's time if there is none), using this start as the boundary, and then this Run starts (when a fix step starts, an earlier fix Run from a different session is closed as interrupted). When this is rejected because a Run for the same ticket and step is running, the fix Run is not closed either. In a session that dg hooks have reached, an agent's run start of implement or fix still opens the Run, and warns to ask a sub-agent to implement or fix with the marker instead. If --agent is omitted, the Adapter detects the agent calling dg from environment variables (if it cannot, it is a usage error)",
+    "Start a Run. The running record is kept only in deguboard-local/runs/ and is not put into Git. Rejected if a Run for the same ticket and step is running, or if the step is not one of the Run steps (investigate, implement, review, fix, merge). Warns and starts if a Run for the same agent is running on this machine. An agent name with no Adapter is recorded without rejection, with a warning. An open fix Run on the same ticket is closed with success at the last push after its start (or at this start's time if there is none), using this start as the boundary, and then this Run starts (when a fix step starts, an earlier fix Run from a different session is closed as interrupted). When this is rejected because a Run for the same ticket and step is running, the fix Run is not closed either. In a session that dg hooks have reached, an agent's run start of implement or fix still opens the Run, and warns to ask a sub-agent to implement or fix with the marker instead. If --agent is omitted, the Adapter detects the agent calling dg from environment variables (if it cannot, it is a usage error)",
   input: z.object({
     ticket: ticketRef,
-    step: token.describe("Step. An id from the ticket's Workflow steps (see dg workflow show)"),
+    step: token.describe("Step. One of investigate, implement, review, fix, merge"),
     agent: token
       .optional()
       .describe(
@@ -701,10 +689,8 @@ export const runStart = defineCommand({
       transcript: input.transcript,
     });
     // フックが届くセッションで親が自分で実装・手直しの Run を開いたときは、サブエージェントに頼むよう知らせる（t717）。Run の開き方は変えない。
-    // step は Workflow の opens_on で決まる（claim・reclaim が開く step）。PR の要らない作業（branch なし）は親が進めるので除く
-    const implementing =
-      input.step === openedStepOf(ctx, ticket.data, "claim") ||
-      input.step === openedStepOf(ctx, ticket.data, "reclaim");
+    // claim・reclaim が開く step（OPENED_STEPS）。PR の要らない作業（branch なし）は親が進めるので除く
+    const implementing = input.step === OPENED_STEPS.claim || input.step === OPENED_STEPS.reclaim;
     if (ctx.actor.kind === "agent" && ticket.data.branch && implementing) {
       const self = await selfRunWarning(
         ctx.repo.localDir,
@@ -1057,7 +1043,7 @@ export const runRetryReason = defineCommand({
   positionals: ["ticket"],
   group: "run",
   summary:
-    "Add the reason for a fix retry (a one-line summary of a finding that was fixed) to the retry_reasons of the ticket's open fix Run (the step with opens_on: reclaim, or else fix). A usage error for a ticket with no PR. The count becomes the number of reasons. A fix sub-agent started with the marker step=fix calls it before it starts fixing. " +
+    "Add the reason for a fix retry (a one-line summary of a finding that was fixed) to the retry_reasons of the ticket's open fix Run. A usage error for a ticket with no PR. The count becomes the number of reasons. A fix sub-agent started with the marker step=fix calls it before it starts fixing. " +
     "If a fix Run on this machine is running and started after the ticket's last review Run, the reason is added to it. Otherwise (a fix started in the foreground, or only an earlier fix Run is open), the reason is held (pending: true), and when the hook closes the fix Run, the reasons placed after that Run's start are linked to it",
   input: z.object({
     ticket: ticketRef,
@@ -1081,7 +1067,7 @@ export const runRetryReason = defineCommand({
     // 手直しは PR のあるチケットの作業（RN-5 のもう一度の claim と同じ）。打ち間違いで要らない保留を残さない
     if (ticket.pr === undefined)
       throw new UsageError(`${ticket.id} has no PR, so fix reasons cannot be written`);
-    const step = openedStepOf(ctx, ticket, "reclaim");
+    const step = OPENED_STEPS.reclaim;
     const local = (await readRunningRuns(ctx.repo)).runs;
     // 最後の見直しより前に始まった手直しの Run は、その見直しの前の回のもの（sync がまだ閉じていない）。書き足さない（dg next の待つ手直しと同じ見方）。
     // 修正ループは手直しと見直しを交互に行うので、見直しの開始が回の区切りになる。見直しを挟まずに前景の手直しを続けて頼み、

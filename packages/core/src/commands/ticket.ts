@@ -8,7 +8,7 @@ import { AbortWrite, withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
 import { STATUSES, isTerminal, slugSchema, statusSchema, type Status } from "../model/common.js";
 import { parseId, type TicketId } from "../model/id.js";
-import { FINDING_CAUSES, type RunId } from "../model/run.js";
+import { FINDING_CAUSES, OPENED_STEPS, type RunId, type StepOpener } from "../model/run.js";
 import {
   BRANCH_VALUE_MAX,
   GATE_LEVELS,
@@ -20,7 +20,7 @@ import {
   type AcceptanceItem,
   type Ticket,
 } from "../model/ticket.js";
-import type { FactName, StepOpener } from "../model/workflow.js";
+import type { FactName } from "../model/workflow.js";
 import { dropRunning, peekRunningRuns, readRunningRuns, runAgentByTicket } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
@@ -44,7 +44,6 @@ import {
   closeOpenedRunUnlessClosed,
   describeClosedRuns,
   findOpenedRun,
-  openedStepOf,
   openRun,
   runsClosedByMove,
   token,
@@ -156,7 +155,9 @@ const ticketAttributes = {
   origin_cause: z.enum(FINDING_CAUSES).optional().describe(ORIGIN_CAUSE_HELP),
   workflow: slugSchema
     .optional()
-    .describe("Workflow. Defaults to config's default_workflow when omitted"),
+    .describe(
+      "Kept on the ticket. It no longer selects a Workflow (the board has one workflow.yaml)",
+    ),
   assignee: actorRef
     .optional()
     .describe("Assignee. human for yourself, agent for your own AI, otherwise the ID as-is"),
@@ -214,11 +215,8 @@ function buildTicket(
   resolveDep: (ref: string) => TicketId,
 ): Record<string, unknown> {
   const store = ctx.store;
-  // 既定の Workflow は、書き込みの中で取り込み直したストアの値で決める（store.workflowFor と同じ値）
-  const workflowId = input.workflow ?? store.config.default_workflow;
-  const workflow = store.workflows.get(workflowId);
-  if (!workflow)
-    throw new OperationError("NOT_FOUND", `Workflow ${workflowId} not found or cannot be read`);
+  // 書き込みの中で取り込み直したストアの Workflow で確かめる
+  const workflow = store.requireWorkflow();
   const epic = input.epic === undefined ? undefined : requireOpenEpic(store, input.epic);
   const iteration =
     input.iteration === undefined ? undefined : requireIteration(store, input.iteration);
@@ -274,7 +272,7 @@ function validateFields(
     if (!def)
       throw new OperationError(
         "VALIDATION_FAILED",
-        `Field ${key} is not defined in Workflow ${workflow.resolved.id}`,
+        `Field ${key} is not defined in the Workflow's fields`,
       );
     if (value === null || value === undefined) {
       out[key] = undefined;
@@ -610,7 +608,9 @@ export const ticketUpdate = defineCommand({
     workflow: slugSchema
       .nullable()
       .optional()
-      .describe("Workflow. Removing it returns to config's default_workflow"),
+      .describe(
+        "Kept on the ticket. It no longer selects a Workflow (the board has one workflow.yaml)",
+      ),
     pr: z
       .number()
       .int()
@@ -694,12 +694,7 @@ export const ticketUpdate = defineCommand({
           patch["iteration"] =
             input.iteration === null ? undefined : requireIteration(store, input.iteration);
         }
-        if (input.workflow !== undefined) {
-          if (input.workflow !== null && !store.workflows.has(input.workflow)) {
-            throw new OperationError("NOT_FOUND", `Workflow ${input.workflow} not found`);
-          }
-          patch["workflow"] = input.workflow ?? undefined;
-        }
+        if (input.workflow !== undefined) patch["workflow"] = input.workflow ?? undefined;
         if (input.depends_on !== undefined) {
           const ids = input.depends_on.map((ref) => store.require("ticket", ref).data.id);
           if (ids.includes(t.id) || wouldCreateCycle(store, t.id, ids)) {
@@ -720,14 +715,8 @@ export const ticketUpdate = defineCommand({
             input.origin === undefined ? t.origin : (patch["origin"] as string[] | undefined),
             input.origin_cause === undefined ? t.origin_cause : patch["origin_cause"],
           );
-        if (input.fields) {
-          const wfId =
-            (input.workflow === undefined ? t.workflow : (input.workflow ?? undefined)) ??
-            store.config.default_workflow;
-          const wf = store.workflows.get(wfId);
-          if (!wf) throw new OperationError("NOT_FOUND", `Workflow ${wfId} not found`);
-          Object.assign(patch, validateFields(wf, input.fields));
-        }
+        if (input.fields)
+          Object.assign(patch, validateFields(store.requireWorkflow(), input.fields));
         // PR を記録したら実装は終わっている。実行中の実装の Run を PR の作成時刻で閉じる（RN-6）。
         // 検査がすべて通った後に閉じる（拒否される更新で Run だけ閉じない）
         const closed: ClosedRun[] = [];
@@ -952,7 +941,7 @@ export const ticketMove = defineCommand({
         const from = doc.data.status;
         if (from === input.status)
           throw new OperationError("REJECTED", `${doc.id} is already ${from}`);
-        const wf = ctx.store.requireWorkflowFor(doc.data);
+        const wf = ctx.store.requireWorkflow();
         const facts = await factsFor(ctx, doc, wf, from, input.status);
         const check = canTransition(wf.resolved, from, input.status, ctx.actor.kind, facts);
         if (!check.ok)
@@ -1107,7 +1096,7 @@ async function openClaimRun(
   } & TranscriptInput,
   warnings: string[],
 ): Promise<RunId | null> {
-  const step = openedStepOf(ctx, doc.data, opener);
+  const step = OPENED_STEPS[opener];
   const detected = input.agent
     ? { agent: input.agent, reason: undefined }
     : agentFromEnv(ctx.env ?? process.env);
@@ -1137,7 +1126,7 @@ async function openClaimRun(
 
 /**
  * もう一度の claim（自分が claim 済みで PR のあるチケット）。手直し（見直しの修正ループ・人のレビューの後）の開始とみなし、チケットは変えない（ST-9）。
- * agent なら手直しの Run（opens_on: reclaim の step、なければ fix）を開く（RN-5）。開いたままの前の手直しの Run は、
+ * agent なら手直しの Run（fix）を開く（RN-5）。開いたままの前の手直しの Run は、
  * openRun が次の Run の開始を区切りとして閉じてから開く（RN-6）。前の Run が別のセッションで開いたものなら、
  * そのセッションが落ちた残りとみなして interrupted で閉じる（RN-6）。この claim のセッションは sessionOf で決め、
  * サブエージェントの claim でも起動した親のセッションになる
@@ -1195,9 +1184,9 @@ export const ticketClaim = defineCommand({
     "Start work on a ticket. Sets the assignee to yourself, records the branch and its start commit (branch_base: the tip of base, so that reconcile does not treat a branch with no commits as merged), and sets in_progress. Winning the push gives exclusive access. Follows any todo → in_progress constraint (such as requires: [deps_done]). If the ticket is in a Plan awaiting approval, claim still succeeds and the warnings say to ask a person to approve it first. " +
     "If lint.require_iteration is true and the ticket has no Iteration, it goes into the active Iteration (or else the planned one, if there is only one). If there is no target, or there is no active one and several are planned, it goes into none and the warnings say to ask a person. If the ticket's Iteration is planned, it becomes active; if that fails (another active one, or actor.human_only), the failure goes into the warnings and claim still succeeds. Both are pushed in the same write as the claim. " +
     "After the push, it creates the work branch's worktree at worktree.root/<branch name> (change with --worktree-path) from that start commit, and puts its path in worktree. If a worktree for that branch already exists, it uses that; if only the local branch exists, it checks it out. If it cannot be created, the failure goes into the warnings and claim still succeeds. In a worktree it created (not an existing one), it runs config's worktree.setup commands; a failure goes into the warnings and claim still succeeds. That setup can take several minutes, such as pnpm install (limit 10 minutes), and claim does not return until it finishes. It creates no worktree with --no-worktree or --without-branch. " +
-    "For an agent, it then opens an implementation Run (the step in the Workflow's steps with opens_on: claim, or else implement) and prints its ID as run (on the last line of stdout in human output). The Run opens before the setup commands run. If it cannot be opened, only a warning is given and claim still succeeds. " +
+    "For an agent, it then opens an implementation Run (step implement) and prints its ID as run (on the last line of stdout in human output). The Run opens before the setup commands run. If it cannot be opened, only a warning is given and claim still succeeds. " +
     "In a session that dg hooks have reached, an agent's claim without --no-run (other than --without-branch, and including claiming again) still opens the Run, and warns to ask a sub-agent to implement or fix with the marker instead. " +
-    "If you claim again a ticket that you (the same user, human or AI) already claimed and that has a PR (in_progress or review), it is treated as the start of a fix (the review fix loop, or after a person's review). The ticket is not changed; for an agent it opens a fix Run (the step with opens_on: reclaim, or else fix). For either an implementation Run or a fix Run, when it opens, any still-open earlier fix Run on the same ticket is first closed with success at the time of the last push after that Run started (or at this claim's time if there is none), using this claim as the boundary. If the earlier fix Run's session differs from this claim's session (--session, else DEGUBOARD_SESSION from the environment, else the session ID the calling agent sets in its environment; for a sub-agent's claim, the parent session that started it), it is treated as left over from a crashed session and closed as interrupted. If either session is unknown, it is closed with success. Claims by other actors are rejected",
+    "If you claim again a ticket that you (the same user, human or AI) already claimed and that has a PR (in_progress or review), it is treated as the start of a fix (the review fix loop, or after a person's review). The ticket is not changed; for an agent it opens a fix Run (step fix).For either an implementation Run or a fix Run, when it opens, any still-open earlier fix Run on the same ticket is first closed with success at the time of the last push after that Run started (or at this claim's time if there is none), using this claim as the boundary. If the earlier fix Run's session differs from this claim's session (--session, else DEGUBOARD_SESSION from the environment, else the session ID the calling agent sets in its environment; for a sub-agent's claim, the parent session that started it), it is treated as left over from a crashed session and closed as interrupted. If either session is unknown, it is closed with success. Claims by other actors are rejected",
   input: z.object({
     ticket: ticketRef,
     branch: z
@@ -1326,7 +1315,7 @@ export const ticketClaim = defineCommand({
             `retry_reason can be used only when claiming again a ticket that you have claimed and that has a PR (${doc.id} is todo)`,
           );
         }
-        const wf = ctx.store.requireWorkflowFor(doc.data);
+        const wf = ctx.store.requireWorkflow();
         const facts = await factsFor(ctx, doc, wf, "todo", "in_progress");
         const check = canTransition(wf.resolved, "todo", "in_progress", ctx.actor.kind, facts);
         if (!check.ok)

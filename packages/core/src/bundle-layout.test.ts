@@ -34,7 +34,7 @@ describe("束ねた CLI の配置（VS Code 拡張に同梱する dg.mjs）", ()
 
   it("store-cache の鍵の版は、束ねたときに埋めた版を使う", async () => {
     setBundleLayout({ entry: join(dir, "cli", "dg.mjs"), guideDir: dir, version: "9.8.7" });
-    const key = JSON.parse(await storeCacheKey(dir, undefined)) as { version: string };
+    const key = JSON.parse(await storeCacheKey(dir)) as { version: string };
     expect(key.version).toBe("9.8.7");
   });
 });

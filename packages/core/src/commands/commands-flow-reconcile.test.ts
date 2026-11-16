@@ -188,7 +188,7 @@ describe("チケットの流れ（照合と claim）", () => {
 
   it("merge.delete_branch が true のとき、照合が done にしたチケットの残りの worktree・ローカルとリモートのブランチを消して reconciled に添え、未コミットの変更や PR の先端と違う先端があれば消さずに理由と消し方を警告する（t849）", async () => {
     const f = await fixture();
-    const first = await initialized(f.cloneA, {}, { template: "software-development" });
+    const first = await initialized(f.cloneA);
     await runCommand(configSet, first, { key: "merge.delete_branch", value: "true" });
     const ctx = await openContext({ cwd: f.cloneA, actor: first.actor });
     const clean = await claimedAndPushed(ctx, "t1", "t1-clean");
@@ -364,7 +364,7 @@ describe("チケットの流れ（照合と claim）", () => {
   it("照合は gh がブランチ名で見つけた PR の番号を pr に記録し、記録済みや PR のないチケットは書き換えない", async () => {
     const f = await fixture();
     // software-development の Workflow だけが PR の事実（pr_*）を見る
-    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "With PR" });
     await runCommand(ticketCreate, ctx, { title: "Without PR" });
     await runCommand(ticketClaim, ctx, {
@@ -427,7 +427,7 @@ describe("チケットの流れ（照合と claim）", () => {
 
   it("sync が gh を待っている間もほかの書き込みは待たずに通り、照合はその後の最新の状態で判定し直して書く（t758）", async () => {
     const f = await fixture();
-    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "Slow PR" });
     await runCommand(ticketCreate, ctx, { title: "Unclaimed" });
     await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-slow" });
@@ -510,7 +510,7 @@ describe("チケットの流れ（照合と claim）", () => {
 
   it("sync が gh を待つ間に dg の外の変更が入ると、照合を書かずに取り込みの結果と照合を飛ばした理由を返す（t758）", async () => {
     const f = await fixture();
-    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "Slow PR" });
     await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-slow" });
     await git(f.cloneA, ["branch", "t1-slow"]);
@@ -560,7 +560,7 @@ describe("チケットの流れ（照合と claim）", () => {
 
   it("照合のロックを取った後に照合の書き込みが失敗すると、sync は照合を飛ばしたと言わずに失敗する（t758）", async () => {
     const f = await fixture();
-    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "Slow PR" });
     await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-slow" });
     await git(f.cloneA, ["branch", "t1-slow"]);
@@ -614,11 +614,7 @@ describe("チケットの流れ（照合と claim）", () => {
   it("照合は claim より前にマージされた同じブランチ名の PR を根拠にせず、claim の後にマージした PR では done にして pr を記録する（t206）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-02T05:00:00Z");
-    const ctx = await initialized(
-      f.cloneA,
-      { now: () => clock },
-      { template: "software-development" },
-    );
+    const ctx = await initialized(f.cloneA, { now: () => clock });
     await runCommand(ticketCreate, ctx, { title: "Reused branch" });
     await runCommand(ticketCreate, ctx, { title: "Fresh PR" });
     await runCommand(ticketCreate, ctx, { title: "Legacy" });
@@ -715,11 +711,7 @@ describe("チケットの流れ（照合と claim）", () => {
   it("ブランチで探した PR のうち、記録より前に作られて開いていないもの（閉じたものも）は前の作業とみなして拾い、開いたままのものは記録より前に作られていても拾う（t747）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-02T05:00:00Z");
-    const ctx = await initialized(
-      f.cloneA,
-      { now: () => clock },
-      { template: "software-development" },
-    );
+    const ctx = await initialized(f.cloneA, { now: () => clock });
     await runCommand(ticketCreate, ctx, { title: "Closed old PR" });
     await runCommand(ticketCreate, ctx, { title: "Open old PR" });
     await runCommand(ticketClaim, ctx, {
@@ -771,11 +763,7 @@ describe("チケットの流れ（照合と claim）", () => {
   it("マージされずに閉じた前の作業の PR が残るブランチ名で claim し直し、新しい PR を出すと、その PR を記録して review に進む（t747）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-02T05:00:00Z");
-    const ctx = await initialized(
-      f.cloneA,
-      { now: () => clock },
-      { template: "software-development" },
-    );
+    const ctx = await initialized(f.cloneA, { now: () => clock });
     await runCommand(ticketCreate, ctx, { title: "Reclaimed branch" });
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
@@ -817,7 +805,7 @@ describe("チケットの流れ（照合と claim）", () => {
 
   it("照合は、マージされた PR の追加・削除の行数をチケットの lines に記録する。開いている PR の行数は記録せず、PR の番号を変えると消す（MT-6）", async () => {
     const f = await fixture();
-    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "Lines" });
     await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-lines" });
     await recordBaseline(ctx.repo);
@@ -1046,11 +1034,7 @@ describe("チケットの流れ（照合と claim）", () => {
   it("PR の要らない作業は claim の without_branch で branch を持たず、照合で動かず警告も出ない。update の branch で付け外しできる", async () => {
     const f = await fixture();
     // マージドライバの登録がないと sync が警告する（t759）ので、node を指す登録を渡す（このテストでは rebase がマージしない）
-    const ctx = await initialized(
-      f.cloneA,
-      { mergeDriver: [process.execPath, "merge-driver"] },
-      { template: "software-development" },
-    );
+    const ctx = await initialized(f.cloneA, { mergeDriver: [process.execPath, "merge-driver"] });
     await runCommand(ticketCreate, ctx, { title: "Data cleanup" });
     await expect(
       runCommand(ticketClaim, ctx, {
@@ -1091,7 +1075,7 @@ describe("チケットの流れ（照合と claim）", () => {
 
   it("gh が PR がないと答えた review のチケットは閉じた PR と警告しない。閉じた PR には警告する", async () => {
     const f = await fixture();
-    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "No PR yet" });
     await runCommand(ticketCreate, ctx, { title: "Closed PR" });
     await runCommand(ticketClaim, ctx, {
@@ -1138,7 +1122,7 @@ describe("チケットの流れ（照合と claim）", () => {
 
   it("agent の claim は実装の Run を開いて run に ID を出し、no_run と人の claim では開かず、agent を判定できなければ警告だけして claim は成功する（RN-5）", async () => {
     const f = await fixture();
-    const human = await initialized(f.cloneA, {}, { template: "software-development" });
+    const human = await initialized(f.cloneA);
     for (const title of ["A", "B", "C", "D", "E"]) await runCommand(ticketCreate, human, { title });
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
     agent.env = { CLAUDECODE: "1" };
@@ -1198,51 +1182,29 @@ describe("チケットの流れ（照合と claim）", () => {
     expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket).sort()).toEqual(["t1", "t2"]);
   });
 
-  it("claim が開く step は Workflow の opens_on: claim の step、なければ implement。語彙になければ開かずに警告する（RN-5）", async () => {
+  it("claim が開く step は Core が決める implement で、workflow.yaml に前の形の steps（opens_on）を書いても変わらない（RN-5）", async () => {
     const f = await fixture();
     const human = await initialized(f.cloneA);
-    const workflow = (id: string, steps: string) =>
-      writeFile(
-        path.join(human.repo.dataDir, `workflows/${id}.yaml`),
-        `id: ${id}\nname: ${id}\nsteps:\n${steps}`,
-      );
-    await workflow("build", "  - { id: build, opens_on: claim }\n  - { id: review }\n");
-    await workflow("plain", "  - { id: implement }\n  - { id: review }\n");
-    await workflow("noimpl", "  - { id: research }\n");
+    await writeFile(
+      path.join(human.repo.dataDir, "workflow.yaml"),
+      "steps:\n  - { id: build, opens_on: claim }\n  - { id: review }\n",
+    );
     await recordBaseline(human.repo);
     await human.store.rescan();
-    for (const wf of ["build", "plain", "noimpl"])
-      await runCommand(ticketCreate, human, { title: wf, workflow: wf });
+    await runCommand(ticketCreate, human, { title: "A" });
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
     agent.env = { CLAUDECODE: "1" };
-    expect(
-      (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1" })).data.run,
-    ).not.toBeNull();
-    expect(
-      (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2" })).data.run,
-    ).not.toBeNull();
-    const missing = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3" });
-    expect(missing.data).toMatchObject({ status: "in_progress", run: null });
-    expect(missing.warnings).toEqual([
-      expect.stringMatching(
-        /^The implement Run is not open: step implement is not in the steps of Workflow noimpl/,
-      ),
-    ]);
-    // 同じ秒に始めた Run の並びは ID の末尾の乱数で決まるので、並べ替えてから比べる
-    expect((await peekRunningRuns(agent.repo)).map((r) => [r.ticket, r.step]).sort()).toEqual([
-      ["t1", "build"],
-      ["t2", "implement"],
+    const claimed = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1" });
+    expect(claimed.data.run).not.toBeNull();
+    expect((await peekRunningRuns(agent.repo)).map((r) => [r.ticket, r.step])).toEqual([
+      ["t1", "implement"],
     ]);
   });
 
   it("ticket update --pr と照合の PR の発見は、実行中の実装の Run を success で閉じて finished_at を PR の作成時刻にし、閉じた Run への run finish は記録を変えない（RN-6）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(
-      f.cloneA,
-      { now: () => clock },
-      { template: "software-development" },
-    );
+    const human = await initialized(f.cloneA, { now: () => clock });
     for (const title of ["With --pr", "Found by sync", "Recorded before", "Reopened after PR"])
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
@@ -1429,11 +1391,7 @@ describe("チケットの流れ（照合と claim）", () => {
   it("照合が閉じようとした実装の Run が別の文脈で先に閉じていても、sync は止まらずに警告し、ほかのチケットの照合と Run の閉じ方は変わらない（RN-6）", async () => {
     const f = await fixture();
     const clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(
-      f.cloneA,
-      { now: () => clock },
-      { template: "software-development" },
-    );
+    const human = await initialized(f.cloneA, { now: () => clock });
     for (const title of ["Raced", "Other"]) await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const raced = (

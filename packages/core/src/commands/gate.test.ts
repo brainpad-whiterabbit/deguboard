@@ -66,9 +66,7 @@ const pr = (
 /** 雛形の準備（テストファイルで 1 度だけ走る）：init（software-development）・t1 を t1 で claim して 1 コミット push */
 async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {
-    template: "software-development",
-  });
+  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, {
     title: "A",

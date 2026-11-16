@@ -11,7 +11,6 @@ export const DIRS = {
   epics: "epics",
   iterations: "iterations",
   plans: "plans",
-  workflows: "workflows",
   runs: "runs",
 } as const;
 
@@ -20,7 +19,10 @@ export const deletedTicketPath = (id: string): string => `${DIRS.deletedTickets}
 export const epicPath = (id: string): string => `${DIRS.epics}/${id}.md`;
 export const iterationPath = (id: string): string => `${DIRS.iterations}/${id}.yaml`;
 export const planPath = (id: string): string => `${DIRS.plans}/${id}.yaml`;
-export const workflowPath = (id: string): string => `${DIRS.workflows}/${id}.yaml`;
+/** カンバンに 1 つの Workflow（要件 5.8）。なければ Core の既定で動く */
+export const WORKFLOW_FILE = "workflow.yaml";
+/** 前の版が Workflow を置いたディレクトリ（workflows/<id>.yaml）。読まない。workflow.yaml がないのに残っていれば読み込みが警告し、dg workflow set が消す */
+export const RETIRED_WORKFLOWS_DIR = "workflows";
 /** Run の完了時の集計 */
 export const runPath = (id: string): string => `${DIRS.runs}/${id}.json`;
 /** Run の会話記録のパス。deguboard-local/（Git 管理外）からの相対パス。Run を閉じた後も run refresh の期間は残す（run/record.ts） */

@@ -45,7 +45,6 @@ async function initWith(
 ): Promise<CommandContext> {
   const first = await openContext({ cwd, initialize: { dataRemote, dataBranch }, actor });
   await runCommand(init, first, {
-    template: "software-development",
     data_remote: dataRemote,
     data_branch: dataBranch,
   });
@@ -69,7 +68,6 @@ describe("データのブランチ名を変える（git.data_branch）", () => {
     // ほかのブランチがあっても、名指ししたブランチがなければ新しく始める
     expect(first.worktree).toBe("orphan");
     const made = await runCommand(init, first, {
-      template: "software-development",
       data_remote: "data",
       data_branch: "deguboard-webapp",
     });
@@ -455,7 +453,7 @@ describe("データのリモートやブランチが別のカンバンの履歴�
     expect(first.worktree).toBe("orphan");
     const other = await initWith(f.cloneB, "data", "deguboard");
     await runCommand(ticketCreate, other, { title: "先にあるカンバン" });
-    await runCommand(init, first, { template: "software-development", data_remote: "data" });
+    await runCommand(init, first, { data_remote: "data" });
     const a = await openContext({ cwd: f.cloneA, actor });
     await runCommand(sync, a, {});
     expect(titlesOf(a)).toEqual(["t1:先にあるカンバン"]);

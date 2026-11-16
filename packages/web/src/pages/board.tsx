@@ -912,8 +912,8 @@ function Column({
   const store = useStore();
   const [open, setOpen] = useUiState(`board.section.${status}`, defaultOpen);
   const empty = tickets.length === 0;
-  const definition = store.workflow?.definition;
-  const stepLabel = (step: string) => stepLabelOf(definition, step);
+  const steps = store.workflow?.steps;
+  const stepLabel = (step: string) => stepLabelOf(steps, step);
   // 節の見出しから、節のチケットをまとめて頼む（空の節は頼む対象がないので出さない）
   const spot = useAskSpot(
     !empty

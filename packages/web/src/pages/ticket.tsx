@@ -1,12 +1,12 @@
 // チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧と、経過（deguboard ブランチの履歴）。
 // 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。
-// Status の選択・表示名と任意フィールドは、チケット自身の Workflow（なければ config の default_workflow）で決める。
+// Status の選択・表示名と任意フィールドは、カンバンの Workflow（store.workflow）で決める。
 // VS Code のパネルに出し、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
 // 依存先が終わっていなければ本文の上の帯で知らせる（右の列の下の知らせは見落とす）。
 // 右の列（属性）は components/ticket-props-panel.tsx（値を押してその場で直す）。編集のボタンはタイトルと本文だけを入力欄にする。
 // 本文の受け入れ条件のチェックボックスは、押すとその項目だけを ticket.check で付け外しする（読んだ本文を base に渡し、間に書き込みがあれば拒否されて戻す）
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useCommandData } from "../command-data.js";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { StatusDot, PriorityMark, TicketLink } from "../components/parts.js";
@@ -16,49 +16,10 @@ import { TicketRuns } from "../components/ticket-runs.js";
 import { TicketTimeline } from "../components/timeline.js";
 import { Markdown, type AcceptanceToggle } from "../markdown.js";
 import { hrefOf } from "../router.js";
-import { useStore, type Store } from "../store.js";
-import type { Status, TicketDetail, WorkflowView } from "../types.js";
-import { shownWorkflow, tr } from "../l10n.js";
+import { useStore } from "../store.js";
+import type { TicketDetail } from "../types.js";
+import { tr } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
-
-/**
- * チケットの Workflow。チケットの workflow、なければ既定の Workflow で、core の requireWorkflowFor と同じ解決にする。
- * 一覧が読んだ既定の Workflow（store.workflow。config の default_workflow）と同じなら引き直さない。別の Workflow は読み終えるまで null。
- * 読めなければ理由を通知に出し、null のまま（パネルの Status の選択は今の Status だけで、任意フィールドも出さない）。
- * useCommandData は使わない：失敗を画面のエラーでなく通知に出し、一覧の読み直しでは引き直さない（Workflow の定義はチケットの書き込みで変わらない）。
- * 読んだ Workflow は store と同じく core が返したままを持ち、返すときに shownWorkflow で訳す（store.workflow は store が訳したもの）
- */
-function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowView | null {
-  const id = ticket?.workflow;
-  const other = id !== undefined && id !== store.workflow?.definition.id ? id : null;
-  const [loaded, setLoaded] = useState<{ id: string; view: WorkflowView } | null>(null);
-  const shownLoaded = useMemo(
-    () => loaded && { id: loaded.id, view: shownWorkflow(loaded.view) },
-    [loaded],
-  );
-  const { client, notify } = store;
-  useEffect(() => {
-    if (!other) return;
-    let alive = true;
-    client
-      .run<WorkflowView>("workflow.show", { workflow: other })
-      .then((r) => alive && setLoaded({ id: other, view: r.data }))
-      .catch(
-        (e: unknown) =>
-          alive &&
-          notify({
-            kind: "error",
-            text: tr("Workflow {0} を読めない", other),
-            detail: e instanceof Error ? e.message : String(e),
-          }),
-      );
-    return () => {
-      alive = false;
-    };
-  }, [other, client, notify]);
-  if (!other) return store.workflow;
-  return shownLoaded?.id === other ? shownLoaded.view : null;
-}
 
 export function TicketPage({ id }: { id: string }) {
   const store = useStore();
@@ -70,10 +31,9 @@ export function TicketPage({ id }: { id: string }) {
   } = useCommandData<TicketDetail>("ticket.show", { ticket: id });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [pendingCheck, setPendingCheck] = useState<AcceptanceToggle["pending"]>(null);
-  const workflow = useTicketWorkflow(store, ticket);
+  const workflow = store.workflow;
   const fields = workflow?.definition.fields ?? [];
-  /** このチケットの Status の表示名（依存先・依存元はそれぞれの一覧の表示名のまま） */
-  const labelOf = (s: Status) => workflow?.labels[s] ?? store.labelOf(s);
+  const labelOf = store.labelOf;
 
   if (error) return <p className="error">{error}</p>;
   if (!ticket) return <p className="muted">{tr("読み込み中…")}</p>;

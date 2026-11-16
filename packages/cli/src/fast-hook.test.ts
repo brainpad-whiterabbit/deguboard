@@ -42,7 +42,7 @@ const SESSION = "s-fast";
 
 async function initialized(): Promise<string> {
   const f = await createFixtureFrom("fast-hook-init", async (l) => {
-    const code = await run(["init", "--template", "software-development"], {
+    const code = await run(["init"], {
       cwd: l.cloneA,
       env: {},
       streams: { out: () => undefined, err: () => undefined },

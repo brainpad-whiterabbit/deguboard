@@ -368,115 +368,38 @@ describe("画面", () => {
     });
   });
 
-  /**
-   * 既定の Workflow（遷移の制約なし）と別に、todo → done を誰にも許さない Workflow strict を持つチケット t9 の client
-   */
-  function ownWorkflowClient() {
-    const data = fixture({
-      tickets: [ticket({ id: "t9", title: "別の流れ", workflow: "strict" })],
-    });
-    const client = mockClient(data);
-    client.handlers["workflow.show"] = (input) =>
-      (input as { workflow: string }).workflow === "strict"
-        ? {
-            definition: {
-              id: "strict",
-              name: "Strict",
-              transitions: [],
-              reconcile: [],
-              fields: [{ id: "size", label: "規模", type: "string" }],
-            },
-            labels: { ...data.workflow.labels, todo: "未着手", done: "完了" },
-            transitions: [{ from: "todo", to: "done", by: [], requires: [] }],
-          }
-        : data.workflow;
-    return client;
-  }
   const statusOptions = () =>
     [...(screen.getByLabelText("Status") as HTMLSelectElement).options].map((o) => o.value);
 
-  it("エディタのパネルの Status の選択は、チケット自身の Workflow の遷移で絞り、by が空の遷移の先を出さない。表示名と任意フィールドもその Workflow のもの", async () => {
+  it("エディタのパネルの Status の選択は、カンバンの 1 つの Workflow（workflow.yaml）の遷移で絞り、by が空の遷移の先を出さない。表示名は states の label で、任意フィールドのラベルは書いたまま出す", async () => {
     window.location.hash = "#/tickets/t9";
-    const client = ownWorkflowClient();
+    const data = fixture({ tickets: [ticket({ id: "t9", title: "別の流れ" })] });
+    data.workflow = {
+      definition: { fields: [{ id: "estimate", label: "Estimate", type: "number" }] },
+      labels: { ...data.workflow.labels, todo: "Backlog" },
+      transitions: [{ from: "todo", to: "done", by: [], requires: [] }],
+    };
+    const client = mockClient(data);
     mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: "別の流れ" });
     await waitFor(() =>
       expect(statusOptions()).toEqual(["todo", "in_progress", "review", "abandoned"]),
     );
-    expect(screen.getByLabelText("Status").textContent).toContain("未着手");
+    expect(screen.getByLabelText("Status").textContent).toContain("Backlog");
     const head = document.querySelector(".detail-meta-status")!;
-    expect(head.textContent).toBe("未着手");
-    expect(head.querySelector(".status-dot")!.getAttribute("aria-label")).toBe("未着手");
+    expect(head.textContent).toBe("Backlog");
+    expect(head.querySelector(".status-dot")!.getAttribute("aria-label")).toBe("Backlog");
+    // 任意フィールドのラベルは人が書いた文なので、訳の表にある文でも訳さない
     expect(screen.getByText("なし", { selector: "dt" }).nextElementSibling!.textContent).toContain(
-      "規模",
+      "Estimate",
     );
-    expect(
-      client.calls.some(
-        (c) =>
-          c.name === "workflow.show" && (c.input as { workflow: string }).workflow === "strict",
-      ),
-    ).toBe(true);
-  });
-
-  it.each([
-    ["既定の Workflow", "t3", "画面"],
-    ["チケット自身の Workflow", "t9", "別の流れ"],
-  ])(
-    "%sの項目のラベルは、workflow.show が添える雛形と同じ文なら日本語で、書き換えたものは書いたまま出す",
-    async (_, id, title) => {
-      window.location.hash = `#/tickets/${id}`;
-      const client = id === "t9" ? ownWorkflowClient() : mockClient();
-      const show = client.handlers["workflow.show"]!;
-      const template = {
-        name: "Software Development",
-        fields: [
-          { id: "estimate", type: "number", label: "Estimate" },
-          { id: "size", type: "string", label: "Size" },
-        ],
-      };
-      client.handlers["workflow.show"] = (input) => {
-        const view = show(input) as WorkflowView;
-        return {
-          ...view,
-          definition: {
-            ...view.definition,
-            fields: [
-              { id: "estimate", type: "number", label: "Estimate" },
-              { id: "size", type: "string", label: "Size of work" },
-            ],
-          },
-          template,
-        };
-      };
-      mount(client, hostOf("panel"));
-      await screen.findByRole("heading", { level: 1, name: title });
-      const none = (await screen.findByText("なし", { selector: "dt" })).nextElementSibling!;
-      await waitFor(() => expect(none.textContent).toContain("見積もり"));
-      expect(none.textContent).not.toContain("Estimate");
-      expect(none.textContent).toContain("Size of work");
-    },
-  );
-
-  it("チケットの Workflow が読めなければ理由を通知に出し、パネルの Status の選択は今の Status だけにする", async () => {
-    window.location.hash = "#/tickets/t9";
-    const client = ownWorkflowClient();
-    const show = client.handlers["workflow.show"]!;
-    client.handlers["workflow.show"] = (input) => {
-      if ((input as { workflow: string }).workflow === "strict")
-        throw new ClientError({ code: "NOT_FOUND", message: "Workflow strict が見つからない" });
-      return show(input);
-    };
-    mount(client, hostOf("panel"));
-    await screen.findByRole("heading", { level: 1, name: "別の流れ" });
-    expect((await screen.findByRole("alert")).textContent).toContain("Workflow strict を読めない");
-    expect(statusOptions()).toEqual(["todo"]);
   });
 
   it.each([
     ["workflow を持たない", undefined],
-    ["既定と同じ workflow を持つ", "software-development"],
+    ["workflow を持つ", "strict"],
   ])(
-    "%sチケットは既定の Workflow（config の default_workflow）で出し、チケット詳細で Workflow を引き直さない",
+    "%sチケットもカンバンの Workflow で出し、Workflow は一覧と一緒に ID なしで 1 度だけ読む（チケット詳細で引き直さない）",
     async (_, workflow) => {
       window.location.hash = "#/tickets/t3";
       const client = mockClient();
@@ -484,10 +407,9 @@ describe("画面", () => {
       mount(client, hostOf("panel"));
       await screen.findByRole("heading", { level: 1, name: "画面" });
       expect(statusOptions()).toEqual(["todo", "in_progress", "review", "done", "abandoned"]);
-      // 一覧と一緒に、config の default_workflow の Workflow を 1 度だけ読む
-      expect(client.calls.filter((c) => c.name === "workflow.show").map((c) => c.input)).toEqual([
-        { workflow: "software-development" },
-      ]);
+      const shows = client.calls.filter((c) => c.name === "workflow.show");
+      expect(shows).toHaveLength(1);
+      expect(shows[0]!.input ?? {}).toEqual({});
     },
   );
 
@@ -1889,9 +1811,7 @@ describe("画面", () => {
   it("サイドバーのカンバンの In Progress の行の右端の下の段に、Run を古い順に 3 個までの丸と「+n」と最後の丸の文字で並べ、行の頭には何も出さず、読み直しで変わる", async () => {
     const client = boardClient();
     client.data.plans.push(plan({ id: "p7", tickets: ["t2"] }));
-    client.data.workflow.definition.steps = [
-      { id: "implement", label: "Implement", actions: [], approval: false },
-    ];
+    client.data.workflow.steps = [{ id: "implement", label: "Implement" }];
     let recent: TicketRunsView[] = [
       ticketRuns(
         "t2",
@@ -1934,13 +1854,13 @@ describe("画面", () => {
       "run-pip run-running is-last",
     ]);
     expect(api.querySelector(".run-pips-more")!.textContent).toBe("+2");
-    expect(api.querySelector(".run-pips-caption")!.textContent).toBe("Implement · 12分");
+    expect(api.querySelector(".run-pips-caption")!.textContent).toBe("実装 · 12分");
     // 並び全体に読み上げ用の名前。丸ごとに Tab で止まり、説明（手・結果・時刻とかかった時間・直した指摘の数）を持つ
     expect(
       within(api as HTMLElement)
         .getByRole("group")
         .getAttribute("aria-label"),
-    ).toBe("Run 5 回。最後は Implement · 12分");
+    ).toBe("Run 5 回。最後は 実装 · 12分");
     expect(pips.every((p) => p.getAttribute("tabindex") === "0")).toBe(true);
     const fix = pips[1]!.closest(".run-pip-wrap")!.querySelector(".run-pip-tip")!;
     expect([...fix.children].map((c) => c.textContent)).toEqual([

@@ -701,7 +701,7 @@ Choose \`priority\` by these criteria (they can be changed in \`priority\` of \`
 - When a ticket reaches 7 or more acceptance criteria, recommend splitting it (in deguboard's own development, 9 of 10 tickets with 7 or more criteria needed rework). If you do not split it, show a human the reason to proceed with one ticket
 - Work that needs no PR (data maintenance, checks, research) says so in the summary. Make its acceptance criteria sentences whose truth can be judged from data or a report
 - To group tickets by purpose, use an Epic (see existing ones with \`dg --json --actor agent epic list\`. If there are none, propose creating one)
-- For optional fields (the Workflow's \`fields\`), use \`--field key=value\`. For the definitions, use \`dg --json --actor agent workflow show <id>\`
+- For optional fields (the Workflow's \`fields\`), use \`--field key=value\`. For the definitions, use \`dg --json --actor agent workflow show\`
 
 ## What not to do
 
@@ -796,7 +796,7 @@ dg checks the data repository (the deguboard worktree) for changes that did not 
 By default, agents can run every operation. Limits are added in the settings.
 
 - By command: a command listed in \`actor.human_only\` in \`config.yaml\` is refused for the agent. Current setting: none. Examples: \`plan.approve\` (limit approving a Plan to humans), \`epic.close\`, \`iteration.close\`
-- By ticket transition: a transition whose Workflow \`transitions\` marks \`by: [human]\` (such as making a ticket abandoned, or moving it back from done) is refused for the agent. Check with \`dg --json --actor agent workflow show <id>\`
+- By ticket transition: a transition whose Workflow \`transitions\` marks \`by: [human]\` (such as making a ticket abandoned, or moving it back from done) is refused for the agent. The transitions are in the board's \`workflow.yaml\`. Check with \`dg --json --actor agent workflow show\`
 - Making a ticket abandoned, undoing done, and closing or reopening an Epic or Iteration are decisions for humans. Even when they are not refused, if no human has instructed them, confirm with a human before running them. When a human has asked for one, follow \`dg guide change\`
 - Stay within the stage a human asked for. Answer a consultation or a wish ("I'd like a feature like this", "what do you think?") or reply with a proposal, and stop there. Filing tickets, starting work (claim), and merging go only as far as the stage a human asked for. Calling a Skill counts as asking for the whole range that Skill covers. What a human explicitly instructs is done as instructed, even when it bypasses the quality gate or the usual steps
 - Approving a Plan (\`plan approve\`) is done only when a human has approved it, even when it is not refused (see \`dg guide plan\`)
@@ -1238,10 +1238,10 @@ When dg hooks reach the session, implementation and fixes are always asked of a 
 ## When the parent opens the Run itself
 
 - Call the claim that opens a Run alone, and do not chain other commands to it (if the ID shows up late in the conversation record, the responses of Runs stacked in the same conversation cannot be told apart correctly)
-- \`ticket claim\` opens the implementation Run. Its step is the Workflow's \`opens_on: claim\` one (\`implement\` if there is none). The ID is in \`data.run\`
+- \`ticket claim\` opens the implementation Run. Its step is \`implement\`. The ID is in \`data.run\`
 - \`ticket update --pr <number>\` closes the implementation Run as \`success\` (finished_at is the time the PR was created). \`run finish\` is not needed. For work that needs no PR, \`ticket move\` to done or review closes it
 - To stop, \`ticket unclaim\` closes it as \`failure\`. To leave a reason, first run \`run finish <Run ID> --result failure --error <reason>\`
-- To fix findings yourself, claim a ticket that you already claimed and that has a PR, with \`ticket claim <id> --retry-reason <one-line summary of each finding>\`. Repeat it once per finding. The ticket does not change, and the fix Run (the one with \`opens_on: reclaim\`, or \`fix\` if there is none) opens. The start of the next review Run or \`sync\` closes it at the time of the last push
+- To fix findings yourself, claim a ticket that you already claimed and that has a PR, with \`ticket claim <id> --retry-reason <one-line summary of each finding>\`. Repeat it once per finding. The ticket does not change, and the fix Run (step \`fix\`) opens. The start of the next review Run or \`sync\` closes it at the time of the last push
 - Keep each reason to one line, and do not write secrets, command strings, or paths
 
 ## Stopped Run

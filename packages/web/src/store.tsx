@@ -1,4 +1,4 @@
-// 画面の状態。カンバンのチケット・Epic・Iteration・Plan・既定の Workflow と同期の状態を CommandClient から読み、書き込みのあとに読み直す。
+// 画面の状態。カンバンのチケット・Epic・Iteration・Plan・カンバンの Workflow と同期の状態を CommandClient から読み、書き込みのあとに読み直す。
 // 状態管理のライブラリは入れず、React の context だけで持つ。
 // cache を渡すと（VS Code の Webview）、読み終えた一覧を残しておき、次に開いたときはそれをすぐ描いてから読み直して差し替える。
 // 最初の読み込みは core の中で 1 本ずつ処理されるコマンドが 7 本並び、サイドバーとパネルが同じ列を使うので、その間を空の画面にしない。
@@ -93,7 +93,7 @@ export interface Store {
   epics: EpicRow[];
   iterations: Iteration[];
   plans: PlanRow[];
-  /** 既定の Workflow（config の default_workflow）。自分の workflow を持つチケットの Workflow は詳細が引き直す */
+  /** カンバンの Workflow（workflow.yaml。Status の表示名と Run の step の表示名は表示言語に訳したもの） */
   workflow: WorkflowView | null;
   /**
    * 操作している人（core の whoami の出力）。担当者が自分か自分の agent かは isOwnAssignee（own_ids に含まれるか）で決める。
@@ -263,9 +263,7 @@ export function StoreProvider({
         client.run<EpicRow[]>("epic.list"),
         client.run<Iteration[]>("iteration.list"),
         client.run<PlanRow[]>("plan.list"),
-        client.run<WorkflowView>("workflow.show", {
-          workflow: config.data.config?.default_workflow,
-        }),
+        client.run<WorkflowView>("workflow.show"),
       ]);
       setTickets(t.data);
       setEpics(e.data);
@@ -367,7 +365,7 @@ export function StoreProvider({
     [client, reload],
   );
 
-  // 雛形と同じ名前とラベルと、既定のままの Status の表示名は表示言語の訳にして渡す（workflow と labelOf の両方）。
+  // 既定のままの Status の表示名と、Core が持つ Run の step の表示名は表示言語の訳にして渡す（workflow と labelOf の両方）。
   // cache には core が返したままを残す（表示言語が変わっても訳し直せるように）
   const shownWf = useMemo(() => workflow && shownWorkflow(workflow), [workflow]);
   const value = useMemo<Store>(

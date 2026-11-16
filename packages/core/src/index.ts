@@ -4,8 +4,7 @@ export * from "./workflow/index.js";
 export * from "./storage/index.js";
 export * from "./git/index.js";
 export * from "./commands/index.js";
-// actions はライブラリとして core の中で使い、公開は入口が Workflow の steps を検証する ACTION_NAMES だけにする（AG-6）
-export { ACTION_NAMES } from "./actions/index.js";
+// actions はライブラリとして core の中で使い、公開しない（AG-6）
 export * from "./run/index.js";
 // agents は Run の使用量と ask の中で使い、公開は Skill の有無を見る先を cli のテストが引く agentSkillDirs と、
 // 速い経路のフックの読み方が同じものかを cli のテストが比べる hooksOf だけにする

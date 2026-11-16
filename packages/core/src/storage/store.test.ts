@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OperationError } from "../errors.js";
 import { emptyUsage } from "../model/run.js";
-import { WORKFLOW_TEMPLATES, findWorkflowTemplate } from "../workflow/templates/index.js";
+import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
 import { checkReferences, wouldCreateCycle } from "./integrity.js";
 import { Store } from "./store.js";
 
@@ -259,17 +259,58 @@ describe("Store", () => {
     expect(store.nextId("ticket")).toBe("t2");
   });
 
-  it("Workflow はテンプレートから書け、誤りのある定義は索引に入らず Issue になる", async () => {
+  it("workflow.yaml がなければ Core の既定で読み、誤りのある定義は使わず Issue になり、書き直せば読める", async () => {
+    const root = await fixture({});
+    const store = await Store.open(root);
+    expect(store.issues).toEqual([]);
+    expect(store.workflow).toMatchObject({ exists: false, resolved: DEFAULT_WORKFLOW });
+
+    await writeFile(
+      path.join(root, "workflow.yaml"),
+      "reconcile:\n  - { when: [nope], status: done }\n",
+    );
+    await store.rescan();
+    expect(store.workflow).toBeUndefined();
+    expect(store.issues.map((i) => [i.path, i.code])).toEqual([
+      ["workflow.yaml", "workflow_condition_unknown"],
+    ]);
+    expect(() => store.requireWorkflow()).toThrow(/workflow\.yaml has errors/);
+
+    await store.writeWorkflow({ states: { todo: { label: "Backlog" } } }, "カンバンの Workflow");
+    const text = await readFile(path.join(root, "workflow.yaml"), "utf8");
+    expect(text.startsWith("# カンバンの Workflow\n")).toBe(true);
+    expect(store.issues).toEqual([]);
+    expect(store.workflow?.resolved.labels).toMatchObject({ todo: "Backlog", review: "Review" });
+    // 開き直しても同じ
+    expect((await Store.open(root)).workflow).toEqual(store.workflow);
+  });
+
+  it("前の版の workflows/ は読まない。チケットの workflow も Workflow を選ばない。workflow.yaml がない間は workflows/ が残ることを警告する", async () => {
     const root = await fixture({
-      "workflows/bad.yaml": "id: bad\nname: Bad\nreconcile:\n  - { when: [nope], status: done }\n",
+      "tickets/t1.md": ticketText("t1", "workflow: custom\n"),
+      "workflows/custom.yaml":
+        "id: custom\nname: Custom\ntransitions:\n  - { from: todo, to: done, by: [] }\n",
+      "workflows/broken.yaml": "id: [\n",
     });
     const store = await Store.open(root);
-    expect(store.workflows.has("bad")).toBe(false);
-    expect(store.issues.some((i) => i.code === "workflow_condition_unknown")).toBe(true);
-    await store.writeWorkflow(findWorkflowTemplate("general")!, "汎用のワークフロー");
-    const text = await readFile(path.join(root, "workflows/general.yaml"), "utf8");
-    expect(text.startsWith("# 汎用のワークフロー\n")).toBe(true);
-    expect(store.workflows.get("general")?.resolved.labels.todo).toBe("Todo");
+    // 中身は読まない（壊れたファイルも指摘しない）。by の制限が黙って既定に戻るので、残っていることだけを警告する
+    expect(store.issues).toEqual([
+      {
+        severity: "warning",
+        code: "retired_workflows_dir",
+        path: "workflows",
+        message: expect.stringContaining("dg workflow set"),
+      },
+    ]);
+    expect(store.workflow).toMatchObject({ exists: false, resolved: DEFAULT_WORKFLOW });
+    expect(store.tickets.get("t1")?.data.workflow).toBe("custom");
+    expect(checkReferences(store)).toEqual([]);
+
+    // workflow.yaml を置けば警告は消える（残った workflows/ は workflow set が消す）
+    await writeFile(path.join(root, "workflow.yaml"), "wip:\n  review: 1\n");
+    await store.rescan();
+    expect(store.issues).toEqual([]);
+    expect(store.workflow?.exists).toBe(true);
   });
 
   it("config は既定値で補われ、部分的に書き換えられる", async () => {
@@ -352,30 +393,6 @@ describe("Store", () => {
       expect(await written(rel)).not.toContain("project");
   });
 
-  it("既定の Workflow は config の default_workflow で決まり、チケットの workflow が優先する", async () => {
-    const root = await fixture({
-      "tickets/t1.md": ticketText("t1"),
-      "tickets/t2.md": ticketText("t2", "workflow: general\n"),
-      "workflows/general.yaml": "id: general\nname: General\n",
-      "workflows/custom.yaml": "id: custom\nname: Custom\n",
-    });
-    const store = await Store.open(root);
-    const workflowOf = (id: "t1" | "t2") =>
-      store.workflowFor(store.tickets.get(id)!.data)?.definition.id;
-    expect(store.config.default_workflow).toBe("general");
-    expect(workflowOf("t1")).toBe("general");
-    await store.writeConfig({ default_workflow: "custom" });
-    expect(workflowOf("t1")).toBe("custom");
-    expect(workflowOf("t2")).toBe("general");
-    expect(checkReferences(store)).toEqual([]);
-    // 定義のない Workflow を既定にすると、config と、既定に頼るチケットを指摘する
-    await store.writeConfig({ default_workflow: "nothing" });
-    expect(checkReferences(store).map((i) => [i.path, i.code])).toEqual([
-      ["config.yaml", "workflow_missing"],
-      ["tickets/t1.md", "workflow_missing"],
-    ]);
-  });
-
   it("projects/ が残る間は、既定の Project の Workflow を default_workflow として読み、default_project は値に出さない", async () => {
     const root = await fixture({
       "projects/default.yaml": "id: default\nname: Default\nworkflow: software-development\n",
@@ -401,7 +418,6 @@ describe("Store", () => {
     const root = await fixture({
       "tickets/t1.md": ticketText("t1", "depends_on: [t2]\nepic: e9\n"),
       "tickets/t2.md": ticketText("t2", "depends_on: [t1]\niteration: s1\n"),
-      "workflows/general.yaml": "id: general\nname: General\n",
     });
     const store = await Store.open(root);
     const codes = checkReferences(store)
@@ -514,9 +530,7 @@ describe("Store", () => {
     // 時計を進め、どのファイルも更新が十分に古いものとして覚えさせる
     vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
     const store = await Store.open(root);
-    const general = findWorkflowTemplate("general")!;
-    const id = String(general["id"]);
-    await store.writeWorkflow(general);
+    await store.writeWorkflow({ wip: { review: 2 } });
     // 自分で書いた Workflow の 1 ファイルだけを読み直す
     await store.rescan();
     const files = store.lastScan.read + store.lastScan.reused;
@@ -528,7 +542,7 @@ describe("Store", () => {
     // 前の結果をそのまま使い、読めないファイルの Issue も残る
     expect(store.tickets.get("t1")).toBe(before);
     expect(store.issues.map((i) => [i.path, i.code])).toEqual([["tickets/t3.md", "yaml_error"]]);
-    expect(store.workflows.has(id)).toBe(true);
+    expect(store.workflow?.resolved.wip).toEqual({ review: 2 });
 
     // 同じ大きさで同じファイルに上書きする。経過時間に頼らないよう、更新時刻は前と違う値に決めて付ける
     const t1 = path.join(root, "tickets/t1.md");
@@ -633,7 +647,7 @@ describe("ディスクに残した読みの結果", () => {
   /** 比べる索引の中身。キャッシュの有無で同じになることを確かめる */
   const contents = (store: Store) => ({
     tickets: [...store.tickets.values()],
-    workflows: [...store.workflows.entries()],
+    workflow: store.workflow,
     config: store.config,
     issues: store.issues,
   });
@@ -648,15 +662,14 @@ describe("ディスクに残した読みの結果", () => {
     const cacheDir = path.join(root, "..", `${path.basename(root)}-cache`);
     dirs.push(cacheDir);
     vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
-    await (await Store.open(root)).writeWorkflow(WORKFLOW_TEMPLATES[0]!);
-    const actions = ["run_tests"];
-    const open = () => Store.open(root, { cacheDir, actions });
+    await (await Store.open(root)).writeWorkflow({ wip: { review: 2 } });
+    const open = () => Store.open(root, { cacheDir });
     const cacheFile = async () => {
       const files = await readdir(cacheDir);
       expect(files).toHaveLength(1);
       return path.join(cacheDir, files[0]!);
     };
-    return { root, cacheDir, open, cacheFile, plain: () => Store.open(root, { actions }) };
+    return { root, cacheDir, open, cacheFile, plain: () => Store.open(root) };
   }
 
   it("別に開いたストア（次の CLI の呼び出し）は、変わっていないファイルを読み直さず解析もしない。変わったファイルだけを読む", async () => {
@@ -683,8 +696,8 @@ describe("ディスクに残した読みの結果", () => {
     expect((await open()).lastScan).toEqual({ read: 0, reused: files });
   });
 
-  it("鍵（dg の版・キャッシュの形・読みのコード・Action の一覧）の違うキャッシュは使わずに読み直す", async () => {
-    const { root, cacheDir, open, cacheFile } = await cachedFixture();
+  it("鍵（dg の版・キャッシュの形・読みのコード）の違うキャッシュは使わずに読み直す", async () => {
+    const { root, open, cacheFile } = await cachedFixture();
     const files = (await open()).lastScan.read;
     const file = await cacheFile();
     // dg の版・読みのコードの印（スキーマを変えた作り直し）・キャッシュの形の版のどれが違っても使わない
@@ -694,7 +707,7 @@ describe("ディスクに残した読みの結果", () => {
         entries: Record<string, { stamp: string; value: { ok: boolean; doc: { body: string } } }>;
       };
       const key = JSON.parse(saved.key) as Record<string, unknown>;
-      expect(key).toMatchObject({ format: 1, root: path.resolve(root), actions: ["run_tests"] });
+      expect(key).toMatchObject({ format: 2, root: path.resolve(root) });
       expect(key["version"]).toMatch(/^\d+\.\d+\.\d+/);
       expect(key["code"]).toMatch(/^[0-9a-f]{64}$/);
       // 同じ印のまま値だけを差し替え、鍵の違う dg が書いたキャッシュに見せる。使えば本文が変わって見える
@@ -707,9 +720,6 @@ describe("ディスクに残した読みの結果", () => {
       expect(store.lastScan, JSON.stringify(changed)).toEqual({ read: files, reused: 0 });
       expect(store.tickets.get("t1")?.body).toContain("本文");
     }
-    // Action の一覧が違えば別のファイルになり、互いを書き換えない
-    await Store.open(root, { cacheDir, actions: [] });
-    expect(await readdir(cacheDir)).toHaveLength(2);
   });
 
   it("キャッシュを消しても、壊れたもの・形の違うものを置いても、ストアの結果は同じになる", async () => {

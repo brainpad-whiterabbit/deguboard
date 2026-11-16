@@ -1,176 +1,109 @@
-// Workflow の参照・検証（WF-3）・書き換え
+// カンバンに 1 つの Workflow（workflow.yaml）の参照・検証（WF-3）・書き換え
 
+import { rm } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { OperationError, UsageError } from "../errors.js";
 import { withWrite } from "../git/write.js";
-import { slugSchema } from "../model/common.js";
-import type { WorkflowDefinition } from "../model/workflow.js";
+import { RUN_STEPS } from "../model/run.js";
 import { pathExists } from "../storage/exists.js";
 import { formatIssue } from "../storage/issue.js";
-import { DIRS, workflowPath } from "../storage/paths.js";
-import { resolveLabels } from "../workflow/resolve.js";
-import { WORKFLOW_TEMPLATES, findWorkflowTemplate } from "../workflow/templates/index.js";
+import { RETIRED_WORKFLOWS_DIR, WORKFLOW_FILE } from "../storage/paths.js";
+import { DEFAULT_WORKFLOW, writtenForm } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
 
-const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]];
-
-export const workflowList = defineCommand({
-  name: "workflow.list",
+export const workflowShow = defineCommand({
+  name: "workflow.show",
   group: "workflow",
-  summary: "List readable Workflows. Use workflow.validate to see the ones that could not be read",
+  summary:
+    "Show the board's Workflow (workflow.yaml). definition has every item with the items the file omits filled in from the defaults (states, boundaries, exceptions, wip, flow, governance, and transitions, reconcile, fields), in the shape dg workflow set takes. exists is false when there is no workflow.yaml, and everything is then the default. transitions are the constraints composed for each from→to: a transition that is not written is allowed for anyone without conditions. default_labels are the Status labels when states is omitted, and steps are the Run steps, which dg fixes",
   input: z.object({}),
   write: false,
   needs: "store",
   async run(ctx) {
-    const items = [...ctx.store.workflows.values()]
-      .map((w) => ({
-        id: w.resolved.id,
-        name: w.resolved.name,
-        path: w.path,
-        fields: w.resolved.fields.map((f) => f.id),
-      }))
-      .sort((a, b) => a.id.localeCompare(b.id));
-    return ok(items);
-  },
-});
-
-export const workflowShow = defineCommand({
-  name: "workflow.show",
-  positionals: ["workflow"],
-  group: "workflow",
-  summary:
-    "Show a Workflow's definition and the transition constraints composed for each from→to. A transition that is not written is allowed for anyone without conditions. template is the bundled template with the same id (null if there is none), and default_labels are the Status labels shown when labels are not rewritten",
-  input: z.object({
-    workflow: slugSchema.describe("ID of the Workflow to show (workflows/<id>.yaml)"),
-  }),
-  write: false,
-  needs: "store",
-  async run(ctx, input) {
-    const w = ctx.store.workflows.get(input.workflow);
-    if (!w)
-      throw new OperationError(
-        "NOT_FOUND",
-        `Workflow ${input.workflow} not found or cannot be read`,
-      );
-    const template = findWorkflowTemplate(w.resolved.id) ?? null;
+    const w = ctx.store.requireWorkflow();
     return ok({
-      definition: w.definition,
+      path: w.path,
+      exists: w.exists,
+      definition: writtenForm(w.resolved),
       labels: w.resolved.labels,
       transitions: w.resolved.transitions,
-      path: w.path,
-      // 画面が、名前とラベルが雛形と同じ文（既定のまま）かを比べて表示言語に訳すのに使う（UI-11）。画面は雛形の写しを持たない
-      template,
-      // 書き換えていなければ出る Status の表示名（雛形の labels と core の既定）。画面が labels と比べて既定のままなら訳す（UI-11）
-      default_labels: resolveLabels(template?.labels),
+      // 書き換えていなければ出る Status の表示名。画面が labels と比べて既定のままなら訳す（UI-11）。画面は既定の写しを持たない
+      default_labels: DEFAULT_WORKFLOW.labels,
+      // Run の step の語彙と表示名は Core が持つ（WF-5）。画面は表示名を訳して出す
+      steps: RUN_STEPS,
     });
   },
 });
 
 export const workflowValidate = defineCommand({
   name: "workflow.validate",
-  positionals: ["workflow"],
   group: "workflow",
   summary:
-    "Show problems in Workflow definitions (Statuses that do not exist, unknown conditions or Actions, duplicate transitions or steps)",
-  input: z.object({ workflow: slugSchema.optional().describe("Check only this one") }),
+    "Show problems in workflow.yaml (unknown items, values, conditions and stages, Statuses that do not exist, boundaries other than the three, duplicates). An unknown item is only a warning. It also warns when the workflows/ directory of earlier versions remains and there is no workflow.yaml",
+  input: z.object({}),
   write: false,
   needs: "store",
-  async run(ctx, input) {
-    const prefix = `${DIRS.workflows}/`;
+  async run(ctx) {
+    // 前の版の workflows/ が残る警告（storage/store.ts）も、Workflow の指摘としてここに出す
     const issues = ctx.store.issues.filter(
-      (i) =>
-        i.path.startsWith(prefix) &&
-        (!input.workflow || i.path === `${prefix}${input.workflow}.yaml`),
+      (i) => i.path === WORKFLOW_FILE || i.path === RETIRED_WORKFLOWS_DIR,
     );
-    const valid = [...ctx.store.workflows.keys()]
-      .filter((id) => !input.workflow || id === input.workflow)
-      .sort();
-    if (input.workflow && issues.length === 0 && valid.length === 0) {
-      throw new OperationError("NOT_FOUND", `Workflow ${input.workflow} not found`);
-    }
-    return ok({ ok: issues.every((i) => i.severity !== "error"), valid, issues });
+    return ok({
+      ok: issues.every((i) => i.severity !== "error"),
+      exists: ctx.store.workflow?.exists ?? true,
+      issues,
+    });
   },
 });
 
-/** 前と後で値が違う最上位の項目（id・name・transitions など）。前がなければ後のすべての項目 */
-function changedKeys(before: WorkflowDefinition | null, after: WorkflowDefinition): string[] {
-  const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after)]);
-  return [...keys].filter(
-    (k) =>
-      JSON.stringify((before as Record<string, unknown> | null)?.[k]) !==
-      JSON.stringify((after as Record<string, unknown>)[k]),
-  );
+/** 前と後で値が違う項目（states・boundaries など） */
+function changedItems(before: Record<string, unknown>, after: Record<string, unknown>): string[] {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return [...keys].filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
 }
 
 // 要件 WF-3（読み込みと同じ誤りなら書かない）
 export const workflowSet = defineCommand({
   name: "workflow.set",
-  positionals: ["workflow"],
   group: "workflow",
   summary:
-    "Write a Workflow definition (create it if missing, replace it if present). Pass either a definition or a bundled template. If there is an error the same as on load, nothing is written (an unknown Action is only a warning)",
+    "Write workflow.yaml (create it if missing, replace it if present) from a definition. Any item can be omitted, and an omitted item uses the default. If there is an error the same as on load, nothing is written (an unknown item is only a warning). before and after are the Workflows with the defaults filled in. It also removes the workflows/ directory of earlier versions, which is no longer read",
   input: z.object({
-    workflow: slugSchema.describe("ID of the Workflow to write (workflows/<id>.yaml)"),
     definition: z
       .record(z.string(), z.unknown())
       .meta({ cliFile: "file" })
-      .optional()
       .describe(
-        "The Workflow definition. Its shape is the same as the definition from dg workflow show, and its id must match workflow",
+        "The Workflow definition. Its shape is the same as the definition from dg workflow show",
       ),
-    template: z
-      .enum(TEMPLATE_IDS)
-      .optional()
-      .describe("Name of a bundled template. Its id is replaced with workflow when written"),
   }),
   write: true,
   needs: "store",
   async run(ctx, input) {
-    if ((input.definition === undefined) === (input.template === undefined)) {
-      throw new UsageError("Give exactly one of the definition (--file in the CLI) or --template");
-    }
-    let definition: Record<string, unknown>;
-    let comment: string | undefined;
-    if (input.template !== undefined) {
-      const t = findWorkflowTemplate(input.template)!;
-      definition = { ...(t as Record<string, unknown>), id: input.workflow };
-      comment = `${t.name} workflow. Placed by dg workflow set from the bundled template ${t.id}`;
-    } else {
-      definition = input.definition!;
-      if (definition["id"] !== input.workflow) {
-        throw new OperationError(
-          "VALIDATION_FAILED",
-          `The id in the definition (${String(definition["id"])}) differs from ${input.workflow}`,
-        );
-      }
-    }
-    const relPath = workflowPath(input.workflow);
     const result = await withWrite(
       ctx,
       async () => {
-        const created = !(await pathExists(path.join(ctx.store.root, relPath)));
-        const before = ctx.store.workflows.get(input.workflow)?.definition ?? null;
-        const entry = await ctx.store.writeWorkflow(definition, comment);
+        const created = !(await pathExists(path.join(ctx.store.root, WORKFLOW_FILE)));
+        // 誤りがあって読めなかった前の定義は、既定と比べる
+        const before = writtenForm(ctx.store.workflow?.resolved ?? DEFAULT_WORKFLOW);
+        const entry = await ctx.store.writeWorkflow(input.definition);
+        const after = writtenForm(entry.resolved);
+        const retired = path.join(ctx.store.root, RETIRED_WORKFLOWS_DIR);
+        const removed = await pathExists(retired);
+        if (removed) await rm(retired, { recursive: true, force: true });
         return {
-          workflow: input.workflow,
-          path: relPath,
+          path: WORKFLOW_FILE,
           created,
-          changed: changedKeys(before, entry.definition),
+          changed: changedItems(before, after),
           before,
-          after: entry.definition,
+          after,
+          ...(removed ? { removed: RETIRED_WORKFLOWS_DIR } : {}),
         };
       },
-      {
-        message: (v) =>
-          `${v.created ? "Create" : "Replace"} Workflow ${input.workflow}${
-            input.template !== undefined ? ` (template ${input.template})` : ""
-          }`,
-      },
+      { message: (v) => `${v.created ? "Create" : "Replace"} ${WORKFLOW_FILE}` },
     );
-    const warnings = ctx.store.issues.filter((i) => i.path === relPath).map(formatIssue);
+    const warnings = ctx.store.issues.filter((i) => i.path === WORKFLOW_FILE).map(formatIssue);
     return ok(result.value, result.write, warnings);
   },
 });
 
-export const workflowCommands = [workflowList, workflowShow, workflowValidate, workflowSet];
+export const workflowCommands = [workflowShow, workflowValidate, workflowSet];

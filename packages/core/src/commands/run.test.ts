@@ -48,7 +48,14 @@ import {
   TRANSCRIPT_RETENTION_DAYS,
 } from "../run/record.js";
 import { recordBaseline } from "../git/outside.js";
-import { emptyCauseCounts, FINDING_CAUSES, type ReviewFinding, type Run } from "../model/run.js";
+import {
+  emptyCauseCounts,
+  FINDING_CAUSES,
+  OPENED_STEPS,
+  RUN_STEPS,
+  type ReviewFinding,
+  type Run,
+} from "../model/run.js";
 
 declare module "vitest" {
   /** vitest.config.ts の provide。HOME を一時ディレクトリにする前の、開発者の本物のホーム */
@@ -818,54 +825,41 @@ describe("run", () => {
     expect(await peekRunningRuns(ctx.repo)).toHaveLength(2);
   });
 
-  it("start は step がチケットの Workflow の steps になければ拒否し、steps のない Workflow ならどの step も受ける（WF-5）", async () => {
+  it("start は Core の step の語彙（investigate・implement・review・fix・merge）にない step を拒否し、workflow.yaml に steps を書いても語彙は変わらない（WF-5）", async () => {
     const ctx = await prepared();
-    // 既定の general の steps は investigate・implement・review・fix
     await expect(start(ctx, "t1", "deploy")).rejects.toMatchObject({
       code: "VALIDATION_FAILED",
-      message: expect.stringContaining("investigate, implement, review, fix"),
+      message: expect.stringContaining("investigate, implement, review, fix, merge"),
     });
-    await expect(start(ctx, "t1", "investigate")).resolves.toMatchObject({ step: "investigate" });
-    // 利用者の既存の YAML（steps なし）は今までどおり任意の step を受ける
-    await ctx.store.writeWorkflow({ id: "general", name: "General" });
+    for (const step of RUN_STEPS.map((s) => s.id)) {
+      const run = await start(ctx, "t1", step);
+      expect(run.step).toBe(step);
+      await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    }
+    // 前の形の steps は未知の項目として読まれず、語彙を足せない
+    await ctx.store.writeWorkflow({ steps: [{ id: "deploy" }] });
     await recordBaseline(ctx.repo);
-    await expect(start(ctx, "t1", "deploy")).resolves.toMatchObject({ step: "deploy" });
-    // Workflow が読めなければ確かめずに始め、警告する
-    ctx.store.workflows.delete("general");
-    const r = await runCommand(runStart, ctx, {
-      ticket: "t2",
-      step: "anything",
-      agent: "claude-code",
-    });
-    expect(r.warnings).toContain(
-      "The Workflow of t2 is not found or cannot be read, so step anything was not checked",
-    );
+    await expect(start(ctx, "t1", "deploy")).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    // workflow.yaml に誤りがあって読めなくても、語彙は Core が持つので同じに確かめる
+    ctx.store.workflow = undefined;
+    await expect(start(ctx, "t2", "anything")).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    await expect(start(ctx, "t2", "investigate")).resolves.toMatchObject({ step: "investigate" });
   });
 
-  it("Workflow の steps にない step（記録済みの plan の Run）があっても、validate・workflow.validate・run list・metrics show は警告も失敗も出さない", async () => {
+  it("Run を開く操作は Core が決める：agent の claim は implement、もう一度の claim は fix", () => {
+    expect(OPENED_STEPS).toEqual({ claim: "implement", reclaim: "fix" });
+  });
+
+  it("Core の語彙にない step（前の版が記録した plan の Run）があっても、validate・workflow.validate・run list・metrics show は警告も失敗も出さない", async () => {
     const ctx = await prepared();
-    // plan を持つ旧い定義で plan の Run を記録してから、plan のない定義に直す
-    await ctx.store.writeWorkflow({
-      id: "general",
-      name: "General",
-      steps: [
-        { id: "plan", label: "Plan" },
-        { id: "implement", label: "Implement" },
-      ],
-    });
-    await recordBaseline(ctx.repo);
-    const old = await start(ctx, "t1", "plan");
+    // 前の版が記録した plan の Run（今は run start が拒否する step）を、閉じた Run として置く
+    const old = await start(ctx, "t1", "investigate");
     await runCommand(runFinish, ctx, { run: old.id, result: "success" });
-    await ctx.store.writeWorkflow({
-      id: "general",
-      name: "General",
-      steps: [
-        { id: "implement", label: "Implement" },
-        { id: "review", label: "Review" },
-      ],
-    });
+    const file = path.join(ctx.repo.dataDir, `runs/${old.id}.json`);
+    await writeFile(file, (await readFile(file, "utf8")).replace('"investigate"', '"plan"'));
     await recordBaseline(ctx.repo);
-    const validated = await runCommand(workflowValidate, ctx, { workflow: "general" });
+    await ctx.store.rescan();
+    const validated = await runCommand(workflowValidate, ctx, {});
     expect(validated.warnings).toEqual([]);
     const all = await runCommand(validate, ctx, {});
     expect(all.data).toMatchObject({ ok: true, issues: [] });
@@ -875,49 +869,6 @@ describe("run", () => {
     expect((listed.data as RunView[]).map((r) => r.step)).toEqual(["plan"]);
     const metrics = await runCommand(metricsShow, ctx, { ticket: "t1" });
     expect(metrics.warnings).toEqual([]);
-  });
-
-  it("読み込み時と workflow.validate が、渡した Action の一覧にない Action（警告）と同じ step の重複（エラー）を指摘する（WF-3）", async () => {
-    const ctx = await prepared();
-    // 利用者が Workflow を直に書いて dg adopt で取り込んだ状態にする（SY-8）
-    const writeGeneral = async (steps: string[]) => {
-      await writeFile(
-        path.join(ctx.repo.dataDir, "workflows/general.yaml"),
-        ["id: general", "name: General", "steps:", ...steps, ""].join("\n"),
-      );
-      await recordBaseline(ctx.repo);
-    };
-    const reopen = () =>
-      openContext({
-        cwd: ctx.repo.topLevel,
-        actor: { kind: "agent", user: "eiki" },
-        actions: ["create_branch"],
-      });
-    const codes = (data: unknown) =>
-      (data as { issues: { code: string; severity: string }[] }).issues.map((i) => [
-        i.code,
-        i.severity,
-      ]);
-
-    // 未知の Action は警告で、Workflow は索引に残る（新しい版の dg で足した Action を古い版で読んでも止めない）
-    await writeGeneral([
-      "  - { id: implement, actions: [create_branch, deploy] }",
-      "  - { id: review }",
-    ]);
-    const lenient = await reopen();
-    expect(lenient.store.workflows.has("general")).toBe(true);
-    const warned = await runCommand(workflowValidate, lenient, { workflow: "general" });
-    expect(warned.data).toMatchObject({ ok: true, valid: ["general"] });
-    expect(codes(warned.data)).toEqual([["workflow_action_unknown", "warning"]]);
-    await expect(start(lenient, "t1")).resolves.toMatchObject({ step: "implement" });
-
-    // 同じ step の重複はエラーで、索引から外れる
-    await writeGeneral(["  - { id: implement }", "  - { id: implement }", "  - { id: review }"]);
-    const strict = await reopen();
-    expect(strict.store.workflows.has("general")).toBe(false);
-    const failed = await runCommand(workflowValidate, strict, { workflow: "general" });
-    expect(failed.data).toMatchObject({ ok: false, valid: [] });
-    expect(codes(failed.data)).toEqual([["workflow_step_duplicate", "error"]]);
   });
 });
 

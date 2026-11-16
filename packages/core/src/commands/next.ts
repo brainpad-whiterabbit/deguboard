@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { detectAgent } from "../agents/index.js";
 import { remoteTip } from "../git/facts.js";
-import { REVIEW_STEP, type Run } from "../model/run.js";
+import { OPENED_STEPS, REVIEW_STEP, type Run } from "../model/run.js";
 import { BRANCH_VALUE_MAX, gateLevelOf, gateScopeOf, type Ticket } from "../model/ticket.js";
 import type { Config } from "../model/config.js";
 import type { PlanTier } from "../model/plan.js";
@@ -17,7 +17,7 @@ import { planReadiness } from "./plan.js";
 import { hooksReachSession, takeHookWarnings, unlinkedReviewWarning } from "./hook-sessions.js";
 import { staleSkillWarningsOf } from "./skill-files.js";
 import { orphanReviewRuns } from "./orphan-review.js";
-import { crashedSubagentRuns, openedStepOf, sessionOf } from "./run.js";
+import { crashedSubagentRuns, sessionOf } from "./run.js";
 
 /** 段階の名前。claimed → implemented → reviewed(n) → fixed(n) → ready → merged と、todo・blocked・awaiting_approval・reviewing・waiting_human・closed */
 export const STAGES = [
@@ -131,9 +131,9 @@ export interface StageFacts {
   pendingPlan: string | null;
   /** このチケットの Run（閉じたものと実行中のもの） */
   runs: readonly Run[];
-  /** 実装の step（Workflow の opens_on: claim） */
+  /** 実装の step（claim が開く） */
   implementStep: string;
-  /** 手直しの step（Workflow の opens_on: reclaim） */
+  /** 手直しの step（もう一度の claim が開く） */
   fixStep: string;
   /** 作業ブランチのリモートの先端のコミットの時刻。分からなければ undefined */
   pushedAt: string | undefined;
@@ -308,8 +308,8 @@ export async function stageFactsOf(
     waiting: [...new Set([...planWaits, ...ctx.store.pendingDeps(ticket)])],
     pendingPlan: plan?.data.pending_approval ? plan.id : null,
     runs,
-    implementStep: openedStepOf(ctx, ticket, "claim"),
-    fixStep: openedStepOf(ctx, ticket, "reclaim"),
+    implementStep: OPENED_STEPS.claim,
+    fixStep: OPENED_STEPS.reclaim,
     pushedAt: tip?.at,
     pushedSha: tip?.sha,
   };

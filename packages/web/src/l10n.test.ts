@@ -5,20 +5,19 @@ import {
   askCandidates,
   buildAsk,
   configFields,
+  DEFAULT_WORKFLOW,
   defaultConfig,
   flattenConfig,
   NO_PR_ERROR,
   OPEN_AT_SESSION_END_ERROR,
   RECONCILE_TAKEN_ERROR,
   RECONCILE_TODO_ERROR,
-  resolveLabels,
   REVIEW_UNRECORDED,
+  RUN_STEPS,
   STALE_SESSION_ERROR,
   UNCLAIMED_ERROR,
-  WORKFLOW_TEMPLATES,
+  validateWorkflow,
   type AskSubject,
-  type WorkflowDefinition,
-  type WorkflowDefinitionInput,
 } from "@deguboard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -45,7 +44,7 @@ import {
   type CoreTextTable,
 } from "./l10n-core.js";
 import { EN, EN_ONE } from "./l10n-en.js";
-import type { WorkflowView } from "./types.js";
+import type { Status, WorkflowView } from "./types.js";
 
 const srcDir = dirname(fileURLToPath(import.meta.url));
 
@@ -550,15 +549,11 @@ describe("既定の値の訳（UI-11）", () => {
   };
 
   it("DEFAULT_VALUES の鍵はどれも core の既定の文で、表示言語（ja・en）の訳だけを持つ（既定を書き換えたら鍵と訳も直す）", () => {
-    // core の既定の文：config の既定（葉の項目と、振り返りの観点の名前と問い）と、Workflow の雛形の名前と step・項目のラベルと、
-    // Status の既定の表示名（core の既定と雛形の labels）
-    const coreDefaults = new Set([
+    // core の既定の文：config の既定（葉の項目と、振り返りの観点の名前と問い）と、Run の step の表示名と、Status の既定の表示名
+    const coreDefaults = new Set<unknown>([
       ...Object.values(flattenConfig(defaultConfig())).filter((v) => typeof v === "string"),
-      ...WORKFLOW_TEMPLATES.flatMap((t) => [
-        t.name,
-        ...[...(t.fields ?? []), ...(t.steps ?? [])].flatMap((i) => i.label ?? []),
-        ...Object.values(resolveLabels(t.labels)),
-      ]),
+      ...RUN_STEPS.map((s) => s.label),
+      ...Object.values(DEFAULT_WORKFLOW.labels),
     ]);
     expect(Object.keys(DEFAULT_VALUES).length).toBeGreaterThan(0);
     for (const [key, entry] of Object.entries(DEFAULT_VALUES)) {
@@ -650,100 +645,7 @@ describe("既定の値の訳（UI-11）", () => {
   });
 });
 
-describe("Workflow の雛形の名前とラベルの表示（UI-11）", () => {
-  const LABELS = {
-    todo: "Todo",
-    in_progress: "In Progress",
-    review: "Review",
-    done: "Done",
-    abandoned: "Abandoned",
-  };
-  /** 同梱の雛形（core の文）。画面には写しを持たず、workflow.show が template に添えて返す */
-  const templateOf = (id: string) => WORKFLOW_TEMPLATES.find((t) => t.id === id)!;
-  /** workflow.show の出力の形。definition は Workflow の YAML の中身、template は同じ id の雛形（なければ null） */
-  const viewOf = (definition: WorkflowDefinitionInput): WorkflowView => ({
-    // 省いた項目は core が読むときに補う形（steps の actions・approval など）にせず、画面が読む項目だけで足りる
-    definition: { transitions: [], reconcile: [], fields: [], ...definition } as WorkflowDefinition,
-    labels: LABELS,
-    transitions: [],
-    template: WORKFLOW_TEMPLATES.find((t) => t.id === definition.id) ?? null,
-  });
-  /** dg init が置いたままの Workflow（雛形と同じ中身） */
-  const placed = (id: string) => viewOf(templateOf(id));
-  const labelsOf = (v: WorkflowView) => ({
-    name: v.definition.name,
-    fields: v.definition.fields.map((f) => f.label),
-    steps: v.definition.steps?.map((s) => s.label),
-  });
-
-  it("日本語の表示では、雛形と同じ名前・step のラベル・項目のラベルを日本語で出す", () => {
-    expect(labelsOf(shownWorkflow(placed("software-development")))).toEqual({
-      name: "ソフトウェア開発",
-      fields: ["見積もり"],
-      steps: ["調査", "実装", "見直し", "手直し", "マージ"],
-    });
-    expect(labelsOf(shownWorkflow(placed("general")))).toEqual({
-      name: "汎用",
-      fields: [],
-      steps: ["調査", "実装", "見直し", "手直し"],
-    });
-  });
-  it("同梱のどの雛形も、置いたままなら日本語の表示で名前とラベルがすべて日本語になる（雛形に文を足したら訳も足す）", () => {
-    for (const t of WORKFLOW_TEMPLATES) {
-      const shown = labelsOf(shownWorkflow(placed(t.id)));
-      for (const text of [shown.name, ...shown.fields, ...(shown.steps ?? [])])
-        expect(JAPANESE.test(text ?? ""), `${t.id}: ${text}`).toBe(true);
-    }
-  });
-  it("英語の表示では、雛形の文（英語）のまま出す", () => {
-    setLanguage("en");
-    const sd = templateOf("software-development");
-    expect(labelsOf(shownWorkflow(placed("software-development")))).toEqual({
-      name: sd.name,
-      fields: sd.fields?.map((f) => f.label),
-      steps: sd.steps?.map((s) => s.label),
-    });
-  });
-  it("書き換えた名前とラベルは書いたまま出し、書き換えていない step と項目だけを訳す", () => {
-    const view = viewOf({
-      ...templateOf("software-development"),
-      name: "Our Flow",
-      fields: [{ id: "estimate", type: "number", label: "Points" }],
-      steps: [
-        { id: "investigate", label: "Investigate" },
-        { id: "implement", label: "Build" },
-        // 雛形のほかの step と同じ文でも、同じ id の step の文と違えば書いたまま
-        { id: "review", label: "Merge" },
-        // 雛形にない step は、訳の表にある文でも書いたまま
-        { id: "deploy", label: "Fix" },
-        // ラベルのない step はラベルのないまま（画面は id を出す）
-        { id: "fix" },
-      ],
-    });
-    expect(labelsOf(shownWorkflow(view))).toEqual({
-      name: "Our Flow",
-      fields: ["Points"],
-      steps: ["調査", "Build", "Merge", "Fix", undefined],
-    });
-  });
-  it("利用者が作った Workflow（同じ id の雛形がない）は、雛形と同じ文でも書いたまま出す", () => {
-    const view = viewOf({
-      id: "research",
-      name: "General",
-      fields: [{ id: "estimate", type: "number", label: "Estimate" }],
-      steps: [{ id: "review", label: "Review" }],
-    });
-    expect(view.template).toBeNull();
-    expect(shownWorkflow(view).definition).toEqual(view.definition);
-  });
-  it("steps を書いていないことは変えない", () => {
-    const shown = shownWorkflow(viewOf({ id: "general", name: "General" }));
-    expect(shown.definition.name).toBe("汎用");
-    expect(shown.definition).not.toHaveProperty("steps");
-  });
-});
-
-describe("Status の表示名の表示（UI-11）", () => {
+describe("Workflow の表示名の表示（UI-11）", () => {
   /** Status の日本語の訳（core の既定の表示名を既定のまま置いたとき） */
   const LABELS_JA = {
     todo: "未着手",
@@ -752,44 +654,49 @@ describe("Status の表示名の表示（UI-11）", () => {
     done: "完了",
     abandoned: "中止",
   };
-  /** workflow.show の出力の形。labels は書いた labels に core の既定を補ったもの、default_labels は雛形の labels と core の既定 */
-  const viewOf = (definition: WorkflowDefinitionInput): WorkflowView => {
-    const template = WORKFLOW_TEMPLATES.find((t) => t.id === definition.id) ?? null;
+  /**
+   * workflow.show の出力の形（core が 1 つの workflow.yaml から組むもの）。labels は states の label に core の既定を補ったもの、
+   * default_labels は core の既定、steps は core が固定で持つ Run の step
+   */
+  const viewOf = (states: Partial<Record<Status, { label: string }>> = {}): WorkflowView => {
+    const { workflow } = validateWorkflow({ states }, "workflow.yaml");
     return {
-      definition: {
-        transitions: [],
-        reconcile: [],
-        fields: [],
-        ...definition,
-      } as WorkflowDefinition,
-      labels: resolveLabels(definition.labels),
+      definition: { fields: [{ id: "estimate", type: "number", label: "Estimate" }] },
+      labels: workflow!.labels,
       transitions: [],
-      template,
-      default_labels: resolveLabels(template?.labels),
+      default_labels: DEFAULT_WORKFLOW.labels,
+      steps: RUN_STEPS,
     };
   };
-  const placed = (id: string) => viewOf(WORKFLOW_TEMPLATES.find((t) => t.id === id)!);
 
-  it("日本語の表示では、同梱のどの雛形も置いたままなら Status の表示名を日本語で出す", () => {
-    for (const t of WORKFLOW_TEMPLATES)
-      expect(shownWorkflow(placed(t.id)).labels, t.id).toEqual(LABELS_JA);
+  it("日本語の表示では、states を書いていない Workflow の Status の表示名と、Run の step の表示名を日本語で出す", () => {
+    const shown = shownWorkflow(viewOf());
+    expect(shown.labels).toEqual(LABELS_JA);
+    expect(shown.steps?.map((s) => [s.id, s.label])).toEqual([
+      ["investigate", "調査"],
+      ["implement", "実装"],
+      ["review", "見直し"],
+      ["fix", "手直し"],
+      ["merge", "マージ"],
+    ]);
   });
-  it("Review の Status の表示名は、Review の step のラベルと同じ訳で出す", () => {
-    const shown = shownWorkflow(placed("software-development"));
-    const step = shown.definition.steps?.find((s) => s.id === "review");
-    expect(step?.label).toBe("見直し");
-    expect(shown.labels.review).toBe(step?.label);
+  it("Review の Status の表示名は、Review の step の表示名と同じ訳で出す", () => {
+    const shown = shownWorkflow(viewOf());
+    expect(shown.labels.review).toBe(shown.steps?.find((s) => s.id === "review")?.label);
   });
   it("英語の表示では、core の文のまま出す", () => {
     setLanguage("en");
-    expect(shownWorkflow(placed("software-development")).labels).toEqual(resolveLabels(undefined));
+    const view = viewOf();
+    expect(shownWorkflow(view)).toEqual(view);
   });
-  it("Workflow で書き換えた表示名は書いたまま出し、書いていない Status と既定と同じ文の Status だけを訳す", () => {
+  it("states の label で書き換えた表示名は書いたまま出し、書いていない Status と既定と同じ文の Status だけを訳す", () => {
     const shown = shownWorkflow(
       viewOf({
-        ...WORKFLOW_TEMPLATES.find((t) => t.id === "software-development")!,
         // 既定と同じ文を書いた Status（todo）は既定のままとみなす。ほかの Status の既定と同じ文（review に Done）は書いたまま
-        labels: { todo: "Todo", in_progress: "Doing", review: "Done", done: "完了済み" },
+        todo: { label: "Todo" },
+        in_progress: { label: "Doing" },
+        review: { label: "Done" },
+        done: { label: "完了済み" },
       }),
     );
     expect(shown.labels).toEqual({
@@ -800,13 +707,14 @@ describe("Status の表示名の表示（UI-11）", () => {
       abandoned: "中止",
     });
   });
-  it("利用者が作った Workflow（雛形がない）も、書いていない Status は core の既定なので訳し、書いた表示名は書いたまま出す", () => {
-    const view = viewOf({ id: "research", name: "Research", labels: { review: "Check" } });
-    expect(view.template).toBeNull();
-    expect(shownWorkflow(view).labels).toEqual({ ...LABELS_JA, review: "Check" });
+  it("任意フィールドのラベルは人が書いた文なので訳さない", () => {
+    const view = viewOf();
+    expect(shownWorkflow(view).definition).toEqual(view.definition);
   });
-  it("default_labels のない Workflow（前の版の画面が残した cache）は、Status の表示名を訳さない", () => {
-    const { default_labels: _, ...view } = placed("general");
-    expect(shownWorkflow(view).labels).toEqual(view.labels);
+  it("default_labels と steps のない Workflow（前の版の画面が残した cache）は、Status の表示名を訳さず、steps のないまま返す", () => {
+    const { default_labels: _labels, steps: _steps, ...view } = viewOf();
+    const shown = shownWorkflow(view);
+    expect(shown.labels).toEqual(view.labels);
+    expect(shown).not.toHaveProperty("steps");
   });
 });

@@ -639,7 +639,6 @@ export const EN: Readonly<Record<string, string>> = {
   範囲: "Scope",
   進め方: "Approach",
   // pages/ticket.tsx
-  "Workflow {0} を読めない": "Could not read Workflow {0}",
   保存: "Save",
   取り消し: "Cancel",
   タイトルと本文を編集: "Edit title and description",

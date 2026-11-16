@@ -1,5 +1,5 @@
 // 登録済みの Action の一覧と実行（AG-6・AG-7、ADR-033）。
-// CLI・MCP・画面のコマンドにはしない。core の公開から出すのは ACTION_NAMES だけで、ほかは core の中のライブラリに留める
+// CLI・MCP・画面のコマンドにはしない。core の公開には出さず、core の中のライブラリに留める
 
 import { prettifyError } from "zod";
 import { OperationError, UsageError } from "../errors.js";
@@ -10,9 +10,6 @@ import { softwareActions } from "./software.js";
 export * from "./define.js";
 
 export const actions: readonly AnyAction[] = [...softwareActions, shellAction] as AnyAction[];
-
-/** 登録済みの Action の名前。入口が openContext・createLocalClient に渡し、Workflow の steps の検証に使う */
-export const ACTION_NAMES: readonly string[] = actions.map((a) => a.name);
 
 export interface ActionInfo {
   name: string;

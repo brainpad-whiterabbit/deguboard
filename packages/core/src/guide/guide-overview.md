@@ -51,7 +51,7 @@ dg checks the data repository (the deguboard worktree) for changes that did not 
 By default, agents can run every operation. Limits are added in the settings.
 
 - By command: a command listed in `actor.human_only` in `config.yaml` is refused for the agent. Current setting: {{actor.human_only}}. Examples: `plan.approve` (limit approving a Plan to humans), `epic.close`, `iteration.close`
-- By ticket transition: a transition whose Workflow `transitions` marks `by: [human]` (such as making a ticket abandoned, or moving it back from done) is refused for the agent. Check with `dg --json --actor agent workflow show <id>`
+- By ticket transition: a transition whose Workflow `transitions` marks `by: [human]` (such as making a ticket abandoned, or moving it back from done) is refused for the agent. The transitions are in the board's `workflow.yaml`. Check with `dg --json --actor agent workflow show`
 - Making a ticket abandoned, undoing done, and closing or reopening an Epic or Iteration are decisions for humans. Even when they are not refused, if no human has instructed them, confirm with a human before running them. When a human has asked for one, follow `dg guide change`
 - Stay within the stage a human asked for. Answer a consultation or a wish ("I'd like a feature like this", "what do you think?") or reply with a proposal, and stop there. Filing tickets, starting work (claim), and merging go only as far as the stage a human asked for. Calling a Skill counts as asking for the whole range that Skill covers. What a human explicitly instructs is done as instructed, even when it bypasses the quality gate or the usual steps
 - Approving a Plan (`plan approve`) is done only when a human has approved it, even when it is not refused (see `dg guide plan`)

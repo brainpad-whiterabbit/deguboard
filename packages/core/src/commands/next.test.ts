@@ -201,9 +201,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     const f = await createFixture();
     cleanups.push(f.cleanup);
     const actor = { kind: "agent" as const, user: "eiki" };
-    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {
-      template: "software-development",
-    });
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
     const ctx = await openContext({ cwd: f.cloneA, actor });
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketCreate, ctx, { title: "B" });

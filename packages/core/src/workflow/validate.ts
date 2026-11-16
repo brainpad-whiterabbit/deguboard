@@ -1,9 +1,16 @@
-// Workflow 定義の検証（WF-3）。読み込み時と dg workflow validate が同じ関数を使う
+// workflow.yaml の検証（WF-3）。読み込み時と dg workflow validate と dg workflow set が同じ関数を使う
 
 import { z } from "zod";
 import { STATUSES } from "../model/common.js";
-import { REVIEW_STEP } from "../model/run.js";
-import { workflowDefinitionSchema, type WorkflowDefinition } from "../model/workflow.js";
+import {
+  BOUNDARIES,
+  FLOW_BUNDLED_STAGES,
+  FLOW_DECIDED_STAGES,
+  FLOW_SKIP_KEY,
+  WORKFLOW_ITEMS,
+  workflowDefinitionSchema,
+  type WorkflowDefinition,
+} from "../model/workflow.js";
 import type { Issue } from "../storage/issue.js";
 import { parseCondition } from "./conditions.js";
 import { resolveWorkflow, type ResolvedWorkflow } from "./resolve.js";
@@ -14,20 +21,11 @@ export interface WorkflowValidation {
   issues: Issue[];
 }
 
-export interface WorkflowValidationOptions {
-  /**
-   * steps に書ける Action の名前（登録済みの Action の一覧）。workflow は actions に依存しないので、
-   * 入口が core/actions の ACTION_NAMES を渡す（AG-6）。省略すると Action の名前は形だけ見る
-   */
-  actions?: readonly string[] | undefined;
-}
+/** 独自の段階の名前。小文字・数字・`-` */
+const STAGE_NAME = /^[a-z0-9][a-z0-9-]*$/;
 
 /** 生の値（YAML を読んだもの）を検証し、使える形にする。致命的でない指摘でも workflow は返す */
-export function validateWorkflow(
-  raw: unknown,
-  path: string,
-  options: WorkflowValidationOptions = {},
-): WorkflowValidation {
+export function validateWorkflow(raw: unknown, path: string): WorkflowValidation {
   const parsed = workflowDefinitionSchema.safeParse(raw);
   if (!parsed.success) {
     return {
@@ -45,7 +43,38 @@ export function validateWorkflow(
   const def = parsed.data;
   const issues: Issue[] = [];
   const issue = (code: string, message: string, severity: Issue["severity"] = "error") =>
-    issues.push({ severity, code, path, id: def.id, message });
+    issues.push({ severity, code, path, message });
+
+  // 未知の項目は警告にとどめ、ほかの項目は読む。新しい版の dg が足した項目を書いた YAML を古い版で読んでも、遷移と照合を止めない
+  for (const key of Object.keys(def)) {
+    if (!WORKFLOW_ITEMS.includes(key))
+      issue("workflow_item_unknown", `Unknown item ${key}. It is not read`, "warning");
+  }
+  for (const s of Object.keys(def.states ?? {})) {
+    if (!(STATUSES as readonly string[]).includes(s))
+      issue(
+        "workflow_status_unknown",
+        `states: Status ${s} does not exist. The Statuses are fixed (${STATUSES.join(", ")}); only their labels can be changed`,
+      );
+  }
+  const boundaries = new Set<string>();
+  def.boundaries?.forEach((b, i) => {
+    for (const c of b.requires) {
+      if (!parseCondition(c))
+        issue("workflow_condition_unknown", `boundaries[${i}]: unknown condition ${c}`);
+    }
+    const key = `${b.from}>${b.to}`;
+    if (!BOUNDARIES.some((known) => known.from === b.from && known.to === b.to)) {
+      issue(
+        "workflow_boundary_unknown",
+        `boundaries[${i}]: ${b.from} → ${b.to} is not a boundary. The boundaries are ${BOUNDARIES.map((k) => `${k.from} → ${k.to}`).join(", ")}`,
+      );
+    } else if (boundaries.has(key)) {
+      issue("workflow_boundary_duplicate", `boundaries[${i}]: ${b.from} → ${b.to} is duplicated`);
+    }
+    boundaries.add(key);
+  });
+  validateFlow(def, issue);
 
   const seen = new Set<string>();
   def.transitions.forEach((t, i) => {
@@ -69,7 +98,7 @@ export function validateWorkflow(
     }
     seen.add(key);
   });
-  def.reconcile.forEach((r, i) => {
+  def.reconcile?.forEach((r, i) => {
     for (const c of r.when) {
       if (!parseCondition(c))
         issue("workflow_condition_unknown", `reconcile[${i}]: unknown condition ${c}`);
@@ -77,10 +106,6 @@ export function validateWorkflow(
     if (r.status === "abandoned")
       issue("workflow_reconcile_abandoned", `reconcile[${i}]: reconcile cannot set abandoned`);
   });
-  for (const s of Object.keys(def.labels ?? {})) {
-    if (!(STATUSES as readonly string[]).includes(s))
-      issue("workflow_status_unknown", `labels: Status ${s} does not exist`);
-  }
   const fieldIds = new Set<string>();
   def.fields.forEach((f, i) => {
     if (fieldIds.has(f.id))
@@ -90,37 +115,52 @@ export function validateWorkflow(
       issue("workflow_field_options", `fields[${i}]: the enum ${f.id} needs options`);
     }
   });
-  const stepIds = new Set<string>();
-  /** opens_on の操作ごとに、先に付けた step の名前。同じ操作が 2 つ以上の step を開くとどちらを開くか決まらない（RN-5） */
-  const openers = new Map<string, string>();
-  def.steps?.forEach((step, i) => {
-    if (stepIds.has(step.id))
-      issue("workflow_step_duplicate", `steps[${i}]: ${step.id} is duplicated`);
-    stepIds.add(step.id);
-    if (step.opens_on) {
-      const first = openers.get(step.opens_on);
-      if (first) {
-        issue(
-          "workflow_opens_on_duplicate",
-          `steps[${i}]: opens_on: ${step.opens_on} is also set on ${first}. Set it on only one step`,
-        );
-      } else openers.set(step.opens_on, step.id);
-    }
-    // 未知の Action は警告にとどめ、Workflow を索引に残す。新しい版の dg で足した Action を書いた YAML を
-    // 古い版で読んでも、遷移と照合を止めない
-    for (const action of step.actions) {
-      if (options.actions && !options.actions.includes(action))
-        issue("workflow_action_unknown", `steps[${i}]: unknown Action ${action}`, "warning");
-    }
-  });
-  // steps を書いたのに見直しの step がないと、見直しの Run が拒否され、品質ゲートの見直しが通らない。警告にとどめる
-  if (def.steps && !def.steps.some((step) => step.id === REVIEW_STEP)) {
-    issue(
-      "workflow_review_step_missing",
-      `steps has no ${REVIEW_STEP} step. A ${REVIEW_STEP} Run is rejected without it, so a ticket at gate high cannot pass the quality gate`,
-      "warning",
-    );
-  }
 
   return { workflow: resolveWorkflow(def), definition: def, issues };
+}
+
+/**
+ * flow の鍵ごとの検査。同梱の段階は権限の値、独自の段階は decide・after・guide、skip は段階の名前のリスト。
+ * 独自の段階の guide の文書があるかは見ない（リポジトリの中のパスで、データの側からは読めない）
+ */
+function validateFlow(
+  def: WorkflowDefinition,
+  issue: (code: string, message: string) => void,
+): void {
+  const flow = def.flow ?? {};
+  const bundled: readonly string[] = FLOW_BUNDLED_STAGES;
+  const decided: readonly string[] = FLOW_DECIDED_STAGES;
+  const custom = new Set<string>();
+  for (const [key, value] of Object.entries(flow)) {
+    if (key === FLOW_SKIP_KEY) {
+      if (!Array.isArray(value)) issue("workflow_flow_skip", "flow.skip: write a list of stages");
+    } else if (Array.isArray(value)) {
+      issue(
+        "workflow_flow_stage",
+        `flow.${key}: a stage takes a value or decide, after, and guide`,
+      );
+    } else if (decided.includes(key)) {
+      if (typeof value !== "string")
+        issue(
+          "workflow_flow_stage",
+          `flow.${key}: a bundled stage takes only a value. after and guide are for your own stages`,
+        );
+    } else if (bundled.includes(key)) {
+      issue("workflow_flow_stage", `flow.${key}: the ${key} stage has no value to set`);
+    } else if (!STAGE_NAME.test(key)) {
+      issue("workflow_flow_stage", `flow.${key}: a stage name is lowercase letters, digits and -`);
+    } else if (typeof value === "string") {
+      issue(
+        "workflow_flow_stage",
+        `flow.${key}: unknown stage. The bundled stages are ${decided.join(", ")}; your own stage needs decide, after, and guide`,
+      );
+    } else custom.add(key);
+  }
+  const skip = flow[FLOW_SKIP_KEY];
+  if (Array.isArray(skip)) {
+    for (const stage of skip) {
+      if (!bundled.includes(stage) && !custom.has(stage))
+        issue("workflow_flow_skip", `flow.skip: unknown stage ${stage}`);
+    }
+  }
 }

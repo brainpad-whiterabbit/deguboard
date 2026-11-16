@@ -44,6 +44,7 @@ import { ticketIdSchema, type TicketId } from "../model/id.js";
 import {
   FINDING_CAUSES,
   FINDING_SEVERITIES,
+  OPENED_STEPS,
   REVIEW_STEP,
   waitedSeconds,
   type Run,
@@ -82,7 +83,6 @@ import {
   NO_PR_ERROR,
   OPEN_AT_SESSION_END_ERROR,
   openedInOtherSession,
-  openedStepOf,
   openRun,
   REVIEW_UNRECORDED,
   runRefresh,
@@ -725,7 +725,7 @@ async function bindPending(
     view.done.push(`Tied the pending review result for ${run.ticket} to Run ${run.id}`);
     return amendRunning(ctx.repo, run.id, { review });
   }
-  if (ticket && run.step === openedStepOf(ctx, ticket, "reclaim")) {
+  if (ticket && run.step === OPENED_STEPS.reclaim) {
     const reasons = await takePendingRetryReasons(ctx.repo, run.ticket, run.started_at);
     if (reasons.length === 0) return run;
     view.done.push(`Tied the pending retry reasons for ${run.ticket} to Run ${run.id}`);
@@ -918,8 +918,8 @@ async function resultOf(
   ticket: Ticket | undefined,
 ): Promise<{ result: RunResult; error?: string }> {
   if (!ticket) return { result: "success" };
-  const claimStep = openedStepOf(ctx, ticket, "claim");
-  const fixStep = openedStepOf(ctx, ticket, "reclaim");
+  const claimStep = OPENED_STEPS.claim;
+  const fixStep = OPENED_STEPS.reclaim;
   if (run.step === claimStep) {
     if (ticket.pr !== undefined) return { result: "success" };
     if (!ticket.branch) return { result: "failure", error: NO_PR_ERROR };
@@ -976,7 +976,7 @@ async function sessionEnd(
       const ticket = ctx.store.tickets.get(run.ticket)?.data;
       const current = await bindPending(ctx, run, ticket, view);
       const decided = await resultOf(ctx, current, ticket);
-      const claimStep = ticket ? openedStepOf(ctx, ticket, "claim") : undefined;
+      const claimStep = ticket ? OPENED_STEPS.claim : undefined;
       const closing =
         decided.result === "success" || run.step === claimStep
           ? decided

@@ -1,13 +1,16 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
 import { recordBaseline } from "../git/outside.js";
+import { pathExists } from "../storage/exists.js";
+import { DEFAULT_WORKFLOW, defaultWorkflowFile, writtenForm } from "../workflow/resolve.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
+import { commands } from "./registry.js";
 import { commit, configSet, init } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketMove, ticketShow } from "./ticket.js";
-import { workflowSet, workflowShow } from "./workflow.js";
+import { workflowSet, workflowShow, workflowValidate } from "./workflow.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -23,7 +26,7 @@ async function fixture(): Promise<Fixture> {
 /** init まで済ませ、書き込みのたびにコミットする（commit.mode: each）文脈を開く */
 async function initialized(cwd: string): Promise<CommandContext> {
   const first = await openContext({ cwd, initialize: {}, actor: { kind: "human", user: "eiki" } });
-  await runCommand(init, first, { template: "general" });
+  await runCommand(init, first, {});
   await runCommand(configSet, first, { key: "commit.mode", value: "each" });
   await runCommand(commit, first, {});
   return openContext({ cwd, actor: { kind: "agent", user: "eiki" } });
@@ -37,65 +40,177 @@ async function commitCount(ctx: CommandContext): Promise<number> {
   return Number(await gitOut(ctx, ["rev-list", "--count", "HEAD"]));
 }
 
-async function workflowText(ctx: CommandContext, id: string): Promise<string> {
-  return readFile(path.join(ctx.repo.dataDir, `workflows/${id}.yaml`), "utf8");
+const workflowFile = (ctx: CommandContext) => path.join(ctx.repo.dataDir, "workflow.yaml");
+
+async function workflowText(ctx: CommandContext): Promise<string> {
+  return readFile(workflowFile(ctx), "utf8");
+}
+
+/** workflow.yaml を直に書き換え、利用者が直した状態にして索引を作り直す（dg の外の変更の検査の基準。SY-8） */
+async function writeWorkflowFile(ctx: CommandContext, text: string): Promise<void> {
+  await writeFile(workflowFile(ctx), text);
+  await recordBaseline(ctx.repo);
+  await ctx.store.rescan();
 }
 
 const strict = {
-  id: "general",
-  name: "Strict General",
+  states: { review: { label: "Client Review" } },
   transitions: [{ from: "todo", to: "done", by: [] }],
   reconcile: [{ when: ["branch_merged"], status: "done" }],
-  steps: [{ id: "implement" }, { id: "review" }],
 };
 
-describe("workflow show", () => {
-  it("同じ id の同梱の雛形を template に添え、雛形のない Workflow は null にする（画面が既定のままの名前とラベルを訳すのに使う）", async () => {
+describe("init", () => {
+  it("既定の workflow.yaml を 1 つ置き、workflows/ は作らない。--template はない", async () => {
     const f = await fixture();
-    const ctx = await initialized(f.cloneA);
-    // 書き換えた Workflow にも、比べる元の雛形（書き換える前の文）を添える
-    await runCommand(workflowSet, ctx, { workflow: "general", definition: strict });
-    const general = await runCommand(workflowShow, ctx, { workflow: "general" });
-    expect(general.data.definition.name).toBe("Strict General");
-    expect(general.data.template).toMatchObject({ id: "general", name: "General" });
-    expect(general.data.template?.steps?.map((s) => s.label)).toContain("Investigate");
-    const sd = await runCommand(workflowShow, ctx, { workflow: "software-development" });
-    expect(sd.data.template?.fields).toEqual([
-      { id: "estimate", type: "number", label: "Estimate" },
-    ]);
-    await runCommand(workflowSet, ctx, {
-      workflow: "research",
-      definition: { id: "research", name: "Research" },
+    const first = await openContext({
+      cwd: f.cloneA,
+      initialize: {},
+      actor: { kind: "human", user: "eiki" },
     });
-    const research = await runCommand(workflowShow, ctx, { workflow: "research" });
-    expect(research.data.template).toBeNull();
+    const r = await runCommand(init, first, {});
+    expect(r.data.created).toContain("workflow.yaml");
+    expect(await pathExists(path.join(first.repo.dataDir, "workflows"))).toBe(false);
+    expect((await readdir(first.repo.dataDir)).filter((name) => name.includes("workflow"))).toEqual(
+      ["workflow.yaml"],
+    );
+    // dg がファイルに書くコメントも dg の出力なので英語（CL-8）
+    const text = await workflowText(first);
+    expect(text.startsWith("# The board's Workflow. Placed by dg init")).toBe(true);
+    // 置いた既定は Core の既定と同じ Workflow で、指摘もない
+    expect(first.store.workflow).toMatchObject({ exists: true, resolved: DEFAULT_WORKFLOW });
+    expect(first.store.issues).toEqual([]);
+    expect(Object.keys(init.input.shape)).not.toContain("template");
   });
-  it("default_labels に、labels を書き換えていなければ出る Status の表示名（雛形の labels と core の既定）を添える", async () => {
+
+  it("誤りがあって読めない workflow.yaml も書き換えず、workflow set で直せる", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    const coreDefaults = {
+    const broken = "reconcile:\n  - { when: [nope], status: done }\n";
+    await writeWorkflowFile(ctx, broken);
+    expect(ctx.store.workflow).toBeUndefined();
+    const again = await openContext({ cwd: f.cloneA, initialize: {} });
+    const r = await runCommand(init, again, {});
+    expect(r.data.created).toEqual([]);
+    expect(await workflowText(ctx)).toBe(broken);
+
+    const fixed = await runCommand(workflowSet, again, { definition: {} });
+    expect(fixed.data).toMatchObject({ created: false, after: writtenForm(DEFAULT_WORKFLOW) });
+    expect(again.store.issues.filter((i) => i.path === "workflow.yaml")).toEqual([]);
+  });
+});
+
+describe("workflow のコマンド", () => {
+  it("show・validate・set だけがあり、list はない。どれも Workflow の ID を取らない", () => {
+    const names = commands.filter((c) => c.group === "workflow").map((c) => c.name);
+    expect(names.sort()).toEqual(["workflow.set", "workflow.show", "workflow.validate"]);
+    expect(Object.keys(workflowShow.input.shape)).toEqual([]);
+    expect(Object.keys(workflowValidate.input.shape)).toEqual([]);
+    expect(Object.keys(workflowSet.input.shape)).toEqual(["definition"]);
+  });
+});
+
+describe("workflow show", () => {
+  it("workflow.yaml がなければ exists: false で、どの項目も Core の既定を返す", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await git(ctx.repo.dataDir, ["rm", "--quiet", "workflow.yaml"]);
+    await git(ctx.repo.dataDir, ["commit", "--quiet", "-m", "remove workflow.yaml"]);
+    await recordBaseline(ctx.repo);
+    await ctx.store.rescan();
+    const shown = await runCommand(workflowShow, ctx, {});
+    expect(shown.data).toMatchObject({
+      path: "workflow.yaml",
+      exists: false,
+      definition: writtenForm(DEFAULT_WORKFLOW),
+      labels: DEFAULT_WORKFLOW.labels,
+      transitions: [],
+    });
+    // 6 つの項目は dg init が置く既定と同じ値
+    expect(shown.data.definition).toMatchObject(defaultWorkflowFile());
+    const validated = await runCommand(workflowValidate, ctx, {});
+    expect(validated.data).toEqual({ ok: true, exists: false, issues: [] });
+  });
+
+  it("states の label で書き換えた表示名を labels に返し、default_labels は書き換える前の core の既定のまま（画面が同じ文の Status だけを訳す）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(workflowSet, ctx, { definition: strict });
+    const shown = await runCommand(workflowShow, ctx, {});
+    expect(shown.data.exists).toBe(true);
+    expect(shown.data.labels).toMatchObject({ review: "Client Review", todo: "Todo" });
+    expect(shown.data.definition.states).toMatchObject({ review: { label: "Client Review" } });
+    expect(shown.data.default_labels).toEqual({
       todo: "Todo",
       in_progress: "In Progress",
       review: "Review",
       done: "Done",
       abandoned: "Abandoned",
-    };
-    // labels を書き換えても、default_labels は書き換える前の文のまま（画面は labels と比べて、同じ文の Status だけを訳す）
-    await runCommand(workflowSet, ctx, {
-      workflow: "software-development",
-      definition: { id: "software-development", name: "SD", labels: { review: "Code Review" } },
     });
-    const sd = await runCommand(workflowShow, ctx, { workflow: "software-development" });
-    expect(sd.data.labels.review).toBe("Code Review");
-    expect(sd.data.default_labels).toEqual(coreDefaults);
-    // 雛形のない Workflow は core の既定
-    await runCommand(workflowSet, ctx, {
-      workflow: "research",
-      definition: { id: "research", name: "Research", labels: { todo: "Backlog" } },
+    expect(shown.data.transitions).toEqual([{ from: "todo", to: "done", by: [], requires: [] }]);
+  });
+
+  it("Run の step の語彙と表示名は Core の固定で、workflow.yaml に書いても変わらない", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const r = await runCommand(workflowSet, ctx, {
+      definition: { steps: [{ id: "deploy", label: "Deploy" }] },
     });
-    const research = await runCommand(workflowShow, ctx, { workflow: "research" });
-    expect(research.data.labels.todo).toBe("Backlog");
-    expect(research.data.default_labels).toEqual(coreDefaults);
+    expect(r.warnings.some((w) => w.includes("Unknown item steps"))).toBe(true);
+    const shown = await runCommand(workflowShow, ctx, {});
+    expect(shown.data.steps).toEqual([
+      { id: "investigate", label: "Investigate" },
+      { id: "implement", label: "Implement" },
+      { id: "review", label: "Review" },
+      { id: "fix", label: "Fix" },
+      { id: "merge", label: "Merge" },
+    ]);
+    expect(shown.data.definition).not.toHaveProperty("steps");
+    expect(shown.data.definition).not.toHaveProperty("id");
+    expect(shown.data.definition).not.toHaveProperty("name");
+    expect(shown.data.definition).not.toHaveProperty("labels");
+  });
+});
+
+describe("workflow validate", () => {
+  it("読み込み時と同じ指摘（未知の項目・値・事実、増やした Status）を返し、誤りがあれば ok: false", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await writeWorkflowFile(
+      ctx,
+      [
+        "name: Old",
+        "states:",
+        "  qa: { label: QA }",
+        "boundaries:",
+        "  - { from: todo, to: in_progress, requires: [tests_pass] }",
+        "",
+      ].join("\n"),
+    );
+    // 読み込み時の指摘（ストアの issues）と同じものを返す
+    const loaded = ctx.store.issues.filter((i) => i.path === "workflow.yaml");
+    const r = await runCommand(workflowValidate, ctx, {});
+    expect(r.data.issues).toEqual(loaded);
+    expect(r.data.ok).toBe(false);
+    expect(r.data.issues.map((i) => [i.code, i.severity])).toEqual([
+      ["workflow_item_unknown", "warning"],
+      ["workflow_status_unknown", "error"],
+      ["workflow_condition_unknown", "error"],
+    ]);
+    // 誤りのある Workflow は使わない
+    expect(ctx.store.workflow).toBeUndefined();
+    await expect(runCommand(workflowShow, ctx, {})).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    // 値の誤り（未知の権限の値）は形の誤りとして返す
+    await writeWorkflowFile(ctx, "exceptions:\n  abandon: nobody\n");
+    const shape = await runCommand(workflowValidate, ctx, {});
+    expect(shape.data.issues.map((i) => i.code)).toEqual(["workflow_schema"]);
+
+    // 未知の項目だけなら警告で、Workflow は使える
+    await writeWorkflowFile(ctx, "name: Old\nwip:\n  review: 2\n");
+    const warned = await runCommand(workflowValidate, ctx, {});
+    expect(warned.data).toMatchObject({ ok: true, exists: true });
+    expect(warned.data.issues.map((i) => i.severity)).toEqual(["warning"]);
+    expect(ctx.store.workflow?.resolved.wip).toEqual({ review: 2 });
   });
 });
 
@@ -104,182 +219,126 @@ describe("workflow set", () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     const commits = await commitCount(ctx);
-    const r = await runCommand(workflowSet, ctx, { workflow: "general", definition: strict });
+    const r = await runCommand(workflowSet, ctx, { definition: strict });
     expect(r.data).toMatchObject({
-      workflow: "general",
-      path: "workflows/general.yaml",
+      path: "workflow.yaml",
       created: false,
-      before: { name: "General" },
-      after: { name: "Strict General" },
+      before: writtenForm(DEFAULT_WORKFLOW),
+      after: { states: { review: { label: "Client Review" } } },
     });
-    expect(r.data.changed).toEqual(["name", "transitions", "reconcile", "steps"]);
+    expect(r.data.changed).toEqual(["states", "transitions", "reconcile"]);
+    expect(r.data).not.toHaveProperty("removed");
     expect(r.write).toMatchObject({ committed: true, pushed: true });
     expect(await commitCount(ctx)).toBe(commits + 1);
-    expect(await gitOut(ctx, ["log", "-1", "--format=%s"])).toBe("Replace Workflow general");
-    expect(await workflowText(ctx, "general")).toContain("name: Strict General");
+    expect(await gitOut(ctx, ["log", "-1", "--format=%s"])).toBe("Replace workflow.yaml");
+    expect(await workflowText(ctx)).toContain("label: Client Review");
 
     // 別の clone でも読める
     const b = await openContext({ cwd: f.cloneB, initialize: {} });
-    const shown = await runCommand(workflowShow, b, { workflow: "general" });
-    expect(shown.data.definition.name).toBe("Strict General");
+    const shown = await runCommand(workflowShow, b, {});
+    expect(shown.data.labels.review).toBe("Client Review");
   });
 
-  it("なければ作る", async () => {
+  it("workflow.yaml がなければ作り、前の版の workflows/ が残っていれば同じコミットで消す", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    const r = await runCommand(workflowSet, ctx, {
-      workflow: "research",
-      definition: { id: "research", name: "Research" },
-    });
-    expect(r.data).toMatchObject({ created: true, before: null, after: { id: "research" } });
-    expect(ctx.store.workflows.has("research")).toBe(true);
+    const dir = path.join(ctx.repo.dataDir, "workflows");
+    await mkdir(dir);
+    await writeFile(path.join(dir, "general.yaml"), "id: general\nname: General\n");
+    await git(ctx.repo.dataDir, ["rm", "--quiet", "workflow.yaml"]);
+    await git(ctx.repo.dataDir, ["add", "workflows"]);
+    await git(ctx.repo.dataDir, ["commit", "--quiet", "-m", "the form of earlier versions"]);
+    await recordBaseline(ctx.repo);
+    await ctx.store.rescan();
+    // workflows/ は読まない：workflow.yaml がないので Core の既定で動く
+    expect(ctx.store.workflow).toMatchObject({ exists: false, resolved: DEFAULT_WORKFLOW });
+    // 残っている間は workflow validate が警告し、workflow set を案内する（誤りではないので ok のまま）
+    const stale = await runCommand(workflowValidate, ctx, {});
+    expect(stale.data).toMatchObject({ ok: true, exists: false });
+    expect(stale.data.issues.map((i) => [i.severity, i.code, i.path])).toEqual([
+      ["warning", "retired_workflows_dir", "workflows"],
+    ]);
+    expect(stale.data.issues[0]?.message).toContain("dg workflow set");
+
+    const r = await runCommand(workflowSet, ctx, { definition: { wip: { review: 1 } } });
+    expect(r.data).toMatchObject({ created: true, changed: ["wip"], removed: "workflows" });
+    expect(await pathExists(dir)).toBe(false);
+    expect(await gitOut(ctx, ["log", "-1", "--format=%s"])).toBe("Create workflow.yaml");
+    expect(await gitOut(ctx, ["status", "--porcelain"])).toBe("");
+    expect(await gitOut(ctx, ["ls-files", "workflows"])).toBe("");
+    expect((await runCommand(workflowValidate, ctx, {})).data.issues).toEqual([]);
   });
 
-  it("WF-3 の誤り・形の誤り・id の食い違いは何も書かずに拒否し、指摘を detail に返す", async () => {
+  it("WF-3 の誤りと形の誤りは何も書かずに拒否し、指摘を detail に返す", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    const before = await workflowText(ctx, "general");
+    const before = await workflowText(ctx);
     const commits = await commitCount(ctx);
     const cases: Array<[Record<string, unknown>, string]> = [
       [
-        { id: "general", name: "G", transitions: [{ from: "todo", to: "done", requires: ["x"] }] },
+        { transitions: [{ from: "todo", to: "done", requires: ["x"] }] },
         "transitions[0]: unknown condition x",
       ],
+      [{ reconcile: [{ when: ["nope"], status: "done" }] }, "reconcile[0]: unknown condition nope"],
       [
-        { id: "general", name: "G", reconcile: [{ when: ["nope"], status: "done" }] },
-        "reconcile[0]: unknown condition nope",
-      ],
-      [
-        { id: "general", name: "G", reconcile: [{ when: ["pr_merged"], status: "abandoned" }] },
+        { reconcile: [{ when: ["pr_merged"], status: "abandoned" }] },
         "reconcile cannot set abandoned",
       ],
-      [{ id: "general", name: "G", steps: [{ id: "a" }, { id: "a" }] }, "a is duplicated"],
+      [{ states: { qa: { label: "QA" } } }, "Status qa does not exist"],
+      [{ boundaries: [{ from: "todo", to: "done" }] }, "todo → done is not a boundary"],
       [
-        { id: "general", transitions: [{ from: "todo", to: "nowhere" }] },
+        { boundaries: [{ from: "review", to: "done", requires: ["approved"] }] },
+        "boundaries[0]: unknown condition approved",
+      ],
+      [{ flow: { skip: ["nope"] } }, "flow.skip: unknown stage nope"],
+      [{ governance: { delete: "nobody" } }, "The Workflow definition has the wrong shape"],
+      [
+        { transitions: [{ from: "todo", to: "nowhere" }] },
         "The Workflow definition has the wrong shape",
       ],
-      [{ ...strict, id: "other" }, "The id in the definition (other) differs from general"],
     ];
     for (const [definition, message] of cases) {
-      const error = await runCommand(workflowSet, ctx, { workflow: "general", definition }).catch(
-        (e: unknown) => e,
-      );
-      expect(error).toMatchObject({ code: "VALIDATION_FAILED" });
+      const error = await runCommand(workflowSet, ctx, { definition }).catch((e: unknown) => e);
+      expect(error, message).toMatchObject({ code: "VALIDATION_FAILED" });
       const { message: m, detail } = error as { message: string; detail?: string };
       expect(`${m}\n${detail ?? ""}`).toContain(message);
     }
-    expect(await workflowText(ctx, "general")).toBe(before);
+    expect(await workflowText(ctx)).toBe(before);
     expect(await commitCount(ctx)).toBe(commits);
     expect(await gitOut(ctx, ["status", "--porcelain"])).toBe("");
-    expect(ctx.store.workflows.get("general")?.definition.name).toBe("General");
+    expect(ctx.store.workflow?.resolved).toEqual(DEFAULT_WORKFLOW);
   });
 
-  it("定義とテンプレートは どちらか一方だけ受ける", async () => {
+  it("定義は必須", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    await expect(runCommand(workflowSet, ctx, { workflow: "general" })).rejects.toMatchObject({
+    await expect(runCommand(workflowSet, ctx, {} as never)).rejects.toMatchObject({
       code: "INVALID_INPUT",
     });
-    await expect(
-      runCommand(workflowSet, ctx, {
-        workflow: "general",
-        definition: strict,
-        template: "general",
-      }),
-    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
   });
 
-  it("--template で同梱のテンプレートに戻し、id は引数に置き換えて別の Workflow も作れる", async () => {
+  it("未知の項目は警告にとどめて書く", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    expect(
-      (await workflowText(ctx, "general")).startsWith(
-        "# General workflow. Placed by dg init from the bundled template\n",
-      ),
-    ).toBe(true);
-    await runCommand(workflowSet, ctx, { workflow: "general", definition: strict });
-    const back = await runCommand(workflowSet, ctx, { workflow: "general", template: "general" });
-    expect(back.data.before?.name).toBe("Strict General");
-    expect(back.data.after.name).toBe("General");
-    expect(back.data.after.steps?.map((s) => s.id)).toEqual([
-      "investigate",
-      "implement",
-      "review",
-      "fix",
-    ]);
-    const text = await workflowText(ctx, "general");
-    // dg が Workflow のファイルに書くコメントも dg の出力なので英語（CL-8）
-    expect(
-      text.startsWith(
-        "# General workflow. Placed by dg workflow set from the bundled template general\n",
-      ),
-    ).toBe(true);
-    expect(await gitOut(ctx, ["log", "-1", "--format=%s"])).toBe(
-      "Replace Workflow general (template general)",
-    );
-
-    const copy = await runCommand(workflowSet, ctx, {
-      workflow: "my-dev",
-      template: "software-development",
-    });
-    expect(copy.data).toMatchObject({ created: true, after: { id: "my-dev" } });
-    expect(ctx.store.workflows.get("my-dev")?.resolved.reconcile.length).toBeGreaterThan(0);
+    const r = await runCommand(workflowSet, ctx, { definition: { boundries: [] } });
+    expect(r.write).toMatchObject({ committed: true });
+    expect(r.warnings.some((w) => w.includes("Unknown item boundries"))).toBe(true);
   });
 
-  it("使っている既定の Workflow を置き換えても既存のチケットが読め、新しい制約で遷移する", async () => {
+  it("Workflow を置き換えても既存のチケットが読め、どのチケットも新しい制約で遷移する（チケットの workflow は Workflow を選ばない）", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     const a = await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: a.data.id, branch: "t1-a" });
-    const b = await runCommand(ticketCreate, ctx, { title: "B" });
-    await runCommand(workflowSet, ctx, { workflow: "general", definition: strict });
+    const b = await runCommand(ticketCreate, ctx, { title: "B", workflow: "general" });
+    await runCommand(workflowSet, ctx, { definition: strict });
 
-    // 開き直しても読め、どちらのチケットも新しい定義の Workflow を使う
     const again = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
     expect(again.store.issues).toEqual([]);
     const shown = await runCommand(ticketShow, again, { ticket: a.data.id });
     expect(shown.data.status).toBe("in_progress");
-    expect(again.store.workflowFor(shown.data)?.definition.name).toBe("Strict General");
     await expect(
       runCommand(ticketMove, again, { ticket: b.data.id, status: "done" }),
     ).rejects.toMatchObject({ code: "TRANSITION_REJECTED" });
-  });
-
-  it("init は誤りがあって索引から外れた Workflow も書き換えず、workflow set で直せる", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
-    const broken = "id: general\nname: G\nreconcile:\n  - { when: [nope], status: done }\n";
-    await writeFile(path.join(ctx.repo.dataDir, "workflows/general.yaml"), broken);
-    // 古い版の dg のときに壊れた Workflow を模すので、検査の基準をここに置く（SY-8）
-    await recordBaseline(ctx.repo);
-    await ctx.store.rescan();
-    expect(ctx.store.workflows.has("general")).toBe(false);
-    const again = await openContext({ cwd: f.cloneA, initialize: {} });
-    const r = await runCommand(init, again, {});
-    expect(r.data.created).toEqual([]);
-    expect(await workflowText(ctx, "general")).toBe(broken);
-
-    const fixed = await runCommand(workflowSet, again, {
-      workflow: "general",
-      template: "general",
-    });
-    expect(fixed.data).toMatchObject({ created: false, before: null, after: { name: "General" } });
-    expect(again.store.issues.filter((i) => i.path === "workflows/general.yaml")).toEqual([]);
-  });
-
-  it("未知の Action は警告にとどめて書く", async () => {
-    const f = await fixture();
-    const first = await initialized(f.cloneA);
-    const ctx = await openContext({
-      cwd: first.repo.topLevel,
-      actor: { kind: "agent", user: "eiki" },
-      actions: ["create_branch"],
-    });
-    const r = await runCommand(workflowSet, ctx, {
-      workflow: "general",
-      definition: { id: "general", name: "G", steps: [{ id: "x", actions: ["nope"] }] },
-    });
-    expect(r.write).toMatchObject({ committed: true });
-    expect(r.warnings.some((w) => w.includes("unknown Action nope"))).toBe(true);
   });
 });

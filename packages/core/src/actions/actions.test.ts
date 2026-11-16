@@ -6,15 +6,7 @@ import { OperationError, UsageError } from "../errors.js";
 import { isSafeBranchName } from "../git/branch-worktree.js";
 import { resolveRepoPaths, type GitRepo } from "../git/repo.js";
 import { configSchema, type Config } from "../model/config.js";
-import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
-import { validateWorkflow } from "../workflow/validate.js";
-import {
-  ACTION_NAMES,
-  listActions,
-  runAction,
-  type ActionContext,
-  type ConfirmRequest,
-} from "./index.js";
+import { listActions, runAction, type ActionContext, type ConfirmRequest } from "./index.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -423,38 +415,5 @@ describe("Core の汎用部分は Action に依存しない（AG-6）", () => {
       }
     }
     expect(offenders).toEqual([]);
-  });
-});
-
-describe("Workflow の steps と Action", () => {
-  it("同梱テンプレートの steps は登録済みの Action だけを指す", () => {
-    for (const t of WORKFLOW_TEMPLATES) {
-      const { issues } = validateWorkflow(t, `${t.id}.yaml`, { actions: ACTION_NAMES });
-      expect(issues, t.id).toEqual([]);
-    }
-  });
-});
-
-describe("入口は Action の一覧を渡す（AG-6）", () => {
-  it("CLI・MCP・HTTP・VS Code の openContext・openContextFor・createLocalClient の呼び出しはどれも ACTION_NAMES を渡す", async () => {
-    const packages = path.resolve(import.meta.dirname, "../../..");
-    const calls: string[] = [];
-    const missing: string[] = [];
-    for (const dir of ["cli/src", "server/src", "vscode/src"]) {
-      const files = await readdir(path.join(packages, dir), { recursive: true });
-      for (const file of files.filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))) {
-        const text = await readFile(path.join(packages, dir, file), "utf8");
-        // 呼び出しの文脈の項目（openContextFor は前の引数の後）から閉じ括弧 `})` までを引数とみなす
-        for (const m of text.matchAll(
-          /\b(openContext|openContextFor|createLocalClient)\((?:[^{()]*,\s*)?\{[\s\S]*?\}\)/g,
-        )) {
-          calls.push(`${dir}/${file}`);
-          if (!m[0].includes("actions: ACTION_NAMES")) missing.push(`${dir}/${file}: ${m[1]}`);
-        }
-      }
-    }
-    expect(missing).toEqual([]);
-    // 入口の呼び出しを拾えていることも確かめる（program・guide・mcp・app・extension）
-    expect(new Set(calls).size).toBeGreaterThanOrEqual(5);
   });
 });

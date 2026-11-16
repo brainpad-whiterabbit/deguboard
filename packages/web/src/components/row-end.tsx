@@ -24,7 +24,7 @@ import {
   type TicketRow,
   type TicketRunsView,
   type WhoamiView,
-  type WorkflowDefinition,
+  type WorkflowView,
   isFinished,
 } from "../types.js";
 import { msg, tr } from "../l10n.js";
@@ -121,12 +121,9 @@ export function KanbanRowEnd({
   );
 }
 
-/** Run の step の表示名：Workflow の steps の label、なければ（steps に書いていない step も）id のまま */
-export function stepLabelOf(
-  definition: Pick<WorkflowDefinition, "steps"> | undefined,
-  step: string,
-): string {
-  return definition?.steps?.find((s) => s.id === step)?.label ?? step;
+/** Run の step の表示名：core の語彙（workflow.show の steps）の label、なければ（前の版が記録した語彙にない step も）id のまま */
+export function stepLabelOf(steps: WorkflowView["steps"], step: string): string {
+  return steps?.find((s) => s.id === step)?.label ?? step;
 }
 
 /** カンバンの行に Run の並びを出すか：In Progress と Review の行で Run があるとき。ほかの状態の行も実行中の Run があれば出す（UI-2） */

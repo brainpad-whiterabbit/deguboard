@@ -117,11 +117,7 @@ describe("開いた Plan に入っていない行の空き枠の判定", () => {
 
 describe("カンバンの行の Run の並び", () => {
   const now = Date.parse("2026-11-14T03:00:00Z");
-  const label = (step: string) =>
-    stepLabelOf(
-      { steps: [{ id: "implement", label: "Implement", actions: [], approval: false }] },
-      step,
-    );
+  const label = (step: string) => stepLabelOf([{ id: "implement", label: "Implement" }], step);
   const closed = runSummary({
     step: "review",
     result: "success",

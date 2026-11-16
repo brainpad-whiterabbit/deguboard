@@ -72,8 +72,10 @@ const subjects = async (dir: string, rev = "HEAD") =>
   (await git(dir, ["log", "--format=%s", rev])).stdout.trim().split("\n");
 const read = (ctx: CommandContext, rel: string) =>
   readFile(path.join(ctx.repo.dataDir, rel), "utf8");
+/** チケットに残る Workflow の名前（自分の workflow、なければ config の default_workflow）。Workflow はもう選ばないが、Project を消す前後で変えない */
 const workflowOf = async (ctx: CommandContext, ticket: string) =>
-  ctx.store.workflowFor((await runCommand(ticketShow, ctx, { ticket })).data)?.definition.id;
+  (await runCommand(ticketShow, ctx, { ticket })).data.workflow ??
+  ctx.store.config.default_workflow;
 const remoteFiles = async (f: Fixture) =>
   (await git(f.remoteDir, ["ls-tree", "-r", "--name-only", "deguboard"])).stdout;
 /** テストの文脈はマージドライバを登録しないので、その警告は除く */

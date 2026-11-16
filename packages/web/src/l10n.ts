@@ -86,13 +86,12 @@ function defaultTranslation(defaultValue: unknown): string | undefined {
 }
 
 /**
- * dg の既定の値（config の既定・Workflow の雛形）を画面に出すときの口（UI-11・CL-8）。既定そのものを添えるときだけ比べない shownDefaultText を使う。
+ * dg の既定の値（config の既定・Workflow の既定の表示名）を画面に出すときの口（UI-11・CL-8）。既定そのものを添えるときだけ比べない shownDefaultText を使う。
  * 振り返りの推薦の指標は英語で持つだけで、ここを通さず画面では訳さない（dg guide retro の表で出す）。
  * 値が既定（core が返す既定。config.show の defaults と fields の default）と同じ文のときだけ既定のままとみなし、
  * DEFAULT_VALUES に今の言語の訳があれば訳で出す。書き換えた値・訳のない既定・文字列でない値は値のまま出す。
  * 古い版の既定の写し（今の既定と違う文）も、人が書いた値と見分けられないので書いたまま出す。
  * 訳して出す既定を足すときは DEFAULT_VALUES に鍵を足し、ここと storedDefault は変えない。読むのは store（判断基準）と設定画面と shownWorkflow
- * （チケット詳細の Workflow も、store と同じく core が返したままを持ち、返すときに shownWorkflow で訳す）
  */
 export function shownDefault(value: unknown, defaultValue: unknown): unknown {
   return value === defaultValue ? shownDefaultText(defaultValue) : value;
@@ -121,36 +120,24 @@ export function isDefaultPerspective(
 }
 
 /**
- * Workflow の名前と、step・任意フィールドのラベルを画面に出す形にする（UI-11）。workflow.show が添える同じ id の雛形（template）の、
- * 名前・同じ id の step と項目のラベルを既定として shownDefault に渡すので、雛形と同じ文のときだけ訳す。
- * 書き換えた文・雛形にない step と項目・雛形のない Workflow は書いたまま。雛形の文は core が返したものだけで比べ、画面は写しを持たない。
- * Status の表示名（labels）は、workflow.show の default_labels（雛形の labels と core の既定）と同じ文のときだけ訳す。
- * 雛形のない Workflow も、labels を書いていない Status は core の既定なので訳す。訳は DEFAULT_VALUES に置き、step のラベルと同じ文は同じ訳になる
+ * Workflow の Status の表示名と Run の step の表示名を画面に出す形にする（UI-11）。
+ * Status の表示名（labels）は、workflow.show の default_labels（core の既定）と同じ文のときだけ訳す：workflow.yaml の states で書き換えた文は書いたまま。
+ * step の表示名は core が固定で持つ文なので、いつも訳す。任意フィールドのラベルは人が書いた文なので訳さない。
+ * 既定の文は core が返したものだけで比べ、画面は写しを持たない。訳は DEFAULT_VALUES に置き、step の表示名と同じ文は同じ訳になる
  */
 export function shownWorkflow(view: WorkflowView): WorkflowView {
-  const { definition, template, default_labels: defaultLabels } = view;
   const labels = Object.fromEntries(
     Object.entries(view.labels).map(([s, label]) => [
       s,
-      String(shownDefault(label, defaultLabels?.[s as Status])),
+      String(shownDefault(label, view.default_labels?.[s as Status])),
     ]),
   ) as Record<Status, string>;
-  if (!template) return { ...view, labels };
-  type Labeled = { id: string; label?: string | undefined };
-  const shown = <T extends Labeled>(item: T, from: readonly Labeled[] | undefined): T => {
-    if (item.label === undefined) return item;
-    const defaultLabel = from?.find((i) => i.id === item.id)?.label;
-    return { ...item, label: String(shownDefault(item.label, defaultLabel)) };
-  };
   return {
     ...view,
     labels,
-    definition: {
-      ...definition,
-      name: String(shownDefault(definition.name, template.name)),
-      fields: definition.fields.map((f) => shown(f, template.fields)),
-      ...(definition.steps && { steps: definition.steps.map((s) => shown(s, template.steps)) }),
-    },
+    ...(view.steps && {
+      steps: view.steps.map((s) => ({ ...s, label: String(shownDefaultText(s.label)) })),
+    }),
   };
 }
 

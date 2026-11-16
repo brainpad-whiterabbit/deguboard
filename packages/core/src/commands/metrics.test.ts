@@ -278,21 +278,14 @@ describe("metrics show", () => {
     expect(closed.warnings).toEqual(["Done tickets with no implement Run: t3"]);
   });
 
-  it("実装の Run の step は Workflow の claim が開く step の名前で探す（RN-5）", async () => {
+  it("実装の Run の step は Core の決める implement で探し、workflow.yaml に前の形の steps を書いても変わらない（RN-5）", async () => {
     const ctx = await scenario();
-    const defaultWorkflow = ctx.store.config.default_workflow;
     await runCommand(workflowSet, ctx, {
-      workflow: defaultWorkflow,
-      definition: {
-        id: defaultWorkflow,
-        name: "renamed",
-        transitions: [],
-        steps: [{ id: "build", opens_on: "claim" }],
-      },
+      definition: { steps: [{ id: "build", opens_on: "claim" }] },
     });
     await runCommand(ticketCreate, ctx, { title: "C" });
     await runCommand(ticketCreate, ctx, { title: "D" });
-    // t3 は claim が開く build の Run があり、t4 は implement の Run しかない（build の Run がない）
+    // t3 は前の版が記録した build の Run しかなく（implement の Run がない）、t4 は implement の Run がある
     await ctx.store.update("ticket", "t3", { status: "done", assignee: "eiki/agent" });
     await ctx.store.update("ticket", "t4", { status: "done", assignee: "eiki/agent" });
     await ctx.store.create("run", {
@@ -324,7 +317,7 @@ describe("metrics show", () => {
     await recordBaseline(ctx.repo);
     await runCommand(commit, ctx, {});
 
-    expect((await runCommand(metricsShow, ctx, {})).data.no_runs).toEqual(["t4"]);
+    expect((await runCommand(metricsShow, ctx, {})).data.no_runs).toEqual(["t3"]);
   });
 
   it("チケットの行数から変更行数と 1 行あたりのトークンを出し、--by iteration で Iteration ごとに比べられる。行数のないチケットは外して数える（MT-6）", async () => {

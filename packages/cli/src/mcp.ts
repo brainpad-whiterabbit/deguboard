@@ -5,7 +5,6 @@
 
 import type { Readable, Writable } from "node:stream";
 import {
-  ACTION_NAMES,
   createLocalClient,
   toCommandFailure,
   type AnyCommand,
@@ -72,7 +71,6 @@ export async function serveMcp(options: McpOptions): Promise<void> {
     actor: "agent",
     commands: options.commands,
     mergeDriver: options.mergeDriver,
-    actions: ACTION_NAMES,
   });
   const tools = toTools(client.commands);
   const byTool = new Map(client.commands.map((c) => [toolName(c.name), c.name]));

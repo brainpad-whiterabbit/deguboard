@@ -47,11 +47,6 @@ export interface ContextOptions {
   mergeDriver?: readonly string[] | undefined;
   /** 環境変数。今は入口（CLI・server・vscode・MCP）は渡さず process.env を使う。テストが HOME などを差し替えるためにある */
   env?: Readonly<Record<string, string | undefined>> | undefined;
-  /**
-   * Workflow の steps に書ける Action の名前。commands は actions に依存しないので、入口が
-   * core/actions の ACTION_NAMES を渡す（AG-6）。省略すると未知の Action を指摘しない
-   */
-  actions?: readonly string[] | undefined;
 }
 
 /**
@@ -144,7 +139,6 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
   // 個人の設定（deguboard-local/config.yaml）もここで重ねるので、CLI・HTTP・VS Code 拡張は同じ値を読む。
   // 読みの結果は deguboard-local/store-cache/ に残し、次の呼び出し（CLI は毎回別のプロセス）は変わったファイルだけを読む
   const store = await Store.open(paths.dataDir, {
-    actions: opts.actions,
     localDir: paths.localDir,
     cacheDir: path.join(paths.localDir, STORE_CACHE_DIR),
   });

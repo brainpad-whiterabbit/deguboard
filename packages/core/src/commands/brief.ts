@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { findBranchWorktree } from "../git/worktree.js";
 import { composeGuide } from "../guide/guide.js";
-import { FINDING_CAUSES, REVIEW_STEP } from "../model/run.js";
+import { FINDING_CAUSES, OPENED_STEPS, REVIEW_STEP } from "../model/run.js";
 import {
   type AcceptanceItem,
   gateLevelOf,
@@ -20,7 +20,6 @@ import { defineCommand, ok, type CommandContext } from "./define.js";
 import { openPlanOf, ticketRef } from "./helpers.js";
 import { hooksSilentWarning, takeHookWarnings } from "./hook-sessions.js";
 import { staleSkillWarningsOf } from "./skill-files.js";
-import { openedStepOf } from "./run.js";
 
 /** 文を組む役。implement は実装（claim の step）、review は見直し、fix は手直し（reclaim の step） */
 export const BRIEF_ROLES = ["implement", "review", "fix"] as const;
@@ -243,11 +242,7 @@ export async function briefOf(
   const findings =
     opts.findings ?? (role === "fix" ? await latestFixFindings(ctx, ticket) : undefined);
   const step =
-    role === "implement"
-      ? openedStepOf(ctx, ticket, "claim")
-      : role === "fix"
-        ? openedStepOf(ctx, ticket, "reclaim")
-        : REVIEW_STEP;
+    role === "implement" ? OPENED_STEPS.claim : role === "fix" ? OPENED_STEPS.reclaim : REVIEW_STEP;
   const doc = ctx.store.require("ticket", ticket.id);
   const plan = openPlanOf(ctx.store, ticket.id);
   const details = plan?.data.details?.[ticket.id];

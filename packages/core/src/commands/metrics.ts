@@ -17,11 +17,10 @@ import {
   type MetricUnit,
   type MetricsReport,
 } from "../model/metrics.js";
-import { runIdSchema, type FindingCause } from "../model/run.js";
+import { OPENED_STEPS, runIdSchema, type FindingCause } from "../model/run.js";
 import type { Ticket } from "../model/ticket.js";
 import { defineCommand, ok } from "./define.js";
 import { epicRef, idShapeOf, iterationRef, ticketRef } from "./helpers.js";
-import { openedStepOf } from "./run.js";
 import { describeLinesRecorded } from "./setup.js";
 
 export interface MetricsView extends MetricsReport {
@@ -91,13 +90,13 @@ export const metricsShow = defineCommand({
           ]
         : [];
     // done なのに実装の Run がないチケットは、Run の集計には現れないので別に示す（MT-3）。
-    // 実装の Run の step は Workflow の claim が開く step で決める（RN-5。lint の確かめと同じ）。
+    // 実装の Run の step は claim が開く step（RN-5。lint の確かめと同じ）。
     // フックが結ばなかった見直し（capture: none、t702）のチケットも示す。MT-3 は環境を問わず
     // 「実装の Run が 1 件もない done」を示すと決めており、lint は環境のせいとして外すが、ここでは外さない
     const no_runs = doneTicketsWithoutImplementRun(
       [...ctx.store.tickets.values()].map((d) => d.data),
       [...ctx.store.runs.values()].map((d) => d.data),
-      (t) => openedStepOf(ctx, t, "claim"),
+      () => OPENED_STEPS.claim,
       filter,
     );
     if (no_runs.length > 0)
