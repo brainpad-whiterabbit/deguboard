@@ -12,7 +12,7 @@ after:
     - t1023
     - t1025
     - t1028
-pending_approval: true
+pending_approval: false
 details:
   t1023:
     scope: チケットの workflow・--field・fields と config の default_workflow を消し、画面の項目も消す
@@ -54,3 +54,5 @@ details:
     scope: docs/guide-notes の各規則を規則の文と根拠 1 行と外す条件に縮め、retro.md を足し、ADR-001・development.md・config の guide.notes.retro を合わせる。規則が求める行動は変えない
     approach: plan.md・import.md・work.md・done.md を書き直し、done.md から警告と重なる文を消し、retro.md を英語で足す
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-16T05:25:56Z
