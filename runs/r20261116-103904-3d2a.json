@@ -1,0 +1,35 @@
+{
+  "id": "r20261116-103904-3d2a",
+  "ticket": "t1031",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-16T10:39:04Z",
+  "finished_at": "2026-11-16T10:40:41Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "ST-4 で作業が残るときに worktree とブランチを消さない約束の文言が落ちている",
+    "ST-4 に PR の事実を読めないチケットも pr_* を当てないことが書かれていない"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 4150,
+    "cache_read": 270525,
+    "cache_write": 27425
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 4,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "23c5636a-4fa2-4fb4-b1a2-d06fa88b11b3",
+  "review": null,
+  "waited_seconds": 0
+}
