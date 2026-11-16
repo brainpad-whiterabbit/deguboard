@@ -1,0 +1,38 @@
+{
+  "id": "r20261116-110524-c5a4",
+  "ticket": "t1025",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-16T11:05:24Z",
+  "finished_at": "2026-11-16T11:17:11Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "usage docs still describe lowering the gate level by the flow options as applied at once",
+    "discuss guide still implies the agent reflects a lowered gate level",
+    "PR body lacks a screenshot of the changed settings screen",
+    "ADR-026 does not say whether creating a ticket below high counts as lowering",
+    "governance operations fail for everyone when the workflow file has errors"
+  ],
+  "usage": {
+    "input": 60,
+    "output": 16517,
+    "cache_read": 2310358,
+    "cache_write": 107758
+  },
+  "tools": {
+    "read": 13,
+    "search": 0,
+    "write": 12,
+    "bash": 21,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "23c5636a-4fa2-4fb4-b1a2-d06fa88b11b3",
+  "review": null,
+  "waited_seconds": 0
+}
