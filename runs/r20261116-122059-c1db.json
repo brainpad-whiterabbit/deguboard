@@ -1,0 +1,36 @@
+{
+  "id": "r20261116-122059-c1db",
+  "ticket": "t1026",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-16T12:20:59Z",
+  "finished_at": "2026-11-16T12:29:33Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "dg flow next の release の承認の文が既定の human_only で PR のマージと公開まで人だけの操作と案内し guide-release・ADR-026 と食い違う",
+    "guide-check の直し方が flow.assign で判定される出し入れに承認の指定を案内していない",
+    "claim の自動の割り当てと create・import の指定が flow.assign の外であることが help と ADR-030 に書かれていない"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 9211,
+    "cache_read": 942336,
+    "cache_write": 77240
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 15,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "23c5636a-4fa2-4fb4-b1a2-d06fa88b11b3",
+  "review": null,
+  "waited_seconds": 0
+}
