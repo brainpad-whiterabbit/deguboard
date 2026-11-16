@@ -1,5 +1,5 @@
-// .github/workflows/publish-extension.yml（Release の VSIX を Marketplace と Open VSX に出す）の約束を確かめる（t866）。
-// このワークフローは秘密と OIDC のトークンを持つので、きっかけ・step・秘密・権限が広がる変更をここで止める。
+// .github/workflows/publish-extension.yml（Release の VSIX を Marketplace に出す）の約束を確かめる（t866）。
+// このワークフローは公開に使う OIDC のトークンを持つので、きっかけ・step・秘密・権限が広がる変更をここで止める。
 // build と検査を回さないのは、出すのが手元で検査を通して作り Release に添付した VSIX そのものだから（ADR-008）
 
 import { readFileSync } from "node:fs";
@@ -39,7 +39,7 @@ function forbiddenRuns(steps: Step[]): string[] {
 describe("公開のワークフロー（publish-extension.yml）", () => {
   it("YAML として読める", () => {
     expect(errors).toEqual([]);
-    expect(Object.keys(workflow.jobs).sort()).toEqual(["marketplace", "open-vsx"]);
+    expect(Object.keys(workflow.jobs).sort()).toEqual(["marketplace"]);
   });
 
   it("きっかけは Release の published だけで、どの job も pre-release の Release では走らない", () => {
@@ -78,28 +78,19 @@ describe("公開のワークフロー（publish-extension.yml）", () => {
     const allowed = [
       "pnpm install --frozen-lockfile --ignore-scripts --filter deguboard-vscode",
       'pnpm --filter deguboard-vscode exec vsce publish --oidc --packagePath "$RUNNER_TEMP/deguboard-vscode.vsix"',
-      'pnpm --filter deguboard-vscode exec ovsx publish "$RUNNER_TEMP/deguboard-vscode.vsix"',
     ];
     expect(forbiddenRuns(allowed.map((run) => ({ run })))).toEqual([]);
   });
 
-  it("使う秘密は OVSX_PAT だけで、Open VSX の job だけが持つ", () => {
-    const secrets = [...text.matchAll(/\bsecrets\.([A-Za-z0-9_]+)/g)].map((m) => m[1]);
-    expect([...new Set(secrets)]).toEqual(["OVSX_PAT"]);
-    expect(text).not.toMatch(/secrets\s*:\s*inherit/);
-    expect(text).not.toMatch(/secrets\[/);
-    const holders = Object.entries(workflow.jobs)
-      .filter(([, job]) => JSON.stringify(job).includes("secrets.OVSX_PAT"))
-      .map(([name]) => name);
-    expect(holders).toEqual(["open-vsx"]);
+  it("secret を使わない（Marketplace へは OIDC のトークンだけで出す）", () => {
+    expect(text).not.toMatch(/\bsecrets\b/);
   });
 
-  it("既定の権限は空で、id-token: write は Marketplace の job だけにある", () => {
+  it("既定の権限は空で、Marketplace の job は contents: read と id-token: write だけを持つ", () => {
     expect(workflow.permissions).toEqual({});
     expect(workflow.jobs.marketplace?.permissions).toEqual({
       contents: "read",
       "id-token": "write",
     });
-    expect(workflow.jobs["open-vsx"]?.permissions).toEqual({ contents: "read" });
   });
 });

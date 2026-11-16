@@ -4,7 +4,7 @@
 
 ## 要約
 
-言語は TypeScript（Node.js 24・pnpm workspace）、画面は React、VS Code 拡張は Vite で CommonJS に、同梱の CLI は ESM の入口と本体の chunk に束ねる。作業のコマンドは `mise run` に統一し、CI で検査はせずローカルの `mise run check` をマージの条件にする。GitHub Actions は、Release に添付した VSIX を Marketplace と Open VSX に出すことだけに使う。lint は oxlint、整形は oxfmt を使う。
+言語は TypeScript（Node.js 24・pnpm workspace）、画面は React、VS Code 拡張は Vite で CommonJS に、同梱の CLI は ESM の入口と本体の chunk に束ねる。作業のコマンドは `mise run` に統一し、CI で検査はせずローカルの `mise run check` をマージの条件にする。GitHub Actions は、Release に添付した VSIX を Marketplace に出すことだけに使う。lint は oxlint、整形は oxfmt を使う。
 
 ## 背景
 
@@ -33,8 +33,8 @@
 
 ### 拡張の公開だけ GitHub Actions を使う
 
-- Release を公開したとき（`release: published`）だけ走るワークフロー（`.github/workflows/publish-extension.yml`）が、その Release に添付した VSIX を VS Code Marketplace と Open VSX に出す。build も検査もしない。出すのは手元で検査を通して作り、Release に添付した VSIX そのもの
-- Marketplace へは PAT を置かず、trusted publishing（`vsce publish --oidc`。GitHub の OIDC のトークンを引き換える）で出す。Open VSX へは secret に置いたトークンで出す。それ以外の秘密は置かない
+- Release を公開したとき（`release: published`）だけ走るワークフロー（`.github/workflows/publish-extension.yml`）が、その Release に添付した VSIX を VS Code Marketplace に出す。build も検査もしない。出すのは手元で検査を通して作り、Release に添付した VSIX そのもの
+- Marketplace へは PAT を置かず、trusted publishing（`vsce publish --oidc`。GitHub の OIDC のトークンを引き換える）で出す。secret は置かない
 
 ### lint は oxlint、整形は oxfmt
 
@@ -74,7 +74,6 @@
 - Vitest は TypeScript と ESM をそのまま扱え、workspace のパッケージをまとめて走らせられる
 - CI で検査しないのは、実装するのが主にエージェントで、変更のたびにローカルで `check` を回すから。同じ検査を CI でもう一度回しても得るものが少なく、ワークフローの保守が増える
 - 公開だけ GitHub Actions に置くのは、Marketplace の trusted publishing が GitHub Actions の OIDC でしか使えず、手元から出すには期限のある PAT を人が持ち回すことになるから。公開する VSIX は利用者が Release から落とすものと同じにし、SHA256 を本文に載せた VSIX をそのまま出す。CI で build し直すと、手元で検査した VSIX と別のものが出る
-- Open VSX に出すのは、VS Code 以外のエディタ（VSCodium・Cursor など）の利用者が Marketplace から入れられないから
 
 ## 採らなかった案
 
@@ -90,6 +89,7 @@
 - **Node 22（LTS）**：VS Code の拡張ホストの Node 24 と揃える
 - **`dg` を npm に公開して `npm i -g` で入れてもらう**：利用者に Node.js と npm を求め、入口が拡張と npm の 2 つになり、拡張と CLI の版がずれる。拡張に `dg` を同梱して入口を 1 つにする
 - **Marketplace の PAT を secret に置いて出す**：期限が来るたびに人が作り直し、漏れると誰でも出せる。trusted publishing なら置く秘密がない
+- **Open VSX にも出す**：VS Code 以外のエディタ（VSCodium・Cursor など）は対象にせず、出すには期限のあるトークンを secret に置いて人が持ち回すことになる
 - **公開のワークフローで build と検査を回してから出す**：手元で検査して Release に添付した VSIX と別のものが出て、検査も二重になる
 - **拡張を esbuild や webpack で束ねる**：web のビルドに使っている Vite で足りる
 - **oxlint の版を留めたまま、規則 `react(immutability)` を off にする**：web の React の不変性の違反を検査で見つけられなくなる
