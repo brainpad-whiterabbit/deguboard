@@ -1,0 +1,40 @@
+{
+  "id": "r20261116-073756-3466",
+  "ticket": "t1024",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-16T07:37:56Z",
+  "finished_at": "2026-11-16T08:02:24Z",
+  "result": "success",
+  "error": null,
+  "retries": 7,
+  "retry_reasons": [
+    "PR のない作業を agent が done にできなくなり CLAUDE.md と guide-release の手順が古くなった",
+    "既定の review → done の requires が PR のないチケットを done にできなくしている",
+    "照合が requires を見ないことが t1031 の持ち分だと書かれていない",
+    "画面で requires を満たさない移動を拒否したときの案内が画面で実行できない",
+    "guide-change が既定で必ず拒否される approved-by の呼び出しを案内している",
+    "ask が review のチケットで agent に done を促すが既定では拒否される",
+    "ADR-028 の拾えない形を人が進める手順に override が要ることが書かれていない"
+  ],
+  "usage": {
+    "input": 102,
+    "output": 37201,
+    "cache_read": 6055701,
+    "cache_write": 174733
+  },
+  "tools": {
+    "read": 23,
+    "search": 0,
+    "write": 33,
+    "bash": 34,
+    "other": 1,
+    "read_before_write": 8,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "23c5636a-4fa2-4fb4-b1a2-d06fa88b11b3",
+  "review": null,
+  "waited_seconds": 0
+}
