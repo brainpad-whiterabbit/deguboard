@@ -21,3 +21,15 @@ checkpoints:
     approved_by: maji/agent
     basis:
       facts: a7bb776ec106831e
+  - name: assign
+    at: 2026-11-16T20:42:15Z
+    by: maji/agent
+    approved_by: maji/agent
+    basis:
+      candidates:
+        - t893
+        - t894
+        - t896
+        - t897
+        - t1021
+        - t1044
