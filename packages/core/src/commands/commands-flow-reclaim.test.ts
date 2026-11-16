@@ -470,7 +470,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       });
       expect(fresh.data).toMatchObject({ status: "in_progress", branch: "t1-again" });
       expect(fresh.data.pr).toBeUndefined();
-      expect(fresh.warnings).not.toContainEqual(expect.stringContaining("手直しの開始"));
+      expect(fresh.warnings).not.toContainEqual(expect.stringContaining("the start of a fix"));
       expect(
         (await peekRunningRuns(agent.repo)).find((r) => r.id === fresh.data.run),
       ).toMatchObject({

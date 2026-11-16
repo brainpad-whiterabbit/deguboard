@@ -158,7 +158,7 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
         warnings.push(...(await runCommand(ticketList, reader, {})).warnings);
     })();
     await Promise.all([writes(ctx, "t1"), writes(other, "t2"), reads]);
-    expect(warnings.filter((w) => w.includes("dg の外"))).toEqual([]);
+    expect(warnings.filter((w) => w.includes("changes made outside dg"))).toEqual([]);
     expect(await checkOutside(ctx.repo)).toEqual({ kind: "clean", initial: false });
   });
 
@@ -227,7 +227,7 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
       event: "SessionStart",
       payload: { session_id: "s" },
     });
-    expect(started.warnings.filter((w) => w.includes("dg の外"))).toEqual([]);
+    expect(started.warnings.filter((w) => w.includes("changes made outside dg"))).toEqual([]);
   });
 
   it("Stop はストアを開かず、config のリモートの名前だけを読んで dg の外の変更を返す（t770）", async () => {

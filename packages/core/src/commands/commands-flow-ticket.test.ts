@@ -219,7 +219,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     });
     expect(claimed.data).toMatchObject({ status: "in_progress", assignee: "eiki" });
     expect(claimed.data.pr).toBeUndefined();
-    expect(claimed.warnings.some((w) => w.includes("手直しの開始"))).toBe(false);
+    expect(claimed.warnings.some((w) => w.includes("the start of a fix"))).toBe(false);
   });
 
   it("whoami は操作している主体の ID・ユーザ名・種別と、本人とみなす ID（人とその AI）を返す", async () => {
