@@ -10,6 +10,7 @@ import {
   exceptionMoveOf,
   movePermissions,
   operationPolicy,
+  requiresForTicket,
   writtenForm,
   type ResolvedWorkflow,
 } from "./resolve.js";
@@ -205,6 +206,18 @@ describe("操作に当てる方針（operationPolicy）", () => {
     }
   });
 
+  it("ブランチなしで着手したチケット（in_progress・review で branch がない）には、ブランチと PR の事実の条件を当てない", () => {
+    const requires = ["deps_done", "pr_merged", "!pr_draft", "branch_pushed"] as const;
+    for (const status of ["in_progress", "review"] as const) {
+      expect(requiresForTicket(requires, { status }), status).toEqual(["deps_done"]);
+      // ブランチがあれば、どの条件も当てる
+      expect(requiresForTicket(requires, { status, branch: "t1-x" }), status).toEqual(requires);
+    }
+    // 着手していない todo（と終わった Status）には当てたまま
+    for (const status of ["todo", "done", "abandoned"] as const)
+      expect(requiresForTicket(requires, { status }), status).toEqual(requires);
+  });
+
   it("既定の Workflow の動きごとの権限（dg workflow show の moves）", () => {
     const rows = movePermissions(DEFAULT_WORKFLOW).map((m) => [
       `${m.from} → ${m.to}`,
@@ -216,23 +229,23 @@ describe("操作に当てる方針（operationPolicy）", () => {
       ["todo → in_progress", "allow", "allow", "deps_done"],
       ["todo → review", "allow", "allow", "deps_done"],
       ["todo → done", "allow", "approval", "deps_done,pr_merged"],
-      ["todo → abandoned", "allow", "reject", ""],
+      ["todo → abandoned", "allow", "approval", ""],
       ["in_progress → todo", "allow", "allow", ""],
       ["in_progress → review", "allow", "allow", ""],
       ["in_progress → done", "allow", "approval", "pr_merged"],
-      ["in_progress → abandoned", "allow", "reject", ""],
+      ["in_progress → abandoned", "allow", "approval", ""],
       ["review → todo", "allow", "allow", ""],
       ["review → in_progress", "allow", "allow", ""],
       ["review → done", "allow", "approval", "pr_merged"],
-      ["review → abandoned", "allow", "reject", ""],
-      ["done → todo", "allow", "reject", ""],
-      ["done → in_progress", "allow", "reject", ""],
-      ["done → review", "allow", "reject", ""],
-      ["done → abandoned", "allow", "reject", ""],
-      ["abandoned → todo", "allow", "reject", ""],
-      ["abandoned → in_progress", "allow", "reject", ""],
-      ["abandoned → review", "allow", "reject", ""],
-      ["abandoned → done", "allow", "reject", ""],
+      ["review → abandoned", "allow", "approval", ""],
+      ["done → todo", "allow", "approval", ""],
+      ["done → in_progress", "allow", "approval", ""],
+      ["done → review", "allow", "approval", ""],
+      ["done → abandoned", "allow", "approval", ""],
+      ["abandoned → todo", "allow", "approval", ""],
+      ["abandoned → in_progress", "allow", "approval", ""],
+      ["abandoned → review", "allow", "approval", ""],
+      ["abandoned → done", "allow", "approval", ""],
     ]);
   });
 });
@@ -255,7 +268,7 @@ describe("省いた項目の既定", () => {
         { from: "in_progress", to: "review", requires: [], decide: "anyone" },
         { from: "review", to: "done", requires: ["pr_merged"], decide: "ask_unless_auto" },
       ],
-      exceptions: { abandon: "human_only", back: "anyone", reopen: "human_only" },
+      exceptions: { abandon: "always_ask", back: "anyone", reopen: "always_ask" },
       wip: { in_progress: 5, review: 3 },
       flow: {
         stages: {
@@ -337,7 +350,7 @@ describe("省いた項目の既定", () => {
     expect(workflow?.exceptions).toEqual({
       abandon: "anyone",
       back: "anyone",
-      reopen: "human_only",
+      reopen: "always_ask",
     });
     expect(workflow?.wip).toEqual({ review: 2 });
     expect(workflow?.flow).toMatchObject({

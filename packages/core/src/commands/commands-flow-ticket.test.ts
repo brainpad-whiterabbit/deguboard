@@ -79,18 +79,14 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       .data;
     expect(started.status).toBe("in_progress");
     expect(started.branch_base).toBeDefined();
-    // abandon は human_only：エージェントは承認があっても拒否される
-    for (const approved_by of [undefined, "human"]) {
-      expect(
-        await rejected(
-          runCommand(ticketMove, agent, { ticket: "t1", status: "abandoned", approved_by }),
-        ),
-      ).toMatchObject({
-        code: "TRANSITION_REJECTED",
-        message:
-          "The Workflow limits moving t1 from in_progress to abandoned to a person (exceptions.abandon: human_only)",
-      });
-    }
+    // abandon は always_ask：エージェントは人の承認（--approved-by）がなければ拒否される
+    expect(
+      await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "abandoned" })),
+    ).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for moving t1 from in_progress to abandoned (exceptions.abandon: always_ask)",
+    });
     // in_progress → review（条件なし、anyone）と、戻す動き（back: anyone）は、エージェントが聞かずにできる
     expect(
       (await runCommand(ticketMove, agent, { ticket: "t1", status: "review" })).data.status,
@@ -99,7 +95,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       (await runCommand(ticketMove, agent, { ticket: "t1", status: "in_progress" })).data.status,
     ).toBe("in_progress");
     await runCommand(ticketMove, agent, { ticket: "t1", status: "review" });
-    // review → done（requires: pr_merged、decide: ask_unless_auto）：エージェントは承認が要り、承認があっても条件を満たさなければ拒否される
+    // review → done（requires: pr_merged、decide: ask_unless_auto）：ブランチのあるチケットは、エージェントは承認が要り、承認があっても条件を満たさなければ拒否される
     expect(
       await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "done" })),
     ).toMatchObject({
@@ -119,7 +115,10 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     // 人も条件を満たさなければ拒否され、--override の理由で越える。理由はコミットの文（履歴）に残る
     const byHuman = await rejected(runCommand(ticketMove, human, { ticket: "t1", status: "done" }));
     expect(byHuman).toMatchObject({ code: "TRANSITION_REJECTED" });
-    expect(byHuman!.detail).toContain('--override "reason"');
+    // 画面からは理由を渡せないので、CLI の手順だと案内する
+    expect(byHuman!.detail).toBe(
+      'To go ahead anyway, run the command from the dg CLI with --override "reason" (the board cannot pass it)',
+    );
     const forced = await runCommand(ticketMove, human, {
       ticket: "t1",
       status: "done",
@@ -134,17 +133,28 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       subject: "Move t1 from review to done (override by eiki: PR を使わない 作業)",
       changes: [{ field: "status", from: "review", to: "done" }],
     });
-    // reopen は human_only：done を戻すのは人だけ
+    // reopen は always_ask：done を戻すのも、エージェントは人の承認がなければ拒否され、承認者を記録して進める
     expect(
       await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "review" })),
     ).toMatchObject({
       code: "TRANSITION_REJECTED",
       message:
-        "The Workflow limits moving t1 from done to review to a person (exceptions.reopen: human_only)",
+        "The Workflow asks for a person's approval for moving t1 from done to review (exceptions.reopen: always_ask)",
     });
-    await runCommand(ticketMove, human, { ticket: "t1", status: "in_progress" });
-    const dropped = (await runCommand(ticketMove, human, { ticket: "t1", status: "abandoned" }))
-      .data;
+    await runCommand(ticketMove, agent, {
+      ticket: "t1",
+      status: "in_progress",
+      approved_by: "human",
+    });
+    expect(await subject()).toBe("Move t1 from done to in_progress (approved by claude)");
+    const dropped = (
+      await runCommand(ticketMove, agent, {
+        ticket: "t1",
+        status: "abandoned",
+        approved_by: "human",
+      })
+    ).data;
+    expect(await subject()).toBe("Move t1 from in_progress to abandoned (approved by claude)");
     expect(dropped.status).toBe("abandoned");
     expect(dropped.assignee).toBeUndefined();
     // ブランチの起点も消す（ST-4）
@@ -158,6 +168,34 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(ready.data.map((t) => t.id)).toEqual(["t2"]);
     const claimed = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2" });
     expect(claimed.data.status).toBe("in_progress");
+  });
+
+  it("既定の Workflow：ブランチなしで着手したチケット（PR の要らない作業）には pr_merged を当てず、エージェントが人の承認を記録して done にできる（ST-10）", async () => {
+    const { human, agent, subject } = await humanAndAgent();
+    await runCommand(ticketCreate, human, { title: "A" });
+    await runCommand(ticketCreate, human, { title: "B" });
+    await runCommand(ticketClaim, agent, { ticket: "t1", without_branch: true, no_run: true });
+    await runCommand(ticketMove, agent, { ticket: "t1", status: "review" });
+    // decide（ask_unless_auto）は当たる：承認がなければ拒否される。満たさない条件（pr_merged）では拒否されない
+    expect(
+      await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "done" })),
+    ).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for moving t1 from review to done (boundaries review → done: ask_unless_auto)",
+    });
+    const done = await runCommand(ticketMove, agent, {
+      ticket: "t1",
+      status: "done",
+      approved_by: "human",
+    });
+    expect(done.data.status).toBe("done");
+    expect(await subject()).toBe("Move t1 from review to done (approved by claude)");
+    // 境目を飛ばす in_progress → done も同じ。人は --override なしで進める
+    await runCommand(ticketClaim, human, { ticket: "t2", without_branch: true });
+    expect(
+      (await runCommand(ticketMove, human, { ticket: "t2", status: "done" })).data.status,
+    ).toBe("done");
   });
 
   it("ticket move は境目の decide の 5 つの値の表どおりに、通す・承認を求める・拒否する。承認者と強制の理由はコミットの文に残る", async () => {

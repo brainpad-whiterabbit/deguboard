@@ -15,7 +15,9 @@ export type ReconcileOutcome =
 /**
  * 規則を上から評価し、最初に当てはまった規則で判定する。
  * 規則は進んだ状態から順に並ぶ前提なので、当てはまった規則が前進でなければそこで止める。
- * 境目の requires・decide は見ない（手で越える操作とコマンドの判定。workflow/resolve.ts の operationPolicy）
+ * 境目の requires・decide はまだ見ない（今は手で越える操作とコマンドだけが判定する。workflow/resolve.ts の operationPolicy）。
+ * 照合も requires を満たすときだけ進めるようにするのは t1031 が持つ（既定の branch_merged → done を
+ * requires: [pr_merged] が止めないよう、照合の規則と一緒に決める）
  */
 export function reconcileStatus(
   wf: ResolvedWorkflow,

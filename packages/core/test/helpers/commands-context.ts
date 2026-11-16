@@ -53,7 +53,7 @@ export async function writeWorkflowYaml(ctx: CommandContext, lines: string[]): P
 
 /**
  * PR を使わない進め方の Workflow にする：review → done に条件を付けず、done と例外の動きを誰でも聞かずにできるようにする。
- * 既定は done に pr_merged と人の承認を求め、abandoned と done の取り消しを人に限るので、Status を動かすのが準備でしかないテスト
+ * 既定は done に pr_merged（ブランチのあるチケット）と人の承認を求め、abandoned と done の取り消しにも人の承認を求めるので、Status を動かすのが準備でしかないテスト
  * （Run・Plan・Iteration・集計など）が、手で動かす前に呼ぶ。別の文脈は呼んだ後に store.rescan() で読む
  */
 export function writeOpenWorkflow(ctx: CommandContext): Promise<void> {

@@ -580,7 +580,7 @@ describe("dg", () => {
     expect(before.json().error?.code).toBe("NOT_INITIALIZED");
   });
 
-  it("--actor agent では人に限る動き（既定の exceptions.abandon は human_only）が拒否され、環境変数 DEGUBOARD_ACTOR も効く", async () => {
+  it("--actor agent では人の承認が要る動き（既定の exceptions.abandon は always_ask）が承認なしでは拒否され、環境変数 DEGUBOARD_ACTOR も効く", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     await dg(f.cloneA, ["ticket", "create", "A"]);

@@ -69,10 +69,12 @@ const DEFAULT_BOUNDARIES: readonly Boundary[] = [
   { ...BOUNDARIES[2], requires: ["pr_merged"], decide: "ask_unless_auto" },
 ];
 
+// abandon と reopen は人の指示があるときだけ行う動き。指示を受けたエージェントが承認者を記録して行えるよう、
+// human_only でなく always_ask にする
 const DEFAULT_EXCEPTIONS: Record<ExceptionMove, Decision> = {
-  abandon: "human_only",
+  abandon: "always_ask",
   back: "anyone",
-  reopen: "human_only",
+  reopen: "always_ask",
 };
 
 const DEFAULT_WIP: Partial<Record<Status, number>> = { in_progress: 5, review: 3 };
@@ -237,6 +239,21 @@ export function boundaryPolicy(boundaries: readonly Boundary[]): OperationPolicy
     decisions: boundaries.map((b) => b.decide),
     requires: [...new Set(boundaries.flatMap((b) => b.requires))],
   };
+}
+
+/**
+ * チケットに当てる越える条件。ブランチなしで着手したチケット（claim --without-branch。in_progress・review で branch の記録がない）には、
+ * ブランチと PR の事実の条件を当てない。PR の要らない作業ではどれも満たせず、既定の review → done（pr_merged）を
+ * 人の強制なしに越えられなくなるため（ST-10）。着手していない todo には当てたままにする（着手を飛ばす誤操作を止める）
+ */
+export function requiresForTicket(
+  requires: readonly Condition[],
+  ticket: { status: Status; branch?: string | undefined },
+): readonly Condition[] {
+  const startedWithoutBranch =
+    !ticket.branch && (ticket.status === "in_progress" || ticket.status === "review");
+  if (!startedWithoutBranch) return requires;
+  return requires.filter((c) => c.replace(/^!/, "") === "deps_done");
 }
 
 // Core に固定の操作・流れの段階の操作・カンバンの管理の操作は、まだここで引かない（それぞれのコマンドが自分で判定している）。

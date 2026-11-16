@@ -207,6 +207,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee`・`branch`・`branch_at`・`branch_base`・`pr` を消す（前の作業の PR を次の claim に残さない。実装・手直しの Run は RN-6）。ほかの claim は強制の指定で外す。生存監視はしない
 - ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻すときも claim と `pr` を外す（`abandoned` は `pr` を残す）。誰が行えるかは Workflow の `exceptions` の値で決まる（ST-2）
 - ST-9 自分（同じユーザの人と AI）が claim 済みで `pr` のある in_progress・review のチケットのもう一度の claim は手直しの開始とみなし、チケットを変えずに手直しの Run だけ開く（RN-5、細部は `ticket claim --help`）
+- ST-10 ブランチなしで着手したチケット（`claim --without-branch`）には、境目の `requires` のうちブランチと PR の事実の条件を当てない。PR の要らない作業は `decide` の値だけで done に進む（ST-2、細部は `dg ticket move --help`）
 
 ### 6.3 Git 同期と排他
 

@@ -1069,15 +1069,14 @@ describe("チケットの流れ（照合と claim）", () => {
     expect(detached.data.branch).toBeUndefined();
     expect((await runCommand(sync, ctx, {})).warnings).toEqual([]);
 
-    // 既定の Workflow は review → done に pr_merged を求めるので、PR のない作業は手では done にできず、人が理由を付けて越える
+    // 既定の Workflow の review → done の pr_merged は、ブランチなしで着手したチケットには当たらず、手で done にできる。
+    // ブランチを付けている間は当たる
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "t1-gone" });
     await expect(
       runCommand(ticketMove, ctx, { ticket: "t1", status: "done" }),
     ).rejects.toMatchObject({ code: "TRANSITION_REJECTED" });
-    const done = await runCommand(ticketMove, ctx, {
-      ticket: "t1",
-      status: "done",
-      override: "PR の要らない作業",
-    });
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: null });
+    const done = await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
     expect(done.data.status).toBe("done");
   });
 

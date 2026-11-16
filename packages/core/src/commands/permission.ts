@@ -119,7 +119,8 @@ export function requirePermission(
         "TRANSITION_REJECTED",
         `The conditions for ${what} are not met: ${unmet.join(", ")} (requires of ${policy.name})`,
         human
-          ? 'To go ahead anyway, add --override "reason"'
+          ? // 画面（Web・VS Code）の Status の選択からは理由を渡せないので、CLI の手順だと分かるように書く
+            'To go ahead anyway, run the command from the dg CLI with --override "reason" (the board cannot pass it)'
           : 'Only a person can go ahead without them, with --override "reason"',
       );
   }

@@ -27,7 +27,7 @@ import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store } from "../storage/store.js";
 import { cyclePath, findPlanCycleCreatedBy } from "../storage/wait-cycle.js";
 import type { Facts } from "../workflow/conditions.js";
-import { operationPolicy } from "../workflow/resolve.js";
+import { operationPolicy, requiresForTicket } from "../workflow/resolve.js";
 import {
   prepareIterationForClaim,
   prepareWorktreeForClaim,
@@ -868,7 +868,7 @@ export const ticketMove = defineCommand({
   positionals: ["ticket", "status"],
   group: "ticket",
   summary:
-    "Change the Status. The Workflow (dg workflow show) judges the move: a move forward by the boundaries it crosses (every boundary in between when it skips one; the stricter value applies, and the requires of all of them must be met), a move to abandoned by exceptions.abandon, a move back from done or abandoned by exceptions.reopen, and any other move back by exceptions.back. By the value, an agent goes ahead, needs a person's approval (--approved-by), or is rejected (human_only); a person goes ahead, except for agent_only, which needs --override. A move forward whose requires are not met is rejected, and only a person can pass it with --override. A rejected move returns TRANSITION_REJECTED, and so does a move to the same Status. Closes Runs running on this machine: abandoned closes implementation and fix Runs with failure; review and done for a ticket with no branch, and done with no PR, close the implementation Run with success",
+    "Change the Status. The Workflow (dg workflow show) judges the move: a move forward by the boundaries it crosses (every boundary in between when it skips one; the stricter value applies, and the requires of all of them must be met), a move to abandoned by exceptions.abandon, a move back from done or abandoned by exceptions.reopen, and any other move back by exceptions.back. By the value, an agent goes ahead, needs a person's approval (--approved-by), or is rejected (human_only); a person goes ahead, except for agent_only, which needs --override. A move forward whose requires are not met is rejected, and only a person can pass it with --override. The requires on branch and PR facts (branch_* and pr_*) do not apply to a ticket started with no branch (claim --without-branch; in_progress or review), so work with no PR reaches done by the decide value alone. A rejected move returns TRANSITION_REJECTED, and so does a move to the same Status. Closes Runs running on this machine: abandoned closes implementation and fix Runs with failure; review and done for a ticket with no branch, and done with no PR, close the implementation Run with success",
   input: z.object({
     ticket: ticketRef,
     status: statusSchema.describe(`Next Status (${STATUSES.join(" / ")})`),
@@ -885,10 +885,11 @@ export const ticketMove = defineCommand({
         const from = doc.data.status;
         if (from === input.status)
           throw new OperationError("REJECTED", `${doc.id} is already ${from}`);
-        const policy = operationPolicy(ctx.store.requireWorkflow().resolved, {
+        const crossed = operationPolicy(ctx.store.requireWorkflow().resolved, {
           command: "ticket.move",
           move: { from, to: input.status },
         });
+        const policy = { ...crossed, requires: requiresForTicket(crossed.requires, doc.data) };
         const granted = requirePermission(
           ctx,
           policy,

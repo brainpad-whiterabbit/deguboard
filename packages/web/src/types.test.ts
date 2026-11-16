@@ -25,10 +25,11 @@ describe("検索の当て方（ticketMatchesQuery）", () => {
 });
 
 describe("Status の選択に並べる Status（movableStatuses）", () => {
-  // 既定：abandon・reopen は human_only、back は anyone、review → done は ask_unless_auto。in_progress → review だけ agent_only に替える
+  // abandon・reopen を human_only に、in_progress → review を agent_only に替える（既定は back が anyone、review → done が ask_unless_auto）
   const moves = movePermissions(
     resolveWorkflow({
       boundaries: [{ from: "in_progress", to: "review", requires: [], decide: "agent_only" }],
+      exceptions: { abandon: "human_only", reopen: "human_only" },
     }),
   );
 
