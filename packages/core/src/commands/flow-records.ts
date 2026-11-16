@@ -143,12 +143,8 @@ export function auditDoneOf(store: Store, target: FlowTarget): string[] {
     .sort(compareIds);
 }
 
-/** 関所を通るときに記録に添える根拠（段階ごとに 1 つ。release・retro は根拠を持たない） */
-export function basisOf(
-  stage: CheckpointStage,
-  store: Store,
-  target: FlowTarget,
-): Checkpoint["basis"] {
+/** 関所を通るときに記録に添える根拠（段階ごとに 1 つ。release・retro・独自の段階は根拠を持たない） */
+export function basisOf(stage: string, store: Store, target: FlowTarget): Checkpoint["basis"] {
   switch (stage) {
     case "assign":
       return { candidates: flowCandidates(store, target) };
@@ -156,8 +152,7 @@ export function basisOf(
       return { facts: checkFactsOf(store, target) };
     case "audit":
       return { done: auditDoneOf(store, target) };
-    case "release":
-    case "retro":
+    default:
       return undefined;
   }
 }
@@ -186,6 +181,11 @@ export function auditedWith(records: readonly Checkpoint[], done: readonly strin
 /** 段階の記録があるか（根拠を持たない段階：release・retro） */
 export function passed(records: readonly Checkpoint[], name: CheckpointStage): boolean {
   return records.some((c) => c.name === name);
+}
+
+/** 記録のある段階の名前（並べ替えて重複を除く）。根拠を持たない段階（retro・独自の段階）を終えたかを、名前があるかで決める */
+export function passedStages(records: readonly Checkpoint[]): string[] {
+  return [...new Set(records.map((c) => c.name))].sort();
 }
 
 /** 対象の Iteration の、数える関所の記録（iteration reopen より前は数えない）。Iteration がなければ空 */

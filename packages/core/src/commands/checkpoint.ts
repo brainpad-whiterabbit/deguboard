@@ -1,12 +1,13 @@
 // 流れの段階の関所（EX-8、ADR-030）。コマンドで止められない段階の判断（点検の指摘を直す・見直しの指摘を起票する・
-// リリースの手順・振り返りの改善を起票する）と割り当ての終わりを、手順がここを呼んで段階の値で判定し、通った記録を Iteration に足す。
+// リリースの手順・振り返りの改善を起票する・独自の段階の判断）と割り当ての終わりを、手順がここを呼んで段階の値で判定し、通った記録を Iteration に足す。
 // 記録は消さずに足し、dg flow next が根拠と合わせて段階を終えたかを決める（flow-records.ts）
 
 import { z } from "zod";
-import { OperationError } from "../errors.js";
+import { OperationError, UsageError } from "../errors.js";
 import { withWrite } from "../git/write.js";
 import type { IterationId } from "../model/id.js";
 import { CHECKPOINT_STAGES, type Checkpoint, type CheckpointStage } from "../model/iteration.js";
+import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import {
   basisOf,
@@ -20,7 +21,8 @@ import { grantedNote, permissionFields, requireOperation, type Granted } from ".
 
 /** dg checkpoint の出力 */
 export interface CheckpointResult {
-  stage: CheckpointStage;
+  /** 通った段階（同梱の段階か、独自の段階の名前） */
+  stage: string;
   /** 記録を足した Iteration。Iteration の決まらない流れの割り当て（記録はこのマシンだけ）は null */
   iteration: string | null;
   /** 足した記録 */
@@ -32,7 +34,7 @@ export interface CheckpointResult {
 /** 通った関所の記録。名前・日時・主体・承認者・根拠の順に書く（経過は `- name:` の行で拾う。git/history.ts） */
 function recordOf(
   ctx: CommandContext,
-  stage: CheckpointStage,
+  stage: string,
   granted: Granted,
   target: FlowTarget,
 ): Checkpoint {
@@ -55,11 +57,16 @@ export const checkpoint = defineCommand({
     "The Workflow's value of the stage judges it (flow.assign, flow.check, flow.audit, flow.release, flow.retro; see dg workflow show --help for the values): an agent passes --approved-by after a person approved the stage's decision, or --auto in a flow that a person started with --auto where the value is ask_unless_auto, and with human_only only a person can pass it. A rejected call records nothing. " +
     "When it passes, a record is added to checkpoints of the Iteration (never removed or replaced), committed and pushed at once: name (the stage), at, by (who called it), approved_by (the approver, when one was needed), and basis (what the stage saw). The basis is candidates for assign (the assignment candidates left at that time), facts for check (a hash of the tickets), and done for audit (the done tickets); release and retro have none. " +
     "dg flow next reads the records to decide whether a stage is finished, and counts a record only while its basis holds and only if it is not from before dg iteration reopen (see dg flow next --help). dg history --iteration shows the passed checkpoints. " +
+    "A stage of your own (a stage in flow of workflow.yaml with decide, after, and guide) has a checkpoint under its name: its decide judges the call, its steps (the document in guide) say when to call it, and its record has no basis. " +
     "The target is the same as for dg flow next (one Iteration, one Plan, or one or more tickets), and the record goes to the target's Iteration. The plan stage has no checkpoint (dg plan approve records the approval). When the tickets have no single Iteration, only assign can be passed, and its record is kept on this machine only (deguboard-local/flow/, not shared)",
   input: z.object({
+    // 独自の段階の名前は workflow.yaml で決まるので、文字列で受けて run で確かめる
     stage: z
-      .enum(CHECKPOINT_STAGES)
-      .describe("Stage whose checkpoint to pass: assign, check, audit, release, or retro"),
+      .string()
+      .min(1)
+      .describe(
+        "Stage whose checkpoint to pass: assign, check, audit, release, or retro, or the name of a stage of your own in flow of workflow.yaml",
+      ),
     targets: z
       .array(z.string().min(1))
       .min(1)
@@ -72,10 +79,19 @@ export const checkpoint = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const stage = input.stage;
+    const bundled = (CHECKPOINT_STAGES as readonly string[]).includes(stage);
+    // 独自の段階は workflow.yaml の flow にあるものだけを受ける（requireOperation と同じ Workflow を読む）
+    const custom = (ctx.store.workflow?.resolved ?? DEFAULT_WORKFLOW).flow.custom;
+    if (!bundled && !custom.some((c) => c.id === stage))
+      throw new UsageError(
+        `No stage ${stage} has a checkpoint. Use one of: ${[...CHECKPOINT_STAGES, ...custom.map((c) => c.id)].join(" / ")}`,
+      );
     // 拒否された呼び出しは何も記録しない（ここで TRANSITION_REJECTED を投げる）
     const granted = requireOperation(
       ctx,
-      { command: "checkpoint", stage },
+      bundled
+        ? { command: "checkpoint", stage: stage as CheckpointStage }
+        : { command: "checkpoint", customStage: stage },
       input,
       `passing the ${stage} checkpoint`,
     );

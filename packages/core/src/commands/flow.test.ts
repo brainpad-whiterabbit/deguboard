@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
@@ -6,7 +6,7 @@ import { composeGuide } from "../guide/guide.js";
 import { findGuideSection, guideSections } from "../guide/sections.js";
 import { configSchema } from "../model/config.js";
 import type { Decision } from "../model/workflow.js";
-import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
+import { DEFAULT_WORKFLOW, type CustomStage } from "../workflow/resolve.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { checkpoint, type CheckpointResult } from "./checkpoint.js";
@@ -46,6 +46,7 @@ const facts = (over: Partial<FlowFacts> = {}): FlowFacts => ({
   checked: true,
   audited: false,
   releasePassed: false,
+  passedStages: [],
   pendingPlans: [],
   approvedPlans: [],
   unplanned: [],
@@ -269,6 +270,106 @@ describe("flowStageOf の flow.skip（飛ばした段階は返さない）", () 
   it("飛ばさなければ今までどおり（既定の skip は空）", () => {
     const f = facts({ candidates: ["t2"] });
     expect(flowStageOf(f, [])).toEqual(flowStageOf(f));
+  });
+});
+
+describe("flowStageOf の独自の段階（after の位置で返す）", () => {
+  const stage = (id: string, after: CustomStage["after"]) => ({ id, after });
+  /** 関所を通った段階を足した事実 */
+  const passing = (f: FlowFacts, ...names: string[]): FlowFacts => ({
+    ...f,
+    passedStages: [...f.passedStages, ...names],
+  });
+
+  it("after の同梱の段階を終えたところで、次の同梱の段階の前に返す（assign・check・plan・work・audit）", () => {
+    const custom = [
+      stage("on-assign", "assign"),
+      stage("on-check", "check"),
+      stage("on-plan", "plan"),
+      stage("on-work", "work"),
+      stage("on-audit", "audit"),
+    ];
+    const of = (f: FlowFacts) => flowStageOf(f, [], custom).name;
+    // 割り当ての候補が残るうちは割り当て。終えると、点検の前に assign のあとの段階
+    const start = facts({ candidates: ["t2"], checked: false, unplanned: ["t1"] });
+    expect(of(start)).toBe("assign");
+    const assigned = { ...start, asked: ["t2"] };
+    expect(flowStageOf(assigned, [], custom)).toEqual({
+      name: "on-assign",
+      rule: null,
+      after: "assign",
+      reason:
+        "The stage on-assign of this board comes after assign, and its checkpoint is not passed",
+      plan: null,
+      tickets: [],
+    });
+    // 関所を通ると次へ：点検 → check のあとの段階 → 計画（Plan に入っていない todo が残るうちは plan のあとの段階を返さない）
+    let f = passing(assigned, "on-assign");
+    expect(of(f)).toBe("check");
+    f = { ...f, checked: true };
+    expect(of(f)).toBe("on-check");
+    f = passing(f, "on-check");
+    expect(of(f)).toBe("plan");
+    f = { ...f, unplanned: [], pendingPlans: [{ id: "p1", tickets: ["t1"] }] };
+    expect(of(f)).toBe("plan");
+    // 承認されると、作業の前に plan のあとの段階
+    f = {
+      ...f,
+      pendingPlans: [],
+      approvedPlans: [{ id: "p1", unfinished: ["t1"], finished: false }],
+    };
+    expect(of(f)).toBe("on-plan");
+    f = passing(f, "on-plan");
+    expect(of(f)).toBe("work");
+    // 作業が残るうちは work のあとの段階を返さない。すべて終えると、見直しの前に返す
+    f = { ...f, ...finished(), approvedPlans: [] };
+    expect(of(f)).toBe("on-work");
+    f = passing(f, "on-work");
+    expect(of(f)).toBe("audit");
+    // 見直しを終えると、リリースの前に audit のあとの段階
+    f = { ...f, audited: true };
+    expect(of(f)).toBe("on-audit");
+    expect(of(passing(f, "on-audit"))).toBe("release");
+    // 独自の段階がなければ、同じ事実で今までどおり
+    expect(flowStageOf(f).name).toBe("release");
+  });
+
+  it("同じ after の段階は書いた順に 1 つずつ返し、skip に書いた段階は返さない", () => {
+    // 名前の順（a が先）でなく、書いた順（z-first が先）
+    const custom = [stage("z-first", "work"), stage("b", "audit"), stage("a", "work")];
+    const done = facts(finished());
+    expect(flowStageOf(done, [], custom).name).toBe("z-first");
+    expect(flowStageOf(passing(done, "z-first"), [], custom).name).toBe("a");
+    expect(flowStageOf(passing(done, "z-first", "a"), [], custom).name).toBe("audit");
+    expect(flowStageOf(done, ["z-first"], custom).name).toBe("a");
+    // after の同梱の段階を飛ばしても、その位置で返す
+    const worked = passing(done, "z-first", "a");
+    expect(flowStageOf(worked, ["audit"], custom).name).toBe("b");
+    expect(flowStageOf(passing(worked, "b"), ["audit"], custom).name).toBe("release");
+  });
+
+  it("release と retro のあとの段階は Iteration を閉じた後に返す。retro のあとは、振り返りの関所を通ってから", () => {
+    const custom = [stage("announce", "release"), stage("follow-up", "retro")];
+    const open = facts({ ...finished(), audited: true });
+    // 閉じるまではリリースを返し続ける
+    expect(flowStageOf(open, [], custom).name).toBe("release");
+    const closed = { ...open, iterationClosed: true };
+    expect(flowStageOf(closed, [], custom)).toMatchObject({ name: "announce", after: "release" });
+    // 振り返りは流れの外なので、関所の記録がなければ止まる（振り返りを待つ）
+    const announced = passing(closed, "announce");
+    expect(flowStageOf(announced, [], custom).name).toBe("stop");
+    expect(flowStageOf(passing(announced, "retro"), [], custom).name).toBe("follow-up");
+    expect(flowStageOf(passing(announced, "retro", "follow-up"), [], custom).name).toBe("stop");
+    // retro を飛ばす流れでは、振り返りを待たない
+    expect(flowStageOf(announced, ["retro"], custom).name).toBe("follow-up");
+    // release を飛ばす流れでは、すべて終えて見直しも終えたところで返す
+    expect(flowStageOf(open, ["release"], custom).name).toBe("announce");
+  });
+
+  it("閉じた Iteration では、流れの途中（release より前）の段階を返さない", () => {
+    const custom = [stage("on-assign", "assign"), stage("on-work", "work")];
+    const closed = facts({ ...finished(), audited: true, iterationClosed: true });
+    expect(flowStageOf(closed, [], custom)).toMatchObject({ name: "stop", rule: 8 });
   });
 });
 
@@ -1045,6 +1146,116 @@ describe("dg flow next", () => {
       "dg --json --actor agent next t1",
       "dg --json --actor agent next t2",
     ]);
+  });
+
+  it("独自の段階を after の位置（同じ位置は書いた順）で返し、手順の文書の本文・関所のコマンド・承認の要否を返す。関所を通すと次へ進む", async () => {
+    const ctx = await ready();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    await runCommand(workflowSet, ctx, {
+      definition: {
+        flow: {
+          "verify-staging": {
+            decide: "always_ask",
+            after: "check",
+            guide: "docs/flow/verify-staging.md",
+          },
+          notify: { decide: "ask_unless_auto", after: "check", guide: "docs/flow/missing.md" },
+        },
+      },
+    });
+    await mkdir(path.join(ctx.repo.topLevel, "docs/flow"), { recursive: true });
+    await writeFile(
+      path.join(ctx.repo.topLevel, "docs/flow/verify-staging.md"),
+      "# Verify on staging\n\nDeploy {{git.base_branch}} and ask a person to look.\n",
+    );
+    // 点検を終えるまでは点検。終えると、計画の前に check のあとの段階を書いた順に返す
+    expect((await flow(ctx, {})).stage.name).toBe("check");
+    await pass(ctx, "check");
+    const verify = await flow(ctx, { auto: true });
+    expect(verify).toMatchObject({
+      stage: { name: "verify-staging", rule: null, after: "check", plan: null, tickets: [] },
+      repeated: null,
+      // 手順の文書は書いたまま返す（config の値は埋めない）。読み直すのは path のファイル
+      guide: {
+        topic: "verify-staging",
+        sections: [],
+        text: "# Verify on staging\n\nDeploy {{git.base_branch}} and ask a person to look.",
+        command: null,
+        path: "docs/flow/verify-staging.md",
+      },
+      commands: [],
+      // always_ask は --auto でも聞く
+      checkpoint: "dg --json --actor agent checkpoint verify-staging s1 --approved-by human",
+      approval: {
+        required: true,
+        what: "The decision of the verify-staging stage (its steps say what to ask)",
+        auto_ok: false,
+        value: "flow.verify-staging.decide: always_ask",
+        agent: "approval",
+      },
+      ask_human: null,
+      warnings: [],
+    });
+    // 関所を通さなければ同じ段階が続き、止まる判定が関所を名指しで止める
+    const stopped = await flow(ctx, { auto: true });
+    expect(stopped).toMatchObject({ stage: { name: "stop" }, repeated: "verify-staging" });
+    expect(stopped.ask_human).toContain(
+      "The verify-staging checkpoint is not passed (dg checkpoint verify-staging s1)",
+    );
+    expect((await flow(ctx, { auto: true })).stage.name).toBe("verify-staging");
+
+    // 関所を通すと、同じ after の次の段階。文書が読めなければ、警告を出して段階は返す
+    await pass(ctx, "verify-staging");
+    const notify = await flow(ctx, { auto: true });
+    expect(notify).toMatchObject({
+      stage: { name: "notify", after: "check" },
+      guide: { topic: "notify", text: "", command: null, path: "docs/flow/missing.md" },
+      // ask_unless_auto は --auto なら聞かずに通す
+      checkpoint: "dg --json --actor agent checkpoint notify s1 --auto",
+      approval: { required: false, auto_ok: true, value: "flow.notify.decide: ask_unless_auto" },
+      warnings: [
+        "flow.notify.guide file docs/flow/missing.md cannot be read, so the stage is returned without its steps. Fix the path in workflow.yaml or add the file",
+      ],
+    });
+    await pass(ctx, "notify");
+    expect((await flow(ctx, {})).stage).toMatchObject({ name: "plan", rule: 5 });
+    // 独自の段階の記録も、同梱の段階と同じ Iteration の checkpoints に足される
+    expect(ctx.store.require("iteration", "s1").data.checkpoints?.map((c) => c.name)).toEqual([
+      "check",
+      "verify-staging",
+      "notify",
+    ]);
+  });
+
+  it("config の guide.notes は、独自の段階があっても同梱の段階の手順に補足を足す（独自の段階の文書には足さない）", async () => {
+    const base = await ready();
+    await runCommand(iterationCreate, base, { name: "S1" });
+    await runCommand(ticketCreate, base, { title: "A" });
+    await runCommand(iterationAdd, base, { iteration: "s1", tickets: ["t1"] });
+    await runCommand(workflowSet, base, {
+      definition: {
+        flow: { verify: { decide: "anyone", after: "check", guide: "docs/verify.md" } },
+      },
+    });
+    await mkdir(path.join(base.repo.topLevel, "docs"), { recursive: true });
+    await writeFile(path.join(base.repo.topLevel, "docs/verify.md"), "Verify it.\n");
+    await writeFile(path.join(base.repo.topLevel, "docs/check-notes.md"), "点検の補足\n");
+    const ctx: CommandContext = {
+      ...base,
+      config: configSchema.parse({ guide: { notes: { check: "docs/check-notes.md" } } }),
+    };
+    // 同梱の段階：手順の節の見出しの直後に補足が入る
+    const check = await flow(ctx, {});
+    expect(check.stage.name).toBe("check");
+    expect(check.guide.text.split("\n").slice(0, 3)).toEqual(["## Check steps", "", "点検の補足"]);
+    expect(check.warnings).toEqual([]);
+    // 独自の段階：文書の本文だけ
+    await pass(ctx, "check");
+    const verify = await flow(ctx, {});
+    expect(verify.stage.name).toBe("verify");
+    expect(verify.guide.text).toBe("Verify it.");
   });
 
   it("registry に flow.next として載り、読み取りだけ。関所は checkpoint として載る", () => {

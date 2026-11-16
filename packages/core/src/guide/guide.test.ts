@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { configSchema, type Config } from "../model/config.js";
 import { BRANCH_VALUE_MAX } from "../model/ticket.js";
-import { composeGuide, readGuide, readGuideNotes } from "./guide.js";
+import { composeGuide, readGuide, readGuideNotes, readStageGuide } from "./guide.js";
 
 let root: string;
 
@@ -146,6 +146,40 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     await writeFile(join(root, "code.md"), "判断\n```sh\n# シェルのコメント\n```\n");
     const notes = await readGuideNotes("work", configWith({ work: "code.md" }), root);
     expect(notes).toEqual({ text: "判断\n```sh\n# シェルのコメント\n```", warnings: [] });
+  });
+});
+
+describe("独自の段階の手順の文書（workflow.yaml の flow の guide）", () => {
+  const stage = (guide: string) => ({ id: "deploy-staging", guide });
+
+  it("リポジトリの中の文書を書いたまま返す（見出しがあってよく、config の値は埋めない）", async () => {
+    await mkdir(join(root, "docs"));
+    await writeFile(join(root, "docs/deploy.md"), "# Deploy\n\nPush {{git.base_branch}}.\n");
+    expect(await readStageGuide(stage("docs/deploy.md"), root)).toEqual({
+      text: "# Deploy\n\nPush {{git.base_branch}}.",
+      warnings: [],
+    });
+  });
+
+  it("文書がない・読めない・リポジトリの外のときは、本文を空にして警告を返す", async () => {
+    const repo = join(root, "repo");
+    await mkdir(join(repo, "dir"), { recursive: true });
+    await writeFile(join(root, "secret.txt"), "秘密\n");
+    await symlink("../secret.txt", join(repo, "link.md"));
+    const tail =
+      "so the stage is returned without its steps. Fix the path in workflow.yaml or add the file";
+    for (const [rel, problem] of [
+      ["missing.md", "file missing.md cannot be read"],
+      ["dir", "file dir is not a regular file"],
+      ["../secret.txt", "../secret.txt is outside the repository"],
+      ["link.md", "link.md is outside the repository"],
+      ["/etc/hosts", "/etc/hosts is outside the repository"],
+    ] as const) {
+      const doc = await readStageGuide(stage(rel), repo);
+      expect(doc.text, rel).toBe("");
+      expect(doc.warnings, rel).toHaveLength(1);
+      expect(doc.warnings[0], rel).toContain(`flow.deploy-staging.guide ${problem}, ${tail}`);
+    }
   });
 });
 
