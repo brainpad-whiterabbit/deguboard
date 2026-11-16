@@ -1,0 +1,40 @@
+{
+  "id": "r20261116-053454-0b0c",
+  "ticket": "t1036",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-16T05:34:54Z",
+  "finished_at": "2026-11-16T05:36:36Z",
+  "result": "success",
+  "error": null,
+  "retries": 7,
+  "retry_reasons": [
+    "work.md drop condition measures stale documents, not unrun commands",
+    "done.md drop condition needs run failure causes the data does not record",
+    "plan.md drop condition does not name where tier and heavy findings are read",
+    "import.md drop condition does not count wrong outside premises",
+    "development.md wording reads as rules can never change except by deletion",
+    "retro.md does not follow its own rule and basis format",
+    "PR body says retro config is unset though it is already set"
+  ],
+  "usage": {
+    "input": 26,
+    "output": 6854,
+    "cache_read": 626011,
+    "cache_write": 41492
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 12,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "23c5636a-4fa2-4fb4-b1a2-d06fa88b11b3",
+  "review": null,
+  "waited_seconds": 0
+}
