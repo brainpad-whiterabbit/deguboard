@@ -1,2 +1,47 @@
+states:
+  todo:
+    label: Todo
+  in_progress:
+    label: In Progress
+  review:
+    label: Review
+  done:
+    label: Done
+  abandoned:
+    label: Abandoned
+boundaries:
+  - from: todo
+    to: in_progress
+    requires:
+      - deps_done
+    decide: anyone
+  - from: in_progress
+    to: review
+    requires: []
+    decide: anyone
+  - from: review
+    to: done
+    requires:
+      - pr_merged
+    decide: ask_unless_auto
+exceptions:
+  abandon: always_ask
+  back: anyone
+  reopen: always_ask
+wip:
+  in_progress: 5
+  review: 3
 flow:
+  assign: ask_unless_auto
+  check: ask_unless_auto
+  plan: ask_unless_auto
+  audit: always_ask
   release: always_ask
+  retro: always_ask
+  skip: []
+governance:
+  delete: human_only
+  config: always_ask
+  reassign: always_ask
+  epic: always_ask
+  create: anyone
