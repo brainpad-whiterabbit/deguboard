@@ -488,6 +488,63 @@ describe("チケットの流れ（照合と claim）", () => {
     }
   });
 
+  it("PR の番号を記録したチケットは、読めた PR がマージ済みでなければブランチのマージだけでは done に進めず、gh がなく PR の事実を読めなければブランチのマージで done に進む（ST-6）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "Held" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-held" });
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 7 });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "review" });
+    // 作業ブランチを main にマージする（PR は開いたまま）
+    await git(f.cloneA, ["checkout", "-qb", "t1-held"]);
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "実装"]);
+    await git(f.cloneA, ["checkout", "-q", "main"]);
+    await git(f.cloneA, ["merge", "-q", "--ff-only", "t1-held"]);
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "main が進む"]);
+    await git(f.cloneA, ["push", "-q", "origin", "main"]);
+    const status = () => ctx.store.tickets.get("t1")?.data.status;
+
+    const restore = await fakeGh(f.root, {
+      "t1-held|7": JSON.stringify({
+        number: 7,
+        state: "OPEN",
+        isDraft: false,
+        createdAt: "2099-01-01T00:00:00Z",
+        mergedAt: null,
+      }),
+    });
+    try {
+      const held = await runCommand(sync, ctx, {});
+      expect(held.data.reconciled).toEqual([]);
+      expect(status()).toBe("review");
+      expect(held.warnings).toContainEqual(
+        expect.stringContaining(
+          "t1: the facts (branch_merged) point from review to done, but reconcile does not advance it, because the conditions are not met: pr_merged (boundaries review → done)",
+        ),
+      );
+    } finally {
+      restore();
+    }
+
+    // --version も失敗する gh を PATH の先頭に置く（gh がないのと同じ扱いになり、PR の事実はどれも不明）
+    const bin = path.join(f.root, "no-gh-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(path.join(bin, "gh"), "#!/bin/sh\nexit 127\n", { mode: 0o755 });
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    try {
+      const synced = await runCommand(sync, ctx, {});
+      expect(synced.data.reconciled).toEqual([
+        { id: "t1", from: "review", to: "done", when: ["branch_merged"] },
+      ]);
+      expect(status()).toBe("done");
+    } finally {
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  });
+
   it("sync が gh を待っている間もほかの書き込みは待たずに通り、照合はその後の最新の状態で判定し直して書く（t758）", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

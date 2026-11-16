@@ -47,13 +47,19 @@ export type ReconcileOutcome =
 /**
  * 照合で当てる越える条件。PR のないチケット（番号の記録がなく、ブランチ名でも見つからない）には PR の事実（pr_*）の条件を当てない。
  * PR を使わない進め方では PR の事実がいつも偽で、既定の review → done（requires: [pr_merged]）のままでは
- * ブランチのマージで done に進めなくなるため。手で越える操作には当てたままにする（workflow/resolve.ts の requiresForTicket）
+ * ブランチのマージで done に進めなくなるため。手で越える操作には当てたままにする（workflow/resolve.ts の requiresForTicket）。
+ * PR の番号があっても PR の事実を読めなかった（gh がない・失敗した。pr_* がどれも不明）チケットは、PR のないチケットと同じに扱う。
+ * 不明を偽と読むと、gh のないマシンでマージ済みのブランチが done に進まず、照合が Git の事実だけで成り立たなくなるため（ST-6）。
+ * 読めた PR がマージ済みでないなら、条件を当てて止める
  */
 function requiresForReconcile(
   requires: readonly Condition[],
   pr: number | undefined,
+  facts: Facts,
 ): readonly Condition[] {
-  if (pr !== undefined) return requires;
+  const prFactsRead =
+    facts.pr_open !== undefined || facts.pr_draft !== undefined || facts.pr_merged !== undefined;
+  if (pr !== undefined && prFactsRead) return requires;
   return requires.filter((c) => !c.replace(/^!/, "").startsWith("pr_"));
 }
 
@@ -76,7 +82,7 @@ export function reconcileStatus(
     if (!evaluateAll(trigger.when, facts).ok) continue;
     if (!isForward(current, trigger.status)) return { kind: "none" };
     const policy = boundaryPolicy(crossedBoundaries(wf, current, trigger.status));
-    const { unmet } = evaluateAll(requiresForReconcile(policy.requires, opts.pr), facts);
+    const { unmet } = evaluateAll(requiresForReconcile(policy.requires, opts.pr, facts), facts);
     const humanOnly = judgeDecisions(policy.decisions, "reconcile") === "reject";
     if (unmet.length > 0 || humanOnly)
       return {

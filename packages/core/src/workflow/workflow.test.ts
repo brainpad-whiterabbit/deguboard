@@ -567,10 +567,35 @@ describe("照合", () => {
       unmet: ["pr_merged"],
       humanOnly: false,
     });
-    // PR の事実を取れなかった（不明）ときも偽と読んで進めない
-    expect(reconcileStatus(sd, "review", { branch_merged: true }, { pr: 7 })).toMatchObject({
+    // gh が「その番号の PR はない」と答えた（PR の事実がどれも偽）ときも、読めた事実として当てる
+    expect(
+      reconcileStatus(
+        sd,
+        "review",
+        { branch_merged: true, pr_open: false, pr_draft: false, pr_merged: false },
+        { pr: 7 },
+      ),
+    ).toMatchObject({ kind: "blocked", unmet: ["pr_merged"] });
+  });
+
+  it("PR の番号があっても PR の事実を読めなかった（gh がない・失敗した）チケットは、PR のないチケットと同じに、ブランチのマージで done に進む（ST-6）", () => {
+    for (const from of ["review", "in_progress"] as const) {
+      expect(
+        reconcileStatus(sd, from, { branch_exists: true, branch_merged: true }, { pr: 7 }),
+        from,
+      ).toMatchObject({ kind: "advance", to: "done", trigger: { when: ["branch_merged"] } });
+    }
+    // PR の事実でない条件は当てたまま
+    const wf = withBoundaries([
+      { from: "review", to: "done", requires: ["pr_merged", "branch_pushed"] },
+    ]);
+    expect(reconcileStatus(wf, "review", { branch_merged: true }, { pr: 7 })).toMatchObject({
       kind: "blocked",
-      unmet: ["pr_merged"],
+      unmet: ["branch_pushed"],
+    });
+    // マージされていなければ進まない
+    expect(reconcileStatus(sd, "review", { branch_exists: true }, { pr: 7 })).toEqual({
+      kind: "none",
     });
   });
 
