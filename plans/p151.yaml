@@ -1,0 +1,15 @@
+id: p151
+tickets: [t1021, t1044]
+after:
+  t1044:
+    - t1021
+pending_approval: true
+details:
+  t1021:
+    scope: 左パネルのタイトル行とコマンドパレットからセットアップの画面を行き来でき、帯を出さないと決めたリポジトリで帯をまた出せるようにする（画面の中の見た目は t1044）
+    approach: UI 案 A のとおり、vscode の view/title にコマンドを足して toggleInSidebar と同じ行き来にし、web は setupOpen の間タブを選ばない見た目にして、帯の再表示を SETUP_BAND_DISMISSED_KEY を消して戻す
+    tier: heavy
+  t1044:
+    scope: セットアップの画面の戻るボタンをなくし、確かめ直しを見出しの ↻ のアイコンにし、満たした推奨の項目も並べる
+    approach: setup-checklist.tsx の部品を直し、l10n-screens の ja・en のスナップショットを更新する
+    tier: standard
