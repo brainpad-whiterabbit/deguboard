@@ -37,7 +37,7 @@ jobs:
           cache: false
       - name: 拡張のパッケージの依存だけを lockfile どおりに入れる
         # 依存のスクリプトは走らせない（publish に要らない。build もしない）
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter deguboard
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter deguboard-vscode
       - name: Release の VSIX を落とし、版がタグと合うか確かめる
         env:
           GH_TOKEN: ${{ github.token }}
@@ -50,7 +50,7 @@ jobs:
             exit 1
           fi
       - name: Marketplace に出す
-        run: pnpm --filter deguboard exec vsce publish --oidc --packagePath "$RUNNER_TEMP/deguboard-vscode.vsix"
+        run: pnpm --filter deguboard-vscode exec vsce publish --oidc --packagePath "$RUNNER_TEMP/deguboard-vscode.vsix"
 
   open-vsx:
     if: ${{ !github.event.release.prerelease }}
@@ -68,7 +68,7 @@ jobs:
           version: ${{ env.MISE_VERSION }}
           cache: false
       - name: 拡張のパッケージの依存だけを lockfile どおりに入れる
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter deguboard
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter deguboard-vscode
       - name: Release の VSIX を落とし、版がタグと合うか確かめる
         env:
           GH_TOKEN: ${{ github.token }}
@@ -84,4 +84,4 @@ jobs:
         env:
           # ovsx は OVSX_PAT からトークンを読む
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: pnpm --filter deguboard exec ovsx publish "$RUNNER_TEMP/deguboard-vscode.vsix"
+        run: pnpm --filter deguboard-vscode exec ovsx publish "$RUNNER_TEMP/deguboard-vscode.vsix"
