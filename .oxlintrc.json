@@ -69,7 +69,9 @@
         "packages/core/src/errors.ts",
         "packages/core/src/fast-hook.ts",
         "packages/core/src/bundle-layout.ts",
-        "packages/core/src/bundle-layout.test.ts"
+        "packages/core/src/bundle-layout.test.ts",
+        "packages/core/src/shell-quote.ts",
+        "packages/core/src/shell-quote.test.ts"
       ],
       "rules": {
         "no-restricted-imports": [
