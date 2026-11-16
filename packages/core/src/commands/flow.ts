@@ -360,7 +360,14 @@ export function approvalOf(
   stage: FlowStageName,
   opts: { auto: boolean } & FlowDecisions,
 ): FlowApproval {
-  const judged = (name: string, decision: Decision, what: string, free: string): FlowApproval => {
+  // rejected は、値が人だけ（reject）のときに what に代える文。段階の一部だけを dg が拒否する段階（release）が渡す
+  const judged = (
+    name: string,
+    decision: Decision,
+    what: string,
+    free: string,
+    rejected?: string,
+  ): FlowApproval => {
     const value = `${name}: ${decision}`;
     const agent = judgeDecisions([decision], "agent", opts.auto);
     const viaAuto = opts.auto && autoApplies([decision]);
@@ -377,7 +384,8 @@ export function approvalOf(
       required: true,
       what:
         agent === "reject"
-          ? `${what} (only a person does it: an agent's call is rejected, so ask a person to run the commands)`
+          ? (rejected ??
+            `${what} (only a person does it: an agent's call is rejected, so ask a person to run the commands)`)
           : what,
       auto: null,
       auto_ok: false,
@@ -426,6 +434,9 @@ export function approvalOf(
         opts.flow.release,
         "Merging the release PR, publishing, and closing",
         "Merging the release PR, publishing, and closing",
+        // flow.release で dg が拒否するのは Iteration を閉じる・再開するだけ。リリースの PR のマージと公開は
+        // コマンドで止められないので、人だけの値でも、人に聞いた後にエージェントが行う（guide release の手順 3）
+        "Merging the release PR and publishing (ask a person before each one; when approved, the agent runs them), and closing the Iteration (only a person does it: an agent's call of dg iteration close is rejected, so ask a person to run it)",
       );
     // 終わった Plan を閉じるのは人の判断に入れない（終わった状態を記録するだけで、チケットは変わらない）
     case "close":

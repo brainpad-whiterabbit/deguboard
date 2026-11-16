@@ -25,6 +25,7 @@ Iteration の流れ（段階・次の 1 手・止まる判定・承認の要否�
 - Iteration（かチケットの束）の流れの段階、次の 1 手、止まる判定、承認の要否は Core のコマンド（`dg flow next`）が返す。`dg guide all` は段階の順と判定の規則を書かず、返った手の行い方だけを書く
 - 承認の要否は、Workflow の権限の値（[ADR-003](ADR-003-status-and-workflow.md)）をエージェントに当てて決める。段階ごとの値は `flow`（assign・check・plan・audit・release・retro）に、作業の段階のマージは review → done の境目の `decide` に書く。既定は assign・check・plan が `ask_unless_auto`、audit・retro が `always_ask`、release が `human_only`
 - `flow` の値のうち、コマンドで止められる操作は dg が判定して拒否する：割り当て（Iteration・Epic への出し入れ）は assign、Plan の承認は plan、Iteration を閉じる・再開するは release。コマンドで止められない場面（点検の直す行・見直しの指摘の表・リリースの PR のマージと公開）は、`dg flow next` が承認の要否として返し、手順が人に聞く
+- assign が判定するのは、すでにあるチケットの出し入れだけ。起票のときの指定（`ticket create`・`import` の `--iteration`・`--epic`）は起票の判定（`governance.create`）に、`claim` が自分で入れる Iteration は config の `lint.require_iteration` に従うので、assign の外に置く（同じ操作を 2 つの値で判定しない）
 - 動かすのは引き続きエージェントで、dg はエージェントを起動も監視もしない（[ADR-028](ADR-028-agents-and-state.md)・EX-1）
 
 ### `--auto` は ask_unless_auto の場面を聞かずに進める意味だけを持ち、各コマンドが受ける

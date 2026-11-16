@@ -41,7 +41,7 @@ export const permissionFields = {
 
 /** Iteration・Epic への出し入れの判定の案内（iteration add / remove・epic add / remove・ticket update の --help に出す） */
 export const ASSIGN_NOTE =
-  "The Workflow's flow.assign judges putting tickets into and out of an Iteration or Epic (ask_unless_auto by default; see dg workflow show --help for the values): an agent passes --approved-by after a person approved it, or --auto in a flow that a person started with --auto, and the approver is recorded in the commit message";
+  "The Workflow's flow.assign judges putting tickets into and out of an Iteration or Epic (ask_unless_auto by default; see dg workflow show --help for the values): an agent passes --approved-by after a person approved it, or --auto in a flow that a person started with --auto, and the approver is recorded in the commit message. Outside it: --iteration and --epic of dg ticket create and import (creating is judged by governance.create), and the Iteration that dg ticket claim adds by itself (it follows config's lint.require_iteration)";
 
 export interface PermissionInput {
   approved_by?: string | undefined;

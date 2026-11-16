@@ -334,7 +334,28 @@ describe("approvalOf（承認の要否は Workflow の値から決まる）", ()
       value: "flow.release: human_only",
       agent: "reject",
     });
-    expect(release.what).toContain("only a person does it");
+    // 人だけになるのは dg が拒否する Iteration を閉じる操作だけ。リリースの PR のマージと公開は、人に聞いた後にエージェントが行う
+    expect(release.what).toBe(
+      "Merging the release PR and publishing (ask a person before each one; when approved, the agent runs them), and closing the Iteration (only a person does it: an agent's call of dg iteration close is rejected, so ask a person to run it)",
+    );
+  });
+
+  it("flow.release が always_ask なら、リリースの段階は人だけの文にならず、マージ・公開・閉じるを人に聞く", () => {
+    for (const auto of [false, true])
+      expect(
+        approvalOf("release", {
+          auto,
+          ...DEFAULT_DECISIONS,
+          flow: { ...DEFAULT_DECISIONS.flow, release: "always_ask" },
+        }),
+      ).toEqual({
+        required: true,
+        what: "Merging the release PR, publishing, and closing",
+        auto: null,
+        auto_ok: false,
+        value: "flow.release: always_ask",
+        agent: "approval",
+      });
   });
 
   it("値を変えると承認の要否が変わる：always_ask は --auto でも聞き、anyone は --auto がなくても聞かず、human_only は人に頼む", () => {
@@ -550,7 +571,9 @@ describe("dg flow next", () => {
       stage: { name: "release", rule: 7 },
       approval: {
         required: true,
-        what: expect.stringContaining("Merging the release PR, publishing, and closing"),
+        what: expect.stringContaining(
+          "Merging the release PR and publishing (ask a person before each one; when approved, the agent runs them)",
+        ),
         value: "flow.release: human_only",
       },
     });
