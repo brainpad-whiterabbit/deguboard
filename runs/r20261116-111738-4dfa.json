@@ -1,0 +1,57 @@
+{
+  "id": "r20261116-111738-4dfa",
+  "ticket": "t1025",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-16T11:17:38Z",
+  "finished_at": "2026-11-16T11:18:18Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 14,
+    "output": 3227,
+    "cache_read": 288651,
+    "cache_write": 32455
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "23c5636a-4fa2-4fb4-b1a2-d06fa88b11b3",
+  "review": {
+    "heavy": 0,
+    "light": 0,
+    "passed": true,
+    "causes": {
+      "heavy": {
+        "ticket": 0,
+        "plan": 0,
+        "implementation": 0,
+        "tests": 0,
+        "documents": 0,
+        "environment": 0,
+        "unknown": 0
+      },
+      "light": {
+        "ticket": 0,
+        "plan": 0,
+        "implementation": 0,
+        "tests": 0,
+        "documents": 0,
+        "environment": 0,
+        "unknown": 0
+      }
+    }
+  },
+  "head": "ce77a411d473cf7ac5d53b0220df508ef0fcae74",
+  "waited_seconds": 0
+}
