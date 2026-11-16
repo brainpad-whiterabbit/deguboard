@@ -119,12 +119,8 @@ export const workflowDefinitionSchema = z.looseObject({
     })
     .partial()
     .optional(),
-  // reconcile は前の形のまま読む（後の変更で Core の固定のきっかけに置き換わる）。前の版の transitions（遷移ごとの by・requires）と
-  // fields（チケットの任意フィールド）はやめたので、未知の項目として警告になり、読まない
-  // 省略なら Core の既定の規則（workflow/resolve.ts の DEFAULT_RECONCILE）
-  reconcile: z
-    .array(z.strictObject({ when: z.array(conditionShape).min(1), status: statusSchema }))
-    .optional(),
+  // 前の版の transitions（遷移ごとの by・requires）・fields（チケットの任意フィールド）・reconcile（照合の規則。きっかけは
+  // Core の固定：workflow/reconcile.ts の RECONCILE_TRIGGERS）はやめたので、未知の項目として警告になり、読まない
 });
 /** 読める項目の名前。ここにない最上位の鍵は未知の項目 */
 export const WORKFLOW_ITEMS = Object.keys(workflowDefinitionSchema.shape);

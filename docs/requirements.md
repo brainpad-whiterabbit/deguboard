@@ -144,10 +144,10 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.8 Workflow（`workflow.yaml`）
 
-Workflow はカンバンに 1 つで、チケットごとには選ばない。項目は状態 `states`・境目 `boundaries`・例外の動き `exceptions`・列の上限 `wip`・流れの段階 `flow`・カンバンの管理 `governance` の 6 つ。照合 `reconcile` は、Core が固定で持つ形に置き換えるまで前の形のまま読む（WF-2）。どの項目も省け、省いた項目は Core の既定になる（ファイルがなくても同じ）。今の値は `dg workflow show`、項目と形は `packages/core/src/model/workflow.ts`、既定は `packages/core/src/workflow/resolve.ts` が正本（理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）。
+Workflow はカンバンに 1 つで、チケットごとには選ばない。項目は状態 `states`・境目 `boundaries`・例外の動き `exceptions`・列の上限 `wip`・流れの段階 `flow`・カンバンの管理 `governance` の 6 つ。どの項目も省け、省いた項目は Core の既定になる（ファイルがなくても同じ）。今の値は `dg workflow show`、項目と形は `packages/core/src/model/workflow.ts`、既定は `packages/core/src/workflow/resolve.ts` が正本（理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）。
 
 - WF-1 Status は 5 つ（3. 用語）で、増やせず、変えられるのは `states` の表示名 `label` だけ。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。境目は前へ進む隣どうしの 3 つ。権限の値は `human_only`・`always_ask`・`ask_unless_auto`・`anyone`・`agent_only` の 5 つ（判定は ST-2）
-- WF-2 境目の `requires`（越える条件の AND。満たしても自動では進めない）と `reconcile.when` に書けるのは組み込みの事実（`deps_done`・`branch_exists`・`branch_pushed`・`branch_merged`・`pr_open`・`pr_draft`・`pr_merged`）とその否定だけで、スクリプトは実行しない。`deps_done` は `depends_on` がすべて done か abandoned のとき真
+- WF-2 境目の `requires`（越える条件の AND。満たしても自動では進めない）に書けるのは組み込みの事実（`deps_done`・`branch_exists`・`branch_pushed`・`branch_merged`・`pr_open`・`pr_draft`・`pr_merged`）とその否定だけで、スクリプトは実行しない。`deps_done` は `depends_on` がすべて done か abandoned のとき真。照合のきっかけは書けない（ST-4）
 - WF-3 増やした Status・3 つでない境目・未知の値と条件と段階・重複などの誤りは、読み込み時と `dg workflow validate` で指摘し、誤りのある Workflow は使わない。未知の項目は警告にとどめる（検査の項目は `packages/core/src/workflow/validate.ts`）
 - WF-4 同梱するのは既定の `workflow.yaml` を 1 つだけで、`dg init` が置く（既にあれば書き換えない）。進め方の違いは値を書き換えて表す
 - WF-5 Run の step の語彙（investigate・implement・review・fix・merge）と Run を開く操作（RN-5）は Core が持ち、`run start` は語彙にない step を拒否する。手続きは YAML に書かず、既定の手続きは Core が（EX-3）、各手のやり方は `dg guide` が持つ
@@ -201,7 +201,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 Status を変える操作は Workflow で判定する。前へ進む操作は越える境目すべての `requires` と `decide`、ほかの動きは `exceptions` に従う。エージェントは値により人の承認（`--approved-by`）が要るか拒否され、人は `agent_only` と満たさない `requires` を `--override` の理由で越える。同じ Status への move は拒否する（細部は `dg ticket move --help`）
 - ST-3 `claim` は todo のチケットの `assignee` を自分にし、`branch` を記録して in_progress に進める（Run は RN-5）。ブランチ名は dg が `<id>-<英語の内容>`、内容がなければ `<id>` にする。Iteration の追加と開始・worktree の作成と準備ができなければ警告して成功する。todo 以外と使えないブランチ名は拒み、別のユーザの担当は上書きして警告する（細部は `ticket claim --help`）
-- ST-4 照合は `dg sync` と画面の同期（UI-6）で行う。`branch` のあるチケットの事実を Git から集め、`reconcile` 規則を上から評価し、前進するときだけ書き換える（`done`・`abandoned` には触れない）。先端が claim の起点（TK-10）のままのブランチはマージ済みにしない。`merge.delete_branch` が true なら、done にしたチケットの残った worktree とブランチを消す（作業が残れば消さず警告する）
+- ST-4 照合は `dg sync` と画面の同期（UI-6）で行う。`branch` のあるチケットを、Core の固定のきっかけで、越える境目の `requires` を満たすときだけ前進させる（`done`・`abandoned` には触れない）。先端が claim の起点（TK-10）のままのブランチはマージ済みにしない。`merge.delete_branch` が true なら、done にしたチケットの残った worktree とブランチを消す（作業が残れば消さず警告する）
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む。結果（`reconciled`）には根拠の条件（`when`）を含める。細部は `packages/core/src/git/facts.ts`・`workflow/reconcile.ts`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)
 - ST-6 PR の事実は `gh` が使えるときだけ取る（なくても照合は Git の事実で成り立つ）。ブランチ名で見つけた PR の番号を `pr` に記録し（記録済みは書き換えない）、実装の Run を閉じる（RN-6）。`branch_at` より前に作られた、開いていない（マージ済みか閉じた）PR は前の作業のものとして使わず警告する（細部は `packages/core/src/git/facts.ts`）
 - ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee`・`branch`・`branch_at`・`branch_base`・`pr` を消す（前の作業の PR を次の claim に残さない。実装・手直しの Run は RN-6）。ほかの claim は強制の指定で外す。生存監視はしない

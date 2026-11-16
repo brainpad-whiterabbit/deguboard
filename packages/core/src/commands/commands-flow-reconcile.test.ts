@@ -12,6 +12,7 @@ import type { RunId } from "../model/run.js";
 import { resetGhCache } from "../git/facts.js";
 import { recordBaseline } from "../git/outside.js";
 import { closeRun, peekRunningRuns } from "../run/record.js";
+import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { runFinish } from "./run.js";
@@ -32,6 +33,7 @@ import {
   fakeGh,
   runCleanups,
   writeOpenWorkflow,
+  writeWorkflowYaml,
 } from "../../test/helpers/commands-context.js";
 
 // 照合の書き込みが閉じる直前に、別の文脈が先に閉じる形を作るための差し込み（通常は素通し）
@@ -107,9 +109,10 @@ describe("チケットの流れ（照合と claim）", () => {
     expect((await runCommand(ticketShow, broken, { ticket: "t1" })).data.worktree).toBeNull();
   });
 
-  it("起票 → claim → review → マージの照合で done になる", async () => {
+  it("起票 → claim → review → マージの照合で done になる（PR を使わない進め方：dg init が置いた既定の workflow.yaml のまま、ブランチのマージで進む）", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
+    expect(ctx.store.workflow).toMatchObject({ exists: true, resolved: DEFAULT_WORKFLOW });
     const created = await runCommand(ticketCreate, ctx, {
       title: "Login validation",
       summary: "入力の検査",
@@ -364,7 +367,6 @@ describe("チケットの流れ（照合と claim）", () => {
 
   it("照合は gh がブランチ名で見つけた PR の番号を pr に記録し、記録済みや PR のないチケットは書き換えない", async () => {
     const f = await fixture();
-    // software-development の Workflow だけが PR の事実（pr_*）を見る
     const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "With PR" });
     await runCommand(ticketCreate, ctx, { title: "Without PR" });
@@ -423,6 +425,66 @@ describe("チケットの流れ（照合と claim）", () => {
     } finally {
       process.env["PATH"] = savedPath;
       resetGhCache();
+    }
+  });
+
+  it("照合は越える境目の requires を満たすときだけ進め、human_only の境目は越えずに、止めた理由と人の進め方を警告する（ST-4）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await writeWorkflowYaml(ctx, [
+      "boundaries:",
+      "  - { from: in_progress, to: review, requires: [branch_pushed] }",
+      "  - { from: review, to: done, requires: [pr_merged], decide: human_only }",
+    ]);
+    await runCommand(ticketCreate, ctx, { title: "Gated" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-gated" });
+    await recordBaseline(ctx.repo);
+    // ブランチはローカルだけ（push していない）
+    await git(f.cloneA, ["branch", "t1-gated"]);
+    await git(f.cloneA, ["checkout", "-q", "t1-gated"]);
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
+    await git(f.cloneA, ["checkout", "-q", "main"]);
+    const pr = (state: string, mergedAt: string | null) =>
+      JSON.stringify({
+        number: 42,
+        state,
+        isDraft: false,
+        createdAt: "2099-01-01T00:00:00Z",
+        mergedAt,
+      });
+    const status = () => ctx.store.tickets.get("t1")?.data.status;
+    const restore = await fakeGh(f.root, { "t1-gated|42": pr("OPEN", null) });
+    try {
+      // 下書きでない PR が開いた（きっかけ）が、in_progress → review の requires（branch_pushed）を満たさないので進めない
+      const unmet = await runCommand(sync, ctx, {});
+      expect(unmet.data.reconciled).toEqual([]);
+      expect(unmet.data.pr_recorded).toEqual([{ id: "t1", pr: 42 }]);
+      expect(status()).toBe("in_progress");
+      expect(unmet.warnings).toContain(
+        't1: the facts (pr_open, !pr_draft) point from in_progress to review, but reconcile does not advance it, because the conditions are not met: branch_pushed (boundaries in_progress → review). It advances at a sync after the conditions are met; a person can go ahead without them with ticket move t1 review --override "reason"',
+      );
+
+      // 満たせば、次の照合で進む
+      await git(f.cloneA, ["push", "-q", "origin", "t1-gated"]);
+      const met = await runCommand(sync, ctx, {});
+      expect(met.data.reconciled).toEqual([
+        { id: "t1", from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
+      ]);
+
+      // PR がマージされて requires（pr_merged）は満たすが、review → done は human_only なので、エージェントの側の照合は進めない
+      await fakeGh(f.root, { "t1-gated|42": pr("MERGED", "2099-01-02T00:00:00Z") });
+      const limited = await runCommand(sync, ctx, {});
+      expect(limited.data.reconciled).toEqual([]);
+      expect(status()).toBe("review");
+      expect(limited.warnings).toContain(
+        "t1: the facts (pr_merged) point from review to done, but reconcile does not advance it, because the Workflow limits the move to a person (human_only) (boundaries review → done). A person moves it with ticket move t1 done",
+      );
+
+      // 人が手で進める（requires は満たしているので強制は要らない）
+      const moved = await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+      expect(moved.data).toMatchObject({ status: "done", from: "review" });
+    } finally {
+      restore();
     }
   });
 

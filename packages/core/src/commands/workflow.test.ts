@@ -61,7 +61,6 @@ async function writeWorkflowFile(ctx: CommandContext, text: string): Promise<voi
 const strict = {
   states: { review: { label: "Client Review" } },
   boundaries: [{ from: "review", to: "done", decide: "human_only" }],
-  reconcile: [{ when: ["branch_merged"], status: "done" }],
 };
 
 describe("init", () => {
@@ -90,7 +89,7 @@ describe("init", () => {
   it("誤りがあって読めない workflow.yaml も書き換えず、workflow set で直せる", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    const broken = "reconcile:\n  - { when: [nope], status: done }\n";
+    const broken = "boundaries:\n  - { from: review, to: done, requires: [nope] }\n";
     await writeWorkflowFile(ctx, broken);
     expect(ctx.store.workflow).toBeUndefined();
     const again = await openContext({ cwd: f.cloneA, initialize: {} });
@@ -238,7 +237,7 @@ describe("workflow set", () => {
       before: writtenForm(DEFAULT_WORKFLOW),
       after: { states: { review: { label: "Client Review" } } },
     });
-    expect(r.data.changed).toEqual(["states", "boundaries", "reconcile"]);
+    expect(r.data.changed).toEqual(["states", "boundaries"]);
     expect(r.data).not.toHaveProperty("removed");
     expect(r.write).toMatchObject({ committed: true, pushed: true });
     expect(await commitCount(ctx)).toBe(commits + 1);
@@ -287,11 +286,6 @@ describe("workflow set", () => {
     const before = await workflowText(ctx);
     const commits = await commitCount(ctx);
     const cases: Array<[Record<string, unknown>, string]> = [
-      [{ reconcile: [{ when: ["nope"], status: "done" }] }, "reconcile[0]: unknown condition nope"],
-      [
-        { reconcile: [{ when: ["pr_merged"], status: "abandoned" }] },
-        "reconcile cannot set abandoned",
-      ],
       [{ states: { qa: { label: "QA" } } }, "Status qa does not exist"],
       [{ boundaries: [{ from: "todo", to: "done" }] }, "todo → done is not a boundary"],
       [

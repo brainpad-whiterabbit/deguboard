@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ACTORS, BOUNDARIES, DECISIONS, WORKFLOW_ITEMS } from "../model/workflow.js";
 import { STATUSES, type Status } from "../model/common.js";
 import { evaluateCondition, judgeDecision, judgeDecisions, parseCondition } from "./conditions.js";
-import { reconcileStatus, regressionWarnings } from "./reconcile.js";
+import { RECONCILE_TRIGGERS, reconcileStatus, regressionWarnings } from "./reconcile.js";
 import {
   crossedBoundaries,
   DEFAULT_WORKFLOW,
@@ -366,7 +366,6 @@ describe("省いた項目の既定", () => {
         states: { done: { label: "Shipped" } },
         flow: { "deploy-staging": { decide: "always_ask", after: "audit", guide: "docs/d.md" } },
         boundaries: [{ from: "review", to: "done", decide: "human_only" }],
-        reconcile: [{ when: ["branch_merged"], status: "done" }],
       },
       "workflow.yaml",
     );
@@ -377,15 +376,22 @@ describe("省いた項目の既定", () => {
 });
 
 describe("定義の検証（WF-3）", () => {
-  it("reconcile の未知の条件を指摘する", () => {
-    const { issues } = validateWorkflow(
+  it("前の版の reconcile は読まず、きっかけが Core の固定だと警告する。書いた規則は照合に効かない", () => {
+    const { issues, workflow } = validateWorkflow(
       {
-        reconcile: [{ when: ["!nope"], status: "done" }],
+        reconcile: [{ when: ["branch_exists"], status: "done" }],
         states: { review: { label: "レビュー" } },
       },
       "x.yaml",
     );
-    expect(issues.map((i) => i.code)).toEqual(["workflow_condition_unknown"]);
+    expect(issues.map((i) => [i.code, i.severity])).toEqual([["workflow_item_unknown", "warning"]]);
+    expect(issues[0]?.message).toContain("reconcile is no longer read");
+    expect(workflow).not.toHaveProperty("reconcile");
+    expect(workflow?.labels.review).toBe("レビュー");
+    // 書いた規則（branch_exists → done）ではなく、Core のきっかけ（branch_exists → in_progress）で判定する
+    expect(reconcileStatus(workflow!, "in_progress", { branch_exists: true })).toEqual({
+      kind: "none",
+    });
   });
 
   it("前の版の transitions は読まず、boundaries と exceptions に書くよう警告する。ほかの項目と既定の境目は使う", () => {
@@ -508,46 +514,74 @@ describe("定義の検証（WF-3）", () => {
 });
 
 describe("照合", () => {
-  // reconcile を省いた Workflow（Core の既定の規則）
+  // 既定の Workflow（dg init が置く workflow.yaml と同じ）
   const sd = DEFAULT_WORKFLOW;
+  const withBoundaries = (boundaries: unknown[]) =>
+    validateWorkflow({ boundaries }, "workflow.yaml").workflow!;
 
-  it("不明な事実を偽と読み、branch_merged だけで review → done に進む", () => {
-    expect(reconcileStatus(sd, "review", { branch_merged: true })).toMatchObject({
-      kind: "advance",
-      to: "done",
-    });
-    expect(reconcileStatus(sd, "review", { branch_exists: true })).toMatchObject({ kind: "none" });
-  });
-
-  it("in_progress のままマージされても照合で done に進む（レビューを経ない作業）", () => {
-    expect(
-      reconcileStatus(sd, "in_progress", { branch_exists: false, branch_merged: true }),
-    ).toMatchObject({
-      kind: "advance",
-      to: "done",
-    });
-  });
-
-  it("reconcile を書けば既定の規則の代わりにその規則だけで照合する", () => {
-    const wf = validateWorkflow(
-      { reconcile: [{ when: ["branch_exists"], status: "in_progress" }] },
-      "x",
-    ).workflow!;
-    expect(reconcileStatus(wf, "todo", { branch_exists: true })).toMatchObject({
+  it("きっかけは Core の固定：ブランチができた → in_progress、下書きでない PR が開いた → review、PR かブランチがマージされた → done", () => {
+    expect(RECONCILE_TRIGGERS).toEqual([
+      { when: ["pr_merged"], status: "done" },
+      { when: ["branch_merged"], status: "done" },
+      { when: ["pr_open", "!pr_draft"], status: "review" },
+      { when: ["branch_exists"], status: "in_progress" },
+    ]);
+    expect(DEFAULT_WORKFLOW).not.toHaveProperty("reconcile");
+    expect(reconcileStatus(sd, "todo", { branch_exists: true, deps_done: true })).toEqual({
       kind: "advance",
       to: "in_progress",
+      trigger: { when: ["branch_exists"], status: "in_progress" },
     });
-    expect(reconcileStatus(wf, "review", { pr_merged: true })).toEqual({ kind: "none" });
+  });
+
+  it("PR を使わない進め方（PR のないチケット）は、既定のまま、ブランチのマージで review からも in_progress からも done に進む", () => {
+    // gh がなく PR の事実が不明のときも、gh が「PR はない」と答えたとき（PR の事実がどれも偽）も同じ
+    for (const prFacts of [{}, { pr_open: false, pr_draft: false, pr_merged: false }]) {
+      for (const from of ["review", "in_progress"] as const) {
+        expect(
+          reconcileStatus(sd, from, { branch_exists: true, branch_merged: true, ...prFacts }),
+          from,
+        ).toMatchObject({
+          kind: "advance",
+          to: "done",
+          trigger: { when: ["branch_merged"] },
+        });
+      }
+    }
+    // マージされていなければ進まない
+    expect(reconcileStatus(sd, "review", { branch_exists: true })).toEqual({ kind: "none" });
+  });
+
+  it("PR のあるチケットには requires の PR の事実を当て、PR がマージされていなければブランチのマージだけでは done に進めない", () => {
+    expect(
+      reconcileStatus(
+        sd,
+        "review",
+        { branch_merged: true, pr_open: true, pr_merged: false },
+        { pr: 7 },
+      ),
+    ).toMatchObject({
+      kind: "blocked",
+      to: "done",
+      policy: "boundaries review → done",
+      unmet: ["pr_merged"],
+      humanOnly: false,
+    });
+    // PR の事実を取れなかった（不明）ときも偽と読んで進めない
+    expect(reconcileStatus(sd, "review", { branch_merged: true }, { pr: 7 })).toMatchObject({
+      kind: "blocked",
+      unmet: ["pr_merged"],
+    });
   });
 
   it("squash マージ（pr_merged だけが真でブランチは消えた）でも review → done に進む", () => {
     expect(
-      reconcileStatus(sd, "review", {
-        branch_exists: false,
-        branch_merged: false,
-        pr_merged: true,
-        pr_open: false,
-      }),
+      reconcileStatus(
+        sd,
+        "review",
+        { branch_exists: false, branch_merged: false, pr_merged: true, pr_open: false },
+        { pr: 7 },
+      ),
     ).toMatchObject({
       kind: "advance",
       to: "done",
@@ -556,14 +590,84 @@ describe("照合", () => {
 
   it("in_progress から PR が開いていれば review に進み、draft なら進まない", () => {
     expect(
-      reconcileStatus(sd, "in_progress", { branch_exists: true, pr_open: true, pr_draft: false }),
+      reconcileStatus(
+        sd,
+        "in_progress",
+        { branch_exists: true, pr_open: true, pr_draft: false },
+        { pr: 7 },
+      ),
     ).toMatchObject({ kind: "advance", to: "review" });
     expect(
-      reconcileStatus(sd, "in_progress", { branch_exists: true, pr_open: true }),
+      reconcileStatus(sd, "in_progress", { branch_exists: true, pr_open: true }, { pr: 7 }),
     ).toMatchObject({ kind: "none" });
   });
 
-  it("制約がなくても照合は前進だけで、done・abandoned は動かさず、手前を指す規則では書き換えない", () => {
+  it("越える境目の requires を満たすときだけ進める。飛ばす動きは間の境目の requires がすべて効く", () => {
+    // 既定の todo → in_progress は deps_done。依存が終わっていなければ、ブランチがあっても進めない
+    expect(reconcileStatus(sd, "todo", { branch_exists: true, deps_done: false })).toEqual({
+      kind: "blocked",
+      to: "in_progress",
+      trigger: { when: ["branch_exists"], status: "in_progress" },
+      policy: "boundaries todo → in_progress",
+      unmet: ["deps_done"],
+      humanOnly: false,
+    });
+    // 不明な事実は偽と読む
+    expect(reconcileStatus(sd, "todo", { branch_exists: true })).toMatchObject({
+      kind: "blocked",
+      unmet: ["deps_done"],
+    });
+    const wf = withBoundaries([
+      { from: "in_progress", to: "review", requires: ["branch_pushed"] },
+      { from: "review", to: "done", requires: ["pr_merged"] },
+    ]);
+    const merged = { pr_merged: true, pr_open: false };
+    // in_progress → done は in_progress → review の requires も越える
+    expect(
+      reconcileStatus(wf, "in_progress", { ...merged, branch_pushed: false }, { pr: 7 }),
+    ).toMatchObject({
+      kind: "blocked",
+      to: "done",
+      policy: "boundaries in_progress → review, review → done",
+      unmet: ["branch_pushed"],
+    });
+    expect(
+      reconcileStatus(wf, "in_progress", { ...merged, branch_pushed: true }, { pr: 7 }),
+    ).toMatchObject({ kind: "advance", to: "done" });
+    // review からは review → done の requires だけ
+    expect(
+      reconcileStatus(wf, "review", { ...merged, branch_pushed: false }, { pr: 7 }),
+    ).toMatchObject({ kind: "advance", to: "done" });
+  });
+
+  it("エージェントの側として decide を当て、human_only の境目は越えない。人の承認を求める値は、事実を作る操作が判定を済ませているので止めない", () => {
+    const merged = { pr_merged: true, pr_open: false };
+    const decided = (decide: string) =>
+      reconcileStatus(
+        withBoundaries([{ from: "review", to: "done", requires: ["pr_merged"], decide }]),
+        "review",
+        merged,
+        { pr: 7 },
+      );
+    expect(decided("human_only")).toMatchObject({
+      kind: "blocked",
+      to: "done",
+      policy: "boundaries review → done",
+      unmet: [],
+      humanOnly: true,
+    });
+    for (const decide of ["always_ask", "ask_unless_auto", "anyone", "agent_only"])
+      expect(decided(decide), decide).toMatchObject({ kind: "advance", to: "done" });
+    // 飛ばす動きは、間の境目の厳しいほうの値が効く
+    const wf = withBoundaries([{ from: "in_progress", to: "review", decide: "human_only" }]);
+    expect(reconcileStatus(wf, "in_progress", merged, { pr: 7 })).toMatchObject({
+      kind: "blocked",
+      humanOnly: true,
+    });
+    expect(reconcileStatus(wf, "review", merged, { pr: 7 })).toMatchObject({ kind: "advance" });
+  });
+
+  it("照合は前進だけで、done・abandoned は動かさず、手前を指すきっかけでは書き換えない", () => {
     expect(reconcileStatus(sd, "done", { branch_exists: true })).toEqual({ kind: "terminal" });
     expect(reconcileStatus(sd, "abandoned", { branch_merged: true })).toEqual({ kind: "terminal" });
     expect(reconcileStatus(sd, "review", { branch_exists: true, pr_open: false })).toEqual({
@@ -586,19 +690,5 @@ describe("照合", () => {
       ),
     ).toEqual([]);
     expect(regressionWarnings("done", { branch_exists: false })).toEqual([]);
-  });
-
-  it("照合は境目の requires・decide を見ずに、規則だけで前進する", () => {
-    const wf = validateWorkflow(
-      {
-        boundaries: [{ from: "review", to: "done", requires: ["pr_merged"], decide: "human_only" }],
-        reconcile: [{ when: ["branch_merged"], status: "done" }],
-      },
-      "x",
-    ).workflow!;
-    expect(reconcileStatus(wf, "review", { branch_merged: true })).toMatchObject({
-      kind: "advance",
-      to: "done",
-    });
   });
 });

@@ -843,7 +843,7 @@ describe("dg", () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     const bad = path.join(f.root, "bad.yaml");
-    await writeFile(bad, "reconcile:\n  - { when: [nope], status: done }\n");
+    await writeFile(bad, "boundaries:\n  - { from: review, to: done, requires: [nope] }\n");
     const rejected = await dg(f.cloneA, ["--json", "workflow", "set", "--file", bad]);
     expect(rejected.code).toBe(1);
     expect(rejected.json()).toMatchObject({ ok: false, error: { code: "VALIDATION_FAILED" } });

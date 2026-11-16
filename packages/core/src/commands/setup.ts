@@ -78,7 +78,6 @@ import { pathExists } from "../storage/exists.js";
 import { checkReferences } from "../storage/integrity.js";
 import type { Issue } from "../storage/issue.js";
 import { CONFIG_FILE, WORKFLOW_FILE } from "../storage/paths.js";
-import type { WorkflowEntry } from "../storage/store.js";
 import { cyclePath, findCrossingCycle } from "../storage/wait-cycle.js";
 import { reconcileStatus, regressionWarnings } from "../workflow/reconcile.js";
 import { defaultWorkflowFile } from "../workflow/resolve.js";
@@ -212,17 +211,11 @@ export const init = defineCommand({
   },
 });
 
-/** 照合の規則が pr_* を参照していれば gh を呼ぶ */
-function needsPr(wf: WorkflowEntry): boolean {
-  const refs = wf.resolved.reconcile.flatMap((r) => r.when);
-  return refs.some((c) => c.replace(/^!/, "").startsWith("pr_"));
-}
-
 export interface ReconciledTicket {
   id: string;
   from: string;
   to: string;
-  /** 当てはまった reconcile 規則の条件（根拠の事実。例：["pr_merged"]） */
+  /** 当てはまった照合のきっかけの条件（根拠の事実。例：["pr_merged"]。workflow/reconcile.ts の RECONCILE_TRIGGERS） */
   when: string[];
   /** done にしたときに消した worktree とブランチ（config の merge.delete_branch が true のときだけ付く。ST-4） */
   removed?: RemovedWork;
@@ -367,10 +360,11 @@ function reconcileTargets(ctx: CommandContext): BranchTicket[] {
 }
 
 /** collectBranchFacts に渡す入力と、その入力を比べる鍵。ロックの中で鍵が変わっていれば、集めた事実はもう今のチケットのものでない */
-function branchFactsInput(doc: BranchTicket, wf: WorkflowEntry) {
+function branchFactsInput(doc: BranchTicket) {
   const opts: BranchFactsOptions = {
     pr: doc.data.pr,
-    needPr: needsPr(wf),
+    // 照合のきっかけは PR の事実を見るので、いつも gh を呼ぶ
+    needPr: true,
     status: doc.data.status,
     since: doc.data.branch_at ?? doc.data.created_at,
     start: doc.data.branch_base,
@@ -394,9 +388,8 @@ function branchFactsInput(doc: BranchTicket, wf: WorkflowEntry) {
 async function collectReconcileFacts(ctx: CommandContext): Promise<CollectedFacts> {
   const collected: CollectedFacts = { branches: new Map(), prCreated: new Map() };
   for (const doc of reconcileTargets(ctx)) {
-    const wf = ctx.store.workflow;
-    if (!wf) continue;
-    const { opts, key } = branchFactsInput(doc, wf);
+    if (!ctx.store.workflow) continue;
+    const { opts, key } = branchFactsInput(doc);
     const result = await collectBranchFacts(ctx.repo, doc.data.branch, opts);
     collected.branches.set(doc.id, { key, result });
   }
@@ -435,7 +428,7 @@ async function reconcileAll(
     // 事実を集めた後に claim・update・move などで入力が変わったチケットと、集めたときに対象でなかった（ロックの間に claim した・
     // Workflow を読めなかった）チケットは、その事実で判定しない（ロックの中で gh を呼ばない）。どちらか分からないので文言は中立にする
     const got = collected.branches.get(doc.id);
-    if (got?.key !== branchFactsInput(doc, wf).key) {
+    if (got?.key !== branchFactsInput(doc).key) {
       warnings.push(
         `${doc.id}: the facts of its work branch were not read for its current state, so it is reconciled at the next sync`,
       );
@@ -474,7 +467,24 @@ async function reconcileAll(
         `${doc.id}: PR #${ignoredPr.number}, found by branch name, is ${ignoredPr.state.toLowerCase()} and was created (${ignoredPr.createdAt}) before the branch was recorded. It is taken as a PR of earlier work with the same name, so reconcile does not use it. If this PR belongs to this ticket, record it with ticket update ${doc.id} --pr ${ignoredPr.number}, then run sync again to reconcile it. If it belongs to earlier work, do nothing`,
       );
     }
-    const outcome = reconcileStatus(wf.resolved, doc.data.status, facts);
+    const outcome = reconcileStatus(wf.resolved, doc.data.status, facts, {
+      pr: doc.data.pr ?? pr,
+    });
+    // きっかけは当てはまったが境目の方針が止めたチケットは、書き換えずに、止めた理由と人の進め方を知らせる（ST-4）
+    if (outcome.kind === "blocked") {
+      const unmet = outcome.unmet.length > 0;
+      const why = [
+        ...(unmet ? [`the conditions are not met: ${outcome.unmet.join(", ")}`] : []),
+        ...(outcome.humanOnly ? ["the Workflow limits the move to a person (human_only)"] : []),
+      ].join(", and ");
+      const move = `ticket move ${doc.id} ${outcome.to}`;
+      warnings.push(
+        `${doc.id}: the facts (${outcome.trigger.when.join(", ")}) point from ${doc.data.status} to ${outcome.to}, but reconcile does not advance it, because ${why} (${outcome.policy}). ` +
+          (outcome.humanOnly
+            ? `A person moves it with ${move}${unmet ? ' --override "reason"' : ""}`
+            : `It advances at a sync after the conditions are met; a person can go ahead without them with ${move} --override "reason"`),
+      );
+    }
     // done に進むなら、消えたブランチは正常（マージ後に消した）なので警告しない
     if (!(outcome.kind === "advance" && outcome.to === "done")) {
       for (const w of regressionWarnings(doc.data.status, facts, { prMissing }))
@@ -498,7 +508,7 @@ async function reconcileAll(
         id: doc.id,
         from: doc.data.status,
         to: outcome.to,
-        when: [...outcome.rule.when],
+        when: [...outcome.trigger.when],
       });
       // done にしたチケットの残りの worktree とブランチは、ロックを放した後に消す（設定が true のときだけ。t849）
       if (outcome.to === "done" && ctx.config.merge.delete_branch)
@@ -594,7 +604,7 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches. The data is fetched from and pushed to the data branch (config's git.data_branch, deguboard by default) of the data remote (config's git.data_remote, or git.remote when it is empty); other branches of that remote, such as other repositories' kanbans, are not taken in. The work branches are fetched from git.remote. When the config names a data remote that this clone does not have, sync fails with DATA_REMOTE_MISSING and tells how to add it; when the config just fetched changed the data remote or the data branch, sync stops with DATA_REMOTE_CHANGED before pushing, and running it again uses the new one; when the data branch on the data remote shares no history with the local kanban and both hold data (it holds another kanban), sync stops with DATA_HISTORY_UNRELATED before taking anything in and tells how to give this kanban its own branch. When config's merge.delete_branch is true and a ticket becomes done, the worktree and the local and remote work branch that remain are deleted, and each data.reconciled entry gets removed: { worktree, local_branch, remote_branch } (null for what was not deleted or did not exist). Nothing is deleted when the worktree has uncommitted changes, when sync is called from that worktree, or when a branch tip is neither the head of the merged PR nor in the base branch; the reason and the commands to delete by hand are in warnings. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). When the PR is merged, its added and deleted lines are recorded on the ticket as lines (data.lines_recorded; a ticket that already has lines is not rewritten; done tickets with no lines are filled by dg metrics lines). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
+    "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches (reconcile). The triggers of reconcile are fixed: a work branch exists → in_progress, a PR that is not a draft is open → review, the PR or the work branch is merged → done. Reconcile counts as an agent and advances a ticket only when the requires of the boundaries it crosses are met (for a ticket with no PR, the conditions on PR facts are not applied, so a merged branch reaches done) and no decide of them is human_only; a value that asks for a person's approval does not stop it, because the operation that made the fact (pr ready, pr merge) was already judged. A ticket it does not advance is named in warnings with the reason. The data is fetched from and pushed to the data branch (config's git.data_branch, deguboard by default) of the data remote (config's git.data_remote, or git.remote when it is empty); other branches of that remote, such as other repositories' kanbans, are not taken in. The work branches are fetched from git.remote. When the config names a data remote that this clone does not have, sync fails with DATA_REMOTE_MISSING and tells how to add it; when the config just fetched changed the data remote or the data branch, sync stops with DATA_REMOTE_CHANGED before pushing, and running it again uses the new one; when the data branch on the data remote shares no history with the local kanban and both hold data (it holds another kanban), sync stops with DATA_HISTORY_UNRELATED before taking anything in and tells how to give this kanban its own branch. When config's merge.delete_branch is true and a ticket becomes done, the worktree and the local and remote work branch that remain are deleted, and each data.reconciled entry gets removed: { worktree, local_branch, remote_branch } (null for what was not deleted or did not exist). Nothing is deleted when the worktree has uncommitted changes, when sync is called from that worktree, or when a branch tip is neither the head of the merged PR nor in the base branch; the reason and the commands to delete by hand are in warnings. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). When the PR is merged, its added and deleted lines are recorded on the ticket as lines (data.lines_recorded; a ticket that already has lines is not rewritten; done tickets with no lines are filled by dg metrics lines). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
     "A review result held with no Run (run review-result with no review Run, left by an environment the hook does not reach) that dg next and dg gate count as a review is written as a closed review Run marked capture: none (started and finished at the time the result was written, usage null), and the held result is linked to it (data.reviews_recorded). " +
     "A sub-agent Run left open because its record was not finished being written (one with a settling_since mark) is also closed once it has finished writing. Review Runs from a session other than the sync's are not closed; the next review start closes them. " +
     "When the import stops on a conflict, data.conflicts lists the files and data.conflict_fields lists each conflicting field as { file, field, base, local, remote }, found by running the merge driver's rule on the fork point, the local head, and the remote head (so it includes conflicts in commits after the one the rebase stopped at). For a body, field is body and each colliding block of lines is one entry. Files outside the merge driver (config.yaml and workflow.yaml) appear only in data.conflicts." +

@@ -8,7 +8,7 @@ import { GitError, runGh, runGit } from "./run.js";
 export interface BranchFactsOptions {
   /** チケットに記録された PR 番号。なければブランチ名で引く */
   pr?: number | undefined;
-  /** Workflow が pr_* を参照するときだけ gh を呼ぶ */
+  /** PR の事実（pr_*）が要るときだけ gh を呼ぶ（照合はいつも要る。手で越える操作は requires が参照するとき） */
   needPr: boolean;
   /** チケットの今の Status。in_progress で push していないブランチは作業がまだないとみなす（ST-5） */
   status?: Status | undefined;
