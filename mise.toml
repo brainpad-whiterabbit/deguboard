@@ -96,7 +96,7 @@ run = "pnpm run check:docs"
 # 軽い検査は文書を読むテストも回す。文書のテスト（check-docs.test.ts）は実際の docs・CLAUDE.md の値を確かめるので、
 # 文書だけの PR で check を落とさないように、そのテストを軽い検査に入れる（テストの値を写したファイルに替えるより、同じ入力で確かめる方を選んだ）
 [tasks."check:light"]
-description = "軽い検査。書式と文書の検査と、文書を読むテスト（test:docs）を回す。変更が config の actions.light_paths に入るファイル（文書・アセット）だけのとき、check の代わりにコミットの前と品質ゲート（actions.light_test）で回す"
+description = "軽い検査。書式と文書の検査と、文書を読むテスト（test:docs）を回す。変更が config の actions.light_paths に入るファイル（文書・アセット）だけのとき、check の代わりにコミットの前と品質ゲート（actions.light_test）で回す。ルートの README.md は actions.light_paths に入れていない。test/scripts/vscode-readme.test.ts（check:light の外）が、Marketplace の README として相対リンクがないかを読むため、README.md を変えたときは check を回す"
 run = ["pnpm run format:check", "pnpm run check:docs", "pnpm run test:docs"]
 
 [tasks."test:docs"]
