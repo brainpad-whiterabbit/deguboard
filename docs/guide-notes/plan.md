@@ -5,7 +5,7 @@ If two or more tickets of the plan are likely to change the same section of docs
 Basis: in s36 concurrent-overlap-rate was 11/27. Drop this rule when, for 3 Iterations in a row, no pair counted by concurrent-overlap-rate shares docs/requirements.md.
 
 Use tier light only for a change of wording. Set tier standard for a document that restates facts of the code (names of Skills or commands, what a screen shows, its buttons) and for a document that moves where a convention is written (CLAUDE.md, development.md, the guides), even when the ticket changes only documents.
-Basis: in s37 all 6 heavy findings came from 3 light document tickets (heavy-per-reviewed 0.46, t996). Drop this rule when, for 3 Iterations in a row, no ticket with tier light has a heavy finding.
+Basis: in s37 all 6 heavy findings came from 3 light document tickets (heavy-per-reviewed 0.46, t996). Drop this rule when, for 3 Iterations in a row, no ticket with tier light (details.<id>.tier in dg plan show) has a heavy finding (reviews.heavy in dg metrics show --by ticket).
 
 If the change of any ticket is likely to exceed 800 lines, split it into tickets that each stay under 800 lines, link them with after in the order they should land, and suggest to the human that they re-file them with dg guide import. A ticket that changes the data sync and write path keeps the stricter limit of 500 lines above.
 Basis: in s38 size-spread was 38.7, and 3 of the 4 escaped defects came from tickets over 900 lines (t1007: 3986 lines). Drop this rule when size-spread stays at 20 or below for 3 Iterations in a row.
