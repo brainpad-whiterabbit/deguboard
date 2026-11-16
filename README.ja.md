@@ -22,7 +22,7 @@ VS Code の中で AI エージェントと一緒に使うカンバンボード�
 
 ## 導入
 
-1. **拡張を入れる**：VS Code の拡張機能のビューで `deguboard` を検索して **deguboard for VS Code** を入れるか、[Marketplace の拡張のページ](https://marketplace.visualstudio.com/items?itemName=deguboard.deguboard-vscode)の Install を押します。拡張の ID が `deguboard.deguboard` だった前のリリースを入れているなら、先に `code --uninstall-extension deguboard.deguboard` で外します（外さないと画面とコマンドが二重に出ます）。Marketplace を使えないエディタ（Cursor・VSCodium など）では、[GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を取得し、コマンドパレットの **Extensions: Install from VSIX...** でそのファイルを選んで入れ、ウィンドウを再読み込みします。
+1. **拡張を入れる**：VS Code の拡張機能のビューで `deguboard` を検索して **deguboard for VS Code** を入れるか、[Marketplace の拡張のページ](https://marketplace.visualstudio.com/items?itemName=deguboard.deguboard-vscode)の Install を押します。Marketplace を使えないエディタ（Cursor・VSCodium など）では、[GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を取得し、コマンドパレットの **Extensions: Install from VSIX...** でそのファイルを選んで入れ、ウィンドウを再読み込みします。
 2. **チェックリストに沿って進める**：リポジトリを開き、Activity Bar の deguboard のアイコンを押して、サイドバーのチェックリストに沿って進めます。満たしていない最初の項目に、理由が出ます。コマンドで直せるときは、ボタンと実行するコマンドも出ます。コマンドで直せないとき（git がない、remote に届かないなど）は、手で直してから「もう一度確かめる」を押します。ボードの項目では、チームのボードを取り込むか、新しく作ります。チームのボードを別のリポジトリに置いているなら、そちらを選び、リポジトリ（URL か remote 名）とブランチを入れて確かめてから取り込みます。
 3. **推奨の項目を済ませる**：ボードができるといつもの画面に変わり、その上の帯に、まだ済んでいない推奨の項目が出ます。Claude Code の Skill（`/dgplan` など）とフックを入れ、`dg` コマンドを入れて、足された `.claude/.gitignore` をコミットします。`dg` コマンドは人だけでなくエージェントにも要ります。Skill とエージェントは、シェルで `dg` を呼んでボードを読み書きします。
 
