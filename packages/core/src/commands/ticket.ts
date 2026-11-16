@@ -20,14 +20,14 @@ import {
   type AcceptanceItem,
   type Ticket,
 } from "../model/ticket.js";
-import type { FactName } from "../model/workflow.js";
+import type { Condition, FactName } from "../model/workflow.js";
 import { dropRunning, peekRunningRuns, readRunningRuns, runAgentByTicket } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
-import type { Store, WorkflowEntry } from "../storage/store.js";
+import type { Store } from "../storage/store.js";
 import { cyclePath, findPlanCycleCreatedBy } from "../storage/wait-cycle.js";
 import type { Facts } from "../workflow/conditions.js";
-import { canTransition, describeRejection, findConstraint } from "../workflow/resolve.js";
+import { operationPolicy } from "../workflow/resolve.js";
 import {
   prepareIterationForClaim,
   prepareWorktreeForClaim,
@@ -38,6 +38,13 @@ import { parseDraftSource } from "./draft-source.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
 import { hooksReachSession, hooksSilentWarning, selfRunWarning } from "./hook-sessions.js";
 import { stageFactsOf, stageOf, type Stage } from "./next.js";
+import {
+  grantedNote,
+  hasRecord,
+  permissionFields,
+  requirePermission,
+  type Granted,
+} from "./permission.js";
 import { dependents, nowIso, openPlanOf, sortedDocs, ticketRef, withBody } from "./helpers.js";
 import {
   agentFromEnv,
@@ -779,17 +786,14 @@ export const ticketCheck = defineCommand({
   },
 });
 
-/** 遷移の検査に要る事実を集める。Git の事実は requires に出てくるときだけ取る */
+/** 越える条件（requires）の判定に要る事実を集める。Git の事実は requires に出てくるときだけ取る */
 async function factsFor(
   ctx: CommandContext,
   doc: Doc<Ticket>,
-  wf: WorkflowEntry,
-  from: Status,
-  to: Status,
+  requires: readonly Condition[],
 ): Promise<Facts> {
   const facts: Facts = { deps_done: ctx.store.depsDone(doc.data) };
-  const constraint = findConstraint(wf.resolved, from, to);
-  const gitFacts = (constraint?.requires ?? [])
+  const gitFacts = requires
     .map((c) => c.replace(/^!/, "") as FactName)
     .filter((f) => f !== "deps_done");
   if (gitFacts.length > 0 && doc.data.branch) {
@@ -864,10 +868,11 @@ export const ticketMove = defineCommand({
   positionals: ["ticket", "status"],
   group: "ticket",
   summary:
-    "Change the Status. Transitions that break the Workflow's transitions constraints (by, requires), and moves to the same Status, are rejected. Closes Runs running on this machine: abandoned closes implementation and fix Runs with failure; review and done for a ticket with no branch, and done with no PR, close the implementation Run with success",
+    "Change the Status. The Workflow (dg workflow show) judges the move: a move forward by the boundaries it crosses (every boundary in between when it skips one; the stricter value applies, and the requires of all of them must be met), a move to abandoned by exceptions.abandon, a move back from done or abandoned by exceptions.reopen, and any other move back by exceptions.back. By the value, an agent goes ahead, needs a person's approval (--approved-by), or is rejected (human_only); a person goes ahead, except for agent_only, which needs --override. A move forward whose requires are not met is rejected, and only a person can pass it with --override. A rejected move returns TRANSITION_REJECTED, and so does a move to the same Status. Closes Runs running on this machine: abandoned closes implementation and fix Runs with failure; review and done for a ticket with no branch, and done with no PR, close the implementation Run with success",
   input: z.object({
     ticket: ticketRef,
     status: statusSchema.describe(`Next Status (${STATUSES.join(" / ")})`),
+    ...permissionFields,
   }),
   write: true,
   needs: "store",
@@ -880,14 +885,17 @@ export const ticketMove = defineCommand({
         const from = doc.data.status;
         if (from === input.status)
           throw new OperationError("REJECTED", `${doc.id} is already ${from}`);
-        const wf = ctx.store.requireWorkflow();
-        const facts = await factsFor(ctx, doc, wf, from, input.status);
-        const check = canTransition(wf.resolved, from, input.status, ctx.actor.kind, facts);
-        if (!check.ok)
-          throw new OperationError(
-            "TRANSITION_REJECTED",
-            describeRejection(check, from, input.status),
-          );
+        const policy = operationPolicy(ctx.store.requireWorkflow().resolved, {
+          command: "ticket.move",
+          move: { from, to: input.status },
+        });
+        const granted = requirePermission(
+          ctx,
+          policy,
+          input,
+          `moving ${doc.id} from ${from} to ${input.status}`,
+          { facts: await factsFor(ctx, doc, policy.requires) },
+        );
         // PR の要らない作業（branch なし）は照合が進めないので、review・done にしたときが実装の終わり（RN-6）。
         // branch のあるチケットの実装の Run は PR の記録・発見が PR の作成時刻で閉じる
         const endRuns = runsClosedByMove(doc.data, input.status);
@@ -905,11 +913,16 @@ export const ticketMove = defineCommand({
           ...transitionSideEffects(input.status),
           updated_at: nowIso(ctx),
         });
-        return { doc: updated, from, closed };
+        return { doc: updated, from, closed, granted };
       },
       {
-        message: ({ doc, from, closed }) =>
-          withClosedRun(`Move ${doc.id} from ${from} to ${doc.data.status}`, closed),
+        message: ({ doc, from, closed, granted }) =>
+          withClosedRun(
+            `Move ${doc.id} from ${from} to ${doc.data.status}${grantedNote(ctx, granted)}`,
+            closed,
+          ),
+        // 承認者と強制の理由はこの操作のコミットに残す（まとめ待ちにすると、まとめのコミットの文に埋もれる）
+        immediate: hasRecord(input),
       },
     );
     await dropClosed(ctx, result.value.closed);
@@ -1120,7 +1133,7 @@ export const ticketClaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "Start work on a ticket. Sets the assignee to yourself, records the branch and its start commit (branch_base: the tip of base, so that reconcile does not treat a branch with no commits as merged), and sets in_progress. Winning the push gives exclusive access. Follows any todo → in_progress constraint (such as requires: [deps_done]). If the ticket is in a Plan awaiting approval, claim still succeeds and the warnings say to ask a person to approve it first. " +
+    "Start work on a ticket. Sets the assignee to yourself, records the branch and its start commit (branch_base: the tip of base, so that reconcile does not treat a branch with no commits as merged), and sets in_progress. Winning the push gives exclusive access. The Workflow's todo → in_progress boundary judges it, as for ticket move (see dg ticket move --help): unmet requires (deps_done by default) reject it, and by the decide value an agent needs --approved-by or is rejected (anyone by default). If the ticket is in a Plan awaiting approval, claim still succeeds and the warnings say to ask a person to approve it first. " +
     "If lint.require_iteration is true and the ticket has no Iteration, it goes into the active Iteration (or else the planned one, if there is only one). If there is no target, or there is no active one and several are planned, it goes into none and the warnings say to ask a person. If the ticket's Iteration is planned, it becomes active; if that fails (another active one, or actor.human_only), the failure goes into the warnings and claim still succeeds. Both are pushed in the same write as the claim. " +
     "After the push, it creates the work branch's worktree at worktree.root/<branch name> (change with --worktree-path) from that start commit, and puts its path in worktree. If a worktree for that branch already exists, it uses that; if only the local branch exists, it checks it out. If it cannot be created, the failure goes into the warnings and claim still succeeds. In a worktree it created (not an existing one), it runs config's worktree.setup commands; a failure goes into the warnings and claim still succeeds. That setup can take several minutes, such as pnpm install (limit 10 minutes), and claim does not return until it finishes. It creates no worktree with --no-worktree or --without-branch. " +
     "For an agent, it then opens an implementation Run (step implement) and prints its ID as run (on the last line of stdout in human output). The Run opens before the setup commands run. If it cannot be opened, only a warning is given and claim still succeeds. " +
@@ -1171,6 +1184,7 @@ export const ticketClaim = defineCommand({
         "Use only when claiming again (a fix made by a person or by the parent). One-line summary of the finding to fix, which goes into the fix Run's retry_reasons (see run finish --help for how to write it). A fix sub-agent asked with the marker does not claim; it writes with run retry-reason",
       ),
     ...transcriptFields,
+    ...permissionFields,
   }),
   write: true,
   needs: "store",
@@ -1210,6 +1224,7 @@ export const ticketClaim = defineCommand({
     // Iteration の準備の警告は書き込みのやり直し（cas）ごとに作り直し、最後の 1 回の分だけ返す
     let iterationWarnings: string[] = [];
     let planWarnings: string[] = [];
+    let granted: Granted = { approver: null, override: null };
     const result = await withWrite(
       ctx,
       async () => {
@@ -1254,14 +1269,13 @@ export const ticketClaim = defineCommand({
             `retry_reason can be used only when claiming again a ticket that you have claimed and that has a PR (${doc.id} is todo)`,
           );
         }
-        const wf = ctx.store.requireWorkflow();
-        const facts = await factsFor(ctx, doc, wf, "todo", "in_progress");
-        const check = canTransition(wf.resolved, "todo", "in_progress", ctx.actor.kind, facts);
-        if (!check.ok)
-          throw new OperationError(
-            "TRANSITION_REJECTED",
-            describeRejection(check, "todo", "in_progress"),
-          );
+        const policy = operationPolicy(ctx.store.requireWorkflow().resolved, {
+          command: "ticket.claim",
+          move: { from: "todo", to: "in_progress" },
+        });
+        granted = requirePermission(ctx, policy, input, `claiming ${doc.id}`, {
+          facts: await factsFor(ctx, doc, policy.requires),
+        });
         // 承認待ちの Plan に入ったチケットは、承認を待たずに始めたことを知らせる（PL-5）。止めはしない（人が承認前に始めると決めることもある）
         const pending = openPlanOf(ctx.store, doc.data.id);
         if (pending?.data.pending_approval)
@@ -1299,7 +1313,7 @@ export const ticketClaim = defineCommand({
         });
       },
       {
-        message: (doc) => `Claim ${doc.id}: ${doc.data.assignee}`,
+        message: (doc) => `Claim ${doc.id}: ${doc.data.assignee}${grantedNote(ctx, granted)}`,
         immediate: true,
         cas: true,
       },
@@ -1369,10 +1383,11 @@ export const ticketUnclaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "Remove the claim and return to todo. Also removes branch, branch_at, branch_base, and pr (the PR record of the earlier work). Only your own claim (same user, human or AI) or a claim with no record; others' claims need force. Implementation and fix Runs running on this machine are closed with failure (to keep a reason, close them first with run finish --result failure --error)",
+    "Remove the claim and return to todo. Also removes branch, branch_at, branch_base, and pr (the PR record of the earlier work). Only your own claim (same user, human or AI) or a claim with no record; others' claims need force. It is a move back, so the Workflow's exceptions.back judges it as for ticket move (anyone by default; see dg ticket move --help). Implementation and fix Runs running on this machine are closed with failure (to keep a reason, close them first with run finish --result failure --error)",
   input: z.object({
     ticket: ticketRef,
     force: z.boolean().optional().describe("Also remove other people's claims"),
+    ...permissionFields,
   }),
   write: true,
   needs: "store",
@@ -1395,6 +1410,16 @@ export const ticketUnclaim = defineCommand({
             `${doc.id} is claimed by ${owner}. To release it, add force`,
           );
         }
+        // unclaim は前の Status へ戻す動き（exceptions.back）
+        const granted = requirePermission(
+          ctx,
+          operationPolicy(ctx.store.requireWorkflow().resolved, {
+            command: "ticket.unclaim",
+            move: { from: "in_progress", to: "todo" },
+          }),
+          input,
+          `unclaiming ${doc.id}`,
+        );
         // 実装（か手直し）を途中でやめたので、開いたままの実装・手直しの Run は失敗で閉じる（RN-6）
         const closed = await closeRunsWith(
           ctx,
@@ -1415,9 +1440,13 @@ export const ticketUnclaim = defineCommand({
           branch_base: undefined,
           updated_at: nowIso(ctx),
         });
-        return { doc: updated, closed };
+        return { doc: updated, closed, granted };
       },
-      { message: ({ doc, closed }) => withClosedRun(`Unclaim ${doc.id}`, closed) },
+      {
+        message: ({ doc, closed, granted }) =>
+          withClosedRun(`Unclaim ${doc.id}${grantedNote(ctx, granted)}`, closed),
+        immediate: hasRecord(input),
+      },
     );
     await dropClosed(ctx, result.value.closed);
     return ok(withBody(result.value.doc), result.write, warnings);

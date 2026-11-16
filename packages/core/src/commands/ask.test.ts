@@ -434,7 +434,7 @@ describe("依頼文の組み立て", () => {
     expect(buildAsk({ subjects: [ticket()], action: "work", humanOnly }).kind).toBe("prompt");
   });
 
-  it("やめる・done の取り消しは、Workflow の by に agent が入っていない遷移なら人が打つコマンドを返し、入っていれば依頼文のまま", () => {
+  it("やめる・done の取り消しは、Workflow がエージェントに拒む動きなら人が打つコマンドを返し、行えれば依頼文のまま", () => {
     // todo → abandoned が人に限られる
     const abandon = buildAsk({
       subjects: [ticket({ agent_denied: ["abandoned"] }), ticket({ id: "t266" })],
@@ -443,7 +443,7 @@ describe("依頼文の組み立て", () => {
     expect(abandon).toMatchObject({
       kind: "command",
       human_only: [],
-      workflow_by: ["t265: todo → abandoned"],
+      workflow_denied: ["t265: todo → abandoned"],
       text: "dg ticket move t265 abandoned\ndg ticket move t266 abandoned",
     });
     // 戻す先がすべて人に限られる done は、取り消しを人に回す
@@ -451,11 +451,11 @@ describe("依頼文の組み立て", () => {
       buildAsk({ subjects: [ticket({ status: "done", agent_denied })], action: "undo_done" });
     expect(done(["todo", "in_progress", "review"])).toMatchObject({
       kind: "command",
-      workflow_by: ["t265: done → todo・in_progress・review"],
+      workflow_denied: ["t265: done → todo・in_progress・review"],
       text: 'dg ticket move t265 "<status>"',
     });
     // agent も行える遷移は依頼文のまま（戻す先が 1 つでも行えればエージェントに頼む）
-    expect(done(["todo", "in_progress"])).toMatchObject({ kind: "prompt", workflow_by: [] });
+    expect(done(["todo", "in_progress"])).toMatchObject({ kind: "prompt", workflow_denied: [] });
     expect(done([]).kind).toBe("prompt");
     expect(
       buildAsk({ subjects: [ticket({ agent_denied: ["done"] })], action: "abandon" }).kind,
@@ -1520,21 +1520,12 @@ describe("ask", () => {
     });
   });
 
-  it("チケットの Workflow の by を見て、人に限る遷移は人が打つコマンドを、agent を含む遷移は依頼文を返す", async () => {
+  it("Workflow の exceptions の値を見て、人に限る動き（human_only）は人が打つコマンドを、エージェントも行える動きは依頼文を返す", async () => {
     const { ctx } = await initialized();
-    await runCommand(workflowSet, ctx, {
-      definition: {
-        transitions: [
-          { from: "todo", to: "abandoned", by: ["human"] },
-          { from: "done", to: "todo", by: ["human"] },
-          { from: "done", to: "in_progress", by: ["human"] },
-          { from: "done", to: "review", by: ["human"] },
-        ],
-      },
-    });
+    // 既定の Workflow：abandon と reopen は human_only
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketCreate, ctx, { title: "B" });
-    await runCommand(ticketMove, ctx, { ticket: "t2", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "done", override: "PR なし" });
     const run = async (input: Record<string, unknown>) => (await runCommand(ask, ctx, input)).data;
 
     const abandon = await run({ targets: ["t1"], action: "abandon" });
@@ -1542,29 +1533,22 @@ describe("ask", () => {
     expect(abandon).toMatchObject({
       kind: "command",
       human_only: [],
-      workflow_by: ["t1: todo → abandoned"],
+      workflow_denied: ["t1: todo → abandoned"],
       text: "dg ticket move t1 abandoned",
     });
     expect(await run({ targets: ["t2"], action: "undo_done" })).toMatchObject({
       kind: "command",
-      workflow_by: ["t2: done → todo・in_progress・review"],
+      workflow_denied: ["t2: done → todo・in_progress・review"],
       text: 'dg ticket move t2 "<status>"',
     });
 
-    // agent を含む遷移に変えると、依頼文に戻る
+    // 人の承認で進める値（always_ask）と誰でもの値に変えると、エージェントが行えるので依頼文に戻る
     await runCommand(workflowSet, ctx, {
-      definition: {
-        transitions: [
-          { from: "todo", to: "abandoned", by: ["human", "agent"] },
-          { from: "done", to: "todo", by: ["human"] },
-          { from: "done", to: "review", by: ["agent"] },
-        ],
-      },
+      definition: { exceptions: { abandon: "always_ask", reopen: "anyone" } },
     });
-    expect(await run({ targets: ["t1"], action: "abandon" })).toMatchObject({
-      kind: "prompt",
-      workflow_by: [],
-    });
+    const asked = await run({ targets: ["t1"], action: "abandon" });
+    expect(asked).toMatchObject({ kind: "prompt", workflow_denied: [] });
+    expect(asked.targets[0]).toMatchObject({ agent_denied: [] });
     expect((await run({ targets: ["t2"], action: "undo_done" })).kind).toBe("prompt");
   });
 });

@@ -2,18 +2,11 @@
 
 import { isForward, isTerminal, type Status } from "../model/common.js";
 import { evaluateAll, type Facts } from "./conditions.js";
-import {
-  canTransition,
-  type ReconcileRule,
-  type ResolvedWorkflow,
-  type TransitionCheck,
-} from "./resolve.js";
+import type { ReconcileRule, ResolvedWorkflow } from "./resolve.js";
 
 export type ReconcileOutcome =
   /** 前進する */
   | { kind: "advance"; to: Status; rule: ReconcileRule }
-  /** 前進を指すが Workflow の transitions が reconcile に許していない。書かずに警告 */
-  | { kind: "blocked"; to: Status; rule: ReconcileRule; check: TransitionCheck }
   /** 当てはまる規則がない、または今と同じか手前を指す（書き換えない） */
   | { kind: "none" }
   /** done・abandoned には触れない */
@@ -21,7 +14,8 @@ export type ReconcileOutcome =
 
 /**
  * 規則を上から評価し、最初に当てはまった規則で判定する。
- * 規則は進んだ状態から順に並ぶ前提なので、当てはまった規則が前進でなければそこで止める
+ * 規則は進んだ状態から順に並ぶ前提なので、当てはまった規則が前進でなければそこで止める。
+ * 境目の requires・decide は見ない（手で越える操作とコマンドの判定。workflow/resolve.ts の operationPolicy）
  */
 export function reconcileStatus(
   wf: ResolvedWorkflow,
@@ -32,8 +26,6 @@ export function reconcileStatus(
   for (const rule of wf.reconcile) {
     if (!evaluateAll(rule.when, facts).ok) continue;
     if (!isForward(current, rule.status)) return { kind: "none" };
-    const check = canTransition(wf, current, rule.status, "reconcile", facts);
-    if (!check.ok) return { kind: "blocked", to: rule.status, rule, check };
     return { kind: "advance", to: rule.status, rule };
   }
   return { kind: "none" };

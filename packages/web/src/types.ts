@@ -18,6 +18,7 @@ import type {
   HistoryLog,
   Iteration,
   IterationDetail,
+  MovePermission,
   Plan,
   PlanBrief,
   PlanRow,
@@ -32,7 +33,6 @@ import type {
   TicketDetail,
   TicketRow,
   TicketRunsView,
-  TransitionConstraint,
   WhoamiView,
 } from "@deguboard/core";
 import { msg } from "./l10n.js";
@@ -164,11 +164,12 @@ export function matchesEpic(ticket: Pick<Ticket, "epic">, epic: string): boolean
   return ticket.epic === epic;
 }
 
-/** workflow.show の出力のうち画面が使うもの（遷移の制約は core の TransitionConstraint のまま） */
+/** workflow.show の出力のうち画面が使うもの（Status の動きの権限は core の MovePermission のまま） */
 export interface WorkflowView {
   /** Status の表示名（workflow.yaml の states の label。書いていない Status は core の既定） */
   labels: Record<Status, string>;
-  transitions: readonly TransitionConstraint[];
+  /** Status の動きごとの、人とエージェントの権限。前の版の画面が残した cache の Workflow にはないので省けるようにする */
+  moves?: readonly MovePermission[];
   /**
    * states を書き換えていなければ出る Status の表示名（core の既定の文のまま）。labels と同じ文なら訳す（shownWorkflow）。
    * 前の版の画面が残した cache の Workflow にはないので省けるようにし、ないときは訳さない
@@ -191,19 +192,21 @@ export type PlanDetail = Plan & {
 };
 
 /**
- * Status の選択に並べる Status：今の Status と、今から移れる Status（STATUSES の順）。core の canTransition の写しで、
- * 書かれていない遷移は自由（ST-2）、by が主体（whoami の kind）を含まない遷移は外す。主体が分からなければ by は見ない。
+ * Status の選択に並べる Status：今の Status と、今から移れる Status（STATUSES の順）。判定は core が workflow.show の moves に
+ * 入れた権限を読むだけで、画面は Workflow を解釈しない（ST-2）。人には聞かずにできる動きだけを並べ（理由の要る --override は
+ * 画面から渡せない）、エージェントには拒否される動きを外す。主体か moves が分からなければ絞らない。
  * requires は事実を画面で持たないので見ず、満たさないときは ticket.move の拒否で理由を出す
  */
 export function movableStatuses(
   current: Status,
-  transitions: WorkflowView["transitions"],
+  moves: WorkflowView["moves"],
   kind: WhoamiView["kind"] | undefined,
 ): Status[] {
   return STATUSES.filter((to) => {
     if (to === current) return true;
-    const by = transitions.find((t) => t.from === current && t.to === to)?.by;
-    return !by || (kind ? by.includes(kind) : by.length > 0);
+    const move = moves?.find((m) => m.from === current && m.to === to);
+    if (!move || !kind) return true;
+    return kind === "human" ? move.human === "allow" : move.agent !== "reject";
   });
 }
 

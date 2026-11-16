@@ -614,9 +614,9 @@ Empty
 Add
 [title] Reset to default Empty
 Reset to Default
-When empty: Every command is allowed. Ticket transitions are still restricted with the Workflow's by
+When empty: Every command is allowed. Ticket Status moves are still restricted with the Workflow's boundaries and exceptions
 Details
-Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by
+Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket Status moves are restricted with the Workflow's boundaries and exceptions
 Metrics
 Read usage from transcripts
 metrics.read_transcripts

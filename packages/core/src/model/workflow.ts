@@ -18,11 +18,11 @@ export const FACT_NAMES = [
 export type FactName = (typeof FACT_NAMES)[number];
 export type Condition = FactName | `!${FactName}`;
 
-/** 遷移を行える主体 */
+/** 操作する主体。照合（reconcile）は権限の判定でエージェントと同じ側に数える */
 export const ACTORS = ["human", "agent", "reconcile"] as const;
 export type Actor = (typeof ACTORS)[number];
 
-/** 権限の値（境目の decide と exceptions・flow・governance の値）。形と検査だけで、判定にはまだ使わない */
+/** 権限の値（境目の decide と exceptions・flow・governance の値）。主体ごとの判定は workflow/conditions.ts の judgeDecision */
 export const DECISIONS = [
   "human_only",
   "always_ask",
@@ -119,19 +119,8 @@ export const workflowDefinitionSchema = z.looseObject({
     })
     .partial()
     .optional(),
-  // 以下の 2 つは前の形のまま読む。transitions は境目の判定（boundaries・exceptions）、reconcile は Core の固定のきっかけに、
-  // それぞれ後の変更で置き換わる。前の版の fields（チケットの任意フィールド）はやめたので、未知の項目として警告になり、読まない
-  transitions: z
-    .array(
-      z.strictObject({
-        from: statusSchema,
-        to: statusSchema,
-        requires: z.array(conditionShape).default([]),
-        // 省略なら誰でも、[] ならその遷移を禁止
-        by: z.array(z.enum(ACTORS)).optional(),
-      }),
-    )
-    .default([]),
+  // reconcile は前の形のまま読む（後の変更で Core の固定のきっかけに置き換わる）。前の版の transitions（遷移ごとの by・requires）と
+  // fields（チケットの任意フィールド）はやめたので、未知の項目として警告になり、読まない
   // 省略なら Core の既定の規則（workflow/resolve.ts の DEFAULT_RECONCILE）
   reconcile: z
     .array(z.strictObject({ when: z.array(conditionShape).min(1), status: statusSchema }))

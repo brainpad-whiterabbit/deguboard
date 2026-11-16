@@ -151,7 +151,7 @@ export function PanelProps({
   );
 
   const statuses = workflow
-    ? movableStatuses(ticket.status, workflow.transitions, store.me?.kind)
+    ? movableStatuses(ticket.status, workflow.moves, store.me?.kind)
     : [ticket.status];
   const groups = [
     {

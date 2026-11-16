@@ -614,7 +614,7 @@ agent からは拒否するコマンド名
 足す
 [title] 既定の 空 に戻す
 既定に戻す
-空のとき: すべてのコマンドを許す。チケットの遷移は Workflow の by で縛る
+空のとき: すべてのコマンドを許す。チケットの Status の動きは Workflow の boundaries と exceptions で縛る
 詳しく
 actor.human_only
 計測

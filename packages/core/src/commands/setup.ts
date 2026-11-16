@@ -212,12 +212,9 @@ export const init = defineCommand({
   },
 });
 
-/** Workflow が pr_* を参照していれば gh を呼ぶ */
+/** 照合の規則が pr_* を参照していれば gh を呼ぶ */
 function needsPr(wf: WorkflowEntry): boolean {
-  const refs = [
-    ...wf.resolved.reconcile.flatMap((r) => r.when),
-    ...wf.resolved.transitions.flatMap((t) => t.requires),
-  ];
+  const refs = wf.resolved.reconcile.flatMap((r) => r.when);
   return refs.some((c) => c.replace(/^!/, "").startsWith("pr_"));
 }
 
@@ -534,10 +531,6 @@ async function reconcileAll(
           `${doc.id}: acceptance criteria items ${left.join(", ")} were left unchecked when the ticket became done`,
         );
       }
-    } else if (outcome.kind === "blocked") {
-      warnings.push(
-        `${doc.id}: the facts point to ${outcome.to}, but the Workflow does not allow that transition in reconcile`,
-      );
     }
   }
   // このマシンで開いたままの Run のうち、照合の対象にならなかったものを閉じる（RN-6）

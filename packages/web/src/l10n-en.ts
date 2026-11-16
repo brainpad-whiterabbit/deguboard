@@ -52,8 +52,8 @@ export const EN: Readonly<Record<string, string>> = {
   "{0}なので、人が打つコマンドをコピーする": "{0}, so copy the commands for a person to run",
   "{0} は人に限った操作（actor.human_only）": "{0} is limited to people (actor.human_only)",
   "・": ", ",
-  "{0} は Workflow が人に限った遷移（by）":
-    "{0} is a transition the Workflow limits to people (by)",
+  "{0} は Workflow が人に限った動き（human_only）":
+    "{0} is a move the Workflow limits to people (human_only)",
   "、": ", ",
   // components/ask-menu.tsx
   "行にマウスを載せると出る吹き出しで、エージェントに頼めます":

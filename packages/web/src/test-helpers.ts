@@ -180,7 +180,7 @@ export function fixture(partial: Partial<Fixture> = {}): Fixture {
         done: "Done",
         abandoned: "Abandoned",
       },
-      transitions: [],
+      moves: [],
     },
     status: {
       ahead: 0,

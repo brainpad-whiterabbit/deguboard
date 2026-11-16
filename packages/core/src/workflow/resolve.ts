@@ -1,14 +1,12 @@
-// workflow.yaml の定義を、省いた項目を Core の既定で補った形にし、遷移を検査する。
-// 制約のない遷移は誰でも条件なしで行える（ADR-003）
+// workflow.yaml の定義を、省いた項目を Core の既定で補った形にし、操作に当てる方針（越える条件と権限の値）を引く（ADR-003）
 
-import { STATUSES, type Status } from "../model/common.js";
+import { STATUSES, isForward, isTerminal, type Status } from "../model/common.js";
 import {
   BOUNDARIES,
   EXCEPTION_MOVES,
   FLOW_DECIDED_STAGES,
   FLOW_SKIP_KEY,
   GOVERNANCE_OPERATIONS,
-  type Actor,
   type Condition,
   type CustomStageDefinition,
   type Decision,
@@ -18,21 +16,11 @@ import {
   type WorkflowDefinition,
   type WorkflowDefinitionInput,
 } from "../model/workflow.js";
-import { evaluateAll, type Facts } from "./conditions.js";
+import { judgeDecisions, type Permission } from "./conditions.js";
 
 export interface ReconcileRule {
   when: readonly Condition[];
   status: Status;
-}
-
-/** YAML の transitions を from→to ごとに合成した制約 */
-export interface TransitionConstraint {
-  from: Status;
-  to: Status;
-  /** 行える主体。省略なら誰でも、[] なら誰も行えない */
-  by?: readonly Actor[];
-  /** 満たすべき条件（AND） */
-  requires: readonly Condition[];
 }
 
 /** 境目：越える条件（AND）と、決める人の権限の値 */
@@ -47,7 +35,7 @@ export interface CustomStage extends CustomStageDefinition {
   id: string;
 }
 
-/** 省いた項目を Core の既定で補った Workflow。transitions は制約だけで、書かれていない遷移は自由 */
+/** 省いた項目を Core の既定で補った Workflow */
 export interface ResolvedWorkflow {
   /** Status の表示名 */
   labels: Record<Status, string>;
@@ -62,7 +50,6 @@ export interface ResolvedWorkflow {
     skip: readonly string[];
   };
   governance: Record<GovernanceOperation, Decision>;
-  transitions: readonly TransitionConstraint[];
   reconcile: readonly ReconcileRule[];
 }
 
@@ -134,8 +121,7 @@ function withDefaults<K extends string, V>(
 
 /**
  * 定義を、省いた項目を Core の既定で補った形にする。states・boundaries・exceptions・flow・governance は書いた鍵だけを替え、
- * wip は項目ごと替える（書けば書いた列だけに上限が付く）。transitions は from→to ごとに 1 件にまとめる：同じ組が複数あれば
- * requires は和、by は両方にあれば積（狭い方に倒す）。重複は validate.ts が指摘する前提で、ここでは安全側に合成する
+ * wip は項目ごと替える（書けば書いた列だけに上限が付く）
  */
 export function resolveWorkflow(def: WorkflowDefinition): ResolvedWorkflow {
   const labels = { ...DEFAULT_LABELS };
@@ -160,16 +146,6 @@ export function resolveWorkflow(def: WorkflowDefinition): ResolvedWorkflow {
         stages[key as FlowDecidedStage] = value;
     } else custom.push({ id: key, ...value });
   }
-  const merged = new Map<string, TransitionConstraint>();
-  for (const t of def.transitions) {
-    const key = `${t.from}>${t.to}`;
-    const prev = merged.get(key);
-    const requires = new Set<Condition>(prev?.requires ?? []);
-    for (const r of t.requires) requires.add(r as Condition);
-    let by = prev?.by;
-    if (t.by) by = by ? by.filter((a) => (t.by as Actor[]).includes(a)) : (t.by as Actor[]);
-    merged.set(key, { from: t.from, to: t.to, ...(by ? { by } : {}), requires: [...requires] });
-  }
   return {
     labels,
     boundaries,
@@ -177,7 +153,6 @@ export function resolveWorkflow(def: WorkflowDefinition): ResolvedWorkflow {
     wip: def.wip ?? DEFAULT_WIP,
     flow: { stages, custom, skip },
     governance: withDefaults(GOVERNANCE_OPERATIONS, DEFAULT_GOVERNANCE, def.governance),
-    transitions: [...merged.values()],
     reconcile:
       def.reconcile?.map((r) => ({ when: r.when as Condition[], status: r.status })) ??
       DEFAULT_RECONCILE,
@@ -186,7 +161,7 @@ export function resolveWorkflow(def: WorkflowDefinition): ResolvedWorkflow {
 
 /**
  * 補った Workflow を workflow.yaml に書く形に戻す（どの項目も書いた形。dg workflow show の definition）。
- * 前の形のまま読む 2 つ（transitions・reconcile）も入れる
+ * 前の形のまま読む reconcile も入れる
  */
 export function writtenForm(wf: ResolvedWorkflow): WorkflowDefinitionInput {
   return {
@@ -200,73 +175,146 @@ export function writtenForm(wf: ResolvedWorkflow): WorkflowDefinitionInput {
       [FLOW_SKIP_KEY]: [...wf.flow.skip],
     },
     governance: wf.governance,
-    transitions: wf.transitions.map((t) => ({
-      from: t.from,
-      to: t.to,
-      requires: [...t.requires],
-      ...(t.by ? { by: [...t.by] } : {}),
-    })),
     reconcile: wf.reconcile.map((r) => ({ when: [...r.when], status: r.status })),
   };
 }
 
 /**
  * dg init が置く既定の workflow.yaml。6 つの項目を Core の既定の値で書く（書き換える場所が見えるように）。
- * 前の形のまま読む 2 つは書かない（省けば既定）
+ * 前の形のまま読む reconcile は書かない（省けば既定）
  */
 export function defaultWorkflowFile(): WorkflowDefinitionInput {
-  const { transitions: _t, reconcile: _r, ...items } = writtenForm(DEFAULT_WORKFLOW);
+  const { reconcile: _r, ...items } = writtenForm(DEFAULT_WORKFLOW);
   return items;
 }
 
 /** workflow.yaml がないとき（どの項目も省いたとき）の Workflow */
-export const DEFAULT_WORKFLOW: ResolvedWorkflow = resolveWorkflow({ transitions: [] });
+export const DEFAULT_WORKFLOW: ResolvedWorkflow = resolveWorkflow({});
 
-/** from → to に Workflow が書いた制約。なければ undefined（自由な遷移） */
-export function findConstraint(
-  wf: ResolvedWorkflow,
-  from: Status,
-  to: Status,
-): TransitionConstraint | undefined {
-  return wf.transitions.find((t) => t.from === from && t.to === to);
+/** 操作に当てる方針がどこで決まったか（判定の順。operationPolicy） */
+export type PolicySource = "core" | "exceptions" | "boundaries" | "flow" | "governance" | "none";
+
+/** 操作に当てる方針：権限の値（いくつかあれば厳しいほうが効く）と、越える条件（AND） */
+export interface OperationPolicy {
+  source: PolicySource;
+  /** 方針の名前（エラーの文に出す。例：exceptions.abandon、boundaries todo → in_progress） */
+  name: string;
+  decisions: readonly Decision[];
+  requires: readonly Condition[];
 }
 
-export type TransitionCheck =
-  | { ok: true; constraint?: TransitionConstraint }
-  | {
-      ok: false;
-      reason: "actor_not_allowed" | "requires_unmet";
-      unmet: Condition[];
-    };
-
-/** from → to を actor が行えるか。制約がなければ通す。事実が不明の条件は満たさないと読む */
-export function canTransition(
-  wf: ResolvedWorkflow,
-  from: Status,
-  to: Status,
-  actor: Actor,
-  facts: Facts,
-): TransitionCheck {
-  const constraint = findConstraint(wf, from, to);
-  if (!constraint) return { ok: true };
-  if (constraint.by && !constraint.by.includes(actor)) {
-    return { ok: false, reason: "actor_not_allowed", unmet: [] };
-  }
-  const result = evaluateAll(constraint.requires, facts);
-  if (!result.ok) return { ok: false, reason: "requires_unmet", unmet: result.unmet };
-  return { ok: true, constraint };
+/** 権限を判定する操作。Status を変える操作は move を持つ（行き先はコマンドの名前と引数だけで決まる） */
+export interface Operation {
+  /** コマンドの名前（ticket.move など） */
+  command: string;
+  move?: { from: Status; to: Status } | undefined;
 }
 
-/** 遷移が拒否された理由を人向けの文にする */
-export function describeRejection(
-  check: Extract<TransitionCheck, { ok: false }>,
-  from: Status,
-  to: Status,
-): string {
-  switch (check.reason) {
-    case "actor_not_allowed":
-      return `The Workflow does not allow this actor to move from ${from} to ${to}`;
-    case "requires_unmet":
-      return `The conditions for moving from ${from} to ${to} are not met: ${check.unmet.join(", ")}`;
-  }
+/**
+ * 例外の動きの名前。abandoned へ動かすのは abandon、終わった Status（done・abandoned）から戻すのは reopen、
+ * それ以外で前へ進まない動き（review → in_progress、unclaim など）は back。前へ進む動きと同じ Status は undefined
+ */
+export function exceptionMoveOf(from: Status, to: Status): ExceptionMove | undefined {
+  if (from === to) return undefined;
+  if (to === "abandoned") return "abandon";
+  if (isTerminal(from)) return "reopen";
+  return isForward(from, to) ? undefined : "back";
+}
+
+/** from から to へ前へ進むときに越える境目（飛ばす動きは間の境目をすべて）。前へ進まなければ空 */
+export function crossedBoundaries(wf: ResolvedWorkflow, from: Status, to: Status): Boundary[] {
+  if (!isForward(from, to)) return [];
+  return wf.boundaries.filter(
+    (b) => (b.from === from || isForward(from, b.from)) && (b.to === to || isForward(b.to, to)),
+  );
+}
+
+/** 境目の並びを 1 つの方針にまとめる。条件は和（AND）、権限の値は並べて厳しいほうを効かせる */
+export function boundaryPolicy(boundaries: readonly Boundary[]): OperationPolicy {
+  return {
+    source: "boundaries",
+    name: `boundaries ${boundaries.map((b) => `${b.from} → ${b.to}`).join(", ")}`,
+    decisions: boundaries.map((b) => b.decide),
+    requires: [...new Set(boundaries.flatMap((b) => b.requires))],
+  };
+}
+
+// Core に固定の操作・流れの段階の操作・カンバンの管理の操作は、まだここで引かない（それぞれのコマンドが自分で判定している）。
+// 判定の順の中の位置だけを置き、当てはまる操作がないので undefined を返す
+function coreFixedPolicy(_op: Operation): OperationPolicy | undefined {
+  return undefined;
+}
+function flowPolicy(_wf: ResolvedWorkflow, _op: Operation): OperationPolicy | undefined {
+  return undefined;
+}
+function governancePolicy(_wf: ResolvedWorkflow, _op: Operation): OperationPolicy | undefined {
+  return undefined;
+}
+
+function exceptionPolicy(wf: ResolvedWorkflow, op: Operation): OperationPolicy | undefined {
+  const move = op.move && exceptionMoveOf(op.move.from, op.move.to);
+  if (!move) return undefined;
+  return {
+    source: "exceptions",
+    name: `exceptions.${move}`,
+    decisions: [wf.exceptions[move]],
+    requires: [],
+  };
+}
+
+function crossingPolicy(wf: ResolvedWorkflow, op: Operation): OperationPolicy | undefined {
+  const crossed = op.move ? crossedBoundaries(wf, op.move.from, op.move.to) : [];
+  return crossed.length > 0 ? boundaryPolicy(crossed) : undefined;
+}
+
+/** どれにも当たらない操作（起票・題や本文の編集など）は誰でもできる */
+const ANYONE_POLICY: OperationPolicy = {
+  source: "none",
+  name: "none",
+  decisions: ["anyone"],
+  requires: [],
+};
+
+/**
+ * 書き込みの操作に当てる方針を引く。Core の固定 → exceptions → boundaries → flow → governance の順に見て、
+ * 最初に当てはまったものを使う。どれにも当たらなければ誰でもできる
+ */
+export function operationPolicy(wf: ResolvedWorkflow, op: Operation): OperationPolicy {
+  return (
+    coreFixedPolicy(op) ??
+    exceptionPolicy(wf, op) ??
+    crossingPolicy(wf, op) ??
+    flowPolicy(wf, op) ??
+    governancePolicy(wf, op) ??
+    ANYONE_POLICY
+  );
+}
+
+/** Status の動き 1 つと、人とエージェントに当てた権限（dg workflow show の moves。画面と ask が行き先を絞る） */
+export interface MovePermission {
+  from: Status;
+  to: Status;
+  /** 当てはまった方針の名前（OperationPolicy の name） */
+  policy: string;
+  /** 越える条件。事実は操作のときに調べるので、ここでは満たすかを見ない */
+  requires: readonly Condition[];
+  human: Permission;
+  agent: Permission;
+}
+
+/** from と to が違うすべての動きの権限（STATUSES の順） */
+export function movePermissions(wf: ResolvedWorkflow): MovePermission[] {
+  return STATUSES.flatMap((from) =>
+    STATUSES.filter((to) => to !== from).map((to) => {
+      const policy = operationPolicy(wf, { command: "ticket.move", move: { from, to } });
+      return {
+        from,
+        to,
+        policy: policy.name,
+        requires: policy.requires,
+        human: judgeDecisions(policy.decisions, "human"),
+        agent: judgeDecisions(policy.decisions, "agent"),
+      };
+    }),
+  );
 }

@@ -590,7 +590,7 @@ export class Store {
       this.workflow = {
         path: WORKFLOW_FILE,
         exists: false,
-        definition: { transitions: [] },
+        definition: {},
         resolved: DEFAULT_WORKFLOW,
       };
       // 前の版の workflows/<id>.yaml は読まないので、そこに書いた制約（by の制限など）は黙って既定に戻る。

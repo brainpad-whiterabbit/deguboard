@@ -12,7 +12,8 @@ import { configFields } from "../model/config.js";
 import { idKindOf, parseId } from "../model/id.js";
 import { peekRunningRuns } from "../run/record.js";
 import type { Store } from "../storage/store.js";
-import { findConstraint } from "../workflow/resolve.js";
+import { judgeDecisions } from "../workflow/conditions.js";
+import { operationPolicy } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
 import { ticketsInIteration } from "./helpers.js";
 import { WEBVIEW_CONTRACT } from "./client.js";
@@ -76,7 +77,7 @@ export type AskSubject =
       deps_done: boolean;
       /** このマシンで実行中の Run があるか */
       running: boolean;
-      /** 今の Status からの遷移のうち、Workflow の by に agent が入っていない行き先（WF-1）。省けば制約なし */
+      /** 今の Status からの動きのうち、Workflow がエージェントに拒む行き先（権限の値が human_only。WF-1）。省けば拒む行き先なし */
       agent_denied?: string[];
     }
   | {
@@ -162,12 +163,12 @@ export interface AskView {
   label: string;
   skill: string | null;
   format: AskFormat;
-  /** prompt はエージェントに貼る依頼文、command は人が打つ dg のコマンド（操作が 1 つに決まる頼むことで、その操作が actor.human_only に入っているか、Workflow の by が遷移を人に限るとき） */
+  /** prompt はエージェントに貼る依頼文、command は人が打つ dg のコマンド（操作が 1 つに決まる頼むことで、その操作が actor.human_only に入っているか、Workflow が Status の動きを人に限るとき） */
   kind: "prompt" | "command";
   /** 当たった actor.human_only の操作 */
   human_only: string[];
-  /** 当たった Workflow の by が人に限る遷移（`t12: todo → abandoned`）。human_only とともに空なら kind は prompt */
-  workflow_by: string[];
+  /** 当たった、Workflow が人に限る Status の動き（`t12: todo → abandoned`）。human_only とともに空なら kind は prompt */
+  workflow_denied: string[];
   /** 依頼文か、人が打つコマンド（1 行に 1 つ） */
   text: string;
 }
@@ -319,7 +320,7 @@ function withinOf(s: Subjects, within: string | undefined) {
 }
 type Within = NonNullable<ReturnType<typeof withinOf>>;
 
-/** チケットを to へ動かす遷移が Workflow の by で人に限られるなら、その遷移（`t12: todo → abandoned`） */
+/** チケットを to へ動かす動きを Workflow が人に限る（権限の値が human_only）なら、その動き（`t12: todo → abandoned`） */
 function deniedMove(s: AskSubject, to: readonly string[]): string | undefined {
   if (s.kind !== "ticket") return undefined;
   const denied = s.agent_denied ?? [];
@@ -333,7 +334,7 @@ interface HumanStep {
   check: readonly string[];
   /** dg の出力なので、仮の値（`<title>` など）も英語で書き、依頼文の言語（lang）に合わせない。名前は dg の引数とオプションの名前にそろえる */
   command: string;
-  /** Workflow の by が人に限る遷移（`t12: todo → abandoned`）。agent も行えるなら省く */
+  /** Workflow が人に限る動き（`t12: todo → abandoned`）。agent も行えるなら省く */
   denied?: string;
 }
 
@@ -1718,13 +1719,13 @@ export function buildAsk(input: BuildAskInput): AskView {
   const humanOnly = new Set(input.humanOnly ?? []);
   const steps = humanSteps(chosen, s, w);
   const hit = [...new Set(steps.flatMap((h) => h.check.filter((c) => humanOnly.has(c))))];
-  const workflowBy = steps.flatMap((h) => (h.denied ? [h.denied] : []));
-  if (hit.length > 0 || workflowBy.length > 0)
+  const workflowDenied = steps.flatMap((h) => (h.denied ? [h.denied] : []));
+  if (hit.length > 0 || workflowDenied.length > 0)
     return {
       ...view,
       kind: "command",
       human_only: hit,
-      workflow_by: workflowBy,
+      workflow_denied: workflowDenied,
       text: steps.map((h) => h.command).join("\n"),
     };
 
@@ -1762,16 +1763,23 @@ export function buildAsk(input: BuildAskInput): AskView {
     if (candidate.skill) lines.push(askGuideLine(candidate.skill, lang));
   }
   if (note) lines.push(note);
-  return { ...view, kind: "prompt", human_only: [], workflow_by: [], text: lines.join("\n") };
+  return { ...view, kind: "prompt", human_only: [], workflow_denied: [], text: lines.join("\n") };
 }
 
-/** 今の Status からの遷移のうち、Workflow の by に agent が入っていない行き先。Workflow が読めなければ空（move のときに拒否される） */
+/**
+ * 今の Status からの動きのうち、Workflow がエージェントに拒む行き先（権限の値が human_only）。人の承認で進める行き先は入れない
+ * （エージェントが --approved-by を付けて進める）。Workflow が読めなければ空（move のときに拒否される）
+ */
 function agentDenied(store: Store, t: { status: Status }): string[] {
   const wf = store.workflow;
   if (!wf) return [];
   return STATUSES.filter((to) => {
-    const by = to === t.status ? undefined : findConstraint(wf.resolved, t.status, to)?.by;
-    return by !== undefined && !by.includes("agent");
+    if (to === t.status) return false;
+    const policy = operationPolicy(wf.resolved, {
+      command: "ticket.move",
+      move: { from: t.status, to },
+    });
+    return judgeDecisions(policy.decisions, "agent") === "reject";
   });
 }
 
@@ -1834,7 +1842,7 @@ export const ask = defineCommand({
   name: "ask",
   group: "ask",
   summary:
-    "Create request text to paste to an agent (read-only). From the kind and state of the targets, returns the candidate actions and the suggested one (first), and composes the text from the action, the instruction, the format (Skill or text only), and the language (fixed text in Japanese or English). For an action that comes down to one operation, if that operation is in actor.human_only, or the Workflow's by limits the transition to people, it returns the dg command for a person to run",
+    "Create request text to paste to an agent (read-only). From the kind and state of the targets, returns the candidate actions and the suggested one (first), and composes the text from the action, the instruction, the format (Skill or text only), and the language (fixed text in Japanese or English). For an action that comes down to one operation, if that operation is in actor.human_only, or the Workflow limits the move of the Status to people (a value of human_only), it returns the dg command for a person to run",
   input: z.object({
     targets: z
       .array(z.string().min(1))

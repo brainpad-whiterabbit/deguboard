@@ -1,19 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { ACTORS, WORKFLOW_ITEMS } from "../model/workflow.js";
-import { STATUSES } from "../model/common.js";
-import { evaluateCondition, parseCondition } from "./conditions.js";
+import { ACTORS, BOUNDARIES, DECISIONS, WORKFLOW_ITEMS } from "../model/workflow.js";
+import { STATUSES, type Status } from "../model/common.js";
+import { evaluateCondition, judgeDecision, judgeDecisions, parseCondition } from "./conditions.js";
 import { reconcileStatus, regressionWarnings } from "./reconcile.js";
 import {
-  canTransition,
+  crossedBoundaries,
   DEFAULT_WORKFLOW,
   defaultWorkflowFile,
-  resolveWorkflow,
+  exceptionMoveOf,
+  movePermissions,
+  operationPolicy,
   writtenForm,
+  type ResolvedWorkflow,
 } from "./resolve.js";
 import { validateWorkflow } from "./validate.js";
 
-// どの項目も省いた定義
-const base = {};
 /** 定義の指摘の [code, severity] */
 const found = (raw: unknown) =>
   validateWorkflow(raw, "workflow.yaml").issues.map((i) => [i.code, i.severity]);
@@ -27,90 +28,212 @@ describe("条件", () => {
   });
 });
 
-describe("遷移の検査", () => {
-  it("既定ではどの Status 間の遷移も、誰でも条件なしで通る", () => {
-    const wf = validateWorkflow(base, "x.yaml").workflow!;
-    expect(wf.transitions).toEqual([]);
-    for (const from of STATUSES) {
-      for (const to of STATUSES) {
-        if (from === to) continue;
-        for (const actor of ACTORS) {
-          expect(canTransition(wf, from, to, actor, {}), `${from} → ${to} by ${actor}`).toEqual({
-            ok: true,
-          });
-        }
-      }
+describe("権限の 5 つの値の判定（WF-1）", () => {
+  it("値ごとに、人・エージェント（普段）・エージェント（聞かずに進める流れ）の結果が表のとおりになる", () => {
+    const table = DECISIONS.map((d) => [
+      d,
+      judgeDecision(d, "human"),
+      judgeDecision(d, "agent"),
+      judgeDecision(d, "agent", true),
+    ]);
+    expect(table).toEqual([
+      ["human_only", "allow", "reject", "reject"],
+      ["always_ask", "allow", "approval", "approval"],
+      ["ask_unless_auto", "allow", "approval", "allow"],
+      ["anyone", "allow", "allow", "allow"],
+      ["agent_only", "override", "allow", "allow"],
+    ]);
+  });
+
+  it("照合はエージェントと同じ側に数え、聞かずに進める流れは人の結果を変えない", () => {
+    for (const d of DECISIONS) {
+      expect(judgeDecision(d, "reconcile"), d).toBe(judgeDecision(d, "agent"));
+      expect(judgeDecision(d, "reconcile", true), d).toBe(judgeDecision(d, "agent", true));
+      expect(judgeDecision(d, "human", true), d).toBe(judgeDecision(d, "human"));
     }
   });
 
-  it("todo → in_progress に requires: [deps_done] を書けば、依存が終わるまで拒否される", () => {
-    const wf = validateWorkflow(
-      { transitions: [{ from: "todo", to: "in_progress", requires: ["deps_done"] }] },
-      "x.yaml",
-    ).workflow!;
-    expect(canTransition(wf, "todo", "in_progress", "agent", { deps_done: false })).toMatchObject({
-      ok: false,
-      reason: "requires_unmet",
-      unmet: ["deps_done"],
-    });
-    expect(canTransition(wf, "todo", "in_progress", "agent", {}).ok).toBe(false);
-    expect(canTransition(wf, "todo", "in_progress", "agent", { deps_done: true }).ok).toBe(true);
-    // 制約を書いていない遷移は影響を受けない
-    expect(canTransition(wf, "todo", "done", "agent", {}).ok).toBe(true);
+  it("いくつかの値は、同じ主体に当てた厳しいほうの結果になる", () => {
+    expect(judgeDecisions([], "agent")).toBe("allow");
+    expect(judgeDecisions(["anyone", "always_ask"], "agent")).toBe("approval");
+    expect(judgeDecisions(["always_ask", "human_only", "anyone"], "agent")).toBe("reject");
+    expect(judgeDecisions(["anyone", "agent_only"], "human")).toBe("override");
+    expect(judgeDecisions(["human_only", "agent_only"], "agent")).toBe("reject");
+    expect(judgeDecisions(["ask_unless_auto", "always_ask"], "agent", true)).toBe("approval");
+  });
+});
+
+describe("操作に当てる方針（operationPolicy）", () => {
+  const move = (wf: ResolvedWorkflow, from: Status, to: Status) =>
+    operationPolicy(wf, { command: "ticket.move", move: { from, to } });
+
+  it("Status の動きは、abandoned へは abandon、終わった Status からは reopen、ほかの前へ進まない動きは back で、前へ進む動きは例外に当たらない", () => {
+    const names = STATUSES.flatMap((from) =>
+      STATUSES.filter((to) => to !== from).map((to) => [from, to, exceptionMoveOf(from, to)]),
+    );
+    expect(names).toEqual([
+      ["todo", "in_progress", undefined],
+      ["todo", "review", undefined],
+      ["todo", "done", undefined],
+      ["todo", "abandoned", "abandon"],
+      ["in_progress", "todo", "back"],
+      ["in_progress", "review", undefined],
+      ["in_progress", "done", undefined],
+      ["in_progress", "abandoned", "abandon"],
+      ["review", "todo", "back"],
+      ["review", "in_progress", "back"],
+      ["review", "done", undefined],
+      ["review", "abandoned", "abandon"],
+      ["done", "todo", "reopen"],
+      ["done", "in_progress", "reopen"],
+      ["done", "review", "reopen"],
+      ["done", "abandoned", "abandon"],
+      ["abandoned", "todo", "reopen"],
+      ["abandoned", "in_progress", "reopen"],
+      ["abandoned", "review", "reopen"],
+      ["abandoned", "done", "reopen"],
+    ]);
+    expect(exceptionMoveOf("review", "review")).toBeUndefined();
   });
 
-  it("by で主体を絞り、by: [] で遷移を禁止できる", () => {
+  it("例外の動きは exceptions の値で、条件なしで決まる", () => {
+    const wf = validateWorkflow(
+      { exceptions: { abandon: "always_ask", back: "agent_only", reopen: "anyone" } },
+      "x.yaml",
+    ).workflow!;
+    expect(move(wf, "review", "abandoned")).toEqual({
+      source: "exceptions",
+      name: "exceptions.abandon",
+      decisions: ["always_ask"],
+      requires: [],
+    });
+    expect(move(wf, "review", "todo")).toMatchObject({
+      name: "exceptions.back",
+      decisions: ["agent_only"],
+    });
+    expect(move(wf, "done", "review")).toMatchObject({
+      name: "exceptions.reopen",
+      decisions: ["anyone"],
+    });
+  });
+
+  it("隣へ進む動きは、その境目の requires と decide で決まる", () => {
+    expect(move(DEFAULT_WORKFLOW, "todo", "in_progress")).toEqual({
+      source: "boundaries",
+      name: "boundaries todo → in_progress",
+      decisions: ["anyone"],
+      requires: ["deps_done"],
+    });
+    expect(move(DEFAULT_WORKFLOW, "review", "done")).toMatchObject({
+      decisions: ["ask_unless_auto"],
+      requires: ["pr_merged"],
+    });
+  });
+
+  it("境目を飛ばす動きは、間の境目をすべて越える：条件は和になり、値は並んで厳しいほうが効く", () => {
     const wf = validateWorkflow(
       {
-        transitions: [
-          { from: "in_progress", to: "abandoned", by: ["human"] },
-          { from: "done", to: "todo", by: [] },
+        boundaries: [
+          { from: "todo", to: "in_progress", requires: ["deps_done"], decide: "anyone" },
+          { from: "in_progress", to: "review", requires: ["branch_pushed"], decide: "human_only" },
+          {
+            from: "review",
+            to: "done",
+            requires: ["pr_merged", "deps_done"],
+            decide: "always_ask",
+          },
         ],
       },
       "x.yaml",
     ).workflow!;
-    expect(canTransition(wf, "in_progress", "abandoned", "agent", {})).toMatchObject({
-      ok: false,
-      reason: "actor_not_allowed",
+    expect(crossedBoundaries(wf, "in_progress", "done").map((b) => b.to)).toEqual([
+      "review",
+      "done",
+    ]);
+    expect(crossedBoundaries(wf, "review", "todo")).toEqual([]);
+    const skipped = move(wf, "todo", "done");
+    expect(skipped).toEqual({
+      source: "boundaries",
+      name: "boundaries todo → in_progress, in_progress → review, review → done",
+      decisions: ["anyone", "human_only", "always_ask"],
+      requires: ["deps_done", "branch_pushed", "pr_merged"],
     });
-    expect(canTransition(wf, "in_progress", "abandoned", "human", {}).ok).toBe(true);
-    for (const actor of ACTORS) {
-      expect(canTransition(wf, "done", "todo", actor, {})).toMatchObject({
-        ok: false,
-        reason: "actor_not_allowed",
+    // todo → in_progress だけなら聞かずにできるエージェントも、飛ばすと human_only の境目で拒否される
+    expect(judgeDecisions(move(wf, "todo", "in_progress").decisions, "agent")).toBe("allow");
+    expect(judgeDecisions(skipped.decisions, "agent")).toBe("reject");
+    // in_progress を越えない動き（review → done）には、手前の human_only は効かない
+    expect(judgeDecisions(move(wf, "review", "done").decisions, "agent")).toBe("approval");
+  });
+
+  it("Status を変えない操作は、どれにも当たらず誰でもできる（Core の固定・flow・governance に当たる操作はまだない）", () => {
+    for (const command of ["ticket.create", "ticket.update", "iteration.close", "workflow.set"]) {
+      const policy = operationPolicy(DEFAULT_WORKFLOW, { command });
+      expect(policy, command).toEqual({
+        source: "none",
+        name: "none",
+        decisions: ["anyone"],
+        requires: [],
       });
+      for (const actor of ACTORS)
+        expect(judgeDecisions(policy.decisions, actor), `${command} ${actor}`).toBe("allow");
     }
   });
 
-  it("1 つの遷移に by と requires を同時に書け、同じ遷移が重複すれば requires は和・by は積で合成する", () => {
-    const wf = resolveWorkflow(
-      validateWorkflow(
-        {
-          transitions: [
-            { from: "review", to: "done", requires: ["branch_merged"], by: ["human", "reconcile"] },
-            { from: "review", to: "done", requires: ["pr_merged"], by: ["human", "agent"] },
-          ],
-        },
-        "x.yaml",
-      ).definition!,
-    );
-    expect(wf.transitions).toEqual([
-      { from: "review", to: "done", by: ["human"], requires: ["branch_merged", "pr_merged"] },
-    ]);
-    expect(canTransition(wf, "review", "done", "reconcile", { branch_merged: true })).toMatchObject(
+  it("exceptions は boundaries より先に見る：どの動きも、例外に当たれば境目の値を使わない", () => {
+    const wf = validateWorkflow(
       {
-        ok: false,
-        reason: "actor_not_allowed",
+        boundaries: BOUNDARIES.map((b) => ({
+          ...b,
+          requires: ["pr_merged"],
+          decide: "human_only",
+        })),
+        exceptions: { abandon: "anyone", back: "anyone", reopen: "anyone" },
       },
-    );
-    expect(canTransition(wf, "review", "done", "human", { branch_merged: true })).toMatchObject({
-      ok: false,
-      reason: "requires_unmet",
-      unmet: ["pr_merged"],
-    });
-    expect(
-      canTransition(wf, "review", "done", "human", { branch_merged: true, pr_merged: true }).ok,
-    ).toBe(true);
+      "x.yaml",
+    ).workflow!;
+    for (const m of movePermissions(wf)) {
+      const exception = exceptionMoveOf(m.from, m.to);
+      expect(m.policy, `${m.from} → ${m.to}`).toMatch(
+        exception ? new RegExp(`^exceptions\\.${exception}$`) : /^boundaries /,
+      );
+      expect([m.from, m.to, m.agent, m.requires.length > 0]).toEqual([
+        m.from,
+        m.to,
+        exception ? "allow" : "reject",
+        !exception,
+      ]);
+    }
+  });
+
+  it("既定の Workflow の動きごとの権限（dg workflow show の moves）", () => {
+    const rows = movePermissions(DEFAULT_WORKFLOW).map((m) => [
+      `${m.from} → ${m.to}`,
+      m.human,
+      m.agent,
+      m.requires.join(","),
+    ]);
+    expect(rows).toEqual([
+      ["todo → in_progress", "allow", "allow", "deps_done"],
+      ["todo → review", "allow", "allow", "deps_done"],
+      ["todo → done", "allow", "approval", "deps_done,pr_merged"],
+      ["todo → abandoned", "allow", "reject", ""],
+      ["in_progress → todo", "allow", "allow", ""],
+      ["in_progress → review", "allow", "allow", ""],
+      ["in_progress → done", "allow", "approval", "pr_merged"],
+      ["in_progress → abandoned", "allow", "reject", ""],
+      ["review → todo", "allow", "allow", ""],
+      ["review → in_progress", "allow", "allow", ""],
+      ["review → done", "allow", "approval", "pr_merged"],
+      ["review → abandoned", "allow", "reject", ""],
+      ["done → todo", "allow", "reject", ""],
+      ["done → in_progress", "allow", "reject", ""],
+      ["done → review", "allow", "reject", ""],
+      ["done → abandoned", "allow", "reject", ""],
+      ["abandoned → todo", "allow", "reject", ""],
+      ["abandoned → in_progress", "allow", "reject", ""],
+      ["abandoned → review", "allow", "reject", ""],
+      ["abandoned → done", "allow", "reject", ""],
+    ]);
   });
 });
 
@@ -153,9 +276,9 @@ describe("省いた項目の既定", () => {
         epic: "human_only",
         create: "anyone",
       },
-      transitions: [],
     });
     expect(workflow).not.toHaveProperty("fields");
+    expect(workflow).not.toHaveProperty("transitions");
   });
 
   it("前の版の fields（チケットの任意フィールド）は未知の項目として警告にとどめ、読まずにほかの項目を使う", () => {
@@ -229,7 +352,7 @@ describe("省いた項目の既定", () => {
       {
         states: { done: { label: "Shipped" } },
         flow: { "deploy-staging": { decide: "always_ask", after: "audit", guide: "docs/d.md" } },
-        transitions: [{ from: "review", to: "done", by: ["human"] }],
+        boundaries: [{ from: "review", to: "done", decide: "human_only" }],
         reconcile: [{ when: ["branch_merged"], status: "done" }],
       },
       "workflow.yaml",
@@ -241,27 +364,31 @@ describe("省いた項目の既定", () => {
 });
 
 describe("定義の検証（WF-3）", () => {
-  it("未知の条件・同じ遷移の重複・同じ Status への遷移を指摘し、by はどの遷移にも書ける", () => {
+  it("reconcile の未知の条件を指摘する", () => {
     const { issues } = validateWorkflow(
       {
-        transitions: [
-          { from: "todo", to: "done" },
-          { from: "review", to: "done", by: ["agent"] },
-          { from: "todo", to: "in_progress", requires: ["tests_pass"] },
-          { from: "review", to: "done", requires: ["branch_merged"] },
-          { from: "todo", to: "todo" },
-        ],
         reconcile: [{ when: ["!nope"], status: "done" }],
         states: { review: { label: "レビュー" } },
       },
       "x.yaml",
     );
-    expect(issues.map((i) => i.code).sort()).toEqual([
-      "workflow_condition_unknown",
-      "workflow_condition_unknown",
-      "workflow_transition_duplicate",
-      "workflow_transition_self",
-    ]);
+    expect(issues.map((i) => i.code)).toEqual(["workflow_condition_unknown"]);
+  });
+
+  it("前の版の transitions は読まず、boundaries と exceptions に書くよう警告する。ほかの項目と既定の境目は使う", () => {
+    const { issues, workflow } = validateWorkflow(
+      {
+        transitions: [{ from: "todo", to: "in_progress", requires: ["deps_done"], by: ["human"] }],
+        wip: { review: 1 },
+      },
+      "workflow.yaml",
+    );
+    expect(issues.map((i) => [i.code, i.severity])).toEqual([["workflow_item_unknown", "warning"]]);
+    expect(issues[0]?.message).toContain("transitions is no longer read");
+    expect(issues[0]?.message).toContain("boundaries");
+    expect(workflow).not.toHaveProperty("transitions");
+    expect(workflow?.wip).toEqual({ review: 1 });
+    expect(workflow?.boundaries).toEqual(DEFAULT_WORKFLOW.boundaries);
   });
 
   it("未知の項目は警告にとどめて残りを読む。前の形の id・name・labels・steps も未知の項目になる", () => {
@@ -448,16 +575,16 @@ describe("照合", () => {
     expect(regressionWarnings("done", { branch_exists: false })).toEqual([]);
   });
 
-  it("前進でも Workflow が reconcile に許さなければ blocked になる", () => {
+  it("照合は境目の requires・decide を見ずに、規則だけで前進する", () => {
     const wf = validateWorkflow(
       {
-        transitions: [{ from: "review", to: "done", by: ["human"] }],
+        boundaries: [{ from: "review", to: "done", requires: ["pr_merged"], decide: "human_only" }],
         reconcile: [{ when: ["branch_merged"], status: "done" }],
       },
       "x",
     ).workflow!;
     expect(reconcileStatus(wf, "review", { branch_merged: true })).toMatchObject({
-      kind: "blocked",
+      kind: "advance",
       to: "done",
     });
   });

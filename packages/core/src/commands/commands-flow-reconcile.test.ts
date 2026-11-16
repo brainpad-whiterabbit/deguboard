@@ -31,6 +31,7 @@ import {
   agentWithRuns,
   fakeGh,
   runCleanups,
+  writeOpenWorkflow,
 } from "../../test/helpers/commands-context.js";
 
 // 照合の書き込みが閉じる直前に、別の文脈が先に閉じる形を作るための差し込み（通常は素通し）
@@ -934,7 +935,7 @@ describe("チケットの流れ（照合と claim）", () => {
     // 終わったチケットが記録している名前は使える（前の形で記録した t5-cut を持つ t2 が done）
     await ctx.store.update("ticket", "t2", { branch: "t5-cut" });
     await recordBaseline(ctx.repo);
-    await runCommand(ticketMove, ctx, { ticket: "t2", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "done", override: "PR なし" });
     await runCommand(ticketCreate, ctx, { title: "E" });
     await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t5", branch: "cut" });
     expect(ctx.store.tickets.get("t5")?.data.branch).toBe("t5-cut");
@@ -1068,8 +1069,15 @@ describe("チケットの流れ（照合と claim）", () => {
     expect(detached.data.branch).toBeUndefined();
     expect((await runCommand(sync, ctx, {})).warnings).toEqual([]);
 
-    // agent は受け入れ条件を確かめたら自分で done にできる（Workflow の制約がなければ）
-    const done = await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    // 既定の Workflow は review → done に pr_merged を求めるので、PR のない作業は手では done にできず、人が理由を付けて越える
+    await expect(
+      runCommand(ticketMove, ctx, { ticket: "t1", status: "done" }),
+    ).rejects.toMatchObject({ code: "TRANSITION_REJECTED" });
+    const done = await runCommand(ticketMove, ctx, {
+      ticket: "t1",
+      status: "done",
+      override: "PR の要らない作業",
+    });
     expect(done.data.status).toBe("done");
   });
 
@@ -1518,6 +1526,8 @@ describe("チケットの流れ（照合と claim）", () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await initialized(f.cloneA, { now: () => clock });
+    // agent が PR なしで done に動かせる Workflow（既定は done に pr_merged と人の承認を求める）
+    await writeOpenWorkflow(human);
     for (const title of ["Unclaim", "Review", "Done", "With branch"])
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
@@ -1580,6 +1590,8 @@ describe("チケットの流れ（照合と claim）", () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await initialized(f.cloneA, { now: () => clock });
+    // agent が abandoned と PR なしの done に動かせる Workflow（既定は人に限り、done に pr_merged を求める）
+    await writeOpenWorkflow(human);
     /** 閉じた Run の知らせだけを取り出す（読み取りの警告は除く） */
     const closedWarnings = (warnings: string[]) =>
       warnings.filter((w) => /^Closed the .* with (failure|success)/.test(w));

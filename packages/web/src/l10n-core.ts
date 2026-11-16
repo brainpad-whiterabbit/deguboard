@@ -214,9 +214,9 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
       ja: "この鍵の agent が dg next を呼んだときに、Plan の段階 heavy に使うモデル（その agent では models.heavy より優先する）。空なら models.heavy",
     },
   // actor.human_only
-  "Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by":
+  "Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket Status moves are restricted with the Workflow's boundaries and exceptions":
     {
-      ja: "agent からは拒否するコマンド名（epic.close など）。既定は空で、すべて許す。チケットの遷移は Workflow の by で縛る",
+      ja: "agent からは拒否するコマンド名（epic.close など）。既定は空で、すべて許す。チケットの Status の動きは Workflow の boundaries と exceptions で縛る",
     },
   // priority.high
   "Criteria for priority high. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen":
@@ -376,9 +376,10 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "models.standard is used": { ja: "models.standard を使う" },
   "models.heavy is used": { ja: "models.heavy を使う" },
   // actor.human_only
-  "Every command is allowed. Ticket transitions are still restricted with the Workflow's by": {
-    ja: "すべてのコマンドを許す。チケットの遷移は Workflow の by で縛る",
-  },
+  "Every command is allowed. Ticket Status moves are still restricted with the Workflow's boundaries and exceptions":
+    {
+      ja: "すべてのコマンドを許す。チケットの Status の動きは Workflow の boundaries と exceptions で縛る",
+    },
   // guide.notes.*
   "Inserts nothing": { ja: "差し込まない" },
 

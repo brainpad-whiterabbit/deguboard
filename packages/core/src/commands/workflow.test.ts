@@ -4,7 +4,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
 import { recordBaseline } from "../git/outside.js";
 import { pathExists } from "../storage/exists.js";
-import { DEFAULT_WORKFLOW, defaultWorkflowFile, writtenForm } from "../workflow/resolve.js";
+import {
+  DEFAULT_WORKFLOW,
+  defaultWorkflowFile,
+  movePermissions,
+  writtenForm,
+} from "../workflow/resolve.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { commands } from "./registry.js";
@@ -55,7 +60,7 @@ async function writeWorkflowFile(ctx: CommandContext, text: string): Promise<voi
 
 const strict = {
   states: { review: { label: "Client Review" } },
-  transitions: [{ from: "todo", to: "done", by: [] }],
+  boundaries: [{ from: "review", to: "done", decide: "human_only" }],
   reconcile: [{ when: ["branch_merged"], status: "done" }],
 };
 
@@ -123,8 +128,10 @@ describe("workflow show", () => {
       exists: false,
       definition: writtenForm(DEFAULT_WORKFLOW),
       labels: DEFAULT_WORKFLOW.labels,
-      transitions: [],
+      moves: movePermissions(DEFAULT_WORKFLOW),
     });
+    expect(shown.data).not.toHaveProperty("transitions");
+    expect(shown.data.definition).not.toHaveProperty("transitions");
     // 6 つの項目は dg init が置く既定と同じ値
     expect(shown.data.definition).toMatchObject(defaultWorkflowFile());
     const validated = await runCommand(workflowValidate, ctx, {});
@@ -146,7 +153,12 @@ describe("workflow show", () => {
       done: "Done",
       abandoned: "Abandoned",
     });
-    expect(shown.data.transitions).toEqual([{ from: "todo", to: "done", by: [], requires: [] }]);
+    // moves は、書き換えた境目の値を人とエージェントに当てた結果（飛ばす動きにも効く）
+    expect(shown.data.moves.filter((m) => m.to === "done" && m.from !== "abandoned")).toEqual(
+      (["todo", "in_progress", "review"] as const).map((from) =>
+        expect.objectContaining({ from, to: "done", human: "allow", agent: "reject" }),
+      ),
+    );
   });
 
   it("Run の step の語彙と表示名は Core の固定で、workflow.yaml に書いても変わらない", async () => {
@@ -226,7 +238,7 @@ describe("workflow set", () => {
       before: writtenForm(DEFAULT_WORKFLOW),
       after: { states: { review: { label: "Client Review" } } },
     });
-    expect(r.data.changed).toEqual(["states", "transitions", "reconcile"]);
+    expect(r.data.changed).toEqual(["states", "boundaries", "reconcile"]);
     expect(r.data).not.toHaveProperty("removed");
     expect(r.write).toMatchObject({ committed: true, pushed: true });
     expect(await commitCount(ctx)).toBe(commits + 1);
@@ -275,10 +287,6 @@ describe("workflow set", () => {
     const before = await workflowText(ctx);
     const commits = await commitCount(ctx);
     const cases: Array<[Record<string, unknown>, string]> = [
-      [
-        { transitions: [{ from: "todo", to: "done", requires: ["x"] }] },
-        "transitions[0]: unknown condition x",
-      ],
       [{ reconcile: [{ when: ["nope"], status: "done" }] }, "reconcile[0]: unknown condition nope"],
       [
         { reconcile: [{ when: ["pr_merged"], status: "abandoned" }] },
@@ -293,7 +301,7 @@ describe("workflow set", () => {
       [{ flow: { skip: ["nope"] } }, "flow.skip: unknown stage nope"],
       [{ governance: { delete: "nobody" } }, "The Workflow definition has the wrong shape"],
       [
-        { transitions: [{ from: "todo", to: "nowhere" }] },
+        { exceptions: { abandon: { from: "todo", to: "abandoned" } } },
         "The Workflow definition has the wrong shape",
       ],
     ];
@@ -323,6 +331,34 @@ describe("workflow set", () => {
     const r = await runCommand(workflowSet, ctx, { definition: { boundries: [] } });
     expect(r.write).toMatchObject({ committed: true });
     expect(r.warnings.some((w) => w.includes("Unknown item boundries"))).toBe(true);
+  });
+
+  it("前の版の transitions を残した workflow.yaml は、警告を出して読め、既定の境目で判定する（カンバンは止まらない）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await writeWorkflowFile(
+      ctx,
+      "transitions:\n  - { from: todo, to: in_progress, requires: [deps_done] }\n",
+    );
+    const validated = await runCommand(workflowValidate, ctx, {});
+    expect(validated.data).toMatchObject({ ok: true, exists: true });
+    expect(validated.data.issues.map((i) => [i.code, i.severity])).toEqual([
+      ["workflow_item_unknown", "warning"],
+    ]);
+    expect(validated.data.issues[0]?.message).toContain("transitions is no longer read");
+    expect(ctx.store.workflow?.resolved).toEqual(DEFAULT_WORKFLOW);
+    // 既定の todo → in_progress の requires（deps_done）が、前に transitions に書いていた条件と同じに効く
+    const dep = await runCommand(ticketCreate, ctx, { title: "先" });
+    const t = await runCommand(ticketCreate, ctx, { title: "後", depends_on: [dep.data.id] });
+    await expect(
+      runCommand(ticketClaim, ctx, { ticket: t.data.id, without_branch: true, no_run: true }),
+    ).rejects.toMatchObject({ code: "TRANSITION_REJECTED" });
+    const claimed = await runCommand(ticketClaim, ctx, {
+      ticket: dep.data.id,
+      without_branch: true,
+      no_run: true,
+    });
+    expect(claimed.data.status).toBe("in_progress");
   });
 
   it("Workflow を置き換えても既存のチケットが読め、どのチケットも新しい制約で遷移する（チケットの workflow は Workflow を選ばない）", async () => {

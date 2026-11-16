@@ -30,7 +30,7 @@ describe("Plan", () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     for (const title of ["A", "B", "C", "D", "E"]) await runCommand(ticketCreate, ctx, { title });
-    await runCommand(ticketMove, ctx, { ticket: "t4", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t4", status: "done", override: "PR なし" });
     await runCommand(ticketMove, ctx, { ticket: "t5", status: "abandoned" });
     const created = await runCommand(planCreate, ctx, {
       tickets: ["t1", "2"],
@@ -166,7 +166,7 @@ describe("Plan", () => {
     // 新しいチケットは入ってくる辺がないので、Plan の中のチケットに待たせても拒否しない
     await runCommand(ticketCreate, ctx, { title: "D", depends_on: ["t1"] });
     // 終わったチケットは待たないので、そこを通る循環はできない
-    await runCommand(ticketMove, ctx, { ticket: "t3", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t3", status: "done", override: "PR なし" });
     await runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t3"] });
     // 閉じた Plan の待ちは循環の検査に入らない
     await runCommand(planClose, ctx, { plan: "p1" });
@@ -259,7 +259,7 @@ describe("Plan", () => {
       ["t2", ["t1"]],
       ["t3", []],
     ]);
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
     await runCommand(ticketMove, ctx, { ticket: "t3", status: "abandoned" });
     const second = await runCommand(planShow, ctx, { plan: "p1" });
     expect(second.data.progress).toEqual({
@@ -314,7 +314,7 @@ describe("Plan", () => {
     expect(first.data.ready).toEqual(["t2", "t3"]);
     expect(first.data.next).toEqual({ id: "t2", waiting: [] });
     // t2 が終われば、段の浅い t3 より Plan の順で先の t1 が次になる
-    await runCommand(ticketMove, ctx, { ticket: "t2", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "done", override: "PR なし" });
     const second = await runCommand(planShow, ctx, { plan: "p1" });
     expect(second.data.next).toEqual({ id: "t1", waiting: [] });
     // list の行も同じ値を持つ
@@ -365,7 +365,7 @@ describe("Plan", () => {
       ["t5", []],
       ["t6", ["t3"]],
     ]);
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
     expect(await waits()).toEqual([
       ["t4", []],
       ["t5", []],
@@ -383,11 +383,11 @@ describe("Plan", () => {
     await runCommand(planCreate, ctx, { tickets: ["t3"] });
     await runCommand(planCreate, ctx, { tickets: ["t4"] });
     await runCommand(planCreate, ctx, { tickets: ["t5", "t6"] });
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
     await runCommand(ticketDelete, ctx, { ticket: "t2" });
     await runCommand(ticketMove, ctx, { ticket: "t3", status: "abandoned" });
     await runCommand(ticketDelete, ctx, { ticket: "t4" });
-    await runCommand(ticketMove, ctx, { ticket: "t5", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t5", status: "done", override: "PR なし" });
     const l = await runCommand(lint, ctx, {});
     expect(
       l.data.issues.filter((i) => i.code === "lint_plan_finished_open").map((i) => i.id),
@@ -454,7 +454,7 @@ describe("Plan", () => {
     await runCommand(planCreate, ctx, { tickets: ["t1", "t2"] });
     await runCommand(planApprove, ctx, { plan: "p2" });
     await runCommand(planCreate, ctx, { tickets: ["t3"] });
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
     const all = await runCommand(planList, ctx, {});
     expect(all.data.map((p) => [p.id, p.status])).toEqual([
       ["p1", "closed"],
