@@ -163,7 +163,7 @@ README の GIF（`packages/vscode/images/`）は、画面を変えたら `mise r
 
 ## リリース
 
-利用者に届けるのは VSIX だけで（`dg` は拡張に同梱する）、npm には出さない。VSIX は GitHub の Release に添付し、同じものを VS Code Marketplace と Open VSX に出す。版は全パッケージで揃える（`release:version`。VSIX の版もここで決まる。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。`main` の clean な状態で行う：
+利用者に届けるのは VSIX だけで（`dg` は拡張に同梱する）、npm には出さない。VSIX は GitHub の Release に添付し、同じものを VS Code Marketplace に出す。版は全パッケージで揃える（`release:version`。VSIX の版もここで決まる。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。`main` の clean な状態で行う：
 
 ```sh
 mise run release:version -- <版>    # 版を揃え、PR で main に入れる
@@ -173,19 +173,18 @@ mise run test:layout && mise run test:vscode   # 画面の配置と VS Code の�
 git tag v<版> && git push origin v<版>
 mise run vsix                        # 出た SHA256 の文を Release の本文に貼る
 gh release create v<版> --draft --notes-file <本文> packages/vscode/deguboard-vscode.vsix   # 下書きの Release に VSIX を添付する
-gh release edit v<版> --draft=false  # 公開すると、ワークフローが Marketplace と Open VSX に出す
+gh release edit v<版> --draft=false  # 公開すると、ワークフローが Marketplace に出す
 ```
 
 リリースのチケットを 2 つに分けて起票し進める手順（起票の時期は Iteration の確認である `dg guide release` の手順 1「Check that all are done」のあと、分け方と進め方は手順 3）は `dg guide release` に従う。ここには、このリポジトリで受け入れ条件に入れるものだけを書く。
 
 - **版を上げる PR のチケット**（`release:version` の PR）：全パッケージの版が揃い VSIX の版が `packages/vscode/package.json` と一致する、`mise run check`・`mise run audit`・`mise run test:layout`・`mise run test:vscode` が PR の先端で通る。
-- **タグと公開のチケット**（PR を持たない）：マージ後の main の SHA にタグ `v<版>` を push した、VSIX を添付した Release を公開した、Marketplace と Open VSX に版が出た（ワークフローが成功した）。PR のマージのあとでしか確かめられないので、PR のチケットに入れない。
+- **タグと公開のチケット**（PR を持たない）：マージ後の main の SHA にタグ `v<版>` を push した、VSIX を添付した Release を公開した、Marketplace に版が出た（ワークフローが成功した）。PR のマージのあとでしか確かめられないので、PR のチケットに入れない。
 
-VSIX を添付してから公開する。公開したときだけ `.github/workflows/publish-extension.yml` が走り、その Release に添付した `deguboard-vscode.vsix` を落として、版がタグと合えば Marketplace（`vsce publish --oidc`）と Open VSX（`ovsx publish`）に出す。build と検査はしないので、上の検査を通した VSIX を添付する（判断は [ADR-008](adr/ADR-008-tech-stack.md)）。pre-release の Release は出さず、あとで正式な Release に変えても出ない（出すなら、その Release を消して下書きから作り直して公開する）。片方だけ落ちたら、Actions でその job だけを再実行する。
+VSIX を添付してから公開する。公開したときだけ `.github/workflows/publish-extension.yml` が走り、その Release に添付した `deguboard-vscode.vsix` を落として、版がタグと合えば Marketplace に出す（`vsce publish --oidc`）。build と検査はしないので、上の検査を通した VSIX を添付する（判断は [ADR-008](adr/ADR-008-tech-stack.md)）。pre-release の Release は出さず、あとで正式な Release に変えても出ない（出すなら、その Release を消して下書きから作り直して公開する）。
 
-初めて出す前に、一度だけ準備する。初回の VSIX は人が手で上げ、その後の版から Release の公開で出す。手で上げるのは、Marketplace の trusted publishing の policy が既存の拡張のページに登録するもので、拡張が一度出ていないと設定できず、ワークフローは Release の公開でしか走らないため。Open VSX も、namespace と拡張のページを手元から確かめてから Release の経路に載せる：
+初めて出す前に、一度だけ準備する。初回の VSIX は人が手で上げ、その後の版から Release の公開で出す。手で上げるのは、Marketplace の trusted publishing の policy が既存の拡張のページに登録するもので、拡張が一度出ていないと設定できず、ワークフローは Release の公開でしか走らないため。
 
-- Marketplace：publisher `deguboard` を作り、`mise run vsix` の VSIX を publisher の管理画面（`https://marketplace.visualstudio.com/manage/publishers/deguboard`）の New extension から手で上げて拡張のページを作る。New extension の上げが「Your extension has suspicious content」で拒否されたら、README と説明文（`description`）を最小にした VSIX を New extension から上げ、その検査（Verifying）が終わってから、本物の VSIX をその拡張の Update から上げる（最小の VSIX のための変更はコミットしない）。次に、その拡張の trusted publishing の policy にこのリポジトリとワークフローのファイル `publish-extension.yml` を登録する（PAT は作らない）。試しの版や要らない版を外すときは Unpublish にし、Remove しない（Remove した拡張の名前は同じ publisher でも二度と使えず、表示名（`displayName`）も押さえられたままになって「This extension display name is taken」で拒否される。表示名が `deguboard for VS Code` なのはこのため）
-- Open VSX：出せるアカウントのトークンを環境変数 `OVSX_PAT` に入れ、namespace `deguboard` を作り（`packages/vscode/node_modules/.bin/ovsx create-namespace deguboard`）、同じ VSIX を `packages/vscode/node_modules/.bin/ovsx publish <VSIX>` で手元から出す。create-namespace も publish もトークンを要るので、トークンを先に置く。どちらも `packages/vscode` が lockfile で固定した ovsx（`mise run install` で入る）を使う。トークンはリポジトリの Actions の secret `OVSX_PAT` にも置く
+Marketplace の publisher `deguboard` を作り、`mise run vsix` の VSIX を publisher の管理画面（`https://marketplace.visualstudio.com/manage/publishers/deguboard`）の New extension から手で上げて拡張のページを作る。New extension の上げが「Your extension has suspicious content」で拒否されたら、README と説明文（`description`）を最小にした VSIX を New extension から上げ、その検査（Verifying）が終わってから、本物の VSIX をその拡張の Update から上げる（最小の VSIX のための変更はコミットしない）。次に、その拡張の trusted publishing の policy にこのリポジトリとワークフローのファイル `publish-extension.yml` を登録する（PAT は作らない）。試しの版や要らない版を外すときは Unpublish にし、Remove しない（Remove した拡張の名前は同じ publisher でも二度と使えず、表示名（`displayName`）も押さえられたままになって「This extension display name is taken」で拒否される。表示名が `deguboard for VS Code` なのはこのため）。
 
-手で上げる VSIX は、`mise run vsix` で作った今の版（`packages/vscode/package.json` の version）のもので、上のコードブロックの検査（`mise run check`・`mise run audit`・`mise run test:layout`・`mise run test:vscode`）を通したものにする。初回の版は GitHub の Release もタグも作らない。Release を公開するとワークフローが同じ版を両方に出そうとして失敗するため。Release で出す版は、それより後の版にして、上のコードブロックの手順で作る（同じ版は Marketplace と Open VSX に二度出せず、ワークフローが失敗するため）。
+手で上げる VSIX は、`mise run vsix` で作った今の版（`packages/vscode/package.json` の version）のもので、上のコードブロックの検査（`mise run check`・`mise run audit`・`mise run test:layout`・`mise run test:vscode`）を通したものにする。初回の版は GitHub の Release もタグも作らない。Release を公開するとワークフローが同じ版を出そうとして失敗するため。Release で出す版は、それより後の版にして、上のコードブロックの手順で作る（同じ版は Marketplace に二度出せず、ワークフローが失敗するため）。
