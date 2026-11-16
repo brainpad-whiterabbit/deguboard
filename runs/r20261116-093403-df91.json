@@ -1,0 +1,34 @@
+{
+  "id": "r20261116-093403-df91",
+  "ticket": "t1024",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-16T09:34:03Z",
+  "finished_at": "2026-11-16T09:38:43Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "Align documents: agent records a person's approval with --approved-by human when moving PR-less work to done"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 5841,
+    "cache_read": 643347,
+    "cache_write": 61700
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 3,
+    "bash": 11,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "23c5636a-4fa2-4fb4-b1a2-d06fa88b11b3",
+  "review": null,
+  "waited_seconds": 0
+}
