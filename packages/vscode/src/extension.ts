@@ -656,7 +656,10 @@ const autoSetup = coalesce(() => {
     if (autoRecheck(view, setupBandDismissed.has(key))) postSetupTo(key);
 }, 300);
 
-/** フォルダ（鍵）のサイドバーとパネルに、導入のチェックリストの確かめ直しを頼む（画面が setup の要求で取り直す） */
+/**
+ * フォルダ（鍵）のサイドバーとパネルに、導入のチェックリストの確かめ直しを頼む（画面が setup の要求で取り直す）。
+ * 帯もチェックリストも出していない画面（一覧を読めているエディタのパネル）は取り直さない（web の store の onSetupEvent）
+ */
 function postSetupTo(key: string): void {
   const event: WebviewEvent = { kind: "event", name: "setup" };
   if (sidebar && folderKey(sidebarFolder) === key) void sidebar.webview.postMessage(event);

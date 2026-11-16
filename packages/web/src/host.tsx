@@ -57,7 +57,7 @@ export interface Host {
 /**
  * 推奨の項目の帯を出す入口か。VS Code の左パネルにだけ出す。開発用の dg serve には出さない（配置の確認とスクリーンショットの画面が、
  * 開発者のマシンに Skill と hooks が入っているかで変わらないように。必須を満たさない間のチェックリストは dg serve にも出す）。
- * 出さない入口では、一覧を読めた後に導入の項目を確かめない（StoreProvider の setupBand）
+ * 出さない入口では、一覧を読めた後に導入の項目を確かめず、チェックリストを出していない間は setup の通知でも確かめ直さない（StoreProvider の setupBand）
  */
 export function showsSetupBand(host: Pick<Host, "surface" | "extension">): boolean {
   return host.surface === "sidebar" && host.extension === true;
@@ -264,7 +264,7 @@ export function useUiState<T>(key: string, initial: T): [T, (value: T) => void] 
 
 /**
  * 拡張ホストからの通知を受ける。navigate はハッシュを書き換え、toggle はその画面と来る前の画面を切り替え（歯車の設定画面）、
- * reload は store を読み直す（同期は拡張ホストが済ませてから送ってくる）、setup は導入のチェックリストを確かめ直す、ask はエージェントに頼む入力欄を開く
+ * reload は store を読み直す（同期は拡張ホストが済ませてから送ってくる）、setup は導入のチェックリストを確かめ直す（帯もチェックリストも出していない入口では何もしない。store の onSetupEvent）、ask はエージェントに頼む入力欄を開く
  * （current つきはタイトル行の吹き出しで、画面の今の対象を対象にする。toggle つきは左パネルのタイトル行の Ask ボタンで、
  * 開いていれば閉じ、閉じていれば開く）。
  * StoreProvider と HostProvider の中に置く
@@ -273,11 +273,11 @@ export function HostBridge({ client }: { client: WebviewClient }) {
   const store = useStore();
   const { request, open: openAsk, close: closeAsk, current } = useAsk();
   const reloadRef = useRef(store.reload);
-  const recheckRef = useRef(store.recheckSetup);
-  // 最新の reload・recheckSetup を通知の受け手から呼ぶ。描画中に ref を書かない（react/refs）ので、描いた後に写す
+  const setupEventRef = useRef(store.onSetupEvent);
+  // 最新の reload・onSetupEvent を通知の受け手から呼ぶ。描画中に ref を書かない（react/refs）ので、描いた後に写す
   useEffect(() => {
     reloadRef.current = store.reload;
-    recheckRef.current = store.recheckSetup;
+    setupEventRef.current = store.onSetupEvent;
   });
   useEffect(
     () =>
@@ -285,7 +285,7 @@ export function HostBridge({ client }: { client: WebviewClient }) {
         if (event.name === "navigate") window.location.hash = event.hash;
         else if (event.name === "toggle") toggleRoute(event.hash);
         else if (event.name === "reload") void reloadRef.current();
-        else if (event.name === "setup") void recheckRef.current();
+        else if (event.name === "setup") void setupEventRef.current();
         else if (event.name === "ask") {
           if (event.toggle && request) closeAsk();
           else openAsk(event.current ? current() : event.targets);

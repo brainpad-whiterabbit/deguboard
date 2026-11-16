@@ -117,6 +117,11 @@ export interface Store {
   /** 導入のチェックリストを確かめ直す。必須を満たさない間は一覧も読み直し、満たしたらいつもの画面に変わる */
   recheckSetup(): Promise<void>;
   /**
+   * 入口の setup の通知（拡張ホストの見張り）を受けて確かめ直す。帯もチェックリストも出していない入口（setupBand でも needsSetup でもない）は
+   * 何もしない
+   */
+  onSetupEvent(): Promise<void>;
+  /**
    * 人がボードの項目で指定したデータの置き場所（チームのボードが別のリポジトリにあるとき）。指定していなければ null で、
    * コードのリモートを確かめる。確かめ直すたびにこれを付けて頼み、ボタンの dg init にも同じ値を渡す
    */
@@ -157,7 +162,8 @@ export function StoreProvider({
   readRunning?: boolean | undefined;
   /**
    * 推奨の項目の帯を出す入口か（host.tsx の showsSetupBand）。出す入口でだけ、一覧を読めた後に導入の項目を確かめる
-   * （人が帯を出さないと決めている間は確かめない）。出さない入口（エディタのパネル・dg serve）は、一覧を読めなかったときにだけ確かめる
+   * （人が帯を出さないと決めている間は確かめない）。出さない入口（エディタのパネル・dg serve）は、一覧を読めなかったときにだけ確かめ、
+   * チェックリストを出していない間は setup の通知でも確かめ直さない（onSetupEvent）
    */
   setupBand?: boolean | undefined;
   children: ReactNode;
@@ -302,6 +308,14 @@ export function StoreProvider({
     }
   }, [needsSetup, reload, readSetup]);
 
+  const onSetupEvent = useCallback(async () => {
+    // 帯もチェックリストも出していない入口（一覧を読めているエディタのパネル）は、入口の setup の通知が来ても確かめ直さない。
+    // 結果を出す場所がないうえ、拡張ホストは確かめた結果をフォルダごとに 1 つ持つ（extension.ts の setupViews）ので、
+    // ボードの指定を持たないパネルの結果が、左パネルが別のリポジトリのボードを指定して確かめた結果を上書きしてしまう
+    if (!setupBand && !needsSetup) return;
+    await recheckSetup();
+  }, [setupBand, needsSetup, recheckSetup]);
+
   const chooseSetupBoard = useCallback(
     async (board: SetupBoardSource | null) => {
       setupBoardRef.current = board;
@@ -359,6 +373,7 @@ export function StoreProvider({
       needsSetup,
       checkingSetup,
       recheckSetup,
+      onSetupEvent,
       setupBoard,
       chooseSetupBoard,
       notice,
@@ -384,6 +399,7 @@ export function StoreProvider({
       needsSetup,
       checkingSetup,
       recheckSetup,
+      onSetupEvent,
       setupBoard,
       chooseSetupBoard,
       notice,

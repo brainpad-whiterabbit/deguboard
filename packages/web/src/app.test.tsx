@@ -1391,6 +1391,44 @@ describe("画面", () => {
     }
   });
 
+  it("帯もチェックリストも出していないエディタのパネルは、setup の event が来ても確かめ直さない", async () => {
+    const client = boardClient();
+    const setup = vi.fn(async () => setupView({ skills_hooks: { status: "unmet", fix: [] } }));
+    client.setup = setup;
+    window.location.hash = "#/tickets/t1";
+    const send = mountWithBridge(client, { readRunning: false, host: extensionHost("panel") });
+    await waitFor(() => expect(client.calls.some((c) => c.name === "ticket.list")).toBe(true));
+    await act(async () => {});
+    const lists = client.calls.filter((c) => c.name === "ticket.list").length;
+    act(() => send()({ kind: "event", name: "setup" }));
+    await act(async () => {});
+    expect(setup).not.toHaveBeenCalled();
+    // 一覧も読み直さない（必須を満たさなくなったかを確かめるのは、帯かチェックリストを出している画面）
+    expect(client.calls.filter((c) => c.name === "ticket.list").length).toBe(lists);
+  });
+
+  it("パネルを開いている間も、左パネルが別のリポジトリのボードを指定して確かめた結果を、パネルが setup の event で上書きしない", async () => {
+    const client = boardClient();
+    const board = { dataRemote: "git@github.com:team/kanban.git", dataBranch: "deguboard" };
+    // 拡張ホストはフォルダごとに最後に確かめた結果を 1 つ持つ（extension.ts の setupViews）。左パネルがボードを指定して確かめた後の状態から始める
+    let held: { board?: unknown } | undefined = { board };
+    const setup = vi.fn(async (options?: { board?: unknown }) => {
+      held = options;
+      return setupView();
+    });
+    client.setup = setup;
+    window.location.hash = "#/tickets/t1";
+    const send = mountWithBridge(client, { readRunning: false, host: extensionHost("panel") });
+    await waitFor(() => expect(client.calls.some((c) => c.name === "ticket.list")).toBe(true));
+    await act(async () => {});
+    // 見張りが続けて setup の event を送っても（ファイルの変化・ターミナルの実行の終わり）、パネルは確かめに行かない
+    act(() => send()({ kind: "event", name: "setup" }));
+    act(() => send()({ kind: "event", name: "setup" }));
+    await act(async () => {});
+    expect(setup).not.toHaveBeenCalled();
+    expect(held).toEqual({ board });
+  });
+
   it("拡張ホストから toggle の event が来ると、設定画面と来る前の画面を切り替える（ビューのタイトル行の歯車）", async () => {
     const client = mockClient();
     client.handlers["config.show"] = () => {
