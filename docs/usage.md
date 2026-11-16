@@ -69,6 +69,8 @@ dg init --data-remote git@github.com:acme/kanban.git
 
 In VS Code, the board item of the setup checklist does the same: choose that the team's board is in another repository, enter the repository and its branch, and check it. The button then runs `dg init` with `--data-remote` and `--data-branch`.
 
+If dg cannot reach the data remote (the network, the credentials, or the URL is wrong), `dg init` stops without creating a board. Fix the connection and run `dg init` again to take in the team's board. In VS Code, the board item shows the reason and no button. `dg init --new-board` creates a board only on this machine. If the remote already has a board, the new one shares no history with it, and `dg sync` then stops with `DATA_HISTORY_UNRELATED`. Use `--new-board` only when you know the team has no board yet, or when you want a separate board on purpose.
+
 To move an existing board to another repository, a person does the following in order:
 
 1. Run `dg sync`, add the new repository as a remote, and push the data to it.
