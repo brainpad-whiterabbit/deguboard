@@ -191,6 +191,17 @@ describe("flowStageOf（流れの 8 つの規則）", () => {
   });
 });
 
+describe("flow next のヘルプの文（summary）", () => {
+  it("規則 7 の説明が release-<S> のチケットを数えないことを書き、文の区切りに空白が抜けない", () => {
+    const rule7 = /7 release:[^/]*/.exec(flowNext.summary)?.[0] ?? "";
+    expect(rule7).toContain("audited");
+    expect(rule7).toContain("release-<S>");
+    expect(flowNext.summary).toContain("audit-<S> or release-<S> exists");
+    // 文をつないだときに空白が抜けると「run.For」のように次の文に続く（t945）
+    expect(flowNext.summary).not.toMatch(/[a-z)]\.[A-Z]/);
+  });
+});
+
 describe("resume", () => {
   it("前の段階が割り当て・点検・見直しなら終えたものに足し、ほかの段階は足さない", () => {
     const prev = (stage: "assign" | "check" | "audit" | "plan") =>
