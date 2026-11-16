@@ -56,6 +56,9 @@ function describeChange(c: HistoryChange, labelOf: (s: string) => string): strin
       return c.to ? tr("担当: {0}", c.to) : tr("担当を外した");
     case "pr":
       return c.to ? `PR #${c.to}` : tr("PR を外した");
+    // Iteration が流れの段階の関所を通った（dg checkpoint）。to は段階の名前
+    case "checkpoint":
+      return tr("関所 {0} を通った", c.to);
   }
 }
 

@@ -9,7 +9,21 @@ import { runGit } from "./run.js";
 
 /** 経過として拾う属性 */
 const HISTORY_FIELDS = ["status", "iteration", "epic", "assignee", "pr"] as const;
-export type HistoryField = (typeof HISTORY_FIELDS)[number];
+/**
+ * checkpoint は Iteration が流れの段階の関所を通ったこと（dg checkpoint が checkpoints に足した記録）。to が段階の名前で、from はいつも null
+ */
+export type HistoryField = (typeof HISTORY_FIELDS)[number] | "checkpoint";
+
+/** Iteration の YAML に足された関所の記録の最初の行（`  - name: check`。記録は名前から書く。commands/checkpoint.ts の recordOf） */
+const CHECKPOINT_LINE = /^\s+-\s+name:\s*(["']?)([a-z0-9-]+)\1\s*$/;
+
+/** 足された行のうち、関所の記録の分（通った順） */
+function checkpointsIn(lines: readonly string[]): HistoryChange[] {
+  return lines.flatMap((line) => {
+    const m = CHECKPOINT_LINE.exec(line);
+    return m ? [{ field: "checkpoint" as const, from: null, to: m[2]! }] : [];
+  });
+}
 
 export type HistoryKind = "ticket" | "epic" | "iteration";
 
@@ -230,6 +244,9 @@ export function buildHistory(
         state.values[field] = to;
         if (from !== to) changes.push({ field, from, to });
       }
+      // 関所の記録は消さずに足すだけなので、足された行だけを見る
+      if (subject.kind === "iteration")
+        changes.push(...checkpointsIn(f.hunks.flatMap((h) => h.added)));
       if (changes.length > 0) events.push({ ...base, type: "changed", changes });
     }
   }

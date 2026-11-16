@@ -353,6 +353,7 @@ export const EN: Readonly<Record<string, string>> = {
   "担当: {0}": "Assignee: {0}",
   担当を外した: "Assignee removed",
   "PR を外した": "Removed PR",
+  "関所 {0} を通った": "Passed the {0} checkpoint",
   消した: "Removed",
   起票: "Created",
   経過: "Timeline",

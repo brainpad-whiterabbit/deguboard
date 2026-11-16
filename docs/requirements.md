@@ -53,7 +53,7 @@ deguboard は、Agentic-Agile の考え方（[マニフェスト](https://github
 - データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用 worktree として checkout する。読み書きはすべてここで行い、作業ブランチにはデータを置かない（理由は [ADR-034](adr/ADR-034-storage-and-id.md)）
 - データを fetch・push するリモートは、既定でコードのリモート（`git.remote`）と同じ。`git.data_remote`（5.10）で、コードとは別のリポジトリのリモートにできる。作業ブランチと PR の照合はコードのリモートのままで、手元の置き場所も変わらない（別のリポジトリへ移す手順は [usage.ja.md](usage.ja.md#データを別のリポジトリに置く)）
 - データのリモートでのブランチ名は `git.data_branch`（5.10）で変えられ、1 つの専用のリポジトリに、リポジトリごとのブランチで別々のカンバンを置ける。見る権限はリポジトリ単位なので、カンバンごとには分けられない（使い方は [usage.ja.md](usage.ja.md#1-つのリポジトリに複数のカンバンを置く)）
-- Git 管理外のもの（ローカルロック、実行中の Run の記録、マージドライバの属性ファイル、個人の設定 `config.yaml`（5.10）、消してよい読みのキャッシュ `store-cache/`（[ADR-033](adr/ADR-033-architecture.md)））は `<git-common-dir>/deguboard-local/` に置く
+- Git 管理外のもの（ローカルロック、実行中の Run の記録、流れの止まる判定 `flow/`（EX-8）、マージドライバの属性ファイル、個人の設定 `config.yaml`（5.10）、消してよい読みのキャッシュ `store-cache/`（[ADR-033](adr/ADR-033-architecture.md)））は `<git-common-dir>/deguboard-local/` に置く
 
 ```
 config.yaml
@@ -129,7 +129,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `status` は `planned` / `active` / `closed` で、予定の期間は持たず、実績の期間として active になったときに `started_at`、閉じたときに `closed_at` と完了・持ち越しの件数を書く（細部は `iteration start / close / reopen --help`）。閉じる・再開するのは `flow.release` で判定する（WF-9）。active はカンバンに 1 つに保つ
+- IT-1 `status` は `planned` / `active` / `closed` で、予定の期間は持たず、実績として `started_at`・`closed_at`・完了と持ち越しの件数を書く。関所を通った記録は `checkpoints` に消さずに足す（EX-8）。閉じる・再開は `flow.release` で判定する（WF-9）。active はカンバンに 1 つに保つ（細部は `iteration start / close / reopen --help`）
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。閉じた Iteration には入れられない。閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）
 - IT-3 `iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形は `packages/core/src/commands/iteration.ts`、並びは `commands/helpers.ts` の `ticketsInIteration`）
 
@@ -154,7 +154,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - WF-6 `dg workflow set` は `workflow.yaml` を作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す。エージェントにはいつも人の承認（`--approved-by`）を求め、承認者を履歴に残す（WF-7。細部は `dg workflow set --help`）。前の版の `workflows/` は読まず、`workflow.yaml` がないのに残っていれば警告する
 - WF-7 チケットを消す・チームの設定を変える・ほかのユーザの担当と claim を替える・Epic を閉じる/再開する・起票は、`governance` の値で ST-2 と同じく判定する。フックを外す・段を下げる・`workflow set`・品質ゲートを越えるマージは Core が固定し、`workflow.yaml` では緩められない（値は `dg workflow show`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - WF-8 `wip` は列ごとのチケットの数の上限で、config の `work.parallel`（同時に動かすサブエージェントの数）とは別のもの。上限を超える列があると `dg next` と `dg flow next` は警告し、着手の手の前に先の列を進める手を返すが、着手は拒否しない（細部は `dg next --help`）
-- WF-9 Iteration・Epic への出し入れは `flow.assign`、Plan の承認は `flow.plan`、Iteration を閉じる/再開するは `flow.release` の値で、ST-2 と同じく判定する。コマンドで止められない段階の値は、`dg flow next` が承認の要否として返す（EX-8。既定は `dg workflow show`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
+- WF-9 Iteration・Epic への出し入れは `flow.assign`、Plan の承認は `flow.plan`、Iteration を閉じる/再開するは `flow.release` の値で、ST-2 と同じく判定する。コマンドで止められない判断は、関所 `dg checkpoint` が同じ値で判定する（EX-8。既定は `dg workflow show`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 
 ### 5.9 Run（`runs/`）
 
@@ -193,7 +193,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - CL-4 `ticket import` は下書きの配列を 1 コミットで取り込み、取り込めない下書きがあれば起票せずに拒む（形と条件は `guide import`）
 - CL-5 `dg guide <topic>` は、各手のやり方を `config.yaml` の値で埋めて出す。`guide.notes.<topic>` の文書は題名の直後（節なら見出しの直後）に差し込み、読めなければ警告を出す。`--section <節>` は節だけを出し（重ねると順につなぐ）、ない節は使い方の誤りとして一覧を添えて失敗する。段階・次の手は Core が返す（EX-3。[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
-- CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
+- CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化と Iteration が通った関所を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
 - CL-8 `dg` の出力（ヘルプ・MCP のツールの説明・エラー・警告・次の手の理由・定型の文・`dg` が書くコミットの題）は英語で出し、既定の値（`config.yaml` の既定など）も英語で持つ。チケットの中身と `config.yaml` に書いた値（日本語で書いた古い既定の写しも含む）は書いたまま出す。理由は [ADR-001](adr/ADR-001-doc-strategy.md)
 - CL-9 `dg setup check` は導入の項目（git の版・Git リポジトリ・ボード・Skill と hooks・`.claude/.gitignore`）を上から確かめ、満たすか・状態・必須か推奨か・直すコマンドを返す。必須を満たさなければ後の項目は確かめない。git がなくても init の前でも動き、何も書かない（細部は `dg setup check --help`）
 
@@ -277,7 +277,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - EX-5 `dg next` は読み取りだけで、次の 1 手・開く step・呼ぶコマンド・人に聞くことを返す。サブエージェントに渡す手（implement・review・fix）は役の手順の本文と、手直しなら直す指摘を入れた文（brief）を返す。モデル（`model`）は implement・fix の手が返す。low・free の段（TK-9）は見直しを飛ばし、人の判断が要るものは人を待つ手になる。着手順は PL-6 と `ticket list --ready` に従う（EX-3）
 - EX-6 `dg pr ready`・`dg pr merge` は段（TK-9）の条件を満たすときだけ gh を呼び、ほかは `GATE_FAILED` で返す。出す前に直さなかった軽い指摘を本文に足す。merge は判定したコミットに固定し、gh が失敗してもマージ済みなら成功。条件の外のマージは EX-10、ready は人が行う（AG-10。細部は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - EX-7 `--auto` は、Workflow の値が `ask_unless_auto` の場面だけを聞かずに進める。操作のコマンドが `--auto` を受け、その場面でだけ通して承認者に agent を記録し、ほかの場面の `--auto` は拒否する。`always_ask`・`human_only`・Core の固定は越えない（細部は `dg guide all`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
-- EX-8 `dg flow next` は読み取りだけで、Iteration・Plan・チケットの流れの段階と、その手のやり方の節・呼ぶコマンド・Workflow の値で決まる承認の要否・`resume` を返す。`resume` を写して渡すと前に返した割り当て・点検・見直しを終えたものとして進め、なければ割り当てと点検からやり直す。`flow` の `skip` の段階は返さず、同じ段階が事実も変わらずに続けば止まる手を返す（規則は `dg flow next --help`、EX-3）
+- EX-8 `dg flow next` は流れの段階と、その手のやり方の節・呼ぶコマンド・関所・承認の要否を返す。割り当て・点検・見直しを終えたかは、`dg checkpoint` が段階の値で判定して Iteration に足した記録と根拠で決め、根拠が変わった記録と再開より前の記録は数えない。`flow` の `skip` の段階は返さず、同じ段階が事実も変わらずに続けば止まる手を返す（規則は `dg flow next --help`、EX-3）
 - EX-9 `dg gate <id> --only check` は、作業ブランチの worktree の HEAD（push の前のコミットも）を品質ゲートの検査と同じ判定で検査し、結果を同じコミットの `dg pr ready`・`dg pr merge` が回し直さずに使う（細部は `dg gate --help`）
 - EX-10 品質ゲートを満たさない PR は、人が承認したときだけ、承認者を渡した `dg pr merge` がマージし、越えた条件と承認者を PR に残す。この承認は `--auto` でも設定でも省けない（WF-7）。PR の状態・衝突・判定した先端は承認があっても越えられない（細部は `dg pr merge --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 

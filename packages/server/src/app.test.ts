@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { request, type IncomingMessage } from "node:http";
 import { connect } from "node:net";
 import path from "node:path";
@@ -436,13 +436,10 @@ describe("HTTP サーバー", () => {
     const viaHttp = await post(s, "flow.next", { targets: ["s1"] });
     expect(viaHttp.status).toBe(200);
     expect(viaHttp.body.data.stage).toMatchObject({ name: "check", rule: 2 });
-    const direct = await runCommand(
-      findCommand("flow.next")!,
-      await openContext({ cwd: f.cloneA }),
-      {
-        targets: ["s1"],
-      },
-    );
+    const ctx = await openContext({ cwd: f.cloneA });
+    // 同じ呼び出しを比べるので、止まる判定が覚えた前の段階を消す（消さなければ、2 回目は同じ段階が続いたとして止まる手になる）
+    await rm(path.join(ctx.repo.localDir, "flow", "s1.json"));
+    const direct = await runCommand(findCommand("flow.next")!, ctx, { targets: ["s1"] });
     expect(viaHttp.body.data).toEqual(direct.data);
   });
 

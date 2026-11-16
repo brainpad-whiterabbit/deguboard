@@ -1,3 +1,5 @@
+import { rm } from "node:fs/promises";
+import path from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -334,7 +336,7 @@ describe("dg mcp", () => {
     expect(others.data).toEqual([]);
   });
 
-  it("flow_next は CLI の dg flow next --json と同じ結果を返し、--resume・--no-assign を受け取る", async () => {
+  it("flow_next は CLI の dg flow next --json と同じ結果を返し、--no-assign を受け取る。checkpoint で通した関所を、どちらの入口も同じに数える", async () => {
     const f = await initialized();
     const cli = async (argv: string[]) => {
       const out: string[] = [];
@@ -348,22 +350,27 @@ describe("dg mcp", () => {
     await cli(["ticket", "create", "A"]);
     await cli(["ticket", "create", "B"]);
     await cli(["iteration", "add", "s1", "t1"]);
+    // 同じ呼び出しを 2 つの入口で比べるので、止まる判定が覚えた前の段階（deguboard-local/flow/）を呼び出しの間で消す
+    // （消さなければ、2 回目は同じ段階が続いたとして止まる手になる）
+    const forget = () =>
+      rm(path.join(f.cloneA, ".git", "deguboard-local", "flow", "s1.json"), { force: true });
+    const viaMcp = async () => {
+      await forget();
+      const s = await session(
+        ["-C", f.cloneA],
+        [{ method: "tools/call", params: { name: "flow_next", arguments: { targets: ["s1"] } } }],
+      );
+      await forget();
+      return body(s.results[0]!);
+    };
     const first = await cli(["flow", "next", "s1"]);
     expect(first.data.stage).toMatchObject({ name: "assign", rule: 1 });
-    const viaMcp = await session(
-      ["-C", f.cloneA],
-      [
-        { method: "tools/call", params: { name: "flow_next", arguments: { targets: ["s1"] } } },
-        {
-          method: "tools/call",
-          params: { name: "flow_next", arguments: { targets: ["s1"], resume: first.data.resume } },
-        },
-      ],
-    );
-    expect(body(viaMcp.results[0]!)).toEqual(first);
-    const resumed = await cli(["flow", "next", "s1", "--resume", first.data.resume]);
-    expect(resumed.data.stage.name).toBe("check");
-    expect(body(viaMcp.results[1]!)).toEqual(resumed);
+    expect(await viaMcp()).toEqual(first);
+    // 割り当ての関所を通すと、どちらの入口も点検を返す
+    await cli(["checkpoint", "assign", "s1"]);
+    const checked = await cli(["flow", "next", "s1"]);
+    expect(checked.data.stage.name).toBe("check");
+    expect(await viaMcp()).toEqual(checked);
     expect((await cli(["flow", "next", "s1", "--no-assign"])).data.stage.name).toBe("check");
   });
 

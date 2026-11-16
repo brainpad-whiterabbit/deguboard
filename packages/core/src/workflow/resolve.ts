@@ -210,7 +210,9 @@ export interface Operation {
 /**
  * コマンドの名前だけで決まる、Core に固定の操作・流れの段階の操作・カンバンの管理の操作（runCommand が実行の前に判定する）。
  * 流れの段階の値のうち dg がコマンドで止められるのは、割り当て（Iteration・Epic への出し入れ）・計画（Plan の承認）・
- * リリース（Iteration を閉じる/再開する）。点検・見直し・振り返りの値は、dg flow next が承認の要否として返す
+ * リリース（Iteration を閉じる/再開する）。コマンドで止められない判断（点検の指摘を直す・見直しの指摘を起票する・リリースの手順・
+ * 振り返りの改善を起票する）は、手順が呼ぶ関所（dg checkpoint <段階>）が同じ値で判定する。段階は引数で決まるので、
+ * dg checkpoint は自分で判定を呼ぶ（commands/checkpoint.ts）
  */
 const COMMAND_OPERATIONS: Record<string, Pick<Operation, "fixed" | "stage" | "governs">> = {
   "workflow.set": { fixed: "workflow_set" },

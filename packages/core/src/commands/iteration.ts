@@ -374,7 +374,7 @@ export const iterationReopen = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Reopen a closed Iteration and make it active again (rejected if another Iteration is active). Clears closed_at and the completed and carried-over counts. The start time (started_at) is not changed. Carried-over tickets do not come back, so add them again with iteration add. The Workflow's flow.release judges it, as for iteration close (human_only by default)",
+    "Reopen a closed Iteration and make it active again (rejected if another Iteration is active). Clears closed_at and the completed and carried-over counts. The start time (started_at) is not changed, and the time it was reopened is recorded (reopened_at): the checkpoint records (checkpoints, added by dg checkpoint) from before it are kept but no longer counted, so the stages pass their checkpoints again. Carried-over tickets do not come back, so add them again with iteration add. The Workflow's flow.release judges it, as for iteration close (human_only by default)",
   input: z.object({ iteration: iterationRef, ...permissionFields }),
   write: true,
   needs: "store",
@@ -393,9 +393,11 @@ export const iterationReopen = defineCommand({
           warnings.push(
             `The ${it.data.carried_over} tickets removed when it was closed do not come back. Add them again with iteration add`,
           );
+        // reopened_at より前の関所の記録は数えなくなる（記録は消さない。model/iteration.ts の countedCheckpoints）
         return ctx.store.update("iteration", it.id, {
           status: "active",
           closed_at: undefined,
+          reopened_at: nowIso(ctx),
           completed: undefined,
           carried_over: undefined,
         });
