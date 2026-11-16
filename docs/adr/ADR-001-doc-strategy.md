@@ -46,7 +46,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 | README.md・README.ja.md      | 利用者の入口（導入と、画面のタブごとの使い方の流れ）。同じ節の構成で置く                                  | 規約・約束・細部                      |
 | docs/how-it-works.md・.ja.md | 全体の構成・Run の範囲・次の一手の図と、その決まり。英語版と日本語版を同じ節の構成で置き、README から引く | 依存の規則・判断・要件の細部の写し    |
 | docs/usage.md・usage.ja.md   | README に収めない、人がする操作。英語版と日本語版を同じ節の構成で置き、README の Tips から引く            | ヘルプ・guide・約束の写し             |
-| docs/guide-notes/            | 作業の判断・止める条件・根拠（数字）の補足。英語で書き、dg guide に差し込む                               | 約束・config の写し、見出し（#）      |
+| docs/guide-notes/            | 作業の規則と根拠 1 行・外す条件（振り返りで確かめる）。英語で書き、dg guide に差し込む                    | 約束・config の写し、見出し（#）      |
 | development.md               | 開発者（人）の手順と、このリポジトリ固有の決まり                                                          | CLAUDE.md の規約の写し                |
 | CLAUDE.md                    | 毎回守る規約                                                                                              | 手順・細部                            |
 

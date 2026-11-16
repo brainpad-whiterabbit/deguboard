@@ -157,7 +157,9 @@ README の GIF（`packages/vscode/images/`）は、画面を変えたら `mise r
 
 ## guide.notes の文書（docs/guide-notes/）
 
-このリポジトリの作業の補足（判断・止める条件）は、`dg guide` に差し込む文書として `docs/guide-notes/<トピック>.md` に置く。差し込むのは config の項目 `guide.notes.<トピック>` で、このリポジトリでは `guide.notes.plan` が `docs/guide-notes/plan.md` を、`guide.notes.work` が `docs/guide-notes/work.md` を、`guide.notes.done` が `docs/guide-notes/done.md`、`guide.notes.import` が `docs/guide-notes/import.md` を指す。文書は英語で書く（[ADR-001](adr/ADR-001-doc-strategy.md)）。項目は `packages/core/src/model/config.ts` の `noteField`、読み込みは `packages/core/src/guide/guide.ts` の `readGuideNotes` が正本。
+このリポジトリの作業の規則は、`dg guide` に差し込む文書として `docs/guide-notes/<トピック>.md` に置く。差し込むのは config の項目 `guide.notes.<トピック>` で、このリポジトリでは `guide.notes.plan` が `docs/guide-notes/plan.md` を、`guide.notes.work` が `docs/guide-notes/work.md` を、`guide.notes.done` が `docs/guide-notes/done.md`、`guide.notes.import` が `docs/guide-notes/import.md`、`guide.notes.retro` が `docs/guide-notes/retro.md` を指す。文書は英語で書く（[ADR-001](adr/ADR-001-doc-strategy.md)）。項目は `packages/core/src/model/config.ts` の `noteField`、読み込みは `packages/core/src/guide/guide.ts` の `readGuideNotes` が正本。
+
+1 つの規則は、規則の文（1〜2 文）と、根拠の 1 行（Iteration・指標の値・代表のチケット ID 1 つまで）で書き、根拠の行の末尾に外す条件を 1 文で続ける（`Drop this rule when ...`）。経緯の段落は書かない。dg の出力（警告など）がすでに言うことは書かない。見出しのある文書は差し込まれないので、外す条件も見出しにしない。外す条件は振り返り（`dg guide retro` に差し込む `retro.md`）で指標で確かめ、当たった規則を消すチケットを Try として出す。規則は、そのチケットの PR で消すまで変えない。
 
 ## リリース
 
