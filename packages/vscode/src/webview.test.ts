@@ -375,6 +375,11 @@ describe("Webview の要求", () => {
       expect(
         isWebviewRequest({ id: 1, kind: "action", name: "setupAct", act: "init", board: bad }),
       ).toBe(false);
+    // null（人がコードのリモートに戻した。拡張が持つ指定を消す）は setup だけが送る
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "setup", board: null })).toBe(true);
+    expect(
+      isWebviewRequest({ id: 1, kind: "action", name: "setupAct", act: "init", board: null }),
+    ).toBe(false);
   });
 
   it("要求の形を確かめる", () => {

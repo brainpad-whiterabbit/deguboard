@@ -3,11 +3,14 @@ import {
   DEFAULT_DATA_BRANCH as CORE_DEFAULT_DATA_BRANCH,
   initCommandLine as coreInitCommandLine,
   type SetupAction,
+  type SetupBoardSource,
   type SetupView,
   type SetupViewItem,
 } from "@deguboard/core";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { SetupOptions } from "../client/http.js";
 import { HostProvider, type Host } from "../host.js";
 import { StoreProvider, useStore } from "../store.js";
 import { mockClient, setupView } from "../test-helpers.js";
@@ -356,6 +359,47 @@ describe("ボードの項目で別のリポジトリのボードを指定する"
     await waitFor(() => expect(screen.getByText("確かめたデータのリポジトリ")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "チームのボードを取り込む" }));
     expect(acts).toEqual([["init", SOURCE]]);
+  });
+
+  it("指定をフォルダごとに持つ入口（VS Code 拡張）には、指定し直したときだけ指定を送り（コードのリモートに戻すと null）、確かめ直しでは送らない", async () => {
+    // 拡張ホストを写す：指定を持ち、board を付けない要求にはその指定で確かめ、結果に確かめた指定を付ける
+    let held: SetupBoardSource | undefined;
+    const client = mockClient();
+    const setup = vi.fn(async (options?: SetupOptions) => {
+      if (options?.board !== undefined) held = options.board ?? undefined;
+      return { ...board(held ? "remote_board" : "remote_no_board"), board: held ?? null };
+    });
+    client.setup = setup;
+    let recheck: () => Promise<void> = async () => {};
+    function Live() {
+      const store = useStore();
+      recheck = store.recheckSetup;
+      return <SetupChecklist view={store.setup ?? { ...board("remote_no_board"), board: null }} />;
+    }
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={vscodeHost()}>
+          <Live />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const item = within(row("ボード"));
+    fireEvent.click(item.getByRole("radio", { name: "チームのボードは別のリポジトリにある" }));
+    fireEvent.change(
+      item.getByRole("textbox", { name: "データのリポジトリ（URL か remote 名）" }),
+      {
+        target: { value: SOURCE.dataRemote },
+      },
+    );
+    fireEvent.click(item.getByRole("button", { name: "このリポジトリを確かめる" }));
+    await waitFor(() => expect(setup).toHaveBeenLastCalledWith({ board: SOURCE }));
+    await waitFor(() => expect(screen.getByText("確かめたデータのリポジトリ")).toBeTruthy());
+    await act(async () => void (await recheck()));
+    expect(setup.mock.calls.at(-1)).toEqual([undefined]);
+    expect(held).toEqual(SOURCE);
+    fireEvent.click(screen.getByRole("button", { name: "コードのリモートのボードを使う" }));
+    await waitFor(() => expect(setup).toHaveBeenLastCalledWith({ board: null }));
+    expect(held).toBeUndefined();
   });
 });
 

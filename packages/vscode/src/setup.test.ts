@@ -4,6 +4,7 @@ import {
   autoRecheck,
   buildSetupView,
   dgCommandItem,
+  heldSetupBoard,
   PATH_EXPORT_LINE,
   setupCommands,
   skillsHooksCommands,
@@ -244,6 +245,22 @@ describe("見張りで自動で確かめ直すか", () => {
         true,
       ),
     ).toBe(true);
+  });
+});
+
+describe("フォルダごとに持つボードの指定（heldSetupBoard）", () => {
+  const board = { dataRemote: "git@github.com:team/kanban.git", dataBranch: "deguboard" };
+
+  it("指定を送らない画面（エディタのパネル）の確かめ直しは、左パネルが指定したデータの置き場所のまま確かめる", () => {
+    expect(heldSetupBoard(board, undefined)).toEqual(board);
+    expect(heldSetupBoard(undefined, undefined)).toBeUndefined();
+  });
+
+  it("指定し直した画面の値で持ち替え、null（コードのリモートに戻した）で消す", () => {
+    const other = { dataRemote: "origin" };
+    expect(heldSetupBoard(undefined, board)).toEqual(board);
+    expect(heldSetupBoard(board, other)).toEqual(other);
+    expect(heldSetupBoard(board, null)).toBeUndefined();
   });
 });
 

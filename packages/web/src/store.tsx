@@ -117,8 +117,15 @@ export interface Store {
   /** 導入のチェックリストを確かめ直す。必須を満たさない間は一覧も読み直し、満たしたらいつもの画面に変わる */
   recheckSetup(): Promise<void>;
   /**
+   * 入口の setup の通知（拡張ホストの見張り）を受けて確かめ直す。帯もチェックリストも出していない入口（setupBand でも needsSetup でもない）は
+   * 何もしない
+   */
+  onSetupEvent(): Promise<void>;
+  /**
    * 人がボードの項目で指定したデータの置き場所（チームのボードが別のリポジトリにあるとき）。指定していなければ null で、
-   * コードのリモートを確かめる。確かめ直すたびにこれを付けて頼み、ボタンの dg init にも同じ値を渡す
+   * コードのリモートを確かめる。ボタンの dg init にも同じ値を渡す。指定をフォルダごとに持つ入口（VS Code 拡張）では、確かめた結果の
+   * board（左パネルとエディタのパネルのどちらで指定しても同じ）を写し、指定し直したときだけ付けて頼む。持たない入口（dg serve）では
+   * 確かめ直すたびに付けて頼む
    */
   setupBoard: SetupBoardSource | null;
   /** データの置き場所を決めて（null でやめて）、確かめ直す */
@@ -157,7 +164,8 @@ export function StoreProvider({
   readRunning?: boolean | undefined;
   /**
    * 推奨の項目の帯を出す入口か（host.tsx の showsSetupBand）。出す入口でだけ、一覧を読めた後に導入の項目を確かめる
-   * （人が帯を出さないと決めている間は確かめない）。出さない入口（エディタのパネル・dg serve）は、一覧を読めなかったときにだけ確かめる
+   * （人が帯を出さないと決めている間は確かめない）。出さない入口（エディタのパネル・dg serve）は、一覧を読めなかったときにだけ確かめ、
+   * チェックリストを出していない間は setup の通知でも確かめ直さない（onSetupEvent）
    */
   setupBand?: boolean | undefined;
   children: ReactNode;
@@ -189,6 +197,9 @@ export function StoreProvider({
   const [setupBoard, setSetupBoard] = useState<SetupBoardSource | null>(null);
   // readSetup が読む今の値。state を依存に入れると reload が作り直され、最初の読み込みが走り直すので ref で渡す
   const setupBoardRef = useRef<SetupBoardSource | null>(null);
+  // 人がこの画面で指定し直して、まだ入口に伝えていないか。入口が指定を持つか（確かめた結果に board が付いていたか）
+  const setupBoardChosen = useRef(false);
+  const setupBoardHeld = useRef(false);
 
   /** 人が推奨の項目の帯を「このリポジトリでは出さない」にしているか（帯の SetupBand が見た目の状態に残す） */
   const bandDismissed = useCallback(
@@ -205,14 +216,23 @@ export function StoreProvider({
     const seq = ++setupSeq.current;
     try {
       const board = setupBoardRef.current;
+      // 指定を持つ入口（拡張ホスト）には指定し直したときだけ伝え、ほかの画面の指定を、この画面の古い指定や指定なしで上書きしない
+      const chosen = setupBoardChosen.current;
+      const send = setupBoardHeld.current ? chosen : board !== null;
       const options: SetupOptions = {
         ...(setupBand ? { bandDismissed: bandDismissed() } : {}),
-        ...(board ? { board } : {}),
+        ...(send ? { board } : {}),
       };
       const view = await client.setup(Object.keys(options).length > 0 ? options : undefined);
+      if (chosen && setupBoardRef.current === board) setupBoardChosen.current = false;
+      if (view.board !== undefined) setupBoardHeld.current = true;
       if (seq === setupSeq.current) {
         setupRef.current = view;
         setSetup(view);
+        if (view.board !== undefined && !setupBoardChosen.current) {
+          setupBoardRef.current = view.board;
+          setSetupBoard(view.board);
+        }
       }
       return view;
     } catch {
@@ -302,9 +322,18 @@ export function StoreProvider({
     }
   }, [needsSetup, reload, readSetup]);
 
+  const onSetupEvent = useCallback(async () => {
+    // 帯もチェックリストも出していない入口（一覧を読めているエディタのパネル）は、入口の setup の通知が来ても確かめ直さない。
+    // 結果を出す場所がないのに git と dg を起こさない。チェックリストを出しているパネル（dg init の前）は確かめ直すが、
+    // 拡張ホストがフォルダごとに持つボードの指定で確かめるので、左パネルの指定で確かめた結果を上書きしない（readSetup）
+    if (!setupBand && !needsSetup) return;
+    await recheckSetup();
+  }, [setupBand, needsSetup, recheckSetup]);
+
   const chooseSetupBoard = useCallback(
     async (board: SetupBoardSource | null) => {
       setupBoardRef.current = board;
+      setupBoardChosen.current = true;
       setSetupBoard(board);
       await recheckSetup();
     },
@@ -359,6 +388,7 @@ export function StoreProvider({
       needsSetup,
       checkingSetup,
       recheckSetup,
+      onSetupEvent,
       setupBoard,
       chooseSetupBoard,
       notice,
@@ -384,6 +414,7 @@ export function StoreProvider({
       needsSetup,
       checkingSetup,
       recheckSetup,
+      onSetupEvent,
       setupBoard,
       chooseSetupBoard,
       notice,
