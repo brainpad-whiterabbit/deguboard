@@ -1,0 +1,45 @@
+id: p145
+tickets: [t1013, t1014, t1016, t1019, t1020, t1015, t1017, t1018]
+after:
+  t1015:
+    - t1014
+  t1017:
+    - t1014
+    - t1016
+  t1018:
+    - t1015
+    - t1017
+pending_approval: true
+details:
+  t1013:
+    scope: Only the 4 negative assertions on warnings and any other Japanese-string negatives on warnings in tests; no change to warning wording
+    approach: Replace each negative check with the actual English warning phrase from the source module, and confirm once that it fails when the warning is emitted
+    tier: standard
+  t1014:
+    scope: Move installSkill's decisions, writes and warning assembly from cli to core/commands; behavior unchanged
+    approach: "Follow the hook-settings.ts precedent: a core command function returns the result and cli only maps args and prints it, with tests pinning files written, removed and warnings"
+    tier: standard
+  t1015:
+    scope: Dedupe the self-launch command and shell quoting, break the setup-check/client value cycle, and drop unused core exports; web's initCommandLine copy stays
+    approach: One selfCommand-like helper in cli, one shellQuote in core (quoting a leading =) used by merge.ts, client.ts and terminals.ts, and move initCommandLine so imports go one way
+    tier: heavy
+  t1016:
+    scope: Editor panels that show neither band nor checklist stop re-checking setup; left panel results are not overwritten
+    approach: Stop the recheck on the side that knows whether the panel shows setup (web host/store or extension postSetupTo) and cover both criteria with tests
+    tier: standard
+  t1017:
+    scope: ADR-033 exception item trimmed to decision and reasons, ADR-027 notification wording reconciled, flow next help spacing and a rule 7 test
+    approach: Move file names and routes to code header comments, narrow ADR-027 to say the setup checklist does not use notifications while the missing-Skill suggestion remains a notification, and fix flow.ts text with a test
+    tier: standard
+  t1018:
+    scope: "Docs only: setup steps and walkthrough wording for items without a button, and usage.md/ja on dg init stopping offline and --new-board"
+    approach: Reword README, packages/vscode/README and walkthrough (en/ja) so items without a command are allowed, and add the same paragraph to both usage files in the same section
+    tier: light
+  t1019:
+    scope: Only actions.light_paths in the team config; no PR
+    approach: Propose adding README.md and the core/server package READMEs to light_paths as a team setting, write it with dg config set after human approval, and record the approval in a comment
+    tier: light
+  t1020:
+    scope: Bump @types/vscode to the 1.123 line only
+    approach: Update packages/vscode/package.json and the lockfile with mise tasks, then run typecheck and the VS Code tests
+    tier: light
