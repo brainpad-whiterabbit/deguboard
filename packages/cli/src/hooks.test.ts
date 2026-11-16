@@ -483,7 +483,7 @@ describe("dg hooks check（AG-9・t542）", () => {
     await dg(cwd, ["hooks", "install", "--command", process.execPath]);
     const before = await checkOf(cwd);
     expect(before.data.events.find((e) => e.event === "PostToolUse")!.received_at).toBeNull();
-    expect(before.warnings.some((w) => w.includes("直近の入力"))).toBe(false);
+    expect(before.warnings.some((w) => w.includes("The latest input for"))).toBe(false);
 
     await recordOf(cwd, "PostToolUse", { session_id: true, "tool_response.agentId": false });
     const after = await checkOf(cwd);
