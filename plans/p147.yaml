@@ -1,0 +1,56 @@
+id: p147
+tickets: [t1022, t1023, t1029, t1024, t1025, t1031, t1026, t1027, t1028, t1035]
+after:
+  t1024:
+    - t1023
+  t1025:
+    - t1024
+  t1026:
+    - t1025
+    - t1029
+  t1035:
+    - t1023
+    - t1025
+    - t1028
+pending_approval: true
+details:
+  t1022:
+    scope: workflow.yaml の 6 項目の形・読み書き・検査と init・workflow コマンドの置き換えまで。権限の判定は入れない
+    approach: model/workflow.ts と workflow/ の resolve・validate を 1 ファイルの形に作り直し、templates と workflows/ を消す
+    tier: heavy
+  t1023:
+    scope: チケットの workflow・--field・fields と config の default_workflow を消し、画面の項目も消す
+    approach: model と commands から項目を消し、web の ticket-fields と config 画面を直し、requirements を直す
+    tier: heavy
+  t1024:
+    scope: 境目の requires・decide と exceptions で Status の変更を判定し、--approved-by と --override を入れる。flow・governance の中身と照合は入れない
+    approach: conditions.ts に 5 つの値の判定を置き、ticket・pr のコマンドが Core 固定→exceptions→boundaries の順で引く
+    tier: heavy
+  t1025:
+    scope: governance と Core の固定で管理の操作を判定し、actor.human_only と merge.approval_overrides を消す
+    approach: define.ts の判定の入口に governance を足し、CLAUDE.md・development.md・ADR-009・ADR-026・guide を直す
+    tier: heavy
+  t1026:
+    scope: flow の値で assign・plan・release を判定し、--auto を ask_unless_auto に統合し、auto.* を消す
+    approach: flow.ts の approvalOf を flow の値から決め、iteration・plan のコマンドが --auto を受ける
+    tier: heavy
+  t1027:
+    scope: dg checkpoint の関所を Iteration に記録し、flow next の resume を消す
+    approach: model/iteration.ts に checkpoints を足し、flow.ts が記録と根拠で段階の終わりを決め、止まる判定を deguboard-local に置く
+    tier: heavy
+  t1028:
+    scope: flow に独自の段階を decide・after・guide で足せるようにする
+    approach: workflow の validate と flow.ts の段階の並びに独自の段階を差し込み、composeGuide で文書を返す
+    tier: heavy
+  t1029:
+    scope: wip の上限を超えたら next と flow next が警告と先の列を進める手を返す。拒否はしない
+    approach: next.ts で列ごとの件数を workflow.yaml の wip と比べ、flow next にも同じ警告を渡す
+    tier: standard
+  t1031:
+    scope: 照合のきっかけを Core に固定し、Workflow の reconcile を消して境目の判定を通す
+    approach: reconcile.ts のきっかけを定数にし、照合をエージェントの側として conditions の判定に通す
+    tier: heavy
+  t1035:
+    scope: 設定画面に Workflow のタブを足し、workflow.yaml を読むだけで出して行から /dgconfig に頼める。編集の操作は入れない
+    approach: dg workflow show --json が既定で埋めた値と既定との差を返し、web の設定画面は今の部品で写すだけにし、dgconfig の手順を workflow.yaml に広げる
+    tier: heavy
