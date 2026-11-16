@@ -467,7 +467,7 @@ export const EN: Readonly<Record<string, string>> = {
   チームの設定の変更: "Changing the team's settings",
   ほかのユーザの担当の変更: "Changing another user's assignee",
   "Epic を閉じる・再開する": "Closing or reopening an Epic",
-  チケットの起票: "Creating tickets",
+  チケットを起票する: "Creating tickets",
   上限なし: "No limit",
   "workflow.yaml がないので、どの値も既定の値":
     "There is no workflow.yaml, so every value is the default",

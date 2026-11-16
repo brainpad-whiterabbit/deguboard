@@ -79,7 +79,7 @@ const ROW_NAMES: Record<string, string> = {
   "governance.config": msg("チームの設定の変更"),
   "governance.reassign": msg("ほかのユーザの担当の変更"),
   "governance.epic": msg("Epic を閉じる・再開する"),
-  "governance.create": msg("チケットの起票"),
+  "governance.create": msg("チケットを起票する"),
 };
 
 /** 節の名前（今の言語）。知らない節は key */
