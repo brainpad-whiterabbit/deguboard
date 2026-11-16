@@ -79,6 +79,9 @@ export function agentSkillPlaceGroups(query: {
   );
 }
 
+/** dg skill install が Skill を書くエージェント（core の commands/skill-files.ts の installSkill。汎用部分は製品の名前を書かないので、ここから引く） */
+export const DEFAULT_SKILL_AGENT = "claude-code";
+
 /** agent の Skill の置き場所。dg skill install が書く先を決めるのに使う。Skill のない agent は undefined */
 export function skillDirsOf(agent: string): SkillDirs | undefined {
   return findAdapter(agent)?.skillDirs;

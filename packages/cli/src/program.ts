@@ -17,9 +17,11 @@ import {
   checkSetup,
   hookScope,
   installHooks,
+  installSkill,
   launcherFrom,
   runCommand,
   runMergeDriver,
+  skillInstallWarnings,
   uninstallHooks,
   UsageError,
   type ActorInfo,
@@ -31,7 +33,6 @@ import { Argument, Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import { toErrorView, type ErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
-import { installSkill, skillInstallWarnings } from "./skill.js";
 import { selfCommand } from "./hooks.js";
 import { addServeCommands } from "./serve.js";
 import { bindInputs, collectInput, shapesOf } from "./options.js";
@@ -201,7 +202,8 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       }
     });
 
-  // skill も CLI の責務。Skill は guide を読ませるだけで手順を持たない（AG-2）
+  // skill も CLI だけの操作（AG-4）。Skill は guide を読ませるだけで手順を持たない（AG-2）。
+  // 判定と書き込みと警告の組み立ては core の commands/skill-files.ts にあり、ここは引数と結果を写す
   program
     .command("skill")
     .description("Operations on Claude Code Skills")

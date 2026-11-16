@@ -38,18 +38,18 @@ export {
 } from "./setup-check.js";
 // 起動ファイル経由で動いているか（フックとマージドライバが書く命令を決める）と、起動ファイルの場所（VS Code 拡張の launcher.ts と揃っているかをテストが見る）
 export { isLauncherPath, launcherFrom } from "./launcher-env.js";
-// Skill は入口が呼ぶものだけを公開する（dg skill install・VS Code 拡張の起動時の更新と足りない Skill の案内）。判定の部品は公開しない
+// Skill は入口が呼ぶものだけを公開する（dg skill install の判定と書き込みと警告（CLI が写す）・VS Code 拡張の起動時の更新と足りない Skill の案内）。判定の部品は公開しない
 export {
   buildSkills,
   findMissingSkills,
-  ignoreSkills,
   installMissingSkills,
+  installSkill,
   refreshInstalledSkills,
-  removeRetiredSkills,
-  writeSkillFiles,
+  skillInstallWarnings,
   type MissingSkills,
   type RefreshedSkills,
   type SkillFile,
+  type SkillInstallResult,
 } from "./skill-files.js";
 export type {
   CommandClient,
