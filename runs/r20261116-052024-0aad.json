@@ -1,0 +1,36 @@
+{
+  "id": "r20261116-052024-0aad",
+  "ticket": "t1029",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-16T05:20:24Z",
+  "finished_at": "2026-11-16T05:34:15Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "guide-all.md says flow next commands are commands to run, but the WIP limit step is prose placed first in commands",
+    "flow next warns about starting new work when no work-stage ticket is todo",
+    "ADR-003 wip item restates WF-8 behaviour instead of the decision and its reason"
+  ],
+  "usage": {
+    "input": 44,
+    "output": 7205,
+    "cache_read": 935257,
+    "cache_write": 83450
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 2,
+    "bash": 14,
+    "other": 3,
+    "read_before_write": 0,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "23c5636a-4fa2-4fb4-b1a2-d06fa88b11b3",
+  "review": null,
+  "waited_seconds": 0
+}
