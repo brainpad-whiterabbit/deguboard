@@ -194,20 +194,33 @@ export type CoreFixedOperation = keyof typeof CORE_FIXED;
 
 /**
  * 権限を判定する操作。Status を変える操作は move を持つ（行き先はコマンドの名前と引数だけで決まる）。
- * fixed は Core に固定の操作、governs はカンバンの管理の操作。コマンドの名前だけで決まるものは commandOperation が引き、
- * 入力とデータで決まるもの（チームの設定か・担当がほかのユーザか・段が下がるか）はコマンドが自分で付ける
+ * fixed は Core に固定の操作、stage は流れの段階の操作、governs はカンバンの管理の操作。コマンドの名前だけで決まるものは
+ * commandOperation が引き、入力とデータで決まるもの（チームの設定か・担当がほかのユーザか・段が下がるか・Iteration や Epic が変わるか）は
+ * コマンドが自分で付ける
  */
 export interface Operation {
   /** コマンドの名前（ticket.move など） */
   command: string;
   move?: { from: Status; to: Status } | undefined;
   fixed?: CoreFixedOperation | undefined;
+  stage?: FlowDecidedStage | undefined;
   governs?: GovernanceOperation | undefined;
 }
 
-/** コマンドの名前だけで決まる、Core に固定の操作とカンバンの管理の操作（runCommand が実行の前に判定する） */
-const COMMAND_OPERATIONS: Record<string, Pick<Operation, "fixed" | "governs">> = {
+/**
+ * コマンドの名前だけで決まる、Core に固定の操作・流れの段階の操作・カンバンの管理の操作（runCommand が実行の前に判定する）。
+ * 流れの段階の値のうち dg がコマンドで止められるのは、割り当て（Iteration・Epic への出し入れ）・計画（Plan の承認）・
+ * リリース（Iteration を閉じる/再開する）。点検・見直し・振り返りの値は、dg flow next が承認の要否として返す
+ */
+const COMMAND_OPERATIONS: Record<string, Pick<Operation, "fixed" | "stage" | "governs">> = {
   "workflow.set": { fixed: "workflow_set" },
+  "iteration.add": { stage: "assign" },
+  "iteration.remove": { stage: "assign" },
+  "epic.add": { stage: "assign" },
+  "epic.remove": { stage: "assign" },
+  "plan.approve": { stage: "plan" },
+  "iteration.close": { stage: "release" },
+  "iteration.reopen": { stage: "release" },
   "ticket.delete": { governs: "delete" },
   "ticket.create": { governs: "create" },
   "ticket.import": { governs: "create" },
@@ -288,10 +301,14 @@ export function coreFixedPolicy(op: Operation): OperationPolicy | undefined {
   };
 }
 
-// 流れの段階の操作は、まだここで引かない（それぞれのコマンドが自分で判定している）。
-// 判定の順の中の位置だけを置き、当てはまる操作がないので undefined を返す
-function flowPolicy(_wf: ResolvedWorkflow, _op: Operation): OperationPolicy | undefined {
-  return undefined;
+function flowPolicy(wf: ResolvedWorkflow, op: Operation): OperationPolicy | undefined {
+  if (!op.stage) return undefined;
+  return {
+    source: "flow",
+    name: `flow.${op.stage}`,
+    decisions: [wf.flow.stages[op.stage]],
+    requires: [],
+  };
 }
 
 function governancePolicy(wf: ResolvedWorkflow, op: Operation): OperationPolicy | undefined {

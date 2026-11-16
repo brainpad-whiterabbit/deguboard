@@ -54,7 +54,7 @@
 - 照合（reconcile）は、Core が固定で持つきっかけ（下の節）で進めようとし、越える境目の `requires` と `decide` をエージェントの側として判定する。`requires` を満たさなければ進めず、`decide` が `human_only` の境目は越えない（人が手で動かす）。人の承認を求める値（`always_ask`・`ask_unless_auto`）は照合を止めない。進めなかったチケットは、`sync` が理由を警告する
 - PR のないチケット（番号の記録がなく、ブランチ名でも見つからない。`gh` で PR の事実を読めなかったチケットも同じ）の照合には、`requires` のうち PR の事実（`pr_*`）の条件を当てない。手で越える操作には当てたままにする
 - 前へ進まない動きは `exceptions` の値で判定する：abandoned へ動かすのは `abandon`、終端（done・abandoned）から戻すのは `reopen`、ほかの戻す動き（unclaim を含む）は `back`。既定は `abandon` と `reopen` が `always_ask`、`back` が `anyone`
-- 書き込みの操作は、Core の固定 → `exceptions` → `boundaries` → `flow` → `governance` の順に見て、最初に当てはまったものの値で判定する。どれにも当たらない操作（題や本文の編集など）は誰でもできる。行き先はコマンドの名前と引数だけで決まる。Core の固定は [ADR-026](ADR-026-guard-pr-and-data.md)。`flow` の値はまだ判定に使わない
+- 書き込みの操作は、Core の固定 → `exceptions` → `boundaries` → `flow` → `governance` の順に見て、最初に当てはまったものの値で判定する。どれにも当たらない操作（題や本文の編集など）は誰でもできる。行き先はコマンドの名前と引数だけで決まる。Core の固定は [ADR-026](ADR-026-guard-pr-and-data.md)。`flow` の値が判定する操作と `--auto` の扱いは [ADR-030](ADR-030-flow-and-guide-in-core.md)
 - Core が固定するのは Status の集合と前進の順、3 つの境目、照合のきっかけ、同じ Status への move の拒否、遷移の副作用（ST-8）
 
 ### 権限の値は 5 つで、承認と強制を記録する
@@ -68,6 +68,7 @@
 | `agent_only`      | `--override` のときだけ | 聞かずにできる         | 聞かずにできる                     |
 
 - 照合（reconcile）はエージェントと同じ側に数える
+- 聞かずに進める流れかは、エージェントがコマンドに付ける `--auto` で dg に伝える。効くのは `ask_unless_auto` の場面だけで、承認者にエージェントを記録する（理由は [ADR-030](ADR-030-flow-and-guide-in-core.md)）
 - 人の承認は `--approved-by <人>` で渡す。エージェントが付けて呼び、dg は承認者を記録する。付けなければ拒否する。人の指示は承認とみなす（頼まれた操作には `--approved-by human` を付ける）。エージェントの ID は承認者にできない
 - 人の強制は `--override "理由"` で渡す。`agent_only` と満たさない `requires` を越えられるのは人だけで、理由は必須。誰が・いつ・なぜ越えたかを履歴に残す。エージェントの `--override` は値によらず拒否する
 - 権限は誤操作を防ぐ手すりで、安全の壁ではない。dg は主体を自己申告（`--actor`）で知るので、申告を偽る呼び出しと dg を経由しない操作は止められない。それを止めるフック（AG-10、ADR-026）は権限の値があっても要る

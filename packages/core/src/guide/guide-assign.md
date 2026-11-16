@@ -19,17 +19,19 @@ Puts tickets into Iterations (a period of planning. `sprint` is an alias) and Ep
 - List: `dg --json --actor agent iteration list` (`status` is planned / active / closed)
 - Create: `dg --json --actor agent iteration create "<name>" --goal "<goal>"`. An Iteration has no planned dates; the period is recorded from when it starts (`started_at`) to when it closes (`closed_at`)
 - Update: `dg --json --actor agent iteration update <s3> --goal "<goal>"`. `--name` also changes only what is specified. A closed Iteration can also be updated
-- Add: `dg --json --actor agent iteration add <s3> <t12> <t13>`. A ticket that was in another Iteration moves
-- Remove: `dg --json --actor agent iteration remove <s3> <t12>`
+- Add: `dg --json --actor agent iteration add <s3> <t12> <t13> --approved-by human`, after a human selected or instructed the tickets. A ticket that was in another Iteration moves
+- Remove: `dg --json --actor agent iteration remove <s3> <t12> --approved-by human`
+- The Workflow's `flow.assign` judges putting tickets into and out of an Iteration or Epic (`iteration add` and `remove`, `epic add` and `remove`, and `ticket update --iteration` and `--epic`; `ask_unless_auto` by default; the values are in the "Operations that may be limited to humans" section of `dg guide overview`). With the default, pass `--approved-by human` only after a human approved or instructed it; in a flow that a human started with `--auto`, pass `--auto` instead and do not ask. When the board's value is `anyone`, pass neither; when it is `human_only`, give the human the exact command to run
 - Start: `dg --json --actor agent iteration start <s3>` (planned → active). Only one Iteration can be active. If another one is active, both starting and reopening are refused. Ask a human whether to close the previous one
-- Close: `dg --json --actor agent iteration close <s3>`. Tickets carried over are removed from the Iteration. Close only on a human's instruction (limits: see `dg guide overview`)
-- Reopen: `dg --json --actor agent iteration reopen <s3>`. Returns to active. Carried-over tickets do not return, so add them again with `iteration add`. Do this only on a human's instruction
+- Close: `iteration close <s3>`. Tickets carried over are removed from the Iteration
+- Reopen: `iteration reopen <s3>`. Returns to active. Carried-over tickets do not return, so add them again with `iteration add`
+- The Workflow's `flow.release` judges closing and reopening an Iteration: with the default (`human_only`) the agent's call is refused, so give the human the exact command to run (`dg iteration close <s3>` or `dg iteration reopen <s3>`); when the board's value asks for approval, run it only on a human's instruction, with `dg --json --actor agent iteration close <s3> --approved-by human` (see the "Operations that may be limited to humans" section of `dg guide overview`)
 
 ## Epic
 
 - List and progress: `dg --json --actor agent epic list` (`progress.done / progress.total`)
-- Add: `dg --json --actor agent epic add <e3> <t12> <t13>`. A closed Epic cannot take tickets
-- Remove: `dg --json --actor agent epic remove <e3> <t12>`
+- Add: `dg --json --actor agent epic add <e3> <t12> <t13> --approved-by human`. A closed Epic cannot take tickets. `flow.assign` judges it, as for an Iteration above
+- Remove: `dg --json --actor agent epic remove <e3> <t12> --approved-by human`
 - Close and reopen: `dg --json --actor agent epic close <e3>` / `epic reopen <e3>`. If anything other than done or abandoned remains, it is refused, and `--force` closes it anyway. The Workflow's `governance.epic` judges both: with the default (`human_only`) the agent's call is refused, so give the human the exact command to run; when the board's value asks for approval, run it only on a human's instruction, with `--approved-by human` (see the "Operations that may be limited to humans" section of `dg guide overview`)
 
 ## Assignee
@@ -42,7 +44,7 @@ Puts tickets into Iterations (a period of planning. `sprint` is an alias) and Ep
 
 1. Read the Iteration's goal and the tickets in it with `dg --json --actor agent iteration show <s3>`
 2. Collect the unassigned todos (those without an `iteration`, from `dg --json --actor agent ticket list --status todo`). Make a proposal from the ones that fit the goal, looking at the order of dependencies
-3. Show a table with one line for each, giving the reason for putting it in or not. Have a human select the rows to put in with multiple selection, then run `iteration add`
+3. Show a table with one line for each, giving the reason for putting it in or not. Have a human select the rows to put in with multiple selection, then run `iteration add` with `--approved-by human` (the selection is the approval). In a flow started with `--auto` where `approval.auto_ok` of `dg flow next` is true, do not ask: put in the rows you propose with `iteration add … --auto`, and show them
 4. For items that should be handled soon (such as bugs), propose putting them into the active Iteration
 
 {{choices}}

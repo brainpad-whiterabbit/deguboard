@@ -54,7 +54,7 @@ const GROUPS: { id: string; label: string; tops: string[] }[] = [
   {
     id: "agent",
     label: msg("エージェント"),
-    tops: ["actions", "auto", "flow", "work", "merge", "review", "lint", "models"],
+    tops: ["actions", "work", "merge", "review", "lint", "models"],
   },
   { id: "metrics", label: msg("計測"), tops: ["metrics"] },
   { id: "notify", label: msg("通知"), tops: ["notify"] },
@@ -73,9 +73,6 @@ const NAMES: Record<string, string> = {
   "actions.test": msg("テストのコマンド"),
   "actions.light_test": msg("軽い検査のコマンド"),
   "actions.light_paths": msg("軽い検査で済ませるパス"),
-  "auto.merge": msg("PR を自動でマージする"),
-  "auto.decisions": msg("--auto で自動で選ぶ判断"),
-  "flow.skip": msg("流れから外す段階"),
   "work.parallel": msg("同時に進めるチケットの上限"),
   "merge.method": msg("マージの方法"),
   "merge.delete_branch": msg("マージしたら作業ブランチを消す"),
@@ -166,8 +163,7 @@ function noteLabel(key: string): string {
 /**
  * 保存の前に確かめる項目と、確かめの文に出す変わること。誤ると同期・照合・worktree・実行するコマンド・エージェントに許す操作を壊し、
  * 戻すまで気づきにくい（チームのタブでは全員に効く）。どちらのタブでも確かめる。
- * actions.test・actions.light_test と worktree.setup は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う。
- * auto.merge はエージェントに PR のマージを許すので、エージェントに許す操作として扱う（EX-7）
+ * actions.test・actions.light_test と worktree.setup は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う
  */
 export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   ["git.remote", msg("作業ブランチと PR の先が変わる（git.data_remote が空ならデータの同期先も）")],
@@ -182,8 +178,6 @@ export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
     msg("軽い検査として確認なしで実行するコマンドが変わる（シェルを許すのと同じ）"),
   ],
   ["actions.shell", msg("エージェントが任意のシェルを実行できるかが変わる")],
-  ["auto.merge", msg("エージェントが PR を自動でマージするかが変わる")],
-  ["auto.decisions", msg("エージェントが聞かずに選ぶ判断が変わる")],
 ]);
 
 type Values = Record<string, unknown>;

@@ -129,7 +129,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `status` は `planned` / `active` / `closed` で、予定の期間は持たず、実績の期間として active になったときに `started_at`、閉じたときに `closed_at` と完了・持ち越しの件数を書く（細部は `iteration start / close / reopen --help`）。閉じる・再開するのは dg では判定せず、誰でも行える。active はカンバンに 1 つに保つ
+- IT-1 `status` は `planned` / `active` / `closed` で、予定の期間は持たず、実績の期間として active になったときに `started_at`、閉じたときに `closed_at` と完了・持ち越しの件数を書く（細部は `iteration start / close / reopen --help`）。閉じる・再開するのは `flow.release` で判定する（WF-9）。active はカンバンに 1 つに保つ
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。閉じた Iteration には入れられない。閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）
 - IT-3 `iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形は `packages/core/src/commands/iteration.ts`、並びは `commands/helpers.ts` の `ticketsInIteration`）
 
@@ -138,7 +138,7 @@ updated_at: 2026-10-31T05:10:00Z
 - PL-1 入れるチケット `tickets`、計画内だけの待ち `after`（チケットの依存とは別）、チケットごとの範囲・方針・難しさの段階 `details.<ticket>.{scope, approach, tier}` を持つ。`tier` は `light` / `standard` / `heavy` で、モデル名は書かない（対応は 5.10 の `models.*`）
 - PL-2 進捗は Plan に書かない。チケットの状態から都度求める。Plan を書くのは作成・承認・終了のときだけ
 - PL-3 1 つのチケットは同時に 1 つの開いた Plan にしか入らず、done・abandoned・存在しないチケットは入れられない。`after` と `details` は Plan のチケットだけを指す。`after` を含む循環は、Plan の作成と `depends_on` の書き込みで拒否する。そのほかの後からできた循環は lint が指摘する（`wait-cycle.ts`）
-- PL-4 `plan create` は承認待ち（`pending_approval: true`）で作る。`plan approve` は `approved_by`・`approved_at` を書いて `pending_approval` を外す。`plan close` は `closed_at` を書き、終わっていないチケットが残れば警告する。閉じた Plan は承認も閉じ直しもできない。承認と終了は dg では判定せず、誰でも行える
+- PL-4 `plan create` は承認待ち（`pending_approval: true`）で作る。`plan approve` は `approved_by`・`approved_at` を書いて `pending_approval` を外す。`plan close` は `closed_at` を書き、終わっていないチケットが残れば警告する。閉じた Plan は承認も閉じ直しもできない。承認は Workflow の `flow.plan` で判定し（WF-9）、終了は誰でも行える
 - PL-5 Plan の状態は保存せず、`pending_approval` と `closed_at` から求める（pending・approved・closed）。`plan list` と `plan show` は `status` に返し、画面はこれを読む。承認待ちの Plan のチケットは、`dg next` が承認を待つ段を返し、`claim` は警告する
 - PL-6 `plan list` と `plan show` は着手できるかを求めて返す。`waiting` はチケットごとの待ちの相手（終わっていない `after` と `depends_on`）、`ready` は todo で待ちのないもの、`next` は次に進めるもの。画面と手順はこれを読み、求め直さない（求め方は `packages/core/src/commands/plan.ts`）
 
@@ -154,6 +154,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - WF-6 `dg workflow set` は `workflow.yaml` を作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す。エージェントにはいつも人の承認（`--approved-by`）を求め、承認者を履歴に残す（WF-7。細部は `dg workflow set --help`）。前の版の `workflows/` は読まず、`workflow.yaml` がないのに残っていれば警告する
 - WF-7 チケットを消す・チームの設定を変える・ほかのユーザの担当と claim を替える・Epic を閉じる/再開する・起票は、`governance` の値で ST-2 と同じく判定する。フックを外す・段を下げる・`workflow set`・品質ゲートを越えるマージは Core が固定し、`workflow.yaml` では緩められない（値は `dg workflow show`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - WF-8 `wip` は列ごとのチケットの数の上限で、config の `work.parallel`（同時に動かすサブエージェントの数）とは別のもの。上限を超える列があると `dg next` と `dg flow next` は警告し、着手の手の前に先の列を進める手を返すが、着手は拒否しない（細部は `dg next --help`）
+- WF-9 Iteration・Epic への出し入れは `flow.assign`、Plan の承認は `flow.plan`、Iteration を閉じる/再開するは `flow.release` の値で、ST-2 と同じく判定する。コマンドで止められない段階の値は、`dg flow next` が承認の要否として返す（EX-8。既定は `dg workflow show`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 
 ### 5.9 Run（`runs/`）
 
@@ -170,12 +171,12 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 ### 5.10 設定（`config.yaml`）
 
-項目と意味・値・既定値・範囲（scope）はスキーマ（`packages/core/src/model/config.ts`）、`config.set` の値の扱いは `dg config set --help` が正本。エージェントや記録に関わるもの（`metrics.read_transcripts`・`actions.shell`・`auto.merge`）は既定で `false`。
+項目と意味・値・既定値・範囲（scope）はスキーマ（`packages/core/src/model/config.ts`）、`config.set` の値の扱いは `dg config set --help` が正本。エージェントや記録に関わるもの（`metrics.read_transcripts`・`actions.shell`）は既定で `false`。
 
 - チームの `config.yaml` はデータのブランチ（既定は `deguboard`）で全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）
 - 値は「個人 > チーム > 既定」の順に読み、どの入口も Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する（細部は `dg config set --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 - 項目の説明と変更はエージェントに頼める（`/dgconfig`。AG-2）。エージェントは、項目ごとの前と後の差とチームか個人かを見せて人の承認を得てから `dg config set` で書く（手順は `dg guide config`）
-- チームの `config.yaml` を変える操作は Workflow の `governance.config` で判定し、個人の設定は判定しない（WF-7）。誰がどの操作をしてよいかは config に書かず、Workflow（5.8）に書く
+- チームの `config.yaml` を変える操作は Workflow の `governance.config` で判定し、個人の設定は判定しない（WF-7）。誰がどの操作をしてよいか、`--auto` で聞かずに進めてよい場面、流れから外す段階は config に書かず、Workflow（5.8）に書く
 
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないときと、取り込んだ config でこの値が変わったときは、push する操作は止まって次の手を示し、ほかの操作は警告して続く（エラーと戻し方は `dg guide overview`）
 - `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push する。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく止まり、別のカンバンのブランチを指したときは取り込まずに止まる（エラーと戻し方は `dg guide overview`）
@@ -275,8 +276,8 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - EX-4 Workflow が人に限った（`human_only`）Status の動きは、エージェントからは行えない。人の承認が要る動きは、エージェントが承認者を `--approved-by` で渡して行い、承認者は履歴に残る（ST-2）
 - EX-5 `dg next` は読み取りだけで、次の 1 手・開く step・呼ぶコマンド・人に聞くことを返す。サブエージェントに渡す手（implement・review・fix）は役の手順の本文と、手直しなら直す指摘を入れた文（brief）を返す。モデル（`model`）は implement・fix の手が返す。low・free の段（TK-9）は見直しを飛ばし、人の判断が要るものは人を待つ手になる。着手順は PL-6 と `ticket list --ready` に従う（EX-3）
 - EX-6 `dg pr ready`・`dg pr merge` は段（TK-9）の条件を満たすときだけ gh を呼び、ほかは `GATE_FAILED` で返す。出す前に直さなかった軽い指摘を本文に足す。merge は判定したコミットに固定し、gh が失敗してもマージ済みなら成功。条件の外のマージは EX-10、ready は人が行う（AG-10。細部は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
-- EX-7 `--auto` は `auto.decisions` の戻せる判断を自動で選ぶ（`approved_by` は agent）。PR は人の承認で agent が承認者を残してマージし、聞かないのは `--auto` で `auto.merge` が true のときの品質ゲートを通った PR だけ。リリース・abandoned・done の取り消し・Epic・Iteration を閉じるは人が決め、`auto.decisions` に足せない（`dg guide all`）
-- EX-8 `dg flow next` は読み取りだけで、Iteration・Plan・チケットの流れの段階と、その手のやり方の節・呼ぶコマンド・承認の要否・`resume` を返す。`resume` を写して渡すと前に返した割り当て・点検・見直しを終えたものとして進め、なければ割り当てと点検からやり直す。config の `flow.skip` に入れた段階は返さず、同じ段階が事実も変わらずに続けば止まる手を返す（規則は `dg flow next --help`、EX-3）
+- EX-7 `--auto` は、Workflow の値が `ask_unless_auto` の場面だけを聞かずに進める。操作のコマンドが `--auto` を受け、その場面でだけ通して承認者に agent を記録し、ほかの場面の `--auto` は拒否する。`always_ask`・`human_only`・Core の固定は越えない（細部は `dg guide all`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
+- EX-8 `dg flow next` は読み取りだけで、Iteration・Plan・チケットの流れの段階と、その手のやり方の節・呼ぶコマンド・Workflow の値で決まる承認の要否・`resume` を返す。`resume` を写して渡すと前に返した割り当て・点検・見直しを終えたものとして進め、なければ割り当てと点検からやり直す。`flow` の `skip` の段階は返さず、同じ段階が事実も変わらずに続けば止まる手を返す（規則は `dg flow next --help`、EX-3）
 - EX-9 `dg gate <id> --only check` は、作業ブランチの worktree の HEAD（push の前のコミットも）を品質ゲートの検査と同じ判定で検査し、結果を同じコミットの `dg pr ready`・`dg pr merge` が回し直さずに使う（細部は `dg gate --help`）
 - EX-10 品質ゲートを満たさない PR は、人が承認したときだけ、承認者を渡した `dg pr merge` がマージし、越えた条件と承認者を PR に残す。この承認は `--auto` でも設定でも省けない（WF-7）。PR の状態・衝突・判定した先端は承認があっても越えられない（細部は `dg pr merge --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 

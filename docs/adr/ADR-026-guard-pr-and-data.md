@@ -21,7 +21,7 @@ PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だ�
 
 - エージェントが PR を ready にするのは `dg pr ready <ticket>`、マージするのは `dg pr merge <ticket>` で行う。どちらも `dg gate` と同じ判定を満たすときだけ gh を引数配列で呼び、満たさなければ gh を呼ばずに `GATE_FAILED` で満たさない条件と理由を返す。PR の番号はチケットから引く
 - 判定する条件はチケットの `gate`（品質ゲートの段、TK-9）で決める。`high`（既定）はすべての条件、`low` は見直しを除く条件、`free` は PR が開いていることと衝突しないことだけを判定する。判定しない条件の材料は読まない
-- マージは人が承認したときだけ agent が `dg pr merge` に承認者を渡して行い、承認者を PR に残す。承認を断られたらマージせずに待つ。聞かずにマージするのは、`dg guide all --auto` で `auto.merge` が true のときの品質ゲートを通った PR だけで、承認者は渡さない。リリースの PR は常に人が承認する
+- マージは人が承認したときだけ agent が `dg pr merge` に承認者を渡して行い、承認者を PR に残す。承認を断られたらマージせずに待つ。聞かずにマージするのは、人が `--auto` で始めた流れで、review → done の境目の値が `ask_unless_auto`（既定）のときの品質ゲートを通った PR だけで、`dg pr merge --auto` が承認者にエージェントを残す（`--auto` の扱いは [ADR-030](ADR-030-flow-and-guide-in-core.md)）。リリースの PR は、既定（`flow.release` が `human_only`）では人が承認する
 - 段の条件を満たさない PR を ready にするときは、人が gh を打つ
 
 ### 緩めると守りが崩れる操作は Core に固定する
@@ -30,7 +30,7 @@ PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だ�
 
 - フックを外す（`dg hooks uninstall`）：人だけ。エージェントの呼び出しは拒否する
 - チケットの段を下げる（`dg ticket update --gate`）：人だけ。エージェントの呼び出しは拒否する。上げるのは誰でもできる。`high` より下の段での起票（`dg ticket create`・`dg ticket import`）は下げる操作に数えず、`governance.create` で判定する。起票は人がチケットごと承認し、段もそのとき人が見るため
-- `workflow.yaml` の書き換え（`dg workflow set`）：エージェントにはいつも人の承認（`--approved-by`）を求め、承認者を履歴に残す。聞かずに進める流れ（`--auto`）でも求める
+- `workflow.yaml` の書き換え（`dg workflow set`）：エージェントにはいつも人の承認（`--approved-by`）を求め、承認者を履歴に残す。聞かずに進める流れ（`--auto`）でも求める（`workflow set` は `--auto` を受けない）
 - 段の条件を満たさない PR のマージ（`dg pr merge`）：呼ぶ主体によらず、いつも人の承認（`--approved-by`）を求める。エージェントは満たさない条件を示して人に聞く。承認者を渡さなければ何も越えず、越えた条件は承認者と一緒に PR に残す
 - 承認があっても越えないのは、PR が開いていること・base と衝突しないこと・判定した先端への固定。ほかの条件（検査・見直し・手直しの回数・受け入れ条件）は承認で越える
 

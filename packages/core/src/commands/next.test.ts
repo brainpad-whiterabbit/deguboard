@@ -285,16 +285,8 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     expect(merge.ask_human).toContain("ask a person whether to merge it");
     expect(merge.ask_human).toContain("dg pr merge t1 --approved-by human");
     expect(merge.ask_human).toContain("When declined or not answered, do not merge");
-    // auto.merge が true でも false でも同じ形を返す（聞かずにマージするかは dg guide all の --auto が決める）
-    for (const autoMerge of [true, false]) {
-      const set = {
-        ...ctx,
-        config: { ...ctx.config, auto: { ...ctx.config.auto, merge: autoMerge } },
-      };
-      expect(
-        nextOf(set, facts({ ticket: { status: "review" }, runs: [review(6, passed)] })),
-      ).toEqual(merge);
-    }
+    // 聞かずに進める流れ（--auto）の手は dg flow next と guide-all が案内し、ここは --auto の道を指すだけ
+    expect(merge.ask_human).toContain("dg pr merge t1 --auto");
     // 実装を委譲する親は --no-run で claim し、印で頼む
     const impl = kind(facts({ ticket: { status: "todo", pr: undefined } }));
     expect(impl.commands[0]).toBe(
@@ -596,7 +588,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       tier: { t1: "heavy", t2: "light" },
     });
     // 承認待ちの Plan のチケットは implement を返さない（PL-5）。以下は承認した後の手を確かめる
-    await runCommand(planApprove, ctx, { plan: created.data.id });
+    await runCommand(planApprove, ctx, { plan: created.data.id, approved_by: "human" });
     const models = { light: "haiku", standard: "sonnet", heavy: "opus" };
     const withModels = { ...ctx, config: { ...ctx.config, models } };
     const kind = (f: StageFacts) => nextOf(withModels, f);
@@ -632,7 +624,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       tickets: ["t1", "t2"],
       tier: { t1: "heavy", t2: "light" },
     });
-    await runCommand(planApprove, ctx, { plan: created.data.id });
+    await runCommand(planApprove, ctx, { plan: created.data.id, approved_by: "human" });
     const models = {
       ...ctx.config.models,
       light: "haiku",
@@ -713,7 +705,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     const shown = (await runCommand(ticketShow, ctx, { ticket: "t1" })).data as TicketDetail;
     expect(shown.stage).toEqual(waiting.stage);
     // 承認すると、同じチケットは着手できる todo に戻る
-    await runCommand(planApprove, ctx, { plan: planId });
+    await runCommand(planApprove, ctx, { plan: planId, approved_by: "human" });
     expect((await runCommand(next, ctx, { ticket: "t1" })).data).toMatchObject({
       kind: "implement",
       stage: { name: "todo" },

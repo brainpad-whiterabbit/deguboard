@@ -12,6 +12,7 @@ import type { Store } from "../storage/store.js";
 import { cyclePath, findCrossingCycle, findCycle, type WaitEdge } from "../storage/wait-cycle.js";
 import { defineCommand, ok } from "./define.js";
 import { nowIso, openPlanOf, planRef, sortedDocs, ticketRef } from "./helpers.js";
+import { hasRecord, permissionFields, recordNote, recordOf } from "./permission.js";
 
 /** 1 つの値（CLI の `--after t3=t1,t2`）でも配列（HTTP）でも受ける */
 const refList = z.union([z.string(), z.number(), z.array(z.union([z.string(), z.number()]))]);
@@ -304,8 +305,9 @@ export const planApprove = defineCommand({
   name: "plan.approve",
   positionals: ["plan"],
   group: "plan",
-  summary: "Approve a Plan awaiting approval. Records the approver and the time",
-  input: z.object({ plan: planRef }),
+  summary:
+    "Approve a Plan awaiting approval. Records the approver (approved_by) and the time. The Workflow's flow.plan judges it (ask_unless_auto by default; see dg workflow show --help for the values): an agent passes --approved-by after a person approved the Plan, and that person is recorded as the approver; with --auto, in a flow that a person started with --auto, the agent approves without asking and is recorded as the approver. A call that needs no approval records the caller",
+  input: z.object({ plan: planRef, ...permissionFields }),
   write: true,
   needs: "store",
   async run(ctx, input) {
@@ -322,11 +324,15 @@ export const planApprove = defineCommand({
           );
         return ctx.store.update("plan", plan.id, {
           pending_approval: false,
-          approved_by: ctx.actor.id,
+          // 承認した人（--approved-by）。聞かずに進めた（--auto）か、承認の要らない呼び出しなら呼んだ主体
+          approved_by: recordOf(ctx, input).approver ?? ctx.actor.id,
           approved_at: nowIso(ctx),
         });
       },
-      { message: (doc) => `Approve ${doc.id}` },
+      {
+        message: (doc) => `Approve ${doc.id}${recordNote(ctx, input)}`,
+        immediate: hasRecord(input),
+      },
     );
     return ok(result.value.data, result.write);
   },

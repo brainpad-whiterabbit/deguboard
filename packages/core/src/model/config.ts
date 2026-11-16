@@ -15,15 +15,8 @@ const COMMIT_MODES = ["each", "batch", "manual"] as const;
 export type CommitMode = (typeof COMMIT_MODES)[number];
 const PUSH_MODES = ["auto", "manual"] as const;
 export type PushMode = (typeof PUSH_MODES)[number];
-/** gh pr merge のマージの方法。auto.merge_method・dg pr merge・actions の merge_pr がここを読む */
+/** gh pr merge のマージの方法。merge.method・dg pr merge・actions の merge_pr がここを読む */
 export const PR_MERGE_METHODS = ["squash", "merge", "rebase"] as const;
-/**
- * --auto で聞かずに選んでよい判断（流れの段階の名前）。人が決める判断（abandoned・閉じる・リリースの PR のマージ）は
- * ここに入らないので、config でも自動にできない（EX-7）。マージは auto.merge で決める
- */
-export const AUTO_DECISIONS = ["assign", "check", "plan", "audit", "accept"] as const;
-/** dg flow next が返さずに飛ばせる段階。stop は流れを止める段階なので飛ばせない（EX-8） */
-export const FLOW_SKIPS = ["assign", "check", "plan", "work", "audit", "release"] as const;
 /** actions.test を回す時間の上限（run_tests の既定と品質ゲートの検査）。リポジトリの検査の全体（テストを含む）を回すので長めにとる */
 export const ACTIONS_TEST_TIMEOUT_MS = 30 * 60_000;
 
@@ -338,49 +331,6 @@ export const configSchema = z.looseObject({
       }),
     })
     .prefault({}),
-  auto: z
-    .looseObject({
-      merge: described(z.boolean().default(false), {
-        summary: "Merge PRs that pass the quality gate automatically with --auto",
-        description:
-          "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) without asking. Otherwise the agent asks a person and merges only when approved",
-      }),
-      decisions: described(
-        z.array(z.enum(AUTO_DECISIONS)).default(["assign", "check", "plan", "audit", "accept"]),
-        {
-          summary: "Decisions --auto chooses without asking",
-          description:
-            "Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table / accept: confirming acceptance criteria after reconciling). Decisions a person makes cannot be added; PR merging is set by auto.merge",
-          empty: "--auto chooses nothing without asking",
-          options: {
-            assign: "Assignment",
-            check: "The fix line when only one fix fits",
-            plan: "Plan approval",
-            audit: "The review findings table",
-            accept: "Confirming acceptance criteria after reconciling",
-          },
-        },
-      ),
-    })
-    .prefault({}),
-  flow: z
-    .looseObject({
-      skip: described(z.array(z.enum(FLOW_SKIPS)).default([]), {
-        summary: "Stages that dg flow next skips",
-        description:
-          "Stages that dg flow next never returns (assign, check, plan, work, audit, release). A skipped stage's rule is not read; the flow moves to the next rule",
-        empty: "No stage is skipped",
-        options: {
-          assign: "Assignment",
-          check: "Check",
-          plan: "Planning",
-          work: "Work",
-          audit: "Audit",
-          release: "Release",
-        },
-      }),
-    })
-    .prefault({}),
   work: z
     .looseObject({
       parallel: described(z.number().int().min(1).max(10).default(3), {
@@ -535,7 +485,7 @@ export type ConfigScope = "team" | "local";
 
 /**
  * 個人で上書きできる項目。マシンの配置・作業の好み・使えるモデル・自分のマシンで許すことのように、人ごとに違ってよいもの。
- * 逆に、PR のマージ・エージェントに自動で選ばせる判断（auto.*）・記録に関わる項目はここに入れず、チーム専用にする。
+ * 逆に、PR のマージ・記録に関わる項目はここに入れず、チーム専用にする。
  * 個人で外せると、同じチームでも PR の流れと記録の形が人ごとに変わり、チームで揃わなくなるため
  */
 const LOCAL_KEYS: ReadonlySet<string> = new Set([

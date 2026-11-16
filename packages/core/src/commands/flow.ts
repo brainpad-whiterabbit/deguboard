@@ -7,7 +7,6 @@ import { z } from "zod";
 import { UsageError } from "../errors.js";
 import { composeGuide } from "../guide/guide.js";
 import { isFinishedSet, isTerminal } from "../model/common.js";
-import { FLOW_SKIPS } from "../model/config.js";
 import { compareIds, parseId, type IterationId } from "../model/id.js";
 import {
   GATE_LEVELS,
@@ -16,16 +15,28 @@ import {
   type GateLevel,
   type Ticket,
 } from "../model/ticket.js";
+import type { Decision, FlowDecidedStage } from "../model/workflow.js";
 import type { Store } from "../storage/store.js";
+import { autoApplies, judgeDecisions, type Permission } from "../workflow/conditions.js";
+import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { agentDg as dg, sortedDocs, ticketsInIteration } from "./helpers.js";
 import { wipCheckOf } from "./next.js";
 
 /**
- * 流れの段階。飛ばせる段階（config の flow.skip）に、終わった Plan を閉じる close（規則 4 の一部で、飛ばせない）と、
- * 規則 8（どれにも当たらない）と同じ段階が事実も変わらずに続いたときの stop を足す
+ * 流れの段階。飛ばせる段階（workflow.yaml の flow の skip に書ける、dg flow next が返す段階）に、終わった Plan を閉じる close
+ * （規則 4 の一部で、飛ばせない）と、規則 8（どれにも当たらない）と同じ段階が事実も変わらずに続いたときの stop を足す
  */
-export const FLOW_STAGES = [...FLOW_SKIPS, "close", "stop"] as const;
+export const FLOW_STAGES = [
+  "assign",
+  "check",
+  "plan",
+  "work",
+  "audit",
+  "release",
+  "close",
+  "stop",
+] as const;
 export type FlowStageName = (typeof FLOW_STAGES)[number];
 
 /** この実行で終えたこと（会話の中にしかない事実）。resume が運ぶ */
@@ -106,12 +117,13 @@ const allFinished = (tickets: readonly FlowTicket[]) => isFinishedSet(tickets.ma
 
 /**
  * 事実とこの実行で終えたことから、8 つの規則（--help に並べた順）で最初に当たる段階を求める（純粋関数）。
- * skip（config の flow.skip）の段階は規則を読まず、次の規則に進む。見直しを飛ばすと、すべて終わったときはすぐリリースに進める
+ * skip（workflow.yaml の flow の skip）の段階は規則を読まず、次の規則に進む。見直しを飛ばすと、すべて終わったときはすぐリリースに進める。
+ * skip には dg flow next が返さない段階（retro と独自の段階）も書けるので、名前は文字列で受ける
  */
 export function flowStageOf(
   facts: FlowFacts,
   memory: FlowMemory,
-  skip: readonly FlowStageName[] = [],
+  skip: readonly string[] = [],
 ): FlowStage {
   const audited = isAudited(facts, memory);
   const s = facts.iteration;
@@ -317,86 +329,153 @@ function guideCommandOf(topic: string, sections: readonly string[]): string {
 }
 
 export interface FlowApproval {
-  /** この段階で人の承認を得てから進める操作があるか（--auto で聞かずに選べるものだけなら false） */
+  /** この段階で人の承認を得てから進める操作があるか（聞かずに進められるものだけなら false） */
   required: boolean;
   /** 承認を求める場所（guide-all の表）。required が false なら null */
   what: string | null;
-  /** --auto のとき聞かずに勧める選択肢で進めるもの。--auto でない・config の判断に入らない・人が決める判断なら null */
+  /** --auto のとき聞かずに勧める選択肢で進めるもの。--auto でない・値が ask_unless_auto でないなら null */
   auto: string | null;
-  /** --auto が聞かずに選ぶものが、この段階にあるか（auto と同じ。点検は直す行だけ、人が決める削除・閉じるは含まない） */
+  /** --auto が聞かずに進めるものが、この段階にあるか（auto と同じ。点検は直す行だけで、削除・abandoned・閉じるは含まない） */
   auto_ok: boolean;
+  /** 承認の要否を決めた Workflow の値（例：`flow.plan: ask_unless_auto`）。値で決まらない段階（close・stop）は null */
+  value: string | null;
+  /** その値をこの呼び出しのエージェントに当てた結果（allow は聞かずにできる、approval は人の承認が要る、reject は人だけができる） */
+  agent: Permission;
+}
+
+/** approvalOf が読む Workflow の値 */
+export interface FlowDecisions {
+  /** 流れの段階の値（workflow.yaml の flow） */
+  flow: Record<FlowDecidedStage, Decision>;
+  /** PR のマージを判定する値（review → done の境目の decide） */
+  merge: Decision;
 }
 
 /**
- * 段階の承認の要否（guide-all の表と「Choosing automatically with `--auto`」）。--auto が聞かずに選ぶのは config の auto.decisions に入る判断と、
- * auto.merge のときの PR のマージだけ。人が決める判断（削除・abandoned・閉じる・リリース）は config によらず聞く（EX-7）
+ * 段階の承認の要否。Workflow の値（flow と、作業の段階は review → done の境目の decide）をエージェントに当てて決める（EX-7）。
+ * --auto が聞かずに進めるのは値が ask_unless_auto の場面だけで、always_ask は --auto でも聞き、human_only は人が行う。
+ * 点検の値が決めるのは直す行だけで、削除・abandoned・閉じるは governance と exceptions の値が決めるので、いつも聞く場所に残す
  */
 export function approvalOf(
   stage: FlowStageName,
-  opts: { auto: boolean; autoMerge: boolean; decisions: readonly string[] },
+  opts: { auto: boolean } & FlowDecisions,
 ): FlowApproval {
-  const chosen = (decision: string) => opts.auto && opts.decisions.includes(decision);
-  const ask = (what: string): FlowApproval => ({
-    required: true,
-    what,
-    auto: null,
-    auto_ok: false,
-  });
-  const choose = (decision: string, what: string, auto: string): FlowApproval =>
-    chosen(decision) ? { required: false, what: null, auto, auto_ok: true } : ask(what);
+  const judged = (name: string, decision: Decision, what: string, free: string): FlowApproval => {
+    const value = `${name}: ${decision}`;
+    const agent = judgeDecisions([decision], "agent", opts.auto);
+    const viaAuto = opts.auto && autoApplies([decision]);
+    if (agent === "allow")
+      return {
+        required: false,
+        what: null,
+        auto: viaAuto ? free : null,
+        auto_ok: viaAuto,
+        value,
+        agent,
+      };
+    return {
+      required: true,
+      what:
+        agent === "reject"
+          ? `${what} (only a person does it: an agent's call is rejected, so ask a person to run the commands)`
+          : what,
+      auto: null,
+      auto_ok: false,
+      value,
+      agent,
+    };
+  };
   switch (stage) {
     case "assign":
-      return choose("assign", "Rows to add", "Rows to add");
-    case "check":
-      return chosen("check")
-        ? {
-            required: true,
-            what: "Deletions, abandoned, and closing",
-            auto: "Fix rows that have exactly one way to fix",
-            auto_ok: true,
-          }
-        : ask("Rows to fix, and deletions, abandoned, and closing");
+      return judged("flow.assign", opts.flow.assign, "Rows to add", "Rows to add");
+    case "check": {
+      const fix = judged(
+        "flow.check",
+        opts.flow.check,
+        "Rows to fix, and deletions, abandoned, and closing",
+        "Fix rows that have exactly one way to fix",
+      );
+      return fix.required
+        ? fix
+        : { ...fix, required: true, what: "Deletions, abandoned, and closing" };
+    }
     case "plan":
-      return choose("plan", "Plan", "Approving the Plan (plan approve)");
+      return judged(
+        "flow.plan",
+        opts.flow.plan,
+        "Plan",
+        "Approving the Plan (plan approve --auto)",
+      );
     case "work":
-      return opts.auto && opts.autoMerge
-        ? {
-            required: false,
-            what: null,
-            auto: "Merging PRs that meet the quality gate (dg gate --for merge) with dg pr merge",
-            auto_ok: true,
-          }
-        : ask("Merging each PR (when approved, dg pr merge <id> --approved-by human)");
+      return judged(
+        "boundaries review → done",
+        opts.merge,
+        "Merging each PR (when approved, dg pr merge <id> --approved-by human)",
+        "Merging PRs that meet the quality gate (dg gate --for merge) with dg pr merge <id> --auto",
+      );
     case "audit":
-      return choose("audit", "Findings table", 'Findings table (apply all except "won\'t fix")');
+      return judged(
+        "flow.audit",
+        opts.flow.audit,
+        "Findings table",
+        'Findings table (apply all except "won\'t fix")',
+      );
     case "release":
-      return ask("Merging the release PR, publishing, and closing");
+      return judged(
+        "flow.release",
+        opts.flow.release,
+        "Merging the release PR, publishing, and closing",
+        "Merging the release PR, publishing, and closing",
+      );
     // 終わった Plan を閉じるのは人の判断に入れない（終わった状態を記録するだけで、チケットは変わらない）
     case "close":
     case "stop":
-      return { required: false, what: null, auto: null, auto_ok: false };
+      return {
+        required: false,
+        what: null,
+        auto: null,
+        auto_ok: false,
+        value: null,
+        agent: "allow",
+      };
   }
 }
 
 /**
- * 段階で親が呼ぶ dg のコマンド（順に）。手のやり方は guide の節。Plan の承認は --auto が聞かずに選ぶときだけ呼ぶ。
+ * 流れの段階の値が判定するコマンド（iteration add・plan approve）に、値に合う付け方を足す。
+ * --auto で聞かずに進めるなら --auto、人の承認が要るなら --approved-by human（承認を得た後にだけ呼ぶ）、
+ * 人だけができるなら人に頼む文にする
+ */
+function judgedCommand(command: string, approval: FlowApproval): string {
+  if (approval.agent === "reject")
+    return `Ask a person to run dg ${command} (only a person can do it; an agent's call is rejected)`;
+  if (approval.agent === "approval") return dg(`${command} --approved-by human`);
+  return dg(approval.auto_ok ? `${command} --auto` : command);
+}
+
+/**
+ * 段階で親が呼ぶ dg のコマンド（順に）。手のやり方は guide の節。Plan の承認は聞かずに進められるときだけ呼ぶ
+ * （承認を求めるときは guide の手順が承認の後に呼ぶ）。
  * gate（--gate の段）があれば、作業の段階で段の違うチケットにだけ next の前に段を付ける（TK-9。下げるときは人に頼む文を返す）。
  * 同じ段のチケットに入れないのは、呼ぶたびに更新が出て止まる判定（fingerprint の updated_at）を揺らさないため
  */
 function commandsOf(
   stage: FlowStage,
   s: string | null,
-  autoOk: boolean,
+  approval: FlowApproval,
   gate?: { level: GateLevel; of: (id: string) => GateLevel },
 ): string[] {
   switch (stage.name) {
     case "assign":
-      return [dg(`iteration add ${s ?? "<S>"} <tickets to add…>`)];
+      return [judgedCommand(`iteration add ${s ?? "<S>"} <tickets to add…>`, approval)];
     case "check":
       return [dg("sync"), dg("validate"), dg("lint")];
     case "plan":
       return stage.plan
-        ? [dg(`plan show ${stage.plan}`), ...(autoOk ? [dg(`plan approve ${stage.plan}`)] : [])]
+        ? [
+            dg(`plan show ${stage.plan}`),
+            ...(approval.required ? [] : [judgedCommand(`plan approve ${stage.plan}`, approval)]),
+          ]
         : [dg(`plan create ${stage.tickets.join(" ")}`)];
     case "work":
       return [
@@ -605,7 +684,8 @@ export const flowNext = defineCommand({
     "Audited means a ticket with the label audit-<S> or release-<S> exists, or the audit was finished in this run. For a ticket or Plan target, <S> is the ticket's Iteration (only when it is a single one), and audit and release apply only when all tickets in that Iteration are finished. " +
     "Passing the returned resume to --resume in the next call marks the assignment, check, and audit that it returned as finished, and skips them. If resume is missing, unreadable, or for a different target, it starts again from assign and check. " +
     "When stopped without finishing a stage (such as stopping at the audit findings table), do not pass that resume (passing it would skip that stage). " +
-    "Stages in config's flow.skip are skipped without reading their rules. If the facts (tickets, Plans, Runs) have not changed for the same stage as the previous return, it returns stop. Returns the stage's section (guide), the commands to call (commands; with --gate, the work stage sets the level on tickets whose level differs before next; when that lowers the level, the entry is a sentence to ask a person to run the command, because only a person can lower it), and whether approval is needed (approval; auto_ok says whether --auto chooses it without asking, following config's auto.decisions and auto.merge; decisions a person makes are not included). " +
+    "Stages in skip under flow of workflow.yaml are skipped without reading their rules. If the facts (tickets, Plans, Runs) have not changed for the same stage as the previous return, it returns stop. Returns the stage's section (guide), the commands to call (commands; with --gate, the work stage sets the level on tickets whose level differs before next; when that lowers the level, the entry is a sentence to ask a person to run the command, because only a person can lower it), and whether approval is needed (approval). " +
+    "The Workflow's values decide approval (dg workflow show): flow.assign, flow.check, flow.plan, flow.audit, and flow.release for their stages, and the decide of the review → done boundary for the merges of the work stage. approval.value is that value, and approval.agent is what it means for an agent in this call: allow (go ahead without asking), approval (ask a person first; required is true), or reject (only a person does it; required is true). --auto goes ahead without asking only where the value is ask_unless_auto: auto_ok is then true, and the judged commands carry --auto (iteration add, plan approve), which records the agent as the approver. A value of always_ask is asked with --auto too. A judged command in commands that carries --approved-by human is run only after a person approves approval.what. In the check stage the value decides only the rows to fix; deletions, abandoned, and closing are always asked. " +
     "When a column is over its WIP limit (wip in workflow.yaml), it warns the same way as dg next, and the work stage puts first in commands a step to advance tickets in the columns further along (starting is not refused). Writes nothing",
   input: z.object({
     targets: z
@@ -616,7 +696,9 @@ export const flowNext = defineCommand({
     auto: z
       .boolean()
       .optional()
-      .describe("Automatically choose reversible decisions that come with a suggested option"),
+      .describe(
+        "Go ahead without asking where the Workflow's value is ask_unless_auto (the person started the flow with --auto). The judged commands returned then carry --auto",
+      ),
     no_assign: z.boolean().optional().describe("Skip the assign stage"),
     // 要件 TK-9
     gate: z
@@ -652,7 +734,9 @@ export const flowNext = defineCommand({
       prev = undefined;
     }
     const memory = memoryAfter(prev);
-    const found = flowStageOf(facts, memory, ctx.config.flow.skip);
+    // 読むだけなので、workflow.yaml に誤りがあって読めなければ Core の既定の値で求める（誤りは dg validate が知らせる）
+    const workflow = ctx.store.workflow?.resolved ?? DEFAULT_WORKFLOW;
+    const found = flowStageOf(facts, memory, workflow.flow.skip);
     const repeated = isRepeated(prev, found.name, fingerprint) ? found.name : null;
     const stage: FlowStage = repeated
       ? {
@@ -677,8 +761,8 @@ export const flowNext = defineCommand({
     warnings.push(...wip.warnings);
     const approval = approvalOf(stage.name, {
       auto,
-      autoMerge: ctx.config.auto.merge,
-      decisions: ctx.config.auto.decisions,
+      flow: workflow.flow.stages,
+      merge: workflow.boundaries.find((b) => b.from === "review" && b.to === "done")!.decide,
     });
     const result: FlowNext = {
       target: { iteration: facts.iteration, tickets: facts.targets.map((t) => t.id) },
@@ -697,7 +781,7 @@ export const flowNext = defineCommand({
         ...commandsOf(
           stage,
           facts.iteration,
-          approval.auto_ok,
+          approval,
           input.gate === undefined
             ? undefined
             : {

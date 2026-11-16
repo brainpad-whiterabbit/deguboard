@@ -144,21 +144,6 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     {
       ja: "Plan のチケットを、1 件ずつサブエージェントで同時に進める数の上限（dg guide parallel）。1〜10 の整数",
     },
-  // auto.merge
-  "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) without asking. Otherwise the agent asks a person and merges only when approved":
-    {
-      ja: "dg guide all --auto で、品質ゲート（dg gate --for merge）を満たした PR を聞かずにマージするか。それ以外は、agent が人に聞き、承認されたときだけマージする",
-    },
-  // auto.decisions
-  "Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table / accept: confirming acceptance criteria after reconciling). Decisions a person makes cannot be added; PR merging is set by auto.merge":
-    {
-      ja: "--auto で聞かずに選ぶ判断（assign: 割り当て・check: 直し方が 1 つに決まる直す行・plan: Plan の承認・audit: 見直しの指摘の表・accept: 照合の後の受け入れ条件の確認）。人が決める判断は入れられず、PR のマージは auto.merge",
-    },
-  // flow.skip
-  "Stages that dg flow next never returns (assign, check, plan, work, audit, release). A skipped stage's rule is not read; the flow moves to the next rule":
-    {
-      ja: "dg flow next が返さない段階（assign・check・plan・work・audit・release）。飛ばした段階の規則は読まず、次の規則に進む",
-    },
   // merge.method
   "Merge method dg pr merge uses when --method is omitted (squash, merge, or rebase)": {
     ja: "dg pr merge が --method を省いたときのマージの方法（squash・merge・rebase）",
@@ -271,14 +256,6 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "Globs of files the lighter check is enough for": {
     ja: "軽い検査で済ませてよいファイルの glob",
   },
-  // auto.merge
-  "Merge PRs that pass the quality gate automatically with --auto": {
-    ja: "--auto で、品質ゲートを満たした PR を自動でマージする",
-  },
-  // auto.decisions
-  "Decisions --auto chooses without asking": { ja: "--auto で聞かずに選ぶ判断" },
-  // flow.skip
-  "Stages that dg flow next skips": { ja: "dg flow next が飛ばす段階" },
   // work.parallel
   "Most tickets of a Plan advanced at the same time (1 to 10)": {
     ja: "Plan のチケットを同時に進める数の上限（1〜10）",
@@ -343,10 +320,6 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "The lighter check is not used (actions.test runs)": {
     ja: "軽い検査を使わない（actions.test を回す）",
   },
-  // auto.decisions
-  "--auto chooses nothing without asking": { ja: "--auto でも聞かずに選ぶ判断はない" },
-  // flow.skip
-  "No stage is skipped": { ja: "どの段階も飛ばさない" },
   // review.heavy_categories
   "The reviewer's severity is kept": { ja: "見直し役の severity のまま" },
   // models.*
@@ -371,20 +344,6 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "dg sync pushes (immediate operations push even in manual)": {
     ja: "dg sync が push する（即時の操作は manual でも push する）",
   },
-  // auto.decisions（assign・check・plan・audit・accept）。assign は flow.skip と同じ文
-  Assignment: { ja: "割り当て" },
-  "The fix line when only one fix fits": { ja: "直し方が 1 つに決まる直す行" },
-  "Plan approval": { ja: "Plan の承認" },
-  "The review findings table": { ja: "見直しの指摘の表" },
-  "Confirming acceptance criteria after reconciling": {
-    ja: "照合の後の受け入れ条件の確認",
-  },
-  // flow.skip（assign・check・plan・work・audit・release）
-  Check: { ja: "点検" },
-  Planning: { ja: "計画" },
-  Work: { ja: "作業" },
-  Audit: { ja: "リリース前の見直し" },
-  Release: { ja: "リリース" },
   // merge.method（squash・merge・rebase）
   "Squash the PR's commits into one commit": { ja: "PR のコミットを 1 つにまとめる" },
   "Make a merge commit": { ja: "マージコミットを作る" },

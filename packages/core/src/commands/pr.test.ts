@@ -125,17 +125,21 @@ async function fakeGh(root: string, pr: () => string) {
 
 /**
  * t1 を t1 で claim して 1 コミット push し、PR #7（偽の gh。draft）がある文脈。
- * autoMerge は config の auto.merge。既定の Workflow の review → done は ask_unless_auto なので、true ならエージェントが聞かずにマージできる
+ * 既定の Workflow の review → done は ask_unless_auto で、エージェントのマージには人の承認か --auto が要る。
+ * free が true なら review → done の decide を anyone にして、エージェントが何も付けずにマージできるようにする
  * （品質ゲートと gh の呼び方を確かめるテストは true で回す）
  */
-async function prepared(autoMerge = true) {
+async function prepared(free = true) {
   const f = await createFixture();
   cleanups.push(f.cleanup);
   const actor = { kind: "agent" as const, user: "eiki" };
   const first = await openContext({ cwd: f.cloneA, initialize: {}, actor });
   await runCommand(init, first, {});
-  // チームの設定を変えるのは、エージェントには人の承認が要る（governance.config）ので、準備は人の主体で書く
-  if (autoMerge) await runCommand(configSet, asHuman(first), { key: "auto.merge", value: "true" });
+  // workflow.yaml を書き換えるのは、エージェントには人の承認が要る（Core の固定）ので、準備は人の主体で書く
+  if (free)
+    await runCommand(workflowSet, asHuman(first), {
+      definition: { boundaries: [{ from: "review", to: "done", decide: "anyone" }] },
+    });
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, {
     title: "A",
@@ -277,12 +281,12 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     ]);
   });
 
-  it("--approved-by を渡すと、マージの後に誰が承認してマージしたかを PR のコメントに残す。渡さなければ（--auto で聞かずにマージ）残さない（t883）", async () => {
+  it("--approved-by を渡すと、マージの後に誰が承認してマージしたかを PR のコメントに残す。承認の要らない値で渡さずにマージしたときは残さない（t883）", async () => {
     const { ctx, tip, calls, undraft } = await prepared();
     await passedReview(ctx);
     await undraft();
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
-    // 聞かずにマージしたときは承認者を残さない（コメントを書かない）
+    // 承認の要らない値（anyone）でマージしたときは承認者を残さない（コメントを書かない）
     const auto = (await runCommand(prMerge, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(auto.approved_by).toBeNull();
     expect(await calls()).toEqual([`pr merge 7 --squash --match-head-commit ${tip}`]);
@@ -325,10 +329,11 @@ describe("dg pr ready・dg pr merge（t545）", () => {
   });
 
   it("品質ゲートを満たさない PR は、承認者を渡さなければ GATE_FAILED のままで人に聞く道を案内し、--approved-by を渡すと越えた条件を結果と PR のコメントに残してマージする（t884）", async () => {
-    const { ctx, tip, calls, undraft } = await prepared();
-    // 見直しがなく、受け入れ条件に印がない。auto.merge が true（聞かずに進める流れ）でも、承認者なしでは越えない
-    expect(ctx.config.auto.merge).toBe(true);
+    const { ctx, tip, calls, undraft } = await prepared(false);
     await undraft();
+    // 見直しがなく、受け入れ条件に印がない。聞かずに進める流れ（--auto）でも、人の承認なしでは越えない（Core の固定）
+    const auto = await rejection(runCommand(prMerge, ctx, { ticket: "t1", auto: true }));
+    expect(auto!.code).toBe("GATE_FAILED");
     const unapproved = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
     expect(unapproved!.code).toBe("GATE_FAILED");
     expect(unapproved!.detail).toContain("acceptance:");
@@ -935,8 +940,8 @@ describe("dg pr ready・dg pr merge（t545）", () => {
 
 describe("dg pr ready・dg pr merge の権限（境目の decide。WF-1）", () => {
   /** 品質ゲートを通る状態（見直し済み・draft でない・受け入れ条件に印）にする */
-  async function mergeable(autoMerge = false) {
-    const p = await prepared(autoMerge);
+  async function mergeable() {
+    const p = await prepared(false);
     await passedReview(p.ctx);
     await p.undraft();
     await runCommand(ticketCheck, p.ctx, { ticket: "t1", items: [1] });
@@ -966,16 +971,41 @@ describe("dg pr ready・dg pr merge の権限（境目の decide。WF-1）", () 
     ]);
   });
 
-  it("ask_unless_auto は config の auto.merge が true のときだけ聞かずに通り、always_ask は auto.merge が true でも --approved-by が要る", async () => {
-    const { ctx, tip, calls } = await mergeable(true);
-    expect((await runCommand(prMerge, ctx, { ticket: "t1" })).data).toMatchObject({
-      approved_by: null,
-    });
+  it("ask_unless_auto は --auto のときだけ聞かずに通り、承認者にエージェントを PR のコメントに残す。always_ask と anyone の --auto は拒否され、always_ask は --approved-by が要る", async () => {
+    const { ctx, human, tip, calls } = await mergeable();
+    const auto = await runCommand(prMerge, ctx, { ticket: "t1", auto: true });
+    expect(auto.data).toMatchObject({ action: "merge", approved_by: "eiki/agent" });
+    expect(await calls()).toEqual([
+      mergeCall(tip),
+      "api POST issues/7/comments body=Merged with `dg pr merge` by eiki/agent, without asking a person (--auto, where the Workflow's value is ask_unless_auto; the approver is recorded as eiki/agent).",
+    ]);
+    // --auto はエージェントのもので、人の承認（--approved-by）とは一緒に渡せない。どちらも gh を呼ぶ前に止まる
+    const byHuman = await rejection(runCommand(prMerge, human, { ticket: "t1", auto: true }));
+    expect(byHuman!.code).toBe("VALIDATION_FAILED");
+    const both = await rejection(
+      runCommand(prMerge, ctx, { ticket: "t1", auto: true, approved_by: "human" }),
+    );
+    expect(both!.code).toBe("VALIDATION_FAILED");
+    expect(both!.message).toContain("--auto cannot be combined with --approved-by");
     await setBoundary(ctx, "review", "done", "always_ask");
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
     expect(err!.code).toBe("TRANSITION_REJECTED");
     expect(err!.message).toContain("always_ask");
+    // always_ask の案内は --auto を勧めない
+    expect(err!.detail).not.toContain("--auto");
+    const asked = await rejection(runCommand(prMerge, ctx, { ticket: "t1", auto: true }));
+    expect(asked!.code).toBe("TRANSITION_REJECTED");
+    expect(asked!.message).toContain(
+      // t1 は in_progress のまま（照合していない）なので、手前の境目（anyone）の値も並ぶ
+      "--auto goes ahead without asking only where the value is ask_unless_auto, and merging the PR of t1 is not such a place (boundaries in_progress → review, review → done: anyone, always_ask)",
+    );
+    expect(asked!.detail).toContain("--auto never skips this approval");
     await runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" });
+    // 聞かない値（anyone）に付けた --auto も拒否する（聞かずに進めるのを ask_unless_auto の場面に限る）
+    await setBoundary(ctx, "review", "done", "anyone");
+    const free = await rejection(runCommand(prMerge, ctx, { ticket: "t1", auto: true }));
+    expect(free!.code).toBe("TRANSITION_REJECTED");
+    expect(free!.detail).toContain("run the command again without --auto");
     expect((await calls()).filter((c) => c.startsWith("pr merge"))).toEqual([
       mergeCall(tip),
       mergeCall(tip),
@@ -1021,9 +1051,12 @@ describe("dg pr ready・dg pr merge の権限（境目の decide。WF-1）", () 
   });
 
   it("飛ばすマージ（in_progress のままのチケット）は、間の境目（in_progress → review）の値も効く", async () => {
-    const { ctx, tip, calls } = await mergeable(true);
-    // t1 は in_progress（照合していない）。review → done は ask_unless_auto で auto.merge は true だが、手前の境目が always_ask
+    const { ctx, tip, calls } = await mergeable();
+    // t1 は in_progress（照合していない）。review → done は ask_unless_auto だが、手前の境目が always_ask なので --auto は効かない
     await setBoundary(ctx, "in_progress", "review", "always_ask");
+    const auto = await rejection(runCommand(prMerge, ctx, { ticket: "t1", auto: true }));
+    expect(auto!.code).toBe("TRANSITION_REJECTED");
+    expect(auto!.message).toContain("is not such a place");
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
     expect(err!.code).toBe("TRANSITION_REJECTED");
     expect(err!.message).toContain("in_progress → review, review → done: always_ask");

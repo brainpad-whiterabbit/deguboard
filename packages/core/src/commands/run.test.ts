@@ -238,7 +238,7 @@ describe("run", () => {
   it("list は Iteration（チケットの今の値）で絞れ、番号だけの指定も読む", async () => {
     const ctx = await prepared();
     await runCommand(iterationCreate, ctx, { name: "S1" });
-    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"], approved_by: "human" });
     const t1 = await start(ctx, "t1");
     await start(ctx, "t2");
     const listed = async (input: Record<string, unknown>) =>
@@ -397,7 +397,11 @@ describe("run", () => {
     const ctx = await prepared();
     await runCommand(ticketCreate, ctx, { title: "C" });
     await runCommand(iterationCreate, ctx, { name: "S1" });
-    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2"] });
+    await runCommand(iterationAdd, ctx, {
+      iteration: "s1",
+      tickets: ["t1", "t2"],
+      approved_by: "human",
+    });
     const t1 = await start(ctx, "t1");
     await runCommand(runFinish, ctx, { run: t1.id, result: "success" });
     await start(ctx, "t3");

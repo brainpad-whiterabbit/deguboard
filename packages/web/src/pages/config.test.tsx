@@ -120,15 +120,16 @@ const FIELDS: ConfigField[] = (
       clears_to_default: false,
     },
     {
-      key: "auto.merge",
+      key: "merge.delete_branch",
       type: "boolean",
-      description: "自動でマージ",
+      description: "マージしたら作業ブランチを消す",
       default: false,
       scope: "team",
       clears_to_default: false,
     },
+    // 選択肢の配列の項目は今のスキーマにないが、部品は core の項目の定義（option_descriptions）に従うので、仮の項目で確かめる
     {
-      key: "auto.decisions",
+      key: "review.sample_choices",
       type: "list",
       description: "聞かずに選ぶ判断",
       option_descriptions: {
@@ -193,7 +194,8 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
     push: { mode: "auto" },
     metrics: { read_transcripts: false },
     actions: { shell: false, test: ["mise", "run", "check"] },
-    auto: { merge: false, decisions: ["assign", "check", "plan", "audit", "accept"] },
+    merge: { delete_branch: false },
+    review: { sample_choices: ["assign", "check", "plan", "audit", "accept"] },
     models: { light: "", sample: "inherit" },
     guide: { notes: { work: "docs/work-notes.md", plan: "" } },
   };
@@ -313,7 +315,7 @@ describe("設定画面", () => {
     expect(within(commit).getByText("commit.mode")).toBeTruthy();
     expect(within(commit).getByText("チケットの書き込みをいつコミットするか")).toBeTruthy();
     expect(within(commit).getByRole("combobox")).toBeTruthy();
-    expect(within(fieldOf("auto.merge")).getByRole("checkbox")).toBeTruthy();
+    expect(within(fieldOf("merge.delete_branch")).getByRole("checkbox")).toBeTruthy();
     expect(within(fieldOf("git.remote")).getByRole("textbox")).toBeTruthy();
     expect(within(fieldOf("actions.test")).getAllByRole("listitem")).toHaveLength(3);
     expect(screen.getByRole("note").textContent).toContain("全員に効く");
@@ -432,7 +434,7 @@ describe("設定画面", () => {
     ]);
   });
 
-  it("actions.test・actions.shell・worktree.setup・auto.merge も保存の前に確かめ、変わることを出し、やめると戻す", async () => {
+  it("actions.test・actions.shell・worktree.setup も保存の前に確かめ、変わることを出し、やめると戻す", async () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
@@ -452,24 +454,6 @@ describe("設定画面", () => {
     expect(within(fieldOf("actions.shell")).getByRole<HTMLInputElement>("checkbox").checked).toBe(
       false,
     );
-    expect(setCalls(client)).toEqual([]);
-
-    // 自動マージ：エージェントに PR のマージを許すので、保存するまで config.set を呼ばない
-    fireEvent.click(within(fieldOf("auto.merge")).getByRole("checkbox"));
-    const merge = within(fieldOf("auto.merge")).getByRole("alertdialog");
-    expect(merge.textContent).toContain("エージェントが PR を自動でマージするかが変わる");
-    fireEvent.click(within(merge).getByText("やめる"));
-    expect(within(fieldOf("auto.merge")).getByRole<HTMLInputElement>("checkbox").checked).toBe(
-      false,
-    );
-    expect(setCalls(client)).toEqual([]);
-
-    // 聞かずに選ぶ判断：外した結果を確かめ、やめると元のリストに戻る
-    fireEvent.click(within(fieldOf("auto.decisions")).getByLabelText("accept を外す"));
-    const decisions = within(fieldOf("auto.decisions")).getByRole("alertdialog");
-    expect(decisions.textContent).toContain("エージェントが聞かずに選ぶ判断が変わる");
-    fireEvent.click(within(decisions).getByText("やめる"));
-    expect(within(fieldOf("auto.decisions")).getByLabelText("accept を外す")).toBeTruthy();
     expect(setCalls(client)).toEqual([]);
 
     // claim の準備のコマンド：足してから保存する
@@ -824,7 +808,7 @@ describe("設定画面", () => {
       FIELDS.filter((f) => f.scope === "local").length,
     );
     // チーム専用の項目は出さない
-    expect(document.querySelector('[data-key="auto.merge"]')).toBeNull();
+    expect(document.querySelector('[data-key="merge.delete_branch"]')).toBeNull();
     // 上書きしている項目は自分の値で触れ、チームの値を添える
     const commit = fieldOf("commit.mode");
     expect(commit.classList.contains("modified")).toBe(true);
@@ -1067,7 +1051,7 @@ describe("設定画面", () => {
     await settle();
     expect(hints()).toEqual(["manual dg commit のときだけコミットする"]);
     // 選択肢のリストは入っている値ごとに説明を出し、外した値の説明は消える。入っていない選択肢は足す欄の候補に出す
-    const decisions = fieldOf("auto.decisions");
+    const decisions = fieldOf("review.sample_choices");
     expect(
       [...decisions.querySelectorAll(".config-option-hints code")].map((e) => e.textContent),
     ).toEqual(["assign", "check", "plan", "audit", "accept"]);
@@ -1269,8 +1253,6 @@ describe("設定画面の部品", () => {
       "actions.light_test",
       "actions.shell",
       "actions.test",
-      "auto.decisions",
-      "auto.merge",
       "git.base_branch",
       "git.data_branch",
       "git.data_remote",
@@ -1309,9 +1291,11 @@ describe("設定画面の部品", () => {
 
   it("キーの最上位でまとまりを決め、知らない項目は「その他」", () => {
     expect(groupOf("push.mode")).toBe("commit");
-    expect(groupOf("auto.merge")).toBe("agent");
+    expect(groupOf("merge.delete_branch")).toBe("agent");
     expect(groupOf("priority.high")).toBe("ticket");
-    // やめた項目（default_workflow・actor.human_only）はどのまとまりにも入らない
+    // やめた項目（default_workflow・actor.human_only・auto.merge・flow.skip）はどのまとまりにも入らない
+    expect(groupOf("auto.merge")).toBe("other");
+    expect(groupOf("flow.skip")).toBe("other");
     expect(groupOf("default_workflow")).toBe("other");
     expect(groupOf("actor.human_only")).toBe("other");
     expect(groupOf("new.item")).toBe("other");

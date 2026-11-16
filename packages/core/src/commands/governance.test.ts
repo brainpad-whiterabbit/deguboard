@@ -223,9 +223,10 @@ describe("カンバンの管理の操作は governance の値で判定される"
     expect((await runCommand(ticketCreate, human, { title: "B" })).data.id).toBe("t2");
 
     await governance({ create: "ask_unless_auto" });
-    // 聞かずに進める流れ（--auto）かを dg は知らないので、ask_unless_auto もいつも承認を求める
+    // ask_unless_auto は、--auto がなければ承認を求め、--auto の道を案内する（--auto の判定は flow-permission.test.ts）
     expect(await rejected(runCommand(ticketCreate, agent, { title: "C" }))).toMatchObject({
       code: "TRANSITION_REJECTED",
+      detail: expect.stringContaining("run the command again with --auto instead"),
     });
     await runCommand(ticketCreate, agent, { title: "C", approved_by: "human" });
     expect(await subject()).toBe("File t3: C (approved by claude)");
@@ -283,8 +284,10 @@ describe("カンバンの管理の操作は governance の値で判定される"
     await runCommand(configUnset, human, { key: "work.parallel" });
   });
 
-  it("名前だけで操作が決まるコマンドのうち、エージェントに拒むものは governance の値から決まる（ask が人のコマンドに回す）", () => {
+  it("名前だけで操作が決まるコマンドのうち、エージェントに拒むものは flow と governance の値から決まる（ask が人のコマンドに回す）", () => {
     expect(commandsRejectedForAgent(resolveWorkflow({}))).toEqual([
+      "iteration.close",
+      "iteration.reopen",
       "ticket.delete",
       "epic.close",
       "epic.reopen",
@@ -292,10 +295,11 @@ describe("カンバンの管理の操作は governance の値で判定される"
     expect(
       commandsRejectedForAgent(
         resolveWorkflow({
+          flow: { release: "always_ask", plan: "human_only" },
           governance: { delete: "anyone", epic: "always_ask", create: "human_only" },
         }),
       ),
-    ).toEqual(["ticket.create", "ticket.import"]);
+    ).toEqual(["plan.approve", "ticket.create", "ticket.import"]);
   });
 });
 

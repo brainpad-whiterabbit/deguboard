@@ -19,6 +19,7 @@ import { defineCommand, ok } from "./define.js";
 import { plansContaining, type PlanBrief } from "./plan.js";
 import type { AskAction } from "./ask.js";
 import { iterationRef, nowIso, sortedDocs, ticketRef, ticketsInIteration } from "./helpers.js";
+import { ASSIGN_NOTE, hasRecord, permissionFields, recordNote } from "./permission.js";
 
 /** active の Iteration はカンバンに 1 つ（IT-1）。ほかに active があれば拒否する */
 function rejectIfOtherActive(store: Store, it: Doc<Iteration>, verb: string): void {
@@ -229,13 +230,15 @@ export const iterationUpdate = defineCommand({
 const membership = z.object({
   iteration: iterationRef,
   tickets: z.array(ticketRef).min(1).describe("Ticket ID (t12 or 12). Can be given more than once"),
+  ...permissionFields,
 });
 
 export const iterationAdd = defineCommand({
   name: "iteration.add",
   positionals: ["iteration", "tickets"],
   group: "iteration",
-  summary: "Add tickets to an Iteration. Tickets cannot be added to a closed Iteration",
+  summary:
+    "Add tickets to an Iteration. Tickets cannot be added to a closed Iteration. " + ASSIGN_NOTE,
   input: membership,
   write: true,
   needs: "store",
@@ -253,7 +256,11 @@ export const iterationAdd = defineCommand({
         }
         return { iteration: it.id, tickets: ids };
       },
-      { message: (r) => `Add ${r.tickets.join(", ")} to ${r.iteration}` },
+      {
+        message: (r) => `Add ${r.tickets.join(", ")} to ${r.iteration}${recordNote(ctx, input)}`,
+        // 承認者はこの操作のコミットに残す（ticket move と同じ）
+        immediate: hasRecord(input),
+      },
     );
     return ok(result.value, result.write);
   },
@@ -263,7 +270,7 @@ export const iterationRemove = defineCommand({
   name: "iteration.remove",
   positionals: ["iteration", "tickets"],
   group: "iteration",
-  summary: "Remove tickets from an Iteration",
+  summary: "Remove tickets from an Iteration. " + ASSIGN_NOTE,
   input: membership,
   write: true,
   needs: "store",
@@ -282,7 +289,11 @@ export const iterationRemove = defineCommand({
         }
         return { iteration: it.id, tickets: ids };
       },
-      { message: (r) => `Remove ${r.tickets.join(", ")} from ${r.iteration}` },
+      {
+        message: (r) =>
+          `Remove ${r.tickets.join(", ")} from ${r.iteration}${recordNote(ctx, input)}`,
+        immediate: hasRecord(input),
+      },
     );
     return ok(result.value, result.write);
   },
@@ -326,8 +337,8 @@ export const iterationClose = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Close an Iteration and record the time it closed (closed_at) and the counts of completed and carried-over tickets. Carried-over tickets lose their iteration",
-  input: z.object({ iteration: iterationRef }),
+    "Close an Iteration and record the time it closed (closed_at) and the counts of completed and carried-over tickets. Carried-over tickets lose their iteration. The Workflow's flow.release judges closing and reopening an Iteration (human_only by default, which rejects an agent; see dg workflow show --help for the values). When the value asks for a person's approval, an agent passes --approved-by, and the approver is recorded in the commit message",
+  input: z.object({ iteration: iterationRef, ...permissionFields }),
   write: true,
   needs: "store",
   async run(ctx, input) {
@@ -349,7 +360,10 @@ export const iterationClose = defineCommand({
           carried_over: carried.length,
         });
       },
-      { message: (doc) => `Close ${doc.id}: ${doc.data.name}` },
+      {
+        message: (doc) => `Close ${doc.id}: ${doc.data.name}${recordNote(ctx, input)}`,
+        immediate: hasRecord(input),
+      },
     );
     return ok(result.value.data, result.write);
   },
@@ -360,8 +374,8 @@ export const iterationReopen = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Reopen a closed Iteration and make it active again (rejected if another Iteration is active). Clears closed_at and the completed and carried-over counts. The start time (started_at) is not changed. Carried-over tickets do not come back, so add them again with iteration add",
-  input: z.object({ iteration: iterationRef }),
+    "Reopen a closed Iteration and make it active again (rejected if another Iteration is active). Clears closed_at and the completed and carried-over counts. The start time (started_at) is not changed. Carried-over tickets do not come back, so add them again with iteration add. The Workflow's flow.release judges it, as for iteration close (human_only by default)",
+  input: z.object({ iteration: iterationRef, ...permissionFields }),
   write: true,
   needs: "store",
   async run(ctx, input) {
@@ -386,7 +400,11 @@ export const iterationReopen = defineCommand({
           carried_over: undefined,
         });
       },
-      { message: (doc) => `Reopen ${doc.id}: ${doc.data.name}`, immediate: true, cas: true },
+      {
+        message: (doc) => `Reopen ${doc.id}: ${doc.data.name}${recordNote(ctx, input)}`,
+        immediate: true,
+        cas: true,
+      },
     );
     return ok(result.value.data, result.write, warnings);
   },

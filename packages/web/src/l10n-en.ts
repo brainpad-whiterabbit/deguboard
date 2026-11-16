@@ -435,9 +435,6 @@ export const EN: Readonly<Record<string, string>> = {
   テストのコマンド: "Test command",
   軽い検査のコマンド: "Lighter check command",
   軽い検査で済ませるパス: "Paths the lighter check is enough for",
-  "PR を自動でマージする": "Merge PRs automatically",
-  "--auto で自動で選ぶ判断": "Decisions --auto chooses automatically",
-  流れから外す段階: "Stages to leave out of the flow",
   同時に進めるチケットの上限: "Most tickets advanced at the same time",
   マージの方法: "Merge method",
   マージしたら作業ブランチを消す: "Delete the work branch after merging",
@@ -511,9 +508,6 @@ export const EN: Readonly<Record<string, string>> = {
     "changes the command run on every claim without confirmation (same as allowing a shell)",
   エージェントが任意のシェルを実行できるかが変わる:
     "changes whether agents can run any shell command",
-  "エージェントが PR を自動でマージするかが変わる":
-    "changes whether agents merge PRs automatically",
-  エージェントが聞かずに選ぶ判断が変わる: "changes which decisions agents make without asking",
   空: "Empty",
   "{0} を {1} にした": "Set {0} to {1}",
   "（{0}）": " ({0})",

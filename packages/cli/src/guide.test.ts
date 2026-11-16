@@ -678,43 +678,50 @@ describe("dg guide", () => {
     expect(plan).not.toContain("まだない");
     for (const command of ["plan create", "plan approve", "plan show", "--after", "--scope"])
       expect(plan).toContain(command);
-    expect(plan).toContain("Do not approve without a human's approval");
-    // なくした config の一覧（actor.human_only）で人に限る案内は出さない
-    expect(plan).not.toContain("human_only");
+    // 承認は Workflow の flow.plan が判定する：人の承認で --approved-by human、--auto の流れでは --auto
+    expect(plan).toContain("plan approve <p> --approved-by human");
+    expect(plan).toContain("plan approve <p> --auto");
+    expect(plan).toContain("`flow.plan`");
     for (const word of ["plan show", "`next`", "`ready`", "waiting", "scope", "approach"])
       expect(work).toContain(word);
     expect(done).toContain("plan close");
   });
 
-  it("all は --auto の範囲を config の auto.decisions と auto.merge に任せ、人が決める判断は聞いて止まる。自動マージは auto.merge を true にしたときだけ条件を確かめて行う", async () => {
+  it("all は --auto を「Workflow の値が ask_unless_auto の場面を聞かずに進める」意味で案内し、なくした config（auto.merge・auto.decisions）を指さない。聞かずにマージするのは approval.auto_ok のときだけ", async () => {
     const all = await readGuide("all");
-    const auto = section(all, "## Choosing automatically with `--auto`");
+    const auto = section(all, "## Going ahead without asking with `--auto`");
     for (const word of [
+      "where the Workflow's value is `ask_unless_auto`, go ahead without asking",
       "approval.auto",
       "approval.what",
-      "accept",
-      "auto.decisions",
-      "auto.merge",
+      "approval.auto_ok",
+      "pr merge <id> --auto",
+      "plan approve <p> --auto",
+      "`always_ask`",
+      "`human_only`",
       "dg guide review",
-      "Decisions a human makes",
+      "fixed in Core",
     ])
       expect(auto).toContain(word);
-    expect(fillPlaceholders(all, defaultConfig())).toContain("current setting: `false`");
-    expect(fillPlaceholders(all, defaultConfig())).toContain(
-      "current setting: `assign, check, plan, audit, accept`",
-    );
-    expect(
-      fillPlaceholders(all, { ...defaultConfig(), auto: { ...defaultConfig().auto, merge: true } }),
-    ).toContain("current setting: `true`");
+    // どの guide も、なくした config の項目を指さない（Skill の雛形は guide から作るので、Skill も指さない）
+    for (const topic of GUIDE_TOPICS) {
+      const guide = await readGuide(topic);
+      for (const gone of ["auto.merge", "auto.decisions", "flow.skip"])
+        expect(guide, `${topic}: ${gone}`).not.toContain(gone);
+    }
     expect(await readGuideMeta("all")).toMatchObject({
       "argument-hint": expect.stringContaining("--auto"),
+      description: expect.stringContaining(
+        "--auto goes ahead without asking where the board's Workflow value is ask_unless_auto",
+      ),
     });
   });
 
-  it("work・all・done は、人がマージを承認したときだけ承認者を渡してマージし、断られたらマージせずに待つと書く。--auto で聞かずにマージするときは承認者を渡さない（t883）", async () => {
+  it("work・all・done は、人がマージを承認したときだけ承認者を渡してマージし、断られたらマージせずに待つと書く。--auto で聞かずにマージするときは承認者を渡さず --auto を渡す（t883）", async () => {
     const merging = section(await readGuide("work"), "## Merging after approval");
     for (const word of [
       "only after a human approves",
+      "pr merge <id> --auto",
       "pr merge <id> --approved-by human",
       "When the human declines, or does not answer, do not merge",
       "Never pass `--approved-by` for a merge that no human approved",
@@ -723,7 +730,7 @@ describe("dg guide", () => {
     const all = await readGuide("all");
     expect(all).toContain("merge it only when approved");
     expect(all).toContain("When declined, do not merge");
-    expect(section(all, "## Choosing automatically with `--auto`")).toContain(
+    expect(section(all, "## Going ahead without asking with `--auto`")).toContain(
       "Do not pass `--approved-by`",
     );
     const done = await readGuide("done");
@@ -774,10 +781,28 @@ describe("dg guide", () => {
     expect(await readGuide("plan")).toContain("--tier");
   });
 
-  it("check は lint_iteration_multiple_active でどれを閉じるかを人に聞き、閉じるのは人の指示で行う", async () => {
+  it("check は lint_iteration_multiple_active でどれを閉じるかを人に聞き、閉じるのは Workflow の flow.release が判定すると案内する", async () => {
     const multiple = lineWith(await readGuide("check"), "lint_iteration_multiple_active");
     expect(multiple).toContain("ask a human which one to close");
-    expect(multiple).toContain("only on a human's instruction");
+    expect(multiple).toContain("`flow.release` judges closing");
+  });
+
+  it("assign・release・change・done は、Iteration を閉じる・再開するのを Workflow の flow.release の値で案内し、「人の指示があるときだけ」の決まりを書かない", async () => {
+    for (const topic of ["assign", "release", "change", "done"])
+      expect(await readGuide(topic), topic).toContain("`flow.release`");
+    const assign = await readGuide("assign");
+    expect(assign).toContain("`flow.assign`");
+    expect(assign).toContain("iteration add <s3> <t12> <t13> --approved-by human");
+    // 値によらず人の指示を求めていた前の決まりの文は残さない
+    for (const topic of GUIDE_TOPICS) {
+      const guide = await readGuide(topic);
+      for (const gone of [
+        "closing is done only on a human's instruction",
+        "Close only on a human's instruction",
+        "Do this only on a human's instruction",
+      ])
+        expect(guide, `${topic}: ${gone}`).not.toContain(gone);
+    }
   });
 
   it("parallel は next の手が複数あるとき上限付きでサブエージェントに並べ、1 件でほかを止めないと案内し、work・all はそこへ案内する", async () => {
