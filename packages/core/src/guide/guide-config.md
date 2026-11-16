@@ -1,15 +1,16 @@
 ---
-description: Explains the deguboard settings (config.yaml) to a human - what each item means, its current value, its default, and its scope (team or personal) - and changes them when a human asks. Recommends a value only when the repository gives a basis for it. Shows before → after and team or personal (--local) for each item, and writes with dg config set only after a human approves. Use when asked「設定を説明して」「commit.mode って何？」「設定を変えて」「おすすめの設定は？」.
+description: Explains the deguboard settings (config.yaml) and the board's Workflow (workflow.yaml) to a human - what each item means, its current value, its default, and its scope (team or personal) - and changes them when a human asks. Recommends a value only when the repository gives a basis for it. Shows before → after for each item (and team or personal (--local) for a setting), and writes with dg config set or dg workflow set only after a human approves. Use when asked「設定を説明して」「commit.mode って何？」「設定を変えて」「おすすめの設定は？」「workflow.flow.release を変えて」.
 argument-hint: "[key...] (followed by what to explain or change)"
 ---
 
 # Settings (config)
 
-Explains the settings of deguboard (`config.yaml`) to a human, and changes them when a human asks. Reading and explaining proceed without approval. Every change is written only after a human approves its before → after, with `dg config set`. Do not edit `config.yaml` or the personal settings file (`deguboard-local/config.yaml`) directly. The perspectives of the retrospective (`retro.perspectives`) are not written here: they go to `dg retro` (see "The perspectives of the retrospective" below).
+Explains the settings of deguboard (`config.yaml`) and the board's Workflow (`workflow.yaml`) to a human, and changes them when a human asks. Reading and explaining proceed without approval. Every change is written only after a human approves its before → after, with `dg config set` (the Workflow: with `dg workflow set`, see "The Workflow" below). Do not edit `config.yaml`, the personal settings file (`deguboard-local/config.yaml`), or `workflow.yaml` directly. The perspectives of the retrospective (`retro.perspectives`) are not written here: they go to `dg retro` (see "The perspectives of the retrospective" below).
 
 ## Deciding the target
 
 - The keys after the Skill call (`/dgconfig commit.mode work.parallel`), or the items named in the instruction, are the targets. A group (`models`, `actions`) means every item under it. The instruction says whether to explain or to change, and gives the new value
+- A key that starts with `workflow.` (`workflow.flow`, `workflow.flow.assign`, as the Workflow tab of the settings screen passes) is an item of `workflow.yaml`: follow "The Workflow" below
 - A question ("what is `commit.mode`?", "what do you recommend?") asks for an explanation: explain and stop, without proposing to write. Change only when a human asks for a change
 - A name that is not among the `fields` of `config show --fields`: say so and show the keys that are close. Do not guess
 - No target given: show the items whose value differs from the default (key, value, default, scope) and the groups of the rest, and ask what to explain or change, with the choices below
@@ -50,6 +51,16 @@ Moving the data to another remote or branch (`git.data_remote`, `git.data_branch
 ## The perspectives of the retrospective
 
 `retro.perspectives` is nested by perspective (ID → name, question, and the approved metric definitions), and `config set` refuses it. Explain it by reading it from `config` (each perspective's ID, name, question, and how many metrics it has). Send every change to `dg retro`: `dg retro perspective` adds a perspective or changes its name or question, `dg retro remove` removes a perspective or one definition, and `dg retro metric` records a metric definition. Run them by the "Perspectives" section of `dg guide retro`, with the same approval of before → after as in "Changing". Metric definitions are proposed and approved in the retrospective itself, so do not make them up here.
+
+## The Workflow
+
+`workflow.yaml` decides, for the whole board, the Status names (`states`), the three boundaries and who decides at each (`boundaries`), the moves outside the flow (`exceptions`), the WIP limits (`wip`), who decides at each stage of the flow and the stages of your own (`flow`), and who may manage the board (`governance`). It is one file for the team, with no personal override.
+
+- **Reading**: `dg --json --actor agent workflow show` (it does not write). `sections` has one row per value: `key` (the target `workflow.flow.assign` is the row `flow.assign`; the target `workflow.flow` is every row of the section `flow`), `value` (the value in effect), `default`, and `modified` (whether it differs from the default). The row of a stage of your own has `custom` (its `after` and `guide`) and no default. `definition` is the whole Workflow in the shape `workflow set` takes, and `fixed` lists the operations that `workflow.yaml` cannot change. What each item and value means is in `dg workflow show --help`
+- **Explaining**: for each target row, give the meaning (what the value decides, and what it means for a person, for an agent, and with `--auto`), the current value, and the default, as in "Explaining". There is no scope to give. Recommend a value only with a basis from the repository
+- **Changing**: `workflow set` replaces the whole file, so write the file from `definition` with only the asked values changed (to return a value to the default, write the row's `default`). Show the human a table with one row per value that changes (key, before, after, and what the change lets an agent do or stops it from doing), and ask with choices. Only when the human approves, run `dg --json --actor agent workflow set --file <file> --approved-by human`. This approval is fixed in Core: ask for every change, in a flow started with `--auto` too, and never write without it
+- **When refused**: on `TRANSITION_REJECTED`, do not retry in another way; give the human the exact command to run (without `--actor agent` and `--approved-by`). On `VALIDATION_FAILED`, show the problems in `error.detail` and ask again; nothing was written
+- **Report**: for each value, before → after (from `changed`, `before`, and `after` of the result), and the `warnings`
 
 ## Choosing the next step
 

@@ -273,6 +273,9 @@ export function mockClient(data = fixture()): MockClient {
   const calls: MockClient["calls"] = [];
   /** ticket.check で書き換えた本文。ticket.show はこれを返し、なければ TICKET_BODY */
   const bodies: Record<string, string> = {};
+  /** ask の key に受ける Workflow の節と行（core の askWorkflowKeys と同じく、今の workflow.show の sections の key） */
+  const workflowKeys = () =>
+    (data.workflow.sections ?? []).flatMap((s) => [s.key, ...s.rows.map((r) => r.key)]);
   const handlers: MockClient["handlers"] = {
     "config.show": (input) => {
       const config = {
@@ -320,7 +323,7 @@ export function mockClient(data = fixture()): MockClient {
     "run.list": () => [],
     "run.recent": () => [],
     // core の ask と同じく、対象を fixture から引いて buildAsk で依頼文を作る（チケットと Iteration だけ。実行中の Run はない）
-    // 設定の項目（key）も core と同じく確かめる（観点は既定の観点の ID）
+    // 設定の項目（key）も core と同じく確かめる（観点は既定の観点の ID、Workflow の節と行は fixture の workflow の sections）
     ask: (input) => {
       const {
         targets = [],
@@ -329,7 +332,7 @@ export function mockClient(data = fixture()): MockClient {
       } = input as { targets?: string[]; key?: string } & Record<string, unknown>;
       return buildAsk({
         subjects: targets.map((id) => askSubjectOf(data, id)),
-        item: key ? askConfigItem(key, DEFAULT_PERSPECTIVES) : undefined,
+        item: key ? askConfigItem(key, DEFAULT_PERSPECTIVES, workflowKeys()) : undefined,
         ...rest,
       });
     },
@@ -345,7 +348,7 @@ export function mockClient(data = fixture()): MockClient {
             within,
             (input as { language?: "ja" | "en" }).language,
             place as Parameters<typeof askCandidates>[3],
-            item ? askConfigItem(item, DEFAULT_PERSPECTIVES) : undefined,
+            item ? askConfigItem(item, DEFAULT_PERSPECTIVES, workflowKeys()) : undefined,
           );
           return { key, candidates, error: null };
         } catch (e) {

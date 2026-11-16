@@ -3,7 +3,7 @@
 // - カンバンにチケットの行が出て、タブ（バックログ）に切り替えても戻しても行が出ること
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
-// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面と振り返りの節・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
 import { access } from "node:fs/promises";
@@ -25,6 +25,7 @@ import {
   ticketClaim,
   ticketCreate,
   ticketMove,
+  workflowSet,
 } from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import {
@@ -93,6 +94,21 @@ beforeAll(async () => {
     id: "flow",
     name: "Flow",
     question: "Did the work move from claim to merge without waiting for people?",
+  });
+  // 設定画面の Workflow のタブを撮るため、既定と違う値（WIP の上限・リリースの段階）と独自の段階を workflow.yaml に書く。
+  // ほかの画面を変えないよう、Status の表示名と境目は既定のままにする
+  await runCommand(workflowSet, ctx, {
+    definition: {
+      wip: { in_progress: 3 },
+      flow: {
+        release: "always_ask",
+        "deploy-staging": {
+          decide: "always_ask",
+          after: "audit",
+          guide: "docs/flow/deploy-staging.md",
+        },
+      },
+    },
   });
   display = await ensureDisplay();
   host = await launchHost(fixture.cloneA, display);
@@ -229,6 +245,27 @@ describe("VS Code の実機の左パネル", () => {
           box = box.parentElement;
         if (covered > 0) (box ?? document.scrollingElement)?.scrollBy(0, -covered);
       });
+      for (const theme of ["dark", "light"] as const) {
+        await host.setTheme(theme);
+        const shot = await host.screenshot(name, theme);
+        await access(shot.sidebar);
+      }
+    }
+    // Workflow のタブ（読むだけ）：頭（帯・検索・状態の節）と、既定と違う行と独自の段階のある流れの段階の節を撮る。入力欄は検索だけ
+    await sidebar.locator("#config-tab-workflow").click();
+    const flow = sidebar.locator('section[data-section="flow"]');
+    await flow
+      .locator('tr[data-key="workflow.flow.deploy-staging"] .config-custom-stage')
+      .waitFor();
+    await flow.locator('tr[data-key="workflow.flow.release"].modified').waitFor();
+    expect(await sidebar.locator("#config-panel input, #config-panel select").count()).toBe(1);
+    for (const [name, key, block] of [
+      ["config-workflow", "states", "end"],
+      ["config-workflow-flow", "flow", "center"],
+    ] as const) {
+      await sidebar
+        .locator(`section[data-section="${key}"]`)
+        .evaluate((el, at) => el.scrollIntoView({ block: at }), block);
       for (const theme of ["dark", "light"] as const) {
         await host.setTheme(theme);
         const shot = await host.screenshot(name, theme);

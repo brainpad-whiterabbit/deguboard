@@ -264,6 +264,7 @@ Settings
 [aria-label] Where settings are saved
 Team
 Mine
+Workflow
 Settings shared by the whole team
 Saved to
 config.yaml

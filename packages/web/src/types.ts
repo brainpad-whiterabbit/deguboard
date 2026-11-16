@@ -34,6 +34,8 @@ import type {
   TicketRow,
   TicketRunsView,
   WhoamiView,
+  WorkflowRow,
+  WorkflowSection,
 } from "@deguboard/core";
 import { msg } from "./l10n.js";
 
@@ -70,6 +72,8 @@ export type {
   TicketRow,
   TicketRunsView,
   WhoamiView,
+  WorkflowRow,
+  WorkflowSection,
 };
 
 /** カンバンの列の順。abandoned は既定で隠す（UI-2） */
@@ -177,6 +181,13 @@ export interface WorkflowView {
   default_labels?: Record<Status, string>;
   /** Run の step の語彙と表示名（core が固定で持つ）。前の版の画面が残した cache にはないので省けるようにする */
   steps?: readonly { id: string; label: string }[];
+  /** workflow.yaml があるか。ないときはどの値も core の既定（設定画面の Workflow のタブが知らせる）。前の版の cache にはないので省けるようにする */
+  exists?: boolean;
+  /**
+   * workflow.yaml の 6 つの項目と、その下の値の行（今の値・既定・既定と違うか）。設定画面の Workflow のタブが写すだけで出す（UI-14）。
+   * 前の版の画面が残した cache の Workflow にはないので省けるようにし、ないときは読み直しを待つ
+   */
+  sections?: readonly WorkflowSection[];
 }
 
 /**

@@ -18,6 +18,8 @@ import {
   askCandidates,
   askConfigItem,
   ASK_PERSPECTIVE_KEY,
+  ASK_WORKFLOW_KEY,
+  askWorkflowKeys,
   askHumanChecks,
   askMeaning,
   askMenu,
@@ -40,6 +42,10 @@ import { runStart } from "./run.js";
 import { init } from "./setup.js";
 import { ticketCreate, ticketMove, ticketUpdate } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
+import { DEFAULT_WORKFLOW, resolveWorkflow } from "../workflow/resolve.js";
+
+/** 既定の Workflow の節と行（ask の key の workflow. の後ろに受ける） */
+const WORKFLOW_KEYS = askWorkflowKeys(DEFAULT_WORKFLOW);
 
 /** 候補の頼むことだけを順に並べる（place は頼む場所。省けば場所なし） */
 const askActions = (s: AskSubject[], within?: string, place?: AskPlace) =>
@@ -1136,26 +1142,109 @@ describe("頼むことの候補", () => {
   });
 
   it("設定の項目（key）は、スキーマの葉の項目と今ある振り返りの観点だけを受け、ほかは使い方の誤りになる", () => {
-    expect(askConfigItem("commit.mode", [])).toEqual({ kind: "field", key: "commit.mode" });
-    expect(askConfigItem(" guide.notes.work ", [])).toEqual({
+    expect(askConfigItem("commit.mode", [], [])).toEqual({ kind: "field", key: "commit.mode" });
+    expect(askConfigItem(" guide.notes.work ", [], [])).toEqual({
       kind: "field",
       key: "guide.notes.work",
     });
-    expect(askConfigItem(`${ASK_PERSPECTIVE_KEY}spec`, ["spec", "cost"])).toEqual({
+    expect(askConfigItem(`${ASK_PERSPECTIVE_KEY}spec`, ["spec", "cost"], [])).toEqual({
       kind: "perspective",
       key: "retro.perspectives.spec",
       id: "spec",
     });
-    // スキーマにない項目・まとまり・観点の入れ子そのもの・今ない観点は受けない
-    for (const key of ["commit.nothing", "commit", "models", "retro.perspectives", "t12"])
-      expect(() => askConfigItem(key, ["spec"]), key).toThrow(/is not a settings item/);
-    expect(() => askConfigItem("retro.perspectives.nothing", ["spec"])).toThrow(
+    // スキーマにない項目・まとまり・観点の入れ子そのもの・今ない観点・頭のない Workflow の項目は受けない
+    for (const key of ["commit.nothing", "commit", "models", "retro.perspectives", "t12", "flow"])
+      expect(() => askConfigItem(key, ["spec"], WORKFLOW_KEYS), key).toThrow(
+        /is not a settings item/,
+      );
+    expect(() => askConfigItem("retro.perspectives.nothing", ["spec"], [])).toThrow(
       /is not a perspective of the retrospective/,
     );
   });
 
+  it("workflow.yaml の項目（workflow.<key>）は、今の Workflow の節と行だけを受ける。独自の段階は定義にあるときだけ", () => {
+    // 既定の Workflow の節（6 つの項目）と行
+    expect(WORKFLOW_KEYS).toEqual(
+      expect.arrayContaining([
+        "states",
+        "boundaries",
+        "exceptions",
+        "wip",
+        "flow",
+        "governance",
+        "states.todo.label",
+        "boundaries.review.done.decide",
+        "wip.review",
+        "flow.assign",
+        "flow.skip",
+        "governance.config",
+      ]),
+    );
+    expect(askConfigItem(`${ASK_WORKFLOW_KEY}flow`, [], WORKFLOW_KEYS)).toEqual({
+      kind: "workflow",
+      key: "workflow.flow",
+    });
+    expect(askConfigItem(" workflow.flow.assign ", [], WORKFLOW_KEYS)).toEqual({
+      kind: "workflow",
+      key: "workflow.flow.assign",
+    });
+    expect(() => askConfigItem("workflow", [], WORKFLOW_KEYS)).toThrow(/is not a settings item/);
+    for (const key of ["workflow.", "workflow.steps", "workflow.flow.deploy-staging"])
+      expect(() => askConfigItem(key, [], WORKFLOW_KEYS), key).toThrow(
+        /is not an item of workflow.yaml/,
+      );
+    const custom = askWorkflowKeys(
+      resolveWorkflow({
+        flow: { "deploy-staging": { decide: "always_ask", after: "audit", guide: "docs/d.md" } },
+      }),
+    );
+    expect(askConfigItem("workflow.flow.deploy-staging", [], custom).kind).toBe("workflow");
+  });
+
+  it("workflow.yaml の項目から頼むと、候補は説明と変更の 1 つだけで、キーを入れた /dgconfig の依頼文になる（書くのは dg workflow set）", () => {
+    const item = askConfigItem("workflow.flow.release", [], WORKFLOW_KEYS);
+    expect(askCandidates([], undefined, "ja", "configRow", item)).toEqual([
+      {
+        action: "config",
+        label: "Explain or change settings",
+        skill: "/dgconfig",
+        skill_summary: SKILL_SUMMARY["dgconfig"]!.ja,
+        recommended: true,
+        meaning:
+          "workflow.flow.release（workflow.yaml）の意味・今の値・既定の値を説明し、変更は前と後の差の承認を得てから書きます。",
+      },
+    ]);
+    expect(askCandidates([], undefined, "en", "configRow", item)[0]!.meaning).toBe(
+      "Explain workflow.flow.release of workflow.yaml (meaning, current value, default), and write a change only after approval of before → after.",
+    );
+    expect(buildAsk({ subjects: [], item, format: "skill" })).toMatchObject({
+      action: "config",
+      kind: "prompt",
+      key: "workflow.flow.release",
+      targets: [],
+      text: "/dgconfig workflow.flow.release",
+    });
+    expect(buildAsk({ subjects: [], item, format: "text" }).text).toBe(
+      [
+        "deguboard の Workflow（workflow.yaml）の workflow.flow.release を説明してください。変更は、前と後の差を見せて、承認を得てから dg workflow set で書いてください。",
+        ASK_DG_USAGE,
+        askGuideLine("/dgconfig"),
+      ].join("\n"),
+    );
+    expect(buildAsk({ subjects: [], item, format: "text", language: "en" }).text).toBe(
+      [
+        "Explain workflow.flow.release of the deguboard Workflow (workflow.yaml). For a change, show before → after, and write it with dg workflow set only after I approve.",
+        ASK_DG_USAGE_EN,
+        askGuideLine("/dgconfig", "en"),
+      ].join("\n"),
+    );
+    expect(() => buildAsk({ subjects: [], item, action: "retro" })).toThrow(
+      /retro is not a candidate/,
+    );
+  });
+
   it("設定の項目から頼むと、候補はその項目の説明と変更の 1 つだけで、キーを入れた /dgconfig の依頼文になる", () => {
-    const item = askConfigItem("commit.mode", []);
+    const item = askConfigItem("commit.mode", [], []);
     for (const language of ["ja", "en"] as const)
       expect(askCandidates([], undefined, language, "configRow", item)).toEqual([
         {
@@ -1216,7 +1305,7 @@ describe("頼むことの候補", () => {
   });
 
   it("振り返りの観点から頼むと、候補は振り返るの 1 つだけで、観点の ID を渡して /dgretro を頼む依頼文になる", () => {
-    const item = askConfigItem("retro.perspectives.spec", ["spec"]);
+    const item = askConfigItem("retro.perspectives.spec", ["spec"], []);
     expect(askCandidates([], undefined, "ja", undefined, item)).toEqual([
       {
         action: "retro",
@@ -1454,6 +1543,26 @@ describe("ask", () => {
     await expect(run({ targets: ["t1"], key: "commit.mode" })).rejects.toThrow(
       /cannot be asked together with targets/,
     );
+    // workflow.yaml の節と行は、今の Workflow にあるものだけ
+    expect(await run({ key: "workflow.governance.config", format: "skill" })).toMatchObject({
+      action: "config",
+      key: "workflow.governance.config",
+      text: "/dgconfig workflow.governance.config",
+    });
+    expect(await run({ key: "workflow.wip", format: "skill" })).toMatchObject({
+      text: "/dgconfig workflow.wip",
+    });
+    await expect(run({ key: "workflow.flow.deploy-staging" })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: expect.stringContaining("is not an item of workflow.yaml"),
+    });
+    expect(
+      (await runCommand(askMenu, ctx, { sets: ["=workflow.flow.assign", "=workflow.nothing"] }))
+        .data,
+    ).toMatchObject([
+      { key: "=workflow.flow.assign", candidates: [{ action: "config" }], error: null },
+      { key: "=workflow.nothing", candidates: [], error: expect.stringContaining("workflow.yaml") },
+    ]);
 
     // 鍵は = を付けた項目を後ろに置き、分けると元に戻る
     expect(askMenuKey([], undefined, "configRow", "commit.mode")).toBe("#configRow =commit.mode");

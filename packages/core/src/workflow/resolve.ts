@@ -165,6 +165,83 @@ export function defaultWorkflowFile(): WorkflowDefinitionInput {
 /** workflow.yaml がないとき（どの項目も省いたとき）の Workflow */
 export const DEFAULT_WORKFLOW: ResolvedWorkflow = resolveWorkflow({});
 
+/** 行の値。表示名・権限の値は文字列、越える条件と skip はリスト、WIP の上限は数（上限のない列は null） */
+export type WorkflowRowValue = string | number | readonly string[] | null;
+
+/**
+ * workflow.yaml の値 1 つ（dg workflow show の sections の行。設定画面は写すだけで、既定と違うかを自分で比べない）。
+ * key は項目からの鍵を . でつないだもの（states.todo.label、exceptions.abandon、flow.assign）。配列の boundaries は
+ * 境目の from と to を鍵にする（boundaries.todo.in_progress.requires）
+ */
+export interface WorkflowRow {
+  key: string;
+  /** 省いた値を Core の既定で補った、今効いている値 */
+  value: WorkflowRowValue;
+  /** Core の既定の値。独自の段階には既定がないので持たない */
+  default?: WorkflowRowValue;
+  /** 既定と違うか。独自の段階はいつも true */
+  modified: boolean;
+  /** 独自の段階（flow の同梱でない鍵）の after と guide。value はその decide */
+  custom?: { after: string; guide: string };
+}
+
+/** workflow.yaml の最上位の項目 1 つと、その下の行 */
+export interface WorkflowSection {
+  /** 項目の名前（states・boundaries・exceptions・wip・flow・governance） */
+  key: string;
+  /** 既定と違う行があるか */
+  modified: boolean;
+  rows: WorkflowRow[];
+}
+
+function workflowRow(key: string, value: WorkflowRowValue, def: WorkflowRowValue): WorkflowRow {
+  return { key, value, default: def, modified: JSON.stringify(value) !== JSON.stringify(def) };
+}
+
+/**
+ * 補った Workflow を、項目ごとの行にする（writtenForm と同じ 6 つの項目、同じ順）。どの行も今の値と Core の既定と、違うかを持つ。
+ * wip は今か既定のどちらかで上限のある列を行にする（書けば書いた列だけに上限が付くので、既定の列の上限を外すと null になる）
+ */
+export function workflowSections(wf: ResolvedWorkflow): WorkflowSection[] {
+  const d = DEFAULT_WORKFLOW;
+  const rows: Record<string, WorkflowRow[]> = {
+    states: STATUSES.map((s) => workflowRow(`states.${s}.label`, wf.labels[s], d.labels[s])),
+    boundaries: wf.boundaries.flatMap((b, i) => {
+      const key = `boundaries.${b.from}.${b.to}`;
+      return [
+        workflowRow(`${key}.requires`, [...b.requires], [...d.boundaries[i]!.requires]),
+        workflowRow(`${key}.decide`, b.decide, d.boundaries[i]!.decide),
+      ];
+    }),
+    exceptions: EXCEPTION_MOVES.map((m) =>
+      workflowRow(`exceptions.${m}`, wf.exceptions[m], d.exceptions[m]),
+    ),
+    wip: STATUSES.filter((s) => wf.wip[s] !== undefined || d.wip[s] !== undefined).map((s) =>
+      workflowRow(`wip.${s}`, wf.wip[s] ?? null, d.wip[s] ?? null),
+    ),
+    flow: [
+      ...FLOW_DECIDED_STAGES.map((s) =>
+        workflowRow(`flow.${s}`, wf.flow.stages[s], d.flow.stages[s]),
+      ),
+      ...wf.flow.custom.map((c) => ({
+        key: `flow.${c.id}`,
+        value: c.decide,
+        modified: true,
+        custom: { after: c.after, guide: c.guide },
+      })),
+      workflowRow(`flow.${FLOW_SKIP_KEY}`, [...wf.flow.skip], [...d.flow.skip]),
+    ],
+    governance: GOVERNANCE_OPERATIONS.map((o) =>
+      workflowRow(`governance.${o}`, wf.governance[o], d.governance[o]),
+    ),
+  };
+  return Object.entries(rows).map(([key, list]) => ({
+    key,
+    modified: list.some((r) => r.modified),
+    rows: list,
+  }));
+}
+
 /** 操作に当てる方針がどこで決まったか（判定の順。operationPolicy） */
 export type PolicySource = "core" | "exceptions" | "boundaries" | "flow" | "governance" | "none";
 

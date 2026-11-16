@@ -423,6 +423,57 @@ export const EN: Readonly<Record<string, string>> = {
   "{0} {1}（{2}）{3}{4}": "{0} {1} ({2}){3}{4}",
   "担当 {0} の絞り込みを外す": "Remove filter assignee {0}",
   "状態の節 {0}": "Status section {0}",
+  // pages/config-workflow.tsx
+  状態: "States",
+  "Status の表示名。Status は 5 つで、増やせない":
+    "Display names of the Statuses. There are five Statuses, and no more can be added",
+  境目: "Boundaries",
+  "前へ進む 3 つの境目ごとの、越える条件（requires）と決める人（decide）":
+    "For each of the three forward boundaries, the conditions to cross it (requires) and who decides (decide)",
+  例外: "Exceptions",
+  "流れの外の動き（やめる・前へ戻す・終わったものを戻す）を決める人":
+    "Who decides the moves outside the flow (abandon, move back, reopen a finished ticket)",
+  "WIP の上限": "WIP limits",
+  "列ごとのチケットの数の上限。超えると知らせるだけで、着手は止めない":
+    "The most tickets per column. Going over only gives a notice; it does not stop a ticket from starting",
+  流れの段階: "Flow stages",
+  "流れの段階ごとの決める人と、流れから外す段階（skip）。独自の段階も足せる":
+    "Who decides at each stage of the flow, and the stages left out of it (skip). You can add stages of your own",
+  カンバンの管理: "Board management",
+  カンバンを管理する操作を決める人: "Who decides the operations that manage the board",
+  "todo の表示名": "Display name of todo",
+  "in_progress の表示名": "Display name of in_progress",
+  "review の表示名": "Display name of review",
+  "done の表示名": "Display name of done",
+  "abandoned の表示名": "Display name of abandoned",
+  "着手（todo → in_progress）の条件": "Conditions to start (todo → in_progress)",
+  "着手（todo → in_progress）を決める人": "Who decides to start (todo → in_progress)",
+  "見直しに出す（in_progress → review）の条件":
+    "Conditions to send to review (in_progress → review)",
+  "見直しに出す（in_progress → review）を決める人":
+    "Who decides to send to review (in_progress → review)",
+  "完了（review → done）の条件": "Conditions to finish (review → done)",
+  "完了（review → done）を決める人": "Who decides to finish (review → done)",
+  "やめる（abandoned へ動かす）": "Abandon (move to abandoned)",
+  "前の Status へ戻す": "Move back to an earlier Status",
+  終わったチケットを戻す: "Reopen a finished ticket",
+  "todo の列の上限": "Limit of the todo column",
+  "in_progress の列の上限": "Limit of the in_progress column",
+  "review の列の上限": "Limit of the review column",
+  "done の列の上限": "Limit of the done column",
+  "abandoned の列の上限": "Limit of the abandoned column",
+  流れから外す段階: "Stages left out of the flow",
+  チケットの削除: "Deleting a ticket",
+  チームの設定の変更: "Changing the team's settings",
+  ほかのユーザの担当の変更: "Changing another user's assignee",
+  "Epic を閉じる・再開する": "Closing or reopening an Epic",
+  チケットを起票する: "Creating tickets",
+  上限なし: "No limit",
+  "workflow.yaml がないので、どの値も既定の値":
+    "There is no workflow.yaml, so every value is the default",
+  "Workflow の節 {0}": "Workflow section {0}",
+  "Workflow の項目 {0}": "Workflow item {0}",
+  独自の段階: "Your own stage",
   // pages/config.tsx
   "コミットと push": "Commit and Push",
   エージェント: "Agents",
@@ -526,7 +577,11 @@ export const EN: Readonly<Record<string, string>> = {
   自分だけに効く設定: "Settings that apply only to you",
   "Git に入らない {0} に保存し、コミットも push もしない。上書きできる項目だけを出し、使わない項目はチームの値が効く":
     "Saved to {0}, which is not in Git, and never committed or pushed. Only settings you can override are shown; the rest use the team's values",
+  "カンバンの流れと権限（読むだけ）": "The board's flow and permissions (read-only)",
+  "deguboard ブランチの {0} の今効いている値（省いた値は既定）。変えるには、行か節の見出しの吹き出しからエージェントに頼む":
+    "The values in effect from {0} on the deguboard branch (omitted values are the defaults). To change one, ask an agent from the callout on a row or a section heading",
   "例 {0}": "e.g. {0}",
+  "Workflow を検索（名前・キー・値）": "Search the Workflow (name, key, value)",
   "設定を検索（名前・キー・説明）": "Search settings (name, key, description)",
   設定を検索: "Search settings",
   "保存した: {0}": "Saved: {0}",

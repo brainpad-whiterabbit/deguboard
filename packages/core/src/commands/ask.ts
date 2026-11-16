@@ -13,7 +13,13 @@ import { idKindOf, parseId } from "../model/id.js";
 import { peekRunningRuns } from "../run/record.js";
 import type { Store } from "../storage/store.js";
 import { judgeDecisions } from "../workflow/conditions.js";
-import { commandsRejectedForAgent, operationPolicy } from "../workflow/resolve.js";
+import {
+  commandsRejectedForAgent,
+  DEFAULT_WORKFLOW,
+  operationPolicy,
+  workflowSections,
+  type ResolvedWorkflow,
+} from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
 import { ticketsInIteration } from "./helpers.js";
 import { WEBVIEW_CONTRACT } from "./client.js";
@@ -108,22 +114,46 @@ export type AskTarget = AskSubject & {
 /**
  * 設定画面の行から頼むときの設定の項目（ask の key）。対象の種類（チケット・Iteration・Epic・Plan）ではなく、対象なしの依頼に添える。
  * field は config.yaml の葉の項目（commit.mode）で、/dgconfig にキーを渡す。
- * perspective は振り返りの観点（retro.perspectives.<id>）で、/dgretro に観点の ID を渡す（観点は config set で書けず、dg retro が書くため）
+ * perspective は振り返りの観点（retro.perspectives.<id>）で、/dgretro に観点の ID を渡す（観点は config set で書けず、dg retro が書くため）。
+ * workflow は workflow.yaml の項目（workflow.flow）かその下の値（workflow.flow.assign）で、/dgconfig にキーを渡す
+ * （設定画面の Workflow のタブは読むだけで、変更は Skill が人の承認を得て dg workflow set で書く）
  */
 export type AskConfigItem =
   | { kind: "field"; key: string }
-  | { kind: "perspective"; key: string; id: string };
+  | { kind: "perspective"; key: string; id: string }
+  | { kind: "workflow"; key: string };
 
 /** 振り返りの観点の key の頭。後ろに観点の ID を付ける（retro.perspectives.spec） */
 export const ASK_PERSPECTIVE_KEY = "retro.perspectives.";
 
+/** workflow.yaml の項目と値の key の頭。後ろに dg workflow show の sections の節か行の key を付ける（workflow.flow.assign） */
+export const ASK_WORKFLOW_KEY = "workflow.";
+
+/** key に受ける workflow.yaml の節と行（dg workflow show の sections の key。頭の workflow. は付けない） */
+export function askWorkflowKeys(wf: ResolvedWorkflow): string[] {
+  return workflowSections(wf).flatMap((s) => [s.key, ...s.rows.map((r) => r.key)]);
+}
+
 /**
- * key を確かめて設定の項目にする。スキーマの葉の項目（configFields）か、今の config にある振り返りの観点（perspectives はその ID）でなければ使い方の誤り。
- * まとまり（models など）は受けない（設定画面の行は葉の項目と観点だけ）
+ * key を確かめて設定の項目にする。スキーマの葉の項目（configFields）か、今の config にある振り返りの観点（perspectives はその ID）か、
+ * 今の Workflow の節か行（workflowKeys。askWorkflowKeys）でなければ使い方の誤り。
+ * config のまとまり（models など）は受けない（設定画面の行は葉の項目と観点と、Workflow の節と行だけ）
  */
-export function askConfigItem(key: string, perspectives: readonly string[]): AskConfigItem {
+export function askConfigItem(
+  key: string,
+  perspectives: readonly string[],
+  workflowKeys: readonly string[],
+): AskConfigItem {
   const name = key.trim();
   if (configFields().some((f) => f.key === name)) return { kind: "field", key: name };
+  if (name.startsWith(ASK_WORKFLOW_KEY)) {
+    if (workflowKeys.includes(name.slice(ASK_WORKFLOW_KEY.length)))
+      return { kind: "workflow", key: name };
+    throw new UsageError(
+      `${name} is not an item of workflow.yaml`,
+      `Pass ${ASK_WORKFLOW_KEY}<key>, with the key of a section or a row of sections in dg workflow show (such as ${ASK_WORKFLOW_KEY}flow or ${ASK_WORKFLOW_KEY}flow.assign)`,
+    );
+  }
   if (name.startsWith(ASK_PERSPECTIVE_KEY)) {
     const id = name.slice(ASK_PERSPECTIVE_KEY.length);
     if (perspectives.includes(id)) return { kind: "perspective", key: name, id };
@@ -134,7 +164,7 @@ export function askConfigItem(key: string, perspectives: readonly string[]): Ask
   }
   throw new UsageError(
     `${name} is not a settings item`,
-    `Pass a key of dg config show --fields (such as commit.mode), or a perspective of the retrospective as ${ASK_PERSPECTIVE_KEY}<id>`,
+    `Pass a key of dg config show --fields (such as commit.mode), a perspective of the retrospective as ${ASK_PERSPECTIVE_KEY}<id>, or an item of workflow.yaml as ${ASK_WORKFLOW_KEY}<key>`,
   );
 }
 
@@ -239,8 +269,8 @@ export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage,
     en: "Looks back on a closed Iteration from a summary of its numbers and the metrics of the team's perspectives, gives Keep / Problem / Try with a basis, and files the approved improvements as tickets.",
   },
   dgconfig: {
-    ja: "deguboard の設定の項目（意味・今の値・既定の値・範囲）を説明し、変更は前と後の差とチームか個人かを見せて、承認を得てから書きます。",
-    en: "Explains the deguboard settings (meaning, current value, default, scope), and changes them after showing before → after and team or personal and getting approval.",
+    ja: "deguboard の設定と Workflow の項目（意味・今の値・既定の値・範囲）を説明し、変更は前と後の差とチームか個人かを見せて、承認を得てから書きます。",
+    en: "Explains the deguboard settings and Workflow (meaning, current value, default, scope), and changes them after showing before → after and team or personal and getting approval.",
   },
 };
 
@@ -1294,7 +1324,7 @@ const MEANING: Record<
 
 /**
  * 設定の項目から頼むとき（設定画面の行。AskConfigItem）の頼むことと文。候補はこの 1 つだけで、名前と Skill は ACTIONS の同じ頼むことから取る。
- * 葉の項目は /dgconfig にキーを渡す（説明するか変えるかは指示が決め、指示がなければ Skill が説明する）。
+ * 葉の項目と workflow.yaml の項目は /dgconfig にキーを渡す（説明するか変えるかは指示が決め、指示がなければ Skill が説明する）。
  * 観点は /dgretro に渡す。guide-retro は Iteration の後ろの ID を観点として読むので、Iteration のない呼び出しでは観点の ID を頼みごとの 1 行で渡し、
  * Iteration は Skill が直近に閉じたものを示して確かめる
  */
@@ -1344,6 +1374,23 @@ const ITEM_ASK: {
         lang,
         `直近に閉じた Iteration を、観点 ${item.id} だけで振り返ります（Iteration は Skill が確かめます）。`,
         `Look back on the Iteration closed last by the perspective ${item.id} only (the Skill confirms the Iteration).`,
+      ),
+  },
+  workflow: {
+    action: "config",
+    args: (item) => [item.key],
+    intent: () => "",
+    text: (item, lang) =>
+      say(
+        lang,
+        `deguboard の Workflow（workflow.yaml）の ${item.key} を説明してください。変更は、前と後の差を見せて、承認を得てから dg workflow set で書いてください。`,
+        `Explain ${item.key} of the deguboard Workflow (workflow.yaml). For a change, show before → after, and write it with dg workflow set only after I approve.`,
+      ),
+    meaning: (item, lang) =>
+      say(
+        lang,
+        `${item.key}（workflow.yaml）の意味・今の値・既定の値を説明し、変更は前と後の差の承認を得てから書きます。`,
+        `Explain ${item.key} of workflow.yaml (meaning, current value, default), and write a change only after approval of before → after.`,
       ),
   },
 };
@@ -1880,7 +1927,7 @@ export const ask = defineCommand({
       .min(1)
       .optional()
       .describe(
-        "A settings item to ask about, as the rows of the settings screen do, with no targets. A key of dg config show --fields (commit.mode) gives the single candidate config, which calls /dgconfig with the key. A perspective of the retrospective (retro.perspectives.<id>) gives the single candidate retro, which asks /dgretro to look back by that perspective only (the Skill confirms the Iteration closed last). A key that is neither, or a key together with targets, is a usage error",
+        "A settings item to ask about, as the rows of the settings screen do, with no targets. A key of dg config show --fields (commit.mode) gives the single candidate config, which calls /dgconfig with the key. A perspective of the retrospective (retro.perspectives.<id>) gives the single candidate retro, which asks /dgretro to look back by that perspective only (the Skill confirms the Iteration closed last). An item of workflow.yaml (workflow.<key>, with the key of a section or a row of sections in dg workflow show: workflow.flow, workflow.flow.assign) gives the single candidate config, which calls /dgconfig with the key (the Skill explains it, and writes a change with dg workflow set only after approval). A key that is none of these, or a key together with targets, is a usage error",
       ),
     language: z
       .enum(ASK_LANGUAGES)
@@ -1909,7 +1956,7 @@ export const ask = defineCommand({
         within: withinRef(ctx.store, input.within),
         place: input.place,
         language: input.language,
-        item: itemRef(ctx.config, input.key),
+        item: itemRef(ctx, input.key),
       }),
     );
   },
@@ -1934,7 +1981,7 @@ export const askMenu = defineCommand({
       .array(z.string())
       .default([])
       .describe(
-        'Sets of targets (IDs separated by spaces: t12, "t1 t2", s3). An empty string means no target. An Iteration or Epic with @ ("t12 @s3") means where the tickets are (ask\'s within). A place with # ("s3 #historyRow") means the screen row or heading it is asked from (ask\'s place). A settings item with = ("=commit.mode", with no targets) means a row of the settings screen (ask\'s key)',
+        'Sets of targets (IDs separated by spaces: t12, "t1 t2", s3). An empty string means no target. An Iteration or Epic with @ ("t12 @s3") means where the tickets are (ask\'s within). A place with # ("s3 #historyRow") means the screen row or heading it is asked from (ask\'s place). A settings item with = ("=commit.mode", "=workflow.flow.assign", with no targets) means a row of the settings screen (ask\'s key)',
       ),
     language: z
       .enum(ASK_LANGUAGES)
@@ -1956,7 +2003,7 @@ export const askMenu = defineCommand({
       keys.map((key): AskMenu => {
         try {
           const { refs, within, place, item } = parseAskMenuKey(key);
-          const found = itemRef(ctx.config, item);
+          const found = itemRef(ctx, item);
           if (found && refs.length > 0)
             throw new UsageError(
               `A settings item (${found.key}) cannot be asked together with targets (${refs.join(", ")})`,
@@ -2022,13 +2069,20 @@ function normalizeKey(key: string): string {
   return askMenuKey(refs, within, place, item);
 }
 
-/** key（設定の項目）を確かめる。観点の ID は今の config の retro.perspectives から引く */
+/**
+ * key（設定の項目）を確かめる。観点の ID は今の config の retro.perspectives から、Workflow の節と行は今の workflow.yaml から引く
+ * （Workflow が読めなければ既定の節と行。dg workflow show が読めないときは画面も行を出せない）
+ */
 function itemRef(
-  config: { retro: { perspectives: Record<string, unknown> } },
+  ctx: { config: { retro: { perspectives: Record<string, unknown> } }; store: Store },
   key: string | undefined,
 ): AskConfigItem | undefined {
   if (key === undefined || key.trim() === "") return undefined;
-  return askConfigItem(key, Object.keys(config.retro.perspectives));
+  return askConfigItem(
+    key,
+    Object.keys(ctx.config.retro.perspectives),
+    askWorkflowKeys(ctx.store.workflow?.resolved ?? DEFAULT_WORKFLOW),
+  );
 }
 
 /** within を確かめる。Iteration・Epic の ID でなければ使い方の誤り、なければ NOT_FOUND */

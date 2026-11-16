@@ -264,6 +264,7 @@ e1
 [aria-label] 設定の書き先
 チーム
 自分
+Workflow
 チーム全員に効く設定
 deguboard ブランチの
 config.yaml
