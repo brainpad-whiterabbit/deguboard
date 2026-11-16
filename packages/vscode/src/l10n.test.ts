@@ -115,6 +115,7 @@ const MANIFEST_JA_BEFORE: Record<string, string> = {
   "command.gotoTicket.title": "チケットへ移動",
   "command.sync.title": "同期",
   "command.config.title": "設定",
+  "command.setup.title": "セットアップ",
   "command.ask.title": "エージェントに頼む",
   "command.askInSidebar.title": "エージェントに頼む",
   "command.openDetail.title": "詳細を開く",

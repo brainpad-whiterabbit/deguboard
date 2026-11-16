@@ -34,7 +34,9 @@ export type Route =
   | { page: "iterations"; id: string }
   | { page: "plans"; id: string }
   | ({ page: "history" } & HistoryQuery)
-  | { page: "config" };
+  | { page: "config" }
+  /** 導入のチェックリスト（左パネルのタイトル行のアイコン・推奨の項目の帯から開く。出すのは VS Code の左パネルだけ。app.tsx） */
+  | { page: "setup" };
 
 const BOARD_KEYS = [
   "iteration",
@@ -74,6 +76,8 @@ export function parseRoute(hash: string): Route {
     }
     case "config":
       return { page: "config" };
+    case "setup":
+      return { page: "setup" };
     case "iterations":
       // Iteration の一覧の画面はない（planned・active はカンバンの絞り込み、closed は履歴）。ID がなければカンバン
       return id ? { page: "iterations", id } : board();
@@ -114,6 +118,8 @@ export function hrefOf(route: Route): string {
     }
     case "config":
       return "#/config";
+    case "setup":
+      return "#/setup";
   }
 }
 
@@ -146,7 +152,7 @@ export function replaceRoute(route: Route): void {
 let toggledFrom: string | null = null;
 
 /**
- * 画面を切り替える（左パネルの歯車）。今その画面なら、来る前の画面（なければカンバン）に戻り、
+ * 画面を切り替える（左パネルのタイトル行の歯車とセットアップのアイコン）。今その画面なら、来る前の画面（なければカンバン）に戻り、
  * そうでなければ今の画面を覚えてその画面に移る
  */
 export function toggleRoute(hash: string): void {

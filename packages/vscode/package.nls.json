@@ -3,6 +3,7 @@
   "command.gotoTicket.title": "Go to Ticket",
   "command.sync.title": "Sync",
   "command.config.title": "Settings",
+  "command.setup.title": "Setup",
   "command.ask.title": "Ask Agent",
   "command.askInSidebar.title": "Ask Agent",
   "command.openDetail.title": "Open Details",

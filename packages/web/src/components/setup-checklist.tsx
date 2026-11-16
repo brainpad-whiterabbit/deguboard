@@ -1,6 +1,7 @@
 // 導入のチェックリスト（UI-12）。一覧を読めない間（dg init 前・Git リポジトリの外・git がない）は一覧の代わりに出し、
 // 必須（フォルダ・OS・git・Git リポジトリ・ボード）を満たすといつもの画面に変わる。推奨（Skill と hooks・dg コマンド・.claude/.gitignore）が
 // 欠けている間は、いつもの画面の上に帯（SetupBand）を出し、開くと項目をその場で直せる。
+// 左パネルでは、タイトル行のセットアップのアイコンからもいつでも開け（app.tsx）、帯を出さないと決めていれば、そこから帯をまた出せる（BandRestore）。
 // 項目は入口が確かめた結果（store.setup。core の dg setup check に、VS Code 拡張がフォルダ・OS・dg コマンドを足す）で、文言はここで id と state から組む
 // （core の message は dg の出力で英語なので出さない）。満たさない項目の中身は、どの項目も次の順に並べる（guideOf と ItemGuide）：
 //   1. 状態（事実の 1 文） 2. すること（文・場所・ボタン 1 つ） 3. ターミナルで行うなら（同じことをするコマンド） 4. 条件を書いた別の道
@@ -13,7 +14,7 @@
 import type { SetupAction, SetupBoardSource, SetupView, SetupViewItem } from "@deguboard/core";
 import { useState, type ReactNode } from "react";
 import { failureOf } from "../client/http.js";
-import { useHost, useUiState } from "../host.js";
+import { showsSetupBand, useHost, useUiState } from "../host.js";
 import { msg, tr } from "../l10n.js";
 import { useStore } from "../store.js";
 import { SETUP_BAND_DISMISSED_KEY } from "../ui-state.js";
@@ -618,7 +619,7 @@ function Item({ item, view, open }: { item: SetupViewItem; view: SetupView; open
 
 /**
  * チェックリスト。必須を満たさない間（view.ready が偽）は全項目を並べ、満たさない最初の項目だけを開く
- * （その下は、前の項目を満たすまで確かめられないので待たせる）。必須を満たした後（帯から開いたとき。onClose を渡す）は、
+ * （その下は、前の項目を満たすまで確かめられないので待たせる）。必須を満たした後（タイトル行のアイコンか帯から開いたとき。onClose を渡す）は、
  * 必須を 1 行にまとめ、推奨の満たさない項目をすべて開く
  */
 export function SetupChecklist({ view, onClose }: { view: SetupView; onClose?: () => void }) {
@@ -671,11 +672,43 @@ export function SetupChecklist({ view, onClose }: { view: SetupView; onClose?: (
         </>
       )}
       {onClose ? (
-        <button type="button" onClick={onClose}>
-          {tr("いつもの画面に戻る")}
-        </button>
+        <>
+          <BandRestore />
+          <button type="button" onClick={onClose}>
+            {tr("いつもの画面に戻る")}
+          </button>
+        </>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * 推奨の項目の帯を「このリポジトリでは出さない」にしている間だけ出す、帯をまた出すボタン。押すと、決めたことを見た目の状態から消して
+ * 確かめ直す（帯を出す状態で入口に伝わり、拡張ホストが推奨だけ欠けている間の自動の確かめ直しを再開する。store.tsx の readSetup）。
+ * 帯を出さない入口（host.tsx の showsSetupBand）には出さない
+ */
+function BandRestore() {
+  const host = useHost();
+  const store = useStore();
+  const [dismissed, setDismissed] = useState(
+    () => host.state.get<boolean>(SETUP_BAND_DISMISSED_KEY) === true,
+  );
+  if (!showsSetupBand(host) || !dismissed) return null;
+  const restore = (): void => {
+    host.state.remove(SETUP_BAND_DISMISSED_KEY);
+    setDismissed(false);
+    void store.recheckSetup();
+  };
+  return (
+    <p className="setup-band-restore">
+      <span className="muted">
+        {tr("このリポジトリでは、推奨の項目が未完了でも帯を出さないことにしています。")}
+      </span>{" "}
+      <button type="button" className="link" onClick={restore}>
+        {tr("帯をまた出す")}
+      </button>
+    </p>
   );
 }
 
@@ -686,7 +719,7 @@ export function unmetRecommended(view: SetupView): SetupViewItem[] {
 
 /**
  * いつもの画面の上に出す、推奨の項目が欠けていることの帯。開くとチェックリスト（SetupChecklist）で項目をその場で直せ、
- * このリポジトリでは出さないこともできる（Claude Code を使わない人は Skill と hooks を入れないままでよい）
+ * このリポジトリでは出さないこともできる（Claude Code を使わない人は Skill と hooks を入れないままでよい。また出すのはチェックリストの BandRestore）
  */
 export function SetupBand({ view, onOpen }: { view: SetupView; onOpen: () => void }) {
   const store = useStore();

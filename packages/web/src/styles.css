@@ -3930,6 +3930,10 @@ button.ask-copy svg {
   align-items: center;
   gap: 4px 12px;
 }
+/* チェックリストの下の、帯を出さないと決めていることと「帯をまた出す」 */
+.setup-band-restore {
+  margin: 8px 0;
+}
 
 .worktree-row {
   display: flex;
