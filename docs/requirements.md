@@ -155,7 +155,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - WF-7 チケットを消す・チームの設定を変える・ほかのユーザの担当と claim を替える・Epic を閉じる/再開する・起票は、`governance` の値で ST-2 と同じく判定する。フックを外す・段を下げる・`workflow set`・品質ゲートを越えるマージは Core が固定し、`workflow.yaml` では緩められない（値は `dg workflow show`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - WF-8 `wip` は列ごとのチケットの数の上限で、config の `work.parallel`（同時に動かすサブエージェントの数）とは別のもの。上限を超える列があると `dg next` と `dg flow next` は警告し、着手の手の前に先の列を進める手を返すが、着手は拒否しない（細部は `dg next --help`）
 - WF-9 Iteration・Epic への出し入れは `flow.assign`、Plan の承認は `flow.plan`、Iteration を閉じる/再開するは `flow.release` の値で、ST-2 と同じく判定する。コマンドで止められない判断は、関所 `dg checkpoint` が同じ値で判定する（EX-8。既定は `dg workflow show`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
-- WF-10 `flow` には、プロジェクト独自の段階を、誰が決めるか `decide`・位置 `after`（同梱の段階か work）・手順の文書 `guide`（リポジトリの中のパス）で足せる。名前は小文字・数字・`-`。`dg flow next` は `after` の段階のあとに書いた順で返し、関所 `dg checkpoint <名前>` を通るまで返す。文書が読めなければ警告して段階は返す（細部は `dg flow next --help`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
+- WF-10 `flow` には、プロジェクト独自の段階（名前は小文字・数字・`-`）を、`decide`・位置 `after`（同梱の段階か work）・手順の文書 `guide` で足せる。`dg flow next` は `after` のあとに書いた順で、関所を通るまで返し、文書が読めなければ警告して返す（細部は `dg flow next --help`、[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 
 ### 5.9 Run（`runs/`）
 
