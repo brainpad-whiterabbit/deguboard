@@ -45,6 +45,14 @@ export function gateLevelOf(ticket: Pick<Ticket, "gate"> | undefined): GateLevel
   return ticket?.gate ?? DEFAULT_GATE_LEVEL;
 }
 
+/**
+ * 段を下げる変更か（high → low → free の向き。判定する条件が減る）。下げるのは Core の固定で人に限る
+ * （workflow/resolve.ts の CORE_FIXED の lower_gate）。同じ段と上げる変更は偽
+ */
+export function lowersGate(before: GateLevel, after: GateLevel): boolean {
+  return GATE_LEVELS.indexOf(after) > GATE_LEVELS.indexOf(before);
+}
+
 /** 段ごとに判定する条件の範囲。gate.ts・next.ts・brief.ts・flow.ts は段をここに渡して使う */
 export function gateScopeOf(level: GateLevel): GateScope {
   return GATE_SCOPES[level];

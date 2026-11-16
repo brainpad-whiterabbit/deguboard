@@ -13,6 +13,8 @@ import {
   BRANCH_VALUE_MAX,
   GATE_LEVELS,
   PRIORITIES,
+  gateLevelOf,
+  lowersGate,
   parseAcceptance,
   replaceAcceptance,
   setAcceptance,
@@ -42,6 +44,8 @@ import {
   grantedNote,
   hasRecord,
   permissionFields,
+  recordNote,
+  requireOperation,
   requirePermission,
   type Granted,
 } from "./permission.js";
@@ -287,8 +291,9 @@ export const ticketCreate = defineCommand({
   name: "ticket.create",
   positionals: ["title"],
   group: "ticket",
-  summary: "Create a ticket. Commits and pushes immediately, regardless of commit.mode",
-  input: createInput,
+  summary:
+    "Create a ticket. Commits and pushes immediately, regardless of commit.mode. The Workflow's governance.create judges it (anyone by default; see dg workflow show --help for the values): when it asks for a person's approval, an agent passes --approved-by, and the approver is recorded in the commit message",
+  input: createInput.extend(permissionFields),
   write: true,
   needs: "store",
   async run(ctx, input) {
@@ -303,7 +308,7 @@ export const ticketCreate = defineCommand({
         return ctx.store.create("ticket", { id, ...data }, body);
       },
       {
-        message: (doc) => `File ${doc.id}: ${doc.data.title}`,
+        message: (doc) => `File ${doc.id}: ${doc.data.title}${recordNote(ctx, input)}`,
         immediate: true,
         cas: true,
         markProvisional: provisionalMarker(ctx),
@@ -334,7 +339,7 @@ export const ticketImport = defineCommand({
   positionals: ["file"],
   group: "ticket",
   summary:
-    "Import an array of drafts in one commit. A draft's key can be referenced from depends_on",
+    "Import an array of drafts in one commit. A draft's key can be referenced from depends_on. The Workflow's governance.create judges it, as for ticket create",
   input: z.object({
     drafts: draftsSchema
       .optional()
@@ -344,6 +349,7 @@ export const ticketImport = defineCommand({
       .meta({ cliSource: true })
       .optional()
       .describe("Draft body (YAML or JSON; use instead of drafts)"),
+    ...permissionFields,
   }),
   write: true,
   needs: "store",
@@ -411,7 +417,8 @@ export const ticketImport = defineCommand({
         return docs;
       },
       {
-        message: (docs) => `Import ${docs.length} tickets: ${docs.map((d) => d.id).join(", ")}`,
+        message: (docs) =>
+          `Import ${docs.length} tickets: ${docs.map((d) => d.id).join(", ")}${recordNote(ctx, input)}`,
         immediate: true,
         cas: true,
         markProvisional: provisionalMarker(ctx),
@@ -515,7 +522,7 @@ export const ticketUpdate = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "Edit a ticket's attributes and body. Change status with ticket.move. Recording a pr closes the implementation Run running on this machine with success, and sets finished_at to the PR's creation time (now, if gh cannot provide it)",
+    "Edit a ticket's attributes and body. Change status with ticket.move. Recording a pr closes the implementation Run running on this machine with success, and sets finished_at to the PR's creation time (now, if gh cannot provide it). Lowering the quality gate level (high → low → free) is fixed in Core to a person: an agent's call is rejected with TRANSITION_REJECTED, and workflow.yaml cannot change that (raising it is open to anyone). Changing or removing the assignee of a ticket assigned to another user is judged by the Workflow's governance.reassign (always_ask by default; see dg workflow show --help for the values): an agent passes --approved-by after a person approved it, and the approver is recorded in the commit message",
   input: z.object({
     ticket: ticketRef,
     title: z.string().min(1).optional().describe("Title"),
@@ -556,7 +563,7 @@ export const ticketUpdate = defineCommand({
       .nullable()
       .optional()
       .describe(
-        "Quality gate level: high, low, or free. Removing it returns to high (see dg gate --help)",
+        "Quality gate level: high, low, or free. Removing it returns to high (see dg gate --help). Only a person can lower it",
       ),
     iteration: z.string().nullable().optional().describe("Iteration ID"),
     epic: z.string().nullable().optional().describe("Epic ID"),
@@ -581,6 +588,7 @@ export const ticketUpdate = defineCommand({
       .nullable()
       .optional()
       .describe("Assignee. human for yourself, agent for your own AI. The creator is not changed"),
+    ...permissionFields,
   }),
   write: true,
   needs: "store",
@@ -615,7 +623,19 @@ export const ticketUpdate = defineCommand({
         if (input.title !== undefined) patch["title"] = input.title;
         if (input.priority !== undefined) patch["priority"] = input.priority;
         if (input.labels !== undefined) patch["labels"] = input.labels;
-        if (input.gate !== undefined) patch["gate"] = input.gate ?? undefined;
+        if (input.gate !== undefined) {
+          // 段を下げると判定する条件が減るので、Core の固定で人に限る（WF-7）。上げるのと同じ段は誰でもできる
+          const before = gateLevelOf(t);
+          const after = gateLevelOf({ gate: input.gate ?? undefined });
+          if (lowersGate(before, after))
+            requireOperation(
+              ctx,
+              { command: "ticket.update", fixed: "lower_gate" },
+              input,
+              `lowering the quality gate level of ${t.id} from ${before} to ${after}`,
+            );
+          patch["gate"] = input.gate ?? undefined;
+        }
         if (input.pr !== undefined) patch["pr"] = input.pr ?? undefined;
         // 行数は記録した PR のもの。PR を消す・別の番号に変えるときは残さない（MT-6）
         if (input.pr !== undefined && (input.pr ?? undefined) !== t.pr) patch["lines"] = undefined;
@@ -633,8 +653,18 @@ export const ticketUpdate = defineCommand({
           patch["branch_base"] = undefined;
         }
         if (input.assignee !== undefined) {
-          patch["assignee"] =
+          const next =
             input.assignee === null ? undefined : resolveActorRef(ctx.actor, input.assignee);
+          // ほかのユーザの担当を替える・外すのは、カンバンの管理の操作（governance.reassign）。
+          // 自分（同じユーザの人と AI）の担当と、担当のないチケットは誰でも替えられる
+          if (t.assignee && !sameUser(t.assignee, ctx.actor.id) && next !== t.assignee)
+            requireOperation(
+              ctx,
+              { command: "ticket.update", governs: "reassign" },
+              input,
+              `changing the assignee of ${t.id} from ${t.assignee}`,
+            );
+          patch["assignee"] = next;
           patch["claimed_by"] = undefined;
         }
         if (input.epic !== undefined)
@@ -702,7 +732,10 @@ export const ticketUpdate = defineCommand({
         return { doc: await store.update("ticket", t.id, patch, body), closed };
       },
       {
-        message: ({ doc, closed }) => withClosedRun(`Update ${doc.id}: ${doc.data.title}`, closed),
+        message: ({ doc, closed }) =>
+          withClosedRun(`Update ${doc.id}: ${doc.data.title}${recordNote(ctx, input)}`, closed),
+        // 承認者と強制の理由はこの操作のコミットに残す（ticket move と同じ）
+        immediate: hasRecord(input),
       },
     );
     await dropClosed(ctx, result.value.closed);
@@ -935,8 +968,9 @@ export const ticketDelete = defineCommand({
   name: "ticket.delete",
   positionals: ["ticket"],
   group: "ticket",
-  summary: "Move a ticket to the tombstones (tickets/deleted/). Its number is not reused",
-  input: z.object({ ticket: ticketRef }),
+  summary:
+    "Move a ticket to the tombstones (tickets/deleted/). Its number is not reused. The Workflow's governance.delete judges it (human_only by default, which rejects an agent; see dg workflow show --help for the values)",
+  input: z.object({ ticket: ticketRef, ...permissionFields }),
   write: true,
   needs: "store",
   async run(ctx, input) {
@@ -952,7 +986,10 @@ export const ticketDelete = defineCommand({
         await store.deleteTicket(doc.data.id);
         return doc;
       },
-      { message: (doc) => `Delete ${doc.id}: ${doc.data.title}` },
+      {
+        message: (doc) => `Delete ${doc.id}: ${doc.data.title}${recordNote(ctx, input)}`,
+        immediate: hasRecord(input),
+      },
     );
     return ok({ id: result.value.id, title: result.value.data.title }, result.write, warnings);
   },
@@ -1134,8 +1171,8 @@ export const ticketClaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "Start work on a ticket. Sets the assignee to yourself, records the branch and its start commit (branch_base: the tip of base, so that reconcile does not treat a branch with no commits as merged), and sets in_progress. Winning the push gives exclusive access. The Workflow's todo → in_progress boundary judges it, as for ticket move (see dg ticket move --help): unmet requires (deps_done by default) reject it, and by the decide value an agent needs --approved-by or is rejected (anyone by default). If the ticket is in a Plan awaiting approval, claim still succeeds and the warnings say to ask a person to approve it first. " +
-    "If lint.require_iteration is true and the ticket has no Iteration, it goes into the active Iteration (or else the planned one, if there is only one). If there is no target, or there is no active one and several are planned, it goes into none and the warnings say to ask a person. If the ticket's Iteration is planned, it becomes active; if that fails (another active one, or actor.human_only), the failure goes into the warnings and claim still succeeds. Both are pushed in the same write as the claim. " +
+    "Start work on a ticket. Sets the assignee to yourself, records the branch and its start commit (branch_base: the tip of base, so that reconcile does not treat a branch with no commits as merged), and sets in_progress. Winning the push gives exclusive access. The Workflow's todo → in_progress boundary judges it, as for ticket move (see dg ticket move --help): unmet requires (deps_done by default) reject it, and by the decide value an agent needs --approved-by or is rejected (anyone by default). Claiming a todo ticket assigned to another user changes the assignee with a warning, and the Workflow's governance.reassign judges it (always_ask by default). If the ticket is in a Plan awaiting approval, claim still succeeds and the warnings say to ask a person to approve it first. " +
+    "If lint.require_iteration is true and the ticket has no Iteration, it goes into the active Iteration (or else the planned one, if there is only one). If there is no target, or there is no active one and several are planned, it goes into none and the warnings say to ask a person. If the ticket's Iteration is planned, it becomes active; if that fails (another active one), the failure goes into the warnings and claim still succeeds. Both are pushed in the same write as the claim. " +
     "After the push, it creates the work branch's worktree at worktree.root/<branch name> (change with --worktree-path) from that start commit, and puts its path in worktree. If a worktree for that branch already exists, it uses that; if only the local branch exists, it checks it out. If it cannot be created, the failure goes into the warnings and claim still succeeds. In a worktree it created (not an existing one), it runs config's worktree.setup commands; a failure goes into the warnings and claim still succeeds. That setup can take several minutes, such as pnpm install (limit 10 minutes), and claim does not return until it finishes. It creates no worktree with --no-worktree or --without-branch. " +
     "For an agent, it then opens an implementation Run (step implement) and prints its ID as run (on the last line of stdout in human output). The Run opens before the setup commands run. If it cannot be opened, only a warning is given and claim still succeeds. " +
     "In a session that dg hooks have reached, an agent's claim without --no-run (other than --without-branch, and including claiming again) still opens the Run, and warns to ask a sub-agent to implement or fix with the marker instead. " +
@@ -1284,8 +1321,16 @@ export const ticketClaim = defineCommand({
             `${doc.id} is in Plan ${pending.id}, which is awaiting approval. Ask a person to approve it before starting, as dg next says (wait_human)`,
           ];
         const previous = doc.data.assignee;
-        if (previous && !sameUser(previous, ctx.actor.id))
+        if (previous && !sameUser(previous, ctx.actor.id)) {
+          // ほかのユーザに割り当てた todo を取るのは担当の付け替え（governance.reassign）。境目の判定と同じ入力で確かめる
+          requireOperation(
+            ctx,
+            { command: "ticket.claim", governs: "reassign" },
+            input,
+            `claiming ${doc.id}, which is assigned to ${previous}`,
+          );
           warnings.push(`Changed the assignee from ${previous} to ${ctx.actor.id}`);
+        }
         const branch = input.without_branch
           ? undefined
           : input.branch === undefined
@@ -1384,7 +1429,7 @@ export const ticketUnclaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "Remove the claim and return to todo. Also removes branch, branch_at, branch_base, and pr (the PR record of the earlier work). Only your own claim (same user, human or AI) or a claim with no record; others' claims need force. It is a move back, so the Workflow's exceptions.back judges it as for ticket move (anyone by default; see dg ticket move --help). Implementation and fix Runs running on this machine are closed with failure (to keep a reason, close them first with run finish --result failure --error)",
+    "Remove the claim and return to todo. Also removes branch, branch_at, branch_base, and pr (the PR record of the earlier work). Only your own claim (same user, human or AI) or a claim with no record; others' claims need force, and the Workflow's governance.reassign also judges removing them (always_ask by default: an agent passes --approved-by after a person approved it). It is a move back, so the Workflow's exceptions.back judges it as for ticket move (anyone by default; see dg ticket move --help). Implementation and fix Runs running on this machine are closed with failure (to keep a reason, close them first with run finish --result failure --error)",
   input: z.object({
     ticket: ticketRef,
     force: z.boolean().optional().describe("Also remove other people's claims"),
@@ -1411,6 +1456,14 @@ export const ticketUnclaim = defineCommand({
             `${doc.id} is claimed by ${owner}. To release it, add force`,
           );
         }
+        // ほかのユーザの claim を外すのは、カンバンの管理の操作（governance.reassign）。戻す動きの判定と両方を通す
+        if (owner && !sameUser(owner, ctx.actor.id))
+          requireOperation(
+            ctx,
+            { command: "ticket.unclaim", governs: "reassign" },
+            input,
+            `removing the claim of ${owner} on ${doc.id}`,
+          );
         // unclaim は前の Status へ戻す動き（exceptions.back）
         const granted = requirePermission(
           ctx,

@@ -96,7 +96,7 @@ describe("スキーマ", () => {
       "git.base_branch",
       "metrics.read_transcripts",
       "auto.merge",
-      "actor.human_only",
+      "review.heavy_categories",
     ])
       expect(configFields().find((f) => f.key === key)?.scope).toBe("team");
   });
@@ -433,14 +433,12 @@ describe("スキーマ", () => {
       "work.parallel",
       "merge.method",
       "merge.delete_branch",
-      "merge.approval_overrides",
       "review.heavy_categories",
       "lint.require_iteration",
       "models.light",
       "models.standard",
       "models.heavy",
       ...AGENT_MODEL_KEYS,
-      "actor.human_only",
       "guide.notes.overview",
       "guide.notes.import",
       "guide.notes.assign",
@@ -477,23 +475,15 @@ describe("スキーマ", () => {
     expect(byKey.get("actions.light_test")).toMatchObject({ type: "list", default: [] });
     expect(byKey.get("actions.light_paths")).toMatchObject({ type: "list", default: [] });
     expect(byKey.get("git.remote")).toMatchObject({ type: "string", default: "origin" });
-    // 人の承認で越えてよい品質ゲートの条件は、既定で越えられる条件すべて。チームで揃える（個人では上書きできない。t884）
-    expect(byKey.get("merge.approval_overrides")).toMatchObject({
-      type: "list",
-      default: ["check", "review", "fix_rounds", "acceptance"],
-      scope: "team",
+    // 誰がどの操作をしてよいかは config に持たない（Workflow の governance と Core の固定が決める）。
+    // 前の版の config.yaml に残った値は、未知の項目として読み飛ばす（読み込みを止めない）
+    expect(byKey.has("merge.approval_overrides")).toBe(false);
+    expect(byKey.has("actor.human_only")).toBe(false);
+    const stale = configSchema.safeParse({
+      merge: { approval_overrides: ["pr"] },
+      actor: { human_only: ["epic.close"] },
     });
-    // 衝突（mergeable）・先端（head）・PR（pr）は選択肢にない（config でも越えられない）
-    expect(Object.keys(byKey.get("merge.approval_overrides")?.option_descriptions ?? {})).toEqual([
-      "check",
-      "review",
-      "fix_rounds",
-      "acceptance",
-    ]);
-    for (const id of ["mergeable", "head", "pr"])
-      expect(configSchema.safeParse({ merge: { approval_overrides: [id] } }).success, id).toBe(
-        false,
-      );
+    expect(stale.success).toBe(true);
     // 並列の上限は数の項目で、既定 3・個人で上書きできる（t685）
     expect(byKey.get("work.parallel")).toMatchObject({
       type: "number",
@@ -548,14 +538,7 @@ describe("スキーマ", () => {
     expect(
       fields.filter((f) => f.option_descriptions).map((f) => f.key),
       "選択肢ごとの説明を持つ項目",
-    ).toEqual([
-      "commit.mode",
-      "push.mode",
-      "auto.decisions",
-      "flow.skip",
-      "merge.method",
-      "merge.approval_overrides",
-    ]);
+    ).toEqual(["commit.mode", "push.mode", "auto.decisions", "flow.skip", "merge.method"]);
     expect(byKey.get("push.mode")?.option_descriptions).toEqual({
       auto: "Push on every commit",
       manual: "dg sync pushes (immediate operations push even in manual)",

@@ -88,7 +88,7 @@ Choose `priority` by these criteria (they can be changed in `priority` of `confi
 - Do not create a dependency cycle (it is refused at creation)
 - Do not add a ticket to a closed Epic (it is refused)
 - Do not change `status` without starting work. A filed ticket stays todo
-- Do not set `gate` to `low` or `free` without a human's instruction. The level decides which conditions the PR must meet (see the "Quality gate" section of `dg guide review`)
+- Do not set `gate` to `low` or `free` without a human's instruction. The level decides which conditions the PR must meet (see the "Quality gate" section of `dg guide review`). On a ticket that already exists, only a human can lower it (dg refuses the agent's `ticket update --gate`)
 - When the result has `provisional: true`, do not tell a human the ID as final (see `dg guide overview`)
 
 {{choices}}

@@ -35,7 +35,7 @@ For `wait_merge`, `wait_human`, and `wait_deps` with no Plan, there is no other 
 
 The agent merges a PR only after a human approves that merge (the one exception is `--auto` of `dg guide all` with `auto.merge` true; see `dg guide all`).
 
-1. Run the `dg --json --actor agent gate <id> --for merge` in `commands` of `wait_merge`. If it does not pass, ask by the "Merging without meeting the gate" section of `dg guide review` instead (a human's approval overrides only the conditions in `merge.approval_overrides`)
+1. Run the `dg --json --actor agent gate <id> --for merge` in `commands` of `wait_merge`. If it does not pass, ask by the "Merging without meeting the gate" section of `dg guide review` instead (a human's approval overrides every unmet condition except `pr`, `mergeable`, and `head`)
 2. Ask a human whether to merge, with the choices "Merge" and "Not yet" (the `ask_human` of `wait_merge`). Ask about the PRs that wait together in one question, and show each PR's number and ticket
 3. Only for a PR whose merge the human approved, run `dg --json --actor agent pr merge <id> --approved-by human` (`human` is the user who approved; it records who approved as a comment on the PR). Leave out `--method` and `--delete-branch`, so that config decides them. Then clean up by the steps of `dg guide done`
 4. When the human declines, or does not answer, do not merge: leave the PR waiting, and do not ask about it again until the human brings it up or something about the PR changes. Never pass `--approved-by` for a merge that no human approved
@@ -48,7 +48,7 @@ The agent merges a PR only after a human approves that merge (the one exception 
 
 ## Gate level
 
-- **Setting it**: when the command gave `--gate-<level>`, before the first `next` of each target ticket, compare the level with `gate` of `ticket show` (no `gate` is high). Only when it differs, run `dg --json --actor agent ticket update <id> --gate <level>`. A level a human wrote in the command is the human's decision, so set it without asking. With no level given, keep the ticket's own level
+- **Setting it**: when the command gave `--gate-<level>`, before the first `next` of each target ticket, compare the level with `gate` of `ticket show` (no `gate` is high). Only when it differs: to raise it, run `dg --json --actor agent ticket update <id> --gate <level>` without asking; to lower it (high → low → free), ask the human to run `dg ticket update <id> --gate <level>` and wait, because only a human can lower the level and dg refuses the agent's call. With no level given, keep the ticket's own level
 - **Flow per level**: `next` follows the level. high (the default): implement → review → fix → `ready` → merge. low: implement → `ready` → merge, with no review or fix loop, and `dg gate` still runs the checks. free: implement → `ready` → merge, with neither the review nor the checks. For low and free, do not start a reviewer (`brief <id> --role review` warns). The conditions per level are in the "Quality gate" section of `dg guide review`
 
 ## Before and after claim

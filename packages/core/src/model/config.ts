@@ -22,12 +22,6 @@ export const PR_MERGE_METHODS = ["squash", "merge", "rebase"] as const;
  * ここに入らないので、config でも自動にできない（EX-7）。マージは auto.merge で決める
  */
 export const AUTO_DECISIONS = ["assign", "check", "plan", "audit", "accept"] as const;
-/**
- * 人がマージを承認したとき（dg pr merge --approved-by）に、満たさなくても越えてよい品質ゲートの条件（merge.approval_overrides の選択肢）。
- * PR が開いていること（pr）・衝突（mergeable）・判定した先端（head）は入れない：越えると gh がマージできないか、
- * 判定していないコミットをマージすることになるので、config でも越えられない
- */
-export const APPROVAL_OVERRIDES = ["check", "review", "fix_rounds", "acceptance"] as const;
 /** dg flow next が返さずに飛ばせる段階。stop は流れを止める段階なので飛ばせない（EX-8） */
 export const FLOW_SKIPS = ["assign", "check", "plan", "work", "audit", "release"] as const;
 /** actions.test を回す時間の上限（run_tests の既定と品質ゲートの検査）。リポジトリの検査の全体（テストを含む）を回すので長めにとる */
@@ -413,21 +407,6 @@ export const configSchema = z.looseObject({
         description:
           "Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted, and whether dg sync deletes the worktree and work branch that remain when it moves a ticket to done",
       }),
-      approval_overrides: described(
-        z.array(z.enum(APPROVAL_OVERRIDES)).default([...APPROVAL_OVERRIDES]),
-        {
-          summary: "Quality gate conditions a person's approval of the merge may override",
-          description:
-            "Quality gate conditions that dg pr merge may leave unmet when a person approved the merge (--approved-by): check, review, fix_rounds, acceptance (all four by default). An unmet condition that is not listed keeps the merge at GATE_FAILED even with an approval. An open PR that is not a draft (pr), conflicts (mergeable), and the judged head (head) cannot be listed. Without an approval, nothing is overridden",
-          empty: "An approval overrides nothing: every condition of the gate must be met",
-          options: {
-            check: "The check (actions.test)",
-            review: "The review of the last push",
-            fix_rounds: "The limit on fix rounds",
-            acceptance: "The marks on the acceptance criteria",
-          },
-        },
-      ),
     })
     .prefault({}),
   review: z
@@ -475,18 +454,6 @@ export const configSchema = z.looseObject({
       // agent ごとの上書き（models.<agent>.<tier>）。鍵は、呼んだ agent を判定できる Adapter だけから作る。
       // 判定できない agent（Copilot CLI など）の鍵は dg next が決して引かず、設定しても黙って無視されるため
       ...Object.fromEntries(detectableAgentNames().map((agent) => [agent, agentModelsSchema])),
-    })
-    .prefault({}),
-  actor: z
-    .looseObject({
-      human_only: described(z.array(z.string().min(1)).default([]), {
-        summary: "Command names rejected for agents",
-        description:
-          "Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket Status moves are restricted with the Workflow's boundaries and exceptions",
-        example: ["epic.close"],
-        empty:
-          "Every command is allowed. Ticket Status moves are still restricted with the Workflow's boundaries and exceptions",
-      }),
     })
     .prefault({}),
   guide: z

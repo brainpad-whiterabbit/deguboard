@@ -10,7 +10,7 @@ import { osUserName } from "../git/repo.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
 import { history } from "./history.js";
-import { epicAdd, epicClose, epicCreate, epicReopen, epicShow, epicUpdate } from "./epic.js";
+import { epicAdd, epicClose, epicCreate, epicReopen, epicShow } from "./epic.js";
 import {
   iterationAdd,
   iterationClose,
@@ -1171,52 +1171,17 @@ describe("Epic と Iteration", () => {
     await expect(runCommand(epicClose, ctx, { epic: "e1" })).rejects.toMatchObject({
       code: "REJECTED",
     });
-    // 既定では agent も閉じられる（actor.human_only が空）
-    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
-    const closed = await runCommand(epicClose, agent, { epic: "e1", force: true });
+    // 閉じる・再開するのは既定では人だけ（Workflow の governance.epic。値ごとの判定は governance.test.ts）
+    const closed = await runCommand(epicClose, ctx, { epic: "e1", force: true });
     expect(closed.data.status).toBe("closed");
     expect(closed.data.closed_at).toBeDefined();
     expect(closed.warnings).toHaveLength(1);
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
     await expect(runCommand(ticketCreate, agent, { title: "C", epic: "e1" })).rejects.toMatchObject(
       { code: "REJECTED" },
     );
-    const reopened = await runCommand(epicReopen, agent, { epic: "e1" });
+    const reopened = await runCommand(epicReopen, ctx, { epic: "e1" });
     expect(reopened.data.closed_at).toBeUndefined();
-  });
-
-  it("actor.human_only に入れたコマンドだけが agent から拒否され、人は通る", async () => {
-    const f = await initializedFixture();
-    const ctx = await reopenInitialized(f);
-    await runCommand(epicCreate, ctx, { title: "E", summary: "目的" });
-    await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
-    // カンマ区切りで配列に入り、エイリアスは正式名に直る
-    const set = await runCommand(configSet, ctx, {
-      key: "actor.human_only",
-      value: "epic.close, sprint.close",
-    });
-    expect(set.data.actor.human_only).toEqual(["epic.close", "iteration.close"]);
-    await expect(
-      runCommand(configSet, ctx, { key: "actor.human_only", value: "epic.nope" }),
-    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
-    await expect(runCommand(epicClose, agent, { epic: "e1" })).rejects.toMatchObject({
-      code: "TRANSITION_REJECTED",
-    });
-    await expect(runCommand(iterationClose, agent, { iteration: "s1" })).rejects.toMatchObject({
-      code: "TRANSITION_REJECTED",
-    });
-    // 一覧にない操作はそのまま行える
-    await runCommand(epicUpdate, agent, { epic: "e1", title: "E2" });
-    const human = await openContext({ cwd: f.cloneA });
-    expect((await runCommand(epicClose, human, { epic: "e1" })).data.status).toBe("closed");
-    // 空文字で空に戻ると、agent も閉じる・再開できる（文脈ごとに store を持つので開き直す）
-    const cleared = await runCommand(configSet, human, { key: "actor.human_only", value: "" });
-    expect(cleared.data.actor.human_only).toEqual([]);
-    const agent2 = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
-    expect((await runCommand(epicReopen, agent2, { epic: "e1" })).data.status).toBe("open");
-    expect((await runCommand(iterationClose, agent2, { iteration: "s1" })).data.status).toBe(
-      "closed",
-    );
   });
 
   it("Iteration は開始・終了でき、閉じるときに完了と持ち越しを数える", async () => {

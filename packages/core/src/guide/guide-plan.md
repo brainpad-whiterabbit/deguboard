@@ -46,7 +46,7 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
 
 ## About approval
 
-By default, agents can also run `plan approve`. To limit it to humans, add `plan.approve` to `actor.human_only` in `config.yaml` (see `dg guide overview`). If it is refused (`TRANSITION_REJECTED`), ask a human to run `dg plan approve <p>`.
+Agents can also run `plan approve`, and run it only when a human has approved the Plan. If it is refused (`TRANSITION_REJECTED`), ask a human to run `dg plan approve <p>`.
 
 ## Principles of progress
 

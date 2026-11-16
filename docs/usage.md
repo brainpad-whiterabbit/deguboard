@@ -31,7 +31,7 @@ The Skills are for Claude Code. Say the request in plain words, or type the comm
 In Claude Code, pass an Iteration or tickets such as `/dgall s3 --auto`, and the agent carries on through assignment, planning, implementation, review, and release. It does not create tickets for what you want to build, so first turn your ideas into tickets with `/dgimport`.
 
 - With `--auto`, the decisions listed in `auto.decisions` in the config proceed with the suggested option. Decisions that people make, such as release, abandoning or deleting a ticket, and closing an Epic or Iteration, stop and ask. The full list is in `dg guide all`.
-- For a PR that passed the quality gate, the agent asks you whether to merge it, and merges it only when you approve (your approval is recorded on the PR). It is merged without asking only with `--auto` when `auto.merge` in the config is true. For a PR that does not meet the gate, the agent shows the unmet conditions and asks whether to merge it anyway; your approval overrides only the conditions listed in `merge.approval_overrides` in the config, but it cannot override a PR that is closed or still a draft, a conflict with the base, or the requirement to merge the commit that was judged.
+- For a PR that passed the quality gate, the agent asks you whether to merge it, and merges it only when you approve (your approval is recorded on the PR). It is merged without asking only with `--auto` when `auto.merge` in the config is true. For a PR that does not meet the gate, the agent shows the unmet conditions and asks whether to merge it anyway; your approval overrides the unmet conditions, but it cannot override a PR that is closed or still a draft, a conflict with the base, or the requirement to merge the commit that was judged.
 - You can follow the progress on the Board. Press the Plan band to show the dependency graph.
 - For agents other than Claude Code, ask them to "read `dg guide all` and carry on to the end with `--auto`."
 
@@ -45,7 +45,7 @@ The conditions checked before a PR becomes ready or is merged depend on the tick
 | `low`            | Everything except the review (checks still run) |
 | `free`           | Only that the PR is open and does not conflict  |
 
-Set the level in the ticket details or with `dg ticket update <id> --gate <level>`. Passing `--gate-high`, `--gate-low`, or `--gate-free` to `/dgall` or `/dgwork` sets the level of the target tickets all at once (without them, each ticket keeps its own level). Lower a level only when a person asks for it. The details of the conditions are in `dg gate --help`.
+Set the level in the ticket details or with `dg ticket update <id> --gate <level>`. Passing `--gate-high`, `--gate-low`, or `--gate-free` to `/dgall` or `/dgwork` gives the level for the target tickets (without them, each ticket keeps its own level). Raising a level is applied at once. Lowering a level (high → low → free) can only be done by a person: dg rejects an agent's call, so the flow asks you to run `dg ticket update <id> --gate <level>` for each ticket and waits. The details of the conditions are in `dg gate --help`.
 
 ## Resolve a sync conflict
 

@@ -1,7 +1,7 @@
 // PR を進めるコマンド（EX-6・AG-10、ADR-026）。品質ゲート（gate.ts の judgeGate）を満たすときだけ gh を呼ぶ。
 // エージェントが PR を ready にする・マージする正しい道で、フックは dg を経由しない gh pr ready・merge を拒む（hook.ts）
 
-import { NEVER_OVERRIDDEN } from "./pr-approval.js";
+import { APPROVAL_OVERRIDES, NEVER_OVERRIDDEN } from "./pr-approval.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { z } from "zod";
@@ -24,13 +24,7 @@ import {
 } from "./branch-cleanup.js";
 import { setupFailureIn } from "./claim-setup.js";
 import { defineCommand, ok, outsideWarning, rebaseWarning, type CommandContext } from "./define.js";
-import {
-  type GateCondition,
-  judgeGate,
-  type GateConditionId,
-  type GateStage,
-  type GateView,
-} from "./gate.js";
+import { judgeGate, type GateConditionId, type GateStage, type GateView } from "./gate.js";
 import { ticketRef } from "./helpers.js";
 import {
   approverOf,
@@ -55,7 +49,7 @@ export interface PrAdvanceView {
   action: GateStage;
   /** 呼ぶ前に判定した品質ゲート（passed。人の承認で条件を越えたマージだけは passed が false で、越えた条件は overridden） */
   gate: GateView;
-  /** 人の承認で越えた、満たさない条件（merge のときだけ。越えなければ空。config の merge.approval_overrides にある条件だけ） */
+  /** 人の承認で越えた、満たさない条件（merge のときだけ。越えなければ空。pr-approval.ts の APPROVAL_OVERRIDES の条件だけ） */
   overridden?: GateConditionId[];
   /** マージの方法（merge のときだけ） */
   method?: (typeof PR_MERGE_METHODS)[number];
@@ -151,34 +145,23 @@ async function noteGranted(
 
 /**
  * GATE_FAILED の detail の、満たさないまま進める道の案内。ready は人が gh を打つ。merge は人に聞き、承認されたら agent が
- * --approved-by でマージする（越えられるのは config の merge.approval_overrides の条件だけ。t884）。
- * blocking は、承認があっても越えられない満たさない条件。checkPending は、一覧にない検査を回していないとき
- * （ほかの条件を満たさないので回さなかった。承認の後のマージで回るので、越えられない条件には数えず、通る必要があることを伝える）
+ * --approved-by でマージする（越えられるのは APPROVAL_OVERRIDES の条件。t884）。
+ * blocking は、承認があっても越えられない満たさない条件
  */
-function proceedHint(
-  ctx: CommandContext,
-  ticketId: string,
-  stage: GateStage,
-  blocking: readonly string[],
-  checkPending: boolean,
-): string {
+function proceedHint(ticketId: string, stage: GateStage, blocking: readonly string[]): string {
   if (stage === "ready")
     return "Proceeding without meeting it (the review cannot be started, the fix loop went past its limit, or a human set the count) is a human decision, so ask a human to run gh pr ready (dg guide review)";
-  const listed = ctx.config.merge.approval_overrides;
-  const list = listed.length > 0 ? listed.join(", ") : "none";
   if (blocking.length > 0)
-    return `A person's approval does not override ${blocking.join(", ")} (config's merge.approval_overrides lists: ${list}; ${NEVER_OVERRIDDEN}), so resolve them first. Do not ask a person to run gh pr merge`;
-  const pending = checkPending
-    ? ". The check was not run yet and is not in that list: the approved merge runs it, and it must pass (if it fails, the merge stays GATE_FAILED)"
-    : "";
-  return `Merging without meeting it is a human decision: show a person these unmet conditions and ask whether to merge anyway. Only when the person approves, run dg pr merge ${ticketId} --approved-by human (the approval overrides the conditions in config's merge.approval_overrides: ${list})${pending}. Do not ask a person to run gh pr merge, and never pass --approved-by without a person's approval`;
+    return `A person's approval does not override ${blocking.join(", ")} (${NEVER_OVERRIDDEN}), so resolve them first. Do not ask a person to run gh pr merge`;
+  return `Merging without meeting it is a human decision, and it always needs a person's approval (fixed in Core; neither the config nor workflow.yaml changes it, and a flow that goes ahead without asking does not skip it): show a person these unmet conditions and ask whether to merge anyway. Only when the person approves, run dg pr merge ${ticketId} --approved-by human (the approval overrides ${APPROVAL_OVERRIDES.join(", ")}). Do not ask a person to run gh pr merge, and never pass --approved-by without a person's approval`;
 }
 
 /**
  * ゲートを判定し、満たさなければ満たさない条件と理由を GATE_FAILED で返す（gh を呼ばない）。
- * 人がマージを承認したとき（approver。merge だけ）は、config の merge.approval_overrides にある条件を満たさなくても通し、
- * 越えた条件を overridden に返す。承認がなければ何も越えない。PR（pr）・衝突（mergeable）・先端（head と sha）は
- * 一覧に入れられないので、承認があっても越えない（t884）
+ * 品質ゲートを満たさない PR のマージは Core に固定で、主体によらずいつも人の承認が要る（workflow/resolve.ts の CORE_FIXED の
+ * merge_over_gate。人が呼ぶときも承認者を渡し、PR に残す）。承認者（approver。merge だけ）があれば APPROVAL_OVERRIDES の条件を
+ * 満たさなくても通し、越えた条件を overridden に返す。承認がなければ何も越えない（auto.merge でも越えない）。
+ * PR（pr）・衝突（mergeable）・先端（head と sha）は、承認があっても越えない（t884）
  */
 async function passGate(
   ctx: CommandContext,
@@ -188,7 +171,7 @@ async function passGate(
 ) {
   const ticket = ctx.store.require("ticket", ticketId).data;
   const waived = new Set<GateConditionId>(
-    stage === "merge" && approver !== null ? ctx.config.merge.approval_overrides : [],
+    stage === "merge" && approver !== null ? APPROVAL_OVERRIDES : [],
   );
   const gate = await judgeGate(ctx, ticket, stage, [], waived);
   const unmet = gate.conditions.filter((c) => !c.ok);
@@ -201,15 +184,8 @@ async function passGate(
   ) {
     const failed = unmet.map((c) => `${c.id}: ${c.detail}`);
     // 承認があっても越えられない条件（承認がないときは、承認を得ても残る条件を案内に出す）
-    const overridable = new Set<GateConditionId>(ctx.config.merge.approval_overrides);
-    // 一覧にない検査でも、回さなかっただけ（ほかの条件を満たさないため）なら越えられない条件に数えない。
-    // 数えると、承認の後のマージで検査が回って通るはずの PR でも「先に解消する」と案内し、
-    // 検査を回す手段のないエージェントが人に聞けなくなる（ほかの満たさない条件が残るかぎり、検査は回らない）
-    const notRun = (c: GateCondition) => c.id === "check" && c.not_run === true;
-    const checkPending = unmet.some((c) => notRun(c) && !overridable.has(c.id));
-    const blocking: string[] = unmet
-      .filter((c) => !overridable.has(c.id) && !notRun(c))
-      .map((c) => c.id);
+    const overridable = new Set<GateConditionId>(APPROVAL_OVERRIDES);
+    const blocking: string[] = unmet.filter((c) => !overridable.has(c.id)).map((c) => c.id);
     // free は head の条件を判定しないので、先端が読めなかったときは理由を足す（落とした理由が空にならないように）
     if (stage === "merge" && gate.sha === null && !gate.conditions.some((c) => c.id === "head")) {
       failed.push(
@@ -220,7 +196,7 @@ async function passGate(
     throw new OperationError(
       "GATE_FAILED",
       `${ticket.id} does not meet the quality gate (dg gate ${ticket.id} --for ${stage}), so gh pr ${stage} is not called`,
-      `${failed.join("\n")}\n${proceedHint(ctx, ticket.id, stage, blocking, checkPending)}. If the level of the ticket does not fit the change, change it with dg ticket update ${ticket.id} --gate <level> (lowering it is a human's instruction), then run dg pr ${stage} again`,
+      `${failed.join("\n")}\n${proceedHint(ticket.id, stage, blocking)}. If the level of the ticket does not fit the change, a person changes it with dg ticket update ${ticket.id} --gate <level> (only a person can lower it; an agent's call is rejected), then run dg pr ${stage} again`,
     );
   }
   return { ticket, gate, pr: gate.pr, sha: gate.sha, overridden };
@@ -377,9 +353,9 @@ export const prMerge = defineCommand({
   positionals: ["ticket"],
   group: "pr",
   summary:
-    "Merge a ticket's PR with gh pr merge (squash by default), only when it meets the quality gate (dg gate <ticket> --for merge). It pins the merge to the commit the gate judged (sha in the gate's output, passed as --match-head-commit), so a commit pushed after the judgment is not merged. The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to merge. After the gate passes, the decide value of the Workflow's review → done boundary judges the call (ask_unless_auto by default; see dg ticket move --help for the values; the boundary's requires are not judged here, because the merge makes the fact and reconcile moves the ticket): when it asks for a person's approval, an agent merges after a person approved the merge, with --approved-by, which records the approver as a comment on the PR after the merge (data.approved_by; if the comment cannot be written, the merge stands and warnings say so), and without --approved-by the call returns TRANSITION_REJECTED and does not call gh. An agent merges without asking and without --approved-by only when the value is ask_unless_auto and config's auto.merge is true (the merge of --auto of dg guide all; data.approved_by is null and nothing is recorded), or when the value is anyone or agent_only. A value of human_only rejects an agent, and a person passes a value of agent_only with --override (the reason is recorded in the comment). gh pr merge run outside dg is rejected by the hook. Merging outside the conditions of the level is a person's decision: ask a person, and only when approved, pass --approved-by, which lets the merge go ahead with unmet conditions listed in config's merge.approval_overrides (check, review, fix_rounds, acceptance by default; data.overridden gives the ones overridden, and the comment on the PR records them). An unmet condition that is not listed stays GATE_FAILED even with --approved-by, and " +
+    "Merge a ticket's PR with gh pr merge (squash by default), only when it meets the quality gate (dg gate <ticket> --for merge). It pins the merge to the commit the gate judged (sha in the gate's output, passed as --match-head-commit), so a commit pushed after the judgment is not merged. The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to merge. After the gate passes, the decide value of the Workflow's review → done boundary judges the call (ask_unless_auto by default; see dg ticket move --help for the values; the boundary's requires are not judged here, because the merge makes the fact and reconcile moves the ticket): when it asks for a person's approval, an agent merges after a person approved the merge, with --approved-by, which records the approver as a comment on the PR after the merge (data.approved_by; if the comment cannot be written, the merge stands and warnings say so), and without --approved-by the call returns TRANSITION_REJECTED and does not call gh. An agent merges without asking and without --approved-by only when the value is ask_unless_auto and config's auto.merge is true (the merge of --auto of dg guide all; data.approved_by is null and nothing is recorded), or when the value is anyone or agent_only. A value of human_only rejects an agent, and a person passes a value of agent_only with --override (the reason is recorded in the comment). gh pr merge run outside dg is rejected by the hook. Merging outside the conditions of the level is a person's decision, fixed in Core (neither the config nor workflow.yaml changes it): it always needs --approved-by, from a person's call too, and config's auto.merge does not skip it. Ask a person, and only when approved, pass --approved-by, which lets the merge go ahead with unmet check, review, fix_rounds, and acceptance (data.overridden gives the ones overridden, and the comment on the PR records them with the approver). " +
     NEVER_OVERRIDDEN +
-    " (the merge is always pinned to the judged commit). Without --approved-by nothing is overridden. When the other unmet conditions are all overridden, the check still runs, so that its result is a fact. When it also deletes the work branch, data.removed shows what was deleted (worktree, local_branch, remote_branch; null for what was not deleted or did not exist), so do not delete them again. It does not write ticket data (moving to done happens at the next sync, which also deletes what remains when merge.delete_branch is true)",
+    ", so they stay GATE_FAILED even with --approved-by (the merge is always pinned to the judged commit). Without --approved-by nothing is overridden. When the other unmet conditions are all overridden, the check still runs, so that its result is a fact. When it also deletes the work branch, data.removed shows what was deleted (worktree, local_branch, remote_branch; null for what was not deleted or did not exist), so do not delete them again. It does not write ticket data (moving to done happens at the next sync, which also deletes what remains when merge.delete_branch is true)",
   input: z.object({
     ticket: ticketRef,
     method: z
@@ -397,7 +373,7 @@ export const prMerge = defineCommand({
       .min(1)
       .optional()
       .describe(
-        "The person who approved this merge: human (yourself, the user) or a user name. Pass it only when a person approved the merge of this PR; an agent's ID is rejected. With it, unmet conditions listed in config's merge.approval_overrides do not stop the merge. Leave it out for a merge made without asking (--auto of dg guide all with auto.merge true), so that no approver is recorded",
+        "The person who approved this merge: human (yourself, the user) or a user name. Pass it only when a person approved the merge of this PR; an agent's ID is rejected. With it, unmet check, review, fix_rounds, and acceptance do not stop the merge. Leave it out for a merge made without asking (--auto of dg guide all with auto.merge true), so that no approver is recorded",
       ),
     override: permissionFields.override,
   }),

@@ -9,7 +9,13 @@ import { composeGuide } from "../guide/guide.js";
 import { isFinishedSet, isTerminal } from "../model/common.js";
 import { FLOW_SKIPS } from "../model/config.js";
 import { compareIds, parseId, type IterationId } from "../model/id.js";
-import { GATE_LEVELS, gateLevelOf, type GateLevel, type Ticket } from "../model/ticket.js";
+import {
+  GATE_LEVELS,
+  gateLevelOf,
+  lowersGate,
+  type GateLevel,
+  type Ticket,
+} from "../model/ticket.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { agentDg as dg, sortedDocs, ticketsInIteration } from "./helpers.js";
@@ -374,7 +380,7 @@ export function approvalOf(
 
 /**
  * 段階で親が呼ぶ dg のコマンド（順に）。手のやり方は guide の節。Plan の承認は --auto が聞かずに選ぶときだけ呼ぶ。
- * gate（--gate の段）があれば、作業の段階で段の違うチケットにだけ next の前に段を付ける（TK-9）。
+ * gate（--gate の段）があれば、作業の段階で段の違うチケットにだけ next の前に段を付ける（TK-9。下げるときは人に頼む文を返す）。
  * 同じ段のチケットに入れないのは、呼ぶたびに更新が出て止まる判定（fingerprint の updated_at）を揺らさないため
  */
 function commandsOf(
@@ -397,7 +403,12 @@ function commandsOf(
         dg(`plan show ${stage.plan}`),
         ...stage.tickets.flatMap((t) => [
           ...(gate && gate.of(t) !== gate.level
-            ? [dg(`ticket update ${t} --gate ${gate.level}`)]
+            ? [
+                // 段を下げるのは Core の固定で人に限る（エージェントの呼び出しは拒否される）ので、人が打つ手として返す
+                lowersGate(gate.of(t), gate.level)
+                  ? `Ask a person to run dg ticket update ${t} --gate ${gate.level} before the next of ${t}, and wait for it (only a person can lower the quality gate level; an agent's call is rejected)`
+                  : dg(`ticket update ${t} --gate ${gate.level}`),
+              ]
             : []),
           dg(`next ${t}`),
         ]),
@@ -594,7 +605,7 @@ export const flowNext = defineCommand({
     "Audited means a ticket with the label audit-<S> or release-<S> exists, or the audit was finished in this run. For a ticket or Plan target, <S> is the ticket's Iteration (only when it is a single one), and audit and release apply only when all tickets in that Iteration are finished. " +
     "Passing the returned resume to --resume in the next call marks the assignment, check, and audit that it returned as finished, and skips them. If resume is missing, unreadable, or for a different target, it starts again from assign and check. " +
     "When stopped without finishing a stage (such as stopping at the audit findings table), do not pass that resume (passing it would skip that stage). " +
-    "Stages in config's flow.skip are skipped without reading their rules. If the facts (tickets, Plans, Runs) have not changed for the same stage as the previous return, it returns stop. Returns the stage's section (guide), the commands to call (commands; with --gate, the work stage sets the level on tickets whose level differs before next), and whether approval is needed (approval; auto_ok says whether --auto chooses it without asking, following config's auto.decisions and auto.merge; decisions a person makes are not included). " +
+    "Stages in config's flow.skip are skipped without reading their rules. If the facts (tickets, Plans, Runs) have not changed for the same stage as the previous return, it returns stop. Returns the stage's section (guide), the commands to call (commands; with --gate, the work stage sets the level on tickets whose level differs before next; when that lowers the level, the entry is a sentence to ask a person to run the command, because only a person can lower it), and whether approval is needed (approval; auto_ok says whether --auto chooses it without asking, following config's auto.decisions and auto.merge; decisions a person makes are not included). " +
     "When a column is over its WIP limit (wip in workflow.yaml), it warns the same way as dg next, and the work stage puts first in commands a step to advance tickets in the columns further along (starting is not refused). Writes nothing",
   input: z.object({
     targets: z
@@ -612,7 +623,7 @@ export const flowNext = defineCommand({
       .enum(GATE_LEVELS)
       .optional()
       .describe(
-        "Quality gate level the person gave (/dgall --gate-<level>). In the work stage, puts dg ticket update <id> --gate <level> before next only for tickets whose level differs (a ticket with no gate is high)",
+        "Quality gate level the person gave (/dgall --gate-<level>). In the work stage, puts dg ticket update <id> --gate <level> before next only for tickets whose level differs (a ticket with no gate is high). When the level is lower than the ticket's, the entry asks a person to run it instead",
       ),
     resume: z
       .string()

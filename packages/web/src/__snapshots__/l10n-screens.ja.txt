@@ -446,22 +446,6 @@ dg pr merge でマージしたら作業ブランチも消す
 既定に戻す
 詳しく
 merge.delete_branch
-人の承認で越えてよい品質ゲートの条件
-merge.approval_overrides
-[title] 既定は [check, review, fix_rounds, acceptance]
-変更あり
-[title] エージェントに頼む（Shift+F10）
-[aria-label] エージェントに頼む（設定の項目 merge.approval_overrides）
-人がマージを承認したときに越えてよい品質ゲートの条件
-空
-[aria-label] 項目
-[placeholder] 項目を足す
-足す
-[title] 既定の [check, review, fix_rounds, acceptance] に戻す
-既定に戻す
-空のとき: 承認があっても何も越えない（品質ゲートの条件をすべて満たす必要がある）
-詳しく
-merge.approval_overrides
 重いとみなす見直しの指摘の種類
 review.heavy_categories
 [title] 既定は 空
@@ -601,22 +585,6 @@ models.codex.heavy
 空のとき: models.heavy を使う
 詳しく
 models.codex.heavy
-人だけに許すコマンド
-actor.human_only
-[title] 既定は 空
-変更あり
-[title] エージェントに頼む（Shift+F10）
-[aria-label] エージェントに頼む（設定の項目 actor.human_only）
-agent からは拒否するコマンド名
-空
-[aria-label] 項目
-[placeholder] 例 epic.close
-足す
-[title] 既定の 空 に戻す
-既定に戻す
-空のとき: すべてのコマンドを許す。チケットの Status の動きは Workflow の boundaries と exceptions で縛る
-詳しく
-actor.human_only
 計測
 会話記録から使用量を読む
 metrics.read_transcripts

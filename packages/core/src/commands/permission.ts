@@ -1,4 +1,4 @@
-// 操作の権限の判定（WF-1・ST-2、ADR-003）。Workflow から引いた方針（workflow/resolve.ts の operationPolicy）を主体に当て、
+// 操作の権限の判定（WF-1・WF-7・ST-2、ADR-003）。Workflow と Core の固定から引いた方針（workflow/resolve.ts の operationPolicy）を主体に当て、
 // 人の承認（--approved-by）と人の強制（--override）を確かめる。主体は自己申告（--actor）なので、ここは誤操作を防ぐ手すりで、
 // dg を経由しない操作はフック（AG-10）が止める
 
@@ -6,7 +6,13 @@ import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { isAgentActorId, resolveActorRef } from "../model/actor.js";
 import { evaluateAll, judgeDecisions, type Facts } from "../workflow/conditions.js";
-import type { OperationPolicy } from "../workflow/resolve.js";
+import {
+  DEFAULT_WORKFLOW,
+  coreFixedPolicy,
+  operationPolicy,
+  type Operation,
+  type OperationPolicy,
+} from "../workflow/resolve.js";
 import type { CommandContext } from "./define.js";
 
 /** 権限を判定するコマンドが受ける入力（--approved-by と --override） */
@@ -86,26 +92,29 @@ export function requirePermission(
   const approver = approverOf(ctx, input.approved_by, what);
   const override = input.override ?? null;
   const values = `${policy.name}: ${policy.decisions.join(", ")}`;
+  // Core に固定の値は workflow.yaml を書き換えても変わらないので、Workflow の値と言い分ける
+  const judge = policy.source === "core" ? "dg" : "The Workflow";
+  const fixed = policy.source === "core" ? ". workflow.yaml cannot change this value" : "";
   switch (judgeDecisions(policy.decisions, ctx.actor.kind, opts.auto)) {
     case "reject":
       throw new OperationError(
         "TRANSITION_REJECTED",
-        `The Workflow limits ${what} to a person (${values})`,
-        "Ask a person to run the command (without --actor agent)",
+        `${judge} limits ${what} to a person (${values})`,
+        `Ask a person to run the command (without --actor agent)${fixed}`,
       );
     case "approval":
       if (approver === null)
         throw new OperationError(
           "TRANSITION_REJECTED",
-          `The Workflow asks for a person's approval for ${what} (${values})`,
-          "Ask a person, and only when the person approves, run the command again with --approved-by human. A person's instruction to do exactly this counts as the approval. Never pass --approved-by without it",
+          `${judge} asks for a person's approval for ${what} (${values})`,
+          `Ask a person, and only when the person approves, run the command again with --approved-by human. A person's instruction to do exactly this counts as the approval. Never pass --approved-by without it${fixed}`,
         );
       break;
     case "override":
       if (override === null)
         throw new OperationError(
           "TRANSITION_REJECTED",
-          `The Workflow leaves ${what} to an agent (${values})`,
+          `${judge} leaves ${what} to an agent (${values})`,
           'A person can force it with --override "reason"',
         );
       break;
@@ -125,6 +134,36 @@ export function requirePermission(
       );
   }
   return { approver, override };
+}
+
+/**
+ * カンバンの管理の操作（governance）か Core に固定の操作を、今の主体に当てる（WF-7）。
+ * Core に固定の操作は Workflow を読まずに判定する（workflow.yaml に誤りがあっても、workflow set で直せるように）。
+ * カンバンの管理の操作は、workflow.yaml に誤りがあって読めなければ Core の既定の governance で判定する
+ * （起票・チケットを消す・チームの設定は Status の動きと違って Workflow のほかの項目に依らないので、
+ * 定義を直すまで人もエージェントも止めることはしない）。
+ * 聞かずに進める流れ（--auto）かを dg は知らないので、ask_unless_auto もいつも承認を求める
+ */
+export function requireOperation(
+  ctx: CommandContext,
+  op: Operation,
+  input: PermissionInput,
+  what: string,
+): Granted {
+  const policy =
+    coreFixedPolicy(op) ?? operationPolicy(ctx.store.workflow?.resolved ?? DEFAULT_WORKFLOW, op);
+  return requirePermission(ctx, policy, input, what);
+}
+
+/**
+ * 入口（runCommand）が判定したコマンドが、自分のコミットメッセージに足す記録。入力の --approved-by と --override から作る
+ * （判定は済んでいるので、ここでは値を直すだけ）
+ */
+export function recordNote(ctx: CommandContext, input: PermissionInput): string {
+  return grantedNote(ctx, {
+    approver: approverOf(ctx, input.approved_by, "this operation"),
+    override: input.override ?? null,
+  });
 }
 
 /** コミットメッセージに足す記録（承認者と、強制した人と理由）。なければ空 */

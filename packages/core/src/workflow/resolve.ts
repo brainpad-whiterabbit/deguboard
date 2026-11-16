@@ -177,11 +177,60 @@ export interface OperationPolicy {
   requires: readonly Condition[];
 }
 
-/** 権限を判定する操作。Status を変える操作は move を持つ（行き先はコマンドの名前と引数だけで決まる） */
+/**
+ * Core に固定の操作と権限の値。緩めると守りが崩れるので、workflow.yaml では変えられない（WF-7）。
+ * - workflow_set：workflow.yaml の書き換え。エージェントが自分に許す範囲を聞かずに広げないように、いつも人の承認を求める
+ * - hooks_uninstall：フックを外す。dg を経由しない書き込みと PR の操作を止める守り（AG-10）がなくなる
+ * - lower_gate：チケットの品質ゲートの段を下げる。判定する条件が減る
+ * - merge_over_gate：品質ゲートを満たさない PR のマージ。dg pr merge は主体によらず承認者（--approved-by）を求める（commands/pr.ts）
+ */
+export const CORE_FIXED = {
+  workflow_set: "always_ask",
+  hooks_uninstall: "human_only",
+  lower_gate: "human_only",
+  merge_over_gate: "always_ask",
+} as const satisfies Record<string, Decision>;
+export type CoreFixedOperation = keyof typeof CORE_FIXED;
+
+/**
+ * 権限を判定する操作。Status を変える操作は move を持つ（行き先はコマンドの名前と引数だけで決まる）。
+ * fixed は Core に固定の操作、governs はカンバンの管理の操作。コマンドの名前だけで決まるものは commandOperation が引き、
+ * 入力とデータで決まるもの（チームの設定か・担当がほかのユーザか・段が下がるか）はコマンドが自分で付ける
+ */
 export interface Operation {
   /** コマンドの名前（ticket.move など） */
   command: string;
   move?: { from: Status; to: Status } | undefined;
+  fixed?: CoreFixedOperation | undefined;
+  governs?: GovernanceOperation | undefined;
+}
+
+/** コマンドの名前だけで決まる、Core に固定の操作とカンバンの管理の操作（runCommand が実行の前に判定する） */
+const COMMAND_OPERATIONS: Record<string, Pick<Operation, "fixed" | "governs">> = {
+  "workflow.set": { fixed: "workflow_set" },
+  "ticket.delete": { governs: "delete" },
+  "ticket.create": { governs: "create" },
+  "ticket.import": { governs: "create" },
+  "epic.close": { governs: "epic" },
+  "epic.reopen": { governs: "epic" },
+};
+
+/** コマンドの名前だけで決まる操作。なければ undefined（入力とデータで決まる操作は、コマンドの中で判定する） */
+export function commandOperation(command: string): Operation | undefined {
+  const found = COMMAND_OPERATIONS[command];
+  return found ? { command, ...found } : undefined;
+}
+
+/**
+ * 名前だけで操作が決まるコマンドのうち、エージェントには拒む（権限の値が human_only の）もの。
+ * 人の承認で進められるものは入れない（エージェントが --approved-by を付けて進める）
+ */
+export function commandsRejectedForAgent(wf: ResolvedWorkflow): string[] {
+  return Object.keys(COMMAND_OPERATIONS).filter(
+    (command) =>
+      judgeDecisions(operationPolicy(wf, commandOperation(command)!).decisions, "agent") ===
+      "reject",
+  );
 }
 
 /**
@@ -228,16 +277,31 @@ export function requiresForTicket(
   return requires.filter((c) => c.replace(/^!/, "") === "deps_done");
 }
 
-// Core に固定の操作・流れの段階の操作・カンバンの管理の操作は、まだここで引かない（それぞれのコマンドが自分で判定している）。
-// 判定の順の中の位置だけを置き、当てはまる操作がないので undefined を返す
-function coreFixedPolicy(_op: Operation): OperationPolicy | undefined {
-  return undefined;
+/** Core に固定の操作。Workflow を読まないので、workflow.yaml の値では変わらない */
+export function coreFixedPolicy(op: Operation): OperationPolicy | undefined {
+  if (!op.fixed) return undefined;
+  return {
+    source: "core",
+    name: `fixed in Core, ${op.fixed}`,
+    decisions: [CORE_FIXED[op.fixed]],
+    requires: [],
+  };
 }
+
+// 流れの段階の操作は、まだここで引かない（それぞれのコマンドが自分で判定している）。
+// 判定の順の中の位置だけを置き、当てはまる操作がないので undefined を返す
 function flowPolicy(_wf: ResolvedWorkflow, _op: Operation): OperationPolicy | undefined {
   return undefined;
 }
-function governancePolicy(_wf: ResolvedWorkflow, _op: Operation): OperationPolicy | undefined {
-  return undefined;
+
+function governancePolicy(wf: ResolvedWorkflow, op: Operation): OperationPolicy | undefined {
+  if (!op.governs) return undefined;
+  return {
+    source: "governance",
+    name: `governance.${op.governs}`,
+    decisions: [wf.governance[op.governs]],
+    requires: [],
+  };
 }
 
 function exceptionPolicy(wf: ResolvedWorkflow, op: Operation): OperationPolicy | undefined {
@@ -256,7 +320,7 @@ function crossingPolicy(wf: ResolvedWorkflow, op: Operation): OperationPolicy | 
   return crossed.length > 0 ? boundaryPolicy(crossed) : undefined;
 }
 
-/** どれにも当たらない操作（起票・題や本文の編集など）は誰でもできる */
+/** どれにも当たらない操作（題や本文の編集など）は誰でもできる */
 const ANYONE_POLICY: OperationPolicy = {
   source: "none",
   name: "none",

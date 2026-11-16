@@ -9,7 +9,7 @@ import { compareIds } from "../model/id.js";
 import { otherActiveOf, type Iteration } from "../model/iteration.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
-import { deniedToAgent, type CommandContext } from "./define.js";
+import type { CommandContext } from "./define.js";
 import { nowIso } from "./helpers.js";
 
 /**
@@ -32,7 +32,7 @@ export function iterationTargetFor(
 /**
  * claim の書き込みの中で、チケットの Iteration を決めて返し、planned なら開始する（lint.require_iteration・IT-1）。
  * require_iteration が false なら Iteration には入れないが、入っている Iteration の開始は行う。
- * 入れ先がない・planned が複数で決まらない・agent に禁じられた・ほかの active があるときは、何もせず warnings に人への頼みを書く
+ * 入れ先がない・planned が複数で決まらない・ほかの active があるときは、何もせず warnings に人への頼みを書く
  */
 export async function prepareIterationForClaim(
   ctx: CommandContext,
@@ -51,10 +51,6 @@ export async function prepareIterationForClaim(
       warnings.push(
         `There is no Iteration (active or planned) to add ${ticket.id} to. Ask the human to create an Iteration and add it (going on without adding it gives lint_iteration_missing)`,
       );
-    } else if (deniedToAgent(ctx, "iteration.add")) {
-      warnings.push(
-        `Cannot add ${ticket.id} to ${target.id} (iteration.add is actor.human_only). Ask the human to add it`,
-      );
     } else {
       iterationId = target.id as NonNullable<Ticket["iteration"]>;
       warnings.push(`Added ${ticket.id} to ${target.id}`);
@@ -63,12 +59,6 @@ export async function prepareIterationForClaim(
   if (!iterationId) return iterationId;
   const it = ctx.store.iterations.get(iterationId);
   if (!it || it.data.status !== "planned") return iterationId;
-  if (deniedToAgent(ctx, "iteration.start")) {
-    warnings.push(
-      `${it.id} stays planned (iteration.start is actor.human_only). Ask the human to start it`,
-    );
-    return iterationId;
-  }
   const other = otherActiveOf(
     [...ctx.store.iterations.values()].map((i) => i.data),
     it.data,

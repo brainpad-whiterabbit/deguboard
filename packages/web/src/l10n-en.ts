@@ -50,7 +50,8 @@ export const EN: Readonly<Record<string, string>> = {
   "指示の欄を空にする（下書きも消す）": "Empty the instructions (the draft is cleared too)",
   "{0}コピー": "{0}Copy",
   "{0}なので、人が打つコマンドをコピーする": "{0}, so copy the commands for a person to run",
-  "{0} は人に限った操作（actor.human_only）": "{0} is limited to people (actor.human_only)",
+  "{0} は Workflow が人に限った操作（governance）":
+    "{0} is an operation the Workflow limits to people (governance)",
   "・": ", ",
   "{0} は Workflow が人に限った動き（human_only）":
     "{0} is a move the Workflow limits to people (human_only)",
@@ -440,7 +441,6 @@ export const EN: Readonly<Record<string, string>> = {
   同時に進めるチケットの上限: "Most tickets advanced at the same time",
   マージの方法: "Merge method",
   マージしたら作業ブランチを消す: "Delete the work branch after merging",
-  人の承認で越えてよい品質ゲートの条件: "Gate conditions an approval may override",
   "Iteration に入れてから進める": "Require an Iteration before starting",
   重いとみなす見直しの指摘の種類: "Review finding categories treated as heavy",
   "段階 light のモデル": "Model for tier light",
@@ -452,7 +452,6 @@ export const EN: Readonly<Record<string, string>> = {
   "段階 light のモデル（Codex）": "Model for tier light (Codex)",
   "段階 standard のモデル（Codex）": "Model for tier standard (Codex)",
   "段階 heavy のモデル（Codex）": "Model for tier heavy (Codex)",
-  人だけに許すコマンド: "Commands limited to people",
   会話記録から使用量を読む: "Read usage from transcripts",
   承認待ちが増えたら通知する: "Notify when approvals are waiting",
   コードのリモート: "Code remote",
@@ -512,12 +511,9 @@ export const EN: Readonly<Record<string, string>> = {
     "changes the command run on every claim without confirmation (same as allowing a shell)",
   エージェントが任意のシェルを実行できるかが変わる:
     "changes whether agents can run any shell command",
-  エージェントに許す操作が変わる: "changes what agents are allowed to do",
   "エージェントが PR を自動でマージするかが変わる":
     "changes whether agents merge PRs automatically",
   エージェントが聞かずに選ぶ判断が変わる: "changes which decisions agents make without asking",
-  人の承認で越えられる品質ゲートの条件が変わる:
-    "changes which quality gate conditions a person's approval can override",
   空: "Empty",
   "{0} を {1} にした": "Set {0} to {1}",
   "（{0}）": " ({0})",

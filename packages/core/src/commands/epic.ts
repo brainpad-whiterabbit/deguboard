@@ -8,6 +8,7 @@ import { EPIC_STATUSES, epicBodyTemplate, type Epic } from "../model/epic.js";
 import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import { defineCommand, ok } from "./define.js";
 import { epicRef, nowIso, sortedDocs, ticketRef, ticketsInEpic, withBody } from "./helpers.js";
+import { hasRecord, permissionFields, recordNote } from "./permission.js";
 
 export const epicCreate = defineCommand({
   name: "epic.create",
@@ -194,10 +195,11 @@ export const epicClose = defineCommand({
   positionals: ["epic"],
   group: "epic",
   summary:
-    "Close an Epic. Rejected if tickets other than done or abandoned remain; use force to close it anyway",
+    "Close an Epic. Rejected if tickets other than done or abandoned remain; use force to close it anyway. The Workflow's governance.epic judges closing and reopening an Epic (human_only by default, which rejects an agent; see dg workflow show --help for the values). When the value asks for a person's approval, an agent passes --approved-by, and the approver is recorded in the commit message",
   input: z.object({
     epic: epicRef,
     force: z.boolean().optional().describe("Close even if tickets remain"),
+    ...permissionFields,
   }),
   write: true,
   needs: "store",
@@ -226,7 +228,11 @@ export const epicClose = defineCommand({
           closed_at: now,
         });
       },
-      { message: (doc) => `Close ${doc.id}: ${doc.data.title}` },
+      {
+        message: (doc) => `Close ${doc.id}: ${doc.data.title}${recordNote(ctx, input)}`,
+        // 承認者と強制の理由はこの操作のコミットに残す（ticket move と同じ）
+        immediate: hasRecord(input),
+      },
     );
     return ok(withBody(result.value), result.write, warnings);
   },
@@ -236,8 +242,9 @@ export const epicReopen = defineCommand({
   name: "epic.reopen",
   positionals: ["epic"],
   group: "epic",
-  summary: "Reopen a closed Epic",
-  input: z.object({ epic: epicRef }),
+  summary:
+    "Reopen a closed Epic. The Workflow's governance.epic judges it, as for epic close (human_only by default)",
+  input: z.object({ epic: epicRef, ...permissionFields }),
   write: true,
   needs: "store",
   async run(ctx, input) {
@@ -253,7 +260,10 @@ export const epicReopen = defineCommand({
           closed_at: undefined,
         });
       },
-      { message: (doc) => `Reopen ${doc.id}: ${doc.data.title}` },
+      {
+        message: (doc) => `Reopen ${doc.id}: ${doc.data.title}${recordNote(ctx, input)}`,
+        immediate: hasRecord(input),
+      },
     );
     return ok(withBody(result.value), result.write);
   },

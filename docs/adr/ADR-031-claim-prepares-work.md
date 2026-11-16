@@ -14,7 +14,7 @@ claim は `branch` を記録するだけでブランチも worktree も作らな
 
 - claim は、`lint.require_iteration` が true なら Iteration の空いたチケットを Iteration に入れ、チケットの Iteration が planned なら開始する。どちらも claim と同じ書き込みに入れ、claim の push で一緒に決まる
 - claim は push で排他を得た後、作業ブランチを base から切って worktree を作り、場所を返す。作らない指定もできる
-- どれもできないとき（入れ先がない・active がなく planned が複数で決まらない（ADR-009）・ほかの active がある・`actor.human_only`・worktree を作れない）は、claim を失敗させず warnings で人への頼みを返す
+- どれもできないとき（入れ先がない・active がなく planned が複数で決まらない（ADR-009）・ほかの active がある・worktree を作れない）は、claim を失敗させず warnings で人への頼みを返す
 - worktree を作る手順は Core の git の層に置き、claim と `create_worktree` の Action が同じものを使う。commands は actions に依存しない（ADR-033・AG-6）ことは変えない
 
 ## 理由

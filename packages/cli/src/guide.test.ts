@@ -679,7 +679,8 @@ describe("dg guide", () => {
     for (const command of ["plan create", "plan approve", "plan show", "--after", "--scope"])
       expect(plan).toContain(command);
     expect(plan).toContain("Do not approve without a human's approval");
-    expect(plan).toContain("plan.approve");
+    // なくした config の一覧（actor.human_only）で人に限る案内は出さない
+    expect(plan).not.toContain("human_only");
     for (const word of ["plan show", "`next`", "`ready`", "waiting", "scope", "approach"])
       expect(work).toContain(word);
     expect(done).toContain("plan close");
@@ -871,11 +872,13 @@ describe("dg guide", () => {
     expect(await readGuide("import")).toContain("with `after` instead of running them in parallel");
   });
 
-  it("review は版上げの PR を人の指示で low の段にする道を品質ゲートに書き、release はそこへ案内する", async () => {
+  it("review は版上げの PR を人が low の段にする道を品質ゲートに書き、release はそこへ案内する", async () => {
     const gate = section(await readGuide("review"), "## Quality gate");
     for (const word of [
       "A version-bump PR runs at the low level",
-      "only on a human's instruction",
+      // 段を下げるのは人だけ（Core の固定）。エージェントは人にコマンドを渡す
+      "Only a human can lower it",
+      "is set to `low` only by a human",
       "takes the place of the review",
       "keep the high level and have it reviewed",
     ])
@@ -885,7 +888,7 @@ describe("dg guide", () => {
     for (const word of [
       "`dg guide review`",
       "Quality gate",
-      "by setting the ticket's level to `low`",
+      "only when a human sets the ticket's level to `low`",
     ])
       expect(steps).toContain(word);
     // 版上げの条件（変更の範囲）は review にだけ書く
@@ -1214,16 +1217,16 @@ describe("dg guide", () => {
   it("config の値を埋める（既定なら main と origin、空の配列と空の文字列は none）", () => {
     expect(
       fillPlaceholders(
-        "{{git.remote}}/{{git.base_branch}} {{commit.mode}} {{actor.human_only}} {{nope}}",
+        "{{git.remote}}/{{git.base_branch}} {{commit.mode}} {{review.heavy_categories}} {{nope}}",
         defaultConfig(),
       ),
     ).toBe("origin/main batch none {{nope}}");
     expect(
-      fillPlaceholders("{{actor.human_only}}", {
+      fillPlaceholders("{{review.heavy_categories}}", {
         ...defaultConfig(),
-        actor: { human_only: ["epic.close", "iteration.close"] },
+        review: { heavy_categories: ["security", "data"] },
       }),
-    ).toBe("epic.close, iteration.close");
+    ).toBe("security, data");
     // 既定が空でも、空の文字列を明示して none になることを確かめる
     expect(
       fillPlaceholders("{{models.light}}", {

@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { asHuman } from "../../test/helpers/commands-context.js";
 import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { openContext } from "./context.js";
@@ -280,7 +281,7 @@ describe("dg gate（品質ゲート。t532）", () => {
 
   it("high と書いた段は gate のないチケットと同じ条件で判定する", async () => {
     const { ctx } = await prepared();
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "high" });
+    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "high" });
     const view = await judge(ctx, "ready");
     expect(view.gate).toBe("high");
     expect(view.conditions.map((c) => c.id)).toEqual(["pr", "review", "fix_rounds", "check"]);
@@ -289,7 +290,7 @@ describe("dg gate（品質ゲート。t532）", () => {
 
   it("low は見直しの Run がなくても pr・acceptance・mergeable・check で通り、受け入れ条件に印がなければ acceptance で落ちる", async () => {
     const { ctx } = await prepared();
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
+    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "low" });
     const ready = await judge(ctx, "ready");
     expect(ready).toMatchObject({ gate: "low", passed: true });
     expect(ready.conditions.map((c) => c.id)).toEqual(["pr", "check"]);
@@ -313,13 +314,13 @@ describe("dg gate（品質ゲート。t532）", () => {
     // 追跡 ref を消し、fetch が失敗するリモートに向け直す（判定は PR の事実と記録だけで足りることを見る）
     await git(f.cloneA, ["update-ref", "-d", "refs/remotes/origin/t1"]);
     await git(f.cloneA, ["remote", "set-url", "origin", path.join(f.root, "no-such-remote.git")]);
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
+    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "low" });
     expect(failed(await judge(ctx, "ready"))).toEqual([]);
     expect(failed(await judge(ctx))).toEqual([]);
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "free" });
+    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "free" });
     expect(failed(await judge(ctx, "ready"))).toEqual([]);
     expect(failed(await judge(ctx))).toEqual([]);
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "high" });
+    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "high" });
     expect(failed(await judge(ctx, "ready"))).toEqual(["review"]);
   });
 });
@@ -340,7 +341,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
       `#!/bin/sh\necho run >> '${count}'\necho 前の行\necho 最後の行\nexit $(cat '${code}')\n`,
       { mode: 0o755 },
     );
-    await runCommand(configSet, base.ctx, { key: "actions.test", value: `sh, ${script}` });
+    await runCommand(configSet, asHuman(base.ctx), { key: "actions.test", value: `sh, ${script}` });
     const ctx = await openContext({ cwd: base.f.cloneA, actor: base.ctx.actor });
     const runs = async () =>
       (await readFile(count, "utf8").catch(() => "")).split("\n").filter(Boolean).length;
@@ -401,7 +402,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
       `#!/bin/sh\necho run >> '${path.join(f.root, "check-count")}'\necho 別の検査\nexit 0\n`,
       { mode: 0o755 },
     );
-    await runCommand(configSet, first, { key: "actions.test", value: `sh, ${other}` });
+    await runCommand(configSet, asHuman(first), { key: "actions.test", value: `sh, ${other}` });
     const changed = await openContext({ cwd: f.cloneA, actor: first.actor });
     const view = await judge(changed, "ready");
     expect(check(view)).toMatchObject({
@@ -417,7 +418,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
   it("存在しないコマンドを指すと検査を回せないで ok が false になり、結果を覚えず、見つかるようになれば回して通る", async () => {
     const { f, ctx: first } = await withCheck();
     const name = "dg-t615-no-such-check";
-    await runCommand(configSet, first, { key: "actions.test", value: name });
+    await runCommand(configSet, asHuman(first), { key: "actions.test", value: name });
     const ctx = await openContext({ cwd: f.cloneA, actor: first.actor });
     await review(ctx, later(1), 0);
     const view = await judge(ctx, "ready");
@@ -445,7 +446,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
 
   it("low は見直しがなくても検査を回して判定し、検査が落ちれば通さない", async () => {
     const { f, ctx, runs, setCode } = await withCheck();
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
+    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "low" });
     expect(await judge(ctx, "ready")).toMatchObject({ gate: "low", passed: true });
     expect(await runs()).toBe(1);
     await setCode(1);
@@ -459,7 +460,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
   it("free は merge で pr・mergeable、ready で pr だけを判定し、actions.test が落ちる設定でも見直しなしで通る", async () => {
     const { ctx, runs, setCode } = await withCheck();
     await setCode(1);
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "free" });
+    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "free" });
     const ready = await judge(ctx, "ready");
     expect(ready).toMatchObject({ gate: "free", passed: true });
     expect(ready.conditions.map((c) => c.id)).toEqual(["pr"]);
@@ -529,8 +530,11 @@ describe("dg gate の検査（actions.test。t601）", () => {
       await writeFile(light, `#!/bin/sh\necho light >> '${count}'\necho 軽い検査\nexit 0\n`, {
         mode: 0o755,
       });
-      await runCommand(configSet, base.ctx, { key: "actions.light_test", value: `sh, ${light}` });
-      await runCommand(configSet, base.ctx, {
+      await runCommand(configSet, asHuman(base.ctx), {
+        key: "actions.light_test",
+        value: `sh, ${light}`,
+      });
+      await runCommand(configSet, asHuman(base.ctx), {
         key: "actions.light_paths",
         value: "docs/**, *.md",
       });
@@ -675,7 +679,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
         `#!/bin/sh\necho run >> '${path.join(f.root, "check-count")}'\necho 別の検査\nexit 0\n`,
         { mode: 0o755 },
       );
-      await runCommand(configSet, ctx, { key: "actions.test", value: `sh, ${other}` });
+      await runCommand(configSet, asHuman(ctx), { key: "actions.test", value: `sh, ${other}` });
       const changed = await openContext({ cwd: f.cloneA, actor: ctx.actor });
       await review(changed, later(3), 0);
       expect(check(await judge(changed, "ready")).detail).toContain(

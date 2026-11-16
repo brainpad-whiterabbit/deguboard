@@ -504,11 +504,13 @@ function messageOf(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-/** 人が打つコマンドを返した理由。actor.human_only の操作と、Workflow が人に限る Status の動き */
+/** 人が打つコマンドを返した理由。Workflow の governance が人に限る操作と、Workflow が人に限る Status の動き */
 function humanReason(view: AskView): string {
   const reasons: string[] = [];
   if (view.human_only.length > 0)
-    reasons.push(tr("{0} は人に限った操作（actor.human_only）", view.human_only.join(tr("・"))));
+    reasons.push(
+      tr("{0} は Workflow が人に限った操作（governance）", view.human_only.join(tr("・"))),
+    );
   if (view.workflow_denied.length > 0)
     reasons.push(
       tr("{0} は Workflow が人に限った動き（human_only）", view.workflow_denied.join(tr("・"))),

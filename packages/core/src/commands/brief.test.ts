@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { asHuman } from "../../test/helpers/commands-context.js";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import { composeGuide } from "../guide/guide.js";
 import { openContext } from "./context.js";
@@ -163,7 +164,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
       );
     expect(await gateWarnings("t1", "review")).toEqual([]);
     for (const gate of ["low", "free"] as const) {
-      await runCommand(ticketUpdate, ctx, { ticket: "t1", gate });
+      await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate });
       const result = await runCommand(brief, ctx, { ticket: "t1", role: "review" });
       expect(result.data.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=review");
       expect(result.warnings).toContainEqual(
@@ -217,7 +218,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
       path.join(ctx.repo.topLevel, "work-notes.md"),
       "書いたコマンドは書いた形で回す\n",
     );
-    await runCommand(configSet, ctx, { key: "guide.notes.work", value: "work-notes.md" });
+    await runCommand(configSet, asHuman(ctx), { key: "guide.notes.work", value: "work-notes.md" });
     const reopened = await openContext({ cwd: ctx.repo.topLevel, actor: ctx.actor });
     const text = (await runCommand(brief, reopened, { ticket: "t1", role: "implement" })).data.text;
     const steps = text.slice(
@@ -329,7 +330,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
 
   it("印と文の step は Core の決める名前（実装は implement、手直しは fix）で、workflow.yaml に前の形の steps を書いても変わらない", async () => {
     const ctx = await prepared();
-    await runCommand(workflowSet, ctx, {
+    await runCommand(workflowSet, asHuman(ctx), {
       definition: {
         steps: [
           { id: "build", opens_on: "claim" },

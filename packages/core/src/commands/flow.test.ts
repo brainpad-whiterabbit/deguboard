@@ -601,7 +601,7 @@ describe("dg flow next", () => {
     });
   });
 
-  it("--gate を渡すと、作業の段階で段の違うチケットにだけ next の前に段を付ける。段のないチケットは high とみなす", async () => {
+  it("--gate を渡すと、作業の段階で段の違うチケットにだけ next の前に段を付ける。段のないチケットは high とみなし、段を下げるときは人に頼む文を返す", async () => {
     const ctx = await ready();
     await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(ticketCreate, ctx, { title: "段なし" });
@@ -616,15 +616,18 @@ describe("dg flow next", () => {
     expect(checked.commands.join(" ")).not.toContain("--gate");
     const work = await flow(ctx, { gate: "free", resume: checked.resume });
     expect(work.stage.name).toBe("work");
+    // 段を下げるのは Core の固定で人だけなので、エージェントが打つコマンドでなく、人に頼む文を返す
+    const askPerson = (t: string) =>
+      `Ask a person to run dg ticket update ${t} --gate free before the next of ${t}, and wait for it (only a person can lower the quality gate level; an agent's call is rejected)`;
     expect(work.commands).toEqual([
       "dg --json --actor agent plan show p1",
-      "dg --json --actor agent ticket update t1 --gate free",
+      askPerson("t1"),
       "dg --json --actor agent next t1",
       "dg --json --actor agent next t2",
-      "dg --json --actor agent ticket update t3 --gate free",
+      askPerson("t3"),
       "dg --json --actor agent next t3",
     ]);
-    // high は段のないチケットと同じ段なので入れない
+    // 段を上げるのはエージェントが打てる。high は段のないチケットと同じ段なので入れない
     const high = await flow(ctx, { gate: "high", resume: checked.resume });
     expect(high.commands).toEqual([
       "dg --json --actor agent plan show p1",

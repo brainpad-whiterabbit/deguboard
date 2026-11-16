@@ -13,7 +13,7 @@ import { idKindOf, parseId } from "../model/id.js";
 import { peekRunningRuns } from "../run/record.js";
 import type { Store } from "../storage/store.js";
 import { judgeDecisions } from "../workflow/conditions.js";
-import { operationPolicy } from "../workflow/resolve.js";
+import { commandsRejectedForAgent, operationPolicy } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
 import { ticketsInIteration } from "./helpers.js";
 import { WEBVIEW_CONTRACT } from "./client.js";
@@ -163,9 +163,9 @@ export interface AskView {
   label: string;
   skill: string | null;
   format: AskFormat;
-  /** prompt はエージェントに貼る依頼文、command は人が打つ dg のコマンド（操作が 1 つに決まる頼むことで、その操作が actor.human_only に入っているか、Workflow が Status の動きを人に限るとき） */
+  /** prompt はエージェントに貼る依頼文、command は人が打つ dg のコマンド（操作が 1 つに決まる頼むことで、Workflow の governance がその操作を人に限るか、Workflow が Status の動きを人に限るとき） */
   kind: "prompt" | "command";
-  /** 当たった actor.human_only の操作 */
+  /** 当たった、Workflow の governance が人に限る（human_only の）操作のコマンド名 */
   human_only: string[];
   /** 当たった、Workflow が人に限る Status の動き（`t12: todo → abandoned`）。human_only とともに空なら kind は prompt */
   workflow_denied: string[];
@@ -329,7 +329,7 @@ function deniedMove(s: AskSubject, to: readonly string[]): string | undefined {
   return `${s.id}: ${s.status} → ${to.join("・")}`;
 }
 
-/** 人が打つ 1 手。check のどれかが actor.human_only に入っているか、denied があれば、頼むことを人に回す */
+/** 人が打つ 1 手。check のどれかを Workflow の governance がエージェントに拒むか、denied があれば、頼むことを人に回す */
 interface HumanStep {
   check: readonly string[];
   /** dg の出力なので、仮の値（`<title>` など）も英語で書き、依頼文の言語（lang）に合わせない。名前は dg の引数とオプションの名前にそろえる */
@@ -1390,7 +1390,7 @@ function humanSteps(action: AskAction, s: Subjects, w: Within | undefined): Huma
   return ACTIONS[action].human?.(s, w) ?? [];
 }
 
-/** 頼むことを人に回すか決めるときに actor.human_only と照らす操作の名前。名前が commands にあることをテストで確かめる */
+/** 頼むことを人に回すか決めるときに、エージェントに拒むコマンド（BuildAskInput の humanOnly）と照らす操作の名前。名前が commands にあることをテストで確かめる */
 export function askHumanChecks(action: AskAction, s: Subjects, within?: string): string[] {
   return humanSteps(action, s, withinOf(s, within)).flatMap((h) => h.check);
 }
@@ -1672,7 +1672,7 @@ export interface BuildAskInput {
   note?: string | undefined;
   /** 省けば skill。ask コマンドは省かれたら Skill の有無（askSkillInstalled）から決めて渡す */
   format?: AskFormat | undefined;
-  /** config の actor.human_only */
+  /** エージェントに拒むコマンドの名前（Workflow の governance が human_only の操作。workflow/resolve.ts の commandsRejectedForAgent） */
   humanOnly?: readonly string[] | undefined;
   /** 対象のチケットが入っている Iteration・Epic（詳細の中の行から頼むとき）。外すの候補が出る */
   within?: string | undefined;
@@ -1842,7 +1842,7 @@ export const ask = defineCommand({
   name: "ask",
   group: "ask",
   summary:
-    "Create request text to paste to an agent (read-only). From the kind and state of the targets, returns the candidate actions and the suggested one (first), and composes the text from the action, the instruction, the format (Skill or text only), and the language (fixed text in Japanese or English). For an action that comes down to one operation, if that operation is in actor.human_only, or the Workflow limits the move of the Status to people (a value of human_only), it returns the dg command for a person to run",
+    "Create request text to paste to an agent (read-only). From the kind and state of the targets, returns the candidate actions and the suggested one (first), and composes the text from the action, the instruction, the format (Skill or text only), and the language (fixed text in Japanese or English). For an action that comes down to one operation, if the Workflow limits that operation (governance: creating a ticket, closing or reopening an Epic) or the move of the Status to people (a value of human_only), it returns the dg command for a person to run",
   input: z.object({
     targets: z
       .array(z.string().min(1))
@@ -1904,7 +1904,8 @@ export const ask = defineCommand({
         action: input.action,
         note: input.note,
         format,
-        humanOnly: ctx.config.actor.human_only,
+        // Workflow が読めなければ空（依頼文を返し、操作のときに拒否される）
+        humanOnly: ctx.store.workflow ? commandsRejectedForAgent(ctx.store.workflow.resolved) : [],
         within: withinRef(ctx.store, input.within),
         place: input.place,
         language: input.language,

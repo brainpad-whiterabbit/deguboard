@@ -1,7 +1,9 @@
 // コマンド定義の形。CLI・HTTP・Webview はこの定義を写すだけで、ロジックを持たない（ADR-033）
 
 import type { z } from "zod";
-import { OperationError, UsageError } from "../errors.js";
+import { UsageError } from "../errors.js";
+import { commandOperation } from "../workflow/resolve.js";
+import { requireOperation, type PermissionInput } from "./permission.js";
 import {
   checkOutside,
   describeOutside,
@@ -65,7 +67,7 @@ export interface CommandDef<I extends z.ZodType, O> {
   positionals?: readonly string[] | undefined;
   /**
    * 入力がこれを満たすとき、入口（openContextFor）はストアを開かずに場所だけの文脈で呼ぶ（CommandContext の storeless）。
-   * 何度も呼ばれて待ちが効く操作のためにある（dg hook の PreToolUse。t554）。config を読まないので actor.human_only も検査しない
+   * 何度も呼ばれて待ちが効く操作のためにある（dg hook の PreToolUse。t554）。Workflow を読まないので governance も判定しない
    */
   storeless?(input: z.output<I>, env: Readonly<Record<string, string | undefined>>): boolean;
   /**
@@ -93,17 +95,12 @@ export function ok<O>(data: O, write?: WriteOutcome, warnings: string[] = []): C
 }
 
 /**
- * config の actor.human_only で、いまの主体に command が禁じられているか。人はいつでも許す。
- * runCommand の拒否と、claim が中で行う操作（iteration.add・iteration.start）の判定がここを使う
- */
-export function deniedToAgent(ctx: CommandContext, command: string): boolean {
-  return ctx.actor.kind !== "human" && ctx.config.actor.human_only.includes(command);
-}
-
-/**
  * 入力を検証してから実行する。形の誤りは UsageError（終了コード 2）。
- * config の actor.human_only に入ったコマンドは agent から拒否する（全入口がここを通るので検査は 1 か所）。
- * ストアを開いていない文脈（storeless）では config がないので検査しない。
+ * 名前だけで操作が決まるコマンド（workflow/resolve.ts の commandOperation：Core に固定の workflow set と、カンバンの管理の
+ * 起票・チケットを消す・Epic を閉じる/再開する）は、実行の前に Core の固定と Workflow の governance で判定し、通らなければ
+ * TRANSITION_REJECTED で止める（全入口がここを通るので検査は 1 か所）。入力とデータで決まる操作（チームの設定・担当の付け替え・
+ * 段を下げる）は、コマンドが同じ判定（permission.ts の requireOperation）を自分で呼ぶ。
+ * ストアを開いていない文脈（storeless）では Workflow がないので検査しない。
  * データのリポジトリに dg の外の変更（SY-7）があれば、書くコマンドは OUTSIDE_CHANGES で止め、読むだけのコマンドは警告を足す
  * （ストアを開かない文脈・初期化の前に動く needs: repo・検査を自分で扱うコマンドでは見ない）。
  * config が名指ししたデータのリモート（git.data_remote）がこのクローンになければ、済んだ操作に警告を足す（push の要る操作は書く前にエラーになる）。
@@ -119,12 +116,14 @@ export async function runCommand<I extends z.ZodType, O>(
     const { prettifyError } = await import("zod");
     throw new UsageError(`Invalid input for ${def.name}`, prettifyError(parsed.error));
   }
-  if (!ctx.storeless && deniedToAgent(ctx, def.name)) {
-    throw new OperationError(
-      "TRANSITION_REJECTED",
-      `${def.name} is limited to humans by the config (actor.human_only) (run it with --actor human)`,
+  const operation = ctx.storeless ? undefined : commandOperation(def.name);
+  if (operation)
+    requireOperation(
+      ctx,
+      operation,
+      parsed.data as PermissionInput,
+      `dg ${def.name.replace(".", " ")}`,
     );
-  }
   const check =
     ctx.storeless || def.needs === "repo" || def.ownsOutsideCheck
       ? undefined

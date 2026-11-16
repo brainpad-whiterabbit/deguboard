@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { asHuman } from "../../test/helpers/commands-context.js";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
 import { OperationError } from "../errors.js";
 import { resetGhCache } from "../git/facts.js";
@@ -133,7 +134,8 @@ async function prepared(autoMerge = true) {
   const actor = { kind: "agent" as const, user: "eiki" };
   const first = await openContext({ cwd: f.cloneA, initialize: {}, actor });
   await runCommand(init, first, {});
-  if (autoMerge) await runCommand(configSet, first, { key: "auto.merge", value: "true" });
+  // チームの設定を変えるのは、エージェントには人の承認が要る（governance.config）ので、準備は人の主体で書く
+  if (autoMerge) await runCommand(configSet, asHuman(first), { key: "auto.merge", value: "true" });
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, {
     title: "A",
@@ -324,12 +326,18 @@ describe("dg pr ready・dg pr merge（t545）", () => {
 
   it("品質ゲートを満たさない PR は、承認者を渡さなければ GATE_FAILED のままで人に聞く道を案内し、--approved-by を渡すと越えた条件を結果と PR のコメントに残してマージする（t884）", async () => {
     const { ctx, tip, calls, undraft } = await prepared();
-    // 見直しがなく、受け入れ条件に印がない（どちらも既定の merge.approval_overrides にある）
+    // 見直しがなく、受け入れ条件に印がない。auto.merge が true（聞かずに進める流れ）でも、承認者なしでは越えない
+    expect(ctx.config.auto.merge).toBe(true);
     await undraft();
     const unapproved = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
     expect(unapproved!.code).toBe("GATE_FAILED");
     expect(unapproved!.detail).toContain("acceptance:");
     expect(unapproved!.detail).toContain("review:");
+    expect(unapproved!.detail).toContain("it always needs a person's approval (fixed in Core");
+    // 人が呼んでも、承認者を渡さなければ越えない（いつも --approved-by を求め、承認者を PR に残す）
+    expect((await rejection(runCommand(prMerge, asHuman(ctx), { ticket: "t1" })))!.code).toBe(
+      "GATE_FAILED",
+    );
     // 人に gh を打ってもらう案内は出さず、人に聞いて承認者を渡す道を案内する
     expect(unapproved!.detail).toContain("ask whether to merge anyway");
     expect(unapproved!.detail).toContain("dg pr merge t1 --approved-by human");
@@ -349,47 +357,39 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     ]);
   });
 
-  it("config の merge.approval_overrides にない条件を満たさない PR は、--approved-by を渡しても GATE_FAILED のままで、その条件を満たすとマージする。一覧に入れられるのは越えられる条件だけ（t884）", async () => {
+  it("検査・見直し・手直しの回数・受け入れ条件のどれも満たさない PR も、人の承認で越えてマージし、越えた条件をすべて残す。config に残った merge.approval_overrides は読まない", async () => {
     const { ctx: first, calls, undraft } = await prepared();
-    // 衝突・先端・PR は一覧に入れられない
-    for (const value of ["mergeable", "head", "pr"])
-      expect(
-        await rejection(runCommand(configSet, first, { key: "merge.approval_overrides", value })),
-        value,
-      ).toBeDefined();
-    await runCommand(configSet, first, { key: "merge.approval_overrides", value: "review" });
+    const script = path.join(path.dirname(first.repo.topLevel), "failing-override-check.sh");
+    await writeFile(script, "#!/bin/sh\necho 落ちたテスト\nexit 1\n", { mode: 0o755 });
+    await runCommand(configSet, asHuman(first), { key: "actions.test", value: `sh, ${script}` });
+    // なくした設定が前の版の config.yaml に残っていても（越えてよい条件を空にしていても）、越えられる条件は変わらない
+    await runCommand(configSet, asHuman(first), { key: "merge.approval_overrides", value: [] });
     const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
+    // 重い指摘の出た見直しが上限を超え（review・fix_rounds）、受け入れ条件に印がなく（acceptance）、検査は落ちる（check）
+    const heavy = [{ severity: "heavy" as const, category: "bug", reason: "直っていない" }];
+    for (const offset of [60, 120, 180]) await reviewRound(ctx, offset, heavy);
     await undraft();
-    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
-    expect(err!.code).toBe("GATE_FAILED");
-    expect(err!.detail).toContain("A person's approval does not override acceptance");
-    expect(err!.detail).toContain("merge.approval_overrides lists: review;");
-    expect(err!.detail).not.toContain("ask whether to merge anyway");
-    expect(await calls()).toEqual([]);
-    // 承認者を渡さないときも、承認では越えられない条件があることを案内する
+    // 承認がなければ、ほかの条件を満たさないので検査は回さず、人に聞く道を案内する
     const unapproved = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
-    expect(unapproved!.detail).toContain("A person's approval does not override acceptance");
-    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    expect(unapproved!.code).toBe("GATE_FAILED");
+    expect(unapproved!.detail).toContain("the check (actions.test) was not run");
+    expect(unapproved!.detail).toContain("ask whether to merge anyway");
+    expect(unapproved!.detail).not.toContain("does not override");
+    expect(await calls()).toEqual([]);
+    // 承認があれば検査を回し（結果を事実として残す）、落ちた検査も越えてマージする
     const merged = await runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" });
-    expect(merged.data).toMatchObject({ approved_by: "eiki", overridden: ["review"] });
+    expect(merged.data).toMatchObject({ action: "merge", approved_by: "eiki" });
+    expect([...merged.data.overridden!].sort()).toEqual([
+      "acceptance",
+      "check",
+      "fix_rounds",
+      "review",
+    ]);
+    expect(merged.data.gate.conditions.find((c) => c.id === "check")).toMatchObject({ ok: false });
     expect((await calls()).length).toBe(2);
   });
 
-  it("承認で越えてよい条件が空なら、見直しが通っていない PR は承認者を渡しても GATE_FAILED で gh を呼ばない（t892）", async () => {
-    const { ctx: first, calls, undraft } = await prepared();
-    await runCommand(configSet, first, { key: "merge.approval_overrides", value: [] });
-    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
-    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
-    await undraft();
-    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
-    expect(err!.code).toBe("GATE_FAILED");
-    expect(err!.detail).toContain("review:");
-    expect(err!.detail).toContain("A person's approval does not override review");
-    expect(err!.detail).toContain("merge.approval_overrides lists: none;");
-    expect(await calls()).toEqual([]);
-  });
-
-  it("衝突（mergeable）・PR の先端（head）・draft は、既定の一覧でも --approved-by を渡しても越えられず、gh を呼ばない（t884）", async () => {
+  it("衝突（mergeable）・PR の先端（head）・draft は、--approved-by を渡しても越えられず、gh を呼ばない（t884）", async () => {
     const { ctx, calls, undraft, withoutHead, conflicting } = await prepared();
     // draft のまま
     const draft = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
@@ -413,39 +413,11 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(await calls()).toEqual([]);
   });
 
-  it("検査が一覧になければ、ほかの満たさない条件を承認で越えるときも検査を回し、通らなければ --approved-by を渡しても GATE_FAILED で止まる（t884）", async () => {
-    const { ctx: first, calls, undraft } = await prepared();
-    const script = path.join(path.dirname(first.repo.topLevel), "failing-override-check.sh");
-    await writeFile(script, "#!/bin/sh\necho 落ちたテスト\nexit 1\n", { mode: 0o755 });
-    await runCommand(configSet, first, { key: "actions.test", value: `sh, ${script}` });
-    await runCommand(configSet, first, {
-      key: "merge.approval_overrides",
-      value: "review, fix_rounds, acceptance",
-    });
-    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
-    await undraft();
-    // 承認がなければ、ほかの条件を満たさないので検査は回さない。回さなかった検査は越えられない条件に数えず、人に聞く道を案内する
-    const unapproved = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
-    expect(unapproved!.detail).toContain("the check (actions.test) was not run");
-    expect(unapproved!.detail).toContain("ask whether to merge anyway");
-    expect(unapproved!.detail).toContain("the approved merge runs it, and it must pass");
-    expect(unapproved!.detail).not.toContain("does not override");
-    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
-    expect(err!.code).toBe("GATE_FAILED");
-    expect(err!.detail).toContain("落ちたテスト");
-    expect(err!.detail).toContain("A person's approval does not override check");
-    expect(await calls()).toEqual([]);
-  });
-
-  it("検査が一覧になくても、回さなかっただけの検査は人に聞く道をふさがず、承認の後のマージで検査が回って通ればマージする（t884）", async () => {
+  it("回さなかっただけの検査は人に聞く道をふさがず、承認の後のマージで検査が回って通れば、越えた条件に check は入らない（t884）", async () => {
     const { ctx: first, calls, undraft } = await prepared();
     const script = path.join(path.dirname(first.repo.topLevel), "passing-override-check.sh");
     await writeFile(script, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-    await runCommand(configSet, first, { key: "actions.test", value: `sh, ${script}` });
-    await runCommand(configSet, first, {
-      key: "merge.approval_overrides",
-      value: "review, fix_rounds, acceptance",
-    });
+    await runCommand(configSet, asHuman(first), { key: "actions.test", value: `sh, ${script}` });
     const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
     await undraft();
     // 見直しがなく受け入れ条件に印がないので、承認がなければ検査は回らない（エージェントは検査を回して解消できない）
@@ -481,8 +453,8 @@ describe("dg pr ready・dg pr merge（t545）", () => {
 
   it("--method・--delete-branch を省けば config の merge.method・merge.delete_branch に従い、渡せばそちらを使う（t601）", async () => {
     const { ctx: first, tip, calls, undraft } = await prepared();
-    await runCommand(configSet, first, { key: "merge.method", value: "rebase" });
-    await runCommand(configSet, first, { key: "merge.delete_branch", value: "true" });
+    await runCommand(configSet, asHuman(first), { key: "merge.method", value: "rebase" });
+    await runCommand(configSet, asHuman(first), { key: "merge.delete_branch", value: "true" });
     const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
     await passedReview(ctx);
     await undraft();
@@ -583,7 +555,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
    */
   async function setupWorktreeMergeFails(setup: string[]) {
     const { ctx: first, calls, undraft, failMergeCall, mergedThenFail } = await prepared();
-    await runCommand(configSet, first, { key: "worktree.setup", value: setup });
+    await runCommand(configSet, asHuman(first), { key: "worktree.setup", value: setup });
     const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
     await passedReview(ctx);
     await undraft();
@@ -651,7 +623,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const { ctx: first, calls } = await prepared();
     const script = path.join(path.dirname(first.repo.topLevel), "failing-check.sh");
     await writeFile(script, "#!/bin/sh\necho 落ちたテスト\nexit 1\n", { mode: 0o755 });
-    await runCommand(configSet, first, { key: "actions.test", value: `sh, ${script}` });
+    await runCommand(configSet, asHuman(first), { key: "actions.test", value: `sh, ${script}` });
     const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
     await passedReview(ctx);
     const ready = await rejection(runCommand(prReady, ctx, { ticket: "t1" }));
@@ -666,7 +638,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const { ctx: first, calls, undraft } = await prepared();
     const script = path.join(path.dirname(first.repo.topLevel), "failing-merge-check.sh");
     await writeFile(script, "#!/bin/sh\necho 落ちたテスト\nexit 1\n", { mode: 0o755 });
-    await runCommand(configSet, first, { key: "actions.test", value: `sh, ${script}` });
+    await runCommand(configSet, asHuman(first), { key: "actions.test", value: `sh, ${script}` });
     const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
     await passedReview(ctx);
     await undraft();
@@ -855,7 +827,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
 
   it("free のチケットは見直しがなくても dg pr ready・dg pr merge が gh を呼び、受け入れ条件に印がなくても通る（t663）", async () => {
     const { ctx, tip, calls, undraft } = await prepared();
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "free" });
+    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "free" });
     const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(ready).toMatchObject({ pr: 7, action: "ready" });
     expect(ready.gate).toMatchObject({ gate: "free", passed: true });
@@ -868,7 +840,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
 
   it("low のチケットは見直しがなくても dg pr ready が gh を呼ぶが、受け入れ条件に印がなければ dg pr merge は GATE_FAILED で止まり、印を付けると通る（t663）", async () => {
     const { ctx, tip, calls, undraft } = await prepared();
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
+    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "low" });
     const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(ready.gate).toMatchObject({ gate: "low", passed: true });
     await undraft();
@@ -932,7 +904,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
 
   it("low のチケットで、別の clone から fetch されずに push されて PR の先端が作業ブランチの最新と違えば、dg pr merge は head を理由に GATE_FAILED で止まる（t750）", async () => {
     const { ctx, f, calls, undraft } = await prepared();
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
+    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "low" });
     await undraft();
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
     // 別の clone から push する。この clone は fetch しないので、追跡 ref（作業ブランチの最新）は古いまま
@@ -950,7 +922,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
 
   it("free のチケットで gh が PR の先端を返さなければ、dg pr merge は理由を head: で示して GATE_FAILED で止まる（判定できる条件がなくても理由が空にならない。t750）", async () => {
     const { ctx, calls, undraft, withoutHead } = await prepared();
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "free" });
+    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "free" });
     await undraft();
     await withoutHead();
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
@@ -972,7 +944,7 @@ describe("dg pr ready・dg pr merge の権限（境目の decide。WF-1）", () 
     return { ...p, human };
   }
   const setBoundary = (ctx: CommandContext, from: string, to: string, decide: string) =>
-    runCommand(workflowSet, ctx, { definition: { boundaries: [{ from, to, decide }] } });
+    runCommand(workflowSet, asHuman(ctx), { definition: { boundaries: [{ from, to, decide }] } });
   const mergeCall = (tip: string) => `pr merge 7 --squash --match-head-commit ${tip}`;
 
   it("既定（review → done は ask_unless_auto）：エージェントのマージは --approved-by がなければ拒否され gh を呼ばず、付ければ通る。人は聞かずに通る", async () => {
