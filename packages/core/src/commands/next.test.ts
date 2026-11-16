@@ -8,7 +8,10 @@ import { next, nextOf, stageOf, type NextStep, type StageFacts } from "./next.js
 import { planApprove, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
 import { configSet, init } from "./setup.js";
-import { ticketCreate, ticketShow, ticketUpdate, type TicketDetail } from "./ticket.js";
+import { ticketCreate, ticketMove, ticketShow, ticketUpdate, type TicketDetail } from "./ticket.js";
+import { workflowSet } from "./workflow.js";
+import { wipOverOf } from "../workflow/wip.js";
+import type { Ticket } from "../model/ticket.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -718,5 +721,76 @@ describe("dg next と ticket show の stage（EX-3）", () => {
 
   it("CLI・HTTP・MCP が写す一覧に next があり、読み取りだけ（write: false）", () => {
     expect(findCommand("next")).toMatchObject({ write: false, needs: "store" });
+  });
+});
+
+describe("列の WIP の上限（wipOverOf。WF-8）", () => {
+  const tickets = (...statuses: Ticket["status"][]) => statuses.map((status) => ({ status }));
+
+  it("上限を超えた列だけを返し、上限のない列は見ない。着手するときは in_progress が上限ちょうどでも超えるとみなす", () => {
+    const wip = { in_progress: 2, review: 1 };
+    expect(wipOverOf(tickets("in_progress", "in_progress", "todo", "todo"), wip)).toEqual([]);
+    expect(wipOverOf(tickets("in_progress", "in_progress"), wip, { starting: true })).toEqual([
+      { status: "in_progress", count: 2, limit: 2, at_limit: true },
+    ]);
+    // review は着手で増えないので、ちょうどなら超えない
+    expect(wipOverOf(tickets("review"), wip, { starting: true })).toEqual([]);
+    expect(wipOverOf(tickets("review", "review", "done", "done"), { ...wip, todo: 1 })).toEqual([
+      { status: "review", count: 2, limit: 1, at_limit: false },
+    ]);
+  });
+});
+
+describe("dg next の WIP の上限（WF-8）", () => {
+  async function board() {
+    const f = await createFixture();
+    cleanups.push(f.cleanup);
+    const actor = { kind: "human" as const, user: "eiki" };
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
+    const ctx = await openContext({ cwd: f.cloneA, actor });
+    for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
+    return ctx;
+  }
+  const nextOfT = async (ctx: Awaited<ReturnType<typeof board>>, ticket: string) => {
+    const result = await runCommand(next, ctx, { ticket });
+    return { step: result.data as NextStep, warnings: result.warnings };
+  };
+
+  it("上限を超える列があると、警告と先の列を進める手を先に返し、着手（claim）の手も返す", async () => {
+    const ctx = await board();
+    await runCommand(workflowSet, ctx, { definition: { wip: { in_progress: 1, review: 1 } } });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "in_progress" });
+    const { step, warnings } = await nextOfT(ctx, "t2");
+    expect(step.kind).toBe("implement");
+    expect(step.commands[0]).toBe(
+      "WIP limit (in_progress): rather than starting new work, first advance a ticket in a column further along (in_progress: t1) with dg --json --actor agent next <id>. Starting is not refused",
+    );
+    // 拒否しない：着手の手（claim）はそのまま残る
+    expect(step.commands.some((c) => c.includes("ticket claim t2"))).toBe(true);
+    expect(warnings).toContain(
+      "The In Progress column (in_progress) is at its WIP limit (1 of 1, wip in workflow.yaml), so starting another ticket goes over it",
+    );
+
+    // 着手しない手（そのチケット自身を先へ進める）は、警告だけで手を足さない
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "in_progress" });
+    const claimed = await nextOfT(ctx, "t1");
+    expect(claimed.step.kind).toBe("implement");
+    expect(claimed.step.commands.some((c) => c.startsWith("WIP limit"))).toBe(false);
+    expect(claimed.warnings).toContain(
+      "The In Progress column (in_progress) is over its WIP limit (2 for a limit of 1, wip in workflow.yaml)",
+    );
+  });
+
+  it("wip は config の work.parallel と別に扱い、work.parallel は今のまま読める", async () => {
+    const ctx = await board();
+    await runCommand(configSet, ctx, { key: "work.parallel", value: "1" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "in_progress" });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "in_progress" });
+    // wip を書かなければ既定（in_progress 5・review 3）で、work.parallel の 1 を超えても上限の警告は出ない
+    const fresh = await openContext({ cwd: ctx.repo.topLevel, actor: ctx.actor });
+    expect(fresh.config.work.parallel).toBe(1);
+    const { step, warnings } = await nextOfT(fresh, "t3");
+    expect(step.commands.some((c) => c.startsWith("WIP limit"))).toBe(false);
+    expect(warnings.some((w) => w.includes("WIP limit"))).toBe(false);
   });
 });

@@ -13,6 +13,7 @@ import { GATE_LEVELS, gateLevelOf, type GateLevel, type Ticket } from "../model/
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { agentDg as dg, sortedDocs, ticketsInIteration } from "./helpers.js";
+import { wipCheckOf } from "./next.js";
 
 /**
  * 流れの段階。飛ばせる段階（config の flow.skip）に、終わった Plan を閉じる close（規則 4 の一部で、飛ばせない）と、
@@ -593,7 +594,8 @@ export const flowNext = defineCommand({
     "Audited means a ticket with the label audit-<S> or release-<S> exists, or the audit was finished in this run. For a ticket or Plan target, <S> is the ticket's Iteration (only when it is a single one), and audit and release apply only when all tickets in that Iteration are finished. " +
     "Passing the returned resume to --resume in the next call marks the assignment, check, and audit that it returned as finished, and skips them. If resume is missing, unreadable, or for a different target, it starts again from assign and check. " +
     "When stopped without finishing a stage (such as stopping at the audit findings table), do not pass that resume (passing it would skip that stage). " +
-    "Stages in config's flow.skip are skipped without reading their rules. If the facts (tickets, Plans, Runs) have not changed for the same stage as the previous return, it returns stop. Returns the stage's section (guide), the commands to call (commands; with --gate, the work stage sets the level on tickets whose level differs before next), and whether approval is needed (approval; auto_ok says whether --auto chooses it without asking, following config's auto.decisions and auto.merge; decisions a person makes are not included). Writes nothing",
+    "Stages in config's flow.skip are skipped without reading their rules. If the facts (tickets, Plans, Runs) have not changed for the same stage as the previous return, it returns stop. Returns the stage's section (guide), the commands to call (commands; with --gate, the work stage sets the level on tickets whose level differs before next), and whether approval is needed (approval; auto_ok says whether --auto chooses it without asking, following config's auto.decisions and auto.merge; decisions a person makes are not included). " +
+    "When a column is over its WIP limit (wip in workflow.yaml), it warns the same way as dg next, and the work stage puts first in commands a step to advance tickets in the columns further along (starting is not refused). Writes nothing",
   input: z.object({
     targets: z
       .array(z.string().min(1))
@@ -656,6 +658,12 @@ export const flowNext = defineCommand({
       parts.map((p) => composeGuide(p.topic, ctx.config, ctx.repo.topLevel, p.sections)),
     );
     warnings.push(...guideTexts.flatMap((g) => g.warnings));
+    // 着手の手を返すのは、作業の段階に todo のチケットがあるときだけ（どれも着手済みなら上限ちょうどは超えない）
+    const starting =
+      stage.name === "work" &&
+      stage.tickets.some((id) => ctx.store.tickets.get(id as Ticket["id"])?.data.status === "todo");
+    const wip = wipCheckOf(ctx, starting);
+    warnings.push(...wip.warnings);
     const approval = approvalOf(stage.name, {
       auto,
       autoMerge: ctx.config.auto.merge,
@@ -672,17 +680,21 @@ export const flowNext = defineCommand({
         command: parts.map((p) => guideCommandOf(p.topic, p.sections)).join(" && "),
       },
       approval,
-      commands: commandsOf(
-        stage,
-        facts.iteration,
-        approval.auto_ok,
-        input.gate === undefined
-          ? undefined
-          : {
-              level: input.gate,
-              of: (id) => gateLevelOf(ctx.store.tickets.get(id as Ticket["id"])?.data),
-            },
-      ),
+      commands: [
+        // WIP の上限を超えた列があれば、作業の段階で着手する前に先の列を進める手を置く（要件 WF-8。拒否はしない。dg next と同じ判定）
+        ...(stage.name === "work" && wip.step !== null ? [wip.step] : []),
+        ...commandsOf(
+          stage,
+          facts.iteration,
+          approval.auto_ok,
+          input.gate === undefined
+            ? undefined
+            : {
+                level: input.gate,
+                of: (id) => gateLevelOf(ctx.store.tickets.get(id as Ticket["id"])?.data),
+              },
+        ),
+      ],
       ask_human:
         stage.name === "stop"
           ? `${stage.reason}. Show the state and stop. Starting again with the same target works it out again from the state`

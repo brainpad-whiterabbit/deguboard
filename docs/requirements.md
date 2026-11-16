@@ -152,7 +152,8 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - WF-4 同梱するのは既定の `workflow.yaml` を 1 つだけで、`dg init` が置く（既にあれば書き換えない）。進め方の違いは値を書き換えて表す
 - WF-5 Run の step の語彙（investigate・implement・review・fix・merge）と Run を開く操作（RN-5）は Core が持ち、`run start` は語彙にない step を拒否する。手続きは YAML に書かず、既定の手続きは Core が（EX-3）、各手のやり方は `dg guide` が持つ
 - WF-6 `dg workflow set` は `workflow.yaml` を作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す（細部は `dg workflow set --help`）。前の版の `workflows/` は読まず、`workflow.yaml` がないのに残っていれば警告する
-- WF-7 `boundaries` の `requires`・`decide` と `exceptions`・`flow`・`governance` の権限の値、`wip` の上限は、形を読んで検査するだけで、操作の判定にはまだ使わない
+- WF-7 `boundaries` の `requires`・`decide` と `exceptions`・`flow`・`governance` の権限の値は、形を読んで検査するだけで、操作の判定にはまだ使わない
+- WF-8 `wip` は列ごとのチケットの数の上限で、config の `work.parallel`（同時に動かすサブエージェントの数）とは別のもの。上限を超える列があると `dg next` と `dg flow next` は警告し、着手の手の前に先の列を進める手を返すが、着手は拒否しない（細部は `dg next --help`）
 
 ### 5.9 Run（`runs/`）
 
