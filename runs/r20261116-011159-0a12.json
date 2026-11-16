@@ -1,0 +1,35 @@
+{
+  "id": "r20261116-011159-0a12",
+  "ticket": "t1018",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-16T01:11:59Z",
+  "finished_at": "2026-11-16T01:17:55Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "usage.md と usage.ja.md が、remote に届かない項目にはボタンが出ないと書いている（実際は再確認と新規作成のボタンが出る）",
+    "README と README.ja.md と Walkthrough の init（英日）が、remote に届かない項目をボタンのない例に挙げている（実際はボタンが出る）"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 10808,
+    "cache_read": 874737,
+    "cache_write": 44906
+  },
+  "tools": {
+    "read": 8,
+    "search": 0,
+    "write": 8,
+    "bash": 12,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "a7884df3-26ef-47e6-acb0-c11fb658d062",
+  "review": null,
+  "waited_seconds": 0
+}
