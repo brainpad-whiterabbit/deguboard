@@ -12,12 +12,12 @@ import {
   agentSkillDirs,
   askSkillInstalled,
   buildSkills,
+  installSkill,
   skillSummary,
 } from "@deguboard/core";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
 import { readGuide } from "./guide.js";
 import { run } from "./program.js";
-import { installSkill } from "./skill.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -46,7 +46,7 @@ async function tempHome(): Promise<string> {
 
 /** 廃止した deguboard Skill の、配っていたときの中身（sha256 で見分ける） */
 const RETIRED_TEMPLATE = await readFile(
-  new URL("../test/fixtures/retired-deguboard-skill.md", import.meta.url),
+  new URL("../../core/test/fixtures/retired-deguboard-skill.md", import.meta.url),
   "utf8",
 );
 

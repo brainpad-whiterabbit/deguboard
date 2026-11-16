@@ -8,10 +8,12 @@ import {
   olderVersionOf,
   putSkill as put,
   SKILL_MARKER as MARKER,
+  skillFileOf,
   skillsDir,
   skillVersionOf,
   skillWrittenBy,
 } from "../../test/helpers/skills.js";
+import { runProcess } from "../git/index.js";
 import * as guide from "../guide/guide.js";
 import { GUIDE_TOPICS } from "../guide/topics.js";
 import { brief } from "./brief.js";
@@ -23,7 +25,9 @@ import {
   buildSkills,
   findMissingSkills,
   findStaleSkills,
+  installSkill,
   refreshInstalledSkills,
+  skillInstallWarnings,
   skillAgeOf,
   skillStateOf,
   staleSkillWarnings,
@@ -381,6 +385,132 @@ describe("VS Code 拡張が案内する、入れていない同梱の Skill（AG
     expect(await findMissingSkills({ folders: [], env: { HOME: home } })).toEqual([
       { scope: "personal", dir: skillsDir(home), missing: await without("dgwork") },
     ]);
+  });
+});
+
+describe("dg skill install の判定と書き込みと警告（AG-2・t1014）", () => {
+  // CLI（packages/cli/src/program.ts）は引数と結果を写すだけなので、書くファイル・消すファイル・.gitignore・警告の文をここで固定する
+  /** 廃止した deguboard Skill の、配っていたときの中身（sha256 で見分ける） */
+  const retiredTemplate = () =>
+    readFile(new URL("../../test/fixtures/retired-deguboard-skill.md", import.meta.url), "utf8");
+  const namesOf = async () => (await buildSkills()).map((s) => s.name);
+  const exists = (p: string) =>
+    access(p).then(
+      () => true,
+      () => false,
+    );
+
+  it("リポジトリでは、すべての Skill を書き、配ったままの廃止した Skill を消し、.claude/.gitignore に Skill ごとの無視の行を足す", async () => {
+    const top = await repoDir();
+    await put(top, "deguboard", await retiredTemplate());
+    // 利用者が自分で作った Skill は触らない
+    await put(top, "dgmine", "# mine\n");
+    const names = await namesOf();
+    const result = await installSkill({ cwd: top, scope: "project", env: {}, force: false });
+    const ignoreFile = path.join(top, ".claude", ".gitignore");
+    expect(result).toEqual({
+      scope: "project",
+      dir: skillsDir(top),
+      written: names,
+      updated: [],
+      unchanged: [],
+      conflicts: [],
+      retired: ["deguboard"],
+      retiredKept: [],
+      dryRun: false,
+      files: [],
+      ignoreFile,
+      tracked: [],
+    });
+    for (const skill of await buildSkills())
+      expect(await readFile(skillFileOf(top, skill.name), "utf8")).toBe(skill.content);
+    expect(await exists(path.join(skillsDir(top), "deguboard"))).toBe(false);
+    expect(await readFile(skillFileOf(top, "dgmine"), "utf8")).toBe("# mine\n");
+    expect(await readFile(ignoreFile, "utf8")).toBe(names.map((n) => `skills/${n}/\n`).join(""));
+    expect(skillInstallWarnings(result)).toEqual([]);
+    // 2 回目は書かず、行も足さない
+    const again = await installSkill({ cwd: top, scope: "project", env: {}, force: false });
+    expect(again).toMatchObject({ written: [], unchanged: names, retired: [], ignoreFile: null });
+  });
+
+  it("手を加えた Skill と廃止した Skill は残して警告し、--dry-run は書かず消さず、警告を「will not be」で書く", async () => {
+    const top = await repoDir();
+    await put(top, "dgwork", "hand-written\n");
+    await put(top, "deguboard", `${await retiredTemplate()}edited\n`);
+    const conflict = (tense: string) =>
+      `dgwork: it was edited by hand, so it ${tense} overwritten. To overwrite it, add --force. ` +
+      "Move the text you added out of SKILL.md into a document and insert it with dg config set guide.notes.work <path> (guide and the Skill keep receiving updates)";
+    const kept = (tense: string) =>
+      `deguboard: this Skill is retired, but it was edited by hand, so it ${tense} removed. Remove it yourself if you do not need it`;
+
+    const dry = await installSkill({
+      cwd: top,
+      scope: "project",
+      env: {},
+      force: false,
+      dryRun: true,
+    });
+    const names = await namesOf();
+    expect(dry).toMatchObject({
+      written: names.filter((n) => n !== "dgwork"),
+      conflicts: ["dgwork"],
+      retiredKept: ["deguboard"],
+      dryRun: true,
+      ignoreFile: null,
+    });
+    expect(dry.files.map((f) => f.path)).toEqual(
+      names.filter((n) => n !== "dgwork").map((n) => skillFileOf(top, n)),
+    );
+    expect(skillInstallWarnings(dry)).toEqual([conflict("will not be"), kept("will not be")]);
+    expect((await readdir(skillsDir(top))).sort()).toEqual(["deguboard", "dgwork"]);
+    expect(await exists(path.join(top, ".claude", ".gitignore"))).toBe(false);
+
+    const real = await installSkill({ cwd: top, scope: "project", env: {}, force: false });
+    expect(skillInstallWarnings(real)).toEqual([conflict("was not"), kept("was not")]);
+    expect(await readFile(skillFileOf(top, "dgwork"), "utf8")).toBe("hand-written\n");
+    // --force は手を加えた Skill を上書きするが、手を加えた廃止済みの Skill は消さない
+    const forced = await installSkill({ cwd: top, scope: "project", env: {}, force: true });
+    expect(forced).toMatchObject({
+      updated: ["dgwork"],
+      conflicts: [],
+      retiredKept: ["deguboard"],
+    });
+    expect(skillInstallWarnings(forced)).toEqual([kept("was not")]);
+  });
+
+  it("git が追跡している dg の Skill は、Skill のディレクトリごとに git rm -r --cached を案内する", async () => {
+    const top = await repoDir();
+    await installSkill({ cwd: top, scope: "project", env: {}, force: false });
+    await runProcess(top, "git", ["add", "-f", ".claude/skills"]);
+    const result = await installSkill({ cwd: top, scope: "project", env: {}, force: false });
+    const names = await namesOf();
+    expect(result.tracked).toEqual(names.map((n) => `.claude/skills/${n}/SKILL.md`).sort());
+    const dirs = names.map((n) => `.claude/skills/${n}`).sort();
+    expect(skillInstallWarnings(result)).toEqual([
+      `${names.length} dg Skill file(s) are tracked by git, so the ignore lines in .gitignore do not apply to them. ` +
+        `Each person installs the Skills with dg skill install. Stop tracking them at the repository root with git rm -r --cached ${dirs.join(" ")} and commit (the files stay on disk)`,
+    ]);
+  });
+
+  it("personal は HOME の下に書き、.gitignore を書かず、リポジトリの外でも動く", async () => {
+    const home = await tempDir();
+    const result = await installSkill({
+      cwd: home,
+      scope: "personal",
+      env: { HOME: home },
+      force: false,
+    });
+    expect(result).toMatchObject({
+      scope: "personal",
+      dir: skillsDir(home),
+      written: await namesOf(),
+      ignoreFile: null,
+      tracked: [],
+    });
+    expect(await exists(path.join(home, ".claude", ".gitignore"))).toBe(false);
+    await expect(
+      installSkill({ cwd: home, scope: "project", env: { HOME: home }, force: false }),
+    ).rejects.toThrow();
   });
 });
 
