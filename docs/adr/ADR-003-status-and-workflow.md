@@ -30,13 +30,13 @@
 `workflow.yaml` に書くのは、状態と、場面ごとの方針だけ。項目の一覧と形は requirements の 5.8 と Zod のスキーマ（`core/model/workflow.ts`）、既定の値は `core/workflow/resolve.ts` が正本。
 
 - `states`：5 つの Status の表示名
-- `boundaries`：前へ進む隣どうしの 3 つの境目（todo → in_progress → review → done）ごとの、越える条件 `requires` と、決める人の権限の値 `decide`。境目は増やせない
-- `exceptions`：流れの外の動き（abandon・back・reopen）の権限の値。名前で書き、`from`・`to` は書かせない
+- `boundaries`：前へ進む隣どうしの 3 つの境目ごとの、越える条件と、決める人の権限の値。境目は増やせない
+- `exceptions`：流れの外の動きの権限の値。名前で書き、`from`・`to` は書かせない
 - `wip`：列ごとの上限
-- `flow`：流れの段階ごとの権限の値と、プロジェクト独自の段階、流れから外す段階
+- `flow`：流れの段階ごとの権限の値
 - `governance`：カンバンの管理の操作ごとの権限の値
 
-権限の値は、どの場面も同じ語彙（human_only・always_ask・ask_unless_auto・anyone・agent_only）で書く。条件は組み込みの事実とその否定だけ（WF-2）。
+権限の値は、どの場面も同じ 1 つの語彙で書く（値は `core/model/workflow.ts` の `DECISIONS`）。条件は組み込みの事実とその否定だけ（WF-2）。
 
 書かないもの：
 

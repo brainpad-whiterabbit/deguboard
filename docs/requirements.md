@@ -144,14 +144,14 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.8 Workflow（`workflow.yaml`）
 
-Workflow はカンバンに 1 つで、チケットごとには選ばない。項目は状態 `states`・境目 `boundaries`・例外の動き `exceptions`・列の上限 `wip`・流れの段階 `flow`・カンバンの管理 `governance` の 6 つ。どの項目も省け、省いた項目は Core の既定になる（ファイルがなくても同じ）。今の値は `dg workflow show`、項目と形は `packages/core/src/model/workflow.ts`、既定は `packages/core/src/workflow/resolve.ts` が正本（理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）。
+Workflow はカンバンに 1 つで、チケットごとには選ばない。項目は状態 `states`・境目 `boundaries`・例外の動き `exceptions`・列の上限 `wip`・流れの段階 `flow`・カンバンの管理 `governance` の 6 つ。遷移の制約 `transitions`・照合 `reconcile`・任意の項目 `fields` は、6 つの項目に置き換えるまで前の形のまま読む（WF-1・WF-2・TK-4）。どの項目も省け、省いた項目は Core の既定になる（ファイルがなくても同じ）。今の値は `dg workflow show`、項目と形は `packages/core/src/model/workflow.ts`、既定は `packages/core/src/workflow/resolve.ts` が正本（理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）。
 
 - WF-1 Status は 5 つ（3. 用語）で、増やせず、変えられるのは `states` の表示名 `label` だけ。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。`transitions` は遷移に主体 `by`（`[]` で禁止）と条件 `requires`（AND）の制約を足すだけ（検査は ST-2）
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`・`branch_exists`・`branch_pushed`・`branch_merged`・`pr_open`・`pr_draft`・`pr_merged`）とその否定（`!pr_draft`）だけで、利用者のスクリプトは実行しない。`deps_done` は `depends_on` がすべて done か abandoned のとき真
 - WF-3 増やした Status・3 つでない境目・未知の値と条件と段階・重複などの誤りは、読み込み時と `dg workflow validate` で指摘し、誤りのある Workflow は使わない。未知の項目は警告にとどめる（検査の項目は `packages/core/src/workflow/validate.ts`）
 - WF-4 同梱するのは既定の `workflow.yaml` を 1 つだけで、`dg init` が置く（既にあれば書き換えない）。進め方の違いは値を書き換えて表す
 - WF-5 Run の step の語彙（investigate・implement・review・fix・merge）と Run を開く操作（RN-5）は Core が持ち、`run start` は語彙にない step を拒否する。手続きは YAML に書かず、既定の手続きは Core が（EX-3）、各手のやり方は `dg guide` が持つ
-- WF-6 `dg workflow set` は `workflow.yaml` を作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す（細部は `dg workflow set --help`）
+- WF-6 `dg workflow set` は `workflow.yaml` を作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す（細部は `dg workflow set --help`）。前の版の `workflows/` は読まず、`workflow.yaml` がないのに残っていれば警告する
 - WF-7 `boundaries` の `requires`・`decide` と `exceptions`・`flow`・`governance` の権限の値、`wip` の上限は、形を読んで検査するだけで、操作の判定にはまだ使わない
 
 ### 5.9 Run（`runs/`）

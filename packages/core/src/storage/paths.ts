@@ -21,7 +21,7 @@ export const iterationPath = (id: string): string => `${DIRS.iterations}/${id}.y
 export const planPath = (id: string): string => `${DIRS.plans}/${id}.yaml`;
 /** カンバンに 1 つの Workflow（要件 5.8）。なければ Core の既定で動く */
 export const WORKFLOW_FILE = "workflow.yaml";
-/** 前の版が Workflow を置いたディレクトリ（workflows/<id>.yaml）。読まない。残っていれば dg workflow set が消す */
+/** 前の版が Workflow を置いたディレクトリ（workflows/<id>.yaml）。読まない。workflow.yaml がないのに残っていれば読み込みが警告し、dg workflow set が消す */
 export const RETIRED_WORKFLOWS_DIR = "workflows";
 /** Run の完了時の集計 */
 export const runPath = (id: string): string => `${DIRS.runs}/${id}.json`;

@@ -49,6 +49,7 @@ import {
   epicPath,
   iterationPath,
   planPath,
+  RETIRED_WORKFLOWS_DIR,
   runPath,
   ticketPath,
   WORKFLOW_FILE,
@@ -490,7 +491,11 @@ export class Store {
       resolved: result.workflow,
     };
     this.workflow = entry;
-    this.issues = [...this.issues.filter((i) => i.path !== relPath), ...result.issues];
+    // workflow.yaml ができたので、前の版の workflows/ が残る警告（readWorkflow）も捨てる
+    this.issues = [
+      ...this.issues.filter((i) => i.path !== relPath && i.path !== RETIRED_WORKFLOWS_DIR),
+      ...result.issues,
+    ];
     return entry;
   }
 
@@ -592,7 +597,18 @@ export class Store {
         definition: { transitions: [], fields: [] },
         resolved: DEFAULT_WORKFLOW,
       };
-      return [];
+      // 前の版の workflows/<id>.yaml は読まないので、そこに書いた制約（by の制限など）は黙って既定に戻る。
+      // 移していないカンバンで気づけるように警告する（workflow.yaml を置けば、残りは workflow set が消す）
+      if ((await this.listFiles(RETIRED_WORKFLOWS_DIR)).length === 0) return [];
+      return [
+        {
+          severity: "warning",
+          code: "retired_workflows_dir",
+          path: RETIRED_WORKFLOWS_DIR,
+          message:
+            "workflows/ is no longer read, and there is no workflow.yaml: the board runs on the default Workflow, without the limits written in workflows/. Move the values you use into one workflow.yaml with `dg workflow set` (it also removes workflows/)",
+        },
+      ];
     }
     const { entry, issues } = await cached(WORKFLOW_FILE, () => this.loadWorkflow());
     this.workflow = entry;

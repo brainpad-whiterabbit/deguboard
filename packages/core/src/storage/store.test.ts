@@ -285,7 +285,7 @@ describe("Store", () => {
     expect((await Store.open(root)).workflow).toEqual(store.workflow);
   });
 
-  it("前の版の workflows/ は読まない。チケットの workflow も Workflow を選ばない", async () => {
+  it("前の版の workflows/ は読まない。チケットの workflow も Workflow を選ばない。workflow.yaml がない間は workflows/ が残ることを警告する", async () => {
     const root = await fixture({
       "tickets/t1.md": ticketText("t1", "workflow: custom\n"),
       "workflows/custom.yaml":
@@ -293,10 +293,24 @@ describe("Store", () => {
       "workflows/broken.yaml": "id: [\n",
     });
     const store = await Store.open(root);
-    expect(store.issues).toEqual([]);
+    // 中身は読まない（壊れたファイルも指摘しない）。by の制限が黙って既定に戻るので、残っていることだけを警告する
+    expect(store.issues).toEqual([
+      {
+        severity: "warning",
+        code: "retired_workflows_dir",
+        path: "workflows",
+        message: expect.stringContaining("dg workflow set"),
+      },
+    ]);
     expect(store.workflow).toMatchObject({ exists: false, resolved: DEFAULT_WORKFLOW });
     expect(store.tickets.get("t1")?.data.workflow).toBe("custom");
     expect(checkReferences(store)).toEqual([]);
+
+    // workflow.yaml を置けば警告は消える（残った workflows/ は workflow set が消す）
+    await writeFile(path.join(root, "workflow.yaml"), "wip:\n  review: 1\n");
+    await store.rescan();
+    expect(store.issues).toEqual([]);
+    expect(store.workflow?.exists).toBe(true);
   });
 
   it("config は既定値で補われ、部分的に書き換えられる", async () => {

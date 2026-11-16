@@ -217,9 +217,9 @@ const DEFAULT_RETRO_PERSPECTIVES: Record<string, RetroPerspective> = {
 
 export const configSchema = z.looseObject({
   default_workflow: described(slugSchema.default("general"), {
-    summary: "Workflow of tickets that name none",
+    summary: "Kept for compatibility. It no longer selects a Workflow",
     description:
-      "Workflow of tickets that have no workflow of their own (a ticket's workflow overrides it)",
+      "Kept for compatibility. It no longer selects a Workflow (the board has one workflow.yaml)",
   }),
   git: z
     .looseObject({

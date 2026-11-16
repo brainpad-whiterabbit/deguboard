@@ -712,11 +712,11 @@ Default Workflow
 default_workflow
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Setting default_workflow)
-Workflow of tickets that name none
+Kept for compatibility. It no longer selects a Workflow
 [value] general
 When empty: Returns to the default (in personal settings, to the team's value)
 Details
-Workflow of tickets that have no workflow of their own (a ticket's workflow overrides it)
+Kept for compatibility. It no longer selects a Workflow (the board has one workflow.yaml)
 Criteria for priority high
 priority.high
 [title] Default: User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets

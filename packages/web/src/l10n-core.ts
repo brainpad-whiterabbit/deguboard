@@ -72,8 +72,8 @@ const GUIDE_NOTES_TEXT =
  */
 export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   // default_workflow
-  "Workflow of tickets that have no workflow of their own (a ticket's workflow overrides it)": {
-    ja: "自分の workflow を持たないチケットの Workflow（チケットの workflow が優先する）",
+  "Kept for compatibility. It no longer selects a Workflow (the board has one workflow.yaml)": {
+    ja: "互換のために残している。Workflow は選ばない（Workflow はカンバンに 1 つの workflow.yaml）",
   },
   // git.remote
   "Git remote of the code (work branches and pull requests). The kanban data also syncs with it unless git.data_remote is set":
@@ -244,7 +244,9 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
 
   // --- 要約（summary）。説明と同じ文の項目（git.base_branch）は上の行が兼ねる ---
   // default_workflow
-  "Workflow of tickets that name none": { ja: "workflow を持たないチケットの Workflow" },
+  "Kept for compatibility. It no longer selects a Workflow": {
+    ja: "互換のために残している。Workflow は選ばない",
+  },
   // git.remote
   "Git remote of the code (work branches and pull requests)": {
     ja: "コードのリモート（作業ブランチと PR）",

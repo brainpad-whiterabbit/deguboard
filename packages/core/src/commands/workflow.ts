@@ -39,12 +39,15 @@ export const workflowValidate = defineCommand({
   name: "workflow.validate",
   group: "workflow",
   summary:
-    "Show problems in workflow.yaml (unknown items, values, conditions and stages, Statuses that do not exist, boundaries other than the three, duplicates). An unknown item is only a warning",
+    "Show problems in workflow.yaml (unknown items, values, conditions and stages, Statuses that do not exist, boundaries other than the three, duplicates). An unknown item is only a warning. It also warns when the workflows/ directory of earlier versions remains and there is no workflow.yaml",
   input: z.object({}),
   write: false,
   needs: "store",
   async run(ctx) {
-    const issues = ctx.store.issues.filter((i) => i.path === WORKFLOW_FILE);
+    // 前の版の workflows/ が残る警告（storage/store.ts）も、Workflow の指摘としてここに出す
+    const issues = ctx.store.issues.filter(
+      (i) => i.path === WORKFLOW_FILE || i.path === RETIRED_WORKFLOWS_DIR,
+    );
     return ok({
       ok: issues.every((i) => i.severity !== "error"),
       exists: ctx.store.workflow?.exists ?? true,

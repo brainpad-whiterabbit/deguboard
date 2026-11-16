@@ -252,6 +252,13 @@ describe("workflow set", () => {
     await ctx.store.rescan();
     // workflows/ は読まない：workflow.yaml がないので Core の既定で動く
     expect(ctx.store.workflow).toMatchObject({ exists: false, resolved: DEFAULT_WORKFLOW });
+    // 残っている間は workflow validate が警告し、workflow set を案内する（誤りではないので ok のまま）
+    const stale = await runCommand(workflowValidate, ctx, {});
+    expect(stale.data).toMatchObject({ ok: true, exists: false });
+    expect(stale.data.issues.map((i) => [i.severity, i.code, i.path])).toEqual([
+      ["warning", "retired_workflows_dir", "workflows"],
+    ]);
+    expect(stale.data.issues[0]?.message).toContain("dg workflow set");
 
     const r = await runCommand(workflowSet, ctx, { definition: { wip: { review: 1 } } });
     expect(r.data).toMatchObject({ created: true, changed: ["wip"], removed: "workflows" });
@@ -259,6 +266,7 @@ describe("workflow set", () => {
     expect(await gitOut(ctx, ["log", "-1", "--format=%s"])).toBe("Create workflow.yaml");
     expect(await gitOut(ctx, ["status", "--porcelain"])).toBe("");
     expect(await gitOut(ctx, ["ls-files", "workflows"])).toBe("");
+    expect((await runCommand(workflowValidate, ctx, {})).data.issues).toEqual([]);
   });
 
   it("WF-3 の誤りと形の誤りは何も書かずに拒否し、指摘を detail に返す", async () => {

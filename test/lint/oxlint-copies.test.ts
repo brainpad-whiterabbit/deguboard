@@ -39,7 +39,7 @@ describe(".oxlintrc.json の制限の写し", () => {
     ]);
   });
 
-  it("core/src の actions と index.ts 以外の項目は、actions の禁止を持つ override の files にすべてある", async () => {
+  it("core/src の actions 以外の項目は、actions の禁止を持つ override の files にすべてある", async () => {
     const { overrides } = await readConfig();
     const actionsRegex = "^\\.\\.?/(\\.\\./)*actions(/|$)";
     const actionsBanned = overrides.filter((o) => {
@@ -49,7 +49,7 @@ describe(".oxlintrc.json の制限の写し", () => {
     const covered = actionsBanned.flatMap((o) => o.files);
     const entries = await readdir(join(ROOT, "packages/core/src"), { withFileTypes: true });
     const targets = entries
-      .filter((e) => e.name !== "actions" && e.name !== "index.ts")
+      .filter((e) => e.name !== "actions")
       .map((e) => `packages/core/src/${e.name}${e.isDirectory() ? "/**" : ""}`);
     expect(targets.length).toBeGreaterThan(0);
     expect(targets.filter((t) => !covered.includes(t))).toEqual([]);

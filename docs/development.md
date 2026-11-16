@@ -47,7 +47,7 @@ mise run dg -- guide done      # マージ後の後始末
   cd ../deguboard.worktrees/<ブランチ名> && mise trust && mise run setup
   ```
 
-- PR は `gh pr create --base main` で出し、本文にチケットの ID（`t12`）を書く。このリポジトリの Workflow は software-development なので、PR が開けば `dg sync` が review に、squash マージされれば done に進める（`gh` が要る）
+- PR は `gh pr create --base main` で出し、本文にチケットの ID（`t12`）を書く。カンバンの Workflow（`workflow.yaml`。なければ既定）の照合で、PR が開けば `dg sync` が review に、squash マージされれば done に進める（`gh` が要る）
 - 画面の見た目を変える PR は、変えた画面のスクリーンショットを本文に載せる。左パネルとパネルの画面は `mise run test:vscode` が VS Code の実機でライトとダークを `test/vscode/screenshots/` に出したものを既定とする（「`packages/vscode`」の節。ほかの画面を撮るときは `test/vscode/sidebar.vscode.ts` に操作を足す。導入のチェックリストは dg init していないフォルダが要るので `test/vscode/onboarding.vscode.ts`）。`dg serve` で撮るのは VS Code を起動できないときだけとし、Playwright MCP で一時リポジトリの `dg serve` を `?surface=` の配置で開き（「`packages/web`」の節）、ライトとダーク（`browser_emulate_media` の `colorScheme`）で撮る。幅の目安は sidebar が 360×800、panel が 960×800。画像は orphan ブランチ `pr-screenshots` の `<チケット ID>/` に置く（作業ブランチに入れると squash で `main` に入る）
 
   ```sh
