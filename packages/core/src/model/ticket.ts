@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   isoDateTime,
   isTerminal,
-  slugSchema,
+  RETIRED_PROJECT_KEYS,
   STATUSES,
   statusSchema,
   type Status,
@@ -56,7 +56,13 @@ export function gateScopeOf(level: GateLevel): GateScope {
  */
 export const BRANCH_VALUE_MAX = 50;
 
-// スキーマにないキーは looseObject で残す（DT-2）。Workflow の fields の値もここを通る
+/**
+ * チケットが前に持っていたキー。読むときは値に出さず、書くたびにファイルから消す（Store の retired）。
+ * workflow はチケットごとに Workflow を選んでいたときの名前（Workflow はカンバンに 1 つ。requirements.md 5.8）
+ */
+export const RETIRED_TICKET_KEYS = [...RETIRED_PROJECT_KEYS, "workflow"] as const;
+
+// スキーマにないキーは looseObject で残す（DT-2）。前の版の任意フィールドの値も、スキーマにないキーとして残る
 const ticketFrontmatter = z.looseObject({
   id: ticketIdSchema,
   title: z.string().min(1),
@@ -68,7 +74,6 @@ const ticketFrontmatter = z.looseObject({
   iteration: iterationIdSchema.optional(),
   epic: epicIdSchema.optional(),
   depends_on: z.array(ticketIdSchema).default([]),
-  workflow: slugSchema.optional(),
   /** 起票者。`eiki` か `eiki/agent`（TK-7）。古いファイルにはない */
   created_by: z.string().optional(),
   /** 担当者。claim で付き、todo / abandoned で消える（ST-3、ST-8） */
@@ -106,9 +111,9 @@ const ticketFrontmatter = z.looseObject({
   created_at: isoDateTime,
   updated_at: isoDateTime,
 });
-// やめた project は値に出さない（common.ts の RETIRED_PROJECT_KEYS）
+// やめた project・workflow は値に出さない（RETIRED_TICKET_KEYS）
 export const ticketSchema = ticketFrontmatter.transform(
-  ({ claimed_by, project: _project, ...t }) => {
+  ({ claimed_by, project: _project, workflow: _workflow, ...t }) => {
     const assignee = t.assignee ?? claimed_by;
     return assignee === undefined ? t : { ...t, assignee };
   },

@@ -13,7 +13,6 @@ import {
   type CustomStageDefinition,
   type Decision,
   type ExceptionMove,
-  type FieldDefinition,
   type FlowDecidedStage,
   type GovernanceOperation,
   type WorkflowDefinition,
@@ -65,7 +64,6 @@ export interface ResolvedWorkflow {
   governance: Record<GovernanceOperation, Decision>;
   transitions: readonly TransitionConstraint[];
   reconcile: readonly ReconcileRule[];
-  fields: readonly FieldDefinition[];
 }
 
 // ---- Core の既定（省いた項目の値。dg init が置く既定の workflow.yaml も同じ値を書く） ----
@@ -183,13 +181,12 @@ export function resolveWorkflow(def: WorkflowDefinition): ResolvedWorkflow {
     reconcile:
       def.reconcile?.map((r) => ({ when: r.when as Condition[], status: r.status })) ??
       DEFAULT_RECONCILE,
-    fields: def.fields,
   };
 }
 
 /**
  * 補った Workflow を workflow.yaml に書く形に戻す（どの項目も書いた形。dg workflow show の definition）。
- * 前の形のまま読む 3 つ（transitions・reconcile・fields）も入れる
+ * 前の形のまま読む 2 つ（transitions・reconcile）も入れる
  */
 export function writtenForm(wf: ResolvedWorkflow): WorkflowDefinitionInput {
   return {
@@ -210,21 +207,20 @@ export function writtenForm(wf: ResolvedWorkflow): WorkflowDefinitionInput {
       ...(t.by ? { by: [...t.by] } : {}),
     })),
     reconcile: wf.reconcile.map((r) => ({ when: [...r.when], status: r.status })),
-    fields: [...wf.fields],
   };
 }
 
 /**
  * dg init が置く既定の workflow.yaml。6 つの項目を Core の既定の値で書く（書き換える場所が見えるように）。
- * 前の形のまま読む 3 つは書かない（省けば既定）
+ * 前の形のまま読む 2 つは書かない（省けば既定）
  */
 export function defaultWorkflowFile(): WorkflowDefinitionInput {
-  const { transitions: _t, reconcile: _r, fields: _f, ...items } = writtenForm(DEFAULT_WORKFLOW);
+  const { transitions: _t, reconcile: _r, ...items } = writtenForm(DEFAULT_WORKFLOW);
   return items;
 }
 
 /** workflow.yaml がないとき（どの項目も省いたとき）の Workflow */
-export const DEFAULT_WORKFLOW: ResolvedWorkflow = resolveWorkflow({ transitions: [], fields: [] });
+export const DEFAULT_WORKFLOW: ResolvedWorkflow = resolveWorkflow({ transitions: [] });
 
 /** from → to に Workflow が書いた制約。なければ undefined（自由な遷移） */
 export function findConstraint(

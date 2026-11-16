@@ -15,7 +15,7 @@ export const workflowShow = defineCommand({
   name: "workflow.show",
   group: "workflow",
   summary:
-    "Show the board's Workflow (workflow.yaml). definition has every item with the items the file omits filled in from the defaults (states, boundaries, exceptions, wip, flow, governance, and transitions, reconcile, fields), in the shape dg workflow set takes. exists is false when there is no workflow.yaml, and everything is then the default. transitions are the constraints composed for each from→to: a transition that is not written is allowed for anyone without conditions. default_labels are the Status labels when states is omitted, and steps are the Run steps, which dg fixes",
+    "Show the board's Workflow (workflow.yaml). definition has every item with the items the file omits filled in from the defaults (states, boundaries, exceptions, wip, flow, governance, and transitions, reconcile), in the shape dg workflow set takes. exists is false when there is no workflow.yaml, and everything is then the default. transitions are the constraints composed for each from→to: a transition that is not written is allowed for anyone without conditions. default_labels are the Status labels when states is omitted, and steps are the Run steps, which dg fixes",
   input: z.object({}),
   write: false,
   needs: "store",

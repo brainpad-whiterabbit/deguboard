@@ -371,11 +371,10 @@ describe("画面", () => {
   const statusOptions = () =>
     [...(screen.getByLabelText("Status") as HTMLSelectElement).options].map((o) => o.value);
 
-  it("エディタのパネルの Status の選択は、カンバンの 1 つの Workflow（workflow.yaml）の遷移で絞り、by が空の遷移の先を出さない。表示名は states の label で、任意フィールドのラベルは書いたまま出す", async () => {
+  it("エディタのパネルの Status の選択は、カンバンの 1 つの Workflow（workflow.yaml）の遷移で絞り、by が空の遷移の先を出さない。表示名は states の label で出す", async () => {
     window.location.hash = "#/tickets/t9";
     const data = fixture({ tickets: [ticket({ id: "t9", title: "別の流れ" })] });
     data.workflow = {
-      definition: { fields: [{ id: "estimate", label: "Estimate", type: "number" }] },
       labels: { ...data.workflow.labels, todo: "Backlog" },
       transitions: [{ from: "todo", to: "done", by: [], requires: [] }],
     };
@@ -389,29 +388,18 @@ describe("画面", () => {
     const head = document.querySelector(".detail-meta-status")!;
     expect(head.textContent).toBe("Backlog");
     expect(head.querySelector(".status-dot")!.getAttribute("aria-label")).toBe("Backlog");
-    // 任意フィールドのラベルは人が書いた文なので、訳の表にある文でも訳さない
-    expect(screen.getByText("なし", { selector: "dt" }).nextElementSibling!.textContent).toContain(
-      "Estimate",
-    );
   });
 
-  it.each([
-    ["workflow を持たない", undefined],
-    ["workflow を持つ", "strict"],
-  ])(
-    "%sチケットもカンバンの Workflow で出し、Workflow は一覧と一緒に ID なしで 1 度だけ読む（チケット詳細で引き直さない）",
-    async (_, workflow) => {
-      window.location.hash = "#/tickets/t3";
-      const client = mockClient();
-      if (workflow) client.data.tickets[2]!.workflow = workflow;
-      mount(client, hostOf("panel"));
-      await screen.findByRole("heading", { level: 1, name: "画面" });
-      expect(statusOptions()).toEqual(["todo", "in_progress", "review", "done", "abandoned"]);
-      const shows = client.calls.filter((c) => c.name === "workflow.show");
-      expect(shows).toHaveLength(1);
-      expect(shows[0]!.input ?? {}).toEqual({});
-    },
-  );
+  it("チケットはカンバンの Workflow で出し、Workflow は一覧と一緒に ID なしで 1 度だけ読む（チケット詳細で引き直さない）", async () => {
+    window.location.hash = "#/tickets/t3";
+    const client = mockClient();
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: "画面" });
+    expect(statusOptions()).toEqual(["todo", "in_progress", "review", "done", "abandoned"]);
+    const shows = client.calls.filter((c) => c.name === "workflow.show");
+    expect(shows).toHaveLength(1);
+    expect(shows[0]!.input ?? {}).toEqual({});
+  });
 
   it("エディタのパネルのチケット詳細は、編集のボタンを出し、作成・更新を手元時刻で今年なら年を省いて出し、値のない属性を「なし」の 1 行にまとめる", async () => {
     // 作成（2026-01-01）が今年になるよう、今を 2026 年にする
@@ -451,7 +439,6 @@ describe("画面", () => {
         ticket({ id: "t9", title: "分け", iteration: "s1", assignee: "eiki", branch: "feat/x" }),
       ],
     });
-    data.workflow.definition.fields = [{ id: "size", label: "規模", type: "string" }];
     mount(mockClient(data), hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: "分け" });
     const aside = document.querySelector(".detail > aside")!;
@@ -771,7 +758,7 @@ describe("画面", () => {
     it("優先度の判断基準が読めていないときは、選択の説明（hint）が空になる", async () => {
       window.location.hash = "#/tickets/t3";
       const client = mockClient();
-      client.handlers["config.show"] = () => ({ default_workflow: "software-development" });
+      client.handlers["config.show"] = () => ({});
       mount(client, hostOf("panel"));
       await screen.findByRole("heading", { level: 1, name: "画面" });
       fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
@@ -905,38 +892,14 @@ describe("画面", () => {
       );
     });
 
-    it("任意フィールドは型に合わせた値で fields にその 1 つだけを渡し、空にすると外す", async () => {
+    it("前の版の任意フィールドの値がチケットに残っていても、属性の行にも「なし」の行にも出さない", async () => {
       const data = fixture({
         tickets: [ticket({ id: "t3", title: "画面", size: 3 } as Parameters<typeof ticket>[0])],
       });
-      data.workflow.definition.fields = [
-        { id: "size", label: "規模", type: "number" },
-        { id: "kind", label: "種類", type: "enum", options: ["bug", "feature"] },
-      ];
-      const { updates } = await open(data);
-      fireEvent.click(screen.getByRole("button", { name: "規模を変える" }));
-      const size = screen.getByLabelText("規模") as HTMLInputElement;
-      expect(size.type).toBe("number");
-      fireEvent.change(size, { target: { value: "5" } });
-      fireEvent.keyDown(size, { key: "Enter" });
-      await waitFor(() => expect(updates()).toEqual([{ ticket: "t3", fields: { size: 5 } }]));
-
-      fireEvent.click(screen.getByRole("button", { name: "＋足す" }));
-      fireEvent.change(screen.getByLabelText("値を入れる属性"), {
-        target: { value: "field:kind" },
-      });
-      fireEvent.change(screen.getByLabelText("種類"), { target: { value: "bug" } });
-      await waitFor(() =>
-        expect(updates().at(-1)).toEqual({ ticket: "t3", fields: { kind: "bug" } }),
-      );
-
-      fireEvent.click(screen.getByRole("button", { name: "規模を変える" }));
-      const cleared = screen.getByLabelText("規模");
-      fireEvent.change(cleared, { target: { value: "" } });
-      fireEvent.keyDown(cleared, { key: "Enter" });
-      await waitFor(() =>
-        expect(updates().at(-1)).toEqual({ ticket: "t3", fields: { size: null } }),
-      );
+      await open(data);
+      const aside = document.querySelector(".detail > aside")!;
+      expect(aside.textContent).not.toContain("size");
+      expect(screen.queryByRole("button", { name: "sizeを変える" })).toBeNull();
     });
 
     it("閉じた選択で ↓ を押しても保存せず、Enter で確定する", async () => {
@@ -1371,7 +1334,7 @@ describe("画面", () => {
   it("拡張ホストから toggle の event が来ると、設定画面と来る前の画面を切り替える（ビューのタイトル行の歯車）", async () => {
     const client = mockClient();
     client.handlers["config.show"] = () => {
-      const config = { default_workflow: "software-development" };
+      const config = {};
       return { config, team: config, local: {}, fields: [] };
     };
     window.location.hash = "#/backlog";

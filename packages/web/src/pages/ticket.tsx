@@ -1,6 +1,6 @@
 // チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧と、経過（deguboard ブランチの履歴）。
 // 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。
-// Status の選択・表示名と任意フィールドは、カンバンの Workflow（store.workflow）で決める。
+// Status の選択と表示名は、カンバンの Workflow（store.workflow）で決める。
 // VS Code のパネルに出し、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
 // 依存先が終わっていなければ本文の上の帯で知らせる（右の列の下の知らせは見落とす）。
 // 右の列（属性）は components/ticket-props-panel.tsx（値を押してその場で直す）。編集のボタンはタイトルと本文だけを入力欄にする。
@@ -32,7 +32,6 @@ export function TicketPage({ id }: { id: string }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [pendingCheck, setPendingCheck] = useState<AcceptanceToggle["pending"]>(null);
   const workflow = store.workflow;
-  const fields = workflow?.definition.fields ?? [];
   const labelOf = store.labelOf;
 
   if (error) return <p className="error">{error}</p>;
@@ -171,7 +170,6 @@ export function TicketPage({ id }: { id: string }) {
         <PanelProps
           store={store}
           ticket={ticket}
-          fields={fields}
           workflow={workflow}
           labelOf={labelOf}
           setTicket={setTicket}

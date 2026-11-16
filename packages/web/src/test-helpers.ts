@@ -173,7 +173,6 @@ export function fixture(partial: Partial<Fixture> = {}): Fixture {
     iterations: [],
     plans: [],
     workflow: {
-      definition: { fields: [] },
       labels: {
         todo: "Todo",
         in_progress: "In Progress",
@@ -277,7 +276,6 @@ export function mockClient(data = fixture()): MockClient {
   const handlers: MockClient["handlers"] = {
     "config.show": (input) => {
       const config = {
-        default_workflow: "general",
         priority: {
           high: "利用者に見える不具合・ほかのチケットを止めている",
           medium: "機能の追加と改善・テストの抜け",

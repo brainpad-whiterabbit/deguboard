@@ -202,7 +202,6 @@ describe("優先度の印", () => {
     const mediumJa = DEFAULT_VALUES[mediumDefault]!.ja!;
     // high は日本語の既定（前の既定の写し）を config.yaml に書いたリポジトリ。medium は既定のまま
     const config = {
-      default_workflow: "software-development",
       priority: { high: highJa, medium: mediumDefault, low: "Our own criteria" },
     };
     const titlesIn = async (language: "ja" | "en") => {

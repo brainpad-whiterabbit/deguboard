@@ -1015,7 +1015,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "Point out missing or empty recommended body sections (## Summary and ## Acceptance criteria; the Japanese headings ## 概要 and ## 受け入れ条件 are also read), values that do not fit the Workflow's fields, unfinished tickets left in a closed Epic, tickets that moved past todo or abandoned without being in an Iteration when lint.require_iteration is true (except done tickets in closed Epics), open Epics and Plans whose tickets are all finished, cycles across an open Plan's after and depends_on, and two or more active Iterations. Gaps in implementation and fix Runs (an agent got to a PR with no implementation Run, a commit after a closed implementation Run that falls within no Run's window, or a commit after a review with no fix Run) only look at unfinished tickets and done tickets in Iterations that are not closed. Unchecked acceptance criteria on done tickets are not flagged",
+    "Point out missing or empty recommended body sections (## Summary and ## Acceptance criteria; the Japanese headings ## 概要 and ## 受け入れ条件 are also read), unfinished tickets left in a closed Epic, tickets that moved past todo or abandoned without being in an Iteration when lint.require_iteration is true (except done tickets in closed Epics), open Epics and Plans whose tickets are all finished, cycles across an open Plan's after and depends_on, and two or more active Iterations. Gaps in implementation and fix Runs (an agent got to a PR with no implementation Run, a commit after a closed implementation Run that falls within no Run's window, or a commit after a review with no fix Run) only look at unfinished tickets and done tickets in Iterations that are not closed. Unchecked acceptance criteria on done tickets are not flagged",
   input: z.object({}),
   write: false,
   needs: "store",
@@ -1036,27 +1036,6 @@ export const lint = defineCommand({
         );
       else if (acceptance.length === 0)
         warn(doc.path, doc.id, "lint_acceptance_empty", "The acceptance criteria have no items");
-      for (const f of ctx.store.workflow?.resolved.fields ?? []) {
-        const v = doc.data[f.id];
-        if (v === undefined) continue;
-        const okType =
-          f.type === "number"
-            ? typeof v === "number"
-            : f.type === "boolean"
-              ? typeof v === "boolean"
-              : f.type === "enum"
-                ? typeof v === "string" && (f.options ?? []).includes(v)
-                : f.type === "date"
-                  ? typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)
-                  : typeof v === "string";
-        if (!okType)
-          warn(
-            doc.path,
-            doc.id,
-            "lint_field_type",
-            `The value of field ${f.id} does not match type ${f.type}`,
-          );
-      }
       if (ctx.store.config.lint.require_iteration && !doc.data.iteration) {
         const status = doc.data.status;
         const closedEpic =

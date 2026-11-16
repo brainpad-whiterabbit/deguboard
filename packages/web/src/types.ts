@@ -13,7 +13,6 @@ import type {
   Epic,
   EpicDetail,
   EpicRow,
-  FieldDefinition,
   HistoryChange,
   HistoryEvent,
   HistoryLog,
@@ -51,7 +50,6 @@ export type {
   Epic,
   EpicDetail,
   EpicRow,
-  FieldDefinition,
   HistoryChange,
   HistoryEvent,
   HistoryLog,
@@ -168,8 +166,6 @@ export function matchesEpic(ticket: Pick<Ticket, "epic">, epic: string): boolean
 
 /** workflow.show の出力のうち画面が使うもの（遷移の制約は core の TransitionConstraint のまま） */
 export interface WorkflowView {
-  /** 省いた項目を既定で補った定義。画面が使うのは任意フィールドだけ */
-  definition: { fields: readonly FieldDefinition[] };
   /** Status の表示名（workflow.yaml の states の label。書いていない Status は core の既定） */
   labels: Record<Status, string>;
   transitions: readonly TransitionConstraint[];

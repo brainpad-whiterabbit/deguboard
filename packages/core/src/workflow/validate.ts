@@ -106,15 +106,6 @@ export function validateWorkflow(raw: unknown, path: string): WorkflowValidation
     if (r.status === "abandoned")
       issue("workflow_reconcile_abandoned", `reconcile[${i}]: reconcile cannot set abandoned`);
   });
-  const fieldIds = new Set<string>();
-  def.fields.forEach((f, i) => {
-    if (fieldIds.has(f.id))
-      issue("workflow_field_duplicate", `fields[${i}]: ${f.id} is duplicated`);
-    fieldIds.add(f.id);
-    if (f.type === "enum" && (!f.options || f.options.length === 0)) {
-      issue("workflow_field_options", `fields[${i}]: the enum ${f.id} needs options`);
-    }
-  });
 
   return { workflow: resolveWorkflow(def), definition: def, issues };
 }

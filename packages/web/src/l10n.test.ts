@@ -661,7 +661,6 @@ describe("Workflow の表示名の表示（UI-11）", () => {
   const viewOf = (states: Partial<Record<Status, { label: string }>> = {}): WorkflowView => {
     const { workflow } = validateWorkflow({ states }, "workflow.yaml");
     return {
-      definition: { fields: [{ id: "estimate", type: "number", label: "Estimate" }] },
       labels: workflow!.labels,
       transitions: [],
       default_labels: DEFAULT_WORKFLOW.labels,
@@ -706,10 +705,6 @@ describe("Workflow の表示名の表示（UI-11）", () => {
       done: "完了済み",
       abandoned: "中止",
     });
-  });
-  it("任意フィールドのラベルは人が書いた文なので訳さない", () => {
-    const view = viewOf();
-    expect(shownWorkflow(view).definition).toEqual(view.definition);
   });
   it("default_labels と steps のない Workflow（前の版の画面が残した cache）は、Status の表示名を訳さず、steps のないまま返す", () => {
     const { default_labels: _labels, steps: _steps, ...view } = viewOf();

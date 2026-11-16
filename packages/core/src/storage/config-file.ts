@@ -3,16 +3,11 @@
 // 個人の config.yaml は、YAML として読めない・マップでなければ上書きなし（raw が undefined）にして警告を返す
 
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { z } from "zod";
 import { configSchema, type Config } from "../model/config.js";
 import type { Issue } from "./issue.js";
 import { CONFIG_FILE, LOCAL_CONFIG_LABEL } from "./paths.js";
-import {
-  readRetiredProjects,
-  RETIRED_DEFAULT_PROJECT_KEY,
-  retiredDefaultWorkflow,
-} from "./retired-projects.js";
+import { withoutRetiredConfigKeys } from "./retired-projects.js";
 import { parseYamlDocument } from "./yaml.js";
 
 /** YAML のファイルを文書として読む。ファイルがなければ空の文書 */
@@ -44,13 +39,8 @@ export async function loadTeamConfig(file: string): Promise<{ config: Config; is
     };
   }
   const raw = (doc.toJS() ?? {}) as Record<string, unknown>;
-  // やめた Project の残り（retired-projects.ts）。default_project は値に出さず、projects/ を dg が消すまでは、
-  // 既定の Project の Workflow を default_workflow として読む
-  const { [RETIRED_DEFAULT_PROJECT_KEY]: _project, ...rest } = raw;
-  const retired = retiredDefaultWorkflow(raw, await readRetiredProjects(path.dirname(file)));
-  const parsed = configSchema.safeParse(
-    retired === undefined ? rest : { ...rest, default_workflow: retired },
-  );
+  // やめたキー（default_project・default_workflow）は値に出さない。前の版が書いた config も誤りにせずに読む
+  const parsed = configSchema.safeParse(withoutRetiredConfigKeys(raw));
   if (!parsed.success) {
     return {
       config: configSchema.parse({}),

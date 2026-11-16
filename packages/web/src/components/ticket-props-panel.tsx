@@ -7,7 +7,6 @@ import { useRef, useState, type ReactNode } from "react";
 import type { Store } from "../store.js";
 import {
   movableStatuses,
-  type FieldDefinition,
   type Priority,
   type Status,
   type Ticket,
@@ -15,13 +14,6 @@ import {
   type WorkflowView,
 } from "../types.js";
 import { ConfirmSelect, InlineEdit, type Choice } from "./inline-edit.js";
-import {
-  fieldChoices,
-  fieldInputType,
-  fieldText,
-  FieldView,
-  parseFieldValue,
-} from "./ticket-fields.js";
 import {
   none,
   parseLabels,
@@ -66,14 +58,12 @@ function withDerived(updated: Ticket & { body: string }, prev: TicketDetail): Ti
 export function PanelProps({
   store,
   ticket,
-  fields,
   workflow,
   labelOf,
   setTicket,
 }: {
   store: Store;
   ticket: TicketDetail;
-  fields: readonly FieldDefinition[];
   workflow: WorkflowView | null;
   labelOf: (s: Status) => string;
   setTicket: (update: (prev: TicketDetail | null) => TicketDetail | null) => void;
@@ -89,12 +79,6 @@ export function PanelProps({
     { key: "labels", label: tr("ラベル"), empty: ticket.labels.length === 0, addable: true },
     { key: "epic", label: "Epic", empty: !ticket.epic, addable: true },
     { key: "iteration", label: "Iteration", empty: !ticket.iteration, addable: true },
-    ...fields.map((f) => ({
-      key: `field:${f.id}`,
-      label: f.label ?? f.id,
-      empty: ticket[f.id] === undefined,
-      addable: true,
-    })),
     {
       key: "dependsOn",
       label: tr("依存先"),
@@ -130,7 +114,6 @@ export function PanelProps({
     opts: {
       choices?: Choice[];
       hint?: (value: string) => ReactNode;
-      inputType?: "text" | "number" | "date";
       placeholder?: string;
       normalize?: (raw: string) => string;
       link?: ReactNode;
@@ -233,24 +216,6 @@ export function PanelProps({
             { placeholder: tr("カンマ区切り"), normalize: (raw) => parseLabels(raw).join(", ") },
           ),
         ),
-        ...fields.map((f) => {
-          const label = f.label ?? f.id;
-          const value = ticket[f.id];
-          const choices = fieldChoices(f);
-          return row(
-            `field:${f.id}`,
-            label,
-            inline(
-              `field:${f.id}`,
-              label,
-              fieldText(value),
-              // 空にすると null を渡して外す
-              (raw) => ({ fields: { [f.id]: parseFieldValue(f, raw) ?? null } }),
-              <FieldView value={value} />,
-              choices ? { choices } : { inputType: fieldInputType(f) },
-            ),
-          );
-        }),
       ],
     },
     {

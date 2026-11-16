@@ -81,21 +81,20 @@ describe("Zod → オプション", () => {
     ).toEqual({ title: "題", acceptance: ["a, b", "c"], labels: ["x", "y"] });
   });
 
-  it("--field key=value は record になり、true/false と数値を変換する", () => {
+  it("record は単数形の key=value の繰り返しで受け、true/false と数値を変換する", () => {
     expect(
-      parse("ticket.create", [
-        "題",
-        "--field",
-        "estimate=3",
-        "--field",
-        "client=ACME",
-        "--field",
-        "urgent=true",
-      ]),
+      parse("plan.create", ["t1", "--scope", "t1=3", "--scope", "t2=ACME", "--scope", "t3=true"]),
     ).toEqual({
-      title: "題",
-      fields: { estimate: 3, client: "ACME", urgent: true },
+      tickets: ["t1"],
+      scope: { t1: 3, t2: "ACME", t3: true },
     });
+  });
+
+  it("ticket create と ticket update は --field と --workflow を受けない", () => {
+    expect(() => parse("ticket.create", ["題", "--field", "estimate=3"])).toThrow();
+    expect(() => parse("ticket.create", ["題", "--workflow", "strict"])).toThrow();
+    expect(() => parse("ticket.update", ["t1", "--field", "estimate=3"])).toThrow();
+    expect(() => parse("ticket.update", ["t1", "--workflow", "none"])).toThrow();
   });
 
   it("positionals の最後が配列なら可変長になり、enum の位置引数は choices になる", () => {

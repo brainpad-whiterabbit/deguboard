@@ -71,8 +71,6 @@ export const FLOW_SKIP_KEY = "skip";
 export const GOVERNANCE_OPERATIONS = ["delete", "config", "reassign", "epic", "create"] as const;
 export type GovernanceOperation = (typeof GOVERNANCE_OPERATIONS)[number];
 
-const FIELD_TYPES = ["string", "number", "boolean", "date", "enum"] as const;
-
 // 条件は形だけ見る（未知の名前は validate.ts が WF-3 の指摘にする）
 const conditionShape = z.string().regex(/^!?[a-z_]+$/, "A condition is a fact name or !fact-name");
 
@@ -121,8 +119,8 @@ export const workflowDefinitionSchema = z.looseObject({
     })
     .partial()
     .optional(),
-  // 以下の 3 つは前の形のまま読む。transitions は境目の判定（boundaries・exceptions）、reconcile は Core の固定のきっかけ、
-  // fields はチケットの任意フィールドの廃止に、それぞれ後の変更で置き換わる
+  // 以下の 2 つは前の形のまま読む。transitions は境目の判定（boundaries・exceptions）、reconcile は Core の固定のきっかけに、
+  // それぞれ後の変更で置き換わる。前の版の fields（チケットの任意フィールド）はやめたので、未知の項目として警告になり、読まない
   transitions: z
     .array(
       z.strictObject({
@@ -138,20 +136,9 @@ export const workflowDefinitionSchema = z.looseObject({
   reconcile: z
     .array(z.strictObject({ when: z.array(conditionShape).min(1), status: statusSchema }))
     .optional(),
-  fields: z
-    .array(
-      z.strictObject({
-        id: z.string().regex(/^[a-z][a-z0-9_]*$/, "A field ID is lowercase letters, digits and _"),
-        type: z.enum(FIELD_TYPES),
-        label: z.string().optional(),
-        options: z.array(z.string()).optional(),
-      }),
-    )
-    .default([]),
 });
 /** 読める項目の名前。ここにない最上位の鍵は未知の項目 */
 export const WORKFLOW_ITEMS = Object.keys(workflowDefinitionSchema.shape);
 export type WorkflowDefinition = z.output<typeof workflowDefinitionSchema>;
 /** YAML に書く形（どの項目も省ける） */
 export type WorkflowDefinitionInput = z.input<typeof workflowDefinitionSchema>;
-export type FieldDefinition = WorkflowDefinition["fields"][number];

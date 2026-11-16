@@ -122,7 +122,7 @@ export function isDefaultPerspective(
 /**
  * Workflow の Status の表示名と Run の step の表示名を画面に出す形にする（UI-11）。
  * Status の表示名（labels）は、workflow.show の default_labels（core の既定）と同じ文のときだけ訳す：workflow.yaml の states で書き換えた文は書いたまま。
- * step の表示名は core が固定で持つ文なので、いつも訳す。任意フィールドのラベルは人が書いた文なので訳さない。
+ * step の表示名は core が固定で持つ文なので、いつも訳す。
  * 既定の文は core が返したものだけで比べ、画面は写しを持たない。訳は DEFAULT_VALUES に置き、step の表示名と同じ文は同じ訳になる
  */
 export function shownWorkflow(view: WorkflowView): WorkflowView {

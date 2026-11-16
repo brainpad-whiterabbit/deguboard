@@ -68,7 +68,7 @@ runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開�
 ```
 
 - DT-1 書き込みは一時ファイルへ書いてから rename する。読み込みは Zod のスキーマで検証し、読めないファイルは止めずに `dg validate` と画面で報告する
-- DT-2 スキーマにない項目は読み書きで残す（版の違う `dg` が消さない）。`dg` がやめた項目（Iteration の `start`・`end`、チケット・Epic・Iteration・Plan の `project`）は書くときに消す（[ADR-009](adr/ADR-009-epic-and-iteration.md)、5.3）
+- DT-2 スキーマにない項目は読み書きで残す（版の違う `dg` が消さない）。`dg` がやめた項目（Iteration の `start`・`end`、チケット・Epic・Iteration・Plan の `project`、チケットの `workflow`、config の `default_project`・`default_workflow`）は値に出さず、書くときに消す（[ADR-009](adr/ADR-009-epic-and-iteration.md)、5.3）
 
 ### 5.2 ID と番号
 
@@ -81,7 +81,7 @@ runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開�
 
 1 つのカンバンが 1 つの区切りで、カンバンの中を分ける単位（Project）は持たない。チケットは Epic・Iteration・ラベルで束ね、別の区切りが要るときはカンバンを分ける（5.1。理由は [ADR-034](adr/ADR-034-storage-and-id.md)）。
 
-前の版が書いた `project` の項目は読めて、書くときに消える（DT-2）。前の版の `projects/` と config の `default_project` は、`dg` が同期か書き込みのときに印を付けたコミットで一度だけ消し、既定の Project の Workflow を `default_workflow`（5.10）に移す（細部は `packages/core/src/git/retire-projects.ts`）。
+前の版が書いた `project` の項目は読めて、書くときに消える（DT-2）。前の版の `projects/` と config の `default_project` は、`dg` が同期か書き込みのときに印を付けたコミットで一度だけ消す（細部は `packages/core/src/git/retire-projects.ts`）。
 
 ### 5.4 Ticket（`tickets/t12.md`）
 
@@ -104,10 +104,10 @@ updated_at: 2026-10-31T05:10:00Z
 - [ ] …
 ```
 
-- TK-1 必須は `id`・`title`・`status`・`created_at`・`updated_at`。`workflow` は書けるが Workflow を選ばない（Workflow はカンバンに 1 つ。5.8）
+- TK-1 必須は `id`・`title`・`status`・`created_at`・`updated_at`。Workflow はチケットごとに選ばない（カンバンに 1 つ。5.8）
 - TK-2 `depends_on` は同じリポジトリのチケットの ID。循環は作成・更新時に拒否する
 - TK-3 本文は Markdown。`## Summary` と `## Acceptance criteria`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` が雛形を作り、受け入れ条件は `ticket check` が番号で印を付ける。空か空白だけの本文は拒む。節の欠けや状態の食い違い、実装と手直しの Run の抜け（RN-5・RN-6）は `dg lint` が指摘する（項目は `dg lint --help`）
-- TK-4 Workflow の `fields` で定義した任意フィールドを frontmatter に持てる
+- TK-4 チケットの項目はスキーマが決めたものだけで、利用者が定義する任意フィールドは持たない。前の版の任意フィールドの値は、スキーマにない項目として残る（DT-2）
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが確認できたときに付ける。deguboard は自動で付けず、照合で done にしたチケットに未チェックが残れば `sync` が警告する（遷移は止めない。理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）
 - TK-6 `epic` は Epic の ID。閉じた Epic には付けられない
 - TK-7 `created_by`（起票者）と `assignee`（担当者）は主体の ID。`created_by` の既定は操作した主体で、エージェントが人の指示・承認で起票するときはユーザ本人を指定する。`assignee` は `claim` と `update` で付ける。旧名 `claimed_by` は `assignee` と読む
@@ -144,7 +144,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.8 Workflow（`workflow.yaml`）
 
-Workflow はカンバンに 1 つで、チケットごとには選ばない。項目は状態 `states`・境目 `boundaries`・例外の動き `exceptions`・列の上限 `wip`・流れの段階 `flow`・カンバンの管理 `governance` の 6 つ。遷移の制約 `transitions`・照合 `reconcile`・任意の項目 `fields` は、6 つの項目に置き換えるまで前の形のまま読む（WF-1・WF-2・TK-4）。どの項目も省け、省いた項目は Core の既定になる（ファイルがなくても同じ）。今の値は `dg workflow show`、項目と形は `packages/core/src/model/workflow.ts`、既定は `packages/core/src/workflow/resolve.ts` が正本（理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）。
+Workflow はカンバンに 1 つで、チケットごとには選ばない。項目は状態 `states`・境目 `boundaries`・例外の動き `exceptions`・列の上限 `wip`・流れの段階 `flow`・カンバンの管理 `governance` の 6 つ。遷移の制約 `transitions`・照合 `reconcile` は、6 つの項目に置き換えるまで前の形のまま読む（WF-1・WF-2）。どの項目も省け、省いた項目は Core の既定になる（ファイルがなくても同じ）。今の値は `dg workflow show`、項目と形は `packages/core/src/model/workflow.ts`、既定は `packages/core/src/workflow/resolve.ts` が正本（理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）。
 
 - WF-1 Status は 5 つ（3. 用語）で、増やせず、変えられるのは `states` の表示名 `label` だけ。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。`transitions` は遷移に主体 `by`（`[]` で禁止）と条件 `requires`（AND）の制約を足すだけ（検査は ST-2）
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`・`branch_exists`・`branch_pushed`・`branch_merged`・`pr_open`・`pr_draft`・`pr_merged`）とその否定（`!pr_draft`）だけで、利用者のスクリプトは実行しない。`deps_done` は `depends_on` がすべて done か abandoned のとき真
@@ -176,7 +176,6 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - 値は「個人 > チーム > 既定」の順に読み、どの入口も Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する（細部は `dg config set --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 - 項目の説明と変更はエージェントに頼める（`/dgconfig`。AG-2）。エージェントは、項目ごとの前と後の差とチームか個人かを見せて人の承認を得てから `dg config set` で書く（手順は `dg guide config`）
 
-- `default_workflow`：読み書きできるが Workflow を選ばない（Workflow はカンバンに 1 つ。5.8）。チームだけが持つ
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧（検査しない呼び出しは `packages/core/src/commands/define.ts`）。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないときと、取り込んだ config でこの値が変わったときは、push する操作は止まって次の手を示し、ほかの操作は警告して続く（エラーと戻し方は `dg guide overview`）
 - `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push する。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく止まり、別のカンバンのブランチを指したときは取り込まずに止まる（エラーと戻し方は `dg guide overview`）

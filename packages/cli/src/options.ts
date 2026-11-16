@@ -6,7 +6,7 @@
 //   array（string / enum）      単数形で繰り返す（--label a --label b）。カンマ区切りも受ける
 //   array（meta freeText）      単数形で繰り返すだけ。要素が自由文なのでカンマで割らない（--acceptance）
 //   nullable                    none で外す（--epic none）
-//   record（fields）            --field key=value の繰り返し。true / false / 数値は変換する
+//   record                      単数形で key=value を繰り返す（plan の --scope t3=text）。true / false / 数値は変換する
 //   string（meta cliSource）    位置引数 <file> の中身（YAML / JSON。- で標準入力）を読んだ文字列。オプションにはしない（ticket import。program.ts）
 //   record・array（meta cliFile） --<cliFile> <path> の YAML / JSON（- で標準入力）を読んだ値（workflow set の --file・run review-result の --findings-file。program.ts）
 //   positionals                 CommandDef.positionals のキーは位置引数。最後が配列なら可変長

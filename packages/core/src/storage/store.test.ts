@@ -21,7 +21,7 @@ const ticketText = (id: string, extra = "") =>
 async function fixture(files: Record<string, string>): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "deguboard-store-"));
   dirs.push(root);
-  await writeFile(path.join(root, "config.yaml"), "default_workflow: general\n");
+  await writeFile(path.join(root, "config.yaml"), "git:\n  remote: origin\n");
   for (const [rel, text] of Object.entries(files)) {
     await mkdir(path.dirname(path.join(root, rel)), { recursive: true });
     await writeFile(path.join(root, rel), text);
@@ -285,7 +285,7 @@ describe("Store", () => {
     expect((await Store.open(root)).workflow).toEqual(store.workflow);
   });
 
-  it("前の版の workflows/ は読まない。チケットの workflow も Workflow を選ばない。workflow.yaml がない間は workflows/ が残ることを警告する", async () => {
+  it("前の版の workflows/ は読まない。前の版が書いたチケットの workflow は誤りにせずに読み、値に出さない。workflow.yaml がない間は workflows/ が残ることを警告する", async () => {
     const root = await fixture({
       "tickets/t1.md": ticketText("t1", "workflow: custom\n"),
       "workflows/custom.yaml":
@@ -303,7 +303,7 @@ describe("Store", () => {
       },
     ]);
     expect(store.workflow).toMatchObject({ exists: false, resolved: DEFAULT_WORKFLOW });
-    expect(store.tickets.get("t1")?.data.workflow).toBe("custom");
+    expect(store.tickets.get("t1")?.data).not.toHaveProperty("workflow");
     expect(checkReferences(store)).toEqual([]);
 
     // workflow.yaml を置けば警告は消える（残った workflows/ は workflow set が消す）
@@ -321,9 +321,28 @@ describe("Store", () => {
     expect(store.config.commit.mode).toBe("each");
     expect(
       (await readFile(path.join(root, "config.yaml"), "utf8")).startsWith(
-        "default_workflow: general\n",
+        "git:\n  remote: origin\n",
       ),
     ).toBe(true);
+  });
+
+  it("前の版が書いた config の default_workflow と default_project は誤りにせずに読み、値に出さず、config を書くときに消える", async () => {
+    const root = await fixture({});
+    const config = path.join(root, "config.yaml");
+    await writeFile(
+      config,
+      "default_project: web\ndefault_workflow: custom # 前の版のキー\ncommit:\n  mode: batch\n",
+    );
+    const store = await Store.open(root);
+    expect(store.issues).toEqual([]);
+    expect(store.config).not.toHaveProperty("default_workflow");
+    expect(store.config).not.toHaveProperty("default_project");
+    expect(store.config.commit.mode).toBe("batch");
+    // 読むだけではファイルを変えない
+    expect(await readFile(config, "utf8")).toContain("default_workflow: custom");
+    const written = await store.writeConfig({ commit: { mode: "each" } });
+    expect(written).not.toHaveProperty("default_workflow");
+    expect(await readFile(config, "utf8")).toBe("commit:\n  mode: each\n");
   });
 
   it("project を持たないチケット・Epic・Iteration・Plan を作成・読み書きでき、project を持つ前のファイルは読めて、書くときに project が消える", async () => {
@@ -393,25 +412,17 @@ describe("Store", () => {
       expect(await written(rel)).not.toContain("project");
   });
 
-  it("projects/ が残る間は、既定の Project の Workflow を default_workflow として読み、default_project は値に出さない", async () => {
+  it("projects/ が残っていても、Project の Workflow は config の値に出さず、default_project も値に出さない", async () => {
     const root = await fixture({
       "projects/default.yaml": "id: default\nname: Default\nworkflow: software-development\n",
       "projects/web.yaml": "id: web\nname: Web\nworkflow: general\n",
     });
     const config = path.join(root, "config.yaml");
-    // default_project を省いた config は、既定の Project（default）の Workflow を読む
-    await writeFile(config, "commit:\n  mode: each\n");
-    const implied = await Store.open(root);
-    expect(implied.issues).toEqual([]);
-    expect(implied.config.default_workflow).toBe("software-development");
-    // default_project が指す Project の Workflow を読む
     await writeFile(config, "default_project: web\n");
-    const named = await Store.open(root);
-    expect(named.config.default_workflow).toBe("general");
-    expect(named.config).not.toHaveProperty("default_project");
-    // default_workflow を書いた config はそれを使う
-    await writeFile(config, "default_project: web\ndefault_workflow: custom\n");
-    expect((await Store.open(root)).config.default_workflow).toBe("custom");
+    const store = await Store.open(root);
+    expect(store.issues).toEqual([]);
+    expect(store.config).not.toHaveProperty("default_workflow");
+    expect(store.config).not.toHaveProperty("default_project");
   });
 
   it("参照の整合を検査し、依存の循環を見つける", async () => {

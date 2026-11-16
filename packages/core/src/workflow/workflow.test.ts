@@ -154,8 +154,24 @@ describe("省いた項目の既定", () => {
         create: "anyone",
       },
       transitions: [],
-      fields: [],
     });
+    expect(workflow).not.toHaveProperty("fields");
+  });
+
+  it("前の版の fields（チケットの任意フィールド）は未知の項目として警告にとどめ、読まずにほかの項目を使う", () => {
+    const { issues, workflow } = validateWorkflow(
+      { states: { done: { label: "Shipped" } }, fields: [{ id: "estimate", type: "number" }] },
+      "workflow.yaml",
+    );
+    expect(issues).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: "workflow_item_unknown",
+        message: "Unknown item fields. It is not read",
+      }),
+    ]);
+    expect(workflow?.labels.done).toBe("Shipped");
+    expect(workflow).not.toHaveProperty("fields");
   });
 
   it("6 つの項目のどれを 1 つだけ省いても、省いた項目は dg init が置く既定の workflow.yaml と同じ値になる", () => {
@@ -215,7 +231,6 @@ describe("省いた項目の既定", () => {
         flow: { "deploy-staging": { decide: "always_ask", after: "audit", guide: "docs/d.md" } },
         transitions: [{ from: "review", to: "done", by: ["human"] }],
         reconcile: [{ when: ["branch_merged"], status: "done" }],
-        fields: [{ id: "estimate", type: "number" }],
       },
       "workflow.yaml",
     );

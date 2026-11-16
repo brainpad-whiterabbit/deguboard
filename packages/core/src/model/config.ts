@@ -216,11 +216,6 @@ const DEFAULT_RETRO_PERSPECTIVES: Record<string, RetroPerspective> = {
 };
 
 export const configSchema = z.looseObject({
-  default_workflow: described(slugSchema.default("general"), {
-    summary: "Kept for compatibility. It no longer selects a Workflow",
-    description:
-      "Kept for compatibility. It no longer selects a Workflow (the board has one workflow.yaml)",
-  }),
   git: z
     .looseObject({
       remote: described(z.string().min(1).default(DEFAULT_REMOTE), {

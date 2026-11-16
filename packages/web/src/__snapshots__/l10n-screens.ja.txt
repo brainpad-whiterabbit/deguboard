@@ -710,15 +710,6 @@ worktree.setup
 詳しく
 worktree.setup
 チケット
-既定の Workflow
-default_workflow
-[title] エージェントに頼む（Shift+F10）
-[aria-label] エージェントに頼む（設定の項目 default_workflow）
-互換のために残している。Workflow は選ばない
-[value] general
-空のとき: 既定に戻る（個人の設定ではチームの値に戻る）
-詳しく
-default_workflow
 優先度 high の判断基準
 priority.high
 [title] 既定は 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
