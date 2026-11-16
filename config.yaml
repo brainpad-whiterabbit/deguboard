@@ -35,6 +35,8 @@ actions:
     - CLAUDE.md
     - SECURITY.md
     - README.ja.md
+    - packages/core/README.md
+    - packages/server/README.md
     - packages/vscode/images/**
     - packages/vscode/media/icon.png
     - packages/vscode/media/deguboard.svg
