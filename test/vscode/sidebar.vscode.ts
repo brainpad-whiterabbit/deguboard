@@ -42,6 +42,9 @@ const TITLES = [
   "実機で確かめるチケット 3：作業中",
 ] as const;
 
+/** 画面を撮る準備で、PR を作らずにチケットを done にする理由（境目の requires の pr_merged を人が外す。t1039） */
+const DONE_OVERRIDE = "preparing the VS Code screen test without a PR";
+
 let fixture: Fixture;
 let display: Display;
 let host: Host;
@@ -255,7 +258,8 @@ describe("VS Code の実機の左パネル", () => {
       after: { t6: ["t4"], t7: ["t5", "t4"] },
     });
     await runCommand(planApprove, ctx, { plan: "p1" });
-    await runCommand(ticketMove, ctx, { ticket: "t4", status: "done" });
+    // 既定の Workflow は done に pr_merged を求めるので、準備は人（openContext の既定の主体）の --override で done にする（製品の既定は緩めない。t1039）
+    await runCommand(ticketMove, ctx, { ticket: "t4", status: "done", override: DONE_OVERRIDE });
     const toggle = sidebar.locator(".plan-item button.plan-toggle");
     await toggle.waitFor({ timeout: 60_000 });
     await toggle.click();
@@ -286,7 +290,11 @@ describe("VS Code の実機の左パネル", () => {
       acceptance: ["履歴に行が出る"],
       iteration: "s1",
     });
-    await runCommand(ticketMove, ctx, { ticket: ticket.data.id, status: "done" });
+    await runCommand(ticketMove, ctx, {
+      ticket: ticket.data.id,
+      status: "done",
+      override: DONE_OVERRIDE,
+    });
     await sidebar.locator("body").evaluate(() => {
       location.hash = "#/history?view=ticket";
     });
