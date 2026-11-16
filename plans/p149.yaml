@@ -1,0 +1,28 @@
+id: p149
+tickets: [t1026, t1039, t1027, t1028, t1035]
+after:
+  t1035:
+    - t1028
+    - t1039
+pending_approval: true
+details:
+  t1026:
+    scope: flow の値で assign・plan・release を判定し、--auto を ask_unless_auto に統合し、auto.* を消す
+    approach: flow.ts の approvalOf を flow の値から決め、iteration・plan のコマンドが --auto を受ける
+    tier: heavy
+  t1027:
+    scope: dg checkpoint の関所を Iteration に記録し、flow next の resume を消す
+    approach: model/iteration.ts に checkpoints を足し、flow.ts が記録と根拠で段階の終わりを決め、止まる判定を deguboard-local に置く
+    tier: heavy
+  t1028:
+    scope: flow に独自の段階を decide・after・guide で足せるようにする
+    approach: workflow の validate と flow.ts の段階の並びに独自の段階を差し込み、composeGuide で文書を返す
+    tier: heavy
+  t1035:
+    scope: 設定画面に Workflow のタブを足し、workflow.yaml を読むだけで出して行から /dgconfig に頼める。編集の操作は入れない
+    approach: dg workflow show --json が既定で埋めた値と既定との差を返し、web の設定画面は今の部品で写すだけにし、dgconfig の手順を workflow.yaml に広げる
+    tier: heavy
+  t1039:
+    scope: test/vscode の準備で done にするところだけを直し、製品の既定は変えない
+    approach: 準備の ticket move を人の --override か専用の workflow.yaml で done にし、mise run test:vscode を通す
+    tier: standard
