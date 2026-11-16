@@ -1,13 +1,14 @@
-// Iteration の流れの段階と次の手（EX-3・EX-8、ADR-030）。流れの 8 つの規則（ここが正本。guide-all は書かない）と止まる判定を、
-// チケット・Plan の事実と resume から都度求め、保存しない（dg next と同じ考え）。段階を返すだけで、エージェントを起動も監視もしない（EX-1）。
-// 会話の中にしかない事実（この実行で割り当て・点検・見直しを終えた）は resume に入れて返す。エージェントは次の呼び出しに --resume で写して渡す
+// Iteration の流れの段階と次の手（EX-3・EX-8、ADR-030）。流れの 8 つの規則（ここが正本。guide-all は書かない）を、
+// チケット・Plan の事実と関所の記録（Iteration の checkpoints。dg checkpoint が足す）から都度求め、段階は保存しない（dg next と同じ考え）。
+// 段階を返すだけで、エージェントを起動も監視もしない（EX-1）。割り当て・点検・見直しを終えたかは、記録とその根拠（flow-records.ts）で決めるので、
+// 会話・人・マシンをまたいで続きから進む。止まる判定（同じ段階が事実も変わらずに続いた）だけは、前に返した段階を deguboard-local に覚えて行う
 
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { UsageError } from "../errors.js";
 import { composeGuide } from "../guide/guide.js";
 import { isFinishedSet, isTerminal } from "../model/common.js";
-import { compareIds, parseId, type IterationId } from "../model/id.js";
+import { compareIds, type IterationId } from "../model/id.js";
+import type { Checkpoint, CheckpointStage } from "../model/iteration.js";
 import {
   GATE_LEVELS,
   gateLevelOf,
@@ -16,11 +17,24 @@ import {
   type Ticket,
 } from "../model/ticket.js";
 import type { Decision, FlowDecidedStage } from "../model/workflow.js";
-import type { Store } from "../storage/store.js";
 import { autoApplies, judgeDecisions, type Permission } from "../workflow/conditions.js";
 import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
-import { agentDg as dg, sortedDocs, ticketsInIteration } from "./helpers.js";
+import {
+  askedCandidates,
+  auditDoneOf,
+  auditedWith,
+  checkFactsOf,
+  checkedWith,
+  flowCandidates,
+  iterationCheckpoints,
+  passed,
+  readFlowLocal,
+  releaseScopeOf,
+  resolveFlowTarget,
+  writeFlowLocal,
+} from "./flow-records.js";
+import { agentDg as dg, sortedDocs } from "./helpers.js";
 import { wipCheckOf } from "./next.js";
 
 /**
@@ -39,20 +53,12 @@ export const FLOW_STAGES = [
 ] as const;
 export type FlowStageName = (typeof FLOW_STAGES)[number];
 
-/** この実行で終えたこと（会話の中にしかない事実）。resume が運ぶ */
-export interface FlowMemory {
-  assigned: boolean;
-  checked: boolean;
-  audited: boolean;
-}
-
-const NO_MEMORY: FlowMemory = { assigned: false, checked: false, audited: false };
-
-/** 終えたことを resume で覚える段階。前の呼び出しがこの段階を返したなら、エージェントはそれを行い終えたとみなす */
-const REMEMBERED: Partial<Record<FlowStageName, keyof FlowMemory>> = {
-  assign: "assigned",
-  check: "checked",
-  audit: "audited",
+/** 関所を持つ流れの段階（dg flow next が返す段階のうち。retro は流れの外で、手順が関所を呼ぶ） */
+const CHECKPOINT_OF: Partial<Record<FlowStageName, CheckpointStage>> = {
+  assign: "assign",
+  check: "check",
+  audit: "audit",
+  release: "release",
 };
 
 type FlowTicket = Pick<Ticket, "id" | "status">;
@@ -71,12 +77,16 @@ export interface FlowFacts {
    * ラベル release-<S> のチケット（リリースの段で起票する 2 つ）は除く。リリースの段の途中で残っていても、リリースを返し続けるため
    */
   releaseScope: readonly FlowTicket[];
-  /** 割り当ての候補（Iteration に入っていない todo。ラベル audit-<S> を除く） */
+  /** 割り当ての候補（flow-records.ts の flowCandidates） */
   candidates: readonly string[];
-  /** ラベル audit-<S> のチケットがある（状態と所属は問わない） */
-  auditLabeled: boolean;
-  /** ラベル release-<S> のチケットがある（状態は問わない）。リリースの段を始めたので、見直しも終えたとみなす */
-  releaseLabeled: boolean;
+  /** 割り当ての関所の記録が見た候補。ここにない候補（記録のあとに増えた分）だけを聞き直す */
+  asked: readonly string[];
+  /** 今のチケットの事実で通った点検の関所の記録がある（チケットが変わると偽に戻る） */
+  checked: boolean;
+  /** 今 done のチケットをすべて見た見直しの関所の記録がある（そのあとにマージされたチケットがあると偽に戻る） */
+  audited: boolean;
+  /** リリースの関所の記録がある（iteration reopen のあとは偽に戻る） */
+  releasePassed: boolean;
   /** 対象のチケットを含む承認待ちの Plan（番号順） */
   pendingPlans: readonly { id: string; tickets: readonly string[] }[];
   /**
@@ -102,31 +112,19 @@ export interface FlowStage {
   tickets: string[];
 }
 
-/**
- * 見直し済み：ラベル audit-<S> のチケットがあるか、この実行で見直しを終えたか、リリースの段を始めた（ラベル release-<S> のチケットがある）。
- * 指摘のない見直しは audit-<S> を残さないので、リリースの途中で 1 から呼び直したときに見直しへ戻さないよう release-<S> も数える
- */
-export function isAudited(
-  facts: Pick<FlowFacts, "auditLabeled" | "releaseLabeled">,
-  memory: FlowMemory,
-): boolean {
-  return facts.auditLabeled || facts.releaseLabeled || memory.audited;
-}
-
 const allFinished = (tickets: readonly FlowTicket[]) => isFinishedSet(tickets.map((t) => t.status));
 
 /**
- * 事実とこの実行で終えたことから、8 つの規則（--help に並べた順）で最初に当たる段階を求める（純粋関数）。
+ * 事実（関所の記録を数えた結果を含む）から、8 つの規則（--help に並べた順）で最初に当たる段階を求める（純粋関数）。
  * skip（workflow.yaml の flow の skip）の段階は規則を読まず、次の規則に進む。見直しを飛ばすと、すべて終わったときはすぐリリースに進める。
- * skip には dg flow next が返さない段階（retro と独自の段階）も書けるので、名前は文字列で受ける
+ * skip には dg flow next が返さない段階（retro と独自の段階）も書けるので、名前は文字列で受ける。
+ * 関所の記録は Iteration に書くので、Iteration が 1 つに決まらない流れは割り当て（Iteration を決める）だけを返し、決まらなければ止まる
  */
-export function flowStageOf(
-  facts: FlowFacts,
-  memory: FlowMemory,
-  skip: readonly string[] = [],
-): FlowStage {
-  const audited = isAudited(facts, memory);
+export function flowStageOf(facts: FlowFacts, skip: readonly string[] = []): FlowStage {
+  const audited = facts.audited;
   const s = facts.iteration;
+  // 記録のあとに増えた候補だけを聞き直す（人が「入れない」と決めた候補は聞き直さない）
+  const fresh = facts.candidates.filter((id) => !facts.asked.includes(id));
   const skipped = (name: FlowStageName) => skip.includes(name);
   const at = (
     name: FlowStageName,
@@ -135,20 +133,34 @@ export function flowStageOf(
     tickets: readonly string[] = [],
     plan: string | null = null,
   ): FlowStage => ({ name, rule, reason, plan, tickets: [...tickets] });
-  if (
-    !skipped("assign") &&
-    !memory.assigned &&
-    !audited &&
-    facts.candidates.length > 0 &&
-    !facts.noAssign
-  )
+  if (!skipped("assign") && !audited && fresh.length > 0 && !facts.noAssign)
     return at(
       "assign",
       1,
-      `${facts.candidates.length} todo tickets are not in an Iteration`,
-      facts.candidates,
+      s === null
+        ? `${fresh.length} target tickets are not in an Iteration, and the flow needs one Iteration (its checkpoints are recorded there), so decide it`
+        : `${fresh.length} tickets are not in an Iteration, and no assign checkpoint has seen them`,
+      fresh,
     );
-  if (!skipped("check") && !memory.checked) return at("check", 2, "Not checked yet in this run");
+  if (s === null) {
+    const open = facts.targets.filter((t) => !isTerminal(t.status)).map((t) => t.id);
+    return at(
+      "stop",
+      8,
+      allFinished(facts.targets) && facts.targets.length > 0
+        ? "Every target ticket is finished, but no single Iteration is determined, so there is no audit or release"
+        : facts.targets.length === 0
+          ? "There are no target tickets"
+          : "No single Iteration is determined for the target tickets, and the checkpoints of the flow are recorded on an Iteration. Put them into one Iteration (dg iteration add), or give the tickets of one Iteration",
+      open,
+    );
+  }
+  if (!skipped("check") && !facts.checked)
+    return at(
+      "check",
+      2,
+      `No check checkpoint of ${s} matches the current tickets (not checked yet, or the tickets changed after the check)`,
+    );
   const pending = skipped("plan") ? undefined : facts.pendingPlans[0];
   if (pending)
     return at("plan", 3, `Plan ${pending.id} is awaiting approval`, pending.tickets, pending.id);
@@ -182,11 +194,14 @@ export function flowStageOf(
     );
   // 閉じた Iteration は流れを終えている。見直しとリリースを返すと、閉じた後の呼び出しでリリースを繰り返す
   const open = facts.targets.filter((t) => !isTerminal(t.status)).map((t) => t.id);
-  if (s !== null && facts.iterationClosed)
-    return at("stop", 8, `${s} is closed, and the flow is finished`, open);
-  if (s !== null && allFinished(facts.releaseScope)) {
+  if (facts.iterationClosed) return at("stop", 8, `${s} is closed, and the flow is finished`, open);
+  if (allFinished(facts.releaseScope)) {
     if (!audited && !skipped("audit"))
-      return at("audit", 6, `Every ticket in ${s} is done or abandoned, and it is not audited yet`);
+      return at(
+        "audit",
+        6,
+        `Every ticket in ${s} is done or abandoned, and no audit checkpoint has seen all the done tickets (not audited yet, or tickets were merged after the audit)`,
+      );
     if (skipped("release"))
       return at(
         "stop",
@@ -197,83 +212,34 @@ export function flowStageOf(
     return at(
       "release",
       7,
-      audited
-        ? `Every ticket in ${s} is done or abandoned, and it is audited`
-        : `Every ticket in ${s} is done or abandoned, and the audit is skipped in the flow`,
+      `Every ticket in ${s} is done or abandoned, and ${
+        audited ? "it is audited" : "the audit is skipped in the flow"
+      } (${
+        facts.releasePassed
+          ? "the release checkpoint is passed, so go on with the release steps until the Iteration is closed"
+          : "the release checkpoint is not passed yet"
+      })`,
     );
   }
   return at(
     "stop",
     8,
-    s === null && allFinished(facts.targets)
-      ? "Every target ticket is finished, but no single Iteration is determined, so there is no audit or release"
-      : open.length > 0
-        ? `No step can move forward (${open.join(", ")} are in_progress without a PR, review waiting for merge, or similar)`
-        : "There are no target tickets",
+    open.length > 0
+      ? `No step can move forward (${open.join(", ")} are in_progress without a PR, review waiting for merge, or similar)`
+      : "There are no target tickets",
     open,
   );
 }
 
-/** resume の中身。不透明な値として返し、エージェントは組み立てない（EX-8） */
-interface ResumeState {
-  v: 1;
-  /** 対象（解決した ID。チケットは並べ替えた並び）。違う対象の resume は使わない */
-  target: string;
-  /** 前の呼び出しが求めた段階（同じ段階が続いて止まったときは、続いた段階） */
-  stage: FlowStageName;
-  /** 前の呼び出しの事実のハッシュ */
-  facts: string;
-  /** 前の呼び出しまでに終えたこと（前の段階の分は含まない） */
-  memory: FlowMemory;
-}
-
-export function encodeResume(state: Omit<ResumeState, "v">): string {
-  return Buffer.from(JSON.stringify({ v: 1, ...state }), "utf8").toString("base64url");
-}
-
-/** 読めない・形が違う resume は undefined（呼び手は割り当てと点検からやり直す） */
-export function decodeResume(value: string): ResumeState | undefined {
-  try {
-    const raw = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as unknown;
-    const r = raw as Partial<ResumeState>;
-    if (
-      r?.v !== 1 ||
-      typeof r.target !== "string" ||
-      typeof r.facts !== "string" ||
-      !(FLOW_STAGES as readonly string[]).includes(r.stage ?? "") ||
-      typeof r.memory !== "object" ||
-      r.memory === null
-    )
-      return undefined;
-    const m = r.memory;
-    return {
-      v: 1,
-      target: r.target,
-      stage: r.stage!,
-      facts: r.facts,
-      memory: {
-        assigned: m.assigned === true,
-        checked: m.checked === true,
-        audited: m.audited === true,
-      },
-    };
-  } catch {
-    return undefined;
-  }
-}
-
-/** 前の呼び出しの段階を終えたとみなして、終えたことに足す */
-export function memoryAfter(prev: ResumeState | undefined): FlowMemory {
-  if (!prev) return { ...NO_MEMORY };
-  const key = REMEMBERED[prev.stage];
-  return key ? { ...prev.memory, [key]: true } : { ...prev.memory };
-}
-
 /**
- * 同じ段階が続き、事実が変わらないか。割り当て・点検・見直しは resume で終えたことになり続かないので、
- * 続くのは計画（承認が得られない）・作業（マージを待っている）・止まる、のとき
+ * 同じ段階が続き、事実が変わらないか（止まる判定）。prev は前の呼び出しが返した段階と事実のハッシュ（deguboard-local に覚える）。
+ * 続くのは、関所を呼び忘れた割り当て・点検・見直し・リリース（記録が足されないので同じ段階のまま）、承認が得られない計画、マージを待つ作業のとき
  */
-export function isRepeated(prev: ResumeState | undefined, stage: FlowStageName, facts: string) {
+export function isRepeated(
+  prev: { stage: string; facts: string } | undefined,
+  stage: FlowStageName,
+  facts: string,
+) {
   return prev !== undefined && prev.stage === stage && prev.facts === facts && stage !== "stop";
 }
 
@@ -434,9 +400,9 @@ export function approvalOf(
         opts.flow.release,
         "Merging the release PR, publishing, and closing",
         "Merging the release PR, publishing, and closing",
-        // flow.release で dg が拒否するのは Iteration を閉じる・再開するだけ。リリースの PR のマージと公開は
-        // コマンドで止められないので、人だけの値でも、人に聞いた後にエージェントが行う（guide release の手順 3）
-        "Merging the release PR and publishing (ask a person before each one; when approved, the agent runs them), and closing the Iteration (only a person does it: an agent's call of dg iteration close is rejected, so ask a person to run it)",
+        // flow.release で dg が拒否するのは、リリースの関所（dg checkpoint release）と Iteration を閉じる・再開する。リリースの PR のマージと公開は
+        // コマンドで止められないので、人だけの値でも、人が関所を通した後に、人に聞いてからエージェントが行う（guide release の手順 3）
+        "Passing the release checkpoint and closing the Iteration (only a person does them: an agent's calls of dg checkpoint release and dg iteration close are rejected, so ask a person to run them), and merging the release PR and publishing (ask a person before each one; when approved, the agent runs them)",
       );
     // 終わった Plan を閉じるのは人の判断に入れない（終わった状態を記録するだけで、チケットは変わらない）
     case "close":
@@ -453,7 +419,22 @@ export function approvalOf(
 }
 
 /**
- * 流れの段階の値が判定するコマンド（iteration add・plan approve）に、値に合う付け方を足す。
+ * 段階の関所を通すコマンド（dg checkpoint）。関所を持たない段階（plan・work・close・stop）と、リリースの関所を通った後は null。
+ * 段階の値に合う付け方を足す（人だけなら人に頼む文）。対象は flow next と同じもの（根拠を同じ対象から求めるため）
+ */
+function checkpointOf(
+  stage: FlowStage,
+  target: string,
+  approval: FlowApproval,
+  releasePassed: boolean,
+): string | null {
+  const name = CHECKPOINT_OF[stage.name];
+  if (!name || (name === "release" && releasePassed)) return null;
+  return judgedCommand(`checkpoint ${name} ${target}`, approval);
+}
+
+/**
+ * 流れの段階の値が判定するコマンド（iteration add・plan approve・checkpoint）に、値に合う付け方を足す。
  * --auto で聞かずに進めるなら --auto、人の承認が要るなら --approved-by human（承認を得た後にだけ呼ぶ）、
  * 人だけができるなら人に頼む文にする
  */
@@ -514,86 +495,27 @@ function commandsOf(
   }
 }
 
-/** 対象の解決。Iteration 1 つ、Plan 1 つ、チケット 1 つ以上のどれか */
-function resolveTargets(
-  store: Store,
-  refs: readonly string[],
-): {
-  kind: "iteration" | "plan" | "tickets";
-  /** resume の対象と比べる鍵。解決した ID で、チケットは並べ替える（t1 t2 と t2 t1 を同じ対象にする） */
-  key: string;
-  iteration: string | null;
-  tickets: Ticket[];
-} {
-  const kinds = refs.map((r) =>
-    parseId(r, "iteration") ? "iteration" : parseId(r, "plan") ? "plan" : "ticket",
-  );
-  if (kinds.some((k) => k !== "ticket")) {
-    if (refs.length !== 1)
-      throw new UsageError("Specify only one Iteration or Plan (do not mix it with tickets)");
-    if (kinds[0] === "iteration") {
-      const it = store.require("iteration", refs[0]!);
-      return {
-        kind: "iteration",
-        key: it.id,
-        iteration: it.id,
-        tickets: ticketsInIteration(store, it.id).map((d) => d.data),
-      };
-    }
-    const plan = store.require("plan", refs[0]!);
-    const tickets = plan.data.tickets.flatMap((id) => store.tickets.get(id)?.data ?? []);
-    return { kind: "plan", key: plan.id, iteration: commonIteration(tickets), tickets };
-  }
-  const tickets = [...new Set(refs.map((r) => store.require("ticket", r).data))];
-  const key = tickets
-    .map((t) => t.id)
-    .sort(compareIds)
-    .join(" ");
-  return { kind: "tickets", key, iteration: commonIteration(tickets), tickets };
-}
-
-/** チケットの Iteration が 1 つに決まればそれ（Iteration のないチケットは数えない）。決まらなければ null */
-function commonIteration(tickets: readonly Ticket[]): string | null {
-  const ids = [...new Set(tickets.flatMap((t) => (t.iteration ? [t.iteration] : [])))];
-  return ids.length === 1 ? ids[0]! : null;
-}
-
-/** 流れの事実と、同じ段階が続いたかを見るためのハッシュの材料を集める */
+/**
+ * 流れの事実と、同じ段階が続いたかを見るためのハッシュの材料を集める。
+ * localAssign は、Iteration の決まらない流れの割り当ての記録（deguboard-local）。Iteration の記録と合わせて数える
+ */
 export function flowFactsOf(
   ctx: CommandContext,
   refs: readonly string[],
   noAssign: boolean,
+  localAssign: readonly Checkpoint[] = [],
 ): { facts: FlowFacts; fingerprint: string; key: string } {
   const store = ctx.store;
-  const target = resolveTargets(store, refs);
+  const target = resolveFlowTarget(store, refs);
   const s = target.iteration;
-  const auditLabel = s ? `audit-${s}` : undefined;
-  // リリースの手順で起票したチケット。リリースを始めたことは audit-<S> と同じく事実から決め、resume に覚えない
-  // （同じ引数で 1 から呼び直しても、リリースの段に戻れる）
-  const releaseLabel = s ? `release-${s}` : undefined;
-  const isRelease = (t: Ticket) => releaseLabel !== undefined && t.labels.includes(releaseLabel);
+  // リリースの手順で起票したチケット。リリースの段で進めるので、計画しない
+  const isRelease = (t: Ticket) => s !== null && t.labels.includes(`release-${s}`);
   const all = sortedDocs(store.tickets.values()).map((d) => d.data);
   const ids = new Set(target.tickets.map((t) => t.id));
   const iteration = s ? store.iterations.get(s as IterationId)?.data : undefined;
-  // 閉じた Iteration には入れられないので、割り当ての候補はない
-  const candidates =
-    iteration?.status === "closed"
-      ? []
-      : target.kind === "iteration"
-        ? all.filter(
-            (t) =>
-              t.status === "todo" &&
-              t.iteration === undefined &&
-              !(auditLabel && t.labels.includes(auditLabel)),
-          )
-        : target.tickets.filter((t) => t.status === "todo" && t.iteration === undefined);
-  const releaseScope = (
-    s === null
-      ? []
-      : target.kind === "iteration"
-        ? target.tickets
-        : [...target.tickets, ...all.filter((t) => t.iteration === s && !ids.has(t.id))]
-  ).filter((t) => !isRelease(t));
+  const releaseScope = releaseScopeOf(store, target);
+  // 数える関所の記録（iteration reopen より前は数えない）。根拠が今の事実に合うかは段階ごとに見る
+  const records = iterationCheckpoints(store, s);
   const plans = sortedDocs(store.plans.values()).filter(
     (p) => p.data.closed_at === undefined && p.data.tickets.some((t) => ids.has(t)),
   );
@@ -608,9 +530,11 @@ export function flowFactsOf(
     iterationClosed: iteration?.status === "closed",
     targets: target.tickets,
     releaseScope,
-    candidates: candidates.map((t) => t.id),
-    auditLabeled: auditLabel !== undefined && all.some((t) => t.labels.includes(auditLabel)),
-    releaseLabeled: all.some(isRelease),
+    candidates: flowCandidates(store, target),
+    asked: [...askedCandidates([...records, ...localAssign])].sort(),
+    checked: s !== null && checkedWith(records, checkFactsOf(store, target)),
+    audited: s !== null && auditedWith(records, auditDoneOf(store, target)),
+    releasePassed: passed(records, "release"),
     pendingPlans: plans
       .filter((p) => p.data.pending_approval)
       .map((p) => ({ id: p.id, tickets: p.data.tickets })),
@@ -630,7 +554,7 @@ export function flowFactsOf(
       .map((t) => t.id),
     noAssign,
   };
-  // 同じ段階が続いたかは、段階を決める事実に加えて、対象のチケットの更新と Run の出入りで見る
+  // 同じ段階が続いたかは、段階を決める事実（関所の記録を数えた結果を含む）に加えて、対象のチケットの更新と Run の出入りで見る
   // （作業の段階で見直しや手直しが進めば、チケットの状態が同じでも事実は変わった）。
   // release-<S> のチケットも見る（リリースの PR が進めば、リリースの段が続いても止めない）
   const watched = new Set([
@@ -646,7 +570,15 @@ export function flowFactsOf(
   const fingerprint = createHash("sha256")
     .update(
       JSON.stringify({
-        facts,
+        // 対象の並びが違っても同じ対象（t1 t2 と t2 t1）
+        facts: {
+          ...facts,
+          targets: [...facts.targets].sort((a, b) => compareIds(a.id, b.id)),
+          releaseScope: [...facts.releaseScope].sort((a, b) => compareIds(a.id, b.id)),
+          unplanned: [...facts.unplanned].sort(compareIds),
+        },
+        // 関所を通ったことも進み（リリースの関所のように、通っても段階が変わらないものがある）
+        checkpoints: records.length,
         tickets: [...watched].sort().map((id) => {
           const t = store.tickets.get(id as Ticket["id"])?.data;
           return t ? [t.id, t.status, t.pr ?? null, t.updated_at] : [id];
@@ -673,13 +605,15 @@ export interface FlowNext {
   guide: { topic: string; sections: string[]; text: string; command: string };
   /** この段階で親が呼ぶ dg のコマンド（順に） */
   commands: string[];
+  /**
+   * この段階の関所を通すコマンド（dg checkpoint。段階の値に合う付け方を足したもの。人だけなら人に頼む文）。段階の手順が決めた場所で呼ぶ。
+   * 通ると Iteration に記録が足され、次の呼び出しが段階を終えたものとして進む。呼ばなければ同じ段階を返し続ける。
+   * 関所を持たない段階（plan・work・close・stop）と、リリースの関所を通った後は null
+   */
+  checkpoint: string | null;
   approval: FlowApproval;
   /** 止まったとき人に伝えること。なければ null */
   ask_human: string | null;
-  /** この実行で終えたこと（resume を受けて求めた。今の段階の分はまだ含まない） */
-  memory: FlowMemory;
-  /** 次の呼び出しで --resume にそのまま写して渡す値。保存しない */
-  resume: string;
 }
 
 export const flowNext = defineCommand({
@@ -689,15 +623,18 @@ export const flowNext = defineCommand({
   summary:
     "Return the current stage of the Iteration flow (assign → check → plan → work → audit → release, with close inside the work rule) and the next step. " +
     "The target is one Iteration, one Plan, or one or more tickets. The stage is the first of these eight rules that applies, in order " +
-    "(1 assign: assignment is not finished in this run, <S> is not audited, some todo is neither labeled audit-<S> nor in an Iteration, and --no-assign is not given / " +
-    "2 check: not yet checked in this run / 3 plan: an approval-waiting Plan includes the target / 4 work: an approved Plan that includes the target has unfinished tickets, and if none, an approved open Plan that includes the target is finished (close: plan close) / " +
+    "(1 assign: some candidate has not been seen by an assign checkpoint, <S> is not audited, and --no-assign is not given / " +
+    "2 check: no check checkpoint matches the current tickets / 3 plan: an approval-waiting Plan includes the target / 4 work: an approved Plan that includes the target has unfinished tickets, and if none, an approved open Plan that includes the target is finished (close: plan close) / " +
     "5 plan: an open Plan does not include some todo / 6 audit: all tickets of <S> are done or abandoned but not yet audited / 7 release: the same, and audited. Tickets labeled release-<S> (the two release tickets that the release steps file) are not counted in 6 and 7 nor planned in 5, so release keeps returning until <S> is closed / 8 stop. If <S> is closed, nothing is assigned, and the flow stops as finished before 6 and 7). " +
-    "Audited means a ticket with the label audit-<S> or release-<S> exists, or the audit was finished in this run. For a ticket or Plan target, <S> is the ticket's Iteration (only when it is a single one), and audit and release apply only when all tickets in that Iteration are finished. " +
-    "Passing the returned resume to --resume in the next call marks the assignment, check, and audit that it returned as finished, and skips them. If resume is missing, unreadable, or for a different target, it starts again from assign and check. " +
-    "When stopped without finishing a stage (such as stopping at the audit findings table), do not pass that resume (passing it would skip that stage). " +
-    "Stages in skip under flow of workflow.yaml are skipped without reading their rules. If the facts (tickets, Plans, Runs) have not changed for the same stage as the previous return, it returns stop. Returns the stage's section (guide), the commands to call (commands; with --gate, the work stage sets the level on tickets whose level differs before next; when that lowers the level, the entry is a sentence to ask a person to run the command, because only a person can lower it), and whether approval is needed (approval). " +
-    "The Workflow's values decide approval (dg workflow show): flow.assign, flow.check, flow.plan, flow.audit, and flow.release for their stages, and the decide of the review → done boundary for the merges of the work stage. approval.value is that value, and approval.agent is what it means for an agent in this call: allow (go ahead without asking), approval (ask a person first; required is true), or reject (only a person does it; required is true). --auto goes ahead without asking only where the value is ask_unless_auto: auto_ok is then true, and the judged commands carry --auto (iteration add, plan approve), which records the agent as the approver. A value of always_ask is asked with --auto too. A judged command in commands that carries --approved-by human is run only after a person approves approval.what. In the check stage the value decides only the rows to fix; deletions, abandoned, and closing are always asked. " +
-    "When a column is over its WIP limit (wip in workflow.yaml), it warns the same way as dg next, and the work stage puts first in commands a step to advance tickets in the columns further along (starting is not refused). Writes nothing",
+    "Whether assign, check, and audit are finished is read from the checkpoint records of <S> (checkpoints of the Iteration, added by dg checkpoint), so a flow goes on from where it was across conversations, people, and machines. A record counts only while its basis holds, and records from before dg iteration reopen are not counted. " +
+    "Assign: the candidates are, for an Iteration target, the todos that are neither in an Iteration nor labeled audit-<S>, and for a ticket or Plan target, the unfinished target tickets that are not in an Iteration. A record holds the candidates it saw, and only candidates that no record has seen are asked about. " +
+    "Check: a record holds a hash of the tickets (which tickets there are, and each one's title, body without the acceptance marks, priority, labels, dependencies, Epic, and Iteration; not its Status, assignee, branch, PR, or gate level), and it stops counting when they change. " +
+    "Audit (audited): a record holds the done tickets, and it stops counting when a ticket that it did not see is done (tickets labeled audit-<S> or release-<S> are not looked at, so merging the audit's own fixes does not ask for another audit). " +
+    "The stage's steps pass the checkpoint with the command in checkpoint (null when the stage has none, and for release once it is passed). If it is not passed, the same stage is returned again. " +
+    "For a ticket or Plan target, <S> is the ticket's Iteration (only when it is a single one), and audit and release apply only when all tickets in that Iteration are finished. The records are kept on an Iteration, so when no single Iteration is determined, only rule 1 applies (the assign stage decides the Iteration, and its checkpoint is recorded on this machine only), and otherwise the flow stops. " +
+    "Stages in skip under flow of workflow.yaml are skipped without reading their rules. If the facts (tickets, Plans, Runs, checkpoint records) have not changed for the same stage as the previous return, it returns stop (repeated is the stage). The previous return is remembered for each target on this machine (deguboard-local/flow/, not shared), and it is forgotten when stop is returned, so the call after a stop works the stage out again. Returns the stage's section (guide), the commands to call (commands; with --gate, the work stage sets the level on tickets whose level differs before next; when that lowers the level, the entry is a sentence to ask a person to run the command, because only a person can lower it), and whether approval is needed (approval). " +
+    "The Workflow's values decide approval (dg workflow show): flow.assign, flow.check, flow.plan, flow.audit, and flow.release for their stages, and the decide of the review → done boundary for the merges of the work stage. approval.value is that value, and approval.agent is what it means for an agent in this call: allow (go ahead without asking), approval (ask a person first; required is true), or reject (only a person does it; required is true). --auto goes ahead without asking only where the value is ask_unless_auto: auto_ok is then true, and the judged commands carry --auto (iteration add, plan approve, and the checkpoint), which records the agent as the approver. A value of always_ask is asked with --auto too. A judged command (in commands or checkpoint) that carries --approved-by human is run only after a person approves approval.what. In the check stage the value decides only the rows to fix; deletions, abandoned, and closing are always asked. " +
+    "When a column is over its WIP limit (wip in workflow.yaml), it warns the same way as dg next, and the work stage puts first in commands a step to advance tickets in the columns further along (starting is not refused). Writes no data (only the memory of the previous return, under deguboard-local)",
   input: z.object({
     targets: z
       .array(z.string().min(1))
@@ -718,37 +655,42 @@ export const flowNext = defineCommand({
       .describe(
         "Quality gate level the person gave (/dgall --gate-<level>). In the work stage, puts dg ticket update <id> --gate <level> before next only for tickets whose level differs (a ticket with no gate is high). When the level is lower than the ticket's, the entry asks a person to run it instead",
       ),
-    resume: z
-      .string()
-      .optional()
-      .describe(
-        "The resume returned by the previous dg flow next. Pass it through as-is; do not build it",
-      ),
   }),
+  // データには書かない。止まる判定のために、前に返した段階だけを deguboard-local に覚える
   write: false,
   needs: "store",
   async run(ctx, input) {
     const auto = input.auto ?? false;
     const warnings: string[] = [];
+    const local = await readFlowLocal(
+      ctx.repo.localDir,
+      resolveFlowTarget(ctx.store, input.targets).key,
+    );
     const {
       facts,
-      fingerprint,
+      fingerprint: factsHash,
       key: target,
-    } = flowFactsOf(ctx, input.targets, input.no_assign ?? false);
-    let prev = input.resume === undefined ? undefined : decodeResume(input.resume);
-    if (input.resume !== undefined && !prev)
-      warnings.push("Cannot read resume, so starting over from assignment and check");
-    if (prev && prev.target !== target) {
-      warnings.push(
-        `resume belongs to a different target (${prev.target}), so starting over from assignment and check`,
-      );
-      prev = undefined;
-    }
-    const memory = memoryAfter(prev);
+    } = flowFactsOf(ctx, input.targets, input.no_assign ?? false, local.assign);
+    // 止まる判定は、引数（--auto・--gate）も同じ呼び出しどうしで比べる。人が引数を変えて始め直したら、同じ段階でも返す手が変わる
+    const fingerprint = `${factsHash}${auto ? " auto" : ""}${input.gate ? ` gate=${input.gate}` : ""}`;
     // 読むだけなので、workflow.yaml に誤りがあって読めなければ Core の既定の値で求める（誤りは dg validate が知らせる）
     const workflow = ctx.store.workflow?.resolved ?? DEFAULT_WORKFLOW;
-    const found = flowStageOf(facts, memory, workflow.flow.skip);
-    const repeated = isRepeated(prev, found.name, fingerprint) ? found.name : null;
+    const found = flowStageOf(facts, workflow.flow.skip);
+    const repeated = isRepeated(local.last, found.name, fingerprint) ? found.name : null;
+    // 止まると返したら、覚えた段階を忘れる。新しい会話が同じ対象で始め直したとき（会話は見分けられない）に、
+    // 止まったままにせず、次の呼び出しで段階を求め直す。回し続けるエージェントは、1 回おきに止まる手を受け取る
+    const { last: _last, ...kept } = local;
+    try {
+      await writeFlowLocal(ctx.repo.localDir, target, {
+        ...kept,
+        ...(repeated ? {} : { last: { stage: found.name, facts: fingerprint } }),
+      });
+    } catch (error) {
+      // 覚えられなくても段階は返す（止まる判定が次の呼び出しで効かないだけ）
+      warnings.push(
+        `Cannot remember the returned stage under deguboard-local/flow (${error instanceof Error ? error.message : String(error)}), so the next call cannot tell whether the same stage repeats`,
+      );
+    }
     const stage: FlowStage = repeated
       ? {
           name: "stop",
@@ -801,13 +743,16 @@ export const flowNext = defineCommand({
               },
         ),
       ],
+      checkpoint: checkpointOf(stage, target, approval, facts.releasePassed),
       ask_human:
         stage.name === "stop"
-          ? `${stage.reason}. Show the state and stop. Starting again with the same target works it out again from the state`
+          ? `${stage.reason}. ${
+              // 関所を持つ段階が続いたのは、関所を通していないから（手順を終えて呼び忘れたか、承認が得られていない）
+              repeated && CHECKPOINT_OF[repeated]
+                ? `The ${repeated} checkpoint is not passed (dg checkpoint ${CHECKPOINT_OF[repeated]} ${target}): the stage ends only when its steps pass it. `
+                : ""
+            }Show the state and stop. Starting again with the same target works it out again from the state`
           : null,
-      memory,
-      // 止まったときも求めた段階を覚える。同じ事実で呼び直しても、続いた段階として止まり続ける
-      resume: encodeResume({ target, stage: found.name, facts: fingerprint, memory }),
     };
     return ok(result, undefined, warnings);
   },

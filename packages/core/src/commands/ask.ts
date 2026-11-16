@@ -207,8 +207,8 @@ export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage,
     en: "Advances an Iteration or tickets stage by stage, from assignment through release (or cleanup).",
   },
   dgaudit: {
-    ja: "Iteration か Epic の完了後、リポジトリ全体を観点ごとに見直し、承認を得た指摘をチケットにします。",
-    en: "After an Iteration or Epic is done, reviews the whole repository by aspect and turns the findings approved by a human into tickets.",
+    ja: "Iteration の完了後、リポジトリ全体を観点ごとに見直し、承認を得た指摘をチケットにします。",
+    en: "After an Iteration is done, reviews the whole repository by aspect and turns the findings approved by a human into tickets.",
   },
   dgdone: {
     ja: "マージ済みのチケットを照合して done を確かめ、受け入れ条件を確かめて後片付けをします。",

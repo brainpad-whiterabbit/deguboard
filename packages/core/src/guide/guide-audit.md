@@ -1,15 +1,15 @@
 ---
-description: Once every ticket of a deguboard Iteration (or Epic) is done, and before release, reviews the whole repository by viewpoint with subagents (documents and implementation, tests, architecture, README, dependencies, config files). Shows the findings in a table and, after approval, files them as tickets. The review does not change files. Use when asked「リリースの前に見直して」「リポジトリ全体を見直して」.
-argument-hint: "[Iteration|Epic]"
+description: Once every ticket of a deguboard Iteration is done, and before release, reviews the whole repository by viewpoint with subagents (documents and implementation, tests, architecture, README, dependencies, config files). Shows the findings in a table and, after approval, files them as tickets. The review does not change files. Use when asked「リリースの前に見直して」「リポジトリ全体を見直して」.
+argument-hint: "[Iteration]"
 ---
 
 # Audit (audit)
 
-After all tickets of an Iteration (or Epic) are done, and before release, reviews the whole repository by viewpoint, and after approval files the findings as tickets. The review does not change files. What is found becomes tickets, which are fixed through a plan and PRs. The form and writing of the tickets follow `dg guide import`.
+After all tickets of an Iteration are done, and before release, reviews the whole repository by viewpoint, and after approval files the findings as tickets. The review does not change files. What is found becomes tickets, which are fixed through a plan and PRs. The form and writing of the tickets follow `dg guide import`.
 
 ## Deciding the target
 
-- Iteration (`s3`) and Epic (`e3`): the place to put the tickets to fix, and the unit for deciding whether the review is finished. The range reviewed is always the whole repository
+- Iteration (`s3`): the place to put the tickets to fix, and the unit for deciding whether the review is finished (the audit checkpoint is recorded on it). The range reviewed is always the whole repository. An Epic is not a target
 - No target given: suggests the active Iteration and asks to confirm it. If there is none, asks which one. If the answer is to review without deciding a target, the findings are filed without putting them anywhere
 - If the target still has tickets that are neither done nor abandoned, confirm whether the review may start
 
@@ -17,7 +17,7 @@ Below, the target's ID is written as `<S>`.
 
 ## Audit steps
 
-1. **Read the state**: after `dg --json --actor agent sync`, read the target (`iteration show <S>` or `epic show <S>`) and the tickets filed by the previous review (those whose label starts with `audit-`; find them with `ticket list --label`). From the repository's rules (the agent instructions such as CLAUDE.md or AGENTS.md, README, development docs), take the documents that are the sources of truth, the check commands, and any additions or removals to the viewpoints. From the tag of the previous release (`git tag --sort=-creatordate`), decide the range to look at first (what changed after it)
+1. **Read the state**: after `dg --json --actor agent sync`, read the target (`iteration show <S>`) and the tickets filed by the previous review (those whose label starts with `audit-`; find them with `ticket list --label`). From the repository's rules (the agent instructions such as CLAUDE.md or AGENTS.md, README, development docs), take the documents that are the sources of truth, the check commands, and any additions or removals to the viewpoints. From the tag of the previous release (`git tag --sort=-creatordate`), decide the range to look at first (what changed after it)
 2. **Make a temporary worktree**: after `git fetch {{git.remote}} {{git.base_branch}}`, run `git worktree add --detach {{worktree.root}}/audit-<S> {{git.remote}}/{{git.base_branch}}`. If it remains, remove it with `git worktree remove --force` before making it. Then run the install, build, and whole check steps that the rules write, in this order, only once. Note the result of each, and the last part of the output on failure. Do not stop on failure
 3. **Decide the viewpoints**: apply the rules' decisions to the "Viewpoints" section below. For a viewpoint whose target is not in the repository, skip it and give the reason
 4. **Review by viewpoint with subagents**: run them side by side, as in the "Delegating to subagents" section below
@@ -27,9 +27,10 @@ Below, the target's ID is written as `<S>`.
    | #   | Viewpoint | Severity | Target | Finding | Where | Handling |
    | --- | --------- | -------- | ------ | ------- | ----- | -------- |
 
-7. **Get approval**: ask once, with multiple selection (`#`), which rows to reflect (include "Do not reflect"). Write nothing until approval is obtained
-8. **Reflect**: file the approved rows by the steps of `dg guide import` (see the "Filing tickets" section below). For overlapping tickets, add the findings as the "Filing tickets" section says
-9. **Clean up and report the result**: remove the worktree with `git worktree remove {{worktree.root}}/audit-<S>` (also when stopped). If it cannot be removed, show the changed files from `git -C <path> status --short` in the result, then remove it with `--force`. Report the viewpoints reviewed and skipped, the tickets filed, and the findings not fixed
+7. **Get approval**: ask once, with multiple selection (`#`), which rows to reflect (include "Do not reflect"). Write nothing until approval is obtained. When there are no findings, show that and ask once whether to record the audit as passed
+8. **Pass the checkpoint** (when there is a target `<S>`; a review without a target has none): once the human answered step 7 (also with "Do not reflect"), and before filing, run `dg --json --actor agent checkpoint audit <S> --approved-by human`. It records on the Iteration that the audit saw the tickets done so far, so that `dg flow next` goes on to release, and asks for the audit again only when other tickets are merged after it (see `dg checkpoint --help`). The Workflow's `flow.audit` judges it (`always_ask` by default, so `--auto` does not skip the approval); when the board's value is `human_only`, give the human the exact command to run, and when it is `anyone`, leave `--approved-by` out. In a flow, `checkpoint` of `dg flow next` gives the command with the right one. If the human stopped at the table ("Stop here"), do not run it, and file nothing
+9. **Reflect**: file the approved rows by the steps of `dg guide import` (see the "Filing tickets" section below). For overlapping tickets, add the findings as the "Filing tickets" section says
+10. **Clean up and report the result**: remove the worktree with `git worktree remove {{worktree.root}}/audit-<S>` (also when stopped). If it cannot be removed, show the changed files from `git -C <path> status --short` in the result, then remove it with `--force`. Report the viewpoints reviewed and skipped, the tickets filed, and the findings not fixed
 
 Running the review (subagents, read-only commands, the temporary worktree) proceeds without waiting for approval. Approval is asked only once, in step 7.
 
@@ -73,8 +74,8 @@ The place suggested for a finding is the target (fixed before release). Only fin
 
 ## Filing tickets
 
-- Attach the label `audit-<S>` (for example `audit-s3`). If the review was done without a target, use `audit`. If the target is an Iteration, write `<S>` in `iteration`; if it is an Epic, write it in `epic`
-- If tickets with the label `audit-<S>` exist, `<S>` counts as already reviewed. Do not add or remove this label except when filing by this procedure
+- Attach the label `audit-<S>` (for example `audit-s3`). If the review was done without a target, use `audit`. With a target, write `<S>` in `iteration`
+- Tickets with the label `audit-<S>` are the audit's own fixes: `dg flow next` does not offer them as assignment candidates, and merging them does not ask for another audit of `<S>` (whether `<S>` is audited is read from the audit checkpoint of step 8, not from this label). Do not add or remove this label except when filing by this procedure
 - File a mismatch between an ADR's details and the implementation with the title "Remove ADR details" (with the ADR number). Keep the decision as it is, and move the details to code, tests, and help
 - When an ADR has grown long (roughly 8,000 characters as a guideline), an ADR is no longer needed, or decisions on the same theme are scattered, file with the title "Split and organize ADRs". Gather into one ticket: splitting, merging, deleting, deleting details, matching against the implementation, and listing the decisions that can move to tests or lint
 - For a finding that goes into an existing unfinished ticket, read the ticket with `ticket show <ID>` first, then add the finding as an acceptance item with `ticket update <ID> --acceptance` (`--acceptance` replaces the whole acceptance criteria section, so give the existing items and the new one) or in the body (`--body` replaces the whole body, so give the existing text and the addition)
@@ -89,5 +90,5 @@ The place suggested for a finding is the target (fixed before release). Only fin
 After showing the result (also when there were no findings), ask with the following choices.
 
 - **Make a plan** (recommended when something was filed for the target): plan the target's todos by the steps of `dg guide plan` (if a Skill is available, `/dgplan <S>`)
-- **Release** (recommended when nothing was filed): release and close by the steps of `dg guide release` (if a Skill is available, `/dgrelease <S>`). If the target is an Epic, clean up with `dg guide done`
+- **Release** (recommended when nothing was filed): release and close by the steps of `dg guide release` (if a Skill is available, `/dgrelease <S>`)
 - **Stop here**

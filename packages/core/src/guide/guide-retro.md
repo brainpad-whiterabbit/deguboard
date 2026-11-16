@@ -5,7 +5,7 @@ argument-hint: "[Iteration] [perspectives]"
 
 # Retrospective (retro)
 
-Looks back on a closed Iteration from its numbers and tickets, by the team's perspectives, and gives Keep / Problem / Try. The retrospective itself, with the computed metrics, is answered in the chat and is not stored in the data. Only two things change data, both after a human approves: the metric definitions (recorded in the team's `config.yaml`) and the Try rows (they become tickets, which are advanced through a plan and PRs). The form and writing of the tickets follow `dg guide import`.
+Looks back on a closed Iteration from its numbers and tickets, by the team's perspectives, and gives Keep / Problem / Try. The retrospective itself, with the computed metrics, is answered in the chat and is not stored in the data. Only two things change data, both after a human approves: the metric definitions (recorded in the team's `config.yaml`) and the Try rows (they become tickets, which are advanced through a plan and PRs; the approval is recorded on the Iteration as the retro checkpoint). The form and writing of the tickets follow `dg guide import`.
 
 ## Deciding the target
 
@@ -30,7 +30,7 @@ In the steps below, `<S>` is the ID of the target Iteration.
 4. **Compute the defined metrics and show the trend**: for each target perspective that has definitions (those just approved included), compute every metric by its definition, for `<S>` and for the recent Iterations, and show the table of the "Computing the metrics and the trend" section below. A perspective that still has no definition is one row, "unmeasured (no approved definition)"
 5. **Show Keep / Problem / Try**: in the table of the "Keep / Problem / Try" section below, with the notes on the gaps
 6. **Get approval**: ask once, with multiple selection (`#`), which Try rows to reflect (include "Do not reflect"). Write nothing until approval is obtained. If there is no Try row to reflect, do not ask
-7. **Reflect and report**: file the approved rows (see the "Filing tickets" section below), and report the metric definitions recorded, the tickets filed and updated, and the rows not reflected
+7. **Reflect and report**: when the human approved rows in step 6, first pass the retro checkpoint with `dg --json --actor agent checkpoint retro <S> --approved-by human` (the Workflow's `flow.retro` judges filing the improvements; `always_ask` by default, so `--auto` does not skip the approval. When the board's value is `human_only`, give the human the exact command to run and wait; when it is `anyone`, leave `--approved-by` out). It records on `<S>` that the improvements were approved. When no row was approved, do not pass it. Then file the approved rows (see the "Filing tickets" section below), and report the metric definitions recorded, the tickets filed and updated, and the rows not reflected
 
 Reading and computing proceed without waiting for approval. Approval is asked at most twice: for the metric definitions (step 3) and for the Try rows (step 6).
 

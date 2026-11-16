@@ -1,6 +1,6 @@
 ## Asking with choices
 
-Tickets advance in this order: import (`dg guide import`) → assign (`dg guide assign`) → check (`dg guide check`) → plan (`dg guide plan`) → work (`dg guide work`) → audit (`dg guide audit`, when an Iteration or Epic ends) → release (`dg guide release`; if there are no release steps, clean up with `dg guide done`). Done (`dg guide done`) comes after every merge. To carry on from assign through release, use `dg guide all`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
+Tickets advance in this order: import (`dg guide import`) → assign (`dg guide assign`) → check (`dg guide check`) → plan (`dg guide plan`) → work (`dg guide work`) → audit (`dg guide audit`, when an Iteration ends) → release (`dg guide release`; if there are no release steps, clean up with `dg guide done`). Done (`dg guide done`) comes after every merge. To carry on from assign through release, use `dg guide all`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
 
 - When the agent can offer choices, ask with that mechanism (for example, the AskUserQuestion tool in Claude Code). If it cannot, show the numbered choices in text
 - Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
