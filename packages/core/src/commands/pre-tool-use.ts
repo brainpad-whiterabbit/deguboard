@@ -71,9 +71,9 @@ export function advancesPrOutsideDg(command: string): boolean {
 /** dg を経由しない gh pr ready・merge を拒む文（t545・t555） */
 export const GH_PR_DENIED =
   "Mark a PR ready and merge it with dg commands: dg pr ready <ticket> and dg pr merge <ticket> (they call gh only when the quality gate dg gate is met, and otherwise return the conditions and reasons). " +
-  "Going ahead without meeting the gate (a reviewer cannot be launched, the fix loop went over its limit, or a person set the count) is a human decision. For a merge, ask a person whether to merge it anyway, and only when the person approves, run dg pr merge <ticket> --approved-by human (the approval overrides the unmet conditions listed in config's merge.approval_overrides; " +
+  "Going ahead without meeting the gate (a reviewer cannot be launched, the fix loop went over its limit, or a person set the count) is a human decision. For a merge, ask a person whether to merge it anyway, and only when the person approves, run dg pr merge <ticket> --approved-by human (the approval overrides unmet check, review, fix_rounds, and acceptance; " +
   NEVER_OVERRIDDEN +
-  "); do not ask a person to run gh pr merge. For ready, ask a person to run gh pr ready (dg guide review). If the level of the ticket does not fit the change, change it with dg ticket update <id> --gate <level> (lowering it is a person's instruction), then run dg pr ready or dg pr merge again. " +
+  "); do not ask a person to run gh pr merge. For ready, ask a person to run gh pr ready (dg guide review). If the level of the ticket does not fit the change, ask a person to change it with dg ticket update <id> --gate <level> (only a person can lower it), then run dg pr ready or dg pr merge again. " +
   "This hook does not mask quotes, heredocs, or comments, and stops when the words gh, pr, and merge or ready appear anywhere. " +
   "To write those words in a body, write it to a file with Write and pass it with gh pr create --body-file <file> or git commit -F <file>. If it stopped because you ran it together with other commands, run them separately";
 

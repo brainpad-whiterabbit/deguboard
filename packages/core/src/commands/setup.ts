@@ -86,6 +86,13 @@ import { defineCommand, ok, type CommandContext } from "./define.js";
 import { closeStoppedRuns, type HookView } from "./hook.js";
 import { nowIso, sortedDocs } from "./helpers.js";
 import {
+  hasRecord,
+  permissionFields,
+  recordNote,
+  requireOperation,
+  type PermissionInput,
+} from "./permission.js";
+import {
   linkOrphanRounds,
   recordOrphanReviews,
   type RecordedOrphanReviews,
@@ -1372,16 +1379,43 @@ function moveOptions(key: string): { immediate?: true } {
   return key === "git.data_remote" || key === "git.data_branch" ? { immediate: true } : {};
 }
 
+/**
+ * チームの config.yaml を変えるのは、カンバンの管理の操作（Workflow の governance.config）。個人の設定（--local）は
+ * 自分のマシンだけの値なので判定しない。書き込みのロックの中（取り込んだ後の Workflow）で呼ぶ
+ */
+function requireTeamConfig(
+  ctx: CommandContext,
+  command: "config.set" | "config.unset",
+  input: PermissionInput & { key: string },
+): void {
+  requireOperation(
+    ctx,
+    { command, governs: "config" },
+    input,
+    `changing the team's setting ${input.key}`,
+  );
+}
+
+/** チームの設定の書き込みの扱い。承認者と強制の理由は、その操作のコミットに残す（まとめ待ちにしない） */
+function teamWriteOptions(input: PermissionInput & { key: string }): { immediate?: true } {
+  return hasRecord(input) ? { immediate: true } : moveOptions(input.key);
+}
+
+const TEAM_CONFIG_NOTE =
+  "Changing the team's config.yaml is judged by the Workflow's governance.config (always_ask by default; see dg workflow show --help for the values): an agent passes --approved-by after a person approved the change, and the approver is recorded in the commit message. Personal settings (--local) are not judged";
+
 export const configSet = defineCommand({
   name: "config.set",
   positionals: ["key", "value"],
   group: "setup",
   summary:
-    "Change one item of config.yaml (point to it with dots, like commit.mode). Separate array items with commas, and set an empty string to empty the list. For a non-empty string default (such as priority.*; clears_to_default is true in config show --fields), an empty string returns it to the default. For items with choices (such as commit.mode), empty, null, and omitted values are rejected. For number items (such as work.parallel), a string of digits is turned into a number, and values out of range are rejected. --local writes to personal settings. The perspectives of the retrospective (retro.perspectives) are not written here but with dg retro perspective and dg retro metric. Returns the value that was written: the team value, or the value layered with personal settings",
+    "Change one item of config.yaml (point to it with dots, like commit.mode). Separate array items with commas, and set an empty string to empty the list. For a non-empty string default (such as priority.*; clears_to_default is true in config show --fields), an empty string returns it to the default. For items with choices (such as commit.mode), empty, null, and omitted values are rejected. For number items (such as work.parallel), a string of digits is turned into a number, and values out of range are rejected. --local writes to personal settings. The perspectives of the retrospective (retro.perspectives) are not written here but with dg retro perspective and dg retro metric. Returns the value that was written: the team value, or the value layered with personal settings. " +
+    TEAM_CONFIG_NOTE,
   input: z.object({
     key: z.string().min(1).describe("Item. Example: commit.mode"),
     value: z.unknown().describe("Value"),
     local: z.boolean().optional().describe(LOCAL_SET_DESCRIPTION),
+    ...permissionFields,
   }),
   write: true,
   needs: "store",
@@ -1410,23 +1444,15 @@ export const configSet = defineCommand({
         // チームの値を元にする（個人の上書きを重ねた値を元にすると、上書きがチームのファイルに写ってしまう）。
         // 戻りも書いたチームの値（writeConfig）。重ねた値を返すと、個人の上書きがある項目で保存が効かなかったように見える
         const team = ctx.store.teamConfig;
-        let leaf = resolveLeaf(input.key, input.value, field, rest, team);
-        if (input.key === "actor.human_only") {
-          // コマンド名の存在を確かめ、エイリアス（sprint.close）は正式名に直す。registry と循環するので動的 import
-          const { findCommand } = await import("./registry.js");
-          const names = leaf as string[];
-          const unknown = names.filter((n) => !findCommand(n));
-          if (unknown.length > 0)
-            throw new OperationError(
-              "VALIDATION_FAILED",
-              `actor.human_only has unknown commands: ${unknown.join(", ")}`,
-            );
-          leaf = names.map((n) => findCommand(n)!.name);
-        }
+        const leaf = resolveLeaf(input.key, input.value, field, rest, team);
+        requireTeamConfig(ctx, "config.set", input);
         const value = nestedConfigValue((team as Record<string, unknown>)[top], rest, leaf);
         return ctx.store.writeConfig({ [top]: value });
       },
-      { message: `Change config ${input.key}`, ...moveOptions(input.key) },
+      {
+        message: `Change config ${input.key}${recordNote(ctx, input)}`,
+        ...teamWriteOptions(input),
+      },
     );
     return ok(result.value, result.write);
   },
@@ -1437,10 +1463,12 @@ export const configUnset = defineCommand({
   positionals: ["key"],
   group: "setup",
   summary:
-    "Remove one item from config.yaml and return it to the default (point to it with dots, like commit.mode). With --local, remove the personal override and return to the team value. Returns the value that was written: the team value, or the value layered with personal settings",
+    "Remove one item from config.yaml and return it to the default (point to it with dots, like commit.mode). With --local, remove the personal override and return to the team value. Returns the value that was written: the team value, or the value layered with personal settings. " +
+    TEAM_CONFIG_NOTE,
   input: z.object({
     key: z.string().min(1).describe("Item. Example: commit.mode"),
     local: z.boolean().optional().describe(LOCAL_UNSET_DESCRIPTION),
+    ...permissionFields,
   }),
   write: true,
   needs: "store",
@@ -1456,10 +1484,14 @@ export const configUnset = defineCommand({
       ctx,
       async () => {
         const { top, rest } = splitKey(input.key, false);
+        requireTeamConfig(ctx, "config.unset", input);
         const team = ctx.store.teamConfig as Record<string, unknown>;
         return ctx.store.writeConfig({ [top]: nestedConfigValue(team[top], rest, undefined) });
       },
-      { message: `Reset config ${input.key} to the default`, ...moveOptions(input.key) },
+      {
+        message: `Reset config ${input.key} to the default${recordNote(ctx, input)}`,
+        ...teamWriteOptions(input),
+      },
     );
     return ok(result.value, result.write);
   },

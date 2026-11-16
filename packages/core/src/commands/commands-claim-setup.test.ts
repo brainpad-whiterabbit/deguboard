@@ -154,32 +154,22 @@ describe("claim の Iteration の準備", () => {
     expect((await runCommand(iterationShow, ctx, { iteration: "s2" })).data.status).toBe("planned");
   });
 
-  it("actor.human_only の iteration.add・iteration.start は agent の claim では行わず、warnings で人に頼む", async () => {
+  it("agent の claim も Iteration への追加と開始を行う", async () => {
     const f = await fixture();
     const human = await requiringIteration(f.cloneA);
-    await runCommand(configSet, human, {
-      key: "actor.human_only",
-      value: "iteration.add, iteration.start",
-    });
     await runCommand(iterationCreate, human, { name: "S1" });
     await runCommand(ticketCreate, human, { title: "A" });
-    await runCommand(ticketCreate, human, { title: "B", iteration: "s1" });
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
     const a = await runCommand(ticketClaim, agent, {
       ticket: "t1",
       no_worktree: true,
       no_run: true,
     });
-    expect(a.data.iteration).toBeUndefined();
-    expect(a.warnings.join("\n")).toContain("iteration.add is actor.human_only");
-    const b = await runCommand(ticketClaim, agent, {
-      ticket: "t2",
-      no_worktree: true,
-      no_run: true,
-    });
-    expect(b.warnings.join("\n")).toContain("iteration.start is actor.human_only");
+    expect(a.data.iteration).toBe("s1");
+    expect(a.warnings.join("\n")).toContain("Added t1 to s1");
+    expect(a.warnings.join("\n")).toContain("Started s1 (active)");
     expect((await runCommand(iterationShow, agent, { iteration: "s1" })).data.status).toBe(
-      "planned",
+      "active",
     );
   });
 });

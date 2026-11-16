@@ -116,11 +116,32 @@ describe("installHooks・uninstallHooks（AG-9）", () => {
     await writeFile(file, JSON.stringify({ hooks: { Stop: [{ hooks: [mine] }] } }));
     await installHooks({ cwd, scope: "local", env: {}, self: () => SELF });
     expect(await commandsOf(file, "Stop")).toHaveLength(2);
-    const removed = await uninstallHooks({ cwd, scope: "local", env: {} });
+    const removed = await uninstallHooks({ cwd, scope: "local", env: {}, actor: "human" });
     expect(removed).toMatchObject({ unchanged: false, warnings: [] });
     expect(JSON.parse(await readFile(file, "utf8"))).toEqual({
       hooks: { Stop: [{ hooks: [mine] }] },
     });
+  });
+
+  it("uninstall は Core の固定で人だけ：エージェントの呼び出しは拒否して何も書かず、--dry-run は通す", async () => {
+    const cwd = await repoDir();
+    const file = path.join(cwd, ".claude", "settings.local.json");
+    await installHooks({ cwd, scope: "local", env: {}, self: () => SELF });
+    const installed = await readFile(file, "utf8");
+    const base = { cwd, scope: "local" as const, env: {}, actor: "agent" as const };
+    await expect(uninstallHooks(base)).rejects.toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "dg limits removing dg's hooks to a person (fixed in Core, hooks_uninstall: human_only)",
+    });
+    expect(await readFile(file, "utf8")).toBe(installed);
+    // 何も書かない --dry-run は、外した後の設定を見るだけなので通す
+    const dry = await uninstallHooks({ ...base, dryRun: true });
+    expect(dry).toMatchObject({ dryRun: true, unchanged: false });
+    expect(await readFile(file, "utf8")).toBe(installed);
+    // 人は外せる
+    await uninstallHooks({ ...base, actor: "human" });
+    expect(await readFile(file, "utf8")).not.toContain("hook SessionStart");
   });
 
   it("追跡されている設定に書くと git rm --cached を案内する（git 層の trackedFiles を通す）", async () => {

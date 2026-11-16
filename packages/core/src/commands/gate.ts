@@ -292,9 +292,9 @@ export const gate = defineCommand({
     "high judges all of them (--for merge: pr · acceptance · review · fix_rounds · mergeable · head · check; --for ready: pr · review · fix_rounds · check). " +
     "low leaves out review and fix_rounds (merge: pr · acceptance · mergeable · head · check; ready: pr · check). " +
     "free judges only pr and, with --for merge, mergeable (merge: pr · mergeable; ready: pr). At free, dg pr merge still pins the PR's head (sha), so a commit pushed after the judgment is not merged. Conditions that are not judged do not appear in conditions, and their inputs (review Runs, the push time and its fetch, the check) are not read. " +
-    "Set the level with dg ticket create/import/update --gate; lowering it follows a person's instruction. " +
+    "Set the level with dg ticket create/import/update --gate; only a person can lower it (dg ticket update --gate from an agent is rejected when it lowers the level; fixed in Core). " +
     "--only check judges only check, with the same judgment, on the HEAD of the work branch's worktree (a commit not pushed yet is fine; uncommitted changes refuse it), whatever the level. Run it before the push. With --only, --for is not judged (the view only echoes it). The result is remembered per commit and command, so dg pr ready and dg pr merge after the push reuse it for the same commit. " +
-    "dg pr ready and dg pr merge make the same judgment before they call gh. Proceeding outside the conditions of the level is left to a person: for a merge, a person approves it and dg pr merge --approved-by overrides the unmet conditions listed in config's merge.approval_overrides (" +
+    "dg pr ready and dg pr merge make the same judgment before they call gh. Proceeding outside the conditions of the level is left to a person: for a merge, a person approves it and dg pr merge --approved-by overrides unmet check, review, fix_rounds, and acceptance (fixed in Core; " +
     NEVER_OVERRIDDEN +
     "; dg pr merge --help); for ready, a person runs gh. They do not write ticket data (they only record the results of passed checks in deguboard-local)",
   input: z.object({

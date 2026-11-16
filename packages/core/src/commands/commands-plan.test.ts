@@ -477,7 +477,7 @@ describe("Plan", () => {
     expect(await shown("t3")).toBeNull();
   });
 
-  it("agent の承認は agent の ID を記録し、actor.human_only に plan.approve を入れると拒否される", async () => {
+  it("agent の承認は agent の ID を記録する。なくした config の actor.human_only が残っていても読まない", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "A" });
@@ -487,10 +487,11 @@ describe("Plan", () => {
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
     const approved = await runCommand(planApprove, agent, { plan: "p1" });
     expect(approved.data.approved_by).toBe("eiki/agent");
-    await runCommand(configSet, ctx, { key: "actor.human_only", value: "plan.approve" });
+    // 前の版の config.yaml に残った一覧では、もう拒否しない（操作の権限は Workflow と Core の固定だけが決める）
+    await runCommand(configSet, ctx, { key: "actor.human_only", value: ["plan.approve"] });
     const agent2 = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
-    await expect(runCommand(planApprove, agent2, { plan: "p2" })).rejects.toMatchObject({
-      code: "TRANSITION_REJECTED",
-    });
+    expect((await runCommand(planApprove, agent2, { plan: "p2" })).data.approved_by).toBe(
+      "eiki/agent",
+    );
   });
 });

@@ -232,6 +232,31 @@ describe("dg hooks install / uninstall（AG-9）", () => {
     });
   });
 
+  it("uninstall は agent の呼び出し（--actor agent・DEGUBOARD_ACTOR=agent）を TRANSITION_REJECTED で拒み、フックを残す", async () => {
+    const cwd = await repo();
+    const file = path.join(cwd, ".claude", "settings.local.json");
+    await dg(cwd, ["hooks", "install"]);
+    const installed = await readFile(file, "utf8");
+    for (const [argv, env] of [
+      [["--json", "--actor", "agent", "hooks", "uninstall"], {}],
+      [["--json", "hooks", "uninstall"], { DEGUBOARD_ACTOR: "agent" }],
+    ] as const) {
+      const r = await dg(cwd, [...argv], env);
+      expect(r.code).not.toBe(0);
+      expect(JSON.parse(r.out)).toMatchObject({
+        ok: false,
+        error: { code: "TRANSITION_REJECTED" },
+      });
+      expect(await readFile(file, "utf8")).toBe(installed);
+    }
+    // 環境が agent でも、人が --actor human を付ければ外せる
+    const byHuman = await dg(cwd, ["--actor", "human", "hooks", "uninstall"], {
+      DEGUBOARD_ACTOR: "agent",
+    });
+    expect(byHuman.code).toBe(0);
+    expect((await settingsOf(file)).hooks).toBeUndefined();
+  });
+
   it("uninstall は .claude/.gitignore の settings.local.json の行を残す（Claude Code が dg の外でも各自のマシンの設定に使うため）", async () => {
     const cwd = await repo();
     const ignore = path.join(cwd, ".claude", ".gitignore");

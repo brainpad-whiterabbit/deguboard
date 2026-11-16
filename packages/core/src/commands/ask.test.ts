@@ -37,7 +37,7 @@ import { iterationAdd, iterationClose, iterationCreate, iterationStart } from ".
 import { planCreate } from "./plan.js";
 import { commands } from "./registry.js";
 import { runStart } from "./run.js";
-import { configSet, init } from "./setup.js";
+import { init } from "./setup.js";
 import { ticketCreate, ticketMove, ticketUpdate } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
 
@@ -341,7 +341,7 @@ describe("依頼文の組み立て", () => {
     expect([...none].sort()).toEqual(["free"]);
   });
 
-  it("actor.human_only に当たる書き換えは、/dgchange の代わりに今までどおり人が打つコマンドを返す", () => {
+  it("エージェントに拒むコマンド（humanOnly）に当たる書き換えは、/dgchange の代わりに人が打つコマンドを返す", () => {
     const cases: Array<[AskSubject[], AskAction, string, string]> = [
       [
         [ticket()],
@@ -384,7 +384,7 @@ describe("依頼文の組み立て", () => {
     expect(askActions([iteration("active")])[0]).toBe("plan");
   });
 
-  it("頼むことの操作が actor.human_only に入っていれば、依頼文の代わりに人が打つ dg のコマンドを返す", () => {
+  it("頼むことの操作がエージェントに拒むコマンド（humanOnly）に入っていれば、依頼文の代わりに人が打つ dg のコマンドを返す", () => {
     const humanOnly = ["iteration.close", "iteration.create", "ticket.move"];
     const close = buildAsk({ subjects: [iteration("active")], action: "close", humanOnly });
     expect(close).toMatchObject({
@@ -1127,7 +1127,7 @@ describe("頼むことの候補", () => {
         askGuideLine("/dgconfig", "en"),
       ].join("\n"),
     );
-    // 書くのは Skill の手順が承認を得てからなので、頼むことを人のコマンドに回さない（config.set が actor.human_only でも依頼文のまま）
+    // 書くのは Skill の手順が承認を得てからなので、頼むことを人のコマンドに回さない（config.set をエージェントに拒むカンバンでも依頼文のまま）
     expect(askHumanChecks("config", [])).toEqual([]);
     expect(buildAsk({ subjects: [], action: "config", humanOnly: ["config.set"] })).toMatchObject({
       kind: "prompt",
@@ -1506,18 +1506,20 @@ describe("ask", () => {
     await expect(run({ language: "fr" })).rejects.toThrow();
   });
 
-  it("config の actor.human_only を見て、人が打つコマンドを返す", async () => {
-    const { cwd, ctx } = await initialized();
-    await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
-    await runCommand(configSet, ctx, { key: "actor.human_only", value: "iteration.close" });
-    // 文脈ごとに config を持つので開き直す
-    const human = await openContext({ cwd, actor });
-    const view = (await runCommand(ask, human, { targets: ["s1"], action: "close" })).data;
-    expect(view).toMatchObject({
+  it("Workflow の governance の値を見て、人に限る操作（human_only）は人が打つコマンドを、エージェントも行える操作は依頼文を返す", async () => {
+    const { ctx } = await initialized();
+    await runCommand(epicCreate, ctx, { title: "E" });
+    const close = async () =>
+      (await runCommand(ask, ctx, { targets: ["e1"], action: "close" })).data;
+    // 既定の Workflow：Epic を閉じるのは人だけ（governance.epic: human_only）
+    expect(await close()).toMatchObject({
       kind: "command",
-      human_only: ["iteration.close"],
-      text: "dg iteration close s1",
+      human_only: ["epic.close"],
+      text: "dg epic close e1",
     });
+    // 人の承認で進める値にすると、エージェントが行えるので依頼文を返す
+    await runCommand(workflowSet, ctx, { definition: { governance: { epic: "always_ask" } } });
+    expect(await close()).toMatchObject({ kind: "prompt", human_only: [] });
   });
 
   it("Workflow の exceptions の値を見て、人に限る動き（human_only）は人が打つコマンドを、エージェントも行える動きは依頼文を返す", async () => {

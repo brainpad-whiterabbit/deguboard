@@ -54,7 +54,7 @@ const GROUPS: { id: string; label: string; tops: string[] }[] = [
   {
     id: "agent",
     label: msg("エージェント"),
-    tops: ["actions", "auto", "flow", "work", "merge", "review", "lint", "models", "actor"],
+    tops: ["actions", "auto", "flow", "work", "merge", "review", "lint", "models"],
   },
   { id: "metrics", label: msg("計測"), tops: ["metrics"] },
   { id: "notify", label: msg("通知"), tops: ["notify"] },
@@ -79,7 +79,6 @@ const NAMES: Record<string, string> = {
   "work.parallel": msg("同時に進めるチケットの上限"),
   "merge.method": msg("マージの方法"),
   "merge.delete_branch": msg("マージしたら作業ブランチを消す"),
-  "merge.approval_overrides": msg("人の承認で越えてよい品質ゲートの条件"),
   "review.heavy_categories": msg("重いとみなす見直しの指摘の種類"),
   "lint.require_iteration": msg("Iteration に入れてから進める"),
   "models.light": msg("段階 light のモデル"),
@@ -92,7 +91,6 @@ const NAMES: Record<string, string> = {
   "models.codex.light": msg("段階 light のモデル（Codex）"),
   "models.codex.standard": msg("段階 standard のモデル（Codex）"),
   "models.codex.heavy": msg("段階 heavy のモデル（Codex）"),
-  "actor.human_only": msg("人だけに許すコマンド"),
   "metrics.read_transcripts": msg("会話記録から使用量を読む"),
   "notify.approvals": msg("承認待ちが増えたら通知する"),
   "git.remote": msg("コードのリモート"),
@@ -184,10 +182,8 @@ export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
     msg("軽い検査として確認なしで実行するコマンドが変わる（シェルを許すのと同じ）"),
   ],
   ["actions.shell", msg("エージェントが任意のシェルを実行できるかが変わる")],
-  ["actor.human_only", msg("エージェントに許す操作が変わる")],
   ["auto.merge", msg("エージェントが PR を自動でマージするかが変わる")],
   ["auto.decisions", msg("エージェントが聞かずに選ぶ判断が変わる")],
-  ["merge.approval_overrides", msg("人の承認で越えられる品質ゲートの条件が変わる")],
 ]);
 
 type Values = Record<string, unknown>;

@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { asHuman } from "../../test/helpers/commands-context.js";
 import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
 import { recordBaseline } from "../git/outside.js";
 import { pathExists } from "../storage/exists.js";
@@ -109,7 +110,7 @@ describe("workflow のコマンド", () => {
     expect(names.sort()).toEqual(["workflow.set", "workflow.show", "workflow.validate"]);
     expect(Object.keys(workflowShow.input.shape)).toEqual([]);
     expect(Object.keys(workflowValidate.input.shape)).toEqual([]);
-    expect(Object.keys(workflowSet.input.shape)).toEqual(["definition"]);
+    expect(Object.keys(workflowSet.input.shape)).toEqual(["definition", "approved_by"]);
   });
 });
 
@@ -140,7 +141,7 @@ describe("workflow show", () => {
   it("states の label で書き換えた表示名を labels に返し、default_labels は書き換える前の core の既定のまま（画面が同じ文の Status だけを訳す）", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    await runCommand(workflowSet, ctx, { definition: strict });
+    await runCommand(workflowSet, asHuman(ctx), { definition: strict });
     const shown = await runCommand(workflowShow, ctx, {});
     expect(shown.data.exists).toBe(true);
     expect(shown.data.labels).toMatchObject({ review: "Client Review", todo: "Todo" });
@@ -163,7 +164,7 @@ describe("workflow show", () => {
   it("Run の step の語彙と表示名は Core の固定で、workflow.yaml に書いても変わらない", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    const r = await runCommand(workflowSet, ctx, {
+    const r = await runCommand(workflowSet, asHuman(ctx), {
       definition: { steps: [{ id: "deploy", label: "Deploy" }] },
     });
     expect(r.warnings.some((w) => w.includes("Unknown item steps"))).toBe(true);
@@ -230,7 +231,7 @@ describe("workflow set", () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     const commits = await commitCount(ctx);
-    const r = await runCommand(workflowSet, ctx, { definition: strict });
+    const r = await runCommand(workflowSet, asHuman(ctx), { definition: strict });
     expect(r.data).toMatchObject({
       path: "workflow.yaml",
       created: false,
@@ -271,7 +272,7 @@ describe("workflow set", () => {
     ]);
     expect(stale.data.issues[0]?.message).toContain("dg workflow set");
 
-    const r = await runCommand(workflowSet, ctx, { definition: { wip: { review: 1 } } });
+    const r = await runCommand(workflowSet, asHuman(ctx), { definition: { wip: { review: 1 } } });
     expect(r.data).toMatchObject({ created: true, changed: ["wip"], removed: "workflows" });
     expect(await pathExists(dir)).toBe(false);
     expect(await gitOut(ctx, ["log", "-1", "--format=%s"])).toBe("Create workflow.yaml");
@@ -300,7 +301,9 @@ describe("workflow set", () => {
       ],
     ];
     for (const [definition, message] of cases) {
-      const error = await runCommand(workflowSet, ctx, { definition }).catch((e: unknown) => e);
+      const error = await runCommand(workflowSet, asHuman(ctx), { definition }).catch(
+        (e: unknown) => e,
+      );
       expect(error, message).toMatchObject({ code: "VALIDATION_FAILED" });
       const { message: m, detail } = error as { message: string; detail?: string };
       expect(`${m}\n${detail ?? ""}`).toContain(message);
@@ -314,7 +317,7 @@ describe("workflow set", () => {
   it("定義は必須", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    await expect(runCommand(workflowSet, ctx, {} as never)).rejects.toMatchObject({
+    await expect(runCommand(workflowSet, asHuman(ctx), {} as never)).rejects.toMatchObject({
       code: "INVALID_INPUT",
     });
   });
@@ -322,7 +325,7 @@ describe("workflow set", () => {
   it("未知の項目は警告にとどめて書く", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    const r = await runCommand(workflowSet, ctx, { definition: { boundries: [] } });
+    const r = await runCommand(workflowSet, asHuman(ctx), { definition: { boundries: [] } });
     expect(r.write).toMatchObject({ committed: true });
     expect(r.warnings.some((w) => w.includes("Unknown item boundries"))).toBe(true);
   });
@@ -361,7 +364,7 @@ describe("workflow set", () => {
     const a = await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: a.data.id, branch: "t1-a" });
     const b = await runCommand(ticketCreate, ctx, { title: "B", workflow: "general" });
-    await runCommand(workflowSet, ctx, { definition: strict });
+    await runCommand(workflowSet, asHuman(ctx), { definition: strict });
 
     const again = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
     expect(again.store.issues).toEqual([]);

@@ -162,9 +162,9 @@ const FIELDS: ConfigField[] = (
       clears_to_default: true,
     },
     {
-      key: "actor.human_only",
+      key: "worktree.setup",
       type: "list",
-      description: "人だけ",
+      description: "準備のコマンド",
       default: [],
       scope: "team",
       clears_to_default: false,
@@ -188,14 +188,13 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
   const client = mockClient();
   const config = {
     git: { remote: "origin", base_branch: "main" },
-    worktree: { root: "../<repo>.worktrees" },
+    worktree: { root: "../<repo>.worktrees", setup: [] as string[] },
     commit: { mode: "each" },
     push: { mode: "auto" },
     metrics: { read_transcripts: false },
     actions: { shell: false, test: ["mise", "run", "check"] },
     auto: { merge: false, decisions: ["assign", "check", "plan", "audit", "accept"] },
     models: { light: "", sample: "inherit" },
-    actor: { human_only: [] as string[] },
     guide: { notes: { work: "docs/work-notes.md", plan: "" } },
   };
   /** 個人の上書き（ドット区切りの項目名 → 値）。core と同じく config.show は local で返し、重ねた値は config で返す */
@@ -372,12 +371,12 @@ describe("設定画面", () => {
     expect(shell.checked).toBe(false);
 
     // リスト：足して、枠を閉じずに外す
-    const add = within(fieldOf("actor.human_only")).getByPlaceholderText("項目を足す");
-    fireEvent.change(add, { target: { value: "epic.close" } });
+    const add = within(fieldOf("worktree.setup")).getByPlaceholderText("項目を足す");
+    fireEvent.change(add, { target: { value: "pnpm" } });
     fireEvent.keyDown(add, { key: "Enter" });
-    expect(within(fieldOf("actor.human_only")).getByRole("alertdialog")).toBeTruthy();
-    fireEvent.click(within(fieldOf("actor.human_only")).getByLabelText("epic.close を外す"));
-    expect(within(fieldOf("actor.human_only")).queryByRole("alertdialog")).toBeNull();
+    expect(within(fieldOf("worktree.setup")).getByRole("alertdialog")).toBeTruthy();
+    fireEvent.click(within(fieldOf("worktree.setup")).getByLabelText("pnpm を外す"));
+    expect(within(fieldOf("worktree.setup")).queryByRole("alertdialog")).toBeNull();
 
     // 待ちが解けたので、ほかの項目も触れる
     expect(within(fieldOf("git.remote")).getByRole<HTMLInputElement>("textbox").disabled).toBe(
@@ -433,7 +432,7 @@ describe("設定画面", () => {
     ]);
   });
 
-  it("actions.test・actions.shell・actor.human_only・auto.merge も保存の前に確かめ、変わることを出し、やめると戻す", async () => {
+  it("actions.test・actions.shell・worktree.setup・auto.merge も保存の前に確かめ、変わることを出し、やめると戻す", async () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
@@ -473,17 +472,15 @@ describe("設定画面", () => {
     expect(within(fieldOf("auto.decisions")).getByLabelText("accept を外す")).toBeTruthy();
     expect(setCalls(client)).toEqual([]);
 
-    // 人だけに許すコマンド：足してから保存する
-    const add = within(fieldOf("actor.human_only")).getByPlaceholderText("項目を足す");
-    fireEvent.change(add, { target: { value: "epic.close" } });
+    // claim の準備のコマンド：足してから保存する
+    const add = within(fieldOf("worktree.setup")).getByPlaceholderText("項目を足す");
+    fireEvent.change(add, { target: { value: "pnpm" } });
     fireEvent.keyDown(add, { key: "Enter" });
-    const human = within(fieldOf("actor.human_only")).getByRole("alertdialog");
-    expect(human.textContent).toContain("エージェントに許す操作が変わる");
-    fireEvent.click(within(human).getByText("保存する"));
-    expect(
-      await screen.findByText("保存した: actor.human_only を [epic.close] にした"),
-    ).toBeTruthy();
-    expect(setCalls(client)).toEqual([{ key: "actor.human_only", value: ["epic.close"] }]);
+    const setup = within(fieldOf("worktree.setup")).getByRole("alertdialog");
+    expect(setup.textContent).toContain("claim のたびに確認なしで回すコマンドが変わる");
+    fireEvent.click(within(setup).getByText("保存する"));
+    expect(await screen.findByText("保存した: worktree.setup を [pnpm] にした")).toBeTruthy();
+    expect(setCalls(client)).toEqual([{ key: "worktree.setup", value: ["pnpm"] }]);
   });
 
   it("拒否されたら理由を項目の下にだけ出し、値を保存されている値に戻す", async () => {
@@ -1049,7 +1046,7 @@ describe("設定画面", () => {
     expect(test.querySelector(".config-empty")?.textContent).toBe("空のとき: 検査を判定しない");
     // 例のない項目は今までのプレースホルダのまま、空にできない項目は空のときの行を出さない
     expect(
-      within(fieldOf("actor.human_only")).getByRole<HTMLInputElement>("textbox").placeholder,
+      within(fieldOf("worktree.setup")).getByRole<HTMLInputElement>("textbox").placeholder,
     ).toBe("項目を足す");
     expect(fieldOf("commit.mode").querySelector(".config-empty")).toBeNull();
   });
@@ -1272,14 +1269,12 @@ describe("設定画面の部品", () => {
       "actions.light_test",
       "actions.shell",
       "actions.test",
-      "actor.human_only",
       "auto.decisions",
       "auto.merge",
       "git.base_branch",
       "git.data_branch",
       "git.data_remote",
       "git.remote",
-      "merge.approval_overrides",
       "worktree.root",
       "worktree.setup",
     ]);
@@ -1314,10 +1309,11 @@ describe("設定画面の部品", () => {
 
   it("キーの最上位でまとまりを決め、知らない項目は「その他」", () => {
     expect(groupOf("push.mode")).toBe("commit");
-    expect(groupOf("actor.human_only")).toBe("agent");
+    expect(groupOf("auto.merge")).toBe("agent");
     expect(groupOf("priority.high")).toBe("ticket");
-    // やめた項目（default_workflow）はどのまとまりにも入らない
+    // やめた項目（default_workflow・actor.human_only）はどのまとまりにも入らない
     expect(groupOf("default_workflow")).toBe("other");
+    expect(groupOf("actor.human_only")).toBe("other");
     expect(groupOf("new.item")).toBe("other");
     expect(fieldMatch(FIELDS[0]!, "リモート")).toBe("shown");
     expect(fieldMatch(FIELDS[0]!, "GIT.REMOTE")).toBe("shown");

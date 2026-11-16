@@ -446,22 +446,6 @@ Off
 Reset to Default
 Details
 Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted, and whether dg sync deletes the worktree and work branch that remain when it moves a ticket to done
-Gate conditions an approval may override
-merge.approval_overrides
-[title] Default: [check, review, fix_rounds, acceptance]
-Modified
-[title] Ask Agent (Shift+F10)
-[aria-label] Ask Agent (Setting merge.approval_overrides)
-Quality gate conditions a person's approval of the merge may override
-Empty
-[aria-label] Items
-[placeholder] Add item
-Add
-[title] Reset to default [check, review, fix_rounds, acceptance]
-Reset to Default
-When empty: An approval overrides nothing: every condition of the gate must be met
-Details
-Quality gate conditions that dg pr merge may leave unmet when a person approved the merge (--approved-by): check, review, fix_rounds, acceptance (all four by default). An unmet condition that is not listed keeps the merge at GATE_FAILED even with an approval. An open PR that is not a draft (pr), conflicts (mergeable), and the judged head (head) cannot be listed. Without an approval, nothing is overridden
 Review finding categories treated as heavy
 review.heavy_categories
 [title] Default: Empty
@@ -601,22 +585,6 @@ Reset to Default
 When empty: models.heavy is used
 Details
 Model for Plan tier heavy when the agent in this key calls dg next (it overrides models.heavy for that agent). When empty, models.heavy
-Commands limited to people
-actor.human_only
-[title] Default: Empty
-Modified
-[title] Ask Agent (Shift+F10)
-[aria-label] Ask Agent (Setting actor.human_only)
-Command names rejected for agents
-Empty
-[aria-label] Items
-[placeholder] e.g. epic.close
-Add
-[title] Reset to default Empty
-Reset to Default
-When empty: Every command is allowed. Ticket Status moves are still restricted with the Workflow's boundaries and exceptions
-Details
-Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket Status moves are restricted with the Workflow's boundaries and exceptions
 Metrics
 Read usage from transcripts
 metrics.read_transcripts

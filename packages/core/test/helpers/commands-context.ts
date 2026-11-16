@@ -43,6 +43,14 @@ export function reopenInitialized(
   return openContext({ cwd: f.cloneA, actor: { kind: "human", user: "eiki" }, ...opts });
 }
 
+/**
+ * 同じ文脈（同じ索引）を、主体だけ人にして返す。エージェントの文脈で進めるテストが、準備として
+ * チームの設定・Workflow を書く・段を下げるとき（エージェントには人の承認が要るか拒否される。WF-7）に使う
+ */
+export function asHuman(ctx: CommandContext): CommandContext {
+  return { ...ctx, actor: { ...ctx.actor, kind: "human" } };
+}
+
 /** workflow.yaml をデータディレクトリに置いて索引を作り直す（カンバンのどのチケットにも効く） */
 export async function writeWorkflowYaml(ctx: CommandContext, lines: string[]): Promise<void> {
   await writeFile(path.join(ctx.repo.dataDir, "workflow.yaml"), [...lines, ""].join("\n"));

@@ -46,6 +46,7 @@ import { brief } from "./brief.js";
 import { hookKindsOf, pruneHookSessions, takeHookWarnings } from "./hook-sessions.js";
 import { next, type NextStep } from "./next.js";
 import { commit, configSet, init, sync } from "./setup.js";
+import { asHuman } from "../../test/helpers/commands-context.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 import { runGit } from "../git/run.js";
 
@@ -66,8 +67,8 @@ async function prepareRepo(f: Layout): Promise<void> {
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, { title: "A" });
   await runCommand(ticketCreate, ctx, { title: "B" });
-  await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
-  await runCommand(configSet, ctx, { key: "metrics.read_transcripts", value: "true" });
+  await runCommand(configSet, asHuman(ctx), { key: "commit.mode", value: "each" });
+  await runCommand(configSet, asHuman(ctx), { key: "metrics.read_transcripts", value: "true" });
   await runCommand(commit, ctx, {});
 }
 

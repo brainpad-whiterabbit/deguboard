@@ -257,7 +257,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       .description(
         action === "install"
           ? "Write hooks that call dg hook into the Claude Code settings. By default they go to <repository>/.claude/settings.local.json (not tracked by git), and call the node running this dg and its dg.js by absolute paths (or, when run through the deguboard launcher of the VS Code extension, the launcher's absolute path), so they work even when the agent's PATH has no node or dg (run it again after upgrading or moving node; dg hooks check warns). Adds settings.local.json to <repository>/.claude/.gitignore when the line is missing (commit that .gitignore). Warns if that file is already tracked by git, or if the tracked .claude/settings.json also has dg hooks. With --shared, writes to the tracked .claude/settings.json and calls dg on PATH. Check whether they are installed and working with dg hooks check. Sets the actor to agent; for a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts and closes it when the step ends. Rejects gh pr merge and gh pr ready when run outside dg (dg pr merge and dg pr ready call them after dg gate passes), writes to .git/deguboard/, and Bash that contains .git/deguboard. When a response ends (Stop) and a change to the data made outside dg is found, it tells the agent to keep going and reports it. Running it again does not duplicate entries; hooks added by hand are kept"
-          : "Remove only dg's hooks from the Claude Code settings. Hooks added by hand are kept",
+          : "Remove only dg's hooks from the Claude Code settings. Hooks added by hand are kept. Only a person can remove them: an agent's call (--actor agent or DEGUBOARD_ACTOR=agent) is rejected with TRANSITION_REJECTED, because the hooks stop writes and PR operations that do not go through dg. This is fixed in Core, and workflow.yaml cannot change it (--dry-run writes nothing and is not rejected)",
       )
       .option(
         "--personal",
@@ -281,7 +281,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           command?: string;
           dryRun?: boolean;
         }) => {
-          const global = program.opts<{ json?: boolean; C?: string }>();
+          const global = program.opts<{ json?: boolean; C?: string; actor?: string }>();
           try {
             const base = {
               cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
@@ -289,10 +289,12 @@ export function buildProgram(options: ProgramOptions = {}): Command {
               env,
               dryRun: opts.dryRun ?? false,
             };
+            // 主体はほかのコマンドと同じ順で決める（--actor、DEGUBOARD_ACTOR、既定は human）。agent でなければ人として扱う
+            const actor = (global.actor ?? env["DEGUBOARD_ACTOR"]) === "agent" ? "agent" : "human";
             const result =
               action === "install"
                 ? await installHooks({ ...base, command: opts.command, self: selfCommand })
-                : await uninstallHooks(base);
+                : await uninstallHooks({ ...base, actor });
             const { warnings, ...data } = result;
             if (global.json)
               streams.out(JSON.stringify({ ok: true, data, warnings, write: null }, null, 2));

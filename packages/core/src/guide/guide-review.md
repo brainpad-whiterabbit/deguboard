@@ -4,7 +4,7 @@ Checked before a PR is handed to a human (`review`, `fix`, and `ready` from `dg 
 
 ## Quality gate
 
-The conditions judged depend on the ticket's gate level (`gate` of `ticket show`; a ticket with no level is high). Set it with `dg --json --actor agent ticket update <id> --gate <level>`, and lower it only on a human's instruction (`--gate-<level>` written in `/dgall` or `/dgwork` is one).
+The conditions judged depend on the ticket's gate level (`gate` of `ticket show`; a ticket with no level is high). Raise it with `dg --json --actor agent ticket update <id> --gate <level>`. Only a human can lower it (high → low → free): dg refuses the agent's call (fixed in Core), so give the human the exact command, `dg ticket update <id> --gate <level>`, and wait. This holds for a level a human wrote as `--gate-<level>` in `/dgall` or `/dgwork` too.
 
 | Level          | Conditions `dg gate` judges                | Flow after the PR (`dg next`)                     |
 | -------------- | ------------------------------------------ | ------------------------------------------------- |
@@ -18,15 +18,15 @@ The conditions judged depend on the ticket's gate level (`gate` of `ticket show`
 - **Conflicts** (only before a merge): `mergeable` of `dg gate` is MERGEABLE. Confirm again just before merging (when base moves on, other PRs become `UNKNOWN`)
 - **Head** (before a merge, at high and low): `head` of `dg gate` confirms that the PR's head is the latest commit of the work branch, the commit that review and check judged. `sha` in the output is the commit the gate judged, and `dg pr merge` merges only that commit (`--match-head-commit`). If a commit is pushed after the judgment, the merge is not made, so judge again after the push
 - If you change the branch after confirming the conditions, run the checks and confirm the acceptance criteria again. If you push a fix for a conflict, review again
-- **A version-bump PR runs at the low level**: the version-bump PR of `dg guide release` is set to `low` only on a human's instruction (`dg --json --actor agent ticket update <id> --gate low`). At low, the review is not judged, and the other conditions still are. Merging a version-bump PR is approved by a human regardless of `auto.merge`, so the human's approval takes the place of the review. When the change is more than the version numbers (`version` and the like) and the CHANGELOG and lock file that the steps define (code, documents, or steps changed), it is not a version-bump PR: keep the high level and have it reviewed. Write in the PR body that the level was set to low by a human's instruction
+- **A version-bump PR runs at the low level**: the version-bump PR of `dg guide release` is set to `low` only by a human (ask the human to run `dg ticket update <id> --gate low`; the agent's call is refused). At low, the review is not judged, and the other conditions still are. Merging a version-bump PR is approved by a human regardless of `auto.merge`, so the human's approval takes the place of the review. When the change is more than the version numbers (`version` and the like) and the CHANGELOG and lock file that the steps define (code, documents, or steps changed), it is not a version-bump PR: keep the high level and have it reviewed. Write in the PR body that a human set the level to low
 
 ## Merging without meeting the gate
 
-A PR that does not meet `dg gate <id> --for merge` is merged only when a human approves merging it anyway. This holds for every PR (a release PR too), and also under `--auto` with `auto.merge` true.
+A PR that does not meet `dg gate <id> --for merge` is merged only when a human approves merging it anyway. This is fixed in Core: neither the settings nor `workflow.yaml` changes it. It holds for every PR (a release PR too), and also under `--auto` with `auto.merge` true.
 
 - **Ask**: show the unmet conditions with their reasons, and ask with the choices "Merge anyway" and "Not yet". Do not ask a human to run `gh pr merge`
-- **When approved**: run `dg --json --actor agent pr merge <id> --approved-by human`. The approval overrides only the unmet conditions listed in config's `merge.approval_overrides` (current setting: `{{merge.approval_overrides}}`). `overridden` in the result gives the conditions it overrode, and the comment on the PR records them with the approver
-- **What an approval cannot override**: an unmet condition outside the list keeps the merge at `GATE_FAILED`, so do not ask while one is unmet, and resolve it first. A `check` that "was not run" (the gate runs it only when the other conditions are met) does not count as one: ask, and the approved merge runs the check, which must pass when `check` is outside the list. `pr` (open and not a draft), `mergeable`, and `head` can never be listed
+- **When approved**: run `dg --json --actor agent pr merge <id> --approved-by human`. The approval overrides unmet `check`, `review`, `fix_rounds`, and `acceptance`. `overridden` in the result gives the conditions it overrode, and the comment on the PR records them with the approver
+- **What an approval cannot override**: `pr` (open and not a draft), `mergeable`, and `head`. An unmet one keeps the merge at `GATE_FAILED`, so do not ask while one is unmet, and resolve it first
 - **Without an approval**: nothing is overridden. Never pass `--approved-by` when no human approved, and when declined or not answered, do not merge
 
 ## Starting the review (parent)

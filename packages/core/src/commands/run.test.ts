@@ -36,6 +36,7 @@ import {
   type TicketRunsView,
 } from "./run.js";
 import { commit, configSet, init, validate } from "./setup.js";
+import { asHuman } from "../../test/helpers/commands-context.js";
 import { workflowValidate } from "./workflow.js";
 import { metricsShow } from "./metrics.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
@@ -102,7 +103,7 @@ const start = async (ctx: CommandContext, ticket: string, step = "implement") =>
 describe("run", () => {
   it("start は deguboard-local/runs/ にだけ記録を置き、finish が runs/ に 1 ファイルをコミットする（RN-3）", async () => {
     const ctx = await prepared();
-    await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
+    await runCommand(configSet, asHuman(ctx), { key: "commit.mode", value: "each" });
     await runCommand(commit, ctx, {});
     ctx.config = ctx.store.config;
     const before = (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
@@ -1189,7 +1190,7 @@ describe("run review-result（見直しの結果。RN-9）", () => {
 
   it("review.heavy_categories の category は severity によらず重いとみなす", async () => {
     const ctx = await prepared();
-    await runCommand(configSet, ctx, {
+    await runCommand(configSet, asHuman(ctx), {
       key: "review.heavy_categories",
       value: "参考節との食い違い",
     });
@@ -1305,8 +1306,11 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
   /** read_transcripts を決めてコミットごとに push する文脈。HOME は一時ディレクトリにして本物の ~/.claude を読まない */
   async function withTranscripts(read: boolean, env: Record<string, string> = {}) {
     const ctx = await prepared();
-    await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
-    await runCommand(configSet, ctx, { key: "metrics.read_transcripts", value: String(read) });
+    await runCommand(configSet, asHuman(ctx), { key: "commit.mode", value: "each" });
+    await runCommand(configSet, asHuman(ctx), {
+      key: "metrics.read_transcripts",
+      value: String(read),
+    });
     await runCommand(commit, ctx, {});
     ctx.config = ctx.store.config;
     const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
@@ -1759,7 +1763,7 @@ describe("run finish のモデル名と finished_at", () => {
   /** 会話記録（モデル名 model-from-transcript）を読める文脈 */
   async function withModelTranscript() {
     const ctx = await prepared();
-    await runCommand(configSet, ctx, { key: "metrics.read_transcripts", value: "true" });
+    await runCommand(configSet, asHuman(ctx), { key: "metrics.read_transcripts", value: "true" });
     await runCommand(commit, ctx, {});
     ctx.config = ctx.store.config;
     const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
@@ -1872,8 +1876,8 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
   /** 会話記録を読める・コミットごとに push する文脈。会話記録は finish の後に置き、閉じた Run を取り直す */
   async function closedRuns() {
     const ctx = await prepared();
-    await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
-    await runCommand(configSet, ctx, { key: "metrics.read_transcripts", value: "true" });
+    await runCommand(configSet, asHuman(ctx), { key: "commit.mode", value: "each" });
+    await runCommand(configSet, asHuman(ctx), { key: "metrics.read_transcripts", value: "true" });
     await runCommand(commit, ctx, {});
     ctx.config = ctx.store.config;
     const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
@@ -2108,7 +2112,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     const { ctx, transcriptFor, closedRun, saved } = await closedRuns();
     const a = await closedRun("t1");
     await transcriptFor(a, full);
-    await runCommand(configSet, ctx, { key: "metrics.read_transcripts", value: "false" });
+    await runCommand(configSet, asHuman(ctx), { key: "metrics.read_transcripts", value: "false" });
     ctx.config = ctx.store.config;
     const before = await saved(a.id);
     const r = await runCommand(runRefresh, ctx, { runs: [a.id] });

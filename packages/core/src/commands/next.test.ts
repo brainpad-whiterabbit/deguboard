@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { asHuman } from "../../test/helpers/commands-context.js";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import type { Run, RunReview } from "../model/run.js";
 import { BRANCH_VALUE_MAX } from "../model/ticket.js";
@@ -671,8 +672,8 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     expect(nextOf(onlyAgent, todo("t1"), { agent: null }).model).toBeNull();
 
     // dg next は、呼んだプロセスの環境変数から agent を判定して引く（個人の設定の上書きも効く）
-    await runCommand(configSet, ctx, { key: "models.heavy", value: "opus" });
-    await runCommand(configSet, ctx, { key: "models.codex.heavy", value: "gpt-team" });
+    await runCommand(configSet, asHuman(ctx), { key: "models.heavy", value: "opus" });
+    await runCommand(configSet, asHuman(ctx), { key: "models.codex.heavy", value: "gpt-team" });
     // 文脈の config は開いたときの値なので、書いた後は開き直す
     const asked = async (env: NodeJS.ProcessEnv) => {
       const fresh = await openContext({

@@ -12,7 +12,10 @@ import { basename, dirname, isAbsolute, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_HOOK_AGENT } from "../agents/fast-hooks.js";
 import { hooksOf, type AgentEnv, type HookSupport } from "../agents/index.js";
-import { UsageError } from "../errors.js";
+import { OperationError, UsageError } from "../errors.js";
+import type { ActorKind } from "../model/actor.js";
+import { judgeDecision } from "../workflow/conditions.js";
+import { CORE_FIXED } from "../workflow/resolve.js";
 import {
   ensureIgnoreLines,
   GitError,
@@ -499,15 +502,25 @@ export async function checkHooks(options: {
 /**
  * dg のフックを外す。手で足したフックは残す。
  * .gitignore の settings.local.json の行は消さない。settings.local.json はエージェントの製品が dg の外でも各自のマシンの設定（許可など）に使うので、
- * dg のフックがなくなっても追跡させないままにする（t804）
+ * dg のフックがなくなっても追跡させないままにする（t804）。
+ * 外すのは Core に固定で人に限る（workflow/resolve.ts の CORE_FIXED の hooks_uninstall）。フックは dg を経由しない書き込みと
+ * PR の操作を止める守り（AG-10）なので、エージェントが自分で外せないようにする。何も書かない --dry-run は通す
  */
 export async function uninstallHooks(options: {
   cwd: string;
   scope: HookScope;
   env: AgentEnv;
+  /** 呼んだ主体（入口が決める。CLI は --actor か DEGUBOARD_ACTOR） */
+  actor: ActorKind;
   agent?: string;
   dryRun?: boolean;
 }): Promise<HooksResult> {
+  if (!options.dryRun && judgeDecision(CORE_FIXED.hooks_uninstall, options.actor) === "reject")
+    throw new OperationError(
+      "TRANSITION_REJECTED",
+      `dg limits removing dg's hooks to a person (fixed in Core, hooks_uninstall: ${CORE_FIXED.hooks_uninstall})`,
+      "The hooks stop writes to the data and PR operations that do not go through dg, so an agent cannot remove them. Ask a person to run dg hooks uninstall (without --actor agent). workflow.yaml cannot change this value",
+    );
   const agent = options.agent ?? DEFAULT_HOOK_AGENT;
   const hooks = support(agent);
   const file = await settingsFile(hooks, options);

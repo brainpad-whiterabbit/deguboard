@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { asHuman } from "../../test/helpers/commands-context.js";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { runGit } from "../git/run.js";
@@ -516,7 +517,10 @@ describe("前景の見直し役が返ったとき、起動のフックが先に�
   const withTranscripts = async () => {
     const p = await prepared();
     await runCommand(sync, p.ctx, {});
-    await runCommand(configSet, p.ctx, { key: "metrics.read_transcripts", value: "true" });
+    await runCommand(configSet, asHuman(p.ctx), {
+      key: "metrics.read_transcripts",
+      value: "true",
+    });
     p.ctx.config = p.ctx.store.config;
     const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
     cleanups.push(() => rm(home, { recursive: true, force: true }));

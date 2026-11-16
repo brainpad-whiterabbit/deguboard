@@ -233,7 +233,7 @@ describe("用意", () => {
     const byKey = new Map(configFields().map((x) => [x.key, x]));
     expect(byKey.get("priority.high")?.clears_to_default).toBe(true);
     expect(byKey.get("models.light")?.clears_to_default).toBe(false);
-    expect(byKey.get("actor.human_only")?.clears_to_default).toBe(false);
+    expect(byKey.get("review.heavy_categories")?.clears_to_default).toBe(false);
     // priority.* を書き換えてから空にすると、Core の既定の文に戻る
     await runCommand(configSet, ctx, { key: "priority.high", value: "独自の基準" });
     const cleared = await runCommand(configSet, ctx, { key: "priority.high", value: "" });
@@ -246,9 +246,9 @@ describe("用意", () => {
     const light = await runCommand(configSet, ctx, { key: "models.light", value: "" });
     expect(light.data.models.light).toBe("");
     // 配列の項目は空にすると空の配列（既定の空に一致）
-    await runCommand(configSet, ctx, { key: "actor.human_only", value: "epic.close" });
-    const human = await runCommand(configSet, ctx, { key: "actor.human_only", value: "" });
-    expect(human.data.actor.human_only).toEqual([]);
+    await runCommand(configSet, ctx, { key: "review.heavy_categories", value: "security" });
+    const list = await runCommand(configSet, ctx, { key: "review.heavy_categories", value: "" });
+    expect(list.data.review.heavy_categories).toEqual([]);
   });
 
   it("config.set --local は個人の設定（deguboard-local/config.yaml）に書き、各コマンドは個人 > チーム > 既定 の値を使い、コミットも push もしない（t437）", async () => {
@@ -311,7 +311,7 @@ describe("用意", () => {
       ["auto.merge", "true"],
       ["metrics.read_transcripts", "true"],
       ["git.base_branch", "develop"],
-      ["actor.human_only", "epic.close"],
+      ["review.heavy_categories", "security"],
       ["nope.key", "x"],
       ["commit.mode", "nope"],
     ]) {
@@ -357,9 +357,19 @@ describe("用意", () => {
       "commit",
     );
     // 選択肢の項目も unset なら既定に戻せる（set の空は弾く）。配列の項目は空の配列に
-    await runCommand(configSet, ctx, { key: "actor.human_only", value: "epic.close" });
-    const human = await runCommand(configUnset, ctx, { key: "actor.human_only" });
-    expect(human.data.actor.human_only).toEqual([]);
+    await runCommand(configSet, ctx, { key: "review.heavy_categories", value: "security" });
+    const list = await runCommand(configUnset, ctx, { key: "review.heavy_categories" });
+    expect(list.data.review.heavy_categories).toEqual([]);
+    // なくした項目（前の版の config.yaml に残った actor.human_only・merge.approval_overrides）も、unset でファイルから消せる
+    const file = path.join(ctx.repo.dataDir, "config.yaml");
+    await runCommand(configSet, ctx, { key: "actor.human_only", value: ["epic.close"] });
+    await runCommand(configSet, ctx, { key: "merge.approval_overrides", value: ["review"] });
+    expect(await readFile(file, "utf8")).toContain("human_only");
+    await runCommand(configUnset, ctx, { key: "actor.human_only" });
+    await runCommand(configUnset, ctx, { key: "merge.approval_overrides" });
+    const text = await readFile(file, "utf8");
+    expect(text).not.toContain("human_only");
+    expect(text).not.toContain("approval_overrides");
   });
 
   it("個人のファイルにあるチーム専用・未知の項目と読めない値は無視して validate が警告し、チームの set は個人の上書きを写さない", async () => {
