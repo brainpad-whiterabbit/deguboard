@@ -24,6 +24,7 @@ import { planApprove, planClose, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
 import { configSet, init } from "./setup.js";
 import { ticketCreate, ticketMove } from "./ticket.js";
+import { workflowSet } from "./workflow.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -636,6 +637,32 @@ describe("dg flow next", () => {
     // --gate がなければ今と同じ
     const plain = await flow(ctx, { resume: checked.resume });
     expect(plain.commands.join(" ")).not.toContain("--gate");
+  });
+
+  it("列が WIP の上限を超えると、dg next と同じ警告を出し、作業の段階で先の列を進める手を先に返す（WF-8。拒否はしない）", async () => {
+    const ctx = await ready();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    for (const title of ["A", "B"]) await runCommand(ticketCreate, ctx, { title });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2"] });
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2"] });
+    await runCommand(planApprove, ctx, { plan: "p1" });
+    await runCommand(workflowSet, ctx, { definition: { wip: { in_progress: 1 } } });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "in_progress" });
+    const check = await flow(ctx, { no_assign: true });
+    expect(check.stage.name).toBe("check");
+    // 着手しない段階では、上限ちょうどの列は超えていない
+    expect(check.warnings.some((w) => w.includes("WIP limit"))).toBe(false);
+    const work = await flow(ctx, { no_assign: true, resume: check.resume });
+    expect(work.stage.name).toBe("work");
+    expect(work.warnings).toContain(
+      "The In Progress column (in_progress) is at its WIP limit (1 of 1, wip in workflow.yaml), so starting another ticket goes over it",
+    );
+    expect(work.commands).toEqual([
+      "WIP limit (in_progress): rather than starting new work, first advance a ticket in a column further along (in_progress: t1) with dg --json --actor agent next <id>. Starting is not refused",
+      "dg --json --actor agent plan show p1",
+      "dg --json --actor agent next t1",
+      "dg --json --actor agent next t2",
+    ]);
   });
 
   it("registry に flow.next として載り、読み取りだけ", () => {

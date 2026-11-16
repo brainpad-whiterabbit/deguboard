@@ -9,6 +9,7 @@ import { BRANCH_VALUE_MAX, gateLevelOf, gateScopeOf, type Ticket } from "../mode
 import type { Config } from "../model/config.js";
 import type { PlanTier } from "../model/plan.js";
 import { readRunningRuns } from "../run/record.js";
+import { wipAdvanceStepOf, wipOverOf, wipWarningsOf } from "../workflow/wip.js";
 import { briefOf, type BriefRole } from "./brief.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { FIX_ROUNDS_LIMIT, heavyReviewRounds, reviewedTip } from "./gate.js";
@@ -328,6 +329,25 @@ export interface NextOptions {
   agent?: string | null;
 }
 
+/**
+ * WIP の上限（workflow.yaml の wip）を超えた列の警告と、先の列を進める手（要件 WF-8）。着手は拒否しない。
+ * starting は todo のチケットに着手する手を返すとき（in_progress が上限ちょうどでも超えるとみなす）。
+ * workflow.yaml に誤りがあって読めなければ見ない（読めないことはほかの操作が知らせる）。dg flow next も同じものを返す
+ */
+export function wipCheckOf(
+  ctx: CommandContext,
+  starting: boolean,
+): { warnings: string[]; step: string | null } {
+  const wf = ctx.store.workflow?.resolved;
+  if (!wf) return { warnings: [], step: null };
+  const tickets = [...ctx.store.tickets.values()].map((d) => d.data);
+  const over = wipOverOf(tickets, wf.wip, { starting });
+  return {
+    warnings: wipWarningsOf(over, wf.labels),
+    step: wipAdvanceStepOf(over, tickets, dg("next <id>")),
+  };
+}
+
 /** 印で頼む手。落ちたセッションの残りの Run は、頼み直せばフックが閉じるので待たない */
 const MARKED_KINDS: readonly NextKind[] = ["implement", "review", "fix"];
 
@@ -511,7 +531,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
   }
 }
 
-// 要件 EX-3・EX-5（次の一手と段階）・TK-9（段が low・free の見直しの省略）
+// 要件 EX-3・EX-5（次の一手と段階）・TK-9（段が low・free の見直しの省略）・WF-8（列の WIP の上限）
 export const next = defineCommand({
   name: "next",
   positionals: ["ticket"],
@@ -530,6 +550,7 @@ export const next = defineCommand({
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.<agent>.<tier> of the agent that called dg, detected from the environment, and when that is empty or the agent cannot be detected, to models.<tier>; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
     "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. A ticket in the awaiting_approval stage is wait_human too (a person approves its Plan). " +
+    "When a column has more tickets than its WIP limit (wip in workflow.yaml; dg workflow show), it warns, and the step that starts a todo ticket puts first in commands a step to advance tickets in the columns further along (for that step, in_progress at its limit counts as over, since claiming adds one). Starting is not refused, and config's work.parallel is a separate setting. " +
     "It also warns with the dg hook warnings not reported yet (see dg hook --help), and with the installed dg Skills that are older than this dg, or that a dg of the same version wrote with different contents (update them with dg skill install; Skills written by a newer dg are not reported). It writes nothing but the mark of the reported hook warnings in deguboard-local",
   input: z.object({
     ticket: ticketRef,
@@ -540,17 +561,25 @@ export const next = defineCommand({
     const ticket = ctx.store.require("ticket", input.ticket).data;
     const facts = await stageFactsOf(ctx, ticket, { fetch: true });
     const env = ctx.env ?? process.env;
-    const step = nextOf(ctx, facts, {
+    const found = nextOf(ctx, facts, {
       hooksReach: await hooksReachSession(ctx.repo.localDir, env),
       agent: detectAgent(env).agent,
       crashed: await crashedSubagentRuns(ctx, facts.runs, sessionOf(ctx, undefined)),
     });
+    // 新しく着手する手（todo の implement）にだけ、先の列を進める手を前に置く。ほかの手はそのチケット自身を先へ進める
+    const starting = found.kind === "implement" && found.stage.name === "todo";
+    const wip = wipCheckOf(ctx, starting);
+    const step =
+      starting && wip.step !== null && found.running_run === null
+        ? { ...found, commands: [wip.step, ...found.commands] }
+        : found;
     const role = BRIEF_ROLE_OF[step.kind];
     // フックが結ばなかった見直しを数えたときは知らせる。段階の手によらず出す（t702）
     const unlinked = unlinkedReviewWarning(env, ticket.id, facts.runs, ticket.branch_at);
     // フックの中で出た警告は誰にも届いていないので、まだ知らせていないものをここで知らせる（t756）
     // 入れてある dg の Skill が今の dg のものより古ければ、それも知らせる（t858）
     const extra = [
+      ...wip.warnings,
       ...(unlinked ? [unlinked] : []),
       ...(await takeHookWarnings(ctx.repo.localDir)),
       ...(await staleSkillWarningsOf(ctx.repo.topLevel, env)),
