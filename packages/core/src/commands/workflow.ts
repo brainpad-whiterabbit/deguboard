@@ -15,7 +15,7 @@ export const workflowShow = defineCommand({
   name: "workflow.show",
   group: "workflow",
   summary:
-    "Show the board's Workflow (workflow.yaml). definition has every item with the items the file omits filled in from the defaults (states, boundaries, exceptions, wip, flow, governance, and reconcile), in the shape dg workflow set takes. exists is false when there is no workflow.yaml, and everything is then the default. moves gives, for every move from one Status to another, the policy that judges it (the boundaries it crosses, or exceptions.abandon, back, or reopen), its requires, and what the values mean for a person and for an agent: allow (goes ahead), approval (an agent needs a person's approval, --approved-by), override (a person needs --override), or reject (dg ticket move --help). default_labels are the Status labels when states is omitted, and steps are the Run steps, which dg fixes",
+    "Show the board's Workflow (workflow.yaml). definition has every item with the items the file omits filled in from the defaults (states, boundaries, exceptions, wip, flow, and governance), in the shape dg workflow set takes. exists is false when there is no workflow.yaml, and everything is then the default. moves gives, for every move from one Status to another, the policy that judges it (the boundaries it crosses, or exceptions.abandon, back, or reopen), its requires, and what the values mean for a person and for an agent: allow (goes ahead), approval (an agent needs a person's approval, --approved-by), override (a person needs --override), or reject (dg ticket move --help). default_labels are the Status labels when states is omitted, and steps are the Run steps, which dg fixes",
   input: z.object({}),
   write: false,
   needs: "store",

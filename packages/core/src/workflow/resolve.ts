@@ -18,11 +18,6 @@ import {
 } from "../model/workflow.js";
 import { judgeDecisions, type Permission } from "./conditions.js";
 
-export interface ReconcileRule {
-  when: readonly Condition[];
-  status: Status;
-}
-
 /** 境目：越える条件（AND）と、決める人の権限の値 */
 export interface Boundary {
   from: Status;
@@ -50,7 +45,6 @@ export interface ResolvedWorkflow {
     skip: readonly string[];
   };
   governance: Record<GovernanceOperation, Decision>;
-  reconcile: readonly ReconcileRule[];
 }
 
 // ---- Core の既定（省いた項目の値。dg init が置く既定の workflow.yaml も同じ値を書く） ----
@@ -95,17 +89,6 @@ const DEFAULT_GOVERNANCE: Record<GovernanceOperation, Decision> = {
   epic: "human_only",
   create: "anyone",
 };
-
-/**
- * 照合の規則の既定。PR の事実は gh があるときだけ使われ、なくても branch_merged で done になる。
- * squash マージは祖先判定で取れないので PR のマージを先に見る
- */
-const DEFAULT_RECONCILE: readonly ReconcileRule[] = [
-  { when: ["pr_merged"], status: "done" },
-  { when: ["branch_merged"], status: "done" },
-  { when: ["pr_open", "!pr_draft"], status: "review" },
-  { when: ["branch_exists"], status: "in_progress" },
-];
 
 /** 書いた値に、書いていない鍵の既定を足す */
 function withDefaults<K extends string, V>(
@@ -155,16 +138,10 @@ export function resolveWorkflow(def: WorkflowDefinition): ResolvedWorkflow {
     wip: def.wip ?? DEFAULT_WIP,
     flow: { stages, custom, skip },
     governance: withDefaults(GOVERNANCE_OPERATIONS, DEFAULT_GOVERNANCE, def.governance),
-    reconcile:
-      def.reconcile?.map((r) => ({ when: r.when as Condition[], status: r.status })) ??
-      DEFAULT_RECONCILE,
   };
 }
 
-/**
- * 補った Workflow を workflow.yaml に書く形に戻す（どの項目も書いた形。dg workflow show の definition）。
- * 前の形のまま読む reconcile も入れる
- */
+/** 補った Workflow を workflow.yaml に書く形に戻す（どの項目も書いた形。dg workflow show の definition） */
 export function writtenForm(wf: ResolvedWorkflow): WorkflowDefinitionInput {
   return {
     states: Object.fromEntries(STATUSES.map((s) => [s, { label: wf.labels[s] }])),
@@ -177,17 +154,12 @@ export function writtenForm(wf: ResolvedWorkflow): WorkflowDefinitionInput {
       [FLOW_SKIP_KEY]: [...wf.flow.skip],
     },
     governance: wf.governance,
-    reconcile: wf.reconcile.map((r) => ({ when: [...r.when], status: r.status })),
   };
 }
 
-/**
- * dg init が置く既定の workflow.yaml。6 つの項目を Core の既定の値で書く（書き換える場所が見えるように）。
- * 前の形のまま読む reconcile は書かない（省けば既定）
- */
+/** dg init が置く既定の workflow.yaml。6 つの項目を Core の既定の値で書く（書き換える場所が見えるように） */
 export function defaultWorkflowFile(): WorkflowDefinitionInput {
-  const { reconcile: _r, ...items } = writtenForm(DEFAULT_WORKFLOW);
-  return items;
+  return writtenForm(DEFAULT_WORKFLOW);
 }
 
 /** workflow.yaml がないとき（どの項目も省いたとき）の Workflow */

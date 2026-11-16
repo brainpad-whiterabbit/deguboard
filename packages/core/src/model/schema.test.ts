@@ -611,9 +611,9 @@ describe("スキーマ", () => {
 
   it("Workflow は形だけを検証し、条件の名前は見ない", () => {
     const w = workflowDefinitionSchema.parse({
-      reconcile: [{ when: ["unknown_fact"], status: "done" }],
+      boundaries: [{ from: "review", to: "done", requires: ["unknown_fact"] }],
     });
-    expect(w.reconcile?.[0]?.when).toEqual(["unknown_fact"]);
+    expect(w.boundaries?.[0]?.requires).toEqual(["unknown_fact"]);
     expect(() => workflowDefinitionSchema.parse({ exceptions: { abandon: "nope" } })).toThrow();
   });
 

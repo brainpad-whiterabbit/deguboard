@@ -45,14 +45,16 @@ export function validateWorkflow(raw: unknown, path: string): WorkflowValidation
   const issue = (code: string, message: string, severity: Issue["severity"] = "error") =>
     issues.push({ severity, code, path, message });
 
-  // 未知の項目は警告にとどめ、ほかの項目は読む。新しい版の dg が足した項目や、やめた項目（前の版の transitions）を書いた YAML を読んでも、判定と照合を止めない
+  // 未知の項目は警告にとどめ、ほかの項目は読む。新しい版の dg が足した項目や、やめた項目（前の版の transitions・reconcile）を書いた YAML を読んでも、判定と照合を止めない
   for (const key of Object.keys(def)) {
     if (WORKFLOW_ITEMS.includes(key)) continue;
     issue(
       "workflow_item_unknown",
       key === "transitions"
         ? "transitions is no longer read. Write the conditions (requires) and who decides (decide) of a move forward in boundaries, and the values of the moves back and to abandoned in exceptions (dg workflow show gives the shape)"
-        : `Unknown item ${key}. It is not read`,
+        : key === "reconcile"
+          ? "reconcile is no longer read. The triggers of reconcile are fixed (a work branch exists → in_progress, a PR that is not a draft is open → review, the PR or the branch is merged → done), and reconcile advances a ticket only when the requires of the boundaries it crosses are met. Delete the item"
+          : `Unknown item ${key}. It is not read`,
       "warning",
     );
   }
@@ -81,15 +83,6 @@ export function validateWorkflow(raw: unknown, path: string): WorkflowValidation
     boundaries.add(key);
   });
   validateFlow(def, issue);
-
-  def.reconcile?.forEach((r, i) => {
-    for (const c of r.when) {
-      if (!parseCondition(c))
-        issue("workflow_condition_unknown", `reconcile[${i}]: unknown condition ${c}`);
-    }
-    if (r.status === "abandoned")
-      issue("workflow_reconcile_abandoned", `reconcile[${i}]: reconcile cannot set abandoned`);
-  });
 
   return { workflow: resolveWorkflow(def), definition: def, issues };
 }

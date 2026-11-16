@@ -142,10 +142,10 @@ describe("既定の Workflow の照合", () => {
     expect(gitFacts).toMatchObject({ branch_pushed: true, branch_merged: false });
     // PR の事実は gh が出す形をそのまま足す（テストでは gh を呼ばない）
     const facts = { ...gitFacts, pr_open: true, pr_draft: false, pr_merged: false };
-    expect(reconcileStatus(wf, "in_progress", facts)).toMatchObject({
+    expect(reconcileStatus(wf, "in_progress", facts, { pr: 7 })).toMatchObject({
       kind: "advance",
       to: "review",
-      rule: { when: ["pr_open", "!pr_draft"] },
+      trigger: { when: ["pr_open", "!pr_draft"] },
     });
     // main が進んでも同じ
     await advanceMain(f, a.repo.dataDir, "別の PR が main に入る");
@@ -155,12 +155,12 @@ describe("既定の Workflow の照合", () => {
     });
     expect(after).toMatchObject({ branch_merged: false });
     expect(
-      reconcileStatus(wf, "in_progress", {
-        ...after,
-        pr_open: true,
-        pr_draft: false,
-        pr_merged: false,
-      }),
+      reconcileStatus(
+        wf,
+        "in_progress",
+        { ...after, pr_open: true, pr_draft: false, pr_merged: false },
+        { pr: 7 },
+      ),
     ).toMatchObject({ kind: "advance", to: "review" });
   });
 

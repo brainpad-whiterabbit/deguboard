@@ -267,7 +267,7 @@ describe("Store", () => {
 
     await writeFile(
       path.join(root, "workflow.yaml"),
-      "reconcile:\n  - { when: [nope], status: done }\n",
+      "boundaries:\n  - { from: review, to: done, requires: [nope] }\n",
     );
     await store.rescan();
     expect(store.workflow).toBeUndefined();
