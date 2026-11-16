@@ -1,0 +1,32 @@
+{
+  "id": "r20261116-000309-6328",
+  "ticket": "t1020",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-16T00:03:09Z",
+  "finished_at": "2026-11-16T00:39:39Z",
+  "result": "failure",
+  "error": "@types/vscode 1.123.x is not on npm; 1.125.0 is rejected by vsce. Waiting for 1.123.x (human decision)",
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 66,
+    "output": 12512,
+    "cache_read": 1543799,
+    "cache_write": 100305
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 2,
+    "bash": 16,
+    "other": 7,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 2
+  },
+  "session": "a7884df3-26ef-47e6-acb0-c11fb658d062",
+  "review": null,
+  "waited_seconds": 534
+}
