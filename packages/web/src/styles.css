@@ -2995,6 +2995,15 @@ textarea.body {
   border-left-color: var(--dg-info);
   background: color-mix(in srgb, var(--dg-info) 10%, var(--vscode-editor-background));
 }
+/* Workflow のタブは書き先ではなく読むだけなので、注意と情報の色を使わない */
+.config-scope.config-workflow {
+  border-left-color: var(--vscode-descriptionForeground);
+  background: color-mix(
+    in srgb,
+    var(--vscode-descriptionForeground) 10%,
+    var(--vscode-editor-background)
+  );
+}
 .config-tools input[type="search"] {
   width: 100%;
 }
@@ -3123,6 +3132,34 @@ textarea.body {
 }
 .config-note .config-text {
   width: 100%;
+}
+/* Workflow のタブ（pages/config-workflow.tsx。読むだけ）。節の見出しは名前とキーを並べ、下の線は見出しの行に引く。行は guide.notes.* の表と同じ */
+.config-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  padding-right: 28px;
+  border-bottom: 1px solid var(--dg-border);
+}
+.config-section-head h3 {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+/* 長いキー（boundaries.in_progress.review.requires）と値（guide のパス）は、左パネルの幅でもはみ出さないよう途中で折り返す */
+.config-workflow-value,
+.config-workflow-custom,
+.config-workflow-group .config-key {
+  overflow-wrap: anywhere;
+}
+.config-workflow-missing {
+  margin: 0.5rem 0;
+}
+/* チームと自分のタブでは「保存した」の行が検索欄との間を空ける。Workflow のタブにはその行がないので、ここで空ける */
+.config-tools + .config-workflow-group,
+.config-tools + .config-workflow-missing,
+.config-tools + .empty {
+  margin-top: 0.75rem;
 }
 /* 振り返りの節（読むだけ）。観点はほかの項目と同じ行（.config-field）、指標はその下に字下げした子の行（ID と数え方の最初の文）にし、全文は「詳しく」に畳む */
 .config-retro > .config-summary {
@@ -3265,6 +3302,11 @@ textarea.body {
 [data-surface="sidebar"] .config-notes-table th .config-key {
   display: inline;
   margin-left: 0.4em;
+}
+/* Workflow のタブのキーは長いので、左パネルでも名前の下の行に置く（名前の横に並べると語の途中で折れる） */
+[data-surface="sidebar"] .config-workflow-group th .config-key {
+  display: block;
+  margin-left: 0;
 }
 
 /* エージェントに頼む入力欄（UI-15）。ページの下に出し、上の 1 行が頼むことの候補、欄の頭が Skill と対象の札、下が全文・形式・コピー */

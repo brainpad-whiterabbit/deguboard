@@ -161,6 +161,113 @@ describe("workflow show", () => {
     );
   });
 
+  it("sections は 6 つの項目を行にし、省いた値も既定で埋めて、行ごとに既定と違うかを返す（設定画面は写すだけ。UI-14）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const rowsOf = async () => {
+      const { sections } = (await runCommand(workflowShow, ctx, {})).data;
+      return {
+        sections,
+        row: (key: string) => sections.flatMap((s) => s.rows).find((r) => r.key === key),
+      };
+    };
+
+    // 既定のままなら、どの節も行も modified: false で、値は既定と同じ
+    const before = await rowsOf();
+    expect(before.sections.map((s) => [s.key, s.modified])).toEqual([
+      ["states", false],
+      ["boundaries", false],
+      ["exceptions", false],
+      ["wip", false],
+      ["flow", false],
+      ["governance", false],
+    ]);
+    expect(before.sections.map((s) => s.rows.map((r) => r.key))).toEqual([
+      ["todo", "in_progress", "review", "done", "abandoned"].map((s) => `states.${s}.label`),
+      ["todo.in_progress", "in_progress.review", "review.done"].flatMap((b) => [
+        `boundaries.${b}.requires`,
+        `boundaries.${b}.decide`,
+      ]),
+      ["exceptions.abandon", "exceptions.back", "exceptions.reopen"],
+      ["wip.in_progress", "wip.review"],
+      ["assign", "check", "plan", "audit", "release", "retro", "skip"].map((s) => `flow.${s}`),
+      ["delete", "config", "reassign", "epic", "create"].map((o) => `governance.${o}`),
+    ]);
+    for (const r of before.sections.flatMap((s) => s.rows))
+      expect(r.value, r.key).toEqual(r.default);
+    expect(before.row("boundaries.review.done.requires")).toEqual({
+      key: "boundaries.review.done.requires",
+      value: ["pr_merged"],
+      default: ["pr_merged"],
+      modified: false,
+    });
+    expect(before.row("flow.skip")).toMatchObject({ value: [], default: [], modified: false });
+
+    // 一部だけを書く：書いた値は既定と違う行になり、省いた値は既定のまま出る
+    await runCommand(workflowSet, asHuman(ctx), {
+      definition: {
+        ...strict,
+        wip: { todo: 8, review: 3 },
+        flow: {
+          release: "always_ask",
+          "deploy-staging": { decide: "always_ask", after: "audit", guide: "docs/deploy.md" },
+          skip: ["retro"],
+        },
+        governance: { create: "anyone" },
+      },
+    });
+    const after = await rowsOf();
+    expect(after.sections.map((s) => [s.key, s.modified])).toEqual([
+      ["states", true],
+      ["boundaries", true],
+      ["exceptions", false],
+      ["wip", true],
+      ["flow", true],
+      ["governance", false],
+    ]);
+    expect(after.row("states.review.label")).toEqual({
+      key: "states.review.label",
+      value: "Client Review",
+      default: "Review",
+      modified: true,
+    });
+    expect(after.row("states.todo.label")).toMatchObject({ value: "Todo", modified: false });
+    expect(after.row("boundaries.review.done.decide")).toMatchObject({
+      value: "human_only",
+      default: "ask_unless_auto",
+      modified: true,
+    });
+    // 境目を書いて requires を省くと条件なしになる（既定の pr_merged と違う）
+    expect(after.row("boundaries.review.done.requires")).toMatchObject({
+      value: [],
+      default: ["pr_merged"],
+      modified: true,
+    });
+    expect(after.row("boundaries.todo.in_progress.decide")).toMatchObject({ modified: false });
+    // wip は項目ごと替わる：書いた列と既定で上限のある列が行になり、上限を外した列は null
+    expect(after.sections.find((s) => s.key === "wip")!.rows).toEqual([
+      { key: "wip.todo", value: 8, default: null, modified: true },
+      { key: "wip.in_progress", value: null, default: 5, modified: true },
+      { key: "wip.review", value: 3, default: 3, modified: false },
+    ]);
+    expect(after.row("flow.release")).toMatchObject({
+      value: "always_ask",
+      default: "human_only",
+      modified: true,
+    });
+    expect(after.row("flow.assign")).toMatchObject({ value: "ask_unless_auto", modified: false });
+    // 独自の段階は既定を持たず、after と guide を添える
+    expect(after.row("flow.deploy-staging")).toEqual({
+      key: "flow.deploy-staging",
+      value: "always_ask",
+      modified: true,
+      custom: { after: "audit", guide: "docs/deploy.md" },
+    });
+    expect(after.row("flow.skip")).toMatchObject({ value: ["retro"], default: [], modified: true });
+    // 既定と同じ値を書いた行は、既定と違わない
+    expect(after.row("governance.create")).toMatchObject({ value: "anyone", modified: false });
+  });
+
   it("Run の step の語彙と表示名は Core の固定で、workflow.yaml に書いても変わらない", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

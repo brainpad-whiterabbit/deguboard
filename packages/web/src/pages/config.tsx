@@ -1,5 +1,6 @@
 // 設定画面（#/config）。config.show の fields で葉の項目を既定値・文（configDescription で表示言語の訳にする）・範囲（scope）つきで読み、
 // 「チーム」と「自分」のタブで書き分ける。値を変えるたびに 1 項目ずつ保存する。
+// 3 つ目のタブ「Workflow」は workflow.yaml を読むだけで出す（書き先ではない。中身は config-workflow.tsx）。
 // 振り返りの観点（retro.perspectives）は観点ごとの入れ子で 1 つの欄に収まらず fields に入らないので、チームのタブの「振り返り」の節に
 // view.team から読むだけで出す（入力欄は置かない。書くのは振り返りの dg retro。観点はチームだけが持つので自分のタブには出さない）。
 // 名前と問いが既定（view.defaults）のままの観点は表示言語の訳で出し、書き換えた観点は書いたまま出す（shownRetroPerspectives）。
@@ -44,6 +45,7 @@ import {
 } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
+import { WorkflowPanel } from "./config-workflow.js";
 
 /** 振り返りの観点の行から頼むときに渡す項目の頭（core の ask の key：retro.perspectives.<id>。ASK_PERSPECTIVE_KEY の写しで、一致はテストが確かめる） */
 export const RETRO_ITEM_PREFIX = "retro.perspectives.";
@@ -269,6 +271,11 @@ function exampleText(field: ConfigField): string | undefined {
 /** 書き分ける先：チームの config.yaml か、個人の deguboard-local/config.yaml */
 type Tab = ConfigScope;
 
+/** Workflow のタブ。書き先ではなく、workflow.yaml を読むだけで出す */
+const WORKFLOW_TAB = "workflow";
+/** 画面のタブ：書き先の 2 つと Workflow */
+type PageTab = Tab | typeof WORKFLOW_TAB;
+
 /**
  * 空にすると既定に戻る（core の config.set が値を消す）項目と値か。
  * どの項目がそうかは core の項目の定義（config.show の fields の clears_to_default）が決め、画面では型や既定値から判断しない
@@ -295,7 +302,7 @@ export function ConfigPage() {
   const store = useStore();
   const [view, setView] = useState<ConfigShowView | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("team");
+  const [tab, setTab] = useState<PageTab>("team");
   const [query, setQuery] = useState("");
   /** 入力中の値（テキスト）。保存か取り消しかタブの切り替えで消す */
   const [drafts, setDrafts] = useState<Values>({});
@@ -360,7 +367,7 @@ export function ConfigPage() {
   }, [tab, focusKey]);
 
   /** タブを切り替える。入力中の値と確かめの待ちはタブごとの値に対するものなので捨てる */
-  const switchTab = useCallback((next: Tab, key: string | null = null) => {
+  const switchTab = useCallback((next: PageTab, key: string | null = null) => {
     setTab(next);
     setDrafts({});
     setPending(null);
@@ -490,7 +497,8 @@ export function ConfigPage() {
   /** 値を変えたとき。確かめる項目は待たせ、それ以外はすぐ保存する。変わっていなければ待ちを解くだけ */
   const change = useCallback(
     (key: string, value: unknown) => {
-      if (!view) return;
+      // Workflow のタブには入力欄がない
+      if (!view || tab === WORKFLOW_TAB) return;
       const current = tab === "team" ? valueAt(view.team, key) : view.local[key];
       if (!isModified(value, current)) {
         setDrafts((d) => without(d, key));
@@ -533,6 +541,7 @@ export function ConfigPage() {
   const { groups, detailHits } = useMemo(() => {
     const detailHits = new Set<string>();
     const fields = (view?.fields ?? []).filter((f) => {
+      if (tab === WORKFLOW_TAB) return false;
       if (tab !== "team" && f.scope !== "local") return false;
       const match = fieldMatch(f, query);
       if (match === "detail") detailHits.add(f.key);
@@ -599,9 +608,30 @@ export function ConfigPage() {
             </span>
           ) : null}
         </button>
+        <button
+          type="button"
+          role="tab"
+          id="config-tab-workflow"
+          aria-selected={tab === WORKFLOW_TAB}
+          aria-controls="config-panel"
+          className={`config-tab${tab === WORKFLOW_TAB ? " active" : ""}`}
+          onClick={() => switchTab(WORKFLOW_TAB)}
+        >
+          Workflow
+        </button>
       </div>
       <div id="config-panel" role="tabpanel" aria-labelledby={`config-tab-${tab}`}>
-        {tab === "team" ? (
+        {tab === WORKFLOW_TAB ? (
+          <p className="config-scope config-workflow" role="note">
+            <strong>{tr("カンバンの流れと権限（読むだけ）")}</strong>
+            <span>
+              {trNode(
+                "deguboard ブランチの {0} の今効いている値（省いた値は既定）。変えるには、行か節の見出しの吹き出しからエージェントに頼む",
+                <code>workflow.yaml</code>,
+              )}
+            </span>
+          </p>
+        ) : tab === "team" ? (
           <p className="config-scope config-team" role="note">
             <strong>{tr("チーム全員に効く設定")}</strong>
             <span>
@@ -625,12 +655,29 @@ export function ConfigPage() {
         <div className="config-tools">
           <input
             type="search"
-            placeholder={tr("設定を検索（名前・キー・説明）")}
+            placeholder={
+              tab === WORKFLOW_TAB
+                ? tr("Workflow を検索（名前・キー・値）")
+                : tr("設定を検索（名前・キー・説明）")
+            }
             aria-label={tr("設定を検索")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+        {tab === WORKFLOW_TAB ? (
+          <WorkflowPanel workflow={store.workflow} query={query} />
+        ) : (
+          settingsBody()
+        )}
+      </div>
+    </div>
+  );
+
+  /** チームと自分のタブの中身：保存の知らせ・読み込みの状態・まとまりごとの項目・振り返りの節 */
+  function settingsBody() {
+    return (
+      <>
         <p className="config-saved muted" role="status" aria-live="polite">
           {saved ? tr("保存した: {0}", saved) : null}
         </p>
@@ -656,9 +703,9 @@ export function ConfigPage() {
         {hasRetro && (retro.length > 0 || !query.trim()) ? (
           <RetroSection perspectives={retro} changes={retroChanged} />
         ) : null}
-      </div>
-    </div>
-  );
+      </>
+    );
+  }
 
   /** 項目の行。block は説明つきの 1 項目、note は guide.notes.* の表の 1 行（説明は表の上に 1 つだけ出す） */
   function rowOf(f: ConfigField, layout: "block" | "note") {

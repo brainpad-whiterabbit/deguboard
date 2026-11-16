@@ -24,7 +24,7 @@ Skill は Claude Code 向けです。普通の言葉で頼むか、コマンド�
 | `dgdiscuss` | チケット・Epic・Iteration の論点を、人と相談して決める               | 「t12 を検討して」                | `/dgdiscuss t12`        |
 | `dgstatus`  | 進行中のチケットの作業がどこまで進み、止まっていれば理由を教える     | 「t12 はどこまで進んだ？」        | `/dgstatus t12`         |
 | `dgexplain` | チケット・Epic・Iteration の中身を、図を入れて人に説明する           | 「t12 を説明して」                | `/dgexplain t12`        |
-| `dgconfig`  | 設定の項目を説明し、変更は前と後の差の承認を得てから書く             | 「commit.mode って何？」          | `/dgconfig commit.mode` |
+| `dgconfig`  | 設定と Workflow の項目を説明し、変更は前と後の差の承認を得てから書く | 「commit.mode って何？」          | `/dgconfig commit.mode` |
 
 ## 最後まで任せる
 
