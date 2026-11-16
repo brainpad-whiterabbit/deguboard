@@ -4,7 +4,7 @@ after:
   t1035:
     - t1028
     - t1039
-pending_approval: true
+pending_approval: false
 details:
   t1026:
     scope: flow の値で assign・plan・release を判定し、--auto を ask_unless_auto に統合し、auto.* を消す
@@ -26,3 +26,5 @@ details:
     scope: test/vscode の準備で done にするところだけを直し、製品の既定は変えない
     approach: 準備の ticket move を人の --override か専用の workflow.yaml で done にし、mise run test:vscode を通す
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-16T11:23:22Z
