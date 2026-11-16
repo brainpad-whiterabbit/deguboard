@@ -68,17 +68,17 @@ describe("公開のワークフロー（publish-extension.yml）", () => {
       "pnpm run build",
       "pnpm build",
       "pnpm -r exec tsc",
-      "pnpm --filter deguboard exec vsce package",
-      "pnpm --filter deguboard run build",
-      "pnpm --filter deguboard build",
+      "pnpm --filter deguboard-vscode exec vsce package",
+      "pnpm --filter deguboard-vscode run build",
+      "pnpm --filter deguboard-vscode build",
       "npm run build",
       "npx vsce package",
     ];
     expect(forbiddenRuns(runs.map((run) => ({ run })))).toEqual(runs);
     const allowed = [
-      "pnpm install --frozen-lockfile --ignore-scripts --filter deguboard",
-      'pnpm --filter deguboard exec vsce publish --oidc --packagePath "$RUNNER_TEMP/deguboard-vscode.vsix"',
-      'pnpm --filter deguboard exec ovsx publish "$RUNNER_TEMP/deguboard-vscode.vsix"',
+      "pnpm install --frozen-lockfile --ignore-scripts --filter deguboard-vscode",
+      'pnpm --filter deguboard-vscode exec vsce publish --oidc --packagePath "$RUNNER_TEMP/deguboard-vscode.vsix"',
+      'pnpm --filter deguboard-vscode exec ovsx publish "$RUNNER_TEMP/deguboard-vscode.vsix"',
     ];
     expect(forbiddenRuns(allowed.map((run) => ({ run })))).toEqual([]);
   });

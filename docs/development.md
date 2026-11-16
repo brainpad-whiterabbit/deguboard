@@ -145,7 +145,7 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 見た目は Playwright MCP（`.mcp.json`。Chromium は `mise run playwright:install`）で一時リポジトリの `dg serve` を見る。配置は `?surface=sidebar`（既定）か `panel` で選ぶ（ブラウザだけの配置はない）。Webview に固有の色・CSP・拡張ホストとのやり取りは `mise run test:vscode` で見る（「`packages/vscode`」の節）。
 
-### `packages/vscode`（`deguboard`。拡張の ID は `deguboard.deguboard`）
+### `packages/vscode`（`deguboard-vscode`。拡張の ID は `deguboard.deguboard-vscode`）
 
 VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動しない。同梱した `dist/cli/dg.mjs` は、起動のたびに `~/.local/share/deguboard/` に書く起動ファイル `dg` から外に出す（`launcher.ts`。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。VS Code の API に触れるのは入口の `extension.ts` だけで、Webview に載せる純粋な処理は `webview.ts`、PATH の `dg` を引くのは `dg.ts`、導入のチェックリストの項目の組み立てとボタンが流すコマンドは `setup.ts`（core の `checkSetup` に、フォルダ・OS・PATH の `dg` を足す）、拡張を消したときの片付けは `uninstall.ts` が呼ぶ。文言は言語ごとのファイルに置く：manifest は `package.nls.json`（英語・既定）と `package.nls.ja.json`、拡張ホストは `l10n.ts` の `t`（鍵は英語の文）と `l10n/bundle.l10n.ja.json`、Walkthrough は `media/walkthrough/*.md` と `*.ja.md`。揃っているかは `l10n.test.ts` が確かめる。Webview の画面の文言は web に置き（「`packages/web`」の節）、拡張ホストは表示言語を `<html data-language>` で渡すだけ。
 
@@ -185,7 +185,7 @@ VSIX を添付してから公開する。公開したときだけ `.github/workf
 
 初めて出す前に、一度だけ準備する。初回の VSIX は人が手で上げ、その後の版から Release の公開で出す。手で上げるのは、Marketplace の trusted publishing の policy が既存の拡張のページに登録するもので、拡張が一度出ていないと設定できず、ワークフローは Release の公開でしか走らないため。Open VSX も、namespace と拡張のページを手元から確かめてから Release の経路に載せる：
 
-- Marketplace：publisher `deguboard` を作り、`mise run vsix` の VSIX を publisher の管理画面（`https://marketplace.visualstudio.com/manage/publishers/deguboard`）の New extension から手で上げて拡張のページを作る。次に、その拡張の trusted publishing の policy にこのリポジトリとワークフローのファイル `publish-extension.yml` を登録する（PAT は作らない）
+- Marketplace：publisher `deguboard` を作り、`mise run vsix` の VSIX を publisher の管理画面（`https://marketplace.visualstudio.com/manage/publishers/deguboard`）の New extension から手で上げて拡張のページを作る。New extension の上げが「Your extension has suspicious content」で拒否されたら、README と説明文（`description`）を最小にした VSIX を New extension から上げ、その検査（Verifying）が終わってから、本物の VSIX をその拡張の Update から上げる（最小の VSIX のための変更はコミットしない）。次に、その拡張の trusted publishing の policy にこのリポジトリとワークフローのファイル `publish-extension.yml` を登録する（PAT は作らない）。試しの版や要らない版を外すときは Unpublish にし、Remove しない（Remove した名前は、同じ publisher でも二度と使えない）
 - Open VSX：出せるアカウントのトークンを環境変数 `OVSX_PAT` に入れ、namespace `deguboard` を作り（`packages/vscode/node_modules/.bin/ovsx create-namespace deguboard`）、同じ VSIX を `packages/vscode/node_modules/.bin/ovsx publish <VSIX>` で手元から出す。create-namespace も publish もトークンを要るので、トークンを先に置く。どちらも `packages/vscode` が lockfile で固定した ovsx（`mise run install` で入る）を使う。トークンはリポジトリの Actions の secret `OVSX_PAT` にも置く
 
 手で上げる VSIX は、`mise run vsix` で作った今の版（`packages/vscode/package.json` の version）のもので、上のコードブロックの検査（`mise run check`・`mise run audit`・`mise run test:layout`・`mise run test:vscode`）を通したものにする。初回の版は GitHub の Release もタグも作らない。Release を公開するとワークフローが同じ版を両方に出そうとして失敗するため。Release で出す版は、それより後の版にして、上のコードブロックの手順で作る（同じ版は Marketplace と Open VSX に二度出せず、ワークフローが失敗するため）。
