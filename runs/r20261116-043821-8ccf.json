@@ -1,0 +1,41 @@
+{
+  "id": "r20261116-043821-8ccf",
+  "ticket": "t1022",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-16T04:38:21Z",
+  "finished_at": "2026-11-16T04:51:44Z",
+  "result": "success",
+  "error": null,
+  "retries": 8,
+  "retry_reasons": [
+    "The overview guide still told agents to pass a Workflow ID to workflow show, which now fails",
+    "The help of the default_workflow setting still said it selects a Workflow",
+    "An existing board with the old per-ID workflow files silently fell back to the default without a warning",
+    "A lint config comment gave a reason that the removed ACTION_NAMES export made untrue",
+    "The development document still named the software-development Workflow",
+    "A web store comment still referred to template names and labels",
+    "Requirements 5.8 did not say that transitions, reconcile, and fields are still read",
+    "The ADR listed permission values and per-item details whose canonical source is the schema"
+  ],
+  "usage": {
+    "input": 48,
+    "output": 17479,
+    "cache_read": 1741124,
+    "cache_write": 79396
+  },
+  "tools": {
+    "read": 21,
+    "search": 0,
+    "write": 23,
+    "bash": 14,
+    "other": 1,
+    "read_before_write": 17,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "23c5636a-4fa2-4fb4-b1a2-d06fa88b11b3",
+  "review": null,
+  "waited_seconds": 0
+}
