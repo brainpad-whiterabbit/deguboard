@@ -658,7 +658,11 @@ export const flowNext = defineCommand({
       parts.map((p) => composeGuide(p.topic, ctx.config, ctx.repo.topLevel, p.sections)),
     );
     warnings.push(...guideTexts.flatMap((g) => g.warnings));
-    const wip = wipCheckOf(ctx, stage.name === "work");
+    // 着手の手を返すのは、作業の段階に todo のチケットがあるときだけ（どれも着手済みなら上限ちょうどは超えない）
+    const starting =
+      stage.name === "work" &&
+      stage.tickets.some((id) => ctx.store.tickets.get(id as Ticket["id"])?.data.status === "todo");
+    const wip = wipCheckOf(ctx, starting);
     warnings.push(...wip.warnings);
     const approval = approvalOf(stage.name, {
       auto,

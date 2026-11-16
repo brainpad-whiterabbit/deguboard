@@ -665,6 +665,28 @@ describe("dg flow next", () => {
     ]);
   });
 
+  it("作業の段階のチケットがどれも着手済みなら、in_progress が上限ちょうどでも警告も先の列を進める手も返さない", async () => {
+    const ctx = await ready();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    for (const title of ["A", "B"]) await runCommand(ticketCreate, ctx, { title });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2"] });
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2"] });
+    await runCommand(planApprove, ctx, { plan: "p1" });
+    await runCommand(workflowSet, ctx, { definition: { wip: { in_progress: 2 } } });
+    for (const ticket of ["t1", "t2"]) {
+      await runCommand(ticketMove, ctx, { ticket, status: "in_progress" });
+    }
+    const check = await flow(ctx, { no_assign: true });
+    const work = await flow(ctx, { no_assign: true, resume: check.resume });
+    expect(work.stage.name).toBe("work");
+    expect(work.warnings.some((w) => w.includes("WIP limit"))).toBe(false);
+    expect(work.commands).toEqual([
+      "dg --json --actor agent plan show p1",
+      "dg --json --actor agent next t1",
+      "dg --json --actor agent next t2",
+    ]);
+  });
+
   it("registry に flow.next として載り、読み取りだけ", () => {
     expect(findCommand("flow.next")).toMatchObject({ write: false, group: "flow" });
   });
