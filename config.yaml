@@ -1,11 +1,6 @@
 git:
   remote: origin
   base_branch: main
-auto:
-  decisions:
-    - assign
-    - check
-    - plan
 metrics:
   read_transcripts: true
 lint:
