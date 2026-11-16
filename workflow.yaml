@@ -1,0 +1,5 @@
+transitions:
+  - from: todo
+    to: in_progress
+    requires:
+      - deps_done
