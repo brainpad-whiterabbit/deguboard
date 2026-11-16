@@ -17,6 +17,7 @@ import { basename, dirname, join, relative, sep } from "node:path";
 import {
   agentSkillPlaceGroups,
   agentSkillPlaces,
+  DEFAULT_SKILL_AGENT,
   skillDirsOf,
   type AgentEnv,
   type SkillPlace,
@@ -398,9 +399,9 @@ export async function removeRetiredSkills(
 }
 
 export interface SkillInstallResult {
-  /** project（リポジトリの .claude/skills）か personal（~/.claude/skills）。Claude Code の呼び名に合わせる */
+  /** project（リポジトリの Skill のディレクトリ）か personal（ホームディレクトリの下の Skill のディレクトリ）。エージェントの製品の呼び名に合わせる */
   scope: "project" | "personal";
-  /** Skill を置いた .claude/skills の絶対パス */
+  /** Skill を置いたディレクトリの絶対パス */
   dir: string;
   /** 新しく書いた Skill の名前 */
   written: string[];
@@ -425,10 +426,11 @@ export interface SkillInstallResult {
 }
 
 /**
- * dg skill install：dg guide を読む薄い Skill を段階ごとに置く（AG-2）。置き場所は claude-code の Adapter の skillDirs が決め、ask が Skill の有無を見る先と同じになる（AG-5）。
+ * dg skill install：dg guide を読む薄い Skill を段階ごとに置く（AG-2）。置き場所は既定のエージェント（DEFAULT_SKILL_AGENT）の Adapter の skillDirs が決め、
+ * ask が Skill の有無を見る先と同じになる（AG-5）。
  * scope が project なら cwd を含むリポジトリの最上位、personal ならホームディレクトリ（env の HOME、空か未設定なら OS のホーム）の下。
  * 手を加えていない Skill は最新の中身で上書きし、手を加えたものは force がなければ残す（writeSkillFiles）。廃止した Skill は removeRetiredSkills で片付ける。
- * project では、Skill は各自が入れるものなので、実行のたびに .claude/.gitignore に dg が入れる Skill ごとの無視の行（skills/<名前>/）がなければ足す（--dry-run では書かない）。
+ * project では、Skill は各自が入れるものなので、実行のたびに Skill のディレクトリの親の .gitignore に dg が入れる Skill ごとの無視の行（skills/<名前>/）がなければ足す（--dry-run では書かない）。
  * 無視の行（ignoreSkills）と追跡済みの検出は dg が入れる Skill の名前だけを見る。dg で始まる名前で括ると、利用者が自分で作った dg で始まる Skill まで無視し、git rm --cached を案内してしまう（t804）。
  * 廃止した Skill（RETIRED_SKILLS）の行は足さない。新しく入れることはなく、残っていれば消すか利用者に任せる
  */
@@ -440,8 +442,8 @@ export async function installSkill(options: {
   /** true なら何も書かず消さず、書く先と中身だけを返す */
   dryRun?: boolean;
 }): Promise<SkillInstallResult> {
-  const dirs = skillDirsOf("claude-code");
-  if (!dirs) throw new Error("The claude-code Adapter has no Skill directory");
+  const dirs = skillDirsOf(DEFAULT_SKILL_AGENT);
+  if (!dirs) throw new Error(`The ${DEFAULT_SKILL_AGENT} Adapter has no Skill directory`);
   const topLevel =
     options.scope === "personal" ? undefined : (await resolveRepoPaths(options.cwd)).topLevel;
   const dir = topLevel === undefined ? dirs.personal(options.env) : dirs.project(topLevel);
