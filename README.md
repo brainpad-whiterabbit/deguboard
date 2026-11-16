@@ -2,7 +2,7 @@
 
 English | [日本語](https://github.com/brainpad-whiterabbit/deguboard/blob/main/README.ja.md)
 
-An agentic kanban board for VS Code that you use with AI agents, with the development flow built in, so you and AI agents can grow your software together while keeping its quality high. Inspired by [Agentic-Agile](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md), it supports our own take on Agentic-Agile. You bring the idea; agents turn it into small tickets with acceptance criteria, implement them in parallel, and keep revising each one until it passes the quality gate. Every agent run is measured, and in the retrospective you decide how to improve the agents and the software.
+An agentic kanban board inside VS Code, with the development flow built in, so you and AI agents can grow your software together while keeping its quality high. Inspired by [Agentic-Agile](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md), it supports our own take on Agentic-Agile. You bring the idea; agents turn it into small tickets with acceptance criteria, implement them in parallel, and keep revising each one until it passes the quality gate. Every agent run is measured, and in the retrospective you decide how to improve the agents and the software.
 
 - **You stay in charge**: Agents work under your oversight. You decide what to build and what ships, and the agents drive the work forward within those bounds. You build alongside them, and the AI never runs away with the work.
 - **Made for teams**: The board lives on a dedicated branch of your Git repository, so everyone who clones it sees the same board. There is no server or service to run.
