@@ -22,7 +22,7 @@ export interface CachedRead {
  * キャッシュの形の版。覚える値（Doc・Issue・config・Workflow）の形や、読みの解釈を変えたら上げる。
  * dg の版と読みのコードの印も鍵に入れるので、上げ忘れても版を上げたときか作り直したときに捨てる
  */
-const STORE_CACHE_FORMAT = 1;
+const STORE_CACHE_FORMAT = 2;
 
 /**
  * 鍵の違う他のキャッシュのファイルは、新しい順にこの数だけ残して消す（使われていない版の分を溜めない）。
@@ -64,7 +64,7 @@ function codeStamp(): Promise<string> {
  * キャッシュの鍵。これが違うキャッシュは使わない。束ねた拡張（VS Code）では core の版が読めずに空になり、
  * 版の区別は codeStamp の束ねたファイルの印（大きさと更新時刻）だけに頼る。拡張を入れ替えると束ねたファイルが書き直されて印が変わるので、それで足りるとする
  */
-export async function storeCacheKey(root: string, actions: readonly string[] | undefined) {
+export async function storeCacheKey(root: string) {
   return JSON.stringify({
     format: STORE_CACHE_FORMAT,
     version: await coreVersion(),
@@ -72,7 +72,6 @@ export async function storeCacheKey(root: string, actions: readonly string[] | u
       .update(await codeStamp())
       .digest("hex"),
     root: path.resolve(root),
-    actions: actions ?? null,
   });
 }
 

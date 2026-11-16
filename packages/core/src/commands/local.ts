@@ -33,8 +33,6 @@ export interface LocalClientOptions {
   commands?: readonly AnyCommand[] | undefined;
   /** マージドライバとして登録する、dg を呼ぶ argv の前置（dg serve・dg mcp・VS Code 拡張が渡す） */
   mergeDriver?: readonly string[] | undefined;
-  /** Workflow の steps に書ける Action の名前（ContextOptions.actions） */
-  actions?: readonly string[] | undefined;
   /** status がリモートを fetch する間隔（既定は STATUS_FETCH_INTERVAL_MS。テストで縮める） */
   statusFetchIntervalMs?: number | undefined;
 }
@@ -81,7 +79,6 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
           cwd: options.cwd,
           actor,
           mergeDriver: options.mergeDriver,
-          actions: options.actions,
         }).then((opened) => {
           openedRemotes = remoteNamesOf(opened.store.config);
           return opened;

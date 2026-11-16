@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { ACTORS } from "../model/workflow.js";
+import { ACTORS, WORKFLOW_ITEMS } from "../model/workflow.js";
 import { STATUSES } from "../model/common.js";
 import { evaluateCondition, parseCondition } from "./conditions.js";
 import { reconcileStatus, regressionWarnings } from "./reconcile.js";
-import { canTransition, findStep, resolveWorkflow, stepOpenedOn } from "./resolve.js";
-import { WORKFLOW_TEMPLATES, findWorkflowTemplate } from "./templates/index.js";
+import {
+  canTransition,
+  DEFAULT_WORKFLOW,
+  defaultWorkflowFile,
+  resolveWorkflow,
+  writtenForm,
+} from "./resolve.js";
 import { validateWorkflow } from "./validate.js";
 
-const base = { id: "x", name: "X" };
+// どの項目も省いた定義
+const base = {};
+/** 定義の指摘の [code, severity] */
+const found = (raw: unknown) =>
+  validateWorkflow(raw, "workflow.yaml").issues.map((i) => [i.code, i.severity]);
 
 describe("条件", () => {
   it("不明な事実は否定でも偽と読む", () => {
@@ -36,7 +45,7 @@ describe("遷移の検査", () => {
 
   it("todo → in_progress に requires: [deps_done] を書けば、依存が終わるまで拒否される", () => {
     const wf = validateWorkflow(
-      { ...base, transitions: [{ from: "todo", to: "in_progress", requires: ["deps_done"] }] },
+      { transitions: [{ from: "todo", to: "in_progress", requires: ["deps_done"] }] },
       "x.yaml",
     ).workflow!;
     expect(canTransition(wf, "todo", "in_progress", "agent", { deps_done: false })).toMatchObject({
@@ -53,7 +62,6 @@ describe("遷移の検査", () => {
   it("by で主体を絞り、by: [] で遷移を禁止できる", () => {
     const wf = validateWorkflow(
       {
-        ...base,
         transitions: [
           { from: "in_progress", to: "abandoned", by: ["human"] },
           { from: "done", to: "todo", by: [] },
@@ -78,7 +86,6 @@ describe("遷移の検査", () => {
     const wf = resolveWorkflow(
       validateWorkflow(
         {
-          ...base,
           transitions: [
             { from: "review", to: "done", requires: ["branch_merged"], by: ["human", "reconcile"] },
             { from: "review", to: "done", requires: ["pr_merged"], by: ["human", "agent"] },
@@ -107,11 +114,121 @@ describe("遷移の検査", () => {
   });
 });
 
+describe("省いた項目の既定", () => {
+  it("どの項目も省いた定義は指摘なしで読め、Core の既定になる", () => {
+    const { issues, workflow } = validateWorkflow({}, "workflow.yaml");
+    expect(issues).toEqual([]);
+    expect(workflow).toEqual(DEFAULT_WORKFLOW);
+    expect(workflow).toMatchObject({
+      labels: {
+        todo: "Todo",
+        in_progress: "In Progress",
+        review: "Review",
+        done: "Done",
+        abandoned: "Abandoned",
+      },
+      boundaries: [
+        { from: "todo", to: "in_progress", requires: ["deps_done"], decide: "anyone" },
+        { from: "in_progress", to: "review", requires: [], decide: "anyone" },
+        { from: "review", to: "done", requires: ["pr_merged"], decide: "ask_unless_auto" },
+      ],
+      exceptions: { abandon: "human_only", back: "anyone", reopen: "human_only" },
+      wip: { in_progress: 5, review: 3 },
+      flow: {
+        stages: {
+          assign: "ask_unless_auto",
+          check: "ask_unless_auto",
+          plan: "ask_unless_auto",
+          audit: "always_ask",
+          release: "human_only",
+          retro: "always_ask",
+        },
+        custom: [],
+        skip: [],
+      },
+      governance: {
+        delete: "human_only",
+        config: "always_ask",
+        reassign: "always_ask",
+        epic: "human_only",
+        create: "anyone",
+      },
+      transitions: [],
+      fields: [],
+    });
+  });
+
+  it("6 つの項目のどれを 1 つだけ省いても、省いた項目は dg init が置く既定の workflow.yaml と同じ値になる", () => {
+    const bundled = defaultWorkflowFile() as Record<string, unknown>;
+    const items = ["states", "boundaries", "exceptions", "wip", "flow", "governance"];
+    expect(Object.keys(bundled)).toEqual(items);
+    // 同梱の既定そのものも Core の既定と同じ Workflow になる
+    expect(validateWorkflow(bundled, "workflow.yaml")).toMatchObject({
+      issues: [],
+      workflow: DEFAULT_WORKFLOW,
+    });
+    for (const omitted of items) {
+      const { [omitted]: _omitted, ...rest } = bundled;
+      const { issues, workflow } = validateWorkflow(rest, "workflow.yaml");
+      expect(issues, omitted).toEqual([]);
+      expect(workflow, omitted).toEqual(DEFAULT_WORKFLOW);
+    }
+  });
+
+  it("書いた鍵だけが替わり、同じ項目の書いていない鍵は既定のまま。wip は書いた列だけに上限が付く", () => {
+    const { issues, workflow } = validateWorkflow(
+      {
+        states: { review: { label: "Client Review" } },
+        boundaries: [{ from: "review", to: "done", requires: ["branch_merged"] }],
+        exceptions: { abandon: "anyone" },
+        wip: { review: 2 },
+        flow: { release: "always_ask", skip: ["retro"] },
+        governance: { create: "always_ask" },
+      },
+      "workflow.yaml",
+    );
+    expect(issues).toEqual([]);
+    expect(workflow?.labels).toMatchObject({ review: "Client Review", todo: "Todo" });
+    expect(workflow?.boundaries).toEqual([
+      DEFAULT_WORKFLOW.boundaries[0],
+      DEFAULT_WORKFLOW.boundaries[1],
+      // decide を省いた境目は、その境目の既定の値
+      { from: "review", to: "done", requires: ["branch_merged"], decide: "ask_unless_auto" },
+    ]);
+    expect(workflow?.exceptions).toEqual({
+      abandon: "anyone",
+      back: "anyone",
+      reopen: "human_only",
+    });
+    expect(workflow?.wip).toEqual({ review: 2 });
+    expect(workflow?.flow).toMatchObject({
+      stages: { release: "always_ask", assign: "ask_unless_auto" },
+      skip: ["retro"],
+    });
+    expect(workflow?.governance).toMatchObject({ create: "always_ask", delete: "human_only" });
+  });
+
+  it("補った Workflow を書く形に戻して読み直すと、同じ Workflow になる（workflow show の definition を workflow set に渡せる）", () => {
+    const { workflow } = validateWorkflow(
+      {
+        states: { done: { label: "Shipped" } },
+        flow: { "deploy-staging": { decide: "always_ask", after: "audit", guide: "docs/d.md" } },
+        transitions: [{ from: "review", to: "done", by: ["human"] }],
+        reconcile: [{ when: ["branch_merged"], status: "done" }],
+        fields: [{ id: "estimate", type: "number" }],
+      },
+      "workflow.yaml",
+    );
+    const written = writtenForm(workflow!);
+    expect(Object.keys(written)).toEqual(WORKFLOW_ITEMS);
+    expect(validateWorkflow(written, "workflow.yaml")).toMatchObject({ issues: [], workflow });
+  });
+});
+
 describe("定義の検証（WF-3）", () => {
   it("未知の条件・同じ遷移の重複・同じ Status への遷移を指摘し、by はどの遷移にも書ける", () => {
     const { issues } = validateWorkflow(
       {
-        ...base,
         transitions: [
           { from: "todo", to: "done" },
           { from: "review", to: "done", by: ["agent"] },
@@ -120,7 +237,7 @@ describe("定義の検証（WF-3）", () => {
           { from: "todo", to: "todo" },
         ],
         reconcile: [{ when: ["!nope"], status: "done" }],
-        labels: { review: "レビュー" },
+        states: { review: { label: "レビュー" } },
       },
       "x.yaml",
     );
@@ -132,149 +249,112 @@ describe("定義の検証（WF-3）", () => {
     ]);
   });
 
-  it("形が違えば 1 件のエラーになる", () => {
-    const { issues, workflow } = validateWorkflow({ id: "x", labels: { nope: 1 } }, "x.yaml");
-    expect(workflow).toBeUndefined();
-    expect(issues).toHaveLength(1);
-    expect(issues[0]?.code).toBe("workflow_schema");
-  });
-
-  it("渡した Action の一覧にない Action を警告し、同じ step の重複をエラーにする", () => {
-    const raw = {
-      ...base,
-      steps: [
-        { id: "implement", actions: ["create_pr", "deploy"] },
-        { id: "review", approval: true },
-        { id: "implement" },
-      ],
-    };
-    const { issues, workflow } = validateWorkflow(raw, "x.yaml", { actions: ["create_pr"] });
-    expect(issues.map((i) => [i.code, i.severity, i.message])).toEqual([
-      ["workflow_action_unknown", "warning", "steps[0]: unknown Action deploy"],
-      ["workflow_step_duplicate", "error", "steps[2]: implement is duplicated"],
-    ]);
-    expect(workflow?.steps?.[1]).toMatchObject({ id: "review", actions: [], approval: true });
-    // 一覧を渡さなければ Action の名前は形だけ見る
-    expect(validateWorkflow(raw, "x.yaml").issues.map((i) => i.code)).toEqual([
-      "workflow_step_duplicate",
-    ]);
-  });
-
-  it("steps を書いたのに見直しの review がなければ警告し、steps を書かなければ警告しない", () => {
-    const without = validateWorkflow({ ...base, steps: [{ id: "implement" }] }, "x.yaml");
-    expect(without.issues.map((i) => [i.code, i.severity])).toEqual([
-      ["workflow_review_step_missing", "warning"],
-    ]);
-    // 警告は Workflow を止めない
-    expect(without.workflow).toBeDefined();
-    expect(
-      validateWorkflow({ ...base, steps: [{ id: "implement" }, { id: "review" }] }, "x.yaml")
-        .issues,
-    ).toEqual([]);
-    expect(validateWorkflow(base, "x.yaml").issues).toEqual([]);
-  });
-
-  it("step の名前の形・空の steps・Action の名前の形は形の誤りになる", () => {
-    for (const steps of [[{ id: "Implement" }], [], [{ id: "a", actions: ["Create PR"] }]]) {
-      expect(validateWorkflow({ ...base, steps }, "x.yaml").issues.map((i) => i.code)).toEqual([
-        "workflow_schema",
-      ]);
-    }
-  });
-
-  it("steps のない Workflow はどの step も受け、steps があれば語彙にない step を拒否する", () => {
-    expect(
-      findStep(resolveWorkflow(validateWorkflow(base, "x.yaml").definition!), "何でも"),
-    ).toEqual({ ok: true });
-    const wf = validateWorkflow(
-      { ...base, steps: [{ id: "implement" }, { id: "review" }] },
-      "x.yaml",
-    ).workflow!;
-    expect(findStep(wf, "review")).toMatchObject({ ok: true, step: { id: "review" } });
-    expect(findStep(wf, "deploy")).toEqual({ ok: false, known: ["implement", "review"] });
-  });
-
-  it("opens_on は claim と reclaim を受け、同じ操作を 2 つの step に付ければエラーになる。claim が開く step は opens_on の step、なければ implement。reclaim は opens_on の step、なければ fix（RN-5）", () => {
-    const dup = validateWorkflow(
+  it("未知の項目は警告にとどめて残りを読む。前の形の id・name・labels・steps も未知の項目になる", () => {
+    const { issues, workflow } = validateWorkflow(
       {
-        ...base,
-        steps: [
-          { id: "implement", opens_on: "claim" },
-          { id: "draft", opens_on: "claim" },
-          { id: "review" },
-        ],
+        id: "general",
+        name: "General",
+        labels: { review: "Old" },
+        steps: [{ id: "implement" }],
+        boundries: [],
+        wip: { review: 1 },
       },
-      "x.yaml",
+      "workflow.yaml",
     );
-    expect(dup.issues.map((i) => [i.code, i.severity, i.message])).toEqual([
-      [
-        "workflow_opens_on_duplicate",
-        "error",
-        "steps[1]: opens_on: claim is also set on implement. Set it on only one step",
-      ],
-    ]);
+    expect(issues.map((i) => [i.code, i.severity, i.message])).toEqual(
+      ["id", "name", "labels", "steps", "boundries"].map((key) => [
+        "workflow_item_unknown",
+        "warning",
+        `Unknown item ${key}. It is not read`,
+      ]),
+    );
+    // 前の形の labels は読まない（表示名は states の label）
+    expect(workflow?.labels.review).toBe("Review");
+    expect(workflow?.wip).toEqual({ review: 1 });
+  });
+
+  it("増やした Status は名指しでエラーになる", () => {
+    const { issues } = validateWorkflow(
+      { states: { qa: { label: "QA" }, review: { label: "R" } } },
+      "workflow.yaml",
+    );
+    expect(issues.map((i) => [i.code, i.severity])).toEqual([["workflow_status_unknown", "error"]]);
+    expect(issues[0]?.message).toContain("Status qa does not exist");
+  });
+
+  it("3 つの境目でない組・同じ境目の重複・未知の事実はエラーになる", () => {
     expect(
-      validateWorkflow(
-        { ...base, steps: [{ id: "implement", opens_on: "merge" }] },
-        "x.yaml",
-      ).issues.map((i) => i.code),
-    ).toEqual(["workflow_schema"]);
-    const opened = (steps?: object[], opener: "claim" | "reclaim" = "claim") =>
-      stepOpenedOn(
-        validateWorkflow({ ...base, ...(steps ? { steps } : {}) }, "x.yaml").workflow!,
-        opener,
-      );
-    expect(opened([{ id: "build", opens_on: "claim" }, { id: "implement" }])).toBe("build");
-    expect(opened([{ id: "review" }])).toBe("implement");
-    expect(opened()).toBe("implement");
-    // 同じ step に claim と reclaim の両方は付けられない（1 つの step は 1 つの操作）が、別の step なら両方を持てる
-    expect(
-      opened(
-        [
-          { id: "implement", opens_on: "claim" },
-          { id: "rework", opens_on: "reclaim" },
+      found({
+        boundaries: [
+          { from: "todo", to: "review" },
+          { from: "review", to: "in_progress" },
+          { from: "todo", to: "in_progress", requires: ["tests_pass"] },
+          { from: "todo", to: "in_progress" },
         ],
-        "reclaim",
-      ),
-    ).toBe("rework");
-    expect(opened([{ id: "implement", opens_on: "claim" }], "reclaim")).toBe("fix");
-    expect(opened(undefined, "reclaim")).toBe("fix");
+      }),
+    ).toEqual([
+      ["workflow_boundary_unknown", "error"],
+      ["workflow_boundary_unknown", "error"],
+      ["workflow_condition_unknown", "error"],
+      ["workflow_boundary_duplicate", "error"],
+    ]);
   });
 
-  it("同梱テンプレート 2 つは検証を通る", () => {
-    for (const t of WORKFLOW_TEMPLATES) {
-      const { issues, workflow } = validateWorkflow(t, `${t.id}.yaml`);
-      expect(issues, t.id).toEqual([]);
-      expect(workflow?.labels.todo).toBe("Todo");
-      // 同梱テンプレートは遷移を縛らない
-      expect(workflow?.transitions, t.id).toEqual([]);
-      // 同梱テンプレートはどれも Run の step の語彙を持ち、claim が開く実装の step を 1 つ持つ（WF-5・RN-5）
-      expect(workflow?.steps?.length, t.id).toBeGreaterThan(0);
+  it("未知の値・項目の中の未知の鍵・形の違いは、形の誤りの 1 件になり Workflow を返さない", () => {
+    for (const raw of [
+      { boundaries: [{ from: "todo", to: "in_progress", decide: "everyone" }] },
+      { boundaries: [{ from: "todo", to: "in_progress", trigger: "branch_exists" }] },
+      { exceptions: { abandon: "nobody" } },
+      { exceptions: { skip: "anyone" } },
+      { exceptions: { abandon: { from: "todo", to: "abandoned" } } },
+      { governance: { purge: "human_only" } },
+      { governance: { delete: "sometimes" } },
+      { wip: { in_progress: 0 } },
+      { wip: { qa: 2 } },
+      { states: { review: { name: "R" } } },
+      { flow: { assign: "everyone" } },
+      { flow: { deploy: { decide: "always_ask", after: "deploy-first", guide: "docs/d.md" } } },
+      { flow: { deploy: { decide: "always_ask", after: "audit" } } },
+      { states: [] },
+    ]) {
+      const { issues, workflow } = validateWorkflow(raw, "workflow.yaml");
+      expect(workflow, JSON.stringify(raw)).toBeUndefined();
       expect(
-        workflow?.steps?.filter((s) => s.opens_on === "claim").map((s) => s.id),
-        t.id,
-      ).toEqual(["implement"]);
-      // もう一度の claim は手直しの step を開く
-      expect(
-        workflow?.steps?.filter((s) => s.opens_on === "reclaim").map((s) => s.id),
-        t.id,
-      ).toEqual(["fix"]);
+        issues.map((i) => i.code),
+        JSON.stringify(raw),
+      ).toEqual(["workflow_schema"]);
     }
   });
 
-  it("software-development と general は実装・見直し・手直し・調査を別の step に分ける", () => {
-    for (const id of ["software-development", "general"]) {
-      const wf = WORKFLOW_TEMPLATES.find((t) => t.id === id);
-      expect(
-        wf?.steps?.map((s) => s.id),
-        id,
-      ).toEqual(expect.arrayContaining(["implement", "review", "fix", "investigate"]));
-    }
+  it("flow は同梱の段階の値・独自の段階（decide・after・guide）・skip を読み、未知の段階と skip の未知の名前をエラーにする", () => {
+    const custom = { decide: "always_ask", after: "work", guide: "docs/flow/deploy.md" };
+    const { issues, workflow } = validateWorkflow(
+      {
+        flow: { audit: "human_only", "deploy-staging": custom, skip: ["retro", "deploy-staging"] },
+      },
+      "workflow.yaml",
+    );
+    expect(issues).toEqual([]);
+    expect(workflow?.flow.custom).toEqual([{ id: "deploy-staging", ...custom }]);
+    expect(workflow?.flow.skip).toEqual(["retro", "deploy-staging"]);
+    expect(workflow?.flow.stages.audit).toBe("human_only");
+
+    // 独自の段階には decide・after・guide が要る（値だけでは同梱の段階の書き間違いと見分けられない）
+    expect(found({ flow: { asign: "anyone" } })).toEqual([["workflow_flow_stage", "error"]]);
+    // 同梱の段階に after・guide は書けない
+    expect(found({ flow: { audit: custom } })).toEqual([["workflow_flow_stage", "error"]]);
+    // work は権限の値を持たない
+    expect(found({ flow: { work: "anyone" } })).toEqual([["workflow_flow_stage", "error"]]);
+    expect(found({ flow: { Deploy_Staging: custom } })).toEqual([["workflow_flow_stage", "error"]]);
+    expect(found({ flow: { skip: "retro" } })).toEqual([["workflow_schema", "error"]]);
+    expect(found({ flow: { skip: ["nope"] } })).toEqual([["workflow_flow_skip", "error"]]);
+    expect(found({ flow: { assign: ["retro"] } })).toEqual([["workflow_flow_stage", "error"]]);
   });
 });
 
 describe("照合", () => {
-  const sd = validateWorkflow(findWorkflowTemplate("software-development")!, "sd.yaml").workflow!;
+  // reconcile を省いた Workflow（Core の既定の規則）
+  const sd = DEFAULT_WORKFLOW;
 
   it("不明な事実を偽と読み、branch_merged だけで review → done に進む", () => {
     expect(reconcileStatus(sd, "review", { branch_merged: true })).toMatchObject({
@@ -284,14 +364,25 @@ describe("照合", () => {
     expect(reconcileStatus(sd, "review", { branch_exists: true })).toMatchObject({ kind: "none" });
   });
 
-  it("general では in_progress のままマージされても照合で done に進む（レビューを経ない作業）", () => {
-    const general = validateWorkflow(findWorkflowTemplate("general")!, "general.yaml").workflow!;
+  it("in_progress のままマージされても照合で done に進む（レビューを経ない作業）", () => {
     expect(
-      reconcileStatus(general, "in_progress", { branch_exists: false, branch_merged: true }),
+      reconcileStatus(sd, "in_progress", { branch_exists: false, branch_merged: true }),
     ).toMatchObject({
       kind: "advance",
       to: "done",
     });
+  });
+
+  it("reconcile を書けば既定の規則の代わりにその規則だけで照合する", () => {
+    const wf = validateWorkflow(
+      { reconcile: [{ when: ["branch_exists"], status: "in_progress" }] },
+      "x",
+    ).workflow!;
+    expect(reconcileStatus(wf, "todo", { branch_exists: true })).toMatchObject({
+      kind: "advance",
+      to: "in_progress",
+    });
+    expect(reconcileStatus(wf, "review", { pr_merged: true })).toEqual({ kind: "none" });
   });
 
   it("squash マージ（pr_merged だけが真でブランチは消えた）でも review → done に進む", () => {
@@ -345,7 +436,6 @@ describe("照合", () => {
   it("前進でも Workflow が reconcile に許さなければ blocked になる", () => {
     const wf = validateWorkflow(
       {
-        ...base,
         transitions: [{ from: "review", to: "done", by: ["human"] }],
         reconcile: [{ when: ["branch_merged"], status: "done" }],
       },

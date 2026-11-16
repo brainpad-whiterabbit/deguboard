@@ -43,14 +43,14 @@
 
 - 取り込みは rebase で行い、git のマージドライバを、チケット・墓標・Epic の Markdown と、`plans/`・`iterations/` の YAML に当てる。規則の正本は core の `git/merge.ts`
 - frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。素の YAML は全体を frontmatter と同じに扱い、最上位のフィールドごとに決める。両側が違う値に変えたフィールドと本文の同じ行のぶつかりを競合にする。ただし両側が同じ状態（同じ status。status のない Plan は、両側が同じ時刻のフィールドを持つこと）で、状態と一緒に書く時刻だけがずれたときは早い方を採る（SY-4）
-- `config.yaml` と `workflows/` は当てず、行単位のマージのままにする
+- `config.yaml` と `workflow.yaml` は当てず、行単位のマージのままにする
 - 登録は `dg init` と `dg sync` が行い、ドライバは絶対パスで指す。`.gitattributes` はデータのブランチにコミットし、既にあるものには足りない行を足す
 - VS Code 拡張の同期も、同梱の `dg` を呼ぶドライバを登録する
 
 ### 区切り：1 つのカンバンが 1 つの区切り
 
 - カンバンの中を分ける単位（Project）は持たない。チケットは Epic・Iteration・ラベルで束ね、別の区切りが要るときはカンバンを分ける（リポジトリごと、または専用のリポジトリのブランチごと）
-- 既定の Workflow は config の `default_workflow` で決め、active な Iteration はカンバンに 1 つにする（[ADR-009](ADR-009-epic-and-iteration.md)）
+- Workflow はカンバンに 1 つ（[ADR-003](ADR-003-status-and-workflow.md)）で、active な Iteration もカンバンに 1 つにする（[ADR-009](ADR-009-epic-and-iteration.md)）
 - 前の版が書いた `project` の項目は、やめた項目として読めて、書くときに消す（DT-2）。前の版の `projects/` と config の `default_project` は、`dg` が一度だけ消す（消し方は requirements の 5.3 と `git/retire-projects.ts`）
 
 ### 呼称
@@ -77,7 +77,7 @@
 - フィールド単位でマージすれば、同じチケットの別々の属性を 2 人（やエージェント）が変えても止まらない。行単位では `updated_at` の行が毎回ぶつかり、ほぼすべての同時更新が競合になる
 - 状態と一緒に書く時刻（`closed_at`・`started_at`・`approved_at`）は、両側が同じ status に着いたときは同じ遷移の記録で、どちらを採っても状態は変わらない。人が選ぶほどの違いがないのに競合にすると、同じ状態への同時の遷移（s26 の close）で sync が止まる。採るのは早い方にすると、どちらの環境が解いても同じ値になり、両側が独立に解いても一致する。Plan は status を持たず、承認した・閉じた時刻そのものが状態なので、両側がその時刻を持てば同じ遷移の記録になる。status が違うとき、片側だけに時刻があるとき、時刻が読めないときは状態の判断に関わるので、競合のまま人に選んでもらう
 - Plan・Iteration も `dg` が書き込みのたびに `updated_at` を変えるので、行単位ではチケットと同じく同時の更新がほぼすべて競合になる（Plan の `closed_at` の競合で同期が 3 日止まった）。frontmatter の YAML と同じ読み書きで扱えるので、規則を分けずに済む
-- `config.yaml` と `workflows/` は人が手で書く設定で、入れ子の深い値を行単位で見て解く方が意図を壊しにくい
+- `config.yaml` と `workflow.yaml` は人が手で書く設定で、入れ子の深い値を行単位で見て解く方が意図を壊しにくい
 - ドライバを PATH の `dg` で登録しないのは、`npx`・`mise run`・`node_modules/.bin` 経由で動かす環境では PATH に `dg` がないから。絶対パスは古くなりうるが、init と sync のたびに書き直すので直る。拡張が登録しないと、拡張だけで使うリポジトリでは行単位のマージに落ちて近いフィールドの変更で同期が止まる
 
 ## 採らなかった案

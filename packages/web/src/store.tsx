@@ -93,7 +93,7 @@ export interface Store {
   epics: EpicRow[];
   iterations: Iteration[];
   plans: PlanRow[];
-  /** 既定の Workflow（config の default_workflow）。自分の workflow を持つチケットの Workflow は詳細が引き直す */
+  /** カンバンの Workflow（workflow.yaml。Status の表示名と Run の step の表示名は表示言語に訳したもの） */
   workflow: WorkflowView | null;
   /**
    * 操作している人（core の whoami の出力）。担当者が自分か自分の agent かは isOwnAssignee（own_ids に含まれるか）で決める。
@@ -263,9 +263,7 @@ export function StoreProvider({
         client.run<EpicRow[]>("epic.list"),
         client.run<Iteration[]>("iteration.list"),
         client.run<PlanRow[]>("plan.list"),
-        client.run<WorkflowView>("workflow.show", {
-          workflow: config.data.config?.default_workflow,
-        }),
+        client.run<WorkflowView>("workflow.show"),
       ]);
       setTickets(t.data);
       setEpics(e.data);

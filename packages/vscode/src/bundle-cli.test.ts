@@ -139,11 +139,7 @@ describe("同梱の dg の束ね方（vite.cli.config.ts）", () => {
     await run("git", ["init", "-q", "-b", "main"], { cwd: repo });
     await setGitUser(repo);
     await run("git", ["commit", "-q", "--allow-empty", "-m", "init"], { cwd: repo, env });
-    await run(
-      process.execPath,
-      [path.join(outDir, "dg.mjs"), "init", "--template", "software-development"],
-      { cwd: repo, env },
-    );
+    await run(process.execPath, [path.join(outDir, "dg.mjs"), "init"], { cwd: repo, env });
     const input = JSON.stringify({
       session_id: "s-bundle",
       tool_name: "Bash",
@@ -186,11 +182,7 @@ describe("同梱の dg の束ね方（vite.cli.config.ts）", () => {
     await run("git", ["init", "-q", "-b", "main"], { cwd: repo });
     await setGitUser(repo);
     await run("git", ["commit", "-q", "--allow-empty", "-m", "init"], { cwd: repo, env });
-    await run(
-      process.execPath,
-      [path.join(outDir, "dg.mjs"), "init", "--template", "software-development"],
-      { cwd: repo, env },
-    );
+    await run(process.execPath, [path.join(outDir, "dg.mjs"), "init"], { cwd: repo, env });
     // 本体だけを動かす参照。入口を通さず、本体の runBundled が標準入力を自分で読む（今の経路）
     const bundleMain = (await readdir(outDir)).find((f) => /^dg-bundle-main-[\w-]+\.mjs$/.test(f))!;
     const mainOnly = path.join(tmp, "main-only.mjs");

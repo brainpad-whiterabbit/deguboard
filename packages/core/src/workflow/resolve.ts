@@ -1,14 +1,23 @@
-// Workflow 定義の transitions を from→to ごとの制約に合成し、遷移を検査する。
+// workflow.yaml の定義を、省いた項目を Core の既定で補った形にし、遷移を検査する。
 // 制約のない遷移は誰でも条件なしで行える（ADR-003）
 
 import { STATUSES, type Status } from "../model/common.js";
-import type {
-  Actor,
-  Condition,
-  FieldDefinition,
-  StepDefinition,
-  StepOpener,
-  WorkflowDefinition,
+import {
+  BOUNDARIES,
+  EXCEPTION_MOVES,
+  FLOW_DECIDED_STAGES,
+  FLOW_SKIP_KEY,
+  GOVERNANCE_OPERATIONS,
+  type Actor,
+  type Condition,
+  type CustomStageDefinition,
+  type Decision,
+  type ExceptionMove,
+  type FieldDefinition,
+  type FlowDecidedStage,
+  type GovernanceOperation,
+  type WorkflowDefinition,
+  type WorkflowDefinitionInput,
 } from "../model/workflow.js";
 import { evaluateAll, type Facts } from "./conditions.js";
 
@@ -27,17 +36,39 @@ export interface TransitionConstraint {
   requires: readonly Condition[];
 }
 
-/** 検査に使う形の Workflow。transitions は制約だけで、書かれていない遷移は自由 */
-export interface ResolvedWorkflow {
+/** 境目：越える条件（AND）と、決める人の権限の値 */
+export interface Boundary {
+  from: Status;
+  to: Status;
+  requires: readonly Condition[];
+  decide: Decision;
+}
+
+export interface CustomStage extends CustomStageDefinition {
   id: string;
-  name: string;
+}
+
+/** 省いた項目を Core の既定で補った Workflow。transitions は制約だけで、書かれていない遷移は自由 */
+export interface ResolvedWorkflow {
+  /** Status の表示名 */
   labels: Record<Status, string>;
+  /** 3 つの境目（BOUNDARIES の順） */
+  boundaries: readonly Boundary[];
+  exceptions: Record<ExceptionMove, Decision>;
+  /** 列ごとの上限。ない列は上限なし */
+  wip: Partial<Record<Status, number>>;
+  flow: {
+    stages: Record<FlowDecidedStage, Decision>;
+    custom: readonly CustomStage[];
+    skip: readonly string[];
+  };
+  governance: Record<GovernanceOperation, Decision>;
   transitions: readonly TransitionConstraint[];
   reconcile: readonly ReconcileRule[];
   fields: readonly FieldDefinition[];
-  /** Run の step の語彙。undefined なら step を縛らない */
-  steps: readonly StepDefinition[] | undefined;
 }
+
+// ---- Core の既定（省いた項目の値。dg init が置く既定の workflow.yaml も同じ値を書く） ----
 
 const DEFAULT_LABELS: Record<Status, string> = {
   todo: "Todo",
@@ -47,23 +78,90 @@ const DEFAULT_LABELS: Record<Status, string> = {
   abandoned: "Abandoned",
 };
 
-/** Status の表示名。定義の labels に書いた Status はその文、書いていない Status は core の既定（DEFAULT_LABELS） */
-export function resolveLabels(
-  written: Partial<Record<Status, string>> | undefined,
-): Record<Status, string> {
-  const labels = { ...DEFAULT_LABELS };
-  for (const s of STATUSES) {
-    const label = written?.[s];
-    if (label) labels[s] = label;
+const DEFAULT_BOUNDARIES: readonly Boundary[] = [
+  { ...BOUNDARIES[0], requires: ["deps_done"], decide: "anyone" },
+  { ...BOUNDARIES[1], requires: [], decide: "anyone" },
+  { ...BOUNDARIES[2], requires: ["pr_merged"], decide: "ask_unless_auto" },
+];
+
+const DEFAULT_EXCEPTIONS: Record<ExceptionMove, Decision> = {
+  abandon: "human_only",
+  back: "anyone",
+  reopen: "human_only",
+};
+
+const DEFAULT_WIP: Partial<Record<Status, number>> = { in_progress: 5, review: 3 };
+
+const DEFAULT_FLOW_STAGES: Record<FlowDecidedStage, Decision> = {
+  assign: "ask_unless_auto",
+  check: "ask_unless_auto",
+  plan: "ask_unless_auto",
+  audit: "always_ask",
+  release: "human_only",
+  retro: "always_ask",
+};
+
+const DEFAULT_GOVERNANCE: Record<GovernanceOperation, Decision> = {
+  delete: "human_only",
+  config: "always_ask",
+  reassign: "always_ask",
+  epic: "human_only",
+  create: "anyone",
+};
+
+/**
+ * 照合の規則の既定。PR の事実は gh があるときだけ使われ、なくても branch_merged で done になる。
+ * squash マージは祖先判定で取れないので PR のマージを先に見る
+ */
+const DEFAULT_RECONCILE: readonly ReconcileRule[] = [
+  { when: ["pr_merged"], status: "done" },
+  { when: ["branch_merged"], status: "done" },
+  { when: ["pr_open", "!pr_draft"], status: "review" },
+  { when: ["branch_exists"], status: "in_progress" },
+];
+
+/** 書いた値に、書いていない鍵の既定を足す */
+function withDefaults<K extends string, V>(
+  keys: readonly K[],
+  defaults: Record<K, V>,
+  written: { [P in K]?: V | undefined } | undefined,
+): Record<K, V> {
+  const out: Record<K, V> = { ...defaults };
+  for (const k of keys) {
+    const v = written?.[k];
+    if (v !== undefined) out[k] = v;
   }
-  return labels;
+  return out;
 }
 
 /**
- * 定義の transitions を from→to ごとに 1 件にまとめる。同じ組が複数あれば requires は和、
- * by は両方にあれば積（狭い方に倒す）。重複は validate.ts が指摘する前提で、ここでは安全側に合成する
+ * 定義を、省いた項目を Core の既定で補った形にする。states・boundaries・exceptions・flow・governance は書いた鍵だけを替え、
+ * wip は項目ごと替える（書けば書いた列だけに上限が付く）。transitions は from→to ごとに 1 件にまとめる：同じ組が複数あれば
+ * requires は和、by は両方にあれば積（狭い方に倒す）。重複は validate.ts が指摘する前提で、ここでは安全側に合成する
  */
 export function resolveWorkflow(def: WorkflowDefinition): ResolvedWorkflow {
+  const labels = { ...DEFAULT_LABELS };
+  for (const s of STATUSES) {
+    const label = def.states?.[s]?.label;
+    if (label) labels[s] = label;
+  }
+  const boundaries = DEFAULT_BOUNDARIES.map((d) => {
+    const written = def.boundaries?.find((b) => b.from === d.from && b.to === d.to);
+    return written
+      ? { ...d, requires: written.requires as Condition[], decide: written.decide ?? d.decide }
+      : d;
+  });
+  const stages = { ...DEFAULT_FLOW_STAGES };
+  const custom: CustomStage[] = [];
+  let skip: string[] = [];
+  for (const [key, value] of Object.entries(def.flow ?? {})) {
+    if (Array.isArray(value)) {
+      if (key === FLOW_SKIP_KEY) skip = value;
+    } else if (typeof value === "string") {
+      if ((FLOW_DECIDED_STAGES as readonly string[]).includes(key))
+        stages[key as FlowDecidedStage] = value;
+    } else custom.push({ id: key, ...value });
+  }
   const merged = new Map<string, TransitionConstraint>();
   for (const t of def.transitions) {
     const key = `${t.from}>${t.to}`;
@@ -75,15 +173,58 @@ export function resolveWorkflow(def: WorkflowDefinition): ResolvedWorkflow {
     merged.set(key, { from: t.from, to: t.to, ...(by ? { by } : {}), requires: [...requires] });
   }
   return {
-    id: def.id,
-    name: def.name,
-    labels: resolveLabels(def.labels),
+    labels,
+    boundaries,
+    exceptions: withDefaults(EXCEPTION_MOVES, DEFAULT_EXCEPTIONS, def.exceptions),
+    wip: def.wip ?? DEFAULT_WIP,
+    flow: { stages, custom, skip },
+    governance: withDefaults(GOVERNANCE_OPERATIONS, DEFAULT_GOVERNANCE, def.governance),
     transitions: [...merged.values()],
-    reconcile: def.reconcile.map((r) => ({ when: r.when as Condition[], status: r.status })),
+    reconcile:
+      def.reconcile?.map((r) => ({ when: r.when as Condition[], status: r.status })) ??
+      DEFAULT_RECONCILE,
     fields: def.fields,
-    steps: def.steps,
   };
 }
+
+/**
+ * 補った Workflow を workflow.yaml に書く形に戻す（どの項目も書いた形。dg workflow show の definition）。
+ * 前の形のまま読む 3 つ（transitions・reconcile・fields）も入れる
+ */
+export function writtenForm(wf: ResolvedWorkflow): WorkflowDefinitionInput {
+  return {
+    states: Object.fromEntries(STATUSES.map((s) => [s, { label: wf.labels[s] }])),
+    boundaries: wf.boundaries.map((b) => ({ ...b, requires: [...b.requires] })),
+    exceptions: wf.exceptions,
+    wip: wf.wip,
+    flow: {
+      ...wf.flow.stages,
+      ...Object.fromEntries(wf.flow.custom.map(({ id, ...stage }) => [id, stage])),
+      [FLOW_SKIP_KEY]: [...wf.flow.skip],
+    },
+    governance: wf.governance,
+    transitions: wf.transitions.map((t) => ({
+      from: t.from,
+      to: t.to,
+      requires: [...t.requires],
+      ...(t.by ? { by: [...t.by] } : {}),
+    })),
+    reconcile: wf.reconcile.map((r) => ({ when: [...r.when], status: r.status })),
+    fields: [...wf.fields],
+  };
+}
+
+/**
+ * dg init が置く既定の workflow.yaml。6 つの項目を Core の既定の値で書く（書き換える場所が見えるように）。
+ * 前の形のまま読む 3 つは書かない（省けば既定）
+ */
+export function defaultWorkflowFile(): WorkflowDefinitionInput {
+  const { transitions: _t, reconcile: _r, fields: _f, ...items } = writtenForm(DEFAULT_WORKFLOW);
+  return items;
+}
+
+/** workflow.yaml がないとき（どの項目も省いたとき）の Workflow */
+export const DEFAULT_WORKFLOW: ResolvedWorkflow = resolveWorkflow({ transitions: [], fields: [] });
 
 /** from → to に Workflow が書いた制約。なければ undefined（自由な遷移） */
 export function findConstraint(
@@ -132,31 +273,4 @@ export function describeRejection(
     case "requires_unmet":
       return `The conditions for moving from ${from} to ${to} are not met: ${check.unmet.join(", ")}`;
   }
-}
-
-/** step が Workflow の語彙にあるか。steps のない Workflow はどの step も受ける（DT-2） */
-export function findStep(
-  wf: ResolvedWorkflow,
-  step: string,
-): { ok: true; step?: StepDefinition } | { ok: false; known: string[] } {
-  if (!wf.steps) return { ok: true };
-  const found = wf.steps.find((s) => s.id === step);
-  return found ? { ok: true, step: found } : { ok: false, known: wf.steps.map((s) => s.id) };
-}
-
-/**
- * opens_on が無いときに開く step。同梱のテンプレートの実装（claim）と手直し（reclaim）の step の名前（RN-5）。
- * 閉じる側（findOpenedRun）も同じ step を探す
- */
-export const DEFAULT_OPENED_STEPS: Readonly<Record<StepOpener, string>> = {
-  claim: "implement",
-  reclaim: "fix",
-};
-
-/**
- * チケットの操作（claim・reclaim）が開く Run の step（RN-5）。`opens_on` にその操作を書いた step、なければ既定の名前。
- * steps のない Workflow も既定の名前（縛らないので開ける）。語彙にあるかは呼ぶ側が findStep で確かめる
- */
-export function stepOpenedOn(wf: ResolvedWorkflow, opener: StepOpener): string {
-  return wf.steps?.find((s) => s.opens_on === opener)?.id ?? DEFAULT_OPENED_STEPS[opener];
 }

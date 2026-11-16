@@ -124,9 +124,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
     const f = await createFixture();
     cleanups.push(f.cleanup);
     const actor = { kind: "agent" as const, user: "eiki" };
-    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {
-      template: "software-development",
-    });
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
     const ctx = await openContext({ cwd: f.cloneA, actor });
     await runCommand(ticketCreate, ctx, {
       title: "A",
@@ -329,15 +327,10 @@ describe("dg brief と dg next の文（EX-3）", () => {
     expect(todo.commands.join("\n")).toContain("brief t1 --role implement");
   });
 
-  it("Workflow で実装と手直しの step の名前を変えても、印と文の step はその名前になる", async () => {
+  it("印と文の step は Core の決める名前（実装は implement、手直しは fix）で、workflow.yaml に前の形の steps を書いても変わらない", async () => {
     const ctx = await prepared();
-    const defaultWorkflow = ctx.store.config.default_workflow;
     await runCommand(workflowSet, ctx, {
-      workflow: defaultWorkflow,
       definition: {
-        id: defaultWorkflow,
-        name: "renamed",
-        transitions: [],
         steps: [
           { id: "build", opens_on: "claim" },
           { id: "rework", opens_on: "reclaim" },
@@ -345,10 +338,10 @@ describe("dg brief と dg next の文（EX-3）", () => {
       },
     });
     const implement = (await runCommand(brief, ctx, { ticket: "t1", role: "implement" })).data;
-    expect(implement.step).toBe("build");
-    expect(implement.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=build");
+    expect(implement.step).toBe("implement");
+    expect(implement.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=implement");
     const fix = (await runCommand(brief, ctx, { ticket: "t1", role: "fix" })).data;
-    expect(fix.step).toBe("rework");
-    expect(fix.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=rework");
+    expect(fix.step).toBe("fix");
+    expect(fix.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=fix");
   });
 });

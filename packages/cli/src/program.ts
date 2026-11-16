@@ -11,7 +11,6 @@ import {
   commands as allCommands,
   openContextFor,
   pickUser,
-  ACTION_NAMES,
   bundleLayout,
   checkHooks,
   checkSetup,
@@ -544,7 +543,6 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           actor,
           initialize,
           mergeDriver,
-          actions: ACTION_NAMES,
           // テストが渡した環境（HOME・CLAUDE_ENV_FILE など）をコマンドにも渡す。渡さなければ process.env
           ...(options.env ? { env: options.env } : {}),
         });

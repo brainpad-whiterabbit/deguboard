@@ -613,14 +613,10 @@ describe("スキーマ", () => {
 
   it("Workflow は形だけを検証し、条件の名前は見ない", () => {
     const w = workflowDefinitionSchema.parse({
-      id: "x",
-      name: "X",
       reconcile: [{ when: ["unknown_fact"], status: "done" }],
     });
-    expect(w.reconcile[0]?.when).toEqual(["unknown_fact"]);
-    expect(() =>
-      workflowDefinitionSchema.parse({ id: "x", name: "X", labels: { nope: "a" } }),
-    ).toThrow();
+    expect(w.reconcile?.[0]?.when).toEqual(["unknown_fact"]);
+    expect(() => workflowDefinitionSchema.parse({ exceptions: { abandon: "nope" } })).toThrow();
   });
 
   it("Run の ID は開始日時と乱数で作り、辞書順が開始の順になる", () => {

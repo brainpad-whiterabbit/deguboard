@@ -69,8 +69,37 @@ const runToolsSchema = z.looseObject({
 });
 export type RunTools = z.output<typeof runToolsSchema>;
 
-/** 見直し役の見直しの step（同梱の Workflow の steps） */
-export const REVIEW_STEP = "review";
+/**
+ * Run の step の語彙と表示名（WF-5）。Core が固定で持ち、workflow.yaml には書かない：`run start` は語彙にない step を拒否する。
+ * 前の版が記録した Run の step はそのまま読む（スキーマは語を縛らない）
+ */
+export const RUN_STEPS = [
+  { id: "investigate", label: "Investigate" },
+  { id: "implement", label: "Implement" },
+  { id: "review", label: "Review" },
+  { id: "fix", label: "Fix" },
+  { id: "merge", label: "Merge" },
+] as const;
+export type RunStep = (typeof RUN_STEPS)[number]["id"];
+
+export function isRunStep(step: string): step is RunStep {
+  return RUN_STEPS.some((s) => s.id === step);
+}
+
+/** 見直し役の見直しの step */
+export const REVIEW_STEP = "review" satisfies RunStep;
+
+/**
+ * Run を開くチケットの操作（RN-5）。claim は todo のチケットの claim（実装）、
+ * reclaim は自分が claim 済みで PR のあるチケットのもう一度の claim（見直しの修正ループと人のレビューの後の手直し）
+ */
+export type StepOpener = "claim" | "reclaim";
+
+/** チケットの操作が開く Run の step（RN-5）。閉じる側（findOpenedRun）も同じ step を探す */
+export const OPENED_STEPS = {
+  claim: "implement",
+  reclaim: "fix",
+} as const satisfies Record<StepOpener, RunStep>;
 
 /**
  * 見直しの指摘の、手戻りの原因の種類。成果物のどこが悪いか（category）とは別に、なぜそうなったかを見直し役が 1 件ごとに付ける。

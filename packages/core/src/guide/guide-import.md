@@ -83,7 +83,7 @@ Choose `priority` by these criteria (they can be changed in `priority` of `confi
 - When a ticket reaches 7 or more acceptance criteria, recommend splitting it (in deguboard's own development, 9 of 10 tickets with 7 or more criteria needed rework). If you do not split it, show a human the reason to proceed with one ticket
 - Work that needs no PR (data maintenance, checks, research) says so in the summary. Make its acceptance criteria sentences whose truth can be judged from data or a report
 - To group tickets by purpose, use an Epic (see existing ones with `dg --json --actor agent epic list`. If there are none, propose creating one)
-- For optional fields (the Workflow's `fields`), use `--field key=value`. For the definitions, use `dg --json --actor agent workflow show <id>`
+- For optional fields (the Workflow's `fields`), use `--field key=value`. For the definitions, use `dg --json --actor agent workflow show`
 
 ## What not to do
 

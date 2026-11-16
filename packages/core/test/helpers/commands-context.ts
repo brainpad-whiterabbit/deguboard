@@ -43,13 +43,11 @@ export function reopenInitialized(
   return openContext({ cwd: f.cloneA, actor: { kind: "human", user: "eiki" }, ...opts });
 }
 
-/** 制約を書いた Workflow（strict）をデータディレクトリに置いて索引を作り直す */
+/** 制約を書いた workflow.yaml をデータディレクトリに置いて索引を作り直す（カンバンのどのチケットにも効く） */
 export async function writeStrictWorkflow(ctx: CommandContext): Promise<void> {
   await writeFile(
-    path.join(ctx.repo.dataDir, "workflows/strict.yaml"),
+    path.join(ctx.repo.dataDir, "workflow.yaml"),
     [
-      "id: strict",
-      "name: Strict",
       "transitions:",
       "  - { from: todo, to: in_progress, requires: [deps_done] }",
       "  - { from: todo, to: done, by: [] }",
@@ -77,7 +75,6 @@ export async function setDependsOn(ctx: CommandContext, id: string, value: strin
 export async function initialized(
   cwd: string,
   opts: Partial<ContextOptions> = {},
-  initInput: { template?: "general" | "software-development" } = {},
 ): Promise<CommandContext> {
   const first = await openContext({
     cwd,
@@ -85,7 +82,7 @@ export async function initialized(
     actor: { kind: "human", user: "eiki" },
     ...opts,
   });
-  await runCommand(init, first, initInput);
+  await runCommand(init, first, {});
   return openContext({ cwd, actor: { kind: "human", user: "eiki" }, ...opts });
 }
 

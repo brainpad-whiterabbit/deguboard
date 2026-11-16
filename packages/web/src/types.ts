@@ -35,8 +35,6 @@ import type {
   TicketRunsView,
   TransitionConstraint,
   WhoamiView,
-  WorkflowDefinition,
-  WorkflowDefinitionInput,
 } from "@deguboard/core";
 import { msg } from "./l10n.js";
 
@@ -74,7 +72,6 @@ export type {
   TicketRow,
   TicketRunsView,
   WhoamiView,
-  WorkflowDefinition,
 };
 
 /** カンバンの列の順。abandoned は既定で隠す（UI-2） */
@@ -171,16 +168,18 @@ export function matchesEpic(ticket: Pick<Ticket, "epic">, epic: string): boolean
 
 /** workflow.show の出力のうち画面が使うもの（遷移の制約は core の TransitionConstraint のまま） */
 export interface WorkflowView {
-  definition: WorkflowDefinition;
+  /** 省いた項目を既定で補った定義。画面が使うのは任意フィールドだけ */
+  definition: { fields: readonly FieldDefinition[] };
+  /** Status の表示名（workflow.yaml の states の label。書いていない Status は core の既定） */
   labels: Record<Status, string>;
   transitions: readonly TransitionConstraint[];
-  /** 同じ id の同梱の雛形（core の文のまま）。雛形のない Workflow は null。名前とラベルが既定のままかを比べる（shownWorkflow） */
-  template: Pick<WorkflowDefinitionInput, "name" | "fields" | "steps"> | null;
   /**
-   * labels を書き換えていなければ出る Status の表示名（雛形の labels と core の既定。core の文のまま）。labels と同じ文なら訳す（shownWorkflow）。
+   * states を書き換えていなければ出る Status の表示名（core の既定の文のまま）。labels と同じ文なら訳す（shownWorkflow）。
    * 前の版の画面が残した cache の Workflow にはないので省けるようにし、ないときは訳さない
    */
   default_labels?: Record<Status, string>;
+  /** Run の step の語彙と表示名（core が固定で持つ）。前の版の画面が残した cache にはないので省けるようにする */
+  steps?: readonly { id: string; label: string }[];
 }
 
 /**

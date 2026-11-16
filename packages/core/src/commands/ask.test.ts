@@ -1523,10 +1523,7 @@ describe("ask", () => {
   it("チケットの Workflow の by を見て、人に限る遷移は人が打つコマンドを、agent を含む遷移は依頼文を返す", async () => {
     const { ctx } = await initialized();
     await runCommand(workflowSet, ctx, {
-      workflow: "general",
       definition: {
-        id: "general",
-        name: "General",
         transitions: [
           { from: "todo", to: "abandoned", by: ["human"] },
           { from: "done", to: "todo", by: ["human"] },
@@ -1556,10 +1553,7 @@ describe("ask", () => {
 
     // agent を含む遷移に変えると、依頼文に戻る
     await runCommand(workflowSet, ctx, {
-      workflow: "general",
       definition: {
-        id: "general",
-        name: "General",
         transitions: [
           { from: "todo", to: "abandoned", by: ["human", "agent"] },
           { from: "done", to: "todo", by: ["human"] },

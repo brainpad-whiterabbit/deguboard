@@ -33,8 +33,8 @@ import { planSchema, type Plan } from "../model/plan.js";
 import { isRunId, runSchema, type Run, type RunId } from "../model/run.js";
 import { pendingDeps, ticketSchema, type Ticket } from "../model/ticket.js";
 import type { WorkflowDefinition } from "../model/workflow.js";
-import type { ResolvedWorkflow } from "../workflow/resolve.js";
-import { validateWorkflow, type WorkflowValidationOptions } from "../workflow/validate.js";
+import { DEFAULT_WORKFLOW, type ResolvedWorkflow } from "../workflow/resolve.js";
+import { validateWorkflow } from "../workflow/validate.js";
 import { writeFileAtomic } from "./atomic.js";
 import { loadLocalConfig, loadTeamConfig, readYamlFile } from "./config-file.js";
 import { createDoc, readDoc, writeDoc, type Doc, type DocFormat } from "./documents.js";
@@ -51,7 +51,7 @@ import {
   planPath,
   runPath,
   ticketPath,
-  workflowPath,
+  WORKFLOW_FILE,
 } from "./paths.js";
 import { RETIRED_PROJECTS_DIR } from "./retired-projects.js";
 import {
@@ -65,6 +65,8 @@ import { newYamlDocument, parseYamlDocument, patchYamlDocument, stringifyYaml } 
 
 export interface WorkflowEntry {
   path: string;
+  /** workflow.yaml があるか。なければ definition はどの項目も省いた形で、resolved は Core の既定 */
+  exists: boolean;
   definition: WorkflowDefinition;
   resolved: ResolvedWorkflow;
 }
@@ -148,7 +150,7 @@ export interface ScanStats {
 type EntityOf<K extends EntityKind> = z.output<(typeof collections)[K]["schema"]>;
 
 /** Store.open の選択 */
-export interface StoreOptions extends WorkflowValidationOptions {
+export interface StoreOptions {
   /**
    * 個人の設定（config.yaml）を置く deguboard-local/ の絶対パス。省くと個人の設定は読まない。
    * 上書きできる項目（model/config.ts の scope が local）だけをチームの値に重ねる
@@ -184,7 +186,8 @@ export class Store {
   readonly iterations = new Map<IterationId, Doc<Iteration>>();
   readonly plans = new Map<PlanId, Doc<Plan>>();
   readonly runs = new Map<RunId, Doc<Run>>();
-  readonly workflows = new Map<string, WorkflowEntry>();
+  /** カンバンに 1 つの Workflow。workflow.yaml がなければ Core の既定、誤りがあって読めなければ undefined（遷移と照合が止まる） */
+  workflow: WorkflowEntry | undefined;
   lastScan: ScanStats = { read: 0, reused: 0 };
   /**
    * 相対パスごとの読みの結果。rescan() で見つからなくなったファイルの分は捨てる。
@@ -196,21 +199,15 @@ export class Store {
 
   private constructor(
     readonly root: string,
-    /** Workflow の検証に渡す。Action の一覧は入口が渡す（AG-6） */
-    private readonly workflowOptions: WorkflowValidationOptions,
     /** 個人の config.yaml の絶対パス。localDir を渡されなければ undefined */
     private readonly localConfigPath: string | undefined,
   ) {}
 
   static async open(root: string, options: StoreOptions = {}): Promise<Store> {
-    const { localDir, cacheDir, ...workflowOptions } = options;
-    const store = new Store(
-      root,
-      workflowOptions,
-      localDir ? path.join(localDir, LOCAL_CONFIG_FILE) : undefined,
-    );
+    const { localDir, cacheDir } = options;
+    const store = new Store(root, localDir ? path.join(localDir, LOCAL_CONFIG_FILE) : undefined);
     if (cacheDir) {
-      const key = await storeCacheKey(root, workflowOptions.actions);
+      const key = await storeCacheKey(root);
       const file = storeCacheFile(cacheDir, key);
       store.readCache = await loadStoreCache(file, key);
       store.diskCache = { file, key, loaded: store.readCache.size > 0 };
@@ -255,7 +252,7 @@ export class Store {
       this.readCollection("iteration", this.iterations, cached),
       this.readCollection("plan", this.plans, cached),
       this.readCollection("run", this.runs, cached),
-      this.readWorkflows(cached),
+      this.readWorkflow(cached),
     ]);
     this.issues = issues.flat();
     for (const key of this.readCache.keys()) {
@@ -307,20 +304,15 @@ export class Store {
     return doc;
   }
 
-  /** チケットの Workflow（省略時は config の default_workflow）。定義が読めていなければ undefined */
-  workflowFor(ticket: Ticket): WorkflowEntry | undefined {
-    return this.workflows.get(ticket.workflow ?? this.config.default_workflow);
-  }
-
-  requireWorkflowFor(ticket: Ticket): WorkflowEntry {
-    const wf = this.workflowFor(ticket);
-    if (!wf) {
+  /** カンバンの Workflow。workflow.yaml に誤りがあって読めなければ NOT_FOUND */
+  requireWorkflow(): WorkflowEntry {
+    if (!this.workflow) {
       throw new OperationError(
         "NOT_FOUND",
-        `The Workflow of ${ticket.id} not found or cannot be read`,
+        `${WORKFLOW_FILE} has errors and cannot be read. See dg workflow validate`,
       );
     }
-    return wf;
+    return this.workflow;
   }
 
   /** 採番：既存（読めないファイルも、チケットは墓標も）の最大 + 1 */
@@ -465,15 +457,15 @@ export class Store {
   }
 
   /**
-   * Workflow 定義を書く（なければ作り、あれば置き換える）。読み込み時と同じ検証（WF-3）に通らなければ書かない。
-   * そのファイルの前の指摘は捨て、残った警告（未知の Action など）を issues に入れる
+   * workflow.yaml を書く（なければ作り、あれば置き換える）。読み込み時と同じ検証（WF-3）に通らなければ書かない。
+   * 前の指摘は捨て、残った警告（未知の項目）を issues に入れる
    */
   async writeWorkflow(
     definition: Record<string, unknown>,
     comment?: string,
   ): Promise<WorkflowEntry> {
-    const relPath = workflowPath(String(definition["id"]));
-    const result = validateWorkflow(definition, relPath, this.workflowOptions);
+    const relPath = WORKFLOW_FILE;
+    const result = validateWorkflow(definition, relPath);
     if (
       !result.workflow ||
       !result.definition ||
@@ -481,7 +473,7 @@ export class Store {
     ) {
       throw new OperationError(
         "VALIDATION_FAILED",
-        `The definition of Workflow ${String(definition["id"])} has errors`,
+        "The Workflow definition has errors",
         result.issues
           .filter((i) => i.severity === "error")
           .map(formatIssue)
@@ -491,8 +483,13 @@ export class Store {
     const doc = newYamlDocument(definition);
     if (comment) doc.commentBefore = ` ${comment}`;
     await writeFileAtomic(path.join(this.root, relPath), stringifyYaml(doc));
-    const entry = { path: relPath, definition: result.definition, resolved: result.workflow };
-    this.workflows.set(result.definition.id, entry);
+    const entry = {
+      path: relPath,
+      exists: true,
+      definition: result.definition,
+      resolved: result.workflow,
+    };
+    this.workflow = entry;
     this.issues = [...this.issues.filter((i) => i.path !== relPath), ...result.issues];
     return entry;
   }
@@ -586,81 +583,49 @@ export class Store {
     return [];
   }
 
-  private async readWorkflows(cached: CachedLoader): Promise<Issue[]> {
-    const files = (await this.listFiles(DIRS.workflows)).filter((f) => f.endsWith(".yaml"));
-    const results = await Promise.all(
-      files.map((file) => {
-        const relPath = `${DIRS.workflows}/${file}`;
-        return cached(relPath, () => this.loadWorkflow(relPath, file.slice(0, -5)));
-      }),
-    );
-    this.workflows.clear();
-    const issues: Issue[] = [];
-    for (const { id, entry, issues: found } of results) {
-      issues.push(...found);
-      if (entry) this.workflows.set(id, entry);
+  /** workflow.yaml を読む。なければ Core の既定（どの項目も省いた形）にする */
+  private async readWorkflow(cached: CachedLoader): Promise<Issue[]> {
+    if (!(await this.stampOf(WORKFLOW_FILE))) {
+      this.workflow = {
+        path: WORKFLOW_FILE,
+        exists: false,
+        definition: { transitions: [], fields: [] },
+        resolved: DEFAULT_WORKFLOW,
+      };
+      return [];
     }
+    const { entry, issues } = await cached(WORKFLOW_FILE, () => this.loadWorkflow());
+    this.workflow = entry;
     return issues;
   }
 
-  /** Workflow の定義を 1 つ読んで検証する。誤りのある定義は entry を返さない */
-  private async loadWorkflow(
-    relPath: string,
-    id: string,
-  ): Promise<{ id: string; entry?: WorkflowEntry; issues: Issue[] }> {
+  /** workflow.yaml を読んで検証する。誤りのある定義は entry を返さない */
+  private async loadWorkflow(): Promise<{ entry?: WorkflowEntry; issues: Issue[] }> {
+    const relPath = WORKFLOW_FILE;
+    const failed = (code: string, message: string, detail: string) => ({
+      issues: [{ severity: "error" as const, code, path: relPath, message, detail }],
+    });
     let text: string;
     try {
       text = await readFile(path.join(this.root, relPath), "utf8");
     } catch (error) {
-      return {
-        id,
-        issues: [
-          {
-            severity: "error",
-            code: "read_error",
-            path: relPath,
-            id,
-            message: "Cannot read the file",
-            detail: String(error),
-          },
-        ],
-      };
+      return failed("read_error", "Cannot read the file", String(error));
     }
     const { doc, errors } = parseYamlDocument(text);
-    if (errors.length > 0) {
-      return {
-        id,
-        issues: [
-          {
-            severity: "error",
-            code: "yaml_error",
-            path: relPath,
-            id,
-            message: "Cannot parse YAML",
-            detail: errors.join("\n"),
-          },
-        ],
-      };
-    }
-    const result = validateWorkflow(doc.toJS() ?? {}, relPath, this.workflowOptions);
-    const issues = [...result.issues];
-    if (!result.workflow || !result.definition) return { id, issues };
-    if (result.definition.id !== id) {
-      issues.push({
-        severity: "error",
-        code: "id_mismatch",
-        path: relPath,
-        id,
-        message: `The ID ${id} in the file name differs from the id ${result.definition.id} inside`,
-      });
-      return { id, issues };
-    }
-    // 誤りのある定義は索引に入れない（それを参照するチケットは integrity で指摘される）。警告だけなら入れる
-    if (issues.some((i) => i.severity === "error")) return { id, issues };
+    if (errors.length > 0) return failed("yaml_error", "Cannot parse YAML", errors.join("\n"));
+    const result = validateWorkflow(doc.toJS() ?? {}, relPath);
+    const issues = result.issues;
+    // 誤りのある定義は使わない（遷移と照合が止まる）。警告だけなら使う
+    if (!result.workflow || !result.definition || issues.some((i) => i.severity === "error"))
+      return { issues };
     return {
-      id,
       issues,
-      entry: { path: relPath, definition: result.definition, resolved: result.workflow },
+      entry: {
+        path: relPath,
+        exists: true,
+        definition: result.definition,
+        resolved: result.workflow,
+      },
     };
   }
 }

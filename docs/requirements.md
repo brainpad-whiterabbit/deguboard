@@ -30,7 +30,7 @@ deguboard は、Agentic-Agile の考え方（[マニフェスト](https://github
 - **Epic**：目的ごとにチケットを束ねる単位。Iteration をまたぐ。`e3`
 - **Iteration**：期間の計画（スプリント）。`s3`。`sprint` はエイリアス
 - **Plan**：チケットをどの順で進めるかと承認の記録。`p7`
-- **Workflow**：遷移の条件・照合規則・追加フィールド・表示名の定義
+- **Workflow**：カンバンに 1 つの、状態の表示名と境目・例外の動き・流れの段階の方針の定義（5.8）
 - **Status**：チケットの進捗。全ワークフロー共通の `todo` / `in_progress` / `review` / `done` / `abandoned` の 5 つ
 - **Run**：1 回の AI 実行の記録。`step`（工程）を持つ
 - **claim**：チケットに着手する操作。push の成功で排他を得る
@@ -63,7 +63,7 @@ tickets/deleted/t9.md       # 墓標。番号を再利用しない
 epics/e3.md
 iterations/s3.yaml
 plans/p7.yaml
-workflows/<id>.yaml
+workflow.yaml               # カンバンに 1 つの Workflow（5.8）。なければ既定で動く
 runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開始日時と乱数
 ```
 
@@ -104,7 +104,7 @@ updated_at: 2026-10-31T05:10:00Z
 - [ ] …
 ```
 
-- TK-1 必須は `id`・`title`・`status`・`created_at`・`updated_at`。`workflow` を省くと config の `default_workflow`（5.10）を使う
+- TK-1 必須は `id`・`title`・`status`・`created_at`・`updated_at`。`workflow` は書けるが Workflow を選ばない（Workflow はカンバンに 1 つ。5.8）
 - TK-2 `depends_on` は同じリポジトリのチケットの ID。循環は作成・更新時に拒否する
 - TK-3 本文は Markdown。`## Summary` と `## Acceptance criteria`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` が雛形を作り、受け入れ条件は `ticket check` が番号で印を付ける。空か空白だけの本文は拒む。節の欠けや状態の食い違い、実装と手直しの Run の抜け（RN-5・RN-6）は `dg lint` が指摘する（項目は `dg lint --help`）
 - TK-4 Workflow の `fields` で定義した任意フィールドを frontmatter に持てる
@@ -142,16 +142,17 @@ updated_at: 2026-10-31T05:10:00Z
 - PL-5 Plan の状態は保存せず、`pending_approval` と `closed_at` から求める（pending・approved・closed）。`plan list` と `plan show` は `status` に返し、画面はこれを読む。承認待ちの Plan のチケットは、`dg next` が承認を待つ段を返し、`claim` は警告する
 - PL-6 `plan list` と `plan show` は着手できるかを求めて返す。`waiting` はチケットごとの待ちの相手（終わっていない `after` と `depends_on`）、`ready` は todo で待ちのないもの、`next` は次に進めるもの。画面と手順はこれを読み、求め直さない（求め方は `packages/core/src/commands/plan.ts`）
 
-### 5.8 Workflow（`workflows/<id>.yaml`）
+### 5.8 Workflow（`workflow.yaml`）
 
-表示名 `labels`・遷移の制約 `transitions`・照合の規則 `reconcile`（ST-4）・任意フィールド `fields`（TK-4）・step の語彙 `steps` を持つ。書き方の例は同梱のテンプレート（`packages/core/src/workflow/templates/`。`dg init` の後は `dg workflow show <id>`）、項目と形は `packages/core/src/model/workflow.ts` が正本。テンプレートの `transitions` は空なので、その書き方は `model/workflow.ts` と `workflow/workflow.test.ts`。
+Workflow はカンバンに 1 つで、チケットごとには選ばない。項目は状態 `states`・境目 `boundaries`・例外の動き `exceptions`・列の上限 `wip`・流れの段階 `flow`・カンバンの管理 `governance` の 6 つ。どの項目も省け、省いた項目は Core の既定になる（ファイルがなくても同じ）。今の値は `dg workflow show`、項目と形は `packages/core/src/model/workflow.ts`、既定は `packages/core/src/workflow/resolve.ts` が正本（理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）。
 
-- WF-1 Status は全ワークフロー共通の 5 つ（3. 用語）で、増やせず、変えられるのは表示名だけ。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。`transitions` は遷移に主体 `by`（`[]` で禁止）と条件 `requires`（AND）の制約を足すだけ（検査は ST-2、理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）
+- WF-1 Status は 5 つ（3. 用語）で、増やせず、変えられるのは `states` の表示名 `label` だけ。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。`transitions` は遷移に主体 `by`（`[]` で禁止）と条件 `requires`（AND）の制約を足すだけ（検査は ST-2）
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`・`branch_exists`・`branch_pushed`・`branch_merged`・`pr_open`・`pr_draft`・`pr_merged`）とその否定（`!pr_draft`）だけで、利用者のスクリプトは実行しない。`deps_done` は `depends_on` がすべて done か abandoned のとき真
-- WF-3 存在しない Status・未知の条件と Action・重複などの誤りは、読み込み時と `dg workflow validate` で指摘する（検査の項目は `packages/core/src/workflow/validate.ts`）
-- WF-4 `software-development`・`general` のテンプレートを同梱し、`dg init` が 2 つとも置く（既にある Workflow は書き換えない）。既定の Workflow（`default_workflow`、5.10）は `dg init --template` でそのどれかを選べ、省けば `general`
-- WF-5 `steps` は Run の step の語彙（`opens_on` は RN-5）で、`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは YAML に書かず、既定の手続きは Core が（EX-3）、各手のやり方は `dg guide` が持つ
-- WF-6 `dg workflow set` は Workflow を 1 つ作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す（細部は `dg workflow set --help`）
+- WF-3 増やした Status・3 つでない境目・未知の値と条件と段階・重複などの誤りは、読み込み時と `dg workflow validate` で指摘し、誤りのある Workflow は使わない。未知の項目は警告にとどめる（検査の項目は `packages/core/src/workflow/validate.ts`）
+- WF-4 同梱するのは既定の `workflow.yaml` を 1 つだけで、`dg init` が置く（既にあれば書き換えない）。進め方の違いは値を書き換えて表す
+- WF-5 Run の step の語彙（investigate・implement・review・fix・merge）と Run を開く操作（RN-5）は Core が持ち、`run start` は語彙にない step を拒否する。手続きは YAML に書かず、既定の手続きは Core が（EX-3）、各手のやり方は `dg guide` が持つ
+- WF-6 `dg workflow set` は `workflow.yaml` を作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す（細部は `dg workflow set --help`）
+- WF-7 `boundaries` の `requires`・`decide` と `exceptions`・`flow`・`governance` の権限の値、`wip` の上限は、形を読んで検査するだけで、操作の判定にはまだ使わない
 
 ### 5.9 Run（`runs/`）
 
@@ -159,7 +160,7 @@ updated_at: 2026-10-31T05:10:00Z
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-029](adr/ADR-029-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけで、チケットには書き足さない。実行中の記録・会話記録のパス・見直しの指摘の一覧・保留の見直しの結果とやり直しの理由・フックの入力の有無は、このマシンの `deguboard-local/` に置く（`packages/core/src/run/record.ts`）。会話記録のパスは終了から 30 日残し `dg run prune-transcripts` が消す
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直す値、結果のない閉じた見直しの Run（チケットの最新の Run のとき）に 1 回だけ書く見直しの結果（記録がなく `failure` だった Run は `success` に直す）、前景の見直し役の戻りにフックが引き取る記録（`capture: none` を外して数え直す）だけ。細部は `dg run review-result --help` と `dg hook --help`
-- RN-5 agent の claim は実装の Run（`opens_on: claim`、なければ `implement`）を、もう一度の claim（ST-9）は手直しの Run（`opens_on: reclaim`、なければ `fix`）を開いて ID を返し、開けなくても成功する。人の claim・`--no-run` では開かず（SY-5）、フックが届くセッションでは `--no-run` なしを警告する。細部は `dg ticket claim --help`
+- RN-5 agent の claim は実装の Run（`implement`）を、もう一度の claim（ST-9）は手直しの Run（`fix`）を開いて ID を返し、開けなくても成功する。人の claim・`--no-run` では開かず（SY-5）、フックが届くセッションでは `--no-run` なしを警告する。細部は `dg ticket claim --help`
 - RN-6 実装の Run は PR の記録（照合を含む）と PR なしで終えた作業の前進で、手直しの Run は次の開始・前進・チケットの終了で `success`。落ちたサブエージェントの残りは、次の開始が記録の最後の更新の時刻で `interrupted`。`unclaim`・`abandoned` の Run と、照合で戻った・取られたチケットの実装の Run は `failure`。照合は残りも閉じる。先に閉じられた Run は警告だけで止めない。細部は各 `--help` とテスト
 - RN-7 印 `deguboard: ticket=<id> step=<step>` で頼んだサブエージェントの Run は、フック（AG-9）が起動で開き、step を終えた事実で閉じ、なければ止まって待っている印を付け、セッションの終わりに残りを閉じる。動く間は `run finish` が中断でしか閉じない。`dg next` は落ちた残りを待たない。細部は `dg hook --help`、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
 - RN-8 `dg run retry-reason` は、実行中の手直しの Run の `retry_reasons` に直した指摘を書き足し、回数を理由の数にする。書く先がなければ保留し、フックが手直しの Run を閉じるときに結び付ける（細部は `dg run retry-reason --help`）
@@ -174,7 +175,7 @@ updated_at: 2026-10-31T05:10:00Z
 - 値は「個人 > チーム > 既定」の順に読み、どの入口も Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する（細部は `dg config set --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 - 項目の説明と変更はエージェントに頼める（`/dgconfig`。AG-2）。エージェントは、項目ごとの前と後の差とチームか個人かを見せて人の承認を得てから `dg config set` で書く（手順は `dg guide config`）
 
-- `default_workflow`：自分の `workflow` を持たないチケットの Workflow（省けば `general`。TK-1）。チームだけが持つ
+- `default_workflow`：読み書きできるが Workflow を選ばない（Workflow はカンバンに 1 つ。5.8）。チームだけが持つ
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧（検査しない呼び出しは `packages/core/src/commands/define.ts`）。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないときと、取り込んだ config でこの値が変わったときは、push する操作は止まって次の手を示し、ほかの操作は警告して続く（エラーと戻し方は `dg guide overview`）
 - `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push する。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく止まり、別のカンバンのブランチを指したときは取り込まずに止まる（エラーと戻し方は `dg guide overview`）
@@ -209,7 +210,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 6.3 Git 同期と排他
 
-- SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、config とテンプレートのワークフローを置く。データのリモートに届かなければボードを作らずに止める（手元だけで始めるのは `--new-board`）。データを別のリポジトリに置くとき（5.1）は、`--data-remote <名前か URL>` で取り込む先を、`--data-branch <名前>` でデータのブランチを渡す（細部は `dg init --help`）
+- SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、config と既定の Workflow を置く。データのリモートに届かなければボードを作らずに止める（手元だけで始めるのは `--new-board`）。データを別のリポジトリに置くとき（5.1）は、`--data-remote <名前か URL>` で取り込む先を、`--data-branch <名前>` でデータのブランチを渡す（細部は `dg init --help`）
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する。取り込み直しがエラーで止まるときは、そのコマンドのコミットを残さない（競合は SY-4）
 - SY-3 claim・作成・`iteration start / reopen` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す。届かなければ（fetch・push の時間切れを含む）コミットを捨てて失敗する（チケットの起票だけは DT-5 の仮番号で残す）
 - SY-4 同期は rebase で取り込み、チケット等の属性はマージドライバがフィールド単位で解く（規則は `git/merge.ts`）。同じ状態で時刻だけ違えば早い方を採り警告に出す。解けない競合は rebase を中止してコミットを残し、競合したフィールドと両側の値を報告して、解くまで push・照合と即時の操作（CL-3）を止める。人が選べば `dg sync --resolve` が競合したフィールドだけその側で揃える（戻し方は `dg guide overview`）
@@ -247,7 +248,7 @@ updated_at: 2026-10-31T05:10:00Z
 - AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）。起票・着手・マージは人が頼んだ段階までにする（決まりは `dg guide overview`）
 - AG-4 MCP サーバー（`dg mcp`。stdio）は Bash のないクライアントの入口で、ツールを Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`hooks`・`setup`・`serve`・`open` を除く）、結果は `--json` と同じ形（CL-1）で、主体は常に agent。細部は `packages/cli/src/mcp.ts` とそのテスト
 - AG-5 AI 製品ごとの差（使用量の取得・dg を呼んだエージェントの判定・フックの入力と設定）は Agent Adapter が吸収し、実装は Core の `agents/adapters/` に閉じる（対応する製品はそこのコード）。エージェントの起動と権限は扱わない（EX-1、[ADR-033](adr/ADR-033-architecture.md)）
-- AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-033](adr/ADR-033-architecture.md)）
+- AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、Core の公開にも出さない（[ADR-033](adr/ADR-033-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 - AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンドで、人に限られた操作なら人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補・おすすめ・文の形は `dg ask --help` と `packages/core/src/commands/ask.ts`・そのテストが正本
 - AG-9 `dg hooks install` は追跡しない設定に `dg hook` を呼ぶフックを書き（`.gitignore` に足す）、`uninstall` は外す。届かないフック（SubagentStop だけも）と中の失敗は `check` と印で頼む操作が警告する。届かないと使用量・時間は残らない（RN-9）。主体は agent（RN-7）。細部は `dg hook --help`、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)

@@ -369,7 +369,7 @@ async function initRepo(dir) {
   await git(work, ["config", "user.email", "sample@example.com"]);
   await git(work, ["commit", "--quiet", "--allow-empty", "-m", "Initial commit"]);
   await git(work, ["push", "--quiet", "origin", "main"]);
-  await dg(work, ["init", "--template", "software-development"]);
+  await dg(work, ["init"]);
   // リポジトリに dg の Skill があると、依頼文の形式の既定が Skill になる（開発者の ~/.claude/skills に左右されない）
   await dg(work, ["skill", "install"]);
   return work;

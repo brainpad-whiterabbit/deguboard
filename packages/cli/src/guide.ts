@@ -1,7 +1,6 @@
 // dg guide <topic>：エージェント向けの手順を出す（CL-5）。本文を組むのは Core の composeGuide（ADR-030）。ここは config を読んで Core の結果を写すだけ
 
 import {
-  ACTION_NAMES,
   composeGuide,
   DeguboardError,
   defaultConfig,
@@ -18,7 +17,7 @@ async function loadGuideConfig(
   cwd: string,
 ): Promise<{ config: Config; repoTop: string; initialized: boolean }> {
   try {
-    const ctx = await openContext({ cwd, actions: ACTION_NAMES });
+    const ctx = await openContext({ cwd });
     return { config: ctx.config, repoTop: ctx.repo.topLevel, initialized: true };
   } catch (error) {
     if (

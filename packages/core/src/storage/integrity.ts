@@ -1,8 +1,7 @@
-// 参照の整合（存在しない依存先・Epic・Iteration・Workflow・Run のチケット）を指摘する。dg validate が使う
+// 参照の整合（存在しない依存先・Epic・Iteration・Run のチケット）を指摘する。dg validate が使う
 
 import { idNumber } from "../model/id.js";
 import type { Issue } from "./issue.js";
-import { CONFIG_FILE } from "./paths.js";
 import type { Store } from "./store.js";
 import { cyclePath, eachCycle, type WaitEdge } from "./wait-cycle.js";
 
@@ -11,24 +10,8 @@ export function checkReferences(store: Store): Issue[] {
   const push = (path: string, id: string, code: string, message: string) =>
     issues.push({ severity: "error", code, path, id, message });
 
-  const defaultWorkflow = store.config.default_workflow;
-  if (!store.workflows.has(defaultWorkflow)) {
-    push(
-      CONFIG_FILE,
-      defaultWorkflow,
-      "workflow_missing",
-      `The default Workflow ${defaultWorkflow} (default_workflow) is missing`,
-    );
-  }
   for (const doc of store.tickets.values()) {
     const t = doc.data;
-    if (!store.workflowFor(t))
-      push(
-        doc.path,
-        t.id,
-        "workflow_missing",
-        `Workflow ${t.workflow ?? `${defaultWorkflow} (default_workflow)`} is missing`,
-      );
     for (const dep of t.depends_on) {
       if (dep === t.id) push(doc.path, t.id, "depends_on_self", "Depends on itself");
       else if (!store.tickets.has(dep))

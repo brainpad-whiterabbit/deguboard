@@ -33,7 +33,7 @@ const headOf = async (ctx: CommandContext) =>
 /** clone で、データのリモート name を指して init する（init の後の文脈を返す） */
 async function initWith(cwd: string, dataRemote: string): Promise<CommandContext> {
   const first = await openContext({ cwd, initialize: { dataRemote }, actor });
-  await runCommand(init, first, { template: "software-development", data_remote: dataRemote });
+  await runCommand(init, first, { data_remote: dataRemote });
   return openContext({ cwd, actor });
 }
 
@@ -57,7 +57,6 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
     const dataDir = await addDataRemote(f, [f.cloneA]);
     const first = await openContext({ cwd: f.cloneA, initialize: { dataRemote: "data" }, actor });
     const made = await runCommand(init, first, {
-      template: "software-development",
       data_remote: "data",
     });
     expect(made.data).toMatchObject({ worktree: "orphan", remote: "origin", data_remote: "data" });

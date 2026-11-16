@@ -173,13 +173,7 @@ export function fixture(partial: Partial<Fixture> = {}): Fixture {
     iterations: [],
     plans: [],
     workflow: {
-      definition: {
-        id: "software-development",
-        name: "SD",
-        transitions: [],
-        reconcile: [],
-        fields: [],
-      },
+      definition: { fields: [] },
       labels: {
         todo: "Todo",
         in_progress: "In Progress",
@@ -188,7 +182,6 @@ export function fixture(partial: Partial<Fixture> = {}): Fixture {
         abandoned: "Abandoned",
       },
       transitions: [],
-      template: null,
     },
     status: {
       ahead: 0,
@@ -284,8 +277,7 @@ export function mockClient(data = fixture()): MockClient {
   const handlers: MockClient["handlers"] = {
     "config.show": (input) => {
       const config = {
-        // fixture の既定の Workflow（data.workflow）の ID
-        default_workflow: data.workflow.definition.id,
+        default_workflow: "general",
         priority: {
           high: "利用者に見える不具合・ほかのチケットを止めている",
           medium: "機能の追加と改善・テストの抜け",

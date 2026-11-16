@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, openRepo, type Fixture } from "../../test/helpers/git-fixture.js";
 import { reconcileStatus } from "../workflow/reconcile.js";
-import { resolveWorkflow } from "../workflow/resolve.js";
-import { findWorkflowTemplate } from "../workflow/templates/index.js";
-import { validateWorkflow } from "../workflow/validate.js";
+import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
 import { collectBranchFacts } from "./facts.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -127,11 +125,8 @@ describe("branch_merged の判定", () => {
   });
 });
 
-describe("software-development の照合", () => {
-  const wf = resolveWorkflow(
-    validateWorkflow(findWorkflowTemplate("software-development")!, "software-development.yaml")
-      .definition!,
-  );
+describe("既定の Workflow の照合", () => {
+  const wf = DEFAULT_WORKFLOW;
 
   it("push 済みで PR が open、main より 1 コミット先のブランチは review に進み、done には進まない（t42）", async () => {
     const f = await fixture();

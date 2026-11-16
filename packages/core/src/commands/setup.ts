@@ -63,19 +63,25 @@ import {
   type Config,
   type ConfigField,
 } from "../model/config.js";
-import { REVIEW_STEP, type Run, type RunId, type RunResult } from "../model/run.js";
-import type { StepOpener } from "../model/workflow.js";
+import {
+  OPENED_STEPS,
+  REVIEW_STEP,
+  type Run,
+  type RunId,
+  type RunResult,
+  type StepOpener,
+} from "../model/run.js";
 import { hasBodySection, parseAcceptance, type Ticket } from "../model/ticket.js";
 import { dropRunning, peekRunningRuns, readRunningRuns } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { pathExists } from "../storage/exists.js";
 import { checkReferences } from "../storage/integrity.js";
 import type { Issue } from "../storage/issue.js";
-import { CONFIG_FILE, workflowPath } from "../storage/paths.js";
+import { CONFIG_FILE, WORKFLOW_FILE } from "../storage/paths.js";
 import type { WorkflowEntry } from "../storage/store.js";
 import { cyclePath, findCrossingCycle } from "../storage/wait-cycle.js";
 import { reconcileStatus, regressionWarnings } from "../workflow/reconcile.js";
-import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
+import { defaultWorkflowFile } from "../workflow/resolve.js";
 import { removeMergedWork, type MergedWork, type RemovedWork } from "./branch-cleanup.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { closeStoppedRuns, type HookView } from "./hook.js";
@@ -90,27 +96,18 @@ import {
   describeClosedRuns,
   findOpenedRun,
   fixRunFinishedAt,
-  openedStepOf,
   RECONCILE_TAKEN_ERROR,
   RECONCILE_TODO_ERROR,
   runsClosedByMove,
   sessionOf,
 } from "./run.js";
 
-const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]];
-
 export const init = defineCommand({
   name: "init",
   group: "setup",
   summary:
-    "Set up the data branch (deguboard by default) and its dedicated worktree, and put in the config and the template Workflows",
+    "Set up the data branch (deguboard by default) and its dedicated worktree, and put in the config and the default workflow.yaml",
   input: z.object({
-    template: z
-      .enum(TEMPLATE_IDS)
-      .optional()
-      .describe(
-        "Default Workflow of a new board (config's default_workflow). Defaults to general when omitted",
-      ),
     remote: z
       .string()
       .optional()
@@ -154,10 +151,6 @@ export const init = defineCommand({
         const configPath = path.join(store.root, CONFIG_FILE);
         if (!(await pathExists(configPath))) {
           await store.writeConfig({
-            // 既定（general）のときは書かない（スキーマの既定で読む）
-            ...(input.template && input.template !== defaultConfig().default_workflow
-              ? { default_workflow: input.template }
-              : {}),
             git: {
               remote: input.remote ?? DEFAULT_REMOTE,
               ...(input.data_remote && ctx.repo.dataRemote
@@ -179,14 +172,13 @@ export const init = defineCommand({
         }
         // frontmatter のフィールド単位のマージドライバ（SY-4）
         if (await ensureGitattributes(store.root)) created.push(".gitattributes");
-        for (const t of WORKFLOW_TEMPLATES) {
-          // 誤りがあって索引から外れた Workflow も、ファイルがあれば書き換えない（WF-4）
-          if (await pathExists(path.join(store.root, workflowPath(t.id)))) continue;
+        // 誤りがあって読めない workflow.yaml も、ファイルがあれば書き換えない（WF-4）
+        if (!(await pathExists(path.join(store.root, WORKFLOW_FILE)))) {
           await store.writeWorkflow(
-            t as Record<string, unknown>,
-            `${t.name} workflow. Placed by dg init from the bundled template`,
+            defaultWorkflowFile() as Record<string, unknown>,
+            "The board's Workflow. Placed by dg init with the default values; an item you remove falls back to the same default",
           );
-          created.push(workflowPath(t.id));
+          created.push(WORKFLOW_FILE);
         }
         return created;
       },
@@ -405,7 +397,7 @@ function branchFactsInput(doc: BranchTicket, wf: WorkflowEntry) {
 async function collectReconcileFacts(ctx: CommandContext): Promise<CollectedFacts> {
   const collected: CollectedFacts = { branches: new Map(), prCreated: new Map() };
   for (const doc of reconcileTargets(ctx)) {
-    const wf = ctx.store.workflowFor(doc.data);
+    const wf = ctx.store.workflow;
     if (!wf) continue;
     const { opts, key } = branchFactsInput(doc, wf);
     const result = await collectBranchFacts(ctx.repo, doc.data.branch, opts);
@@ -438,7 +430,7 @@ async function reconcileAll(
   const merged: MergedWork[] = [];
   const running = (await readRunningRuns(ctx.repo)).runs;
   for (const doc of reconcileTargets(ctx)) {
-    const wf = ctx.store.workflowFor(doc.data);
+    const wf = ctx.store.workflow;
     if (!wf) {
       warnings.push(`${doc.id}: cannot read the Workflow, so it is not reconciled`);
       continue;
@@ -556,10 +548,10 @@ async function reconcileAll(
     const out = { runsClosed, warnings };
     if (isTerminal(doc.data.status)) {
       // 終わったチケットに開いたままの手直しの Run は、次の区切り（チケットの終了を含む）で success にする
-      if (run.data.step === openedStepOf(ctx, doc.data, "reclaim")) {
+      if (run.data.step === OPENED_STEPS.reclaim) {
         const boundary = fixRunBoundary(ctx, doc.data, run, running, false);
         if (boundary) await closeFixRun(ctx, doc, run, boundary, undefined, out);
-      } else if (run.data.step === openedStepOf(ctx, doc.data, "claim")) {
+      } else if (run.data.step === OPENED_STEPS.claim) {
         // 終わったチケットの実装の Run は ticket move と同じ結果で閉じる
         const ends = runsClosedByMove(doc.data, doc.data.status);
         if (ends?.openers.includes("claim")) {
@@ -589,7 +581,7 @@ async function reconcileAll(
       continue;
     }
     // 戻った（todo）か、ほかの主体の claim になったチケットの実装の Run は failure で閉じる（unclaim と同じ）。自分のユーザの claim は触らない
-    if (run.data.step !== openedStepOf(ctx, doc.data, "claim")) continue;
+    if (run.data.step !== OPENED_STEPS.claim) continue;
     if (doc.data.status === "todo") {
       await closeImplRun(ctx, doc, run, { result: "failure", error: RECONCILE_TODO_ERROR }, out);
     } else if (doc.data.assignee !== undefined && !sameUser(doc.data.assignee, ctx.actor.id)) {
@@ -612,8 +604,8 @@ export const sync = defineCommand({
     "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches. The data is fetched from and pushed to the data branch (config's git.data_branch, deguboard by default) of the data remote (config's git.data_remote, or git.remote when it is empty); other branches of that remote, such as other repositories' kanbans, are not taken in. The work branches are fetched from git.remote. When the config names a data remote that this clone does not have, sync fails with DATA_REMOTE_MISSING and tells how to add it; when the config just fetched changed the data remote or the data branch, sync stops with DATA_REMOTE_CHANGED before pushing, and running it again uses the new one; when the data branch on the data remote shares no history with the local kanban and both hold data (it holds another kanban), sync stops with DATA_HISTORY_UNRELATED before taking anything in and tells how to give this kanban its own branch. When config's merge.delete_branch is true and a ticket becomes done, the worktree and the local and remote work branch that remain are deleted, and each data.reconciled entry gets removed: { worktree, local_branch, remote_branch } (null for what was not deleted or did not exist). Nothing is deleted when the worktree has uncommitted changes, when sync is called from that worktree, or when a branch tip is neither the head of the merged PR nor in the base branch; the reason and the commands to delete by hand are in warnings. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). When the PR is merged, its added and deleted lines are recorded on the ticket as lines (data.lines_recorded; a ticket that already has lines is not rewritten; done tickets with no lines are filled by dg metrics lines). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
     "A review result held with no Run (run review-result with no review Run, left by an environment the hook does not reach) that dg next and dg gate count as a review is written as a closed review Run marked capture: none (started and finished at the time the result was written, usage null), and the held result is linked to it (data.reviews_recorded). " +
     "A sub-agent Run left open because its record was not finished being written (one with a settling_since mark) is also closed once it has finished writing. Review Runs from a session other than the sync's are not closed; the next review start closes them. " +
-    "When the import stops on a conflict, data.conflicts lists the files and data.conflict_fields lists each conflicting field as { file, field, base, local, remote }, found by running the merge driver's rule on the fork point, the local head, and the remote head (so it includes conflicts in commits after the one the rebase stopped at). For a body, field is body and each colliding block of lines is one entry. Files outside the merge driver (config.yaml and workflows) appear only in data.conflicts. " +
-    "--resolve remote|local resolves a sync conflict in favor of the side a person chooses: it renumbers colliding provisional numbers, commits pending changes (even in manual mode) before importing, and takes the chosen side's value only for conflicting fields (for a body, only where the same line collided). Non-conflicting fields and commits are kept; history is not discarded and nothing is force-pushed. The values taken and discarded appear in data.resolved. Without --resolve, a sync also resolves a field itself when both sides have the same status (for a Plan, which has no status, when both sides have the time field) and differ only in closed_at, started_at, or approved_at: it takes the earlier time, reports it in a warning, and lists it in data.resolved with auto: true (a write that pulls, such as create or claim, does the same and reports it in a warning). Conflicts in files the merge driver does not handle (config.yaml and workflows) are not resolved and stay in data.conflicts",
+    "When the import stops on a conflict, data.conflicts lists the files and data.conflict_fields lists each conflicting field as { file, field, base, local, remote }, found by running the merge driver's rule on the fork point, the local head, and the remote head (so it includes conflicts in commits after the one the rebase stopped at). For a body, field is body and each colliding block of lines is one entry. Files outside the merge driver (config.yaml and workflow.yaml) appear only in data.conflicts." +
+    "--resolve remote|local resolves a sync conflict in favor of the side a person chooses: it renumbers colliding provisional numbers, commits pending changes (even in manual mode) before importing, and takes the chosen side's value only for conflicting fields (for a body, only where the same line collided). Non-conflicting fields and commits are kept; history is not discarded and nothing is force-pushed. The values taken and discarded appear in data.resolved. Without --resolve, a sync also resolves a field itself when both sides have the same status (for a Plan, which has no status, when both sides have the time field) and differ only in closed_at, started_at, or approved_at: it takes the earlier time, reports it in a warning, and lists it in data.resolved with auto: true (a write that pulls, such as create or claim, does the same and reports it in a warning). Conflicts in files the merge driver does not handle (config.yaml and workflow.yaml) are not resolved and stay in data.conflicts",
   input: z.object({
     resolve: z
       .enum(["remote", "local"])
@@ -1044,8 +1036,7 @@ export const lint = defineCommand({
         );
       else if (acceptance.length === 0)
         warn(doc.path, doc.id, "lint_acceptance_empty", "The acceptance criteria have no items");
-      const wf = ctx.store.workflowFor(doc.data);
-      for (const f of wf?.resolved.fields ?? []) {
+      for (const f of ctx.store.workflow?.resolved.fields ?? []) {
         const v = doc.data[f.id];
         if (v === undefined) continue;
         const okType =
@@ -1167,7 +1158,7 @@ export const lint = defineCommand({
         ctx.store.iterations.get(t.data.iteration)?.data.status !== "closed");
     for (const doc of tickets.filter(inRunScope)) {
       const own = runsByTicket.get(doc.id) ?? [];
-      const implStep = openedStepOf(ctx, doc.data, "claim");
+      const implStep = OPENED_STEPS.claim;
       const implRuns = own.filter((r) => r.step === implStep);
       const agentClaimed = doc.data.assignee !== undefined && isAgentActorId(doc.data.assignee);
       // フックが結ばなかった見直しの記録（capture: none）があるチケットは、フックが届かない環境で進めた作業。
@@ -1211,7 +1202,7 @@ export const lint = defineCommand({
       }
       // 見直しの後のコミットがあるのに、見直しの後に開いた手直しの Run（reclaim の step）がない。コミットが修正かは分からないので安全網として出す
       if (reviewedAt.length > 0) {
-        const fixStep = openedStepOf(ctx, doc.data, "reclaim");
+        const fixStep = OPENED_STEPS.reclaim;
         const lastReview = Math.max(...reviewedAt);
         const afterReview = (commits ?? []).filter((c) => Date.parse(c.at) > lastReview);
         const fixedAfter = own.some(

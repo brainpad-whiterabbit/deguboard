@@ -171,7 +171,7 @@ describe("プロセス内の CommandClient", () => {
 
   it("CLI と同じ経路（openContext）で開き直すと、前の呼び出しが残した結果を使い、変わっていないファイルを読み直さない", async () => {
     const f = await initialized();
-    const cli = () => openContext({ cwd: f.cloneA, actions: ["run_tests"] });
+    const cli = () => openContext({ cwd: f.cloneA });
     const create = commands.find((c) => c.name === "ticket.create")!;
     await runCommand(create, await cli(), { title: "一" });
     await runCommand(create, await cli(), { title: "二" });

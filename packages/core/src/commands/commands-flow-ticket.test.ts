@@ -101,11 +101,10 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(claimed.data.status).toBe("in_progress");
   });
 
-  it("workflow を持たないチケットの Workflow は config の default_workflow で決まり、チケットの workflow が優先する", async () => {
+  it("Workflow はカンバンに 1 つで、チケットの workflow も config の default_workflow も Workflow を選ばない", async () => {
     const f = await initializedFixture();
     const human = await reopenInitialized(f);
-    await writeStrictWorkflow(human);
-    // 既定（general）：todo → done が通る。作ったチケットは project も workflow も持たない
+    // 既定の Workflow：todo → done が通る。作ったチケットは project も workflow も持たない
     const created = await runCommand(ticketCreate, human, { title: "A" });
     expect(created.data).not.toHaveProperty("project");
     expect(created.data.workflow).toBeUndefined();
@@ -117,23 +116,15 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(
       (await runCommand(ticketMove, human, { ticket: "t1", status: "done" })).data.status,
     ).toBe("done");
-    // 既定を strict にすると、workflow を持たないチケット（t2）は strict の制約（todo → done は誰にも許さない）に従い、
-    // workflow を持つチケット（t3）は自分の Workflow のまま
-    await runCommand(configSet, human, { key: "default_workflow", value: "strict" });
-    await expect(
-      runCommand(ticketMove, human, { ticket: "t2", status: "done" }),
-    ).rejects.toMatchObject({ code: "TRANSITION_REJECTED" });
-    expect(
-      (await runCommand(ticketMove, human, { ticket: "t3", status: "done" })).data.status,
-    ).toBe("done");
-    // 定義のない Workflow を既定にすると、workflow を省いた起票を断る（workflow を指定すれば作れる）
+    // workflow.yaml に制約（todo → done は誰にも許さない）を書くと、workflow を持つチケット（t3）も持たないチケット（t2）も従う
+    await writeStrictWorkflow(human);
     await runCommand(configSet, human, { key: "default_workflow", value: "nothing" });
-    await expect(runCommand(ticketCreate, human, { title: "D" })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-    expect(
-      (await runCommand(ticketCreate, human, { title: "D", workflow: "general" })).data.id,
-    ).toBe("t4");
+    for (const ticket of ["t2", "t3"])
+      await expect(runCommand(ticketMove, human, { ticket, status: "done" })).rejects.toMatchObject(
+        { code: "TRANSITION_REJECTED" },
+      );
+    // default_workflow が指す名前の定義がなくても起票できる
+    expect((await runCommand(ticketCreate, human, { title: "D" })).data.id).toBe("t4");
   });
 
   it("list は各行に deps_done を載せ、show と同じく絞り込みに合わない依存先も見る", async () => {
@@ -480,7 +471,10 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   it("update は属性と本文を直し、循環する依存と未定義のフィールドを拒否する", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
-    await runCommand(ticketCreate, ctx, { title: "A", workflow: "software-development" });
+    // 任意フィールドは workflow.yaml の fields に定義したものだけを受ける
+    await ctx.store.writeWorkflow({ fields: [{ id: "estimate", type: "number" }] });
+    await recordBaseline(ctx.repo);
+    await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketCreate, ctx, { title: "B", depends_on: ["t1"] });
     const r = await runCommand(ticketUpdate, ctx, {
       ticket: "t1",

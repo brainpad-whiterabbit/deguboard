@@ -35,23 +35,21 @@ import {
 afterEach(runCleanups);
 
 describe("init", () => {
-  it("worktree・config・テンプレートを置いて push し、--template を config の default_workflow に書き、2 回目は何も作らない", async () => {
+  it("worktree・config・既定の workflow.yaml を置いて push し、2 回目は何も作らない", async () => {
     const f = await fixture();
     const ctx = await openContext({ cwd: f.cloneA, initialize: {} });
-    const r = await runCommand(init, ctx, { template: "software-development" });
+    const r = await runCommand(init, ctx, {});
     expect(r.data.worktree).toBe("orphan");
     expect(r.data.created).toEqual([
       "config.yaml",
       ".gitignore",
       ".gitattributes",
-      "workflows/software-development.yaml",
-      "workflows/general.yaml",
+      "workflow.yaml",
     ]);
     expect(r.write).toMatchObject({ committed: true, pushed: true });
-    // Project は置かない。既定の Workflow は config の default_workflow で決める
-    expect(ctx.store.config.default_workflow).toBe("software-development");
+    // Project は置かず、Workflow を選ぶ設定も書かない（Workflow はカンバンに 1 つ）
     const config = await readFile(path.join(ctx.repo.dataDir, "config.yaml"), "utf8");
-    expect(config).toContain("default_workflow: software-development");
+    expect(config).not.toContain("default_workflow");
     expect(config).not.toContain("default_project");
     expect((await git(ctx.repo.dataDir, ["ls-files", "projects"])).stdout).toBe("");
     const again = await openContext({ cwd: f.cloneA, initialize: {} });
@@ -62,7 +60,7 @@ describe("init", () => {
     // 別の clone は リモートから取り込み、何も書かないので書き込みの結果を返さない
     const b = await openContext({ cwd: f.cloneB, initialize: {} });
     expect(b.worktree).toBe("from_remote");
-    expect(b.store.workflows.size).toBe(2);
+    expect(b.store.workflow?.exists).toBe(true);
     const rb = await runCommand(init, b, {});
     expect(rb.data).toMatchObject({ worktree: "from_remote", created: [] });
     expect(rb.write).toBeUndefined();

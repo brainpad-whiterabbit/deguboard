@@ -519,9 +519,7 @@ describe("dg next と dg brief の古い Skill の警告（t858）", () => {
     const f = await createFixture();
     cleanups.push(f.cleanup);
     const actor = { kind: "agent" as const, user: "eiki" };
-    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {
-      template: "software-development",
-    });
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
     const ctx = await openContext({ cwd: f.cloneA, actor });
     // 本物の ~/.claude/skills を読まない
     ctx.env = { HOME: await tempDir() };

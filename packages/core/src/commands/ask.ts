@@ -1766,8 +1766,8 @@ export function buildAsk(input: BuildAskInput): AskView {
 }
 
 /** 今の Status からの遷移のうち、Workflow の by に agent が入っていない行き先。Workflow が読めなければ空（move のときに拒否される） */
-function agentDenied(store: Store, t: Parameters<Store["workflowFor"]>[0]): string[] {
-  const wf = store.workflowFor(t);
+function agentDenied(store: Store, t: { status: Status }): string[] {
+  const wf = store.workflow;
   if (!wf) return [];
   return STATUSES.filter((to) => {
     const by = to === t.status ? undefined : findConstraint(wf.resolved, t.status, to)?.by;

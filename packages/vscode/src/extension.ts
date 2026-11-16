@@ -15,7 +15,6 @@ import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  ACTION_NAMES,
   buildSkills,
   checkSetup,
   createLocalClient,
@@ -1109,7 +1108,6 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
     client = createLocalClient({
       cwd: folder.uri.fsPath,
       ...pickUser(undefined, process.env["DEGUBOARD_USER"]),
-      actions: ACTION_NAMES,
       mergeDriver:
         extensionContext && mergeDriverOf(launcherCurrent(extensionContext), launcherResult),
     });

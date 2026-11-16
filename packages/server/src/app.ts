@@ -11,7 +11,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isIP } from "node:net";
 import {
-  ACTION_NAMES,
   DeguboardError,
   checkSetup,
   createLocalClient,
@@ -145,7 +144,6 @@ export function createApp(options: AppOptions): Handler {
     userSource: options.userSource,
     commands: options.commands,
     mergeDriver: options.mergeDriver,
-    actions: ACTION_NAMES,
   });
   const descriptors = describeCommands(client.commands);
 
