@@ -35,7 +35,7 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 - すべての操作を「名前・Zod の入力スキーマ・実装関数」の組として `core/commands` に定義する
 - CLI のサブコマンドとヘルプ、HTTP のエンドポイント、Webview のメッセージ、MCP のツール定義は、この定義から生成する。入口にロジックを書かない
 - MCP（`dg mcp`）は `cli` に置き、同じコマンド定義を主体 agent で写す（範囲は AG-4）
-- 例外は AG-4 の CLI だけの操作で、コマンドの一覧に入れず、`cli` がサブコマンドを自分で組む（MCP・HTTP・Webview には出ない）。このうち各自のマシンにファイルを置く `skill`・`hooks` は、判定と書き込みを `core/commands` の関数に置き（`skill-files.ts`・`hook-settings.ts`）、`cli` は引数と結果を写して、core から引けない入口の事実（動いている node と dg の場所）だけを渡す。入口にロジックを書かない決まりを CLI だけの操作にも通すため。`skill` の判定は、拡張とほかのコマンドの警告も使う。文脈を開けない場面（git がない・リポジトリの外・init の前）でも答える `setup check` も同じ形にする（`setup-check.ts`）。これだけは画面の導入のチェックリスト（UI-12）にも出す：`server` は `/api/setup` で、拡張は Webview の要求で、同じ関数の結果を写す（拡張は、拡張でしか確かめられない項目を足す）
+- 例外は AG-4 の CLI だけの操作で、コマンドの一覧に入れず、`cli` がサブコマンドを自分で組む（MCP・HTTP・Webview には出ない）。それでも判定と書き込みは `core/commands` の関数に置き、`cli` は引数と結果を写して、core から引けない入口の事実（動いている node と dg の場所）だけを渡す。導入の確かめ（`setup check`）は文脈を開けない場面（git がない・リポジトリの外・init の前）でも答えるので一覧に入れないが、画面の導入のチェックリスト（UI-12）にも同じ関数の結果を写す（置き場所は [development.md の「パッケージ」](../development.md#パッケージ)の `commands/`）
 - もう 1 つの例外は、ツールを使う前のフック（PreToolUse）と応答を終えたときのフック（Stop）の速い経路。`bin/dg.js` と、VS Code 拡張に同梱した `dist/cli/dg.mjs` の入口（`bundle.ts`）は、`dg hooks install` が書くその呼び出しを、CLI の全体（core の入口・zod・yaml・commander）を読まずに、core の別の入口 `@deguboard/core/fast-hook` で処理する。記録と判定は `dg hook` と同じ関数を呼び、受け持たない入力は今の経路に回す。速い経路が静的に読むファイルは node の組み込みと依存の軽いファイルに限る（Stop が config のリモートの名前を要るときだけ、それを読むファイルを動的に読む。一覧は `packages/cli/src/fast-path-files.json`、確かめ方は `packages/cli/src/fast-hook.test.ts`。同梱の chunk は `packages/vscode/src/bundle-cli.test.ts`）
 - UI は `CommandClient`（コマンド名と入力を渡して結果を受け取る 1 つのインターフェース）を通じて呼ぶ
 - 文脈の管理はプロセス内の `CommandClient` として core に 1 つ置き、`server` は HTTP に、`vscode` は Webview の postMessage に写す
@@ -66,6 +66,7 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 ## 理由
 
 - 入口が増えても `core/commands` を 1 回書けば済む。CLI と UI と MCP で振る舞いがずれない
+- CLI だけの操作も判定を core に置くのは、入口にロジックを書かない決まりを例外にも通すため。Skill の古さの判定は拡張とほかのコマンドの警告も使い、導入の確かめは画面のチェックリストも使うので、入口ごとに持つと食い違う
 - 依存を一方向にすれば、Core を単体でテストでき、VS Code や HTTP の都合が Core に入らない
 - 最初から 10 パッケージに分けると、境界をまたぐ型と設定が増え、変更のたびに複数パッケージを触る。モジュールの境界を先に決めておけば、切り出しは後からできる
 - Adapter と Action を Core の境界として先に型だけ決めるのは、最初のデータモデル（Run・Workflow の `steps`）がそれに依存するため
