@@ -88,6 +88,7 @@ import {
   autoRecheck,
   buildSetupView,
   type DgCommandFacts,
+  heldSetupBoard,
   setupCommands,
   supportedPlatform,
 } from "./setup.js";
@@ -142,6 +143,11 @@ const setupViews = new Map<string, SetupView>();
  * 左パネルが確かめるたびに伝えてくる（readSetup）。推奨だけが欠けている間の自動の確かめ直しをやめるのに使う（setup.ts の autoRecheck）
  */
 const setupBandDismissed = new Set<string>();
+/**
+ * 人がボードの項目で指定したデータの置き場所（鍵は folderKey。なければコードのリモート）。指定し直した画面だけが伝え（readSetup）、
+ * 左パネルとエディタのパネルの確かめ直しとボタンの dg init が同じ指定を使う（setup.ts の heldSetupBoard）
+ */
+const setupBoards = new Map<string, SetupBoardSource>();
 /** フォルダごとの、導入のチェックリストを確かめ直すための見張り（watchSetup） */
 const setupWatchers = new Map<string, vscode.Disposable>();
 /** サイドバーがまだ描かれていないときに出す画面。サイドバーを開いて作るときの初期ルートにする */
@@ -509,6 +515,7 @@ export function deactivate(): void {
   }
   setupViews.clear();
   setupBandDismissed.clear();
+  setupBoards.clear();
   clients.clear();
   idIndexes.clear();
   idIndexFailedAt.clear();
@@ -573,16 +580,21 @@ function folderKey(folder: vscode.WorkspaceFolder | undefined): string {
  * 確かめたついでに、人がターミナルで直したことを拾う見張りを張る（watchSetup）。必須を満たさない間は、データ worktree ができるのを待つ見張りも
  * 張り直す（git init の前は張れないので。watchData → watchInit）。
  * bandDismissed は左パネルが伝える、人が推奨の項目の帯を出さないと決めているか（エディタのパネルは伝えないので、前の値のまま）。
- * board は、人がボードの項目で指定したデータの置き場所（dg init 前のボードを、コードのリモートの代わりにそこで確かめる）
+ * board は、人がボードの項目で指定し直したデータの置き場所（null はコードのリモートに戻した）。フォルダごとに持ち（setupBoards）、
+ * 送らない画面（エディタのパネル）の確かめ直しにも使って、dg init 前のボードをコードのリモートの代わりにそこで確かめる。
+ * 返す結果には確かめた指定を付け、画面が同じ指定を見せる
  */
 async function readSetup(
   folder: vscode.WorkspaceFolder | undefined,
   bandDismissed?: boolean,
-  board?: SetupBoardSource,
+  sent?: SetupBoardSource | null,
 ): Promise<SetupView> {
   const key = folderKey(folder);
   if (bandDismissed === true) setupBandDismissed.add(key);
   else if (bandDismissed === false) setupBandDismissed.delete(key);
+  const board = heldSetupBoard(setupBoards.get(key), sent);
+  if (board) setupBoards.set(key, board);
+  else setupBoards.delete(key);
   const cwd = folder?.uri.fsPath;
   const core =
     cwd !== undefined && supportedPlatform(process.platform)
@@ -593,13 +605,17 @@ async function readSetup(
           dataBranch: board?.dataBranch,
         })
       : undefined;
-  const view = buildSetupView({
-    folder: cwd,
-    platform: process.platform,
-    core,
-    dg: folder && core?.ready ? await dgCommandFacts(folder) : undefined,
-  });
-  setupViews.set(key, view);
+  const view: SetupView = {
+    ...buildSetupView({
+      folder: cwd,
+      platform: process.platform,
+      core,
+      dg: folder && core?.ready ? await dgCommandFacts(folder) : undefined,
+    }),
+    board: board ?? null,
+  };
+  // 確かめている間に別の画面が指定し直したら、古い指定の結果でフォルダの結果を上書きしない（指定し直した画面の確かめが入れる）
+  if (setupBoards.get(key) === board) setupViews.set(key, view);
   if (folder) {
     watchSetup(folder, view);
     if (!view.ready) void watchData(folder, clientFor(folder));
@@ -673,7 +689,8 @@ function postSetup(): void {
 
 /**
  * チェックリストのボタンの操作（UI-12）。フォルダを開く・dg コマンドを入れるほかは、deguboard のターミナルでコマンドを実行する。
- * 流すコマンドは setup.ts の setupCommands が決める（dg init には、人がボードの項目で指定したデータの置き場所 board を渡す）
+ * 流すコマンドは setup.ts の setupCommands が決める（dg init には、人がボードの項目で指定したデータの置き場所 board を渡す。
+ * 画面が送らなければ、フォルダごとに持つ指定 setupBoards を渡す）
  */
 async function setupAct(
   context: vscode.ExtensionContext,
@@ -690,7 +707,8 @@ async function setupAct(
     return;
   }
   if (!folder) return;
-  const commands = setupCommands(act, setupViews.get(folderKey(folder)), board);
+  const key = folderKey(folder);
+  const commands = setupCommands(act, setupViews.get(key), board ?? setupBoards.get(key));
   if (commands.length > 0) await runInSetupTerminal(context, folder, commands);
 }
 
@@ -1072,6 +1090,7 @@ function forgetFolder(folder: vscode.WorkspaceFolder): void {
   }
   setupViews.delete(key);
   setupBandDismissed.delete(key);
+  setupBoards.delete(key);
   watchStarting.delete(key);
   panels.get(key)?.dispose();
   panels.delete(key);

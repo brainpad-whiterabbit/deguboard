@@ -157,9 +157,10 @@ export interface WebviewActions {
   ): TerminalSendResult | void | Promise<TerminalSendResult | void>;
   /**
    * 導入のチェックリスト（UI-12）を確かめ直して返す。bandDismissed は、推奨の項目の帯を出す画面が伝える、
-   * 人が帯を「このリポジトリでは出さない」にしているか（帯を出さない画面からは undefined）
+   * 人が帯を「このリポジトリでは出さない」にしているか（帯を出さない画面からは undefined）。
+   * board は、人がボードの項目で指定し直したデータの置き場所（null はコードのリモートに戻した。undefined は拡張が持つ指定のまま）
    */
-  setup(bandDismissed?: boolean, board?: SetupBoardSource): SetupView | Promise<SetupView>;
+  setup(bandDismissed?: boolean, board?: SetupBoardSource | null): SetupView | Promise<SetupView>;
   /**
    * チェックリストのボタンの操作（フォルダを開く・deguboard のターミナルで実行する・dg コマンドを入れる）。失敗は拡張が通知する。
    * board は、人がボードの項目で指定したデータの置き場所（init・newBoard の dg init に渡す）
@@ -217,9 +218,12 @@ export async function handleRequest(
   }
 }
 
-/** setup・setupAct の board（省いてよい）。データのリモートは空でない文字列、ブランチは省くか文字列 */
-function isBoardSource(value: unknown): boolean {
-  if (value === undefined) return true;
+/**
+ * setup・setupAct の board（省いてよい）。データのリモートは空でない文字列、ブランチは省くか文字列。
+ * null（コードのリモートに戻した）は setup だけが送る（orNull）
+ */
+function isBoardSource(value: unknown, orNull = false): boolean {
+  if (value === undefined || (orNull && value === null)) return true;
   if (typeof value !== "object" || value === null) return false;
   const m = value as { dataRemote?: unknown; dataBranch?: unknown };
   return (
@@ -245,7 +249,7 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
         const m = v as { bandDismissed?: unknown; board?: unknown };
         return (
           (m.bandDismissed === undefined || typeof m.bandDismissed === "boolean") &&
-          isBoardSource(m.board)
+          isBoardSource(m.board, true)
         );
       }
       if (v.name === "setupAct") {

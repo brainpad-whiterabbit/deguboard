@@ -187,6 +187,20 @@ export function autoRecheck(view: SetupView | undefined, bandDismissed: boolean)
 }
 
 /**
+ * フォルダごとに持つ、人がボードの項目で指定したデータの置き場所を、画面の setup の要求で更新した値（undefined はコードのリモート）。
+ * 指定し直した画面だけが board を送り（null はコードのリモートに戻した）、送らない画面は持っている指定のまま確かめる。
+ * 左パネルとエディタのパネルは別々の画面で、確かめた結果はフォルダごとに 1 つ（autoRecheck が読む）なので、指定を持たないパネルの
+ * 確かめ直し（dg init の前は、パネルも一覧を読めずにチェックリストを出す）が、左パネルの指定で確かめた結果を上書きしないように
+ */
+export function heldSetupBoard(
+  held: SetupBoardSource | undefined,
+  sent: SetupBoardSource | null | undefined,
+): SetupBoardSource | undefined {
+  if (sent === undefined) return held;
+  return sent ?? undefined;
+}
+
+/**
  * 「Skill と hooks を入れる」ボタンが流すコマンド。最後に確かめた項目の直すコマンド（core が返す）から、--force の付くもの
  * （手を加えた Skill を上書きする）を除く。上書きは人がコマンドを見て自分で打つ。確かめた結果がなければ、どちらも入れる
  */

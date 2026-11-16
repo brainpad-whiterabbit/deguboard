@@ -36,7 +36,7 @@ export interface WebviewClient extends SetupClient {
   /**
    * 導入のチェックリストを確かめ直してもらう（UI-12）。拡張ホストが dg setup check の項目に、フォルダ・OS・dg コマンドを足して返す。
    * bandDismissed は、推奨の項目の帯を出す画面が、人が帯を出さないと決めているかを伝える（store.tsx の readSetup）。
-   * board は、人がボードの項目で指定したデータの置き場所
+   * board は、人がボードの項目で指定し直したデータの置き場所（null はコードのリモートに戻した。付けなければ拡張ホストが持つ指定のまま）
    */
   setup(options?: SetupOptions): Promise<SetupView>;
   /**
@@ -111,7 +111,7 @@ export function createWebviewClient(
     async setup(options): Promise<SetupView> {
       const dismissed = options?.bandDismissed;
       const flag = dismissed === undefined ? {} : { bandDismissed: dismissed };
-      const board = options?.board ? { board: options.board } : {};
+      const board = options?.board === undefined ? {} : { board: options.board };
       return (await send({ kind: "action", name: "setup", ...flag, ...board })).data as SetupView;
     },
     async setupAct(act: SetupAction, board?: SetupBoardSource): Promise<void> {

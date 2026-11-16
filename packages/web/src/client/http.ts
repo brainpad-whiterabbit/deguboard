@@ -31,11 +31,12 @@ type Envelope<T> =
 
 /**
  * 確かめるときに付けるもの。board は人がボードの項目で指定したデータの置き場所（dg init 前のボードをそこで確かめる）。
- * bandDismissed は Webview だけが拡張ホストに伝える（client/webview.ts）
+ * bandDismissed は Webview だけが拡張ホストに伝える（client/webview.ts）。board の null は人がコードのリモートに戻したことで、
+ * 指定をフォルダごとに持つ拡張ホストにだけ意味がある（dg serve は指定を持たないので、付けないのと同じ）
  */
 export interface SetupOptions {
   bandDismissed?: boolean | undefined;
-  board?: SetupBoardSource | undefined;
+  board?: SetupBoardSource | null | undefined;
 }
 
 /** 導入のチェックリスト（UI-12）を確かめ直して返す口を持つ CommandClient。dg serve と Webview の両方の実装が持つ */

@@ -44,6 +44,11 @@ export interface SetupView {
   items: SetupViewItem[];
   /** 確かめたフォルダ（git init する場所として見せる）。フォルダを開いていなければ null */
   cwd: string | null;
+  /**
+   * ボードを確かめたデータの置き場所。人の指定をフォルダごとに持つ入口（VS Code 拡張）だけが付け、null はコードのリモート。
+   * 左パネルとエディタのパネルが同じ指定で確かめ、同じ指定を見せるのに使う。持たない入口（dg serve）は付けない
+   */
+  board?: SetupBoardSource | null | undefined;
 }
 
 /**
@@ -113,7 +118,9 @@ export function setupViewOf(result: SetupCheckResult, cwd: string): SetupView {
  * setup は導入のチェックリストを確かめ直して返す（応答の data は SetupView）。setupAct はチェックリストのボタンの操作（SetupAction）を頼む（UI-12）。
  * setup の bandDismissed は、推奨の項目の帯を出す画面（左パネル）が、人が帯を「このリポジトリでは出さない」にしているかを伝える
  * （拡張ホストが、推奨だけが欠けている間の自動の確かめ直しをやめる）。帯を出さない画面は付けない。
- * setup と setupAct の board は、人がボードの項目で指定したデータの置き場所（SetupBoardSource）。setup はそこを確かめ、setupAct の init・newBoard は dg init に渡す
+ * setup と setupAct の board は、人がボードの項目で指定したデータの置き場所（SetupBoardSource）。setup はそこを確かめ、setupAct の init・newBoard は dg init に渡す。
+ * 拡張ホストは setup の指定をフォルダごとに持ち、board を付けない setup・setupAct にも使う。setup の board の null は、人がコードのリモートを
+ * 選び直したこと（持っている指定を消す）
  */
 export type WebviewRequest =
   | { id: number; kind: "run"; name: string; input: unknown }
@@ -127,7 +134,7 @@ export type WebviewRequest =
       kind: "action";
       name: "setup";
       bandDismissed?: boolean | undefined;
-      board?: SetupBoardSource | undefined;
+      board?: SetupBoardSource | null | undefined;
     }
   | {
       id: number;

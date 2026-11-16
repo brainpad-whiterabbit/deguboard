@@ -4,11 +4,11 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App, INFO_NOTICE_MS } from "./app.js";
 import { PICK_SETTLE_MS } from "./components/inline-edit.js";
-import { ClientError } from "./client/http.js";
+import { ClientError, type SetupOptions } from "./client/http.js";
 import { formatShortTime } from "./components/date-time.js";
 import { formatTime } from "./components/timeline.js";
 import type { WebviewClient } from "./client/webview.js";
-import type { WebviewEvent } from "@deguboard/core";
+import type { SetupBoardSource, WebviewEvent } from "@deguboard/core";
 import { HostBridge, HostProvider, showsSetupBand, type Host } from "./host.js";
 import type { Route } from "./router.js";
 import { StoreProvider } from "./store.js";
@@ -1407,26 +1407,43 @@ describe("画面", () => {
     expect(client.calls.filter((c) => c.name === "ticket.list").length).toBe(lists);
   });
 
-  it("パネルを開いている間も、左パネルが別のリポジトリのボードを指定して確かめた結果を、パネルが setup の event で上書きしない", async () => {
+  it("dg init の前でチェックリストを出しているエディタのパネルは、setup の event で、左パネルが指定した別のリポジトリのボードのまま確かめ直し、指定を上書きしない", async () => {
     const client = boardClient();
+    const notInitialized = () => {
+      throw new ClientError({ code: "NOT_INITIALIZED", message: "初期化されていない" });
+    };
+    client.handlers["config.show"] = notInitialized;
+    client.handlers["ticket.list"] = notInitialized;
     const board = { dataRemote: "git@github.com:team/kanban.git", dataBranch: "deguboard" };
-    // 拡張ホストはフォルダごとに最後に確かめた結果を 1 つ持つ（extension.ts の setupViews）。左パネルがボードを指定して確かめた後の状態から始める
-    let held: { board?: unknown } | undefined = { board };
-    const setup = vi.fn(async (options?: { board?: unknown }) => {
-      held = options;
-      return setupView();
+    // 拡張ホストを写す：ボードの指定をフォルダごとに持ち（extension.ts の setupBoards）、board を付けない要求にはその指定で確かめる。
+    // 左パネルがボードを指定して確かめた後の状態から始める
+    let held: SetupBoardSource | undefined = board;
+    const checkedWith: (SetupBoardSource | undefined)[] = [];
+    const setup = vi.fn(async (options?: SetupOptions) => {
+      if (options?.board !== undefined) held = options.board ?? undefined;
+      checkedWith.push(held);
+      const fix = [`dg init --data-remote ${board.dataRemote} --data-branch deguboard`];
+      return {
+        ...setupView({ board: { status: "unmet", state: "remote_board", fix } }),
+        board: held ?? null,
+      };
     });
     client.setup = setup;
     window.location.hash = "#/tickets/t1";
     const send = mountWithBridge(client, { readRunning: false, host: extensionHost("panel") });
-    await waitFor(() => expect(client.calls.some((c) => c.name === "ticket.list")).toBe(true));
-    await act(async () => {});
-    // 見張りが続けて setup の event を送っても（ファイルの変化・ターミナルの実行の終わり）、パネルは確かめに行かない
+    expect(await screen.findByRole("heading", { name: "deguboard を始める" })).toBeTruthy();
+    // 見張りが続けて setup の event を送る（ファイルの変化・ターミナルの実行の終わり）。チェックリストを出しているので確かめ直す
     act(() => send()({ kind: "event", name: "setup" }));
+    await waitFor(() => expect(setup).toHaveBeenCalledTimes(2));
     act(() => send()({ kind: "event", name: "setup" }));
+    await waitFor(() => expect(setup).toHaveBeenCalledTimes(3));
     await act(async () => {});
-    expect(setup).not.toHaveBeenCalled();
-    expect(held).toEqual({ board });
+    // パネルはボードの指定を送らない（指定なしで消さない）ので、どの確かめも左パネルの指定で行い、指定は残る
+    expect(setup.mock.calls.every(([options]) => options?.board === undefined)).toBe(true);
+    expect(checkedWith).toEqual([board, board, board]);
+    expect(held).toEqual(board);
+    // パネルも同じ指定を見せ、ボタンの dg init にも渡す
+    expect(screen.getByText("確かめたデータのリポジトリ")).toBeTruthy();
   });
 
   it("拡張ホストから toggle の event が来ると、設定画面と来る前の画面を切り替える（ビューのタイトル行の歯車）", async () => {
