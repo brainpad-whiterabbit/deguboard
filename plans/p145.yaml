@@ -9,7 +9,7 @@ after:
   t1018:
     - t1015
     - t1017
-pending_approval: true
+pending_approval: false
 details:
   t1013:
     scope: Only the 4 negative assertions on warnings and any other Japanese-string negatives on warnings in tests; no change to warning wording
@@ -43,3 +43,5 @@ details:
     scope: Bump @types/vscode to the 1.123 line only
     approach: Update packages/vscode/package.json and the lockfile with mise tasks, then run typecheck and the VS Code tests
     tier: light
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-16T00:01:27Z
