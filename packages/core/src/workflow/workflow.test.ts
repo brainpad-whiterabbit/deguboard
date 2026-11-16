@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ACTORS, BOUNDARIES, DECISIONS, WORKFLOW_ITEMS } from "../model/workflow.js";
+import {
+  ACTORS,
+  BOUNDARIES,
+  DECISIONS,
+  FLOW_BUNDLED_STAGES,
+  WORKFLOW_ITEMS,
+} from "../model/workflow.js";
 import { STATUSES, type Status } from "../model/common.js";
 import { evaluateCondition, judgeDecision, judgeDecisions, parseCondition } from "./conditions.js";
 import { RECONCILE_TRIGGERS, reconcileStatus, regressionWarnings } from "./reconcile.js";
@@ -474,8 +480,7 @@ describe("定義の検証（WF-3）", () => {
       { wip: { qa: 2 } },
       { states: { review: { name: "R" } } },
       { flow: { assign: "everyone" } },
-      { flow: { deploy: { decide: "always_ask", after: "deploy-first", guide: "docs/d.md" } } },
-      { flow: { deploy: { decide: "always_ask", after: "audit" } } },
+      // 独自の段階の形の誤りは、形の誤りに名指しの指摘が付く（下の after のテスト）
       { states: [] },
     ]) {
       const { issues, workflow } = validateWorkflow(raw, "workflow.yaml");
@@ -510,6 +515,59 @@ describe("定義の検証（WF-3）", () => {
     expect(found({ flow: { skip: "retro" } })).toEqual([["workflow_schema", "error"]]);
     expect(found({ flow: { skip: ["nope"] } })).toEqual([["workflow_flow_skip", "error"]]);
     expect(found({ flow: { assign: ["retro"] } })).toEqual([["workflow_flow_stage", "error"]]);
+  });
+
+  it("独自の段階の after に書けるのは同梱の段階（work を含む）だけで、decide・after・guide の誤りを名指しで指摘する", () => {
+    const stage = (over: Record<string, unknown>) => ({
+      flow: {
+        "deploy-staging": {
+          decide: "always_ask",
+          after: "audit",
+          guide: "docs/deploy.md",
+          ...over,
+        },
+        verify: { decide: "anyone", after: "work", guide: "docs/verify.md" },
+      },
+    });
+    const messages = (raw: unknown) =>
+      validateWorkflow(raw, "workflow.yaml")
+        .issues.filter((i) => i.code === "workflow_flow_stage")
+        .map((i) => i.message);
+    for (const after of FLOW_BUNDLED_STAGES) expect(found(stage({ after })), after).toEqual([]);
+    // 独自の段階の名前・dg flow next が返すほかの名前（close・stop）・知らない名前は書けない
+    for (const after of ["verify", "close", "stop", "nope", 1]) {
+      const { issues, workflow } = validateWorkflow(stage({ after }), "workflow.yaml");
+      expect(workflow, String(after)).toBeUndefined();
+      expect(issues.map((i) => [i.code, i.severity])).toEqual([
+        ["workflow_schema", "error"],
+        ["workflow_flow_stage", "error"],
+      ]);
+      expect(issues[1]!.message).toContain(
+        "flow.deploy-staging.after: write one of the bundled stages (assign, check, plan, work, audit, release, retro)",
+      );
+    }
+    expect(messages(stage({ decide: "sometimes" }))).toEqual([
+      "flow.deploy-staging.decide: write one of human_only, always_ask, ask_unless_auto, anyone, agent_only",
+    ]);
+    expect(messages(stage({ guide: "" }))).toEqual([
+      "flow.deploy-staging.guide: write the path of the document of the stage's steps, relative to the repository",
+    ]);
+    expect(messages({ flow: { "deploy-staging": { decide: "always_ask" } } })).toEqual([
+      "flow.deploy-staging: your own stage needs after, guide",
+    ]);
+    // 形の正しい Workflow には足さない
+    expect(messages(stage({}))).toEqual([]);
+  });
+
+  it("独自の段階の名前は小文字・数字・- だけで、dg flow next が自分で返す close・stop は使えない", () => {
+    const custom = { decide: "always_ask", after: "work", guide: "docs/flow/deploy.md" };
+    for (const name of ["deploy-staging", "deploy2", "2nd-check", "a"])
+      expect(found({ flow: { [name]: custom } }), name).toEqual([]);
+    // 先頭の - も受けない（dg checkpoint <名前> でオプションと読まれる）
+    for (const name of ["Deploy", "deploy_staging", "deploy staging", "-deploy", "デプロイ", "a.b"])
+      expect(found({ flow: { [name]: custom } }), name).toEqual([["workflow_flow_stage", "error"]]);
+    for (const name of ["close", "stop"])
+      expect(found({ flow: { [name]: custom } }), name).toEqual([["workflow_flow_stage", "error"]]);
   });
 });
 

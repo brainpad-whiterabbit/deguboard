@@ -204,6 +204,8 @@ export interface Operation {
   move?: { from: Status; to: Status } | undefined;
   fixed?: CoreFixedOperation | undefined;
   stage?: FlowDecidedStage | undefined;
+  /** 独自の段階の名前（関所 dg checkpoint <段階> が付ける）。値は workflow.yaml のその段階の decide */
+  customStage?: string | undefined;
   governs?: GovernanceOperation | undefined;
 }
 
@@ -304,6 +306,16 @@ export function coreFixedPolicy(op: Operation): OperationPolicy | undefined {
 }
 
 function flowPolicy(wf: ResolvedWorkflow, op: Operation): OperationPolicy | undefined {
+  if (op.customStage !== undefined) {
+    const custom = wf.flow.custom.find((c) => c.id === op.customStage);
+    return {
+      source: "flow",
+      name: `flow.${op.customStage}.decide`,
+      // 定義にない段階は人だけにする（誰でもできる方針に落とさない。dg checkpoint は定義にない名前を先に断る）
+      decisions: [custom?.decide ?? "human_only"],
+      requires: [],
+    };
+  }
   if (!op.stage) return undefined;
   return {
     source: "flow",

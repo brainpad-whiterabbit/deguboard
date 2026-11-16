@@ -4,6 +4,7 @@ import { z } from "zod";
 import { STATUSES } from "../model/common.js";
 import {
   BOUNDARIES,
+  DECISIONS,
   FLOW_BUNDLED_STAGES,
   FLOW_DECIDED_STAGES,
   FLOW_SKIP_KEY,
@@ -21,8 +22,14 @@ export interface WorkflowValidation {
   issues: Issue[];
 }
 
-/** 独自の段階の名前。小文字・数字・`-` */
+/** 独自の段階の名前。小文字・数字・`-`。先頭の `-` は受けない（dg checkpoint <名前> でオプションと読まれる） */
 const STAGE_NAME = /^[a-z0-9][a-z0-9-]*$/;
+
+/**
+ * 独自の段階に使えない名前。dg flow next が同梱の段階のほかに返す名前（終わった Plan を閉じる close と、止まる stop）で、
+ * 独自の段階に使うと、流れを回す側（guide all）が止まる手と見分けられない
+ */
+const RESERVED_STAGE_NAMES: readonly string[] = ["close", "stop"];
 
 /** 生の値（YAML を読んだもの）を検証し、使える形にする。致命的でない指摘でも workflow は返す */
 export function validateWorkflow(raw: unknown, path: string): WorkflowValidation {
@@ -37,6 +44,12 @@ export function validateWorkflow(raw: unknown, path: string): WorkflowValidation
           message: "The Workflow definition has the wrong shape",
           detail: z.prettifyError(parsed.error),
         },
+        ...customStageProblems(raw).map((message): Issue => ({
+          severity: "error",
+          code: "workflow_flow_stage",
+          path,
+          message,
+        })),
       ],
     };
   }
@@ -88,8 +101,40 @@ export function validateWorkflow(raw: unknown, path: string): WorkflowValidation
 }
 
 /**
+ * 形の誤りのうち、独自の段階（flow の中の、decide・after・guide を持つ項目）の誤りを名指しで返す。
+ * 形の検査（workflow_schema）は flow の値を 3 つの形の和で見るので、どの鍵が違うかを言えない（「Invalid input at flow.<名前>」になる）。
+ * after に書けるのは同梱の段階（work を含む）だけで、独自の段階の名前は書けない
+ */
+function customStageProblems(raw: unknown): string[] {
+  const flow = (raw as { flow?: unknown } | null)?.flow;
+  if (flow === null || typeof flow !== "object" || Array.isArray(flow)) return [];
+  const bundled: readonly string[] = FLOW_BUNDLED_STAGES;
+  const decisions: readonly string[] = DECISIONS;
+  const problems: string[] = [];
+  for (const [key, value] of Object.entries(flow)) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) continue;
+    const stage = value as Record<string, unknown>;
+    const missing = ["decide", "after", "guide"].filter((k) => stage[k] === undefined);
+    if (missing.length > 0)
+      problems.push(`flow.${key}: your own stage needs ${missing.join(", ")}`);
+    if (stage.decide !== undefined && !decisions.includes(stage.decide as string))
+      problems.push(`flow.${key}.decide: write one of ${decisions.join(", ")}`);
+    if (stage.after !== undefined && !bundled.includes(stage.after as string))
+      problems.push(
+        `flow.${key}.after: write one of the bundled stages (${bundled.join(", ")}). A stage of your own cannot come after another stage of your own; stages with the same after run in the order written`,
+      );
+    if (stage.guide !== undefined && (typeof stage.guide !== "string" || stage.guide === ""))
+      problems.push(
+        `flow.${key}.guide: write the path of the document of the stage's steps, relative to the repository`,
+      );
+  }
+  return problems;
+}
+
+/**
  * flow の鍵ごとの検査。同梱の段階は権限の値、独自の段階は decide・after・guide、skip は段階の名前のリスト。
- * 独自の段階の guide の文書があるかは見ない（リポジトリの中のパスで、データの側からは読めない）
+ * 独自の段階の decide・after・guide の形（after が同梱の段階か）は形の検査が見て、customStageProblems が名指しで返す。
+ * 独自の段階の guide の文書があるかは見ない（リポジトリの中のパスで、データの側からは読めない。読めなければ dg flow next が警告する）
  */
 function validateFlow(
   def: WorkflowDefinition,
@@ -117,6 +162,11 @@ function validateFlow(
       issue("workflow_flow_stage", `flow.${key}: the ${key} stage has no value to set`);
     } else if (!STAGE_NAME.test(key)) {
       issue("workflow_flow_stage", `flow.${key}: a stage name is lowercase letters, digits and -`);
+    } else if (RESERVED_STAGE_NAMES.includes(key)) {
+      issue(
+        "workflow_flow_stage",
+        `flow.${key}: ${key} is a stage name that dg flow next returns itself, so your own stage cannot use it`,
+      );
     } else if (typeof value === "string") {
       issue(
         "workflow_flow_stage",

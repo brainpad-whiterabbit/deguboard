@@ -165,4 +165,42 @@ describe("dg checkpoint は段階の値で判定し、通ったら Iteration の
     for (const stage of ["plan", "work", "deploy"])
       expect(await rejected(pass(human, stage))).toMatchObject({ code: "INVALID_INPUT" });
   });
+
+  it("独自の段階の関所は、workflow.yaml のその段階の decide で判定し、根拠のない記録を足す。定義にない名前は受けない", async () => {
+    const { human, agent, workflow, subject, records, pass } = await humanAndAgent();
+    await workflow(
+      "flow:",
+      "  deploy-staging: { decide: always_ask, after: audit, guide: docs/deploy.md }",
+      "  notify: { decide: human_only, after: release, guide: docs/notify.md }",
+    );
+    // always_ask：--auto でも承認が要る
+    for (const input of [{}, { auto: true }])
+      expect(await rejected(pass(agent, "deploy-staging", input))).toMatchObject({
+        code: "TRANSITION_REJECTED",
+      });
+    expect(await rejected(pass(agent, "deploy-staging"))).toMatchObject(
+      asks("deploy-staging", "flow.deploy-staging.decide: always_ask"),
+    );
+    expect(await rejected(pass(agent, "notify", { approved_by: "human" }))).toMatchObject(
+      limits("notify", "flow.notify.decide: human_only"),
+    );
+    expect(records()).toEqual([]);
+    const deploy = await pass(agent, "deploy-staging", { approved_by: "human" });
+    expect(deploy).toMatchObject({ stage: "deploy-staging", iteration: "s1", local: false });
+    expect(deploy.checkpoint).toEqual({
+      name: "deploy-staging",
+      at: toIsoDateTime(NOW),
+      by: "claude/agent",
+      approved_by: "claude",
+    });
+    expect(await subject()).toBe("Checkpoint deploy-staging of s1 (approved by claude)");
+    const notify = await pass(human, "notify");
+    expect(records()).toEqual([deploy.checkpoint, notify.checkpoint]);
+    // 定義にない名前は、使える名前を添えて断る
+    expect(await rejected(pass(human, "deploy"))).toMatchObject({
+      code: "INVALID_INPUT",
+      message:
+        "No stage deploy has a checkpoint. Use one of: assign / check / audit / release / retro / deploy-staging / notify",
+    });
+  });
 });

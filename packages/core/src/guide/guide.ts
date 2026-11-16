@@ -1,5 +1,5 @@
 // guide の本文（guide-*.md・同じフォルダ）の読み込み（ADR-030）。frontmatter の分離・{{choices}} と推薦の指標の表（{{recommended_metrics}}）の差し込み・config の値の埋め込み・
-// guide.notes の文書の差し込みと、節の本文の取り出しを Core が行う。dg guide（CLI）・dg next・dg brief・dg flow next はここを写す。
+// guide.notes の文書の差し込みと、節の本文の取り出しと、独自の段階の手順の文書の読み込みを Core が行う。dg guide（CLI）・dg next・dg brief・dg flow next はここを写す。
 // 読む場所は import.meta.url からの相対。ビルドでは core の dist/ に guide-*.md をコピーし（root の package.json の build）、
 // 束ねた拡張（VS Code）は bundle（dist/extension.cjs）の隣に置く（packages/vscode/package.json の build）。ずれると読めないので両方を直す。
 // 拡張に同梱した CLI（dist/cli/dg.mjs）は、同じ dist/ の本文を bundleLayout の guideDir から読む（二重に入れない）
@@ -117,10 +117,56 @@ function hasHeadingOutsideCode(content: string): boolean {
   return false;
 }
 
+/** リポジトリの文書を読んだ結果。読めなければ、理由（problem）と直し方（hint）を返す */
+type RepoDocument = { content: string } | { problem: string; hint?: string };
+
 /**
- * config の guide.notes.<topic> のファイルを読む。パスはリポジトリの最上位（repoTop）からの相対パスで、
- * リポジトリの外・読めないファイル・通常のファイルでないもの・大きすぎるファイル・見出し（#）を含むファイルは差し込まず、警告を返す（guide は出す）。
- * 外かどうかは symlink をたどった先の実体パスで判定する（リポジトリ内の symlink から外の秘密を読ませないため。config と symlink は Git で共有される）
+ * リポジトリの文書（guide.notes の文書と、独自の段階の手順の文書）を読む。パスはリポジトリの最上位（repoTop）からの相対パスで、
+ * リポジトリの外・読めないファイル・通常のファイルでないもの・大きすぎるファイルは読まず、理由を返す。
+ * 外かどうかは symlink をたどった先の実体パスで判定する（リポジトリ内の symlink から外の秘密を読ませないため。config・workflow.yaml と symlink は Git で共有される）
+ */
+async function readRepoDocument(rel: string, repoTop: string): Promise<RepoDocument> {
+  if (isAbsolute(rel)) {
+    return {
+      problem: `${rel} is outside the repository`,
+      hint: "write a path relative to the repository",
+    };
+  }
+  const unreadable = { problem: `file ${rel} cannot be read` };
+  const top = await realpath(repoTop).catch(() => resolve(repoTop));
+  const real = await realpath(resolve(top, rel)).catch(() => undefined);
+  if (real === undefined) return unreadable;
+  const inside = relative(top, real);
+  if (inside === "") {
+    return { problem: `${rel} is the repository root`, hint: "write a file path" };
+  }
+  if (inside.split(sep)[0] === ".." || isAbsolute(inside)) {
+    return {
+      problem: `${rel} is outside the repository`,
+      hint: "write a path relative to the repository; symlink targets are checked too",
+    };
+  }
+  const info = await stat(real).catch(() => undefined);
+  if (info === undefined) return unreadable;
+  if (!info.isFile()) return { problem: `file ${rel} is not a regular file` };
+  if (info.size > NOTES_MAX_BYTES) {
+    return { problem: `file ${rel} is over ${NOTES_MAX_BYTES / 1024} KiB` };
+  }
+  const content = await readFile(real, "utf8").catch(() => undefined);
+  return content === undefined ? unreadable : { content };
+}
+
+/** 読めなかった文書の警告。key は設定の場所、consequence は読めなかった結果（差し込まない・手順なしで返す） */
+function documentWarning(
+  key: string,
+  doc: { problem: string; hint?: string },
+  consequence: string,
+): string {
+  return `${key} ${doc.problem}, so ${consequence}${doc.hint === undefined ? "" : ` (${doc.hint})`}`;
+}
+
+/**
+ * config の guide.notes.<topic> のファイルを読む。読めないファイル（readRepoDocument）と見出し（#）を含むファイルは差し込まず、警告を返す（guide は出す）
  */
 export async function readGuideNotes(
   topic: string,
@@ -130,36 +176,40 @@ export async function readGuideNotes(
   const rel = (config.guide.notes as Record<string, string | undefined>)[topic] ?? "";
   if (rel.trim() === "") return { text: "", warnings: [] };
   const key = `guide.notes.${topic}`;
-  const warn = (message: string): GuideNotes => ({ text: "", warnings: [`${key} ${message}`] });
-  if (isAbsolute(rel)) {
-    return warn(
-      `${rel} is outside the repository, so it is not inserted (write a path relative to the repository)`,
-    );
+  const doc = await readRepoDocument(rel, repoTop);
+  if (!("content" in doc)) {
+    return { text: "", warnings: [documentWarning(key, doc, "it is not inserted")] };
   }
-  const top = await realpath(repoTop).catch(() => resolve(repoTop));
-  const real = await realpath(resolve(top, rel)).catch(() => undefined);
-  if (real === undefined) return warn(`file ${rel} cannot be read, so it is not inserted`);
-  const inside = relative(top, real);
-  if (inside === "") {
-    return warn(`${rel} is the repository root, so it is not inserted (write a file path)`);
+  if (hasHeadingOutsideCode(doc.content)) {
+    return {
+      text: "",
+      warnings: [`${key} file ${rel} has a heading (#), so it is not inserted. Remove the heading`],
+    };
   }
-  if (inside.split(sep)[0] === ".." || isAbsolute(inside)) {
-    return warn(
-      `${rel} is outside the repository, so it is not inserted (write a path relative to the repository; symlink targets are checked too)`,
-    );
-  }
-  const info = await stat(real).catch(() => undefined);
-  if (info === undefined) return warn(`file ${rel} cannot be read, so it is not inserted`);
-  if (!info.isFile()) return warn(`file ${rel} is not a regular file, so it is not inserted`);
-  if (info.size > NOTES_MAX_BYTES) {
-    return warn(`file ${rel} is over ${NOTES_MAX_BYTES / 1024} KiB, so it is not inserted`);
-  }
-  const content = await readFile(real, "utf8").catch(() => undefined);
-  if (content === undefined) return warn(`file ${rel} cannot be read, so it is not inserted`);
-  if (hasHeadingOutsideCode(content)) {
-    return warn(`file ${rel} has a heading (#), so it is not inserted. Remove the heading`);
-  }
-  return { text: content.trim(), warnings: [] };
+  return { text: doc.content.trim(), warnings: [] };
+}
+
+/**
+ * 独自の段階（workflow.yaml の flow の decide・after・guide）の手順の文書を読む（dg flow next が本文として返す）。
+ * 文書は書いたまま返す（見出しがあってよく、config の値は埋めない。利用者の文書の `{{…}}` を書き換えない）。
+ * 読めなければ本文を空にして警告を返し、段階は返す（guide.notes と同じ扱い。段階を落とすと、関所を通さずに次へ進んでしまう）
+ */
+export async function readStageGuide(
+  stage: { id: string; guide: string },
+  repoTop: string,
+): Promise<GuideNotes> {
+  const doc = await readRepoDocument(stage.guide, repoTop);
+  if ("content" in doc) return { text: doc.content.trim(), warnings: [] };
+  return {
+    text: "",
+    warnings: [
+      documentWarning(
+        `flow.${stage.id}.guide`,
+        doc,
+        "the stage is returned without its steps. Fix the path in workflow.yaml or add the file",
+      ),
+    ],
+  };
 }
 
 export async function readGuideMeta(topic: string): Promise<GuideMeta> {
