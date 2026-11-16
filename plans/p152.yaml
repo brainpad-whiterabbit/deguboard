@@ -8,7 +8,7 @@ after:
   t1048:
     - t1046
     - t1047
-pending_approval: true
+pending_approval: false
 details:
   t1021:
     scope: 左パネルのタイトル行とコマンドパレットからセットアップの画面を行き来でき、帯を出さないと決めたリポジトリで帯をまた出せるようにする（画面の中の見た目は t1044）
@@ -34,3 +34,5 @@ details:
     scope: t1046・t1047 の後の時間で選び直した遅いテストファイルの中で、同じ準備から同じ振る舞いを確かめるテストをまとめる
     approach: 準備を共有できるテストを 1 つにまとめ、要件 ID をすべて残し、組と理由と時間の前後を PR に載せる
     tier: standard
+approved_by: Eiki Kitajima
+approved_at: 2026-11-16T23:41:47Z
