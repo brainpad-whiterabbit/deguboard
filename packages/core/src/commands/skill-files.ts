@@ -5,7 +5,7 @@
 // dg setup check（setup-check.ts）は、Skill が入っているかと古いかを skillInstallStateOf で見る（古いかの数え方は警告と同じ staleSkillsIn）。
 // 警告と拡張は、そのうえで印の版を比べ（skillAgeOf）、今の dg より新しい版の dg が書いた Skill を古いと言わず、戻さない（ADR-030）。
 // Skill を書くのも、dg skill install と拡張で同じ writeSkillFiles を通し、リポジトリに書いた Skill の無視の行も同じ ignoreSkills で足す。
-// dg skill install の判定と書き込みと警告の組み立て（installSkill・skillInstallWarnings）もここに置き、CLI（program.ts）は引数と結果を写すだけにする（ADR-033）。
+// dg skill install の判定と書き込みと警告の組み立て（installSkill・skillInstallWarnings）もここに置き、CLI（program.ts）は引数と結果を写すだけにする（入口にロジックを書かない）。
 // 公開（commands/index.ts）は入口が呼ぶものだけにする。判定の部品（skillStateOf・skillAgeOf・findStaleSkills・staleSkillWarnings）はここのテストが直接引く。
 // Skill の組み立て（buildSkills）は guide を読むので、1 回の操作で 1 回にし、組み立てたものを部品に渡して使い回す（拡張の起動時の更新と案内も 1 回）。
 // 名前・説明・引数の案内は guide の frontmatter から、冒頭の 1 文は SKILL_SUMMARY の en から、本文は SKILL_TEMPLATE から作る。
