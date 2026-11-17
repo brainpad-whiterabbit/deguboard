@@ -242,20 +242,15 @@ export function StoreProvider({
     }
   }, [client, setupBand, bandDismissed]);
 
-  // 前に読んだ、入口が自動で取り込んだ回数（StatusView の auto_pulls）
-  const pullsSeen = useRef<number | undefined>(undefined);
-
-  /** 同期の状態を読む。前に読んだ後に入口がリモートの更新を自動で取り込んでいたら true（UI-6。呼び出し側が一覧を読み直す） */
-  const refreshStatus = useCallback(async (): Promise<boolean> => {
+  /** 同期の状態を読む。読めなければ null */
+  const refreshStatus = useCallback(async (): Promise<StatusView | null> => {
     try {
       const next = await client.status();
       setStatus(next);
-      const pulled = pullsSeen.current !== undefined && next.auto_pulls !== pullsSeen.current;
-      pullsSeen.current = next.auto_pulls;
-      return pulled;
+      return next;
     } catch {
       // 同期の状態が取れなくても画面は動かす
-      return false;
+      return null;
     }
   }, [client]);
 
@@ -356,10 +351,18 @@ export function StoreProvider({
   }, [reload]);
 
   useEffect(() => {
-    // 入口が自動で取り込んだら、新しいデータを映すために一覧を読み直す（dg serve の画面にはデータの見張りがない）。
-    // reload の中の refreshStatus は回数を覚えるだけなので、読み直しは繰り返さない
+    // 入口が自動で取り込んだら（StatusView の auto_pulls が前に見た回数から変わったら）、新しいデータを映すために一覧を読み直す
+    // （UI-6。dg serve の画面にはデータの見張りがない）。回数を覚えるのはここだけにする。reload の中の状態の読みで覚えると、
+    // 一覧の読みとその状態の読みの間に入った取り込みを見たことにしてしまい、一覧が古いまま残る。
+    // その代わり、最初の読み込みの前の取り込みと、reload が映し終えた取り込みで、1 回余計に読み直す
+    let seen = 0;
     const timer = setInterval(
-      () => void refreshStatus().then((pulled) => (pulled ? reload() : undefined)),
+      () =>
+        void refreshStatus().then((next) => {
+          if (!next || next.auto_pulls === seen) return undefined;
+          seen = next.auto_pulls;
+          return reload();
+        }),
       STATUS_POLL_MS,
     );
     return () => clearInterval(timer);

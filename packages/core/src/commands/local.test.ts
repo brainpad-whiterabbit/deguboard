@@ -144,6 +144,14 @@ describe("プロセス内の CommandClient", () => {
           await writeFile(path.join((await client.status()).data_dir, "outside.txt"), "x\n");
         },
       ],
+      [
+        // 作業ツリーは汚れず、未 push のコミットもないので、止めるのは外の変更の検査だけ
+        "dg の外で HEAD を基準より前に戻した（作業ツリーを汚さない外の変更がある）",
+        async (client) => {
+          await client.run("ticket.create", { title: "A から" });
+          await git((await client.status()).data_dir, ["reset", "-q", "--keep", "HEAD~1"]);
+        },
+      ],
     ];
   it.each(blocked)("%s ときは、fetch の後に自動で取り込まない", async (_name, prepare) => {
     const f = await initializedFixture();
