@@ -30,7 +30,7 @@ Skill は Claude Code 向けです。普通の言葉で頼むか、コマンド�
 
 Claude Code で `/dgall s3 --auto` のように Iteration かチケットを渡すと、エージェントが割り当て・計画・実装・見直し・リリースを続けて進める。作りたいものの起票はしないので、先に `/dgimport` でチケットにする。
 
-- `--auto` を付けると、カンバンの Workflow（`workflow.yaml`）の値が `ask_unless_auto` の場面だけを聞かずに進める。既定では、割り当て・点検の直し・Plan の承認・品質ゲートを通った PR のマージ。見直しの指摘、リリース、チケットをやめる・削除する、Epic・Iteration を閉じるなど、ほかの場面では止まって聞く（値は `dg workflow show`、一覧は `dg guide all`）
+- `--auto` を付けると、カンバンの Workflow（`workflow.yaml`）の値が `ask_unless_auto` の場面だけを聞かずに進める。既定では、割り当て・点検の直し・Plan の承認・品質ゲートを通った PR のマージ。見直しの指摘、リリース、チケットをやめる・削除する、Epic・Iteration を閉じるなど、ほかの場面では止まって聞く（値の見方と変え方は [Workflow](#workflow)、一覧は `dg guide all`）
 - 品質ゲートを通った PR は、エージェントがマージしてよいかを聞き、承認したときだけマージする（承認は PR に残る）。聞かずにマージするのは、`--auto` で、review → done の境目の値が `ask_unless_auto`（既定）のときだけ。品質ゲートを満たさない PR は、満たさない条件を示してそれでもマージするかを聞く。承認すれば満たさない条件を越えてマージするが、PR が開いていて下書きでないこと、base と衝突しないこと、判定したコミットをマージすることは越えられない
 - 進み具合はカンバンで見られ、計画の帯を押すと依存のグラフが出る
 - Claude Code 以外のエージェントには「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼む
@@ -46,6 +46,51 @@ PR を ready にする・マージするときに判定する条件は、チケ�
 | `free`         | PR が開いていて、衝突しないことだけ |
 
 段はチケット詳細か `dg ticket update <id> --gate <段>` で付ける。`/dgall`・`/dgwork` に `--gate-high`・`--gate-low`・`--gate-free` を付けると、対象のチケットの段を指定する（付けなければ各チケットの段のまま）。段を上げるのはその場で反映する。段を下げる（high → low → free）のは人だけができる。エージェントの呼び出しを dg が拒否するので、流れはチケットごとに `dg ticket update <id> --gate <段>` を打つよう人に頼んで待つ。条件の細部は `dg gate --help`。
+
+## Workflow
+
+カンバンの Workflow（`workflow.yaml`）は、カンバンで誰が何をしてよいかを決める。エージェントが自分で行う Status の動き、先に人に聞く場面、人だけが行えること、`--auto` で聞かずに進める段階がここで決まる。Workflow はカンバンに 1 つでチームが共有し、個人の上書きはない。設定（`config.yaml`）とは別のファイルになる。`dg init` が既定の Workflow を置き、ファイルで省いた項目（ファイルがないときはすべて）は既定になる。
+
+### 何を決めるか
+
+| 項目         | 決めること                                                                                                                                                                 |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `states`     | 5 つの Status の表示名。Status は増やせず、減らせない                                                                                                                      |
+| `boundaries` | 前へ進む 3 つの動き（todo → in_progress、in_progress → review、review → done）ごとに、求める Git の事実（`requires`）と誰が決めるか（`decide`）                            |
+| `exceptions` | 流れの外の動きを誰が行えるか：`abandon`（abandoned にする）、`back`（前の Status に戻す）、`reopen`（done から戻す）                                                       |
+| `wip`        | 列ごとのチケットの上限                                                                                                                                                     |
+| `flow`       | 流れの段階（`assign`・`check`・`plan`・`audit`・`release`・`retro`）ごとに誰が決めるか、飛ばす段階（`skip`）、独自の段階                                                   |
+| `governance` | チケットの削除（`delete`）、チームの設定の変更（`config`）、ほかの人の担当と claim の変更（`reassign`）、Epic を閉じる・再開する（`epic`）、起票（`create`）を誰が行えるか |
+
+`requires` に書ける事実は、`deps_done`（依存するチケットが done）、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`。`!pr_draft` のように前に `!` を付けると、その事実が偽であることを求める。
+
+### 値の意味
+
+`decide` と、`exceptions`・`flow`・`governance` の値は、次のどれかをとる。
+
+| 値                | 人                           | エージェント                                        |
+| ----------------- | ---------------------------- | --------------------------------------------------- |
+| `anyone`          | 行える                       | 行える                                              |
+| `ask_unless_auto` | 行える                       | 先に人に聞く。`--auto` で始めた流れでは聞かずに行う |
+| `always_ask`      | 行える                       | `--auto` でも先に人に聞く                           |
+| `human_only`      | 行える                       | 拒否される。エージェントは人が打つコマンドを示す    |
+| `agent_only`      | `--override "<理由>"` が要る | 行える                                              |
+
+エージェントが人の承認を得て行うと、dg は承認者を記録する（`dg history` で見られる）。`dg sync` が Git の事実から行う動きはエージェントの側に数える。満たさない `requires` は、人が `--override "<理由>"` で越えられる。
+
+既定では、エージェントは着手と review への移動を自分で行う。PR のマージ（review → done）、割り当て、点検の直し、Plan の承認は先に人に聞き、`--auto` ならこれらを聞かずに進める。チケットをやめる・done から戻す、見直しの指摘と振り返りの改善の起票、チームの設定の変更、ほかの人の claim の変更は、いつも先に聞く。Iteration を閉じる（リリース）、Epic を閉じる、チケットを削除するのは人だけが行える。WIP の上限は in_progress が 5、review が 3。
+
+### Core の固定
+
+次の操作は Core が固定し、`workflow.yaml` では緩められない：Workflow 自体の変更（`dg workflow set`）にはいつも人の承認が要る。フックを外すのとチケットの段を下げるのは人だけが行える。品質ゲートを満たさない PR のマージにはいつも人の承認が要る。
+
+### 見る・変える
+
+- **見る**：`dg workflow show` が値ごとに既定と変えたかどうかを出し、その `moves` が Status の動きごとに人とエージェントにとっての意味を出す。設定画面の Workflow タブも同じ行を出し（読むだけ）、行からエージェントに頼める
+- **変える**：`/dgconfig` に「flow.release は何をする？」「Iteration を閉じるのを、聞いてからならエージェントに任せたい」のように頼む。エージェントは変わる値ごとに前 → 後を示し、承認したときだけ `dg workflow set` で書く。Skill を使わないときは、`dg --json workflow show` の `definition` をファイルに書き、値を変えて `dg workflow set --file <ファイル>` を打つ。データのブランチの `workflow.yaml` を直接編集しない
+- **検査する**：`dg workflow validate` がファイルの誤りを指摘する。誤りのある Workflow は使わない
+
+項目ごとの意味は `dg workflow show --help`、独自の段階は `dg flow next --help` にある。
 
 ## 同期の競合を解く
 

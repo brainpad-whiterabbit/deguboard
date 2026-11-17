@@ -55,7 +55,7 @@ Claude Code では、「s3 を計画して」のように普通の言葉で言�
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.ja.gif" alt="進める順を計画して承認する" width="612">
 
-3. **進める**：帯の Plan で **エージェントに頼む** → **Plan を進める** を選びます。待ちのないチケットを、エージェントがそれぞれの作業ブランチと worktree で同時に実装し、PR を出します。PR は品質ゲートが通ったら ready にし、人が承認したらエージェントがマージします。聞かずにマージするのは、`--auto` で、カンバンの Workflow がそのマージを `ask_unless_auto`（既定）にしているときだけです。ゲートを満たさない場合は、承認で越えられるのは config で許した条件だけです。詳しくは[マージの承認の細部](docs/usage.ja.md#最後まで任せる)にあります。進むにつれて、グラフの色とカンバンの列が変わります。
+3. **進める**：帯の Plan で **エージェントに頼む** → **Plan を進める** を選びます。待ちのないチケットを、エージェントがそれぞれの作業ブランチと worktree で同時に実装し、PR を出します。PR は品質ゲートが通ったら ready にし、人が承認したらエージェントがマージします。聞かずにマージするのは、`--auto` で、カンバンの [Workflow](docs/usage.ja.md#workflow) がそのマージを `ask_unless_auto`（既定）にしているときだけです。ゲートを満たさない場合は、承認で越えられるのは config で許した条件だけです。詳しくは[マージの承認の細部](docs/usage.ja.md#最後まで任せる)にあります。進むにつれて、グラフの色とカンバンの列が変わります。
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/work.ja.gif" alt="エージェントが計画を並列に進める" width="612">
 

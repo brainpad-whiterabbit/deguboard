@@ -30,7 +30,7 @@ The Skills are for Claude Code. Say the request in plain words, or type the comm
 
 In Claude Code, pass an Iteration or tickets such as `/dgall s3 --auto`, and the agent carries on through assignment, planning, implementation, review, and release. It does not create tickets for what you want to build, so first turn your ideas into tickets with `/dgimport`.
 
-- With `--auto`, the agent goes ahead without asking only where the board's Workflow (`workflow.yaml`) has the value `ask_unless_auto`. By default that is assignment, the fixes of the check, Plan approval, and merging a PR that passed the quality gate. Everything else stops and asks, such as the audit findings, release, abandoning or deleting a ticket, and closing an Epic or Iteration. `dg workflow show` gives the values, and the full list is in `dg guide all`.
+- With `--auto`, the agent goes ahead without asking only where the board's Workflow (`workflow.yaml`) has the value `ask_unless_auto`. By default that is assignment, the fixes of the check, Plan approval, and merging a PR that passed the quality gate. Everything else stops and asks, such as the audit findings, release, abandoning or deleting a ticket, and closing an Epic or Iteration. How to see and change these values is in [Workflow](#workflow), and the full list is in `dg guide all`.
 - For a PR that passed the quality gate, the agent asks you whether to merge it, and merges it only when you approve (your approval is recorded on the PR). It is merged without asking only with `--auto`, while the value of the review → done boundary is `ask_unless_auto` (the default). For a PR that does not meet the gate, the agent shows the unmet conditions and asks whether to merge it anyway; your approval overrides the unmet conditions, but it cannot override a PR that is closed or still a draft, a conflict with the base, or the requirement to merge the commit that was judged.
 - You can follow the progress on the Board. Press the Plan band to show the dependency graph.
 - For agents other than Claude Code, ask them to "read `dg guide all` and carry on to the end with `--auto`."
@@ -46,6 +46,51 @@ The conditions checked before a PR becomes ready or is merged depend on the tick
 | `free`           | Only that the PR is open and does not conflict  |
 
 Set the level in the ticket details or with `dg ticket update <id> --gate <level>`. Passing `--gate-high`, `--gate-low`, or `--gate-free` to `/dgall` or `/dgwork` gives the level for the target tickets (without them, each ticket keeps its own level). Raising a level is applied at once. Lowering a level (high → low → free) can only be done by a person: dg rejects an agent's call, so the flow asks you to run `dg ticket update <id> --gate <level>` for each ticket and waits. The details of the conditions are in `dg gate --help`.
+
+## Workflow
+
+The board's Workflow (`workflow.yaml`) decides who may do what on the board: which Status moves an agent makes on its own, where it must ask you first, what only a person may do, and which stages `--auto` passes without asking. There is one Workflow for the whole board, shared by the team, with no personal override. It is separate from the settings (`config.yaml`). `dg init` writes the default Workflow, and an item left out of the file (or a missing file) takes the default.
+
+### What it decides
+
+| Item         | What it decides                                                                                                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `states`     | The display names of the five Statuses. Statuses cannot be added or removed                                                                                                                       |
+| `boundaries` | For each of the three forward moves (todo → in_progress, in_progress → review, review → done), the Git facts it requires (`requires`) and who decides (`decide`)                                  |
+| `exceptions` | Who may make the moves outside the flow: `abandon` (to abandoned), `back` (to the previous Status), and `reopen` (out of done)                                                                    |
+| `wip`        | The limit of tickets in a column                                                                                                                                                                  |
+| `flow`       | Who decides at each stage of the flow (`assign`, `check`, `plan`, `audit`, `release`, `retro`), the stages to skip (`skip`), and stages of your own                                               |
+| `governance` | Who may delete tickets (`delete`), change the team's settings (`config`), change another person's assignee or claim (`reassign`), close or reopen an Epic (`epic`), and create tickets (`create`) |
+
+The facts for `requires` are `deps_done` (the tickets it depends on are done), `branch_exists`, `branch_pushed`, `branch_merged`, `pr_open`, `pr_draft`, and `pr_merged`. A `!` in front, such as `!pr_draft`, requires the fact to be false.
+
+### What the values mean
+
+`decide` and the values under `exceptions`, `flow`, and `governance` take one of these values.
+
+| Value             | For a person                  | For an agent                                                              |
+| ----------------- | ----------------------------- | ------------------------------------------------------------------------- |
+| `anyone`          | Goes ahead                    | Goes ahead                                                                |
+| `ask_unless_auto` | Goes ahead                    | Asks you first; goes ahead without asking in a flow started with `--auto` |
+| `always_ask`      | Goes ahead                    | Asks you first, even with `--auto`                                        |
+| `human_only`      | Goes ahead                    | Refused; the agent gives you the command to run                           |
+| `agent_only`      | Needs `--override "<reason>"` | Goes ahead                                                                |
+
+When an agent goes ahead with your approval, dg records you as the approver (`dg history` shows it). Moves that `dg sync` makes from Git facts count as the agent's side. A person can pass an unmet `requires` with `--override "<reason>"`.
+
+By default, an agent starts work and opens review on its own. It asks you before merging a PR (review → done), assigning, fixing what the check found, and approving a Plan; `--auto` passes these. It always asks before abandoning or reopening a ticket, filing audit findings and retro improvements, changing the team's settings, and changing another person's claim. Only a person may close an Iteration (release), close an Epic, and delete a ticket. The WIP limits are 5 for in_progress and 3 for review.
+
+### Fixed in Core
+
+Some operations are fixed in Core, and `workflow.yaml` cannot loosen them: changing the Workflow itself (`dg workflow set`) always needs a person's approval, uninstalling the hooks and lowering a ticket's gate level can only be done by a person, and merging a PR that does not meet the quality gate always needs a person's approval.
+
+### See and change it
+
+- **See**: `dg workflow show` gives every value with its default and whether it was changed, and its `moves` tell what each Status move means for a person and for an agent. The Workflow tab of the settings screen shows the same rows (read only), and you can ask the agent about a row from there.
+- **Change**: ask `/dgconfig`, for example "What does flow.release do?" or "Let agents close an Iteration after asking me". The agent shows each value that changes, before → after, and writes the file with `dg workflow set` only after you approve. Without the Skill, write the `definition` from `dg --json workflow show` to a file, change the values, and run `dg workflow set --file <file>`. Do not edit `workflow.yaml` in the data branch directly.
+- **Validate**: `dg workflow validate` finds the errors in the file. A Workflow with errors is not used.
+
+The meaning of each item is in `dg workflow show --help`, and stages of your own are in `dg flow next --help`.
 
 ## Resolve a sync conflict
 
