@@ -50,7 +50,7 @@ sequenceDiagram
 
   Note over P,D: どの Run にも入らない（親の作業）
   K->>P: セッションの開始で主体とセッション ID を環境に入れる
-  P->>D: ticket claim --no-run（todo → in_progress）
+  P->>D: ticket claim --no-run --approved-by human（todo → in_progress）
 
   rect rgba(80,140,255,0.18)
   Note over K,S: Run 1 — implement（使用量はサブエージェントの会話記録だけ）

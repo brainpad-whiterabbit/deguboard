@@ -47,7 +47,7 @@
 
 ### Status の変更は、境目と例外の動きの方針で判定する
 
-- 前へ進む操作は、越える境目の `requires`（越える条件）と `decide`（権限の値）で判定する。`decide` は境目を越えるすべての操作に同じ値を当てる：todo → in_progress は claim、in_progress → review は PR を出す操作と手の move、review → done は `pr merge` と手の move。`decide` の既定は、todo → in_progress と review → done が `ask_unless_auto`、in_progress → review が `anyone`
+- 前へ進む操作は、越える境目の `requires`（越える条件）と `decide`（権限の値）で判定する。`decide` は境目を越えるすべての操作に同じ値を当てる：todo → in_progress は claim、in_progress → review は PR を出す操作と手の move、review → done は `pr merge` と手の move。着手（todo → in_progress）の `decide` の既定は `ask_unless_auto`
 - 境目を飛ばす動き（in_progress → done など）は、間の境目をすべて越えたものとして扱い、すべての `requires` と、厳しいほうの値が効く
 - `requires` は越える条件で、きっかけではない。満たしても自動では進まず、満たさずに手で越える操作は拒否する。事実を作る操作（`pr merge` は `pr_merged` を作る）は `decide` だけで判定し、Status を進めるのは事実を見た照合
 - ブランチなしで着手したチケット（`claim --without-branch`。in_progress・review でブランチの記録がない）には、`requires` のうちブランチと PR の事実（`branch_*`・`pr_*`）の条件を当てない。`decide` と `deps_done` は当てる。着手していない todo には当てたままにする

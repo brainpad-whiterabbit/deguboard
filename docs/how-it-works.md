@@ -50,7 +50,7 @@ sequenceDiagram
 
   Note over P,D: Not in any Run (the parent's own work)
   K->>P: Session start puts the actor and session ID in the environment
-  P->>D: ticket claim --no-run (todo → in_progress)
+  P->>D: ticket claim --no-run --approved-by human (todo → in_progress)
 
   rect rgba(80,140,255,0.18)
   Note over K,S: Run 1 — implement (usage from the subagent's transcript only)
