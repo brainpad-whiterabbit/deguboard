@@ -150,7 +150,10 @@ describe("dg mcp", () => {
           method: "tools/call",
           params: { name: "ticket_create", arguments: { title: "MCP から" } },
         },
-        { method: "tools/call", params: { name: "ticket_claim", arguments: { ticket: "t1" } } },
+        {
+          method: "tools/call",
+          params: { name: "ticket_claim", arguments: { ticket: "t1", approved_by: "human" } },
+        },
         { method: "tools/call", params: { name: "ticket_show", arguments: { ticket: "t9" } } },
         { method: "tools/call", params: { name: "ticket_create", arguments: {} } },
         { method: "tools/call", params: { name: "demo_echo", arguments: { text: "やあ" } } },

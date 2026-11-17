@@ -9,6 +9,8 @@ import { BRANCH_VALUE_MAX, gateLevelOf, gateScopeOf, type Ticket } from "../mode
 import type { Config } from "../model/config.js";
 import type { PlanTier } from "../model/plan.js";
 import { readRunningRuns } from "../run/record.js";
+import { autoApplies, judgeDecisions } from "../workflow/conditions.js";
+import { DEFAULT_WORKFLOW, operationPolicy } from "../workflow/resolve.js";
 import { wipAdvanceStepOf, wipOverOf, wipWarningsOf } from "../workflow/wip.js";
 import { briefOf, type BriefRole } from "./brief.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
@@ -349,6 +351,36 @@ export function wipCheckOf(
   };
 }
 
+/**
+ * 着手の claim の手。todo → in_progress の境目の decide をエージェントに当て、値に合う付け方にする（ST-2）。
+ * dg next は流れが --auto かを知らないので、人の承認を求める値では --approved-by human の形を返し、
+ * 付けてよい場面と --auto に替える場面を文で添える。workflow.yaml に誤りがあって読めなければ Core の既定で案内する（claim が誤りを知らせる）
+ */
+function claimCommandsOf(ctx: CommandContext, id: string, claim: string): string[] {
+  const policy = operationPolicy(ctx.store.workflow?.resolved ?? DEFAULT_WORKFLOW, {
+    command: "ticket.claim",
+    move: { from: "todo", to: "in_progress" },
+  });
+  const values = `${policy.name}: ${policy.decisions.join(", ")}`;
+  switch (judgeDecisions(policy.decisions, "agent")) {
+    case "reject":
+      return [
+        `Ask a person to start ${id} with dg ticket claim ${id} --branch <short-english-words>, and wait for it (only a person can start a ticket on this board; an agent's claim is rejected: ${values})`,
+      ];
+    case "approval":
+      return [
+        dg(`${claim} --approved-by human`),
+        `Pass --approved-by human on the claim only when a person instructed or approved starting ${id} (a person's approval of the Plan that includes ${id} counts); otherwise ask a person first. ${
+          autoApplies(policy.decisions)
+            ? "In a flow that a person started with --auto, pass --auto instead of --approved-by human, and do not ask"
+            : "--auto does not skip this approval"
+        } (${values})`,
+      ];
+    default:
+      return [dg(claim)];
+  }
+}
+
 /** 印で頼む手。落ちたセッションの残りの Run は、頼み直せばフックが閉じるので待たない */
 const MARKED_KINDS: readonly NextKind[] = ["implement", "review", "fix"];
 
@@ -481,7 +513,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
     case "todo":
       return make("implement", facts.implementStep, [
         ...delegate("implement it"),
-        dg(`ticket claim ${id} --branch <short-english-words> --no-run`),
+        ...claimCommandsOf(ctx, id, `ticket claim ${id} --branch <short-english-words> --no-run`),
         // ブランチ名は dg が <id>-<値> に組み立てる（ST-3）。値に書けるものをここで知らせ、種類を前に付けた名前（feat/x）を渡させない
         `Give --branch short English words for the content, in lowercase letters, digits, and hyphens (up to ${BRANCH_VALUE_MAX} characters). dg records the branch as ${id}-<value>`,
         marker(facts.implementStep),
@@ -546,7 +578,7 @@ export const next = defineCommand({
     "For a ticket whose gate level is low or free, a PR skips the review: a draft is reviewed with review_passed (the ready step), otherwise ready (wait_merge). " +
     "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
     "A review result held with no review Run counts as a review the same way as in dg gate. " +
-    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another. For implement, review, and fix steps it does not wait for a Run left over from a crashed session: a Run opened by a sub-agent of a different session whose record has not been written for 30 minutes. It returns the steps to ask again with the mark, and says that asking again closes that Run as interrupted. A newer record, an unknown session, and a Run the parent opened itself are still waited for), and the questions to ask a person (ask_human). " +
+    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. The implement claim follows the decide value of the Workflow's todo → in_progress boundary (ask_unless_auto by default): when it asks for a person's approval, the claim carries --approved-by human, with a sentence that says when to pass it and when to pass --auto instead; when only a person may start a ticket, it is a sentence asking a person to claim. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another. For implement, review, and fix steps it does not wait for a Run left over from a crashed session: a Run opened by a sub-agent of a different session whose record has not been written for 30 minutes. It returns the steps to ask again with the mark, and says that asking again closes that Run as interrupted. A newer record, an unknown session, and a Run the parent opened itself are still waited for), and the questions to ask a person (ask_human). " +
     "For wait_merge, ask_human always asks whether to merge the PR, and commands give the gate judgment and the dg pr merge <id> --approved-by human to run only after a person approves (when declined, do not merge; a PR that does not meet the gate is merged only when a person approves it anyway, and an unmet pr, mergeable, or head is never overridden; merging without asking is only for a flow started with --auto where the value of the review → done boundary is ask_unless_auto, with dg pr merge <id> --auto, as approval of dg flow next says). " +
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.<agent>.<tier> of the agent that called dg, detected from the environment, and when that is empty or the agent cannot be detected, to models.<tier>; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +

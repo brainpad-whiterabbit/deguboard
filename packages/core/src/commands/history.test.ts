@@ -53,7 +53,12 @@ async function scenarioRepo(f: Layout): Promise<void> {
   await runCommand(iterationClose, ctx, { iteration: "s1" });
   await runCommand(commit, ctx, { message: "s1 を閉じる" });
   const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
-  await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "t2-b" });
+  await runCommand(ticketClaim, agent, {
+    no_worktree: true,
+    ticket: "t2",
+    branch: "t2-b",
+    approved_by: "human",
+  });
   await runCommand(ticketUpdate, agent, { ticket: "t2", pr: 5 });
   await runCommand(commit, agent, {});
 }

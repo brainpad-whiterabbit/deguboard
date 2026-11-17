@@ -32,10 +32,11 @@ async function humanAndAgent() {
   const human = await reopenInitialized(f);
   const opened = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
   const agent = { ...human, actor: opened.actor };
-  /** governance の値だけを書いた workflow.yaml を置く */
-  const governance = (values: Record<string, string>) =>
+  /** governance の値だけを書いた workflow.yaml を置く（extra はほかの項目の行） */
+  const governance = (values: Record<string, string>, extra: string[] = []) =>
     writeWorkflowYaml(human, [
-      "governance:",
+      ...extra,
+      ...(Object.keys(values).length > 0 ? ["governance:"] : []),
       ...Object.entries(values).map(([key, value]) => `  ${key}: ${value}`),
     ]);
   const subject = async () =>
@@ -111,7 +112,14 @@ describe("カンバンの管理の操作は governance の値で判定される"
   });
 
   it("reassign：ほかのユーザの担当の付け替えと claim を外すのは既定（always_ask）で承認が要り、自分の担当と担当なしは聞かずに替えられる", async () => {
-    const { human, agent, governance, subject } = await humanAndAgent();
+    const { human, agent, governance: write, subject } = await humanAndAgent();
+    // 着手の境目（既定は ask_unless_auto）を誰でもにして、claim を governance.reassign だけが判定するようにする
+    const governance = (values: Record<string, string>) =>
+      write(values, [
+        "boundaries:",
+        "  - { from: todo, to: in_progress, requires: [deps_done], decide: anyone }",
+      ]);
+    await governance({});
     // t1・t2 は人（eiki）の担当、t3 は担当なし、t4 は人が claim 済み
     for (const title of ["A", "B", "C", "D"]) await runCommand(ticketCreate, human, { title });
     for (const ticket of ["t1", "t2"])

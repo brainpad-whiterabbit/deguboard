@@ -7,7 +7,7 @@ When dg hooks reach the session, implementation and fixes are always asked of a 
 ## When the parent opens the Run itself
 
 - Call the claim that opens a Run alone, and do not chain other commands to it (if the ID shows up late in the conversation record, the responses of Runs stacked in the same conversation cannot be told apart correctly)
-- `ticket claim` opens the implementation Run. Its step is `implement`. The ID is in `data.run`
+- `ticket claim` opens the implementation Run. Its step is `implement`. The ID is in `data.run`. Pass `--approved-by human` or `--auto` on it as the "Before and after claim" section of `dg guide work` says (claiming again for a fix, below, needs neither)
 - `ticket update --pr <number>` closes the implementation Run as `success` (finished_at is the time the PR was created). `run finish` is not needed. For work that needs no PR, `ticket move` to done or review closes it
 - To stop, `ticket unclaim` closes it as `failure`. To leave a reason, first run `run finish <Run ID> --result failure --error <reason>`
 - To fix findings yourself, claim a ticket that you already claimed and that has a PR, with `ticket claim <id> --retry-reason <one-line summary of each finding>`. Repeat it once per finding. The ticket does not change, and the fix Run (step `fix`) opens. The start of the next review Run or `sync` closes it at the time of the last push

@@ -290,15 +290,22 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     expect(merge.ask_human).toContain("dg pr merge t1 --auto");
     // 実装を委譲する親は --no-run で claim し、印で頼む
     const impl = kind(facts({ ticket: { status: "todo", pr: undefined } }));
+    // 既定の着手の境目（todo → in_progress）は ask_unless_auto なので、claim は --approved-by human の形で返し、
+    // 付けてよい場面と --auto に替える場面を次の行で案内する（ST-2）
     expect(impl.commands[0]).toBe(
-      "dg --json --actor agent ticket claim t1 --branch <short-english-words> --no-run",
+      "dg --json --actor agent ticket claim t1 --branch <short-english-words> --no-run --approved-by human",
     );
-    // ブランチ名の形（dg が ID を付ける）と値に使える文字を、claim の手のすぐ後で案内する（ST-3）
-    expect(impl.commands[1]).toContain("dg records the branch as t1-<value>");
-    expect(impl.commands[1]).toContain("lowercase letters, digits, and hyphens");
+    expect(impl.commands[1]).toContain(
+      "Pass --approved-by human on the claim only when a person instructed or approved starting t1",
+    );
+    expect(impl.commands[1]).toContain("pass --auto instead of --approved-by human");
+    expect(impl.commands[1]).toContain("(boundaries todo → in_progress: ask_unless_auto)");
+    // ブランチ名の形（dg が ID を付ける）と値に使える文字を、claim の手の後で案内する（ST-3）
+    expect(impl.commands[2]).toContain("dg records the branch as t1-<value>");
+    expect(impl.commands[2]).toContain("lowercase letters, digits, and hyphens");
     // 上限は claim の検査と同じ定数から引く（t985）
-    expect(impl.commands[1]).toContain(`up to ${BRANCH_VALUE_MAX} characters`);
-    expect(impl.commands[2]).toContain("deguboard: ticket=t1 step=implement");
+    expect(impl.commands[2]).toContain(`up to ${BRANCH_VALUE_MAX} characters`);
+    expect(impl.commands[3]).toContain("deguboard: ticket=t1 step=implement");
     // 実行中の見直し・実装があれば、新しく起動させず終わりを待つ
     const reviewing = kind(facts({ runs: [review(6, null, { finished_at: null, result: null })] }));
     expect(reviewing).toMatchObject({ kind: "review", running_run: expect.any(String) });
@@ -407,6 +414,30 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       step: "review",
       running_run: waiting.id,
     });
+  });
+
+  it("着手の claim の手は todo → in_progress の境目の decide に合わせ、聞かない値なら承認の引数を付けず、always_ask なら --auto を勧めず、human_only なら人に頼む文にする（ST-2）", async () => {
+    const ctx = await prepared();
+    const claim = "dg --json --actor agent ticket claim t1 --branch <short-english-words> --no-run";
+    const stepOf = async (decide: string) => {
+      await runCommand(workflowSet, asHuman(ctx), {
+        definition: {
+          boundaries: [{ from: "todo", to: "in_progress", requires: ["deps_done"], decide }],
+        },
+      });
+      return nextOf(ctx, facts({ ticket: { status: "todo", pr: undefined } })).commands;
+    };
+    const open = await stepOf("anyone");
+    expect(open[0]).toBe(claim);
+    expect(open.join(" ")).not.toContain("--approved-by");
+    const always = await stepOf("always_ask");
+    expect(always[0]).toBe(`${claim} --approved-by human`);
+    expect(always[1]).toContain("--auto does not skip this approval");
+    expect(always[1]).toContain("(boundaries todo → in_progress: always_ask)");
+    const humanOnly = await stepOf("human_only");
+    expect(humanOnly[0]).toContain("Ask a person to start t1 with dg ticket claim t1");
+    expect(humanOnly[0]).toContain("an agent's claim is rejected");
+    expect(humanOnly.some((c) => c.startsWith(claim))).toBe(false);
   });
 
   it("フックが届くセッションでは、implement・fix の手はモデルが親と同じ（null）ときも、いつもサブエージェントに頼むと先に案内し、親が自分で進める道を案内しない（t713）", async () => {

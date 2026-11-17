@@ -57,8 +57,9 @@ const DEFAULT_LABELS: Record<Status, string> = {
   abandoned: "Abandoned",
 };
 
+// 着手（todo → in_progress）は、エージェントが人の指示か承認（承認済みの Plan を含む）なしに始めないよう ask_unless_auto にする
 const DEFAULT_BOUNDARIES: readonly Boundary[] = [
-  { ...BOUNDARIES[0], requires: ["deps_done"], decide: "anyone" },
+  { ...BOUNDARIES[0], requires: ["deps_done"], decide: "ask_unless_auto" },
   { ...BOUNDARIES[1], requires: [], decide: "anyone" },
   { ...BOUNDARIES[2], requires: ["pr_merged"], decide: "ask_unless_auto" },
 ];

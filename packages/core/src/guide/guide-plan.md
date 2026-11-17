@@ -51,6 +51,7 @@ The Workflow's `flow.plan` judges `plan approve` (`ask_unless_auto` by default; 
 ## Principles of progress
 
 - Claim only the tickets you start now: the one ticket when advancing serially, or one for each free slot when advancing in parallel (`dg guide parallel`). Do not claim the whole Plan first (others, or other agents, could not start)
+- The Workflow's todo → in_progress boundary judges the claim (`ask_unless_auto` by default). A human's approval of the Plan is the approval to start its tickets, so claim them with `--approved-by human`; in a flow that a human started with `--auto`, claim with `--auto` instead (the "Before and after claim" section of `dg guide work`)
 - Do not start a ticket whose dependency is neither done nor abandoned. If the Workflow's todo → in_progress boundary has `requires: [deps_done]` (the default), claim is refused (`TRANSITION_REJECTED`). If it does not, wait until the ticket appears in `--ready`, or advance the dependency first
 - A Plan's `after` is not checked at claim. Wait until `items[].waiting` in `plan show` (the waits on `after` and `depends_on` that are not finished) is empty
 

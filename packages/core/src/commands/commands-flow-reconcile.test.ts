@@ -1250,7 +1250,11 @@ describe("チケットの流れ（照合と claim）", () => {
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
     agent.env = { CLAUDECODE: "1" };
     // 環境変数から判定した agent で、opens_on: claim の implement の Run が開く
-    const claimed = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1" });
+    const claimed = await runCommand(ticketClaim, agent, {
+      approved_by: "human",
+      no_worktree: true,
+      ticket: "t1",
+    });
     expect(claimed.data).toMatchObject({ status: "in_progress", assignee: "eiki/agent" });
     expect(claimed.data.run).toMatch(/^r\d{8}-\d{6}-[0-9a-f]{4}$/);
     expect(claimed.warnings).toEqual([]);
@@ -1265,6 +1269,7 @@ describe("チケットの流れ（照合と claim）", () => {
     ]);
     // without_branch でも開き、agent を渡せば判定より先に使う
     const noBranch = await runCommand(ticketClaim, agent, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t2",
       without_branch: true,
@@ -1278,8 +1283,14 @@ describe("チケットの流れ（照合と claim）", () => {
     });
     // no_run と人の claim では開かない。no_run と agent は同時に指定できない
     expect(
-      (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", no_run: true })).data
-        .run,
+      (
+        await runCommand(ticketClaim, agent, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t3",
+          no_run: true,
+        })
+      ).data.run,
     ).toBeNull();
     expect(
       (await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t4" })).data.run,
@@ -1289,6 +1300,7 @@ describe("チケットの流れ（照合と claim）", () => {
     ).rejects.toBeInstanceOf(UsageError);
     await expect(
       runCommand(ticketClaim, agent, {
+        approved_by: "human",
         no_worktree: true,
         ticket: "t5",
         no_run: true,
@@ -1297,7 +1309,11 @@ describe("チケットの流れ（照合と claim）", () => {
     ).rejects.toBeInstanceOf(UsageError);
     // agent を判定できなければ開かずに警告し、claim 自体は成功する
     agent.env = {};
-    const undetected = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t5" });
+    const undetected = await runCommand(ticketClaim, agent, {
+      approved_by: "human",
+      no_worktree: true,
+      ticket: "t5",
+    });
     expect(undetected.data).toMatchObject({ status: "in_progress", run: null });
     expect(undetected.warnings).toEqual([
       expect.stringMatching(/^The implement Run is not open: .*--agent/),
@@ -1314,7 +1330,11 @@ describe("チケットの流れ（照合と claim）", () => {
     await runCommand(ticketCreate, human, { title: "F" });
     const later = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
     later.env = { CLAUDECODE: "1" };
-    const legacy = await runCommand(ticketClaim, later, { no_worktree: true, ticket: "t6" });
+    const legacy = await runCommand(ticketClaim, later, {
+      no_worktree: true,
+      ticket: "t6",
+      approved_by: "human",
+    });
     expect(legacy.data.run).not.toBeNull();
     expect(
       (await peekRunningRuns(later.repo))
@@ -1331,14 +1351,38 @@ describe("チケットの流れ（照合と claim）", () => {
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const runs = {
-      t1: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" }))
-        .data.run!,
-      t2: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "t2" }))
-        .data.run!,
-      t3: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "t3" }))
-        .data.run!,
-      t4: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t4", branch: "t4" }))
-        .data.run!,
+      t1: (
+        await runCommand(ticketClaim, agent, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t1",
+          branch: "t1",
+        })
+      ).data.run!,
+      t2: (
+        await runCommand(ticketClaim, agent, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t2",
+          branch: "t2",
+        })
+      ).data.run!,
+      t3: (
+        await runCommand(ticketClaim, agent, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t3",
+          branch: "t3",
+        })
+      ).data.run!,
+      t4: (
+        await runCommand(ticketClaim, agent, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t4",
+          branch: "t4",
+        })
+      ).data.run!,
     };
     for (const b of ["t1", "t2", "t3", "t4"]) await git(f.cloneA, ["branch", b]);
     // t3 は PR 番号を記録済み（この機能より前に記録した形）で、Run は開いたまま
@@ -1437,11 +1481,21 @@ describe("チケットの流れ（照合と claim）", () => {
     await runCommand(ticketCreate, human, { title: "PR before run" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const run = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" })
+      await runCommand(ticketClaim, agent, {
+        approved_by: "human",
+        no_worktree: true,
+        ticket: "t1",
+        branch: "t1",
+      })
     ).data.run!;
     await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t2", branch: "t2" });
     const reopened = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "t3" })
+      await runCommand(ticketClaim, agent, {
+        approved_by: "human",
+        no_worktree: true,
+        ticket: "t3",
+        branch: "t3",
+      })
     ).data.run!;
     // gh は PR #9（Run の開始より前に作られた）だけを知っている
     const restore = await fakeGh(f.root, {
@@ -1481,7 +1535,12 @@ describe("チケットの流れ（照合と claim）", () => {
     await runCommand(ticketCreate, human, { title: "Raced" });
     const stale = await agentWithRuns(f.cloneA, () => new Date("2026-11-06T00:00:00Z"));
     const run = (
-      await runCommand(ticketClaim, stale, { no_worktree: true, ticket: "t1", branch: "t1" })
+      await runCommand(ticketClaim, stale, {
+        no_worktree: true,
+        ticket: "t1",
+        branch: "t1",
+        approved_by: "human",
+      })
     ).data.run!;
     // 別の文脈（別のプロセスの dg に相当）が先に閉じる。stale の索引には集計がまだない
     const other = await agentWithRuns(f.cloneA, () => new Date("2026-11-06T01:00:00Z"));
@@ -1517,10 +1576,20 @@ describe("チケットの流れ（照合と claim）", () => {
     for (const title of ["Raced", "Other"]) await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const raced = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" })
+      await runCommand(ticketClaim, agent, {
+        approved_by: "human",
+        no_worktree: true,
+        ticket: "t1",
+        branch: "t1",
+      })
     ).data.run!;
     const other = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "t2" })
+      await runCommand(ticketClaim, agent, {
+        approved_by: "human",
+        no_worktree: true,
+        ticket: "t2",
+        branch: "t2",
+      })
     ).data.run!;
     for (const b of ["t1", "t2"]) await git(f.cloneA, ["branch", b]);
     const restore = await fakeGh(f.root, {
@@ -1570,15 +1639,28 @@ describe("チケットの流れ（照合と claim）", () => {
     const runs = {
       t1: (
         await runCommand(ticketClaim, agent, {
+          approved_by: "human",
           no_worktree: true,
           ticket: "t1",
           without_branch: true,
         })
       ).data.run!,
-      t2: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "t2" }))
-        .data.run!,
-      t3: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "t3" }))
-        .data.run!,
+      t2: (
+        await runCommand(ticketClaim, agent, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t2",
+          branch: "t2",
+        })
+      ).data.run!,
+      t3: (
+        await runCommand(ticketClaim, agent, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t3",
+          branch: "t3",
+        })
+      ).data.run!,
     };
     // 別の文脈（別のプロセスの dg や別のマシンの sync に相当）が、操作が Run を閉じる直前に先に閉じる
     const otherCtx = await agentWithRuns(f.cloneA, () => new Date("2026-11-06T00:30:00Z"));
@@ -1657,10 +1739,17 @@ describe("チケットの流れ（照合と claim）", () => {
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const runs = {
-      t1: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" }))
-        .data.run!,
+      t1: (
+        await runCommand(ticketClaim, agent, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t1",
+          branch: "t1",
+        })
+      ).data.run!,
       t2: (
         await runCommand(ticketClaim, agent, {
+          approved_by: "human",
           no_worktree: true,
           ticket: "t2",
           without_branch: true,
@@ -1668,32 +1757,55 @@ describe("チケットの流れ（照合と claim）", () => {
       ).data.run!,
       t3: (
         await runCommand(ticketClaim, agent, {
+          approved_by: "human",
           no_worktree: true,
           ticket: "t3",
           without_branch: true,
         })
       ).data.run!,
-      t4: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t4", branch: "t4" }))
-        .data.run!,
+      t4: (
+        await runCommand(ticketClaim, agent, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t4",
+          branch: "t4",
+        })
+      ).data.run!,
     };
     const implement = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t5", branch: "t5" })
+      await runCommand(ticketClaim, agent, {
+        approved_by: "human",
+        no_worktree: true,
+        ticket: "t5",
+        branch: "t5",
+      })
     ).data.run!;
     const implement2 = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t6", branch: "t6" })
+      await runCommand(ticketClaim, agent, {
+        approved_by: "human",
+        no_worktree: true,
+        ticket: "t6",
+        branch: "t6",
+      })
     ).data.run!;
     // PR の記録を直接書いてから claim し直し、手直しの Run を開く（PR の発見の代わり）
     await agent.store.update("ticket", "t6", { pr: 42 });
     await recordBaseline(agent.repo);
     const fix = (
       await runCommand(ticketClaim, agent, {
+        approved_by: "human",
         no_worktree: true,
         ticket: "t6",
         retry_reasons: ["指摘 A"],
       })
     ).data.run!;
     const doneRun = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t7", branch: "t7" })
+      await runCommand(ticketClaim, agent, {
+        approved_by: "human",
+        no_worktree: true,
+        ticket: "t7",
+        branch: "t7",
+      })
     ).data.run!;
     clock = new Date("2026-11-06T05:00:00Z");
 

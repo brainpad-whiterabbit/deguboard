@@ -629,6 +629,33 @@ describe("dg guide", () => {
     expect(retro).toContain("is not stored in the data");
   });
 
+  it("エージェントの claim は、既定（todo → in_progress が ask_unless_auto）で --approved-by human か --auto を付けると work・run・parallel・plan・all・overview が案内する（ST-2・t1051）", async () => {
+    const work = await readGuide("work");
+    const before = section(work, "## Before and after claim");
+    for (const word of [
+      "**Approval to start**",
+      "`ask_unless_auto` by default",
+      "pass `--approved-by human` on the claim",
+      "pass `--auto` instead",
+      "a claim with neither is refused",
+    ])
+      expect(before, word).toContain(word);
+    expect(section(work, "## Work that needs no PR")).toContain(
+      "ticket claim <id> --without-branch --approved-by human",
+    );
+    for (const topic of ["run", "parallel"])
+      expect(await readGuide(topic), topic).toContain("`--approved-by human` or `--auto`");
+    expect(section(await readGuide("plan"), "## Principles of progress")).toContain(
+      "claim them with `--approved-by human`",
+    );
+    const all = await readGuide("all");
+    expect(section(all, "## Between stages")).toContain("claim with `--approved-by human`");
+    expect(all).toContain("`ticket claim <id> … --auto`");
+    expect(await readGuide("overview")).toContain(
+      "needs a human's approval (or `--auto`) to start a ticket (`ticket claim`",
+    );
+  });
+
   it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する。claim の warnings は「claim の前後」に任せ、Iteration の選び方は書き写さず、今の設定を埋める", async () => {
     const work = await readGuide("work");
     const noBranch = section(work, "## Work that needs no PR");

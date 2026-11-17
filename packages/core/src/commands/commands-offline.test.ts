@@ -47,7 +47,9 @@ describe("push 先に届かないときの即時の操作（SY-3）", () => {
     const before = await head(agent);
     const layout = await worktreesAndBranches(f.cloneA);
 
-    await expect(runCommand(ticketClaim, agent, { ticket: "t1" })).rejects.toMatchObject({
+    await expect(
+      runCommand(ticketClaim, agent, { ticket: "t1", approved_by: "human" }),
+    ).rejects.toMatchObject({
       code: "PUSH_FAILED",
     });
     expect(await head(agent)).toBe(before);
@@ -57,7 +59,11 @@ describe("push 先に届かないときの即時の操作（SY-3）", () => {
     expect((await runCommand(runList, agent, {})).data).toEqual([]);
     // 届くようになれば同じ claim が通る
     await git(f.cloneA, ["remote", "set-url", "origin", f.remoteDir]);
-    const claimed = await runCommand(ticketClaim, agent, { ticket: "t1", no_worktree: true });
+    const claimed = await runCommand(ticketClaim, agent, {
+      ticket: "t1",
+      no_worktree: true,
+      approved_by: "human",
+    });
     expect(claimed.write).toMatchObject({ pushed: true });
   });
 

@@ -1655,6 +1655,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
         agent: "claude-code",
         session: "s1",
         transcript: file,
+        approved_by: "human",
       });
       const id = (claimed.data as { run: string }).run;
       const running = (await runCommand(runList, ctx, { running: true })).data as RunView[];

@@ -471,12 +471,21 @@ describe("workflow set", () => {
     const dep = await runCommand(ticketCreate, ctx, { title: "先" });
     const t = await runCommand(ticketCreate, ctx, { title: "後", depends_on: [dep.data.id] });
     await expect(
-      runCommand(ticketClaim, ctx, { ticket: t.data.id, without_branch: true, no_run: true }),
-    ).rejects.toMatchObject({ code: "TRANSITION_REJECTED" });
+      runCommand(ticketClaim, ctx, {
+        ticket: t.data.id,
+        without_branch: true,
+        no_run: true,
+        approved_by: "human",
+      }),
+    ).rejects.toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message: expect.stringContaining("deps_done"),
+    });
     const claimed = await runCommand(ticketClaim, ctx, {
       ticket: dep.data.id,
       without_branch: true,
       no_run: true,
+      approved_by: "human",
     });
     expect(claimed.data.status).toBe("in_progress");
   });
@@ -485,7 +494,12 @@ describe("workflow set", () => {
     const f = await eachFixture();
     const ctx = await openAgent(f);
     const a = await runCommand(ticketCreate, ctx, { title: "A" });
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: a.data.id, branch: "t1-a" });
+    await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: a.data.id,
+      branch: "t1-a",
+      approved_by: "human",
+    });
     const b = await runCommand(ticketCreate, ctx, { title: "B", workflow: "general" });
     await runCommand(workflowSet, asHuman(ctx), { definition: strict });
 
