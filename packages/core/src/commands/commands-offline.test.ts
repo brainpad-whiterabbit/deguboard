@@ -1,5 +1,6 @@
 // push 先に届かないときの即時の操作（SY-3・DT-5）と、リモートのない運用（SY-6）を、bare リモート付きの一時リポジトリで確かめる
 
+import { mkdtemp, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createLocalOnlyRepo, git } from "../../test/helpers/git-fixture.js";
@@ -108,6 +109,42 @@ describe("push 先に届かないときの即時の操作（SY-3）", () => {
     expect((await git(ctx.repo.dataDir, ["rev-parse", "HEAD~1"])).stdout.trim()).toBe(before);
     expect(ctx.store.iterations.get("s1")?.data.status).toBe("closed");
     expect(ctx.store.iterations.get("s2")?.data.status).toBe("planned");
+  });
+
+  it("ロックを取った後の fetch の間に dg の外で積まれたコミットは、届かない操作が自分のコミットを捨てても残る", async () => {
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f, { now: () => NOW });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await goOffline(f);
+    // 最初の fetch の前に、dg の外のコミットを 1 つ積む git を PATH の先頭に置く（ロックの入口で HEAD を読んだ後に動かす）
+    const bin = await mkdtemp(path.join(f.root, "outside-bin-"));
+    const saved = process.env["PATH"];
+    const real = `PATH='${saved ?? ""}'`;
+    await writeFile(
+      path.join(bin, "git"),
+      [
+        "#!/bin/sh",
+        `case " $* " in *" fetch "*) if [ ! -e '${bin}/done' ]; then : > '${bin}/done'`,
+        `  ${real} git -C '${ctx.repo.dataDir}' -c core.hooksPath=/dev/null commit -q --allow-empty -m outside`,
+        "fi ;; esac",
+        `${real} exec git "$@"`,
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    process.env["PATH"] = bin + path.delimiter + (saved ?? "");
+    try {
+      await expect(runCommand(epicCreate, ctx, { title: "E" })).rejects.toMatchObject({
+        code: "PUSH_FAILED",
+      });
+    } finally {
+      process.env["PATH"] = saved;
+    }
+    // 戻す先は fetch の後に読み直した先頭：外のコミットは残り、自分のコミットだけが消える
+    expect((await git(ctx.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim()).toBe(
+      "outside",
+    );
+    expect(ctx.store.epics.size).toBe(0);
   });
 
   it("Epic・Iteration・Plan の作成は自分のコミットを捨てて PUSH_FAILED で失敗する。チケットの起票だけは仮番号で残る（DT-5）", async () => {

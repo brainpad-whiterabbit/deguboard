@@ -125,11 +125,14 @@ export async function dirtyFiles(repo: GitRepo): Promise<Record<string, string>>
   return dirty;
 }
 
-/** 今の状態を基準に記録する */
-export async function recordBaseline(repo: GitRepo): Promise<void> {
+/**
+ * 今の状態を基準に記録する。known.head は、呼び出し側が書き込みのロックの中で読み、その後に動かしていない HEAD
+ * （渡されれば rev-parse を聞き直さない。t1075）。作業ツリーの変更はいつも読み直す
+ */
+export async function recordBaseline(repo: GitRepo, known: { head?: string } = {}): Promise<void> {
   // 途中の HEAD を基準にしない（中止できずに残った rebase を、次の書き込みの入口が片付けるまで基準を動かさない）
   if (await rebaseInProgress(repo)) return;
-  const head = await headOf(repo);
+  const head = known.head ?? (await headOf(repo));
   if (head === undefined) return;
   const baseline: OutsideBaseline = { head, dirty: await dirtyFiles(repo) };
   await writeFileAtomic(baselinePath(repo), `${JSON.stringify(baseline)}\n`);

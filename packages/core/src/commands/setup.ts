@@ -988,12 +988,17 @@ export const commit = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
-    return withWriteLock(ctx.repo, async () => {
+    return withWriteLock(ctx.repo, async (entry) => {
       const warnings: string[] = [];
       if (ctx.config.push.mode === "auto") requireDataRemote(ctx);
       // やめた Project の残り（projects/）は、まとめ待ちの変更とは別のコミットで消す（git/retire-projects.ts）。
-      // 先にまとめ待ちをコミットする：消すときに書き換えるファイルにまとめ待ちの変更があると消すのを見送るので、ここで必ず消せるようにする
-      const flushed = await flushPending(ctx, input.message);
+      // 先にまとめ待ちをコミットする：消すときに書き換えるファイルにまとめ待ちの変更があると消すのを見送るので、ここで必ず消せるようにする。
+      // まとめ待ちがあるかは、ロックの入口で読んだ作業ツリーの変更で分かる（ここまでに書いていない。読まなかったときだけ聞く。t1075）
+      const flushed = await flushPending(
+        ctx,
+        input.message,
+        entry.state ? { dirty: Object.keys(entry.state.dirty).length > 0 } : {},
+      );
       const committed = (await retireProjects(ctx.repo, ctx.store)) || flushed;
       let pushed = false;
       if (committed && ctx.repo.dataRemote && ctx.config.push.mode === "auto") {

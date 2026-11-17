@@ -32,7 +32,13 @@ export interface SyncStatus {
 export type ResolveSide = "remote" | "local";
 
 export type FetchResult = { ok: true; remoteBranch: boolean } | { ok: false; detail: string };
-export type IntegrateResult = { ok: true; changed: boolean } | { ok: false; conflicts: string[] };
+/**
+ * head は取り込みの後の HEAD。rebase の後に読んだときだけ入る（取り込むものがなく rebase を始めなかったときは入らず、HEAD は動いていない）。
+ * 呼び出し側は、次に HEAD を動かすまで rev-parse HEAD の代わりに使える（t1075）
+ */
+export type IntegrateResult =
+  | { ok: true; changed: boolean; head?: string }
+  | { ok: false; conflicts: string[] };
 /** 取り込みでドライバが解いた 1 件と、そのファイル（integrateLogged の結果） */
 export type ResolvedFile = ResolvedField & { file: string };
 export type PushResult =
@@ -193,7 +199,10 @@ export async function integrate(
       },
     );
     // rebase が先頭を動かしたかは、終わった後に読み直さないと分からない
-    if (result.code === 0) return { ok: true, changed: (await headSha(repo)) !== before };
+    if (result.code === 0) {
+      const head = await headSha(repo);
+      return { ok: true, changed: head !== before, head };
+    }
     try {
       const conflicts = (
         await git(repo, ["diff", "--name-only", "--diff-filter=U"], { allowFailure: true })
