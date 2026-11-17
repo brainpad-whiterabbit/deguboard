@@ -17,6 +17,7 @@ import { init, openContext, runCommand } from "../../packages/core/src/index.js"
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
 import { LANGUAGES, useLanguage, type Language } from "./language.js";
+import { SETUP_OVERRIDE } from "./setup-override.js";
 
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 const SCHEMES = ["light", "dark"] as const;
@@ -75,7 +76,7 @@ beforeAll(async () => {
     labels: ["ui", "web", "layout"],
     depends_on: ["t1"],
   });
-  await call("ticket.claim", { ticket: "t2", without_branch: true });
+  await call("ticket.claim", { ticket: "t2", without_branch: true, override: SETUP_OVERRIDE });
   // Run：長いモデル名・再試行・失敗の理由のある閉じた Run と、実行中の Run
   for (const [step, result] of [
     ["implement", "failure"],

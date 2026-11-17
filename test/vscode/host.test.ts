@@ -7,6 +7,26 @@ import { describe, expect, it } from "vitest";
 import { cleanEnv, isCspViolation, pickDisplay, ROOT } from "./host.js";
 
 describe("cleanEnv", () => {
+  it("エージェントと dg の変数（DEGUBOARD_ACTOR=agent など）を外し、extra で渡した DEGUBOARD_USER は残す", () => {
+    const env = cleanEnv(
+      {
+        DEGUBOARD_ACTOR: "agent",
+        DEGUBOARD_SESSION: "s1",
+        DEGUBOARD_TRANSCRIPT: "/home/me/.claude/projects/x.jsonl",
+        DEGUBOARD_USER: "me",
+        CLAUDECODE: "1",
+        CLAUDE_CODE_SESSION_ID: "s1",
+        AI_AGENT: "claude-code",
+        CODEX_THREAD_ID: "t1",
+        COPILOT_HOME: "/home/me/.copilot",
+        PATH: "/usr/bin",
+      },
+      ":99",
+      { DEGUBOARD_USER: "vscode-test" },
+    );
+    expect(env).toEqual({ PATH: "/usr/bin", DEGUBOARD_USER: "vscode-test", DISPLAY: ":99" });
+  });
+
   it("ELECTRON_RUN_AS_NODE・ELECTRON_*・VSCODE_*・NODE_OPTIONS・本物のホームを指す XDG_*_HOME を外し、DISPLAY を上書きする", () => {
     const env = cleanEnv(
       {

@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { findCommand, init, openContext, runCommand } from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
+import { SETUP_OVERRIDE } from "./setup-override.js";
 
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 /** 左パネルの幅 */
@@ -524,7 +525,7 @@ describe("行の左端の帯をなぞって、通った行をまとめて選ぶ�
         title: `終えた ${i}`,
         iteration: "s1",
       });
-      await call("ticket.move", { ticket: done.id, status: "done" });
+      await call("ticket.move", { ticket: done.id, status: "done", override: SETUP_OVERRIDE });
     }
   }, 120_000);
 
