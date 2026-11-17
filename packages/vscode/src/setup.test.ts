@@ -248,7 +248,7 @@ describe("タイトル行のセットアップのアイコンの点に出す件�
       coreResult({ skills_hooks: { status: "unmet" }, gitignore: { status: "unmet" } }),
       dgFacts(),
     );
-    expect(missingSetupCount(all)).toBe(SETUP_ATTENTION.max);
+    expect(missingSetupCount(all)).toBe(SETUP_ATTENTION.max[0]);
   });
 });
 

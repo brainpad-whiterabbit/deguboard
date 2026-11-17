@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- タイトル行の同期のアイコン（向きの違う 2 本の矢印の弧）に、人の同期が要ることを知らせる点を右上に付けたもの（ダークのテーマ）。
+       色はダークのテーマのアイコンの色と警告の色（editorWarning）。上の弧は点の手前で止めて点と離す -->
+  <g fill="none" stroke="#C5C5C5" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8.4 3.6A5 5 0 0 0 2.5 8.5"/>
+    <path d="M1 7L2.5 8.5L4 7"/>
+    <path d="M6.6 13.4A5 5 0 0 0 12.5 8.5"/>
+    <path d="M11 10L12.5 8.5L14 10"/>
+  </g>
+  <circle cx="13" cy="3" r="2.6" fill="#CCA700"/>
+</svg>

@@ -7,6 +7,7 @@
 // 導入のチェックリスト（UI-12）は、core の dg setup check に拡張だけの項目（フォルダ・OS・PATH の dg）を足して画面に渡し（readSetup。組み立ては setup.ts）、
 // ボタンの操作を deguboard のターミナルで実行し（setupAct）、人がターミナルで直したことを見張りで拾って確かめ直させる（watchSetup・autoSetup）。
 // 項目が欠けている間は、タイトル行のセットアップのアイコンを点付きに差し替える（showSetupAttention。仕組みは attention.ts）。
+// 人の同期が要る間（未 push がある）は、同期のボタンも点付きに差し替える（左パネルの status の応答から。UI-6）。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-027）。サーバーは起動しない。
 // 同梱した dg は、起動のたびに版の付かない起動ファイルと行き先を書いて外に出す（launcher.ts）。コマンドで ~/.local/bin/dg に張り、外せる。
 // PATH の dg がない・版のメジャーが違うことは、通知にせずチェックリストの項目で示す（UI-11）。起動のたびに、入れてある dg の Skill を同梱の dg のものに更新し、足りない同梱の Skill を案内する（skills.ts）。
@@ -48,6 +49,8 @@ import {
   attentionCommands,
   attentionValue,
   SETUP_ATTENTION,
+  SYNC_ATTENTION,
+  syncAttentionCounts,
 } from "./attention.js";
 import { MENU_COMMANDS, menuItemOf, type MenuItem } from "./context-menu.js";
 import {
@@ -222,8 +225,11 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.onDidChangeActiveTerminal(() => broadcastTerminals()),
     vscode.window.onDidChangeTerminalState(() => broadcastTerminals()),
     // ビューのタイトル行の同期ボタン（UI-12）。拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む
-    // （サイドバーが描かれていなくても動く）。リモートがなくても読み直しだけはするので、手の再読み込みも兼ねる
-    vscode.commands.registerCommand("deguboard.sync", () => void syncFolder()),
+    // （サイドバーが描かれていなくても動く）。リモートがなくても読み直しだけはするので、手の再読み込みも兼ねる。
+    // 人の同期が要る間は、点付きのアイコンの差し替え用のコマンド（attention.ts）に替わるので、同じ処理を登録する
+    ...[SYNC_ATTENTION.command, ...attentionCommands(SYNC_ATTENTION)].map((command) =>
+      vscode.commands.registerCommand(command, () => void syncFolder()),
+    ),
     // ビューのタイトル行の歯車。サイドバーの中をカンバン（来る前の画面）と設定画面（config.yaml）で切り替える
     vscode.commands.registerCommand(
       "deguboard.config",
@@ -590,6 +596,7 @@ async function resolveSidebar(
     ask,
     onStatus: (status) => {
       view.badge = badgeOf(status);
+      showAttention(SYNC_ATTENTION, syncAttentionCounts(status));
     },
     actions: {
       open: (route) =>
@@ -710,15 +717,15 @@ async function readSetup(
  * （0 なら元のアイコン）。推奨の帯を出さないと決めた後も、欠けている間は点を残す（UI-12）
  */
 function showSetupAttention(): void {
-  showAttention(SETUP_ATTENTION, missingSetupCount(setupViews.get(folderKey(sidebarFolder))));
+  showAttention(SETUP_ATTENTION, [missingSetupCount(setupViews.get(folderKey(sidebarFolder)))]);
 }
 
-/** タイトル行のボタンの点（attention.ts）を件数で付け外しする。package.json の menus が context key で差し替える */
-function showAttention(button: AttentionButton, count: number): void {
+/** タイトル行のボタンの点（attention.ts）を件数の組で付け外しする。package.json の menus が context key で差し替える */
+function showAttention(button: AttentionButton, counts: readonly number[]): void {
   void vscode.commands.executeCommand(
     "setContext",
     button.contextKey,
-    attentionValue(button, count),
+    attentionValue(button, counts),
   );
 }
 
