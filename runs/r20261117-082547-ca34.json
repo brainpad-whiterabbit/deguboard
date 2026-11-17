@@ -1,0 +1,35 @@
+{
+  "id": "r20261117-082547-ca34",
+  "ticket": "t1084",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-17T08:25:47Z",
+  "finished_at": "2026-11-17T08:43:58Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "autoRecheck のコメントが、点が結果を出す場所になった後の遅れを述べていない",
+    "起動時にセットアップの確かめが拡張と画面で同時に 2 回走る"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 7784,
+    "cache_read": 699646,
+    "cache_write": 82312
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 5,
+    "bash": 7,
+    "other": 5,
+    "read_before_write": 4,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "e7cdf1d0-a575-49c1-9b18-a3c120b47586",
+  "review": null,
+  "waited_seconds": 0
+}
