@@ -122,6 +122,7 @@ const MANIFEST_JA_BEFORE: Record<string, string> = {
   "command.copyId.title": "ID をコピー",
   "command.installDg.title": "dg コマンドを入れる",
   "command.uninstallDg.title": "dg コマンドを外す",
+  "command.uninstall.title": "このリポジトリからアンインストール",
   "walkthrough.start.title": "deguboard を始める",
   "walkthrough.start.description":
     "リポジトリの初期化から、チケットを起こしてエージェントに頼むまで。",

@@ -11,6 +11,7 @@ import {
   type TerminalChoice,
   type TerminalSendResult,
   type StatusView,
+  type UninstallPreview,
   type WebviewEvent,
   type WebviewRequest,
   type WebviewResponse,
@@ -166,6 +167,8 @@ export interface WebviewActions {
    * board は、人がボードの項目で指定したデータの置き場所（init・newBoard の dg init に渡す）
    */
   setupAct(act: SetupAction, board?: SetupBoardSource): void | Promise<void>;
+  /** dg uninstall --dry-run の結果（「アンインストール」の節が出す、消すもの・残すもの・止める理由）。personal は --personal を付けるか */
+  uninstallPreview(personal: boolean): UninstallPreview | Promise<UninstallPreview>;
 }
 
 /** Webview からの要求を CommandClient（か actions）に通し、同じ id の応答にする。失敗は ok: false で返す */
@@ -194,6 +197,10 @@ export async function handleRequest(
       }
       if (request.name === "setup") {
         const data = await actions.setup(request.bandDismissed, request.board);
+        return { id: request.id, ok: true, data, warnings: [], write: null };
+      }
+      if (request.name === "uninstallPreview") {
+        const data = await actions.uninstallPreview(request.personal);
         return { id: request.id, ok: true, data, warnings: [], write: null };
       }
       if (request.name === "sendToTerminal") {
@@ -256,6 +263,8 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
         const m = v as { act?: unknown; board?: unknown };
         return (SETUP_ACTIONS as readonly unknown[]).includes(m.act) && isBoardSource(m.board);
       }
+      if (v.name === "uninstallPreview")
+        return typeof (v as { personal?: unknown }).personal === "boolean";
       if (v.name === "sendToTerminal") {
         const m = v as { terminal?: unknown; text?: unknown };
         return typeof m.terminal === "number" && typeof m.text === "string";

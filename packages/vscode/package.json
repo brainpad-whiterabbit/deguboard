@@ -114,6 +114,11 @@
         "command": "deguboard.uninstallDg",
         "title": "%command.uninstallDg.title%",
         "category": "deguboard"
+      },
+      {
+        "command": "deguboard.uninstall",
+        "title": "%command.uninstall.title%",
+        "category": "deguboard"
       }
     ],
     "keybindings": [

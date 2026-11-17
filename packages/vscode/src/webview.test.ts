@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { bundleTranslator, setTranslator } from "./l10n.js";
-import type { CommandClient, CommandResult, SetupAction, SetupView } from "@deguboard/core";
+import type {
+  CommandClient,
+  CommandResult,
+  SetupAction,
+  SetupView,
+  UninstallPreview,
+} from "@deguboard/core";
 import { OperationError, UsageError } from "@deguboard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -90,6 +96,12 @@ describe("Webview の HTML", () => {
 const NO_SETUP = {
   setup: (): SetupView => ({ ready: true, items: [], cwd: null }),
   setupAct: () => {},
+  uninstallPreview: (personal: boolean): UninstallPreview => ({
+    personal,
+    removes: [],
+    keeps: [],
+    blockers: [],
+  }),
 };
 
 function fakeClient(): CommandClient & { calls: unknown[] } {
@@ -299,7 +311,19 @@ describe("Webview の要求", () => {
         return view;
       },
       setupAct: (act: SetupAction) => void acts.push(act),
+      uninstallPreview: NO_SETUP.uninstallPreview,
     };
+    // 「アンインストール」の節の dg uninstall --dry-run の結果。範囲（personal）を actions に渡し、結果を data で返す
+    const preview = await handleRequest(
+      fakeClient(),
+      { id: 16, kind: "action", name: "uninstallPreview", personal: true },
+      actions,
+    );
+    expect(preview).toMatchObject({ id: 16, ok: true, data: { personal: true, blockers: [] } });
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "uninstallPreview" })).toBe(false);
+    expect(
+      isWebviewRequest({ id: 1, kind: "action", name: "setupAct", act: "uninstallPersonal" }),
+    ).toBe(true);
     const checked = await handleRequest(
       fakeClient(),
       { id: 12, kind: "action", name: "setup" },
@@ -351,6 +375,7 @@ describe("Webview の要求", () => {
         return { ready: false, items: [], cwd: null };
       },
       setupAct: (act: SetupAction, b?: unknown) => void seen.push([act, b]),
+      uninstallPreview: NO_SETUP.uninstallPreview,
     };
     await handleRequest(fakeClient(), { id: 1, kind: "action", name: "setup", board }, actions);
     await handleRequest(

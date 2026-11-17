@@ -71,6 +71,7 @@ export type {
   WebviewRequest,
   TerminalChoice,
   TerminalSendResult,
+  UninstallPreview,
   WebviewResponse,
 } from "./client.js";
 export {
@@ -79,4 +80,5 @@ export {
   detailOfRoute,
   detailRouteOf,
   setupViewOf,
+  uninstallRouteOf,
 } from "./client.js";

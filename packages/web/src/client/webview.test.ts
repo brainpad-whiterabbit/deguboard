@@ -3,6 +3,7 @@
 import {
   detailOfRoute,
   detailRouteOf,
+  uninstallRouteOf,
   WEBVIEW_CONTRACT,
   type WebviewEvent,
   type WebviewRequest,
@@ -191,7 +192,11 @@ describe("拡張と合わせる値（core の WEBVIEW_CONTRACT の写し）", ()
     expect(parseRoute(WEBVIEW_CONTRACT.routes.board).page).toBe("board");
     expect(parseRoute(WEBVIEW_CONTRACT.routes.config).page).toBe("config");
     expect(hrefOf({ page: "setup" })).toBe(WEBVIEW_CONTRACT.routes.setup);
-    expect(parseRoute(WEBVIEW_CONTRACT.routes.setup).page).toBe("setup");
+    expect(parseRoute(WEBVIEW_CONTRACT.routes.setup)).toEqual({ page: "setup" });
+    // 「アンインストール」の節を開くルートは、実行のたびに違うハッシュになる（同じ画面にいても節を開き直せる）
+    expect(hrefOf({ page: "setup", uninstall: "17" })).toBe(uninstallRouteOf(17));
+    expect(parseRoute(uninstallRouteOf(17))).toEqual({ page: "setup", uninstall: "17" });
+    expect(uninstallRouteOf(18)).not.toBe(uninstallRouteOf(17));
   });
 
   it("拡張が開く詳細のルート（core の detailRouteOf）は router の hrefOf と同じで、その詳細の画面に戻る", () => {

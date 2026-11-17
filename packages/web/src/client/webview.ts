@@ -9,6 +9,7 @@ import type {
   StatusView,
   TerminalChoice,
   TerminalSendResult,
+  UninstallPreview,
   WebviewEvent,
   WebviewRequest,
   WebviewResponse,
@@ -44,6 +45,8 @@ export interface WebviewClient extends SetupClient {
    * board を渡すと、dg init に --data-remote・--data-branch を付ける
    */
   setupAct(act: SetupAction, board?: SetupBoardSource): Promise<void>;
+  /** dg uninstall --dry-run の結果（消すもの・残すもの・止める理由）を拡張ホストに尋ねる。personal は --personal を付けるか。何も消さない */
+  uninstallPreview(personal: boolean): Promise<UninstallPreview>;
   /** 拡張ホストからの通知を受ける。戻り値で購読を外す */
   onEvent(listener: (event: WebviewEvent) => void): () => void;
 }
@@ -116,6 +119,10 @@ export function createWebviewClient(
     },
     async setupAct(act: SetupAction, board?: SetupBoardSource): Promise<void> {
       await send({ kind: "action", name: "setupAct", act, ...(board ? { board } : {}) });
+    },
+    async uninstallPreview(personal: boolean): Promise<UninstallPreview> {
+      return (await send({ kind: "action", name: "uninstallPreview", personal }))
+        .data as UninstallPreview;
     },
     onEvent(listener) {
       listeners.add(listener);

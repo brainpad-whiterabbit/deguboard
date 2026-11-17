@@ -26,6 +26,8 @@ import {
   pickUser,
   refreshInstalledSkills,
   toCommandFailure,
+  uninstall,
+  uninstallRouteOf,
   WEBVIEW_CONTRACT,
   type CommandClient,
   type ResolveSide,
@@ -36,6 +38,7 @@ import {
   type StatusView,
   type TerminalChoice,
   type TerminalSendResult,
+  type UninstallPreview,
   type WebviewEvent,
 } from "@deguboard/core";
 import * as vscode from "vscode";
@@ -244,6 +247,12 @@ export function activate(context: vscode.ExtensionContext): void {
     // コマンドパレットの「dg コマンドを入れる」「外す」。同梱の dg を ~/.local/bin/dg に張り、外す（launcher.ts）
     vscode.commands.registerCommand("deguboard.installDg", () => void installDgCommand(context)),
     vscode.commands.registerCommand("deguboard.uninstallDg", () => void uninstallDgCommand()),
+    // 「このリポジトリからアンインストール」。消さずに、導入のチェックリストを「アンインストール」の節を開いて出す（確かめて実行するのは画面）。
+    // ルートに時刻を付け、実行のたびに違うハッシュにする（節を閉じた後でも、もう一度実行すれば開き直す）
+    vscode.commands.registerCommand(
+      "deguboard.uninstall",
+      () => void showInSidebar(uninstallRouteOf(Date.now())),
+    ),
     vscode.workspace.onDidChangeWorkspaceFolders((e) => {
       for (const folder of e.removed) forgetFolder(folder);
       void refreshApprovals();
@@ -569,8 +578,33 @@ async function resolveSidebar(
       sendToTerminal,
       setup: (bandDismissed, board) => readSetup(folder, bandDismissed, board),
       setupAct: (act, board) => setupAct(context, folder, act, board),
+      uninstallPreview: (personal) => uninstallPreview(folder, personal),
     },
   });
+}
+
+/**
+ * 「アンインストール」の節が出す、dg uninstall --dry-run の結果（消すもの・残すもの・止める理由）。何も消さない。
+ * 判定は core の uninstall だけが持ち、実行（ターミナルの dg uninstall）のときに dg がもう一度確かめるので、ここの結果が古くても消し過ぎない
+ */
+async function uninstallPreview(
+  folder: vscode.WorkspaceFolder | undefined,
+  personal: boolean,
+): Promise<UninstallPreview> {
+  if (!folder) return { personal, removes: [], keeps: [], blockers: [] };
+  const result = await uninstall({
+    cwd: folder.uri.fsPath,
+    env: process.env,
+    actor: "human",
+    personal,
+    dryRun: true,
+  });
+  return {
+    personal: result.personal,
+    removes: result.removes,
+    keeps: result.keeps,
+    blockers: result.blockers,
+  };
 }
 
 /** setupViews・setupWatchers の鍵。フォルダを開いていなければ "" */
@@ -693,9 +727,11 @@ function postSetup(): void {
 }
 
 /**
- * チェックリストのボタンの操作（UI-12）。フォルダを開く・dg コマンドを入れるほかは、deguboard のターミナルでコマンドを実行する。
+ * チェックリストのボタンの操作（UI-12）。フォルダを開く・dg コマンドを入れる・同期する・拡張の画面を開くほかは、deguboard のターミナルでコマンドを実行する。
  * 流すコマンドは setup.ts の setupCommands が決める（dg init には、人がボードの項目で指定したデータの置き場所 board を渡す。
- * 画面が送らなければ、フォルダごとに持つ指定 setupBoards を渡す）
+ * 画面が送らなければ、フォルダごとに持つ指定 setupBoards を渡す）。
+ * sync（「アンインストール」の節の止める理由を片付ける）は終わるまで待って答え、画面が消すものを取り直す。
+ * showExtension は拡張の画面を開くだけで、拡張は消さない（ほかのリポジトリでも使い、消すのは人が最後にする）
  */
 async function setupAct(
   context: vscode.ExtensionContext,
@@ -711,7 +747,15 @@ async function setupAct(
     await installDgCommand(context, { quiet: true });
     return;
   }
+  if (act === "showExtension") {
+    await vscode.commands.executeCommand("extension.open", context.extension.id);
+    return;
+  }
   if (!folder) return;
+  if (act === "sync") {
+    await syncFolder(undefined, folder);
+    return;
+  }
   const key = folderKey(folder);
   const commands = setupCommands(act, setupViews.get(key), board ?? setupBoards.get(key));
   if (commands.length > 0) await runInSetupTerminal(context, folder, commands);
@@ -1021,6 +1065,7 @@ async function openPanel(
       sendToTerminal,
       setup: (bandDismissed, board) => readSetup(folder, bandDismissed, board),
       setupAct: (act, board) => setupAct(context, folder, act, board),
+      uninstallPreview: (personal) => uninstallPreview(folder, personal),
     },
   });
 }
