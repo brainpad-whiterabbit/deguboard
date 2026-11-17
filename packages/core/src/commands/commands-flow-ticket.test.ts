@@ -442,7 +442,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(await readFile(config, "utf8")).not.toContain("default_workflow");
   });
 
-  it("list は各行に deps_done を載せ、show と同じく絞り込みに合わない依存先も見る", async () => {
+  it("list は各行に deps_done を載せ、show と同じく絞り込みに合わない依存先も見る。show は終わっていない依存先を ID と Status で出し、終わった依存先は出さず、見つからない依存先は Status を null で出す", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "絞り込みの外", labels: ["other"] });
@@ -465,26 +465,23 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const shown = await runCommand(ticketShow, ctx, { ticket: "t2" });
     expect(shown.data.deps_done).toBe(true);
     expect(shown.data.pending_deps).toEqual([]);
-  });
 
-  it("show は終わっていない依存先を ID と Status で出し、終わった依存先は出さず、見つからない依存先は Status を null で出す", async () => {
-    const f = await initializedFixture();
-    const ctx = await reopenInitialized(f);
+    // show は終わっていない依存先を ID と Status で出し、終わった（done・abandoned）依存先は出さない
     await runCommand(ticketCreate, ctx, { title: "済み" });
     await runCommand(ticketCreate, ctx, { title: "途中" });
     await runCommand(ticketCreate, ctx, { title: "やめた" });
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
-    await runCommand(ticketMove, ctx, { ticket: "t2", status: "in_progress" });
-    await runCommand(ticketMove, ctx, { ticket: "t3", status: "abandoned" });
-    await runCommand(ticketCreate, ctx, { title: "待ち", depends_on: ["t1", "t2", "t3"] });
-    const shown = await runCommand(ticketShow, ctx, { ticket: "t4" });
-    expect(shown.data.pending_deps).toEqual([{ id: "t2", status: "in_progress" }]);
-    expect(shown.data.deps_done).toBe(false);
+    await runCommand(ticketMove, ctx, { ticket: "t4", status: "done", override: "PR なし" });
+    await runCommand(ticketMove, ctx, { ticket: "t5", status: "in_progress" });
+    await runCommand(ticketMove, ctx, { ticket: "t6", status: "abandoned" });
+    await runCommand(ticketCreate, ctx, { title: "待ち", depends_on: ["t4", "t5", "t6"] });
+    const waiting = await runCommand(ticketShow, ctx, { ticket: "t7" });
+    expect(waiting.data.pending_deps).toEqual([{ id: "t5", status: "in_progress" }]);
+    expect(waiting.data.deps_done).toBe(false);
     // 依存先を消すと Status の分からない待ちとして残る（deps_done と同じく待つ）
-    await runCommand(ticketDelete, ctx, { ticket: "t1" });
-    expect((await runCommand(ticketShow, ctx, { ticket: "t4" })).data.pending_deps).toEqual([
-      { id: "t1", status: null },
-      { id: "t2", status: "in_progress" },
+    await runCommand(ticketDelete, ctx, { ticket: "t4" });
+    expect((await runCommand(ticketShow, ctx, { ticket: "t7" })).data.pending_deps).toEqual([
+      { id: "t4", status: null },
+      { id: "t5", status: "in_progress" },
     ]);
   });
 
@@ -528,7 +525,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(claimed.warnings.some((w) => w.includes("the start of a fix"))).toBe(false);
   });
 
-  it("whoami は操作している主体の ID・ユーザ名・種別と、本人とみなす ID（人とその AI）を返す", async () => {
+  it("whoami は操作している主体の ID・ユーザ名・種別と、本人とみなす ID（人とその AI）を返す。主体のユーザ名は --user > DEGUBOARD_USER > git config の deguboard.user > git の user.name > OS のユーザ名の順で決まり、whoami が出どころを返す（t217）", async () => {
     const f = await initializedFixture();
     const human = await reopenInitialized(f);
     expect((await runCommand(whoami, human, {})).data).toEqual({
@@ -546,10 +543,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       kind: "agent",
       own_ids: ["eiki", "eiki/agent"],
     });
-  });
 
-  it("主体のユーザ名は --user > DEGUBOARD_USER > git config の deguboard.user > git の user.name > OS のユーザ名の順で決まり、whoami が出どころを返す（t217）", async () => {
-    const f = await initializedFixture();
+    // 主体のユーザ名は --user > DEGUBOARD_USER > git config の deguboard.user > git の user.name > OS のユーザ名の順で決まる（t217）
     const who = async (actor: Parameters<typeof openContext>[0]["actor"]) => {
       const ctx = await openContext({ cwd: f.cloneA, ...(actor ? { actor } : {}) });
       const { user, user_source } = (await runCommand(whoami, ctx, {})).data;
@@ -709,7 +704,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(ready.data.map((t) => t.id)).toEqual(["t1"]);
   });
 
-  it("import の本文は、本文の項目の引用しない値に行末コメントがあると INVALID_INPUT で起票しない（drafts と一緒の指定も拒む）", async () => {
+  it("import の本文は、本文の項目の引用しない値に行末コメントがあると INVALID_INPUT で起票しない（drafts と一緒の指定も拒む）。ほかの項目の行末コメント・行だけのコメント・引用した値・body の | の中の # と、引用しない値の次の行の深く字下げした行だけのコメントは拒まずに本文として残す", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
     const head = async () => (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
@@ -737,11 +732,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       }),
     ).rejects.toThrow("cannot be passed together");
     expect(await head()).toBe(before);
-  });
 
-  it("import の本文は、ほかの項目の行末コメント・行だけのコメント・引用した値・body の | の中の # を本文として残す", async () => {
-    const f = await initializedFixture();
-    const ctx = await reopenInitialized(f);
+    // ほかの項目の行末コメント・行だけのコメント・引用した値・body の | の中の # は本文として残す
     const source = [
       "# 行だけのコメント",
       "- key: a # 仮キー",
@@ -769,11 +761,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(a.body).toContain("- [ ] 戻る #/board");
     expect(b).toMatchObject({ title: "本文を書く", depends_on: [a.id] });
     expect(b.body).toContain("#/config を開く # 中の #");
-  });
 
-  it("import の本文は、引用しない値の次の行の深く字下げした行だけのコメントを拒まない", async () => {
-    const f = await initializedFixture();
-    const ctx = await reopenInitialized(f);
+    // 引用しない値の次の行の深く字下げした行だけのコメントは拒まない
     for (const source of [
       "- title: A\n  body: x\n    # c\n",
       "- title: A\n      # c\n  body: y\n",
@@ -1014,7 +1003,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect((await runCommand(ticketList, ctx, {})).data.map((t) => t.id)).toEqual(["t1", "t2"]);
   });
 
-  it("check は番号で受け入れ条件に印を付け外しし、show が acceptance を出す", async () => {
+  it("check は番号で受け入れ条件に印を付け外しし、show が acceptance を出す。all と番号の同時指定・無指定を INVALID_INPUT、節や項目がない・範囲外を NOT_FOUND で拒否する", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a", "b", "c"] });
@@ -1048,12 +1037,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     await runCommand(sync, ctx, {});
     const log = (await git(ctx.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
     expect(log[0]).toBe("Commit batched changes");
-  });
 
-  it("check は all と番号の同時指定・無指定を INVALID_INPUT、節や項目がない・範囲外を NOT_FOUND で拒否する", async () => {
-    const f = await initializedFixture();
-    const ctx = await reopenInitialized(f);
-    await runCommand(ticketCreate, ctx, { title: "A", acceptance: ["a", "b", "c"] });
+    // all と番号の同時指定・無指定は INVALID_INPUT、節や項目がない・範囲外は NOT_FOUND で拒否する
     await runCommand(ticketCreate, ctx, { title: "B", body: "本文だけ\n" });
     await runCommand(ticketCreate, ctx, { title: "C", summary: "雛形のまま" });
     await expect(
@@ -1062,10 +1047,10 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     await expect(runCommand(ticketCheck, ctx, { ticket: "t1", items: [] })).rejects.toMatchObject({
       code: "INVALID_INPUT",
     });
-    await expect(runCommand(ticketCheck, ctx, { ticket: "t2", items: [1] })).rejects.toMatchObject({
+    await expect(runCommand(ticketCheck, ctx, { ticket: "t3", items: [1] })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
-    await expect(runCommand(ticketCheck, ctx, { ticket: "t3", all: true })).rejects.toMatchObject({
+    await expect(runCommand(ticketCheck, ctx, { ticket: "t4", all: true })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
     await expect(
@@ -1073,7 +1058,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND", message: expect.stringContaining("4") });
   });
 
-  it("check は base が今の本文と同じなら書き、読んだ後に本文が変わっていれば REJECTED で書かない", async () => {
+  it("check と update は base が今の本文と同じなら書き、読んだ後に本文が変わっていれば REJECTED で書かない。update は base を渡さなければ今までどおり書く", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a", "b"] });
@@ -1099,13 +1084,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       base: shown.data.body,
     });
     expect(undone.data.body).toBe(read);
-  });
 
-  it("update は base が今の本文と違えば REJECTED で書かず、読んだ本文と同じなら書き、base を渡さなければ今までどおり書く", async () => {
-    const f = await initializedFixture();
-    const ctx = await reopenInitialized(f);
-    await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a", "b"] });
-    const read = (await runCommand(ticketShow, ctx, { ticket: "t1" })).data.body;
+    // update も base が今の本文と違えば REJECTED で書かない。本文は外した後の read に戻っている
     // 画面が読んだ後に、別の書き込み（エージェントの印）が本文を変えた
     const changed = await runCommand(ticketCheck, ctx, { ticket: "t1", items: [2] });
     // 読んだ本文（read）を base にして題を直そうとすると、書き込まずに拒否する
@@ -1120,15 +1100,15 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       code: "REJECTED",
       message: expect.stringContaining("Nothing was written"),
     });
-    const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
-    expect(shown.data.title).toBe("A");
-    expect(shown.data.body).toBe(changed.data.body);
+    const reread = await runCommand(ticketShow, ctx, { ticket: "t1" });
+    expect(reread.data.title).toBe("A");
+    expect(reread.data.body).toBe(changed.data.body);
     // 読み直した本文を base にすれば書ける
     const saved = await runCommand(ticketUpdate, ctx, {
       ticket: "t1",
       title: "B",
       body: "## Summary\n\n直した\n",
-      base: shown.data.body,
+      base: reread.data.body,
     });
     expect(saved.data.title).toBe("B");
     expect(saved.data.body).toBe("## Summary\n\n直した\n");
@@ -1233,9 +1213,10 @@ describe("Epic と Iteration", () => {
     expect(renamed.data).toMatchObject({ name: "Sprint 1b", goal: "", status: "closed" });
   });
 
-  it("予定の期間（start・end）は持たない。古いファイルの start・end は読んだ値に出ず、Iteration を書くと（引数なしの update でも）ファイルから消える", async () => {
+  it("予定の期間（start・end）は持たない。古いファイルの start・end は読んだ値に出ず、Iteration を書くと（引数なしの update でも）形を問わず（null・数・配列でも）ファイルから消え、goal・started_at とスキーマにない項目は残る", async () => {
     const f = await initializedFixture();
-    const ctx = await reopenInitialized(f);
+    const clock = new Date("2026-11-03T01:02:03Z");
+    const ctx = await reopenInitialized(f, { now: () => clock });
     for (const name of ["Sprint 1", "Sprint 2", "Sprint 3"])
       await runCommand(iterationCreate, ctx, { name });
     const fileOf = (id: string) => path.join(ctx.repo.dataDir, `iterations/${id}.yaml`);
@@ -1262,35 +1243,30 @@ describe("Epic と Iteration", () => {
     }
     // 書いていない Iteration には残る（移すのは書いたときだけ）
     expect(await readFile(fileOf("s3"), "utf8")).toMatch(/^start:/m);
-  });
 
-  it("古い start・end は形を問わず（null・数・配列でも）書き直すと消え、goal・started_at とスキーマにない項目は残る", async () => {
-    const f = await initializedFixture();
-    const clock = new Date("2026-11-03T01:02:03Z");
-    const ctx = await reopenInitialized(f, { now: () => clock });
-    await runCommand(iterationCreate, ctx, { name: "Sprint 1", goal: "読む" });
-    await runCommand(iterationStart, ctx, { iteration: "s1" });
-    const fileOf = (id: string) => path.join(ctx.repo.dataDir, `iterations/${id}.yaml`);
+    // 古い start・end は形を問わず（null・数・配列でも）書き直すと消え、goal・started_at とスキーマにない項目は残る
+    await runCommand(iterationCreate, ctx, { name: "Sprint 4", goal: "読む" });
+    await runCommand(iterationStart, ctx, { iteration: "s4" });
     // 古い版の dg が書いた形のほかに、値の形が違うものと、スキーマにない項目を足す
-    const text = await readFile(fileOf("s1"), "utf8");
-    await writeFile(fileOf("s1"), `${text}start: null\nend: [1, 2]\nmemo: 残す\n`);
+    const legacyText = await readFile(fileOf("s4"), "utf8");
+    await writeFile(fileOf("s4"), `${legacyText}start: null\nend: [1, 2]\nmemo: 残す\n`);
     await recordBaseline(ctx.repo);
     await ctx.store.rescan();
     // 読んだ値には出ず、引数なしの update で書き直すとファイルからも消える
-    expect((await runCommand(iterationShow, ctx, { iteration: "s1" })).data).not.toHaveProperty(
+    expect((await runCommand(iterationShow, ctx, { iteration: "s4" })).data).not.toHaveProperty(
       "start",
     );
-    await runCommand(iterationUpdate, ctx, { iteration: "s1" });
-    const rewritten = await readFile(fileOf("s1"), "utf8");
+    await runCommand(iterationUpdate, ctx, { iteration: "s4" });
+    const rewritten = await readFile(fileOf("s4"), "utf8");
     expect(rewritten).not.toMatch(/^(start|end):/m);
     expect(rewritten).toContain("memo: 残す");
-    const shown = (await runCommand(iterationShow, ctx, { iteration: "s1" })).data;
-    expect(shown).toMatchObject({
+    const legacy = (await runCommand(iterationShow, ctx, { iteration: "s4" })).data;
+    expect(legacy).toMatchObject({
       goal: "読む",
       started_at: "2026-11-03T01:02:03Z",
       memo: "残す",
     });
-    expect(shown).not.toHaveProperty("end");
+    expect(legacy).not.toHaveProperty("end");
   });
 
   it("start は実績の開始の日時 started_at を書き、close は closed_at を足し、reopen は started_at を変えずに closed_at を消す（IT-1）", async () => {

@@ -688,13 +688,14 @@ describe("同期のマージドライバ", () => {
     });
   });
 
-  it("同じフィールドを双方で変えた競合は、rebase を中止してローカルのコミットを残し報告する", async () => {
+  it("同じフィールドを双方で変えた競合は、rebase を中止してローカルのコミットを残し報告する。data.conflict_fields がフィールドと分岐点・ローカル・リモートの値を返し、警告にもフィールドと両側の値を載せる。競合が残る間の sync の警告と起票の SYNC_CONFLICT は、同じ戻し方（人に remote か local を聞いて --resolve を 1 回呼ぶ）を案内する", async () => {
     const f = await fixture();
     const { a, b } = await twoClones(f);
     await runCommand(ticketUpdate, a, { ticket: "t1", title: "A の題" });
     await runCommand(sync, a, {});
     await runCommand(ticketUpdate, b, { ticket: "t1", title: "B の題" });
     const synced = await runCommand(sync, b, {});
+    // conflicts はファイル名の配列のまま。updated_at は新しい方を採るので競合に入らない
     expect(synced.data.conflicts).toEqual(["tickets/t1.md"]);
     expect(synced.data.pushed).toBe(false);
     expect(synced.warnings.join("\n")).toContain("Conflicts with remote changes: tickets/t1.md");
@@ -705,17 +706,6 @@ describe("同期のマージドライバ", () => {
     );
     expect((await git(b.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
     expect(await t1(b)).toContain("title: B の題");
-  });
-
-  it("競合で止まると、data.conflict_fields がフィールドと分岐点・ローカル・リモートの値を返し、警告にもフィールドと両側の値を載せる", async () => {
-    const f = await fixture();
-    const { a, b } = await twoClones(f);
-    await runCommand(ticketUpdate, a, { ticket: "t1", title: "A の題" });
-    await runCommand(sync, a, {});
-    await runCommand(ticketUpdate, b, { ticket: "t1", title: "B の題" });
-    const synced = await runCommand(sync, b, {});
-    // conflicts はファイル名の配列のまま。updated_at は新しい方を採るので競合に入らない
-    expect(synced.data.conflicts).toEqual(["tickets/t1.md"]);
     expect(synced.data.conflict_fields).toEqual([
       {
         file: "tickets/t1.md",
@@ -728,6 +718,25 @@ describe("同期のマージドライバ", () => {
     expect(synced.warnings.join("\n")).toContain(
       'tickets/t1.md title (local "B の題", remote "A の題", base "ログイン")',
     );
+    expect(synced.warnings.join("\n")).toContain(CONFLICT_REMEDY);
+    // 戻し方は、自分では選ばずに人に remote か local を聞き、--resolve を 1 回呼ぶこと（--auto でも自動で選ばない）
+    expect(CONFLICT_REMEDY).toContain("Do not choose yourself");
+    expect(CONFLICT_REMEDY).toContain("dg sync --resolve <remote|local> once");
+    expect(CONFLICT_REMEDY).toContain("It is not chosen automatically even with --auto");
+    await expect(runCommand(ticketCreate, b, { title: "新しい題" })).rejects.toMatchObject({
+      code: "SYNC_CONFLICT",
+      message: expect.stringContaining(CONFLICT_REMEDY),
+    });
+    // CAS でない即時の書き込みは、取り込みと push の両方で競合しても戻し方を 1 回だけ案内する
+    const written = await withWrite(
+      b,
+      async () => {
+        await b.store.update("ticket", "t1", { priority: "high" });
+      },
+      { message: "t1 を更新", immediate: true },
+    );
+    expect(written.write.pushed).toBe(false);
+    expect(written.write.warnings.join("\n").split(CONFLICT_REMEDY)).toHaveLength(2);
   });
 
   it("rebase が止まったコミットの後のコミットでぶつかるフィールドと、本文のぶつかった行の塊も data.conflict_fields に返す", async () => {
@@ -876,34 +885,6 @@ describe("同期のマージドライバ", () => {
     const synced = await runCommand(sync, b, {});
     expect(synced.data.conflicts).toEqual([`plans/${id}.yaml`]);
     expect(synced.data.pushed).toBe(false);
-  });
-
-  it("競合が残る間の sync の警告と起票の SYNC_CONFLICT は、同じ戻し方（人に remote か local を聞いて --resolve を 1 回呼ぶ）を案内する", async () => {
-    const f = await fixture();
-    const { a, b } = await twoClones(f);
-    await runCommand(ticketUpdate, a, { ticket: "t1", title: "A の題" });
-    await runCommand(sync, a, {});
-    await runCommand(ticketUpdate, b, { ticket: "t1", title: "B の題" });
-    const synced = await runCommand(sync, b, {});
-    expect(synced.warnings.join("\n")).toContain(CONFLICT_REMEDY);
-    // 戻し方は、自分では選ばずに人に remote か local を聞き、--resolve を 1 回呼ぶこと（--auto でも自動で選ばない）
-    expect(CONFLICT_REMEDY).toContain("Do not choose yourself");
-    expect(CONFLICT_REMEDY).toContain("dg sync --resolve <remote|local> once");
-    expect(CONFLICT_REMEDY).toContain("It is not chosen automatically even with --auto");
-    await expect(runCommand(ticketCreate, b, { title: "新しい題" })).rejects.toMatchObject({
-      code: "SYNC_CONFLICT",
-      message: expect.stringContaining(CONFLICT_REMEDY),
-    });
-    // CAS でない即時の書き込みは、取り込みと push の両方で競合しても戻し方を 1 回だけ案内する
-    const written = await withWrite(
-      b,
-      async () => {
-        await b.store.update("ticket", "t1", { priority: "high" });
-      },
-      { message: "t1 を更新", immediate: true },
-    );
-    expect(written.write.pushed).toBe(false);
-    expect(written.write.warnings.join("\n").split(CONFLICT_REMEDY)).toHaveLength(2);
   });
 
   it("config.yaml だけが競合したただの sync は、どちらかを選ぶ手順ではなく手で解く手順を警告に出す", async () => {

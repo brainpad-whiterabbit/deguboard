@@ -491,7 +491,7 @@ describe("run", () => {
     expect(tracked).toBe(`runs/${run.id}.json`);
   });
 
-  it("finish はリトライの理由を retry_reasons に残し、回数を省けば理由の数を回数にする", async () => {
+  it("finish はリトライの理由を retry_reasons に残し、回数を省けば理由の数を回数にし、空の理由の配列は省いたのと同じに扱う。回数と理由の数が食い違うか、理由が 1 行でなければ拒否し、Run を開けたままにする", async () => {
     const ctx = await prepared();
     const reasons = ["型の検査が落ちた", "見直しで境界の扱いを指摘された"];
     const first = await start(ctx, "t1");
@@ -515,18 +515,50 @@ describe("run", () => {
       retries: 1,
     });
     expect(plain.data).toMatchObject({ retries: 1, retry_reasons: [] });
-  });
 
-  it("finish は空の理由の配列を省いたのと同じに扱い、回数だけを記録する", async () => {
-    const ctx = await prepared();
-    const run = await start(ctx, "t1");
-    const r = await runCommand(runFinish, ctx, {
-      run: run.id,
+    // 空の理由の配列は省いたのと同じに扱い、回数だけを記録する
+    const third = await start(ctx, "t1");
+    const empty = await runCommand(runFinish, ctx, {
+      run: third.id,
       result: "success",
       retries: 1,
       retry_reasons: [],
     });
-    expect(r.data).toMatchObject({ retries: 1, retry_reasons: [] });
+    expect(empty.data).toMatchObject({ retries: 1, retry_reasons: [] });
+
+    // 回数と理由の数が食い違うか、理由が 1 行でなければ拒否し、Run を開けたままにする
+    const run = await start(ctx, "t2");
+    await expect(
+      runCommand(runFinish, ctx, {
+        run: run.id,
+        result: "success",
+        retries: 1,
+        retry_reasons: ["検査が落ちた", "見直しの指摘"],
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: expect.stringMatching(/do not match/),
+    });
+    await expect(
+      runCommand(runFinish, ctx, {
+        run: run.id,
+        result: "success",
+        retry_reasons: ["1 行目\n2 行目"],
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      runCommand(runFinish, ctx, { run: run.id, result: "success", retry_reasons: ["  "] }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    const running = (await runCommand(runList, ctx, { running: true })).data as RunView[];
+    expect(running.map((r) => r.id)).toEqual([run.id]);
+    // 数が合えば閉じられる
+    const closed = await runCommand(runFinish, ctx, {
+      run: run.id,
+      result: "failure",
+      retries: 1,
+      retry_reasons: ["検査が落ちた"],
+    });
+    expect(closed.data).toMatchObject({ retries: 1, retry_reasons: ["検査が落ちた"] });
   });
 
   it("retry_reasons と session のない古い実行中の記録も finish で閉じられ、空の配列と null で記録する", async () => {
@@ -551,7 +583,7 @@ describe("run", () => {
     expect(saved["session"]).toBeNull();
   });
 
-  it("start は transcript を agent の会話記録の置き場所の下だけ受け付け、外のパス（相対パスを含む）は拒否する", async () => {
+  it("start は transcript を agent の会話記録の置き場所の下だけ受け付け、外のパス（相対パスを含む）と、シンボリックリンクを解くと置き場所の下から外を指すリンクは拒否する（RN-1）", async () => {
     const ctx = await prepared();
     const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
     cleanups.push(() => rm(home, { recursive: true, force: true }));
@@ -583,20 +615,15 @@ describe("run", () => {
         }),
       ).rejects.toThrow(/accepts only files under the place where/);
     }
-  });
 
-  it("start は transcript のシンボリックリンクを解いて比べ、置き場所の下から外を指すリンクを拒否する（RN-1）", async () => {
-    const ctx = await prepared();
-    const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
-    cleanups.push(() => rm(home, { recursive: true, force: true }));
-    ctx.env = { HOME: home };
+    // シンボリックリンクを解いて比べ、置き場所の下から外を指すリンクを拒否する
     const projects = path.join(home, ".claude", "projects", "d");
     await mkdir(projects, { recursive: true });
     await mkdir(path.join(home, ".ssh"), { recursive: true });
     await symlink(path.join(home, ".ssh"), path.join(projects, "link"));
     await expect(
       runCommand(runStart, ctx, {
-        ticket: "t1",
+        ticket: "t2",
         step: "implement",
         agent: "claude-code",
         transcript: path.join(projects, "link", "id_rsa"),
@@ -665,42 +692,6 @@ describe("run", () => {
       await runCommand(runStart, ctx, { ticket: "t2", step: "implement", agent: "claude-code" })
     ).data as Run;
     expect(other.session).toBeNull();
-  });
-
-  it("finish は回数と理由の数が食い違うか、理由が 1 行でなければ拒否し、Run を開けたままにする", async () => {
-    const ctx = await prepared();
-    const run = await start(ctx, "t1");
-    await expect(
-      runCommand(runFinish, ctx, {
-        run: run.id,
-        result: "success",
-        retries: 1,
-        retry_reasons: ["検査が落ちた", "見直しの指摘"],
-      }),
-    ).rejects.toMatchObject({
-      code: "INVALID_INPUT",
-      message: expect.stringMatching(/do not match/),
-    });
-    await expect(
-      runCommand(runFinish, ctx, {
-        run: run.id,
-        result: "success",
-        retry_reasons: ["1 行目\n2 行目"],
-      }),
-    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
-    await expect(
-      runCommand(runFinish, ctx, { run: run.id, result: "success", retry_reasons: ["  "] }),
-    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
-    const running = (await runCommand(runList, ctx, { running: true })).data as RunView[];
-    expect(running.map((r) => r.id)).toEqual([run.id]);
-    // 数が合えば閉じられる
-    const r = await runCommand(runFinish, ctx, {
-      run: run.id,
-      result: "failure",
-      retries: 1,
-      retry_reasons: ["検査が落ちた"],
-    });
-    expect(r.data).toMatchObject({ retries: 1, retry_reasons: ["検査が落ちた"] });
   });
 
   it("Adapter が渡した使用量だけを集計に入れ、渡さなかった値と中の未知のキーを残す", async () => {
