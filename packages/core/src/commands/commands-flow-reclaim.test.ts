@@ -13,8 +13,9 @@ import { runFinish, runStart, STALE_SESSION_ERROR } from "./run.js";
 import { commit, lint, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketMove, ticketUnclaim, ticketUpdate } from "./ticket.js";
 import {
-  fixture,
-  initialized,
+  initializedBothFixture,
+  initializedFixture,
+  reopenInitialized,
   agentWithRuns,
   fakeGh,
   pushCommitAt,
@@ -40,9 +41,9 @@ afterEach(runCleanups);
 
 describe("チケットの流れ（もう一度の claim と手直し）", () => {
   it("自分が claim 済みで PR のあるチケットのもう一度の claim は、チケットを変えずに opens_on: reclaim の step（fix）の Run を --retry-reason 付きで開き、前の手直しの Run は最後の push の時刻で閉じる。ほかの主体と PR のない自分の claim は拒否する（RN-5・ST-9）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     for (const title of ["Reviewed", "No PR", "Todo"])
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
@@ -177,8 +178,8 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("もう一度の claim の --branch は、最初の claim と同じ値（<id>- を付ける前の値）でも、記録済みの名前でも通り、別の名前になる値は拒む（ST-3・ST-9）", async () => {
-    const f = await fixture();
-    const human = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const human = await reopenInitialized(f);
     await runCommand(ticketCreate, human, { title: "Login" });
     const claimed = await runCommand(ticketClaim, human, {
       no_worktree: true,
@@ -217,9 +218,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("もう一度の claim は、別のセッションで開いたままの前の手直しの Run を落ちたセッションの残りとみなして interrupted で閉じ、同じセッションの前の手直しは今までどおり区切りとして success で閉じる（RN-6）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     await runCommand(ticketCreate, human, { title: "Crashed fix" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" });
@@ -276,9 +277,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("サブエージェントのもう一度の claim は、DEGUBOARD_SESSION がなくても Claude Code が環境に付けるセッション ID で手直しの Run を開き、別のセッションの前の手直しを interrupted で閉じる（RN-6）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     await runCommand(ticketCreate, human, { title: "Subagent fix" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     await runCommand(ticketClaim, agent, {
@@ -339,9 +340,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("もう一度の claim が閉じる前の手直しの Run を別の文脈が先に閉じていても、claim は止まらずに警告し、新しい手直しの Run を開く（RN-6）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     await runCommand(ticketCreate, human, { title: "Raced fix" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" });
@@ -395,9 +396,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("もう一度の claim かは取り込んだ後の索引で決め、別のマシンで済んだ claim と PR の記録や unclaim を古い索引で見誤らない（ST-9）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const a = await initialized(f.cloneA, { now: () => clock });
+    const a = await reopenInitialized(f, { now: () => clock });
     await runCommand(ticketCreate, a, { title: "Elsewhere" });
     // 同じユーザの別のマシン（clone B）で claim し、PR 番号を記録して push する
     const b = await openContext({
@@ -462,9 +463,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("lint は agent が PR まで進めたのに実装の Run がないチケットを指摘し、Run がある・人の claim は指摘しない（RN-5・RN-6）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     for (const title of ["No run", "With run", "By human"])
       await runCommand(ticketCreate, human, { title, summary: "s", acceptance: ["a"] });
     const agent = await agentWithRuns(f.cloneA, () => clock);
@@ -491,9 +492,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("lint は閉じた実装の Run の後の push で、どの Run の期間にも入らないものを指摘し、手直しの Run の期間に入れば指摘しない（RN-6）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     await runCommand(ticketCreate, human, {
       title: "Pushed after",
       summary: "s",
@@ -528,9 +529,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("lint の実装の Run の抜けは、終わっていないチケットと閉じていない Iteration の done だけを見て、閉じた Iteration の done と Iteration のない done は指摘しない", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     for (const title of ["Unfinished", "Done"])
       await runCommand(ticketCreate, human, { title, summary: "s", acceptance: ["a"] });
     const agent = await agentWithRuns(f.cloneA, () => clock);
@@ -569,9 +570,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("lint は作業ブランチに main をマージしたマージコミットを、実装の Run の後のコミットとして指摘しない", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     await runCommand(ticketCreate, human, {
       title: "Merged main",
       summary: "s",
@@ -608,9 +609,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("lint は見直し（review）の後にコミットがあるのに、その後に手直しの Run（fix）がないチケットを指摘し、fix がある・見直しのないチケットは指摘しない（t509）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     for (const title of ["Reviewed", "Fixed", "Not reviewed"])
       await runCommand(ticketCreate, human, { title, summary: "s", acceptance: ["a"] });
     const agent = await agentWithRuns(f.cloneA, () => clock);
@@ -660,9 +661,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("lint は見直しが 2 回あり、手直しの Run が 1 回目の見直しの後にしかない場合は、2 回目の見直しの後のコミットを指摘する（t509）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     await runCommand(ticketCreate, human, { title: "Twice", summary: "s", acceptance: ["a"] });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" });
@@ -705,9 +706,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("照合は開いたままの手直しの Run を、次の Run の開始・マージ（done への前進）・終わったチケットの区切りで、それまでの最後の push の時刻で閉じる。unclaim は手直しの Run も failure で閉じる（RN-6）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     for (const title of ["Next run", "Done by move", "Unclaimed", "Ready later"])
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
@@ -890,9 +891,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("照合は、別のマシンで終わったチケットの開いたままの実装の Run を ticket move と同じ結果で閉じ、戻った・別の主体の claim になったチケットの実装の Run を failure で閉じる。自分の claim は閉じない（RN-6）", async () => {
-    const f = await fixture();
+    const f = await initializedBothFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     for (const title of [
       "Abandoned elsewhere",
       "Done elsewhere",
@@ -910,7 +911,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     );
     await runCommand(sync, agent, {});
     // 別のマシン（cloneB）の人が操作してリモートに送る。cloneA の実装の Run は開いたまま残る
-    const other = await initialized(f.cloneB, { now: () => clock });
+    const other = await reopenInitialized(f, { cwd: f.cloneB, now: () => clock });
     await runCommand(sync, other, {});
     clock = new Date("2026-11-06T01:00:00Z");
     await runCommand(ticketMove, other, { ticket: "t1", status: "abandoned" });
@@ -978,9 +979,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("run start は、同じチケットの開いたままの手直しの Run を、手直しと同じ秒の開始も区切りとして閉じてから始める。手直しでない step では別のセッションの手直しも success。照合も同じ秒の次の Run を区切りに数える（RN-6）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     await runCommand(ticketCreate, human, { title: "Run start closes fix" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     await runCommand(ticketClaim, agent, {
@@ -1058,9 +1059,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
   });
 
   it("見直しの修正ループの手直しは、draft の PR を記録した in_progress のチケットのもう一度の claim（--retry-reason）が fix の Run を開き、次の見直しの run start と照合の PR の ready が区切りとして push の時刻で閉じる（RN-5・RN-6）", async () => {
-    const f = await fixture();
+    const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await initialized(f.cloneA, { now: () => clock });
+    const human = await reopenInitialized(f, { now: () => clock });
     await runCommand(ticketCreate, human, { title: "Review loop" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const implement = (

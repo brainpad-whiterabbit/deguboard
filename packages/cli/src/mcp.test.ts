@@ -16,7 +16,7 @@ import {
   ticketCreate,
 } from "@deguboard/core";
 import { cliEnv } from "../../core/test/helpers/env.js";
-import { createFixture, type Fixture } from "../../core/test/helpers/git-fixture.js";
+import { createFixtureFrom, type Fixture } from "../../core/test/helpers/git-fixture.js";
 import { toTools } from "./mcp.js";
 import { run } from "./program.js";
 
@@ -25,10 +25,12 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
-async function initialized(): Promise<Fixture> {
-  const f = await createFixture();
+/** init 済みの雛形から写す（init はテストファイルで 1 度だけ） */
+async function initializedFixture(): Promise<Fixture> {
+  const f = await createFixtureFrom("mcp-init", async (l) => {
+    await runCommand(init, await openContext({ cwd: l.cloneA, initialize: {} }), {});
+  });
   cleanups.push(f.cleanup);
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
   return f;
 }
 
@@ -139,7 +141,7 @@ describe("dg mcp", () => {
   });
 
   it("stdio で起動してツールを呼び、結果は CLI の --json と同じ形で、書き込みの主体は <ユーザ>/agent", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const { code, results, err } = await session(
       ["-C", f.cloneA, "--user", "eiki"],
       [
@@ -195,7 +197,7 @@ describe("dg mcp", () => {
   });
 
   it("環境変数 DEGUBOARD_USER で主体名を渡すと、whoami の user_source が env になる", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const { code, results, err } = await session(
       ["-C", f.cloneA],
       [{ method: "tools/call", params: { name: "whoami", arguments: {} } }],
@@ -212,7 +214,7 @@ describe("dg mcp", () => {
   });
 
   it("metrics show は CLI の --json と MCP で同じ集計を返し、--help に出る", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const ctx = await openContext({ cwd: f.cloneA });
     await runCommand(ticketCreate, ctx, { title: "集計の対象" });
     await ctx.store.create("run", {
@@ -279,7 +281,7 @@ describe("dg mcp", () => {
   });
 
   it("run_start・run_list・run_finish で CLI と同じく Run を記録できる", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     await run(["-C", f.cloneA, "ticket", "create", "A"], {
       env: cliEnv(),
       streams: { out: () => {}, err: () => {} },
@@ -337,7 +339,7 @@ describe("dg mcp", () => {
   });
 
   it("flow_next は CLI の dg flow next --json と同じ結果を返し、--no-assign を受け取る。checkpoint で通した関所を、どちらの入口も同じに数える", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const cli = async (argv: string[]) => {
       const out: string[] = [];
       await run(["-C", f.cloneA, "--json", ...argv], {
@@ -375,7 +377,7 @@ describe("dg mcp", () => {
   });
 
   it("ask は設定の項目（--key）で CLI の --json と MCP が同じ依頼文を返し、スキーマにない項目はどちらも使い方の誤りになる", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const cli = async (argv: string[]) => {
       const out: string[] = [];
       const code = await run(["-C", f.cloneA, "--json", ...argv], {
@@ -426,7 +428,7 @@ describe("dg mcp", () => {
   });
 
   it("next と brief は CLI の --json と MCP で同じ文を返し、役ごとの文に節の本文が入る（t593）", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const cli = async (argv: string[]) => {
       const out: string[] = [];
       await run(["-C", f.cloneA, "--json", ...argv], {

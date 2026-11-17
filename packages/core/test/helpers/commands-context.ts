@@ -35,6 +35,19 @@ export async function initializedFixture(): Promise<Fixture> {
   return f;
 }
 
+/**
+ * clone A で init し、続けて clone B でも init した（リモートのカンバンを取り込んだ）雛形から写す。
+ * B の文脈は reopenInitialized(f, { cwd: f.cloneB }) で開く
+ */
+export async function initializedBothFixture(): Promise<Fixture> {
+  const f = await createFixtureFrom("initialized-both", async (layout) => {
+    await initialized(layout.cloneA);
+    await initialized(layout.cloneB);
+  });
+  cleanups.push(f.cleanup);
+  return f;
+}
+
 /** initializedFixture から写した先の文脈を開く。opts は initialized と同じ */
 export function reopenInitialized(
   f: Fixture,
@@ -80,7 +93,10 @@ export async function setDependsOn(ctx: CommandContext, id: string, value: strin
   await recordBaseline(ctx.repo);
 }
 
-/** init まで済ませた文脈を開く */
+/**
+ * init まで済ませた文脈を開く。init は git を何十回も起動して遅いので、init の後の状態だけが要るテストは
+ * initializedFixture（雛形の写し）から始め、テストファイルがこれを直に呼ぶのは init 自身か init のオプションを確かめるときだけにする
+ */
 export async function initialized(
   cwd: string,
   opts: Partial<ContextOptions> = {},

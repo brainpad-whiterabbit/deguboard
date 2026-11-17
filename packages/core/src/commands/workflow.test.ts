@@ -2,7 +2,12 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { asHuman } from "../../test/helpers/commands-context.js";
-import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
+import {
+  createFixture,
+  createFixtureFrom,
+  git,
+  type Fixture,
+} from "../../test/helpers/git-fixture.js";
 import { recordBaseline } from "../git/outside.js";
 import { pathExists } from "../storage/exists.js";
 import {
@@ -29,14 +34,25 @@ async function fixture(): Promise<Fixture> {
   return f;
 }
 
-/** init まで済ませ、書き込みのたびにコミットする（commit.mode: each）文脈を開く */
-async function initialized(cwd: string): Promise<CommandContext> {
-  const first = await openContext({ cwd, initialize: {}, actor: { kind: "human", user: "eiki" } });
-  await runCommand(init, first, {});
-  await runCommand(configSet, first, { key: "commit.mode", value: "each" });
-  await runCommand(commit, first, {});
-  return openContext({ cwd, actor: { kind: "agent", user: "eiki" } });
+/** init まで済ませ、書き込みのたびにコミットする（commit.mode: each）雛形から写す（init はテストファイルで 1 度だけ） */
+async function eachFixture(): Promise<Fixture> {
+  const f = await createFixtureFrom("initialized-each", async (l) => {
+    const first = await openContext({
+      cwd: l.cloneA,
+      initialize: {},
+      actor: { kind: "human", user: "eiki" },
+    });
+    await runCommand(init, first, {});
+    await runCommand(configSet, first, { key: "commit.mode", value: "each" });
+    await runCommand(commit, first, {});
+  });
+  cleanups.push(f.cleanup);
+  return f;
 }
+
+/** 写した先の clone A をエージェントの文脈で開く */
+const openAgent = (f: Fixture) =>
+  openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
 
 async function gitOut(ctx: CommandContext, args: string[]): Promise<string> {
   return (await git(ctx.repo.dataDir, args)).stdout.trim();
@@ -88,8 +104,8 @@ describe("init", () => {
   });
 
   it("誤りがあって読めない workflow.yaml も書き換えず、workflow set で直せる", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     const broken = "boundaries:\n  - { from: review, to: done, requires: [nope] }\n";
     await writeWorkflowFile(ctx, broken);
     expect(ctx.store.workflow).toBeUndefined();
@@ -116,8 +132,8 @@ describe("workflow のコマンド", () => {
 
 describe("workflow show", () => {
   it("workflow.yaml がなければ exists: false で、どの項目も Core の既定を返す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     await git(ctx.repo.dataDir, ["rm", "--quiet", "workflow.yaml"]);
     await git(ctx.repo.dataDir, ["commit", "--quiet", "-m", "remove workflow.yaml"]);
     await recordBaseline(ctx.repo);
@@ -139,8 +155,8 @@ describe("workflow show", () => {
   });
 
   it("states の label で書き換えた表示名を labels に返し、default_labels は書き換える前の core の既定のまま（画面が同じ文の Status だけを訳す）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     await runCommand(workflowSet, asHuman(ctx), { definition: strict });
     const shown = await runCommand(workflowShow, ctx, {});
     expect(shown.data.exists).toBe(true);
@@ -162,8 +178,8 @@ describe("workflow show", () => {
   });
 
   it("sections は 6 つの項目を行にし、省いた値も既定で埋めて、行ごとに既定と違うかを返す（設定画面は写すだけ。UI-14）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     const rowsOf = async () => {
       const { sections } = (await runCommand(workflowShow, ctx, {})).data;
       return {
@@ -269,8 +285,8 @@ describe("workflow show", () => {
   });
 
   it("Run の step の語彙と表示名は Core の固定で、workflow.yaml に書いても変わらない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     const r = await runCommand(workflowSet, asHuman(ctx), {
       definition: { steps: [{ id: "deploy", label: "Deploy" }] },
     });
@@ -292,8 +308,8 @@ describe("workflow show", () => {
 
 describe("workflow validate", () => {
   it("読み込み時と同じ指摘（未知の項目・値・事実、増やした Status）を返し、誤りがあれば ok: false", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     await writeWorkflowFile(
       ctx,
       [
@@ -335,8 +351,8 @@ describe("workflow validate", () => {
 
 describe("workflow set", () => {
   it("検証を通った定義で置き換え、1 コミットで push し、前と後と変わった項目を返す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     const commits = await commitCount(ctx);
     const r = await runCommand(workflowSet, asHuman(ctx), { definition: strict });
     expect(r.data).toMatchObject({
@@ -359,8 +375,8 @@ describe("workflow set", () => {
   });
 
   it("workflow.yaml がなければ作り、前の版の workflows/ が残っていれば同じコミットで消す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     const dir = path.join(ctx.repo.dataDir, "workflows");
     await mkdir(dir);
     await writeFile(path.join(dir, "general.yaml"), "id: general\nname: General\n");
@@ -389,8 +405,8 @@ describe("workflow set", () => {
   });
 
   it("WF-3 の誤りと形の誤りは何も書かずに拒否し、指摘を detail に返す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     const before = await workflowText(ctx);
     const commits = await commitCount(ctx);
     const cases: Array<[Record<string, unknown>, string]> = [
@@ -422,24 +438,24 @@ describe("workflow set", () => {
   });
 
   it("定義は必須", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     await expect(runCommand(workflowSet, asHuman(ctx), {} as never)).rejects.toMatchObject({
       code: "INVALID_INPUT",
     });
   });
 
   it("未知の項目は警告にとどめて書く", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     const r = await runCommand(workflowSet, asHuman(ctx), { definition: { boundries: [] } });
     expect(r.write).toMatchObject({ committed: true });
     expect(r.warnings.some((w) => w.includes("Unknown item boundries"))).toBe(true);
   });
 
   it("前の版の transitions を残した workflow.yaml は、警告を出して読め、既定の境目で判定する（カンバンは止まらない）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     await writeWorkflowFile(
       ctx,
       "transitions:\n  - { from: todo, to: in_progress, requires: [deps_done] }\n",
@@ -466,8 +482,8 @@ describe("workflow set", () => {
   });
 
   it("Workflow を置き換えても既存のチケットが読め、どのチケットも新しい制約で遷移する（チケットの workflow は Workflow を選ばない）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await eachFixture();
+    const ctx = await openAgent(f);
     const a = await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: a.data.id, branch: "t1-a" });
     const b = await runCommand(ticketCreate, ctx, { title: "B", workflow: "general" });

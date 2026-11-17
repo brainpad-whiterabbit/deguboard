@@ -2,7 +2,11 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createFixture } from "../../test/helpers/git-fixture.js";
+import {
+  initializedFixture,
+  reopenInitialized,
+  runCleanups,
+} from "../../test/helpers/commands-context.js";
 import {
   ASK_ACTIONS,
   type AskAction,
@@ -39,7 +43,6 @@ import { iterationAdd, iterationClose, iterationCreate, iterationStart } from ".
 import { planCreate } from "./plan.js";
 import { commands } from "./registry.js";
 import { runStart } from "./run.js";
-import { init } from "./setup.js";
 import { ticketCreate, ticketMove, ticketUpdate } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
 import { DEFAULT_WORKFLOW, resolveWorkflow } from "../workflow/resolve.js";
@@ -54,6 +57,7 @@ const askActions = (s: AskSubject[], within?: string, place?: AskPlace) =>
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((c) => c()));
+  await runCleanups();
 });
 
 const ticket = (over: Partial<Extract<AskSubject, { kind: "ticket" }>> = {}): AskSubject => ({
@@ -1358,18 +1362,15 @@ describe("頼むことの候補", () => {
   });
 });
 
-const actor = { kind: "human" as const, user: "eiki" };
-
-async function initialized(): Promise<{ cwd: string; ctx: CommandContext }> {
-  const f = await createFixture();
-  cleanups.push(f.cleanup);
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
-  return { cwd: f.cloneA, ctx: await openContext({ cwd: f.cloneA, actor }) };
+/** init 済みの雛形から写したカンバンと、人（eiki）の文脈 */
+async function initializedBoard(): Promise<{ cwd: string; ctx: CommandContext }> {
+  const f = await initializedFixture();
+  return { cwd: f.cloneA, ctx: await reopenInitialized(f) };
 }
 
 describe("ask", () => {
   it("store から対象の状態を引いて候補を決め、本文を依頼文に入れない", async () => {
-    const { ctx } = await initialized();
+    const { ctx } = await initializedBoard();
     await runCommand(ticketCreate, ctx, { title: "A", body: "## 概要\n\n本文の秘密\n" });
     await runCommand(ticketCreate, ctx, { title: "B" });
     await runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t1"] });
@@ -1422,10 +1423,14 @@ describe("ask", () => {
   });
 
   it("形式を省けば、dg の Skill がリポジトリか HOME の .claude/skills にあるときだけ Skill、なければ文章の形にし、渡した形式はそのまま使う", async () => {
-    const { cwd } = await initialized();
+    const { cwd } = await initializedBoard();
     const home = await mkdtemp(join(tmpdir(), "dg-home-"));
     cleanups.push(() => rm(home, { recursive: true, force: true }));
-    const ctx = await openContext({ cwd, actor, env: { HOME: home } });
+    const ctx = await openContext({
+      cwd,
+      actor: { kind: "human", user: "eiki" },
+      env: { HOME: home },
+    });
     await runCommand(ticketCreate, ctx, { title: "A" });
     const run = async (input: Record<string, unknown>) =>
       (await runCommand(ask, ctx, { targets: ["t1"], action: "check", ...input })).data;
@@ -1454,7 +1459,7 @@ describe("ask", () => {
   });
 
   it("within は Iteration・Epic を引いて確かめ、ask-menu の組は @ を付けた場所を受ける", async () => {
-    const { ctx } = await initialized();
+    const { ctx } = await initializedBoard();
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
     await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
@@ -1490,7 +1495,7 @@ describe("ask", () => {
   });
 
   it("ask-menu は # の頼む場所で候補を変え、閉じた Iteration の見出しからだけ振り返るを出す。知らない場所は組の error に出す", async () => {
-    const { ctx } = await initialized();
+    const { ctx } = await initializedBoard();
     await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
     await runCommand(iterationClose, ctx, { iteration: "s1" });
     const menus = (
@@ -1519,7 +1524,7 @@ describe("ask", () => {
   });
 
   it("ask は key の設定の項目をスキーマと今の観点で確かめ、ask-menu は = の項目で同じ候補を返す。知らない項目は使い方の誤りと組の error", async () => {
-    const { ctx } = await initialized();
+    const { ctx } = await initializedBoard();
     await runCommand(ticketCreate, ctx, { title: "A" });
     const run = async (input: Record<string, unknown>) => (await runCommand(ask, ctx, input)).data;
     expect(await run({ action: "config", key: "commit.mode", format: "skill" })).toMatchObject({
@@ -1586,7 +1591,7 @@ describe("ask", () => {
   });
 
   it("ask-menu は language を渡すと候補の 1 文も英語にし、省けば日本語にする", async () => {
-    const { ctx } = await initialized();
+    const { ctx } = await initializedBoard();
     await runCommand(ticketCreate, ctx, { title: "A" });
     const menu = async (input: Record<string, unknown>) =>
       (await runCommand(askMenu, ctx, { sets: ["t1"], ...input })).data[0]!.candidates;
@@ -1601,7 +1606,7 @@ describe("ask", () => {
   });
 
   it("language を渡せば定型の文をその言語で組み、省けば日本語にする", async () => {
-    const { ctx } = await initialized();
+    const { ctx } = await initializedBoard();
     await runCommand(ticketCreate, ctx, { title: "A" });
     const run = async (input: Record<string, unknown>) =>
       (await runCommand(ask, ctx, { targets: ["t1"], action: "change", format: "text", ...input }))
@@ -1616,7 +1621,7 @@ describe("ask", () => {
   });
 
   it("Workflow の governance の値を見て、人に限る操作（human_only）は人が打つコマンドを、エージェントも行える操作は依頼文を返す", async () => {
-    const { ctx } = await initialized();
+    const { ctx } = await initializedBoard();
     await runCommand(epicCreate, ctx, { title: "E" });
     const close = async () =>
       (await runCommand(ask, ctx, { targets: ["e1"], action: "close" })).data;
@@ -1632,7 +1637,7 @@ describe("ask", () => {
   });
 
   it("Workflow の exceptions の値を見て、人に限る動き（human_only）は人が打つコマンドを、エージェントも行える動きは依頼文を返す", async () => {
-    const { ctx } = await initialized();
+    const { ctx } = await initializedBoard();
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketCreate, ctx, { title: "B" });
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "done", override: "PR なし" });

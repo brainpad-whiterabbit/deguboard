@@ -6,8 +6,9 @@ import { createLocalOnlyRepo, git } from "../../test/helpers/git-fixture.js";
 import {
   agentWithRuns,
   cleanups,
-  fixture,
   initialized,
+  initializedFixture,
+  reopenInitialized,
   runCleanups,
 } from "../../test/helpers/commands-context.js";
 import type { CommandContext } from "./define.js";
@@ -38,8 +39,8 @@ const goOffline = (f: { root: string; cloneA: string }) =>
 
 describe("push 先に届かないときの即時の操作（SY-3）", () => {
   it("ticket claim は自分のコミットを捨てて PUSH_FAILED で失敗し、worktree もブランチも Run も作らない", async () => {
-    const f = await fixture();
-    const human = await initialized(f.cloneA, { now: () => NOW });
+    const f = await initializedFixture();
+    const human = await reopenInitialized(f, { now: () => NOW });
     await runCommand(ticketCreate, human, { title: "A" });
     const agent = await agentWithRuns(f.cloneA, () => NOW);
     await goOffline(f);
@@ -61,8 +62,8 @@ describe("push 先に届かないときの即時の操作（SY-3）", () => {
   });
 
   it("iteration start と reopen は自分のコミットを捨てて PUSH_FAILED で失敗する", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA, { now: () => NOW });
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f, { now: () => NOW });
     await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(iterationCreate, ctx, { name: "S2" });
     await runCommand(iterationStart, ctx, { iteration: "s1" });
@@ -84,8 +85,8 @@ describe("push 先に届かないときの即時の操作（SY-3）", () => {
   });
 
   it("まとめ待ちの変更を先にコミットしたときは、そのコミットがローカルに残ることをエラーで伝える", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA, { now: () => NOW });
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f, { now: () => NOW });
     await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(iterationCreate, ctx, { name: "S2" });
     await runCommand(iterationStart, ctx, { iteration: "s1" });
@@ -104,8 +105,8 @@ describe("push 先に届かないときの即時の操作（SY-3）", () => {
   });
 
   it("Epic・Iteration・Plan の作成は自分のコミットを捨てて PUSH_FAILED で失敗する。チケットの起票だけは仮番号で残る（DT-5）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA, { now: () => NOW });
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f, { now: () => NOW });
     await runCommand(ticketCreate, ctx, { title: "A" });
     await goOffline(f);
     const before = await head(ctx);
@@ -131,8 +132,8 @@ describe("push 先に届かないときの即時の操作（SY-3）", () => {
 
 describe("仮番号のチケットの claim（DT-5）", () => {
   it("仮番号のチケットは dg sync で番号を確定するよう案内して拒否し、確定した後は claim できる", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA, { now: () => NOW });
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f, { now: () => NOW });
     await goOffline(f);
     await runCommand(ticketCreate, ctx, { title: "オフラインの起票" });
     expect(ctx.store.tickets.get("t1")?.data.provisional).toBe(true);
@@ -157,6 +158,7 @@ describe("リモートのない運用（SY-6）", () => {
   it("claim・iteration start と reopen・Epic・Iteration・Plan の作成は、今までどおりローカルにコミットして成功する", async () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);
+    // 雛形はリモート付きで写せないので、リモートのないリポジトリは init から作る（init がリモートなしで始めた状態を使う）
     const ctx = await initialized(local.dir, { now: () => NOW });
     expect(ctx.repo.dataRemote).toBeNull();
 

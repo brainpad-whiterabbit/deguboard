@@ -5,8 +5,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  fixture,
-  initialized,
+  initializedFixture,
   reopenInitialized,
   runCleanups,
 } from "../../test/helpers/commands-context.js";
@@ -39,8 +38,8 @@ async function addProject(ctx: CommandContext, rel: string, project = "default")
  * 前の dg のコミットとして印を付け、今の状態を dg の外の変更の基準にする。mode は commit.mode
  */
 async function legacy(mode: "each" | "batch", extra?: (ctx: CommandContext) => Promise<void>) {
-  const f = await fixture();
-  const first = await initialized(f.cloneA);
+  const f = await initializedFixture();
+  const first = await reopenInitialized(f);
   await runCommand(configSet, first, { key: "commit.mode", value: mode });
   await runCommand(ticketCreate, first, { title: "A" });
   await runCommand(ticketCreate, first, { title: "B" });
