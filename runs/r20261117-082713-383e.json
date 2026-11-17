@@ -1,0 +1,35 @@
+{
+  "id": "r20261117-082713-383e",
+  "ticket": "t1075",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-17T08:27:13Z",
+  "finished_at": "2026-11-17T08:34:01Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "CAS の失敗で戻す先の before がロックの入口の HEAD になり、ロックの間に外で積まれたコミットを消しうる",
+    "本人の設定の読みの失敗の後始末が、forget の後に始まった新しい読みの覚えを消しうる"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 11475,
+    "cache_read": 964831,
+    "cache_write": 79355
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 8,
+    "bash": 13,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0,
+    "errors": 2
+  },
+  "session": "e7cdf1d0-a575-49c1-9b18-a3c120b47586",
+  "review": null,
+  "waited_seconds": 0
+}
