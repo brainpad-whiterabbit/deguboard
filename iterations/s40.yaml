@@ -34,4 +34,10 @@ checkpoints:
         - t1087
         - t1088
         - t1089
+  - name: check
+    at: 2026-11-17T10:51:34Z
+    by: Eiki Kitajima/agent
+    approved_by: Eiki Kitajima
+    basis:
+      facts: 716a4e0461ff7a9d
 started_at: 2026-11-17T06:49:14Z
