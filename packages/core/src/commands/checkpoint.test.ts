@@ -143,8 +143,8 @@ describe("dg checkpoint は段階の値で判定し、通ったら Iteration の
     expect(await rejected(pass(agent, "assign", { auto: true }))).toMatchObject({
       code: "TRANSITION_REJECTED",
     });
-    // 割り当ての根拠は、そのときの候補（Iteration に入っていない todo）
-    const assign = await pass(agent, "assign", { approved_by: "human" });
+    // 割り当ての根拠は、そのときの候補（チケットの指定の、Iteration に入っていない対象）。記録は対象の Iteration s1 に足す
+    const assign = await pass(agent, "assign", { approved_by: "human", targets: ["t2", "t3"] });
     expect(assign.checkpoint.basis).toEqual({ candidates: ["t3"] });
     expect(records().map((c) => c.name)).toEqual(["check", "assign"]);
   });

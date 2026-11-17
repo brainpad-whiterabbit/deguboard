@@ -357,26 +357,32 @@ describe("dg mcp", () => {
     await cli(["iteration", "add", "s1", "t1"]);
     // 同じ呼び出しを 2 つの入口で比べるので、止まる判定が覚えた前の段階（deguboard-local/flow/）を呼び出しの間で消す
     // （消さなければ、2 回目は同じ段階が続いたとして止まる手になる）
+    // 割り当ての候補を持つのはチケットの指定だけなので、Iteration にない t2 を含むチケットの指定で比べる
     const forget = () =>
-      rm(path.join(f.cloneA, ".git", "deguboard-local", "flow", "s1.json"), { force: true });
+      rm(path.join(f.cloneA, ".git", "deguboard-local", "flow", "t1-t2.json"), { force: true });
     const viaMcp = async () => {
       await forget();
       const s = await session(
         ["-C", f.cloneA],
-        [{ method: "tools/call", params: { name: "flow_next", arguments: { targets: ["s1"] } } }],
+        [
+          {
+            method: "tools/call",
+            params: { name: "flow_next", arguments: { targets: ["t1", "t2"] } },
+          },
+        ],
       );
       await forget();
       return body(s.results[0]!);
     };
-    const first = await cli(["flow", "next", "s1"]);
-    expect(first.data.stage).toMatchObject({ name: "assign", rule: 1 });
+    const first = await cli(["flow", "next", "t1", "t2"]);
+    expect(first.data.stage).toMatchObject({ name: "assign", rule: 1, tickets: ["t2"] });
     expect(await viaMcp()).toEqual(first);
+    expect((await cli(["flow", "next", "t1", "t2", "--no-assign"])).data.stage.name).toBe("check");
     // 割り当ての関所を通すと、どちらの入口も点検を返す
-    await cli(["checkpoint", "assign", "s1"]);
-    const checked = await cli(["flow", "next", "s1"]);
+    await cli(["checkpoint", "assign", "t1", "t2"]);
+    const checked = await cli(["flow", "next", "t1", "t2"]);
     expect(checked.data.stage.name).toBe("check");
     expect(await viaMcp()).toEqual(checked);
-    expect((await cli(["flow", "next", "s1", "--no-assign"])).data.stage.name).toBe("check");
   });
 
   it("ask は設定の項目（--key）で CLI の --json と MCP が同じ依頼文を返し、スキーマにない項目はどちらも使い方の誤りになる", async () => {

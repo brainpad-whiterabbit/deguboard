@@ -1,5 +1,5 @@
 ---
-description: Advances a deguboard Iteration or tickets through assignment, check, plan, work, audit, and release (or clean-up), in one flow. Approval stays where each stage's steps put it, and the flow does not stop between stages. A flow that stopped midway can be resumed with the same arguments. --no-assign skips the assignment stage. --auto goes ahead without asking where the board's Workflow value is ask_unless_auto. Use when asked「s3 を最後まで進めて」「割り当てからリリースまでやって」.
+description: Advances a deguboard Iteration or tickets through assignment, check, plan, work, audit, and release (or clean-up), in one flow. Approval stays where each stage's steps put it, and the flow does not stop between stages. A flow that stopped midway can be resumed with the same arguments. --no-assign skips the assignment stage (only for tickets or a Plan; an Iteration has none). --auto goes ahead without asking where the board's Workflow value is ask_unless_auto. Use when asked「s3 を最後まで進めて」「割り当てからリリースまでやって」.
 argument-hint: "<Iteration|ticket ID...> [--no-assign] [--auto] [--gate-high|--gate-low|--gate-free]"
 ---
 
@@ -9,10 +9,10 @@ Advances an Iteration or tickets from assignment to release, in one flow. The cu
 
 ## Deciding the target
 
-- Iteration (`s3`): the tickets of that Iteration, and the candidates to put into it (todos not in an Iteration). Candidates are handled only in the assignment stage
-- Ticket ID (one or more) or Plan ID (`p7`): advances that target. Audit and release run for a ticket's Iteration only when all the tickets of that Iteration are finished. The flow needs one Iteration, because the checkpoints of its stages are recorded there: when the tickets are not in an Iteration, the first assign stage decides it, and when no single Iteration is decided (declined, or the tickets are in different Iterations), the flow stops
+- Iteration (`s3`): the tickets of that Iteration. The flow does not collect other todos to put into it, so it has no assignment stage. To put other todos into the Iteration, use the steps of `dg guide assign` when a human asks for it
+- Ticket ID (one or more) or Plan ID (`p7`): advances that target. Audit and release run for a ticket's Iteration only when all the tickets of that Iteration are finished. The flow needs one Iteration, because the checkpoints of its stages are recorded there: when target tickets are not in an Iteration, the assign stage decides it for them, and when no single Iteration is decided (declined, or the tickets are in different Iterations), the flow stops
 - No target given: the same as the "Deciding the target" section of `dg guide release`
-- `--no-assign`: skips the assignment stage. If the check suggests putting tickets into an Iteration, it does not apply the suggestion and leaves it in the final report
+- `--no-assign`: skips the assignment stage. It has a meaning only for a ticket or Plan target (an Iteration target has no assignment stage). If the check suggests putting tickets into an Iteration, it does not apply the suggestion and leaves it in the final report
 - `--auto`: goes ahead without asking where the Workflow's value is `ask_unless_auto`. See "Going ahead without asking with `--auto`" below. It can be combined with `--no-assign`
 - `--gate-high`, `--gate-low`, `--gate-free`: the quality gate level for the target tickets. Pass it to `flow next` as `--gate <level>`. The work stage's `commands` then set the level on each ticket whose level differs, before its `next`, and `next` follows that level: high goes through the review and the fix loop, low and free go from the PR straight to `ready` (low still runs the checks, free does not). The conditions per level are in the "Quality gate" section of `dg guide review`. Raising the level is set without asking, with `--auto` too. Lowering it is fixed in Core to a human: the entry in `commands` is then a sentence asking a human to run `dg ticket update <id> --gate <level>`, so pass it on and wait, with `--auto` too. With no level given, each ticket keeps its own level (no level is high)
 
