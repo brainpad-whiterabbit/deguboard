@@ -195,6 +195,24 @@ dg --help                     # the list of commands
 
 For an agent that does not have the Skill installed, paste the text made by `dg ask --format text` and ask with it.
 
+## Write the agent instructions
+
+dg does not write or change your agent instructions (`CLAUDE.md`, `AGENTS.md`). The Skills and `dg guide` keep the work on the board only when a request goes through them. A request that matches no Skill, such as "fix this bug", is worked on directly, with no claim and no ticket. A few lines in the agent instructions keep such work on the board:
+
+```markdown
+## Tickets
+
+- Read and write tickets with `dg`. Do not edit `.git/deguboard/` directly.
+- Start work with `dg ticket claim <id>`, and write the ticket ID (such as `t12`) in the PR body.
+- When dg refuses an operation (`TRANSITION_REJECTED`), ask a person to run it.
+- Release: <your release steps>
+```
+
+- If `dg` is not on the agent's PATH, also write how to call it, for example `~/.local/share/deguboard/dg` (the launcher the extension installs) or "Install dg command" in [Use the CLI](#use-the-cli).
+- `dg guide release` looks for the release steps in the repository's rules (the agent instructions, README, and development docs). Without them, it does not guess the steps and asks you whether to close the Iteration with no release.
+
+Do not copy dg's steps (how to plan, implement, review, and merge) into the agent instructions. dg cannot read them there, and a copy goes stale when `dg skill install` updates the guides. To change a step for your repository, write a document without headings and set its path in `guide.notes.<topic>` (for example `guide.notes.work`); dg inserts it just after the title of `dg guide <topic>`. The check commands go in `actions.test` and `actions.light_test`. See the values with `dg config show`, and change them with `/dgconfig`.
+
 ## Use other agents
 
 deguboard's hooks record Runs and guard the data and the merges without the agent's cooperation. At present, the hooks reach only Claude Code. To see whether the hooks reach the session, run `dg hooks check` in the repository. It checks that the hooks are in Claude Code's settings, runs each hook's dg command with `--version` to confirm that it works, and checks the records of the hooks that dg received. For an agent without hooks it warns that they are missing, and it can be run again after you install or change them.
