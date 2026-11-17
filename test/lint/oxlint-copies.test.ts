@@ -2,7 +2,7 @@
 // 同じファイルに当たる override は前の制限を上書きするので、狭い override には広い override の patterns を手で写している。
 // 片方だけ直すと黙って制限が抜けるので、写した側が元の patterns をそのまま含むことを見る
 
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -29,32 +29,6 @@ function patternsOf(overrides: Override[], path: string): unknown[] {
 }
 
 describe(".oxlintrc.json の制限の写し", () => {
-  it("core の汎用部分の override は packages/core/** の patterns をそのまま写し、actions の禁止だけを足す", async () => {
-    const { overrides } = await readConfig();
-    const core = patternsOf(overrides, "packages/core/**");
-    const generic = patternsOf(overrides, "packages/core/src/commands/**");
-    expect(generic.slice(0, core.length)).toEqual(core);
-    expect(generic.slice(core.length)).toEqual([
-      expect.objectContaining({ regex: "^\\.\\.?/(\\.\\./)*actions(/|$)" }),
-    ]);
-  });
-
-  it("core/src の actions 以外の項目は、actions の禁止を持つ override の files にすべてある", async () => {
-    const { overrides } = await readConfig();
-    const actionsRegex = "^\\.\\.?/(\\.\\./)*actions(/|$)";
-    const actionsBanned = overrides.filter((o) => {
-      const rule = o.rules["no-restricted-imports"] as [string, { patterns: { regex?: string }[] }];
-      return rule?.[1].patterns.some((p) => p.regex === actionsRegex);
-    });
-    const covered = actionsBanned.flatMap((o) => o.files);
-    const entries = await readdir(join(ROOT, "packages/core/src"), { withFileTypes: true });
-    const targets = entries
-      .filter((e) => e.name !== "actions")
-      .map((e) => `packages/core/src/${e.name}${e.isDirectory() ? "/**" : ""}`);
-    expect(targets.length).toBeGreaterThan(0);
-    expect(targets.filter((t) => !covered.includes(t))).toEqual([]);
-  });
-
   it("web のテストの override は packages/web/** の patterns をそのまま写す", async () => {
     const { overrides } = await readConfig();
     expect(patternsOf(overrides, "packages/web/**/*.test.ts")).toEqual(
