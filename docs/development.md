@@ -38,7 +38,6 @@ mise run dg -- guide done      # マージ後の後始末
 このリポジトリに固有の決まり：
 
 - `dg` は `mise run install`・`setup`・`build` のいずれかのあと `mise run dg -- <引数>` で動く。`core`・`server`・`cli` を変えた PR を取り込んだら、もう一度 `mise run build` する（`bin/dg.js` は、dist をビルドしたコミットがその worktree の今の HEAD と違えば、stderr に英語で警告する。比べるのはコミットだけなので、作業用の worktree では文書だけのコミットのあとも、ビルドし直すまで毎回出る。ビルドが読まないファイル（`docs/` など）だけの差分なら無視してよい）
-- Claude が呼ぶときは `DEGUBOARD_ACTOR=agent`（CLAUDE.md）。人の操作は既定の human のまま
 - worktree は `../deguboard.worktrees/<ブランチ名>` に置く（`dg` の `worktree.root` の既定と同じで、リポジトリの外なので `.gitignore` は要らない）。`mise trust` と `node_modules` は worktree ごとに要る。worktree では `mise run setup`（依存とビルドだけ）を使い、`mise run install` は使わない（作業中のブランチの拡張で VS Code の拡張を差し替えてしまう）。`dg ticket claim` は worktree を作り、config の `worktree.setup`（このリポジトリは `mise run setup`）をそこで回すので、手で作るのは claim しない作業のときだけ（その場合も `mise run setup` を手で回す）
 
   ```sh
