@@ -8,6 +8,7 @@ import { runCommand } from "./define.js";
 import { next, nextOf, stageOf, type NextStep, type StageFacts } from "./next.js";
 import { planApprove, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
+import { runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
 import { ticketCreate, ticketMove, ticketShow, ticketUpdate, type TicketDetail } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
@@ -802,6 +803,64 @@ describe("dg next の WIP の上限（WF-8）", () => {
     expect(claimed.step.commands.some((c) => c.startsWith("WIP limit"))).toBe(false);
     expect(claimed.warnings).toContain(
       "The In Progress column (in_progress) is over its WIP limit (2 for a limit of 1, wip in workflow.yaml)",
+    );
+  });
+
+  it("review の列が上限を超えると、着手の手の前に review の列のチケットを進める手を置く。ちょうどなら超えない", async () => {
+    const ctx = await board();
+    await runCommand(workflowSet, ctx, { definition: { wip: { review: 1 } } });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "in_progress" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "review" });
+    // review は着手で増えないので、上限ちょうどでは手も警告も足さない
+    const atLimit = await nextOfT(ctx, "t3");
+    expect(atLimit.step.commands.some((c) => c.startsWith("WIP limit"))).toBe(false);
+    expect(atLimit.warnings.some((w) => w.includes("WIP limit"))).toBe(false);
+
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "in_progress" });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "review" });
+    const { step, warnings } = await nextOfT(ctx, "t3");
+    expect(step.commands[0]).toBe(
+      "WIP limit (review): rather than starting new work, first advance a ticket in a column further along (review: t1, t2) with dg --json --actor agent next <id>. Starting is not refused",
+    );
+    expect(step.commands.some((c) => c.includes("ticket claim t3"))).toBe(true);
+    expect(warnings).toContain(
+      "The Review column (review) is over its WIP limit (2 for a limit of 1, wip in workflow.yaml)",
+    );
+  });
+
+  it("todo の列が上限を超えると、todo でなく in_progress から先の列のチケットを進める手を置く", async () => {
+    const ctx = await board();
+    await runCommand(workflowSet, ctx, { definition: { wip: { todo: 1 } } });
+    await runCommand(ticketMove, ctx, { ticket: "t3", status: "in_progress" });
+    const { step, warnings } = await nextOfT(ctx, "t1");
+    // 進める先に todo の列（t1・t2）は挙げない
+    expect(step.commands[0]).toBe(
+      "WIP limit (todo): rather than starting new work, first advance a ticket in a column further along (in_progress: t3) with dg --json --actor agent next <id>. Starting is not refused",
+    );
+    expect(step.commands.some((c) => c.includes("ticket claim t1"))).toBe(true);
+    expect(warnings).toContain(
+      "The Todo column (todo) is over its WIP limit (2 for a limit of 1, wip in workflow.yaml)",
+    );
+  });
+
+  it("着手するチケットの Run が実行中なら、先の列を進める手を置かずに終わりを待つ手だけを返し、警告は出す", async () => {
+    const ctx = await board();
+    await runCommand(workflowSet, ctx, { definition: { wip: { in_progress: 1 } } });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "in_progress" });
+    const started = (
+      await runCommand(runStart, ctx, { ticket: "t2", step: "implement", agent: "claude-code" })
+    ).data as Run;
+    const { step, warnings } = await nextOfT(ctx, "t2");
+    expect(step).toMatchObject({
+      kind: "implement",
+      stage: { name: "todo" },
+      running_run: started.id,
+    });
+    expect(step.commands).toEqual([
+      expect.stringContaining(`Wait for the running Run ${started.id}`),
+    ]);
+    expect(warnings).toContain(
+      "The In Progress column (in_progress) is at its WIP limit (1 of 1, wip in workflow.yaml), so starting another ticket goes over it",
     );
   });
 

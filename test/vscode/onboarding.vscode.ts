@@ -116,16 +116,23 @@ describe("VS Code の実機の導入のチェックリスト", () => {
   }, 240_000);
 
   it("タイトル行のセットアップのアイコンでチェックリストと来る前の画面を行き来でき、帯を出さないと決めた後も開けて、帯をまた出せる（t1021）", async () => {
-    // ビューのタイトル行（ワークベンチの側）の左端のアイコン。前の検査でチェックリストを開いたままなので、押すと来る前の画面に戻る
+    // ビューのタイトル行（ワークベンチの側）の左端のアイコン。
     // 同じアイコンがビューの見出し（ビューが 1 つの間は隠れている）にもあるので、見えているほうを押す
     const icon = host.page
       .locator(".part.sidebar a.action-label.codicon-checklist")
       .locator("visible=true");
     const heading = sidebar.locator("h2", { hasText: "Setup" });
     const board = sidebar.locator('nav a[href^="#/board"]');
+    // 前の検査がチェックリストを開いたままかによらないよう、先にボードのタブを押していつもの画面から始める
+    // （チェックリストを開いている間もタブは押せる）
+    await board.click();
+    await heading.waitFor({ state: "detached" });
+    // アイコンでチェックリストを開き、もう一度押すと来る前の画面（ボード）に戻る
+    await icon.click();
+    await heading.waitFor();
     await icon.click();
     await heading.waitFor({ state: "detached" });
-    await sidebar.locator("nav a.active").waitFor();
+    await sidebar.locator('nav a.active[href^="#/board"]').waitFor();
     // 推奨の項目が残っている（.claude/.gitignore をコミットしていない）ので帯が出る。このリポジトリでは出さないと決める
     await sidebar.getByRole("button", { name: "Do not show in this repository" }).click();
     await sidebar.locator(".setup-band").waitFor({ state: "detached" });

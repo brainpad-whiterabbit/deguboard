@@ -89,7 +89,7 @@
 - **Node 22（LTS）**：VS Code の拡張ホストの Node 24 と揃える
 - **`dg` を npm に公開して `npm i -g` で入れてもらう**：利用者に Node.js と npm を求め、入口が拡張と npm の 2 つになり、拡張と CLI の版がずれる。拡張に `dg` を同梱して入口を 1 つにする
 - **Marketplace の PAT を secret に置いて出す**：期限が来るたびに人が作り直し、漏れると誰でも出せる。trusted publishing なら置く秘密がない
-- **Open VSX にも出す**：VS Code 以外のエディタ（VSCodium・Cursor など）は対象にせず、出すには期限のあるトークンを secret に置いて人が持ち回すことになる
+- **Open VSX にも出す**：出すには期限のあるトークンを secret に置いて人が持ち回すことになる。Marketplace を使えないエディタ（Cursor・VSCodium など）には、GitHub Releases の VSIX を手で入れてもらう（手順は [README の「Installation」](../../README.md#installation)）
 - **公開のワークフローで build と検査を回してから出す**：手元で検査して Release に添付した VSIX と別のものが出て、検査も二重になる
 - **拡張を esbuild や webpack で束ねる**：web のビルドに使っている Vite で足りる
 - **oxlint の版を留めたまま、規則 `react(immutability)` を off にする**：web の React の不変性の違反を検査で見つけられなくなる

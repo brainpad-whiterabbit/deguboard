@@ -749,4 +749,47 @@ describe("sync の git の起動", () => {
     expect(next.warnings).toEqual([]);
     expect((await runCommand(sync, idle, {})).warnings).toEqual([]);
   });
+
+  it("何もしない取り込みのロックの間に dg の外で変えたファイルは、基準に入らず、次の書くコマンドが OUTSIDE_CHANGES で見つける", async () => {
+    const f = await fixture();
+    // 上のテストと同じく、マージドライバのコマンドを渡す（登録の直しで何もしない取り込みから外れないように）
+    const mergeDriver = [process.execPath, path.join(f.root, "dg.js"), "merge-driver"];
+    await writeFile(mergeDriver[1]!, "");
+    const a = await initialized(f.cloneA, { mergeDriver });
+    await runCommand(ticketCreate, a, { title: "A" });
+    await runCommand(sync, a, {});
+    const idle = await openContext({ cwd: f.cloneA, actor: a.actor, mergeDriver });
+    // ロックの中の取り込み（rebase）の後、push の前に数える rev-list の 1 回目で、チケットのファイルを dg の外で書き換える git を PATH の先頭に置く
+    const bin = path.join(f.root, "editing-bin");
+    const edited = path.join(f.root, "edited");
+    const ticket = path.join(idle.repo.dataDir, "tickets", "t1.md");
+    const saved = process.env["PATH"];
+    await mkdir(bin);
+    await writeFile(
+      path.join(bin, "git"),
+      `#!/bin/sh\ncase " $* " in *" rev-list "*) if [ ! -e '${edited}' ]; then : > '${edited}'; echo 'outside' >> '${ticket}'; fi;; esac\nPATH='${saved ?? ""}' exec git "$@"\n`,
+      { mode: 0o755 },
+    );
+    process.env["PATH"] = bin + path.delimiter + (saved ?? "");
+    cleanups.push(async () => {
+      process.env["PATH"] = saved;
+    });
+    const synced = await runCommand(sync, idle, {});
+    process.env["PATH"] = saved;
+    // 取り込みは何も変えず（ロックを放す前に基準を記録し直さない道）、その間に書き換えが起きた
+    expect(synced.data).toMatchObject({ fetched: true, integrated: false, pushed: false });
+    expect(await readFile(ticket, "utf8")).toContain("outside");
+    // 書き換えは基準に入っていないので、続く照合のロックの入口が見つけて照合を書かない
+    expect(synced.warnings).toEqual([
+      expect.stringContaining("the reconcile was skipped because it could not write"),
+    ]);
+    expect(synced.warnings[0]).toContain("(Uncommitted changes: tickets/t1.md)");
+    // 次の書くコマンドも見つけて書かずに止まる
+    await expect(
+      runCommand(ticketUpdate, idle, { ticket: "t1", title: "書かない" }),
+    ).rejects.toMatchObject({
+      code: "OUTSIDE_CHANGES",
+      detail: "Uncommitted changes: tickets/t1.md",
+    });
+  });
 });

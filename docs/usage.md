@@ -8,29 +8,29 @@ This page covers the things people do that the [README](../README.md) leaves out
 
 The Skills are for Claude Code. Say the request in plain words, or type the command. The command column shows an example; the arguments are described in the Skill's `argument-hint` and in `dg guide <topic>`. For agents without the Skills, use the plain-text form of Ask Agent.
 
-| Skill       | What it does                                                                              | Example request                             | Command                 |
-| ----------- | ----------------------------------------------------------------------------------------- | ------------------------------------------- | ----------------------- |
-| `dgimport`  | Turns a conversation, a plan, or a design document into tickets, after approval           | "Turn this discussion into tickets"         | `/dgimport`             |
-| `dgassign`  | Puts tickets into an Iteration or an Epic, after approval                                 | "Assign these tickets to a sprint"          | `/dgassign s3`          |
-| `dgcheck`   | Finds mismatches among tickets, Epics, Iterations, and Plans, and fixes them              | "Check the tickets of s3"                   | `/dgcheck s3`           |
-| `dgplan`    | Decides the order of tickets and records it in a Plan awaiting approval                   | "Plan the tickets of s3"                    | `/dgplan s3`            |
-| `dgwork`    | Advances an approved Plan through ready PRs, merges after approval, and cleanup           | "Run plan p3"                               | `/dgwork p3`            |
-| `dgall`     | Carries an Iteration or tickets from assignment to release in one flow                    | "Carry s3 through to release automatically" | `/dgall s3 --auto`      |
-| `dgaudit`   | Reviews the whole repository by viewpoint before release, and files findings              | "Review the repository before the release"  | `/dgaudit s3`           |
-| `dgrelease` | Checks that an Iteration is done, then releases it after approval                         | "Release s3"                                | `/dgrelease s3`         |
-| `dgdone`    | Confirms merged tickets are done and cleans up their branches and worktrees               | "t12 is merged, clean it up"                | `/dgdone t12`           |
-| `dgretro`   | Looks back on a closed Iteration by the team's perspectives                               | "Look back on s3"                           | `/dgretro s3`           |
-| `dgchange`  | Carries out one change a human asked for (edit, close, reopen, abandon, undo)             | "Close s3"                                  | `/dgchange s3 close it` |
-| `dgdiscuss` | Settles the open points of tickets, an Epic, or an Iteration with a human                 | "Let's discuss t12"                         | `/dgdiscuss t12`        |
-| `dgstatus`  | Tells where the work on an in-progress ticket is, and why it stopped                      | "How far has t12 got?"                      | `/dgstatus t12`         |
-| `dgexplain` | Explains what a ticket, Epic, or Iteration is about, with text diagrams                   | "Explain t12"                               | `/dgexplain t12`        |
-| `dgconfig`  | Explains the settings and the Workflow, and changes them after you approve before → after | "What is commit.mode?"                      | `/dgconfig commit.mode` |
+| Skill       | What it does                                                                                                                  | Example request                             | Command                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------------------- |
+| `dgimport`  | Turns a conversation, a plan, or a design document into tickets, after approval                                               | "Turn this discussion into tickets"         | `/dgimport`             |
+| `dgassign`  | Puts tickets into an Iteration or an Epic, after approval                                                                     | "Assign these tickets to a sprint"          | `/dgassign s3`          |
+| `dgcheck`   | Finds mismatches among tickets, Epics, Iterations, and Plans, and fixes them                                                  | "Check the tickets of s3"                   | `/dgcheck s3`           |
+| `dgplan`    | Decides the order of tickets and records it in a Plan awaiting approval                                                       | "Plan the tickets of s3"                    | `/dgplan s3`            |
+| `dgwork`    | Advances an approved Plan through ready PRs, merges after approval, and cleanup                                               | "Run plan p3"                               | `/dgwork p3`            |
+| `dgall`     | Carries an Iteration or tickets from assignment to release in one flow                                                        | "Carry s3 through to release automatically" | `/dgall s3 --auto`      |
+| `dgaudit`   | Reviews the whole repository by viewpoint before release, and files findings                                                  | "Review the repository before the release"  | `/dgaudit s3`           |
+| `dgrelease` | Checks that an Iteration is done and prepares the release; by default you pass the release checkpoint and close the Iteration | "Release s3"                                | `/dgrelease s3`         |
+| `dgdone`    | Confirms merged tickets are done and cleans up their branches and worktrees                                                   | "t12 is merged, clean it up"                | `/dgdone t12`           |
+| `dgretro`   | Looks back on a closed Iteration by the team's perspectives                                                                   | "Look back on s3"                           | `/dgretro s3`           |
+| `dgchange`  | Carries out one change a human asked for (edit, close, reopen, abandon, undo)                                                 | "Close s3"                                  | `/dgchange s3 close it` |
+| `dgdiscuss` | Settles the open points of tickets, an Epic, or an Iteration with a human                                                     | "Let's discuss t12"                         | `/dgdiscuss t12`        |
+| `dgstatus`  | Tells where the work on an in-progress ticket is, and why it stopped                                                          | "How far has t12 got?"                      | `/dgstatus t12`         |
+| `dgexplain` | Explains what a ticket, Epic, or Iteration is about, with text diagrams                                                       | "Explain t12"                               | `/dgexplain t12`        |
+| `dgconfig`  | Explains the settings and the Workflow, and changes them after you approve before → after                                     | "What is commit.mode?"                      | `/dgconfig commit.mode` |
 
 ## Hand off everything
 
 In Claude Code, pass an Iteration or tickets such as `/dgall s3 --auto`, and the agent carries on through assignment, planning, implementation, review, and release. It does not create tickets for what you want to build, so first turn your ideas into tickets with `/dgimport`.
 
-- With `--auto`, the agent goes ahead without asking only where the board's Workflow (`workflow.yaml`) has the value `ask_unless_auto`. By default that is assignment, the fixes of the check, Plan approval, starting a ticket (todo → in_progress), and merging a PR that passed the quality gate. Everything else stops and asks, such as the audit findings, release, abandoning or deleting a ticket, and closing an Epic or Iteration. How to see and change these values is in [Workflow](#workflow), and the full list is in `dg guide all`.
+- With `--auto`, the agent goes ahead without asking only where the board's Workflow (`workflow.yaml`) has the value `ask_unless_auto`. By default that is assignment, the fixes of the check, Plan approval, starting a ticket (todo → in_progress), and merging a PR that passed the quality gate. Other decisions still stop and ask you, even with `--auto`: by default these include the audit findings, merging the release PR and publishing it, abandoning a ticket or undoing done, and closing or reopening an Epic. Some operations are only for a person (`human_only`): the agent cannot run them even with your approval, so it gives you the command and waits. By default these are passing the release checkpoint and closing the Iteration (`dg checkpoint release <S>`, `dg iteration close <S>`), and deleting a ticket. How to see and change these values is in [Workflow](#workflow), and the full list is in `dg guide all`.
 - For a PR that passed the quality gate, the agent asks you whether to merge it, and merges it only when you approve (your approval is recorded on the PR). It is merged without asking only with `--auto`, while the value of the review → done boundary is `ask_unless_auto` (the default). For a PR that does not meet the gate, the agent shows the unmet conditions and asks whether to merge it anyway; your approval overrides the unmet conditions, but it cannot override a PR that is closed or still a draft, a conflict with the base, or the requirement to merge the commit that was judged.
 - You can follow the progress on the Board. Press the Plan band to show the dependency graph.
 - For agents other than Claude Code, ask them to "read `dg guide all` and carry on to the end with `--auto`."
@@ -98,7 +98,7 @@ When two people change the same field of a ticket to different values, sync stop
 
 - Press "Take remote" or "Take local" in the notification, and only the conflicting field takes that side's value (other changes stay). In a terminal, use `dg sync --resolve remote` or `dg sync --resolve local`.
 - Until the conflict is resolved, the push waits, and so do writes that push right away, such as creating tickets and claims.
-- Conflicts in `config.yaml` or in the workflow get no buttons. Resolve them by hand, following the warning from `dg sync`.
+- Conflicts in `config.yaml` or in the Workflow (`workflow.yaml`) get no buttons. Resolve them by hand, following the warning from `dg sync`.
 
 For agents, see the "When sync stops" section of `dg guide overview`. For details, see `dg sync --help`.
 

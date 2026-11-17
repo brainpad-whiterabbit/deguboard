@@ -1,6 +1,6 @@
 # 2. Create a ticket
 
-Split what you want done into small tickets. The easiest way is to ask the agent in Claude Code to create them with `/dgimport`. The Skill it uses was installed by step 1.
+Split what you want done into small tickets. The easiest way is to ask the agent in Claude Code to create them with `/dgimport`. Step 1 does not install the Skill it uses. Install it first as step 3 shows: open the band above the usual views in the sidebar and press **Install the Skills and hooks**.
 
 1. Open the request box with the link below. Choose **Create tickets**, then write what you want done.
 2. Copy the request and paste it into Claude Code, or pick an open terminal and **Send** the request to it. The agent proposes tickets, and they are created after you approve.
