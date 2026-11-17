@@ -373,13 +373,9 @@ export function mockClient(data = fixture()): MockClient {
     "ticket.update": (input) => {
       const {
         ticket: id,
-        fields,
         base,
         ...patch
-      } = input as { ticket: string; fields?: Record<string, unknown>; base?: string } & Record<
-        string,
-        unknown
-      >;
+      } = input as { ticket: string; base?: string } & Record<string, unknown>;
       const body = bodies[id] ?? TICKET_BODY;
       if (base !== undefined && base !== body)
         throw new ClientError({
@@ -387,7 +383,7 @@ export function mockClient(data = fixture()): MockClient {
           message: `${id} の本文は読んだ後に変わっている`,
         });
       const t = data.tickets.find((x) => x.id === id)! as unknown as Record<string, unknown>;
-      for (const [key, value] of Object.entries({ ...patch, ...fields })) {
+      for (const [key, value] of Object.entries(patch)) {
         // body と acceptance は本文（の節）を置き換える入力で、属性ではない
         if (key === "body" || key === "acceptance") continue;
         if (value === null) delete t[key];
