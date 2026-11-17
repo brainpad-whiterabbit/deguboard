@@ -1207,6 +1207,8 @@ function forgetFolder(folder: vscode.WorkspaceFolder): void {
   }
   setupViews.delete(key);
   showSetupAttention();
+  // 同期の点は左パネルの状態の応答でしか直らないため、左パネルのフォルダを外したら消す（残すと外したフォルダの未 push を知らせ続ける）
+  if (folderKey(sidebarFolder) === key) showAttention(SYNC_ATTENTION, [0]);
   setupBandDismissed.delete(key);
   setupBoards.delete(key);
   watchStarting.delete(key);
