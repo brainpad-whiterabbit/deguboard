@@ -1,0 +1,11 @@
+id: p154
+tickets: [t1082, t1083]
+after: {}
+pending_approval: true
+details:
+  t1082:
+    scope: test:layout の 4 ファイルが main で通るようにする。境目の条件を変えるなら人に確かめる
+    tier: heavy
+  t1083:
+    scope: test:vscode のアンインストールの実機テストが main で通るようにする
+    tier: heavy
