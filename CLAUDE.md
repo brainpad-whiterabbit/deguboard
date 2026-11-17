@@ -28,7 +28,7 @@ Agentic-Agile に着想を得た、開発の流れを備えた Git リポジト�
 - すべての操作は `packages/core/src/commands/` のコマンド定義に置き、CLI・HTTP・Webview は写すだけにする。入口にロジックを書かない
 - git・gh は `child_process.execFile` で引数配列として呼ぶ。シェルを経由しない
 - Git 操作のテストは、一時ディレクトリの bare リモート付きリポジトリで行う
-- コメント・ドキュメント・テスト名は日本語で書く。README.md（GitHub・Marketplace の入口）と SECURITY.md（GitHub の Security タブの入口）と docs/usage.md（README から引く使い方）と docs/how-it-works.md（README から引く仕組み）と docs/guide-notes/（dg guide に差し込む補足）は英語で書く（日本語版の README.ja.md と docs/usage.ja.md と docs/how-it-works.ja.md も同じ PR で、英語版と同じ節の構成に合わせ、先頭から英語版と互いに辿れるようにする）。README から指すほかの docs（requirements.md・development.md・ADR 一覧）は日本語のままにする。guide・Skill の雛形・dg の出力（ヘルプ・エラー・警告などエージェントと利用者が読む文字列）も英語で書く（[ADR-001](docs/adr/ADR-001-doc-strategy.md)）。例外は dg ask の言語（packages/core/src/commands/ask.ts の ASK_LANGUAGES）と画面の訳（要件 UI-11）
+- コメント・ドキュメント・テスト名は日本語で書く。README.md（GitHub・Marketplace の入口）と SECURITY.md（GitHub の Security タブの入口）と docs/usage.md（README から引く使い方）と docs/how-it-works.md（README から引く仕組み）と docs/guide-notes/（dg guide に差し込む補足）は英語で書く（日本語版の README.ja.md と docs/usage.ja.md と docs/how-it-works.ja.md も同じ PR で、英語版と同じ節の構成に合わせ、先頭から英語版と互いに辿れるようにする）。README から指すほかの docs（requirements.md・development.md・ADR 一覧）は日本語のままにする。guide・Skill の雛形・dg の出力（ヘルプ・エラー・警告などエージェントと利用者が読む文字列）・GitHub Release の本文（Release ページの利用者が読む）も英語で書く（[ADR-001](docs/adr/ADR-001-doc-strategy.md)）。例外は dg ask の言語（packages/core/src/commands/ask.ts の ASK_LANGUAGES）と画面の訳（要件 UI-11）
 
 ## チケット
 
