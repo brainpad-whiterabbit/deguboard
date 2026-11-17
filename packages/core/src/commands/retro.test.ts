@@ -1,11 +1,12 @@
 // 振り返りの観点と指標の定義を書くコマンド（retro.perspective・retro.metric・retro.remove。ADR-035）
+// 同期を確かめないので、すべてデータのリモートのない initializedLocalFixture で回す
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import {
-  initializedFixture,
+  initializedLocalFixture,
   reopenInitialized,
   runCleanups,
 } from "../../test/helpers/commands-context.js";
@@ -30,7 +31,7 @@ const metric = {
 
 describe("振り返りの観点と指標の定義", () => {
   it("retro.metric は承認した定義をチームの config.yaml に書き、config show で読め、同じ ID は丸ごと置き換える", async () => {
-    const f = await initializedFixture();
+    const f = await initializedLocalFixture();
     const ctx = await reopenInitialized(f);
     const written = await runCommand(retroMetric, ctx, metric);
     // config.set と同じ書き込み（コミットは commit.mode に従う）
@@ -71,7 +72,7 @@ describe("振り返りの観点と指標の定義", () => {
   });
 
   it("retro.metric は、ない観点と、数え方か出どころの欠けた定義を弾き、何も書かない", async () => {
-    const f = await initializedFixture();
+    const f = await initializedLocalFixture();
     const ctx = await reopenInitialized(f);
     await expect(
       runCommand(retroMetric, ctx, { ...metric, perspective: "nope" }),
@@ -89,7 +90,7 @@ describe("振り返りの観点と指標の定義", () => {
   });
 
   it("retro.perspective は観点を足し、ある観点の名前か問いだけを変えて定義を残す。新しい観点は名前と問いの両方が要る", async () => {
-    const f = await initializedFixture();
+    const f = await initializedLocalFixture();
     const ctx = await reopenInitialized(f);
     await runCommand(retroMetric, ctx, metric);
     const renamed = await runCommand(retroPerspective, ctx, { id: "spec", name: "チケットの質" });
@@ -121,7 +122,7 @@ describe("振り返りの観点と指標の定義", () => {
   });
 
   it("retro.remove は指標の定義か観点を消し、config.unset retro.perspectives は既定の観点に戻す。config.set では書けない", async () => {
-    const f = await initializedFixture();
+    const f = await initializedLocalFixture();
     const ctx = await reopenInitialized(f);
     await runCommand(retroMetric, ctx, metric);
     await expect(
@@ -147,7 +148,7 @@ describe("振り返りの観点と指標の定義", () => {
   });
 
   it("config.set --local retro.* も dg retro のコマンドを案内して弾き、個人の設定に何も書かない", async () => {
-    const f = await initializedFixture();
+    const f = await initializedLocalFixture();
     const ctx = await reopenInitialized(f);
     for (const key of ["retro", "retro.perspectives", "retro.perspectives.spec.name"])
       await expect(

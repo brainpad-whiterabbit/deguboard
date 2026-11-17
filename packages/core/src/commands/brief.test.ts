@@ -1,8 +1,12 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { asHuman } from "../../test/helpers/commands-context.js";
-import { createFixture } from "../../test/helpers/git-fixture.js";
+import {
+  asHuman,
+  initializedLocalFixture,
+  reopenInitialized,
+  runCleanups,
+} from "../../test/helpers/commands-context.js";
 import { composeGuide } from "../guide/guide.js";
 import { openContext } from "./context.js";
 import { brief, composeBrief, type BriefFacts } from "./brief.js";
@@ -10,14 +14,12 @@ import { runCommand } from "./define.js";
 import { next, type NextStep } from "./next.js";
 import { runReviewResult } from "./run.js";
 import { findCommand } from "./registry.js";
-import { configSet, init } from "./setup.js";
+import { configSet } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
 
-const cleanups: Array<() => Promise<void>> = [];
-afterEach(async () => {
-  await Promise.all(cleanups.splice(0).map((c) => c()));
-});
+// 依頼文の組み立ては同期を確かめないので、データのリモートのない initializedLocalFixture で回す（SY-6）
+afterEach(runCleanups);
 
 /** 文の事実。対象は t12 の実装中のチケット（PR #7・feat/t12）に既定の値を入れる */
 const facts = (over: Partial<BriefFacts> = {}): BriefFacts => ({
@@ -122,11 +124,9 @@ describe("サブエージェントに渡す文の形（brief）", () => {
 
 describe("dg brief と dg next の文（EX-3）", () => {
   async function prepared() {
-    const f = await createFixture();
-    cleanups.push(f.cleanup);
-    const actor = { kind: "agent" as const, user: "eiki" };
-    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
-    const ctx = await openContext({ cwd: f.cloneA, actor });
+    const ctx = await reopenInitialized(await initializedLocalFixture(), {
+      actor: { kind: "agent", user: "eiki" },
+    });
     await runCommand(ticketCreate, ctx, {
       title: "A",
       body: "## 受け入れ条件\n\n- [ ] 一覧が出る\n",

@@ -1,13 +1,17 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createFixture, git } from "../../test/helpers/git-fixture.js";
+import {
+  initializedLocalFixture,
+  reopenInitialized,
+  runCleanups,
+} from "../../test/helpers/commands-context.js";
+import { git } from "../../test/helpers/git-fixture.js";
 import { composeGuide } from "../guide/guide.js";
 import { findGuideSection, guideSections } from "../guide/sections.js";
 import { configSchema } from "../model/config.js";
 import type { Decision } from "../model/workflow.js";
 import { DEFAULT_WORKFLOW, type CustomStage } from "../workflow/resolve.js";
-import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { checkpoint, type CheckpointResult } from "./checkpoint.js";
 import {
@@ -26,14 +30,10 @@ import { history } from "./history.js";
 import { iterationAdd, iterationClose, iterationCreate, iterationReopen } from "./iteration.js";
 import { planApprove, planClose, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
-import { init } from "./setup.js";
 import { ticketCheck, ticketCreate, ticketMove, ticketUpdate } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
 
-const cleanups: Array<() => Promise<void>> = [];
-afterEach(async () => {
-  await Promise.all(cleanups.splice(0).map((c) => c()));
-});
+afterEach(runCleanups);
 
 /** 流れの事実。既定は s1 の t1（in_progress）だけで、点検の関所は通っていて、候補も Plan もない */
 const facts = (over: Partial<FlowFacts> = {}): FlowFacts => ({
@@ -581,12 +581,9 @@ describe("FLOW_GUIDE（段階の節）", () => {
   });
 });
 
+/** init 済みの文脈。流れの判定は同期を確かめないので、データのリモートのない雛形から写す（SY-6） */
 async function ready(): Promise<CommandContext> {
-  const f = await createFixture();
-  cleanups.push(f.cleanup);
-  const actor = { kind: "human" as const, user: "eiki" };
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
-  return openContext({ cwd: f.cloneA, actor });
+  return reopenInitialized(await initializedLocalFixture());
 }
 
 const flow = async (ctx: CommandContext, input: Record<string, unknown>) => {

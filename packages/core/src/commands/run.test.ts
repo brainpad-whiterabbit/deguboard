@@ -12,7 +12,12 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
-import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
+import {
+  createFixtureFrom,
+  git,
+  removeRemotes,
+  type Layout,
+} from "../../test/helpers/git-fixture.js";
 import { slowLock } from "../../test/helpers/slow-lock.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -84,9 +89,17 @@ async function prepareRepo(f: Layout): Promise<void> {
   await runCommand(ticketCreate, ctx, { title: "B" });
 }
 
-/** prepareRepo を済ませた雛形から写した文脈（チケット t1・t2 がある） */
-async function prepared(): Promise<CommandContext> {
-  const f = await createFixtureFrom("prepared", prepareRepo);
+/**
+ * prepareRepo を済ませた雛形から写した文脈（チケット t1・t2 がある）。既定はデータのリモートのない雛形で、Run の記録と集計を
+ * 書き込みのたびの取り込みと push なしで確かめる（SY-6）。withRemote は push.mode auto の push（finish の pushed）を確かめるテストだけが使う
+ */
+async function prepared(withRemote = false): Promise<CommandContext> {
+  const f = withRemote
+    ? await createFixtureFrom("prepared", prepareRepo)
+    : await createFixtureFrom("prepared-local", async (l) => {
+        await prepareRepo(l);
+        await removeRemotes(l.cloneA);
+      });
   cleanups.push(f.cleanup);
   return openContext({ cwd: f.cloneA, actor: { kind: "agent" as const, user: "eiki" } });
 }
@@ -102,7 +115,7 @@ const start = async (ctx: CommandContext, ticket: string, step = "implement") =>
 
 describe("run", () => {
   it("start は deguboard-local/runs/ にだけ記録を置き、finish が runs/ に 1 ファイルをコミットする（RN-3）", async () => {
-    const ctx = await prepared();
+    const ctx = await prepared(true);
     await runCommand(configSet, asHuman(ctx), { key: "commit.mode", value: "each" });
     await runCommand(commit, ctx, {});
     ctx.config = ctx.store.config;
@@ -1869,7 +1882,7 @@ describe("run finish のモデル名と finished_at", () => {
 });
 
 describe("run refresh の取り直し（RN-4・MT-5）", () => {
-  /** 会話記録を読める・コミットごとに push する文脈。会話記録は finish の後に置き、閉じた Run を取り直す */
+  /** 会話記録を読める・コミットごとにコミットする文脈（データのリモートはない）。会話記録は finish の後に置き、閉じた Run を取り直す */
   async function closedRuns() {
     const ctx = await prepared();
     await runCommand(configSet, asHuman(ctx), { key: "commit.mode", value: "each" });
@@ -1937,7 +1950,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     await transcriptFor(b, full);
     const r = await runCommand(runRefresh, ctx, { runs: [a.id, b.id] });
     expect(r.warnings).toEqual([]);
-    expect(r.write).toMatchObject({ committed: true, pushed: true });
+    expect(r.write).toMatchObject({ committed: true });
     const items = r.data as RunRefreshItem[];
     expect(items.map((i) => [i.id, i.updated])).toEqual([
       [a.id, true],

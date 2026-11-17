@@ -6,7 +6,9 @@ import {
   createFixture,
   createFixtureFrom,
   git,
+  removeRemotes,
   type Fixture,
+  type Layout,
 } from "../../test/helpers/git-fixture.js";
 import { recordBaseline } from "../git/outside.js";
 import { pathExists } from "../storage/exists.js";
@@ -34,9 +36,13 @@ async function fixture(): Promise<Fixture> {
   return f;
 }
 
-/** init まで済ませ、書き込みのたびにコミットする（commit.mode: each）雛形から写す（init はテストファイルで 1 度だけ） */
-async function eachFixture(): Promise<Fixture> {
-  const f = await createFixtureFrom("initialized-each", async (l) => {
+/**
+ * init まで済ませ、書き込みのたびにコミットする（commit.mode: each）雛形から写す（init はテストファイルで 1 度だけ）。
+ * 既定はデータのリモートのない雛形で、Workflow の検証と書き込みを取り込みと push なしで確かめる（SY-6）。
+ * withRemote は push.mode auto の push と別の clone での読み取りを確かめる workflow set のテストだけが使う
+ */
+async function eachFixture(withRemote = false): Promise<Fixture> {
+  const setup = async (l: Layout) => {
     const first = await openContext({
       cwd: l.cloneA,
       initialize: {},
@@ -45,7 +51,12 @@ async function eachFixture(): Promise<Fixture> {
     await runCommand(init, first, {});
     await runCommand(configSet, first, { key: "commit.mode", value: "each" });
     await runCommand(commit, first, {});
-  });
+    if (!withRemote) await removeRemotes(l.cloneA);
+  };
+  const f = await createFixtureFrom(
+    withRemote ? "initialized-each" : "initialized-each-local",
+    setup,
+  );
   cleanups.push(f.cleanup);
   return f;
 }
@@ -351,7 +362,7 @@ describe("workflow validate", () => {
 
 describe("workflow set", () => {
   it("検証を通った定義で置き換え、1 コミットで push し、前と後と変わった項目を返す", async () => {
-    const f = await eachFixture();
+    const f = await eachFixture(true);
     const ctx = await openAgent(f);
     const commits = await commitCount(ctx);
     const r = await runCommand(workflowSet, asHuman(ctx), { definition: strict });
