@@ -1,0 +1,34 @@
+{
+  "id": "r20261117-000553-edc0",
+  "ticket": "t1021",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-17T00:05:53Z",
+  "finished_at": "2026-11-17T00:19:07Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "Pressing the title-row setup icon while required setup items are unmet left the setup route open, so the sidebar kept showing the recommended checklist instead of the list once the required items were met"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 5412,
+    "cache_read": 588753,
+    "cache_write": 86855
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 2,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "147110cf-2746-45b5-8eda-29947186c7b0",
+  "review": null,
+  "waited_seconds": 0
+}
