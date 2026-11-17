@@ -1,0 +1,34 @@
+{
+  "id": "r20261117-033720-83d4",
+  "ticket": "t1069",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-17T03:37:20Z",
+  "finished_at": "2026-11-17T03:38:30Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "usage guide wording: pronoun 'them' is ambiguous and reads opposite to the intended meaning"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 2216,
+    "cache_read": 176326,
+    "cache_write": 23199
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 2,
+    "bash": 3,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "5307e022-b0d4-491f-a0d9-9d8169d6214f",
+  "review": null,
+  "waited_seconds": 0
+}
