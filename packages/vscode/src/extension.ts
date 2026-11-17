@@ -158,6 +158,11 @@ const setupBandDismissed = new Set<string>();
  * 左パネルとエディタのパネルの確かめ直しとボタンの dg init が同じ指定を使う（setup.ts の heldSetupBoard）
  */
 const setupBoards = new Map<string, SetupBoardSource>();
+/**
+ * 左パネルを作ったときに拡張が自分で始めた確かめ（鍵は folderKey。resolveSidebar）。終わるまでに画面が指定を変えずに頼んだ確かめは
+ * これを待って同じ結果を返す（帯を出す普段の起動で、画面も同じ時に頼むので、checkSetup と dg --version を 2 回走らせない）
+ */
+const sidebarSetupChecks = new Map<string, Promise<SetupView>>();
 /** フォルダごとの、導入のチェックリストを確かめ直すための見張り（watchSetup） */
 const setupWatchers = new Map<string, vscode.Disposable>();
 /** サイドバーがまだ描かれていないときに出す画面。サイドバーを開いて作るときの初期ルートにする */
@@ -541,6 +546,7 @@ export function deactivate(): void {
   setupViews.clear();
   setupBandDismissed.clear();
   setupBoards.clear();
+  sidebarSetupChecks.clear();
   clients.clear();
   idIndexes.clear();
   idIndexFailedAt.clear();
@@ -562,9 +568,16 @@ async function resolveSidebar(
     if (sidebar === view) sidebar = undefined;
   });
   // タイトル行のセットアップのアイコンの点。画面は推奨の帯を出さないと決めている間は確かめないので、まだ確かめていなければ拡張が確かめる
-  if (setupViews.has(folderKey(folder))) showSetupAttention();
   // （確かめられなければ点を出さず、画面が確かめたときに出す）
-  else void readSetup(folder).catch(() => {});
+  const key = folderKey(folder);
+  if (setupViews.has(key)) showSetupAttention();
+  else if (!sidebarSetupChecks.has(key)) {
+    const check = readSetup(folder).finally(() => {
+      if (sidebarSetupChecks.get(key) === check) sidebarSetupChecks.delete(key);
+    });
+    sidebarSetupChecks.set(key, check);
+    void check.catch(() => {});
+  }
   if (folder && folders.length > 1) view.description = folder.name;
   view.title = viewTitle(approvalCount);
   const route = pendingSidebarRoute ?? WEBVIEW_CONTRACT.routes.board;
@@ -646,6 +659,16 @@ async function readSetup(
   const key = folderKey(folder);
   if (bandDismissed === true) setupBandDismissed.add(key);
   else if (bandDismissed === false) setupBandDismissed.delete(key);
+  // 拡張が左パネルを作ったときに始めた確かめが進んでいれば、その結果を使う（指定し直した画面は、その指定で確かめる）。
+  // 始めた確かめが失敗したら、ここで確かめ直す
+  const started = sent === undefined ? sidebarSetupChecks.get(key) : undefined;
+  if (started) {
+    try {
+      return await started;
+    } catch {
+      // 下で確かめ直す
+    }
+  }
   const board = heldSetupBoard(setupBoards.get(key), sent);
   if (board) setupBoards.set(key, board);
   else setupBoards.delete(key);
