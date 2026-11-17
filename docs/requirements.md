@@ -124,7 +124,7 @@ updated_at: 2026-10-31T05:10:00Z
 - EP-1 必須は `id`・`title`・`status`・`created_at`・`updated_at`。閉じたときに `closed_at` を書く。本文は Markdown で、`## Summary` を推奨する（日本語の `## 概要` も読む）
 - EP-2 所属はチケットの `epic` で表し、Epic 側にチケットの一覧は持たない。Epic は入れ子にしない
 - EP-3 進捗は保存しない。done の件数と abandoned を除く件数をチケットから都度求める。`epic show` と `iteration show` は同じ形の `progress` を返す
-- EP-4 閉じる・再開するのは Workflow の `governance.epic` で判定し、既定では人だけが行える（WF-7）。done・abandoned 以外のチケットが残るときは、強制の指定がなければ閉じない。閉じた Epic にはチケットを足せない（TK-6）
+- EP-4 閉じる・再開するのは Workflow の `governance.epic` で判定し、既定ではエージェントは人の承認があるときだけ行える（WF-7）。done・abandoned 以外のチケットが残るときは、強制の指定がなければ閉じない。閉じた Epic にはチケットを足せない（TK-6）
 - EP-5 Epic の状態はチケットの遷移を縛らない。Epic に削除はない（閉じて残す）
 
 ### 5.6 Iteration（`iterations/s3.yaml`）

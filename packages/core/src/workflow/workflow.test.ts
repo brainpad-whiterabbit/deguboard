@@ -292,7 +292,7 @@ describe("省いた項目の既定", () => {
         delete: "human_only",
         config: "always_ask",
         reassign: "always_ask",
-        epic: "human_only",
+        epic: "always_ask",
         create: "anyone",
       },
     });

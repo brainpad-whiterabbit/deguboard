@@ -177,20 +177,15 @@ describe("カンバンの管理の操作は governance の値で判定される"
     expect(claimed.warnings).toContain("Changed the assignee from eiki to claude/agent");
   });
 
-  it("epic：Epic を閉じる・再開するのは既定（human_only）でエージェントに拒否され、値を替えると承認で・聞かずにできる", async () => {
+  it("epic：Epic を閉じる・再開するのは既定（always_ask）でエージェントに承認を求め、値を替えると拒否・聞かずにできる", async () => {
     const { human, agent, governance, subject } = await humanAndAgent();
     await runCommand(epicCreate, human, { title: "E", summary: "目的" });
     expect(await rejected(runCommand(epicClose, agent, { epic: "e1" }))).toMatchObject({
       code: "TRANSITION_REJECTED",
-      message: "The Workflow limits dg epic close to a person (governance.epic: human_only)",
+      message:
+        "The Workflow asks for a person's approval for dg epic close (governance.epic: always_ask)",
     });
     expect((await runCommand(epicClose, human, { epic: "e1" })).data.status).toBe("closed");
-    expect(await rejected(runCommand(epicReopen, agent, { epic: "e1" }))).toMatchObject({
-      code: "TRANSITION_REJECTED",
-      message: "The Workflow limits dg epic reopen to a person (governance.epic: human_only)",
-    });
-
-    await governance({ epic: "always_ask" });
     expect(await rejected(runCommand(epicReopen, agent, { epic: "e1" }))).toMatchObject({
       code: "TRANSITION_REJECTED",
       message:
@@ -200,6 +195,14 @@ describe("カンバンの管理の操作は governance の値で判定される"
     expect(await subject()).toBe("Reopen e1: E (approved by claude)");
     await runCommand(epicClose, agent, { epic: "e1", approved_by: "human" });
     expect(await subject()).toBe("Close e1: E (approved by claude)");
+
+    await governance({ epic: "human_only" });
+    expect(
+      await rejected(runCommand(epicReopen, agent, { epic: "e1", approved_by: "human" })),
+    ).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message: "The Workflow limits dg epic reopen to a person (governance.epic: human_only)",
+    });
 
     await governance({ epic: "anyone" });
     expect((await runCommand(epicReopen, agent, { epic: "e1" })).data.status).toBe("open");
@@ -260,19 +263,20 @@ describe("カンバンの管理の操作は governance の値で判定される"
     await runCommand(ticketImport, agent, { drafts: [{ title: "C" }] });
     expect(human.store.require("ticket", "t3").data.title).toBe("C");
 
-    // delete・epic は既定で human_only：エージェントは拒否され、人はできる
+    // delete は既定で human_only：エージェントは拒否され、人はできる
     expect(await rejected(runCommand(ticketDelete, agent, { ticket: "t1" }))).toMatchObject({
       code: "TRANSITION_REJECTED",
       message: "The Workflow limits dg ticket delete to a person (governance.delete: human_only)",
     });
     expect((await runCommand(ticketDelete, human, { ticket: "t1" })).data.id).toBe("t1");
+
+    // epic・config は既定で always_ask：エージェントは承認が要り、人は聞かずにできる
     expect(await rejected(runCommand(epicClose, agent, { epic: "e1" }))).toMatchObject({
       code: "TRANSITION_REJECTED",
-      message: "The Workflow limits dg epic close to a person (governance.epic: human_only)",
+      message:
+        "The Workflow asks for a person's approval for dg epic close (governance.epic: always_ask)",
     });
     expect((await runCommand(epicClose, human, { epic: "e1" })).data.status).toBe("closed");
-
-    // config は既定で always_ask：エージェントは承認が要り、人は聞かずに書ける
     const set = { key: "work.parallel", value: "2" };
     expect(await rejected(runCommand(configSet, agent, set))).toMatchObject({
       code: "TRANSITION_REJECTED",
@@ -289,17 +293,15 @@ describe("カンバンの管理の操作は governance の値で判定される"
       "iteration.close",
       "iteration.reopen",
       "ticket.delete",
-      "epic.close",
-      "epic.reopen",
     ]);
     expect(
       commandsRejectedForAgent(
         resolveWorkflow({
           flow: { release: "always_ask", plan: "human_only" },
-          governance: { delete: "anyone", epic: "always_ask", create: "human_only" },
+          governance: { delete: "anyone", epic: "human_only", create: "human_only" },
         }),
       ),
-    ).toEqual(["plan.approve", "ticket.create", "ticket.import"]);
+    ).toEqual(["plan.approve", "ticket.create", "ticket.import", "epic.close", "epic.reopen"]);
   });
 });
 

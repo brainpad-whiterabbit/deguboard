@@ -1625,15 +1625,15 @@ describe("ask", () => {
     await runCommand(epicCreate, ctx, { title: "E" });
     const close = async () =>
       (await runCommand(ask, ctx, { targets: ["e1"], action: "close" })).data;
-    // 既定の Workflow：Epic を閉じるのは人だけ（governance.epic: human_only）
+    // 既定の Workflow：Epic を閉じるのは人の承認で進める値（governance.epic: always_ask）で、エージェントが行えるので依頼文を返す
+    expect(await close()).toMatchObject({ kind: "prompt", human_only: [] });
+    // 人に限る値にすると、人が打つコマンドを返す
+    await runCommand(workflowSet, ctx, { definition: { governance: { epic: "human_only" } } });
     expect(await close()).toMatchObject({
       kind: "command",
       human_only: ["epic.close"],
       text: "dg epic close e1",
     });
-    // 人の承認で進める値にすると、エージェントが行えるので依頼文を返す
-    await runCommand(workflowSet, ctx, { definition: { governance: { epic: "always_ask" } } });
-    expect(await close()).toMatchObject({ kind: "prompt", human_only: [] });
   });
 
   it("Workflow の exceptions の値を見て、人に限る動き（human_only）は人が打つコマンドを、エージェントも行える動きは依頼文を返す", async () => {
