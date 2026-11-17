@@ -152,7 +152,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - WF-4 同梱するのは既定の `workflow.yaml` を 1 つだけで、`dg init` が置く（既にあれば書き換えない）。進め方の違いは値を書き換えて表す
 - WF-5 Run の step の語彙（investigate・implement・review・fix・merge）と Run を開く操作（RN-5）は Core が持ち、`run start` は語彙にない step を拒否する。手続きは YAML に書かず、既定の手続きは Core が（EX-3）、各手のやり方は `dg guide` が持つ
 - WF-6 `dg workflow set` は `workflow.yaml` を作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す。エージェントにはいつも人の承認（`--approved-by`）を求め、承認者を履歴に残す（WF-7。細部は `dg workflow set --help`）。前の版の `workflows/` は読まず、`workflow.yaml` がないのに残っていれば警告する
-- WF-7 チケットを消す・チームの設定を変える・ほかのユーザの担当と claim を替える・Epic を閉じる/再開する・起票は、`governance` の値で ST-2 と同じく判定する。フックを外す・段を下げる・`workflow set`・品質ゲートを越えるマージは Core が固定し、`workflow.yaml` では緩められない（値は `dg workflow show`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
+- WF-7 チケットを消す・チームの設定を変える・ほかのユーザの担当と claim を替える・Epic を閉じる/再開する・起票は、`governance` の値で ST-2 と同じく判定する。フックと dg を外す・段を下げる・`workflow set`・品質ゲートを越えるマージは Core が固定し、`workflow.yaml` では緩められない（値は `dg workflow show`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - WF-8 `wip` は列ごとのチケットの数の上限で、config の `work.parallel`（同時に動かすサブエージェントの数）とは別のもの。上限を超える列があると `dg next` と `dg flow next` は警告し、着手の手の前に先の列を進める手を返すが、着手は拒否しない（細部は `dg next --help`）
 - WF-9 Iteration・Epic への出し入れは `flow.assign`、Plan の承認は `flow.plan`、Iteration を閉じる/再開するは `flow.release` の値で、ST-2 と同じく判定する。コマンドで止められない判断は、関所 `dg checkpoint` が同じ値で判定する（EX-8。既定は `dg workflow show`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - WF-10 `flow` には、プロジェクト独自の段階（名前は小文字・数字・`-`）を、`decide`・位置 `after`（同梱の段階か work）・手順の文書 `guide` で足せる。`dg flow next` は `after` のあとに書いた順で、関所を通るまで返し、文書が読めなければ警告して返す（細部は `dg flow next --help`、[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
@@ -197,6 +197,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化と Iteration が通った関所を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
 - CL-8 `dg` の出力（ヘルプ・MCP のツールの説明・エラー・警告・次の手の理由・定型の文・`dg` が書くコミットの題）は英語で出し、既定の値（`config.yaml` の既定など）も英語で持つ。チケットの中身と `config.yaml` に書いた値（日本語で書いた古い既定の写しも含む）は書いたまま出す。理由は [ADR-001](adr/ADR-001-doc-strategy.md)
 - CL-9 `dg setup check` は導入の項目（git の版・Git リポジトリ・ボード・Skill と hooks・`.claude/.gitignore`）を上から確かめ、満たすか・状態・必須か推奨か・直すコマンドを返す。必須を満たさなければ後の項目は確かめない。git がなくても init の前でも動き、何も書かない（細部は `dg setup check --help`）
+- CL-10 `dg uninstall` はこのクローンから dg のフック・Skill・データの worktree と手元のブランチ・個人の設定を順に消す。リモートと共有のものは残して消し方を返し、手元にしかないものがあれば消さずに止まる（`--force` で越える）。実行は人だけで（WF-7）、`--dry-run` は誰でも通る（細部は `dg uninstall --help`）
 
 ### 6.2 状態遷移と照合
 
@@ -249,7 +250,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - AG-1 エージェントは `dg` を Bash から `--json` で呼び、データを直接編集しない。主体はフック（AG-9）が agent にし、フックがなければ `--actor agent` か `DEGUBOARD_ACTOR` で申告する（既定は human）。guide の手順は agent を名乗る（`skill.test.ts`。ID は TK-7 と `dg --help`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)）
 - AG-2 `dg skill install` は `dg guide <topic>` を読む英語の薄い Skill を配り、`dg skill uninstall` はそれだけを外す。任意で、スクリプトも許可も持たず、各自が入れる（`.claude/.gitignore` で無視）。古い Skill は dg が警告し、VS Code 拡張が起動時に更新する（新しい版は戻さず、手を加えたものは残す）。足りない Skill は拡張が案内する。細部は `skill-files.ts`
 - AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）。起票・着手・マージは人が頼んだ段階までにする（決まりは `dg guide overview`）
-- AG-4 MCP サーバー（`dg mcp`。stdio）は Bash のないクライアントの入口で、ツールを Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`hooks`・`setup`・`serve`・`open` を除く）、結果は `--json` と同じ形（CL-1）で、主体は常に agent。細部は `packages/cli/src/mcp.ts` とそのテスト
+- AG-4 MCP サーバー（`dg mcp`。stdio）は Bash のないクライアントの入口で、ツールを Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`hooks`・`setup`・`uninstall`・`serve`・`open` を除く）、結果は `--json` と同じ形（CL-1）で、主体は常に agent。細部は `packages/cli/src/mcp.ts` とそのテスト
 - AG-5 AI 製品ごとの差（使用量の取得・dg を呼んだエージェントの判定・フックの入力と設定）は Agent Adapter が吸収し、実装は Core の `agents/adapters/` に閉じる（対応する製品はそこのコード）。エージェントの起動と権限は扱わない（EX-1、[ADR-033](adr/ADR-033-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、Core の公開にも出さない（[ADR-033](adr/ADR-033-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る

@@ -376,6 +376,7 @@ describe("Core に固定の操作は workflow.yaml で緩められない", () =>
     expect((await runCommand(workflowShow, agent, {})).data.fixed).toEqual({
       workflow_set: "always_ask",
       hooks_uninstall: "human_only",
+      uninstall: "human_only",
       lower_gate: "human_only",
       merge_over_gate: "always_ask",
     });
