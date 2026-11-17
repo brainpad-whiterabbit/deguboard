@@ -15,4 +15,23 @@ checkpoints:
     approved_by: Eiki Kitajima/agent
     basis:
       facts: f1c53cb1526287c2
+  - name: audit
+    at: 2026-11-17T10:37:44Z
+    by: Eiki Kitajima/agent
+    approved_by: Eiki Kitajima
+    basis:
+      done:
+        - t1072
+        - t1073
+        - t1075
+        - t1076
+        - t1077
+        - t1078
+        - t1079
+        - t1084
+        - t1085
+        - t1086
+        - t1087
+        - t1088
+        - t1089
 started_at: 2026-11-17T06:49:14Z
