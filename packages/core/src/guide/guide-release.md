@@ -1,5 +1,5 @@
 ---
-description: Checks that every ticket of a deguboard Iteration is done, proceeds by the repository's release steps, and closes the Iteration with approval. Asks for approval before merging the release PR and publishing. Use when asked「s3 をリリースして」「リリースを進めて」.
+description: Checks that every ticket of a deguboard Iteration is done, proceeds by the repository's release steps, and closes the Iteration. Asks for approval before merging the release PR and publishing. By default (flow.release is human_only) asks a human to pass the release checkpoint and to close the Iteration. Use when asked「s3 をリリースして」「リリースを進めて」.
 argument-hint: "[Iteration]"
 ---
 
