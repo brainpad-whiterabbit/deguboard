@@ -96,8 +96,9 @@ describe("仮番号の振り直し（renumberProvisional、--resolve なしの s
     expect(a.store.tickets.get("t3")?.data.title).toBe("B の 2");
   });
 
-  // diff-tree は分岐点の上の積み直しの途中、show-ref は振り直した後の取り込み（integrate の最初の git）の失敗
-  it.each(["diff-tree", "show-ref"])(
+  // diff-tree は分岐点の上の積み直しの途中の失敗。-c は振り直した後の取り込みの失敗
+  // （integrate の rebase だけが、引数の先頭に -c core.attributesFile=… を置く。振り直しと同じ merge-base・rev-parse では区別できない）
+  it.each(["diff-tree", "-c"])(
     "振り直しが途中（%s）で失敗したら、元の先端に戻してまとめ待ちの中身を書き戻す",
     async (subcommand) => {
       const b = await collided();

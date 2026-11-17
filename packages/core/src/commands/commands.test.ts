@@ -700,3 +700,49 @@ describe("仮番号の振り直し（DT-5）", () => {
     expect(a.store.tickets.get("t1")?.data.title).toBe("A が変えた");
   });
 });
+
+// 同じ問い合わせ（status・show-ref・rev-parse HEAD）は、間に書き込みのない範囲で 1 回の結果を使い回す（t1046）。
+// 残る重なりの理由は、呼び出し元（git/write.ts の withWriteLock、setup.ts の syncLocked・reconcileLocked・syncResult）のコメントにある
+describe("sync の git の起動", () => {
+  it("何もすることのない sync は git を 20 回以下しか起動せず、続く sync も外の変更と取り違えない", async () => {
+    const f = await fixture();
+    // CLI と同じく、マージドライバのコマンドを渡す（登録を確かめる git config も数える）
+    const mergeDriver = [process.execPath, path.join(f.root, "dg.js"), "merge-driver"];
+    await writeFile(mergeDriver[1]!, "");
+    const a = await initialized(f.cloneA, { mergeDriver });
+    await runCommand(ticketCreate, a, { title: "A" });
+    await runCommand(sync, a, {});
+    const idle = await openContext({ cwd: f.cloneA, actor: a.actor, mergeDriver });
+    // git の起動を引数ごと記録する git を PATH の先頭に置く（runGit は呼ぶたびに process.env を読む）
+    const bin = path.join(f.root, "counting-bin");
+    const calls = path.join(f.root, "git-calls.log");
+    const saved = process.env["PATH"];
+    await mkdir(bin);
+    await writeFile(
+      path.join(bin, "git"),
+      `#!/bin/sh\necho "$*" >> '${calls}'\nPATH='${saved ?? ""}' exec git "$@"\n`,
+      { mode: 0o755 },
+    );
+    process.env["PATH"] = bin + path.delimiter + (saved ?? "");
+    cleanups.push(async () => {
+      process.env["PATH"] = saved;
+    });
+    const synced = await runCommand(sync, idle, {});
+    process.env["PATH"] = saved;
+    expect(synced.data).toMatchObject({ fetched: true, integrated: false, pushed: false });
+    expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
+    expect(synced.warnings).toEqual([]);
+    // CLI の dg sync は、このほかにリポジトリを開くときの 5 回を起動する（合わせて 25 回以下）
+    const asked = (await readFile(calls, "utf8")).split("\n").filter(Boolean);
+    expect(asked.length).toBeLessThanOrEqual(20);
+    expect(asked.filter((line) => line.includes(" show-ref "))).toHaveLength(1);
+    expect(asked.filter((line) => line.includes(" merge-base "))).toHaveLength(1);
+
+    // 取り込みのロックは基準を記録し直さずに放した。まとめ待ちの変更の後も、次の sync は dg 自身の書き込みを外の変更と取り違えない
+    await runCommand(ticketUpdate, idle, { ticket: "t1", title: "まとめ待ち" });
+    const next = await runCommand(sync, idle, {});
+    expect(next.data).toMatchObject({ pushed: true });
+    expect(next.warnings).toEqual([]);
+    expect((await runCommand(sync, idle, {})).warnings).toEqual([]);
+  });
+});

@@ -92,6 +92,21 @@ describe("同期", () => {
     expect(await syncStatus(a.repo)).toMatchObject({ ahead: 0, behind: 1, dirty: true });
   });
 
+  // integrate と syncStatus は、追跡 ref があるかを先に聞かない（t1046）。ないときの結果が前と同じことを確かめる
+  it("リモートにデータのブランチがまだないとき、integrate は何も取り込まず、syncStatus は手元のコミットを未 push と数える", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    const head = (await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    expect(await integrate(a.repo)).toEqual({ ok: true, changed: false });
+    expect((await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
+    expect(await syncStatus(a.repo)).toEqual({
+      ahead: 1,
+      behind: 0,
+      dirty: false,
+      remote: "origin",
+    });
+  });
+
   it("同じ行を両方が変えたとき rebase を中止し、ローカルのコミットを残して競合を報告する", async () => {
     const f = await fixture();
     const a = await openRepo(f.cloneA);
