@@ -63,6 +63,23 @@ export type OutsideCheck =
   | { kind: "found"; changes: OutsideChanges }
   | { kind: "rebasing"; byDg: boolean };
 
+/** ある時点で読んだ HEAD と作業ツリーの変更（dirtyFiles）。HEAD か作業ツリーが変わるまで正しい */
+export interface WorktreeState {
+  head: string;
+  dirty: Record<string, string>;
+}
+
+/**
+ * 書き込みのロックの中で外の変更を確かめたときに読んだ状態（inspectOutsideLocked）。ロックの中の処理が同じ問い合わせを繰り返さずに使う（t1046）。
+ * state は、ロックを持つ間はほかの dg が書かないので、この処理が HEAD か作業ツリーを変えるまで正しい。読まなかったとき
+ * （基準がまだない・HEAD がない）は undefined。recorded は、基準のファイルが state と同じ中身か（同じなら記録し直しても変わらない）
+ */
+export interface LockedOutsideCheck {
+  check: OutsideCheck;
+  state: WorktreeState | undefined;
+  recorded: boolean;
+}
+
 const git = (repo: GitRepo, args: string[]) =>
   runGit(repo.dataDir, args, { localDir: repo.localDir, allowFailure: true });
 
@@ -183,7 +200,12 @@ async function compare(
   repo: GitRepo,
   baseline: OutsideBaseline,
   remoteOf: RemoteOf,
-): Promise<{ commits: OutsideCommit[]; files: OutsideFile[]; rewritten: boolean }> {
+): Promise<{
+  commits: OutsideCommit[];
+  files: OutsideFile[];
+  rewritten: boolean;
+  state?: WorktreeState;
+}> {
   const head = await headOf(repo);
   if (head === undefined) return { commits: [], files: [], rewritten: false };
   const commits = head === baseline.head ? [] : await outsideCommits(repo, baseline.head, remoteOf);
@@ -196,7 +218,7 @@ async function compare(
   if (head === baseline.head)
     for (const p of Object.keys(baseline.dirty))
       if (!(p in now)) files.push({ path: p, change: "reverted" });
-  return { commits, files, rewritten };
+  return { commits, files, rewritten, state: { head, dirty: now } };
 }
 
 /**
@@ -209,17 +231,36 @@ export async function checkOutside(
   repo: GitRepo,
   opts: { underLock?: boolean; remote?: RemoteOf } = {},
 ): Promise<OutsideCheck> {
+  return (await inspectOutside(repo, opts)).check;
+}
+
+/**
+ * 書き込みのロックの中で dg の外の変更を確かめ、そのときに読んだ HEAD と作業ツリーの変更も返す（LockedOutsideCheck）。
+ * 呼び出し側が書き込みのロックを持っていること（持たずに読んだ状態は、ほかの dg の書き込みで古くなる）
+ */
+export function inspectOutsideLocked(repo: GitRepo): Promise<LockedOutsideCheck> {
+  return inspectOutside(repo, { underLock: true });
+}
+
+async function inspectOutside(
+  repo: GitRepo,
+  opts: { underLock?: boolean; remote?: RemoteOf },
+): Promise<LockedOutsideCheck> {
   const remoteOf = opts.remote ?? (async () => (repo.dataRemote ? dataRemoteRef(repo) : null));
   // 生きた dg が書き込みのロックを持つ間の rebase はその dg の取り込みなので、下の比べ方（書きかけを捨てる）に任せる
   if ((await rebaseInProgress(repo)) && (opts.underLock || !(await writeLocked(repo))))
-    return { kind: "rebasing", byDg: await rebaseLeftByDg(repo) };
+    return {
+      check: { kind: "rebasing", byDg: await rebaseLeftByDg(repo) },
+      state: undefined,
+      recorded: false,
+    };
   for (let attempt = 0; ; attempt++) {
     const before = await baselineText(repo);
     const baseline = await readBaseline(repo);
     if (!baseline) {
       // 初めて確かめる：今の状態を基準にする（ロックの中なら、持ち主が放す前に記録する。ほかの dg が書き込み中なら任せる）
       if (!opts.underLock && !(await writeLocked(repo))) await recordBaseline(repo);
-      return { kind: "clean", initial: true };
+      return { check: { kind: "clean", initial: true }, state: undefined, recorded: false };
     }
     const lockedBefore = !opts.underLock && (await writeLocked(repo));
     const found = await compare(repo, baseline, remoteOf);
@@ -230,10 +271,19 @@ export async function checkOutside(
     const files = stable ? found.files : [];
     const rewritten = stable && found.rewritten;
     if (found.commits.length === 0 && files.length === 0 && !rewritten)
-      return { kind: "clean", initial: false };
+      return {
+        check: { kind: "clean", initial: false },
+        state: found.state,
+        // HEAD が基準と同じで違うファイルもない（変えた・戻したのどちらもない）なら、基準の変更の一覧も今と同じ
+        recorded: stable && found.state?.head === baseline.head,
+      };
     return {
-      kind: "found",
-      changes: { baseline: baseline.head, commits: found.commits, files, rewritten },
+      check: {
+        kind: "found",
+        changes: { baseline: baseline.head, commits: found.commits, files, rewritten },
+      },
+      state: found.state,
+      recorded: false,
     };
   }
 }

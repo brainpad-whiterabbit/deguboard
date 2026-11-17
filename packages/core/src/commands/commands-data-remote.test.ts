@@ -412,6 +412,55 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
       await rerunOnce(f.cloneB, dataDir);
     });
 
+    /**
+     * 止まった後の dg sync は、残った前からの手元のコミットを取り込んだコミットの上で送り、捨てた変更は入れない（t1046）。
+     * 続けてもう一度の sync は何もせず、dg 自身の書き込みを外の変更と取り違えない（基準の記録を読み直さない経路を含む）
+     */
+    async function syncsAfterStop(cwd: string, dataDir: string) {
+      const again = await openContext({ cwd, actor });
+      const synced = await runCommand(sync, again, {});
+      expect(synced.data).toMatchObject({ fetched: true, pushed: true, conflicts: [] });
+      expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
+      expect(await tipOf(dataDir, "deguboard")).toBe(await headOf(again));
+      const subjects = (await git(again.repo.dataDir, ["log", "--format=%s"])).stdout.split("\n");
+      expect(subjects.filter((s) => s === "Commit batched changes")).toHaveLength(1);
+      expect([...again.store.tickets.keys()].sort()).toEqual(["t1", "t2"]);
+      expect(again.store.tickets.get("t1")?.data.title).toBe("前からの変更");
+      expect(again.store.tickets.get("t1")?.data.priority).not.toBe("high");
+
+      const idle = await openContext({ cwd, actor });
+      const head = await headOf(idle);
+      const nothing = await runCommand(sync, idle, {});
+      expect(nothing.data).toMatchObject({ fetched: true, integrated: false, pushed: false });
+      expect(nothing.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
+      expect(await headOf(idle)).toBe(head);
+      expect(await checkOutside(idle.repo)).toEqual({ kind: "clean", initial: false });
+    }
+
+    it("rebase の後に止まった後の dg sync は、前からの手元のコミットだけを送り、もう一度の sync は何もしない", async () => {
+      const { f, dataDir, racer } = await rejectedThenStopped(async (_racer, hooks) => {
+        hooks.beforePush = async () => {
+          throw new Error("取り込み直しの後の新しいエラー");
+        };
+      });
+      await expect(
+        runCommand(ticketUpdate, racer, { ticket: "t1", priority: "high" }),
+      ).rejects.toThrow("取り込み直しの後の新しいエラー");
+      await syncsAfterStop(f.cloneB, dataDir);
+    });
+
+    it("rebase の前に止まった後の dg sync は、リモートの変更を取り込んでから前からの手元のコミットを送る", async () => {
+      const logOf = (ctx: CommandContext) => path.join(ctx.repo.localDir, "resolve-log.jsonl");
+      const { f, dataDir, racer } = await rejectedThenStopped(async (ctx) => {
+        await mkdir(logOf(ctx));
+      });
+      await expect(
+        runCommand(ticketUpdate, racer, { ticket: "t1", priority: "high" }),
+      ).rejects.toMatchObject({ code: "EISDIR" });
+      await rmdir(logOf(racer));
+      await syncsAfterStop(f.cloneB, dataDir);
+    });
+
     it("競合で止まったときは今までどおり、コミットを手元に残して警告で戻し方を案内する", async () => {
       const { f, a, b } = await twoClones();
       await runCommand(ticketCreate, a, { title: "A" });

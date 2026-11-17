@@ -37,6 +37,7 @@ import {
 import {
   CONFLICT_REMEDY,
   flushPending,
+  type LockEntry,
   requireDataRemote,
   stopIfDataRemoteChanged,
   UNRESOLVABLE_REMEDY,
@@ -661,15 +662,16 @@ export const sync = defineCommand({
  * 1 は取り込みと push を済ませているので、投げると --resolve で採った値と捨てた値（data.resolved）・振り直し・取り込みの警告が消える
  */
 async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
-  const pulled = await withWriteLock(ctx.repo, () => pullLocked(ctx, resolve));
+  const pulled = await withWriteLock(ctx.repo, (entry) => pullLocked(ctx, resolve, entry));
   const collected = pulled.conflicts.length === 0 ? await collectReconcileFacts(ctx) : undefined;
   // ロックを取った後（照合を始めた後）の失敗は、照合が作業ツリーに書いた後かもしれないので握りつぶさずに投げる。
   // 握ると、コミットされない照合の書き込みが withWriteLock の基準に入り、次の sync の照合のコミットからも外れる
   let entered = false;
   try {
-    return await withWriteLock(ctx.repo, () => {
+    // 1 のロックを放した後はほかの dg が書きうるので、1 で読んだ状態は使わず、このロックの入口で読み直したもの（entry）を渡す
+    return await withWriteLock(ctx.repo, (entry) => {
       entered = true;
-      return reconcileLocked(ctx, pulled, collected);
+      return reconcileLocked(ctx, pulled, collected, entry);
     });
   } catch (e) {
     if (entered || !(e instanceof OperationError)) throw e;
@@ -690,12 +692,16 @@ type Pulled = Awaited<ReturnType<typeof pullLocked>>;
  * sync の取り込みと push（write のロックの中）。resolve があれば、振り直し → まとめ待ちのコミット → 選んだ側での取り込みの順に行う
  * （振り直しは未 push のコミットを積み直すので、まとめ待ちの変更を退けてから行い、番号を書き換えて戻してからコミットする）。
  * 書き換えた履歴と作業ツリーは、withWriteLock がロックを放す前に dg の外の変更の基準に記録する（dg 自身の書き換えを外の変更とみなさないため。SY-8）。
- * push が済んだ仮番号（DT-5）は confirmable で返し、照合と同じコミットで確定する
+ * push が済んだ仮番号（DT-5）は confirmable で返し、照合と同じコミットで確定する。
+ * entry はロックの入口で読んだ状態（git/write.ts の LockEntry）。同じ git の問い合わせを繰り返さないために使う（t1046）
  */
-async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined) {
+async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined, entry: LockEntry) {
   const warnings: string[] = [];
   const repo = ctx.repo;
   let flushed = false;
+  // ロックの入口で読んだ HEAD と作業ツリーの変更。下で HEAD か作業ツリーを変えたら捨て（undefined）、その後は git に聞き直す。
+  // 何もすることのない同期では最後まで残り、status と rev-parse HEAD を聞き直さない
+  let known = entry.state;
   // 名指ししたデータのリモートがこのクローンにないときは、同期なし（SY-6）として進めずに止める
   requireDataRemote(ctx);
   // 取り込みの前にマージドライバの登録を揃える（init より前に作ったリポジトリでも効くように。SY-4）
@@ -703,10 +709,12 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
   // 登録がない・登録したコマンドが消えた（入口がドライバを渡さない・node を上げた）と、git は行単位のマージに落ちる（t759）
   const driverProblem = await mergeDriverProblem(repo);
   if (driverProblem) warnings.push(driverProblem);
-  if (await ensureGitattributes(repo.dataDir))
+  if (await ensureGitattributes(repo.dataDir)) {
+    known = undefined;
     await commitPaths(repo, [".gitattributes"], "Add .gitattributes for the merge driver");
+  }
   // やめた Project の残り（projects/）は、印付きのコミットで一度だけ消す（git/retire-projects.ts）
-  await retireProjects(repo, ctx.store);
+  if (await retireProjects(repo, ctx.store)) known = undefined;
   const fetched = await fetchAll(repo);
   if (fetched.ok && fetched.codeDetail)
     warnings.push(
@@ -714,14 +722,25 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
     );
   // 別のカンバンの履歴を指しているときは、振り直し・まとめ待ちのコミット・取り込みの前に止める（git/sync.ts）
   if (fetched.ok && fetched.remoteBranch) await requireRelatedHistory(repo);
+  // 上で履歴のつながりを確かめた後に HEAD を動かしたか。動かしたら、取り込み（integrate）が今の HEAD で確かめ直す
+  // （空の根だけの手元にまとめ待ちをコミットすると、両側がデータを持つようになって判定が変わる）
+  let headMoved = false;
   const nameBefore = dataTargetOf(ctx.store.config);
   let renumbered: Renumbered[] = [];
   if (resolve && fetched.ok && fetched.remoteBranch) {
+    // 振り直しは未 push のコミットを積み直し、作業ツリーも書き換えるので、入口で読んだ状態は使えない
+    known = undefined;
+    headMoved = true;
     renumbered = await renumberCollisions(repo);
     if (await isDirty(repo)) flushed = await flushPending(ctx);
   }
-  const dirty = await isDirty(repo);
-  if (dirty && ctx.config.commit.mode !== "manual") flushed = await flushPending(ctx);
+  // 入口で読んだ dirtyFiles の件数は、isDirty と同じ答えになる（どちらも追跡しないファイルを git の設定によらず数える）
+  const dirty = known ? Object.keys(known.dirty).length > 0 : await isDirty(repo);
+  if (dirty && ctx.config.commit.mode !== "manual") {
+    known = undefined;
+    headMoved = true;
+    flushed = await flushPending(ctx);
+  }
 
   let conflicts: string[] = [];
   let integrated = renumbered.length > 0;
@@ -730,17 +749,20 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
     warnings.push(`Cannot fetch from the remote: ${fetched.detail}`);
   } else if (fetched.remoteBranch) {
     // 取り込みを中止したときは、積み直しの途中で解いた分も捨てられたので resolved は空。自動で解いた分（auto）はここで警告に出す
+    const autostash = dirty && !flushed;
     const { result: r, resolved: done } = await integrateLogged(repo, {
-      autostash: dirty && !flushed,
+      autostash,
       ...(resolve ? { resolve } : {}),
+      known: { related: !headMoved, ...(known ? { head: known.head } : {}) },
     });
     resolved = done;
+    // HEAD と作業ツリーをそのままにするのは、何も積み直さず、変更を退けて戻すこともしなかった取り込みだけ
+    if (!r.ok || r.changed || autostash) known = undefined;
     if (r.ok) integrated ||= r.changed;
     else {
       // 仮番号の衝突（オフラインで起票した番号がリモートで使われた）なら振り直して取り込み直す（DT-5）。
       // 作業ツリーに未コミットが残る manual のときは扱わない
-      const fixed =
-        (dirty && !flushed) || resolve ? null : await renumberProvisional(repo, r.conflicts);
+      const fixed = autostash || resolve ? null : await renumberProvisional(repo, r.conflicts);
       if (fixed) {
         renumbered = fixed.renumbered;
         integrated = fixed.renumbered.length > 0;
@@ -779,7 +801,7 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
   }
 
   let pushed = false;
-  const before = await syncStatus(repo);
+  const before = await syncStatus(repo, known ? { dirty } : {});
   if (repo.dataRemote && conflicts.length === 0 && before.ahead > 0) {
     const r = await push(repo);
     if (r.ok) pushed = true;
@@ -791,6 +813,8 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined)
     repo.dataRemote && (pushed || before.ahead === 0)
       ? [...ctx.store.tickets.values()].filter((t) => t.data.provisional).map((t) => t.data.id)
       : [];
+  // HEAD も作業ツリーも変えなかった（push は手元の HEAD と作業ツリーを変えない）なら、ロックを放す前の基準の記録は読み直さない
+  entry.untouched = known !== undefined;
   return {
     warnings,
     fetched,
@@ -812,12 +836,15 @@ async function reconcileLocked(
   ctx: CommandContext,
   pulled: Pulled,
   collected: CollectedFacts | undefined,
+  entry: LockEntry,
 ) {
   const repo = ctx.repo;
   const warnings = [...pulled.warnings];
   let pushed = pulled.pushed;
   await ctx.store.rescan();
-  const pendingBefore = await dirtyFiles(repo);
+  // ロックの入口で読んだ作業ツリーの変更を使う（ここまでに書いていない。読まなかったときだけ聞く。t1046）。
+  // 下の照合は作業ツリーに書くので、照合の後の dirtyFiles と結果の syncStatus、ロックを放す前の基準の記録は読み直す
+  const pendingBefore = entry.state?.dirty ?? (await dirtyFiles(repo));
   // push が済んだ仮番号は確定する（DT-5）
   const confirmed: string[] = [];
   for (const id of pulled.confirmable) {
@@ -943,6 +970,8 @@ async function syncResult(
       runs_closed: r.runsClosed ?? [],
       reviews_recorded: r.reviewsWritten ?? [],
       confirmed: r.confirmed ?? [],
+      // 取り込みの中（pullLocked）でも同期状態を聞いているが、その後に push・ロックを放した間のほかの dg の書き込み・照合の書き込みと
+      // コミットがあるので、結果に返す状態は最後に聞き直す
       status: await syncStatus(ctx.repo),
     },
     undefined,

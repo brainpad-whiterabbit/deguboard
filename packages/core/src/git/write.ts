@@ -6,7 +6,12 @@ import { OperationError } from "../errors.js";
 import { dataTargetOf, type Config, type DataTarget } from "../model/config.js";
 import type { Store } from "../storage/store.js";
 import { withLock } from "./lock.js";
-import { checkOutside, outsideError, recordBaseline } from "./outside.js";
+import {
+  inspectOutsideLocked,
+  outsideError,
+  recordBaseline,
+  type WorktreeState,
+} from "./outside.js";
 import { settleRebase } from "./rebase.js";
 import { retireProjects } from "./retire-projects.js";
 import {
@@ -153,21 +158,44 @@ export async function withWrite<T>(
  * データのリポジトリに書く処理を、同じマシンの書き込みのロックの中で行う（SY-5・SY-7）。書く前にロックの中で dg の外の変更を確かめ、
  * あれば書かずに OUTSIDE_CHANGES を投げる（外の変更を dg のコミットに入れて隠さない。止めない dg hook も、この失敗を警告にする。
  * そのとき閉じ損ねた Run は、取り込むか捨てた後に the "Stopped Run" section of `dg guide run` で閉じる）。
- * ロックを放す前に、書いた後の状態を基準に記録する。ロックを持つ間に dg の外で書いた変更はこの記録で基準に入り、見つからないことがある
- * （窓はロックを持つ間だけなので受け入れる）
+ * ロックを放す前に、書いた後の状態を基準に記録する。ロックを持つ間に dg の外で書いた変更は、記録し直す経路ではこの記録で基準に入り、
+ * 見つからないことがある（窓はロックを持つ間だけなので受け入れる）。fn が何も変えなかったとき（何もしない取り込み）は記録し直さないので、
+ * その間の外の変更は基準に入らず、次のコマンドが見つける。
+ * fn には、外の変更を確かめたときに読んだ状態（LockEntry）を渡す。同じ git の問い合わせを繰り返さないために使う（t1046）
  */
-export async function withWriteLock<T>(repo: GitRepo, fn: () => Promise<T>): Promise<T> {
+export async function withWriteLock<T>(
+  repo: GitRepo,
+  fn: (entry: LockEntry) => Promise<T>,
+): Promise<T> {
   return withLock(repo.localDir, "write", async () => {
     // 途中の rebase は外の変更と比べる前に片付ける（dg の残りは取り消し、人が始めたものは止める。t753）
     await settleRebase(repo);
-    const before = await checkOutside(repo, { underLock: true });
-    if (before.kind === "found") throw outsideError(before.changes);
+    // 入口（runCommand）もロックの外で同じことを確かめているが、ロックを待つ間にほかの dg が書きうるので、ここで読み直す
+    const before = await inspectOutsideLocked(repo);
+    if (before.check.kind === "found") throw outsideError(before.check.changes);
+    const entry: LockEntry = { state: before.state, untouched: false };
     try {
-      return await fn();
+      return await fn(entry);
     } finally {
-      await recordBaseline(repo).catch(() => undefined);
+      // fn が何も変えず、基準が入口の状態と同じ中身なら、記録し直しても同じ中身なので読み直さない。
+      // ほかは、fn の書き込みで HEAD と作業ツリーが変わりうるので、放す前に読み直して記録する
+      if (!(entry.untouched && before.recorded)) await recordBaseline(repo).catch(() => undefined);
     }
   });
+}
+
+/** 書き込みのロックの中の処理（withWriteLock の fn）に渡す、ロックを取った直後の状態 */
+export interface LockEntry {
+  /**
+   * 外の変更を確かめたときに読んだ HEAD と作業ツリーの変更。ロックを持つ間はほかの dg が書かないので、fn が HEAD か作業ツリーを
+   * 変える（ファイルを書く・コミットする・rebase や reset をする）まで正しい。変えた後は使わずに読み直す。読まなかったときは undefined
+   */
+  readonly state: WorktreeState | undefined;
+  /**
+   * fn が HEAD も作業ツリーも変えなかったと言い切れるときだけ、fn が true にする（変えたかもしれないときは false のままにする。
+   * 変えたのに true にすると、dg 自身の書き込みが基準に入らず、次のコマンドが dg の外の変更として止まる）
+   */
+  untouched: boolean;
 }
 
 /**
@@ -181,6 +209,7 @@ async function dropOwnCommit(
   before: string,
   mine: string,
 ): Promise<void> {
+  // 先頭は読み直す：mine を読んだ後に、取り込み直しの rebase（成功・中止・途中で止まる）が先頭を動かしうる
   if ((await headSha(ctx.repo)) === mine) await resetHard(ctx.repo, before);
   else if (!(await dropRebasedTip(ctx.repo, mine))) return;
   await ctx.store.rescan();
@@ -250,6 +279,7 @@ async function writeLocked<T>(
       }
     }
 
+    // 先頭はここで読み直す：上の取り込み（rebase）とまとめ待ちのコミット、やり直しの前の reset が先頭を動かしうる
     const before = await headSha(repo);
     const value = await mutate().catch((e: unknown) => {
       if (e instanceof AbortWrite) e.warnings.push(...warnings);
@@ -334,6 +364,7 @@ async function writeLocked<T>(
     // 残すと、エラーを直した後のもう一度の実行が同じ変更（コメントの追記など）を二重に入れる。エラーを足すときに、
     // 種類ごとの戻しを書かなくて済むよう、この 1 か所で受ける。競合は例外ではなく、警告を付けてコミットを残す（SY-4）
     const nameBefore = dataTargetOf(ctx.store.config);
+    // before を読んだ後に自分のコミットを積んだので、先頭を読み直す
     const mine = await headSha(repo);
     try {
       const fetchedAgain = await fetchData(repo);

@@ -39,6 +39,17 @@ export type PushResult =
   | { ok: true }
   | { ok: false; reason: "rejected" | "unreachable"; detail: string };
 
+/**
+ * integrate の呼び出し側が、同じ書き込みのロックの中で既に確かめたこと（t1046）。確かめた後に HEAD を動かした
+ * （コミット・rebase・reset）なら渡さない
+ */
+export interface IntegrateKnown {
+  /** 今の HEAD で requireRelatedHistory を済ませ、追跡 ref（dataRemoteRef）があると確かめた */
+  related?: boolean;
+  /** 今の HEAD */
+  head?: string;
+}
+
 const git = (repo: GitRepo, args: string[], opts: Parameters<typeof runGit>[2] = {}) =>
   runGit(repo.dataDir, args, { localDir: repo.localDir, ...opts });
 
@@ -88,8 +99,14 @@ export async function headSha(repo: GitRepo): Promise<string> {
   return (await git(repo, ["rev-parse", "HEAD"])).stdout.trim();
 }
 
+/**
+ * 未コミットの変更があるか。追跡しないファイルは、git の設定（status.showUntrackedFiles）によらず数える：
+ * 外の変更の確かめ（outside.ts の dirtyFiles）が数え、コミット（commitAll の add -A）が入れるものと揃える。
+ * dirtyFiles の件数が 0 でないことと同じ答えになるので、呼び出し側は読んだ dirtyFiles で代えてよい（t1046）
+ */
 export async function isDirty(repo: GitRepo): Promise<boolean> {
-  return (await git(repo, ["status", "--porcelain"])).stdout.trim().length > 0;
+  const out = await git(repo, ["status", "--porcelain", "--untracked-files=normal"]);
+  return out.stdout.trim().length > 0;
 }
 
 /**
@@ -101,16 +118,23 @@ export async function isDirty(repo: GitRepo): Promise<boolean> {
  * 追跡 ref がまだないとき（リモートにデータのブランチがない）は何もしない
  */
 export async function requireRelatedHistory(repo: GitRepo): Promise<void> {
-  if (!repo.dataRemote) return;
+  await relatedHistory(repo);
+}
+
+/**
+ * requireRelatedHistory の本体。追跡 ref があって取り込めると確かめたら true。merge-base が判定できなかった
+ * （追跡 ref がない・ほかの失敗）ときは false で、追跡 ref があるかは呼び出し側が要るときに確かめる
+ */
+async function relatedHistory(repo: GitRepo): Promise<boolean> {
+  if (!repo.dataRemote) return false;
   const remote = dataRemoteRef(repo);
-  const has = await git(repo, ["show-ref", "--verify", "--quiet", remote], { allowFailure: true });
-  if (has.code !== 0) return;
-  // merge-base は、共通の祖先がないときだけ 1 で終わる（ほかの失敗は rebase に任せる）
+  // merge-base は、共通の祖先がないときだけ 1 で終わる（ほかの失敗は rebase に任せる）。追跡 ref がないときは 1 でない失敗で
+  // 終わるので、ref があるかを先に聞かない（t1046）
   const base = await git(repo, ["merge-base", "HEAD", remote], { allowFailure: true });
-  if (base.code !== 1) return;
+  if (base.code !== 1) return base.code === 0;
   const empty = async (rev: string) =>
     (await git(repo, ["ls-tree", "--name-only", rev])).stdout.trim().length === 0;
-  if ((await empty("HEAD")) || (await empty(remote))) return;
+  if ((await empty("HEAD")) || (await empty(remote))) return true;
   const target = `${repo.dataRemote}/${repo.dataBranch}`;
   throw new OperationError(
     "DATA_HISTORY_UNRELATED",
@@ -124,19 +148,22 @@ export async function requireRelatedHistory(repo: GitRepo): Promise<void> {
  * frontmatter の別々のフィールドの変更はマージドライバ（merge.ts）が解く。.gitattributes がまだリモートにない間も効くよう、
  * deguboard-local/ の属性ファイルを core.attributesFile で渡す。
  * 空のコミットは落とす（--no-keep-empty）：別々に作った orphan の根（空のツリー）を積み直して履歴に割り込ませないため。
- * 根は作成時刻が同じ秒なら同じ SHA になって fast-forward し、違えば別の根になるので、落とさないと結果が時刻に依る
+ * 根は作成時刻が同じ秒なら同じ SHA になって fast-forward し、違えば別の根になるので、落とさないと結果が時刻に依る。
+ * opts.known は、呼び出し側が同じ書き込みのロックの中で既に確かめたこと（IntegrateKnown）。渡された分は聞き直さない
  */
 export async function integrate(
   repo: GitRepo,
-  opts: { autostash?: boolean; resolve?: ResolveSide; log?: string } = {},
+  opts: { autostash?: boolean; resolve?: ResolveSide; log?: string; known?: IntegrateKnown } = {},
 ): Promise<IntegrateResult> {
   if (!repo.dataRemote) return { ok: true, changed: false };
-  const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
-    allowFailure: true,
-  });
-  if (has.code !== 0) return { ok: true, changed: false };
-  await requireRelatedHistory(repo);
-  const before = await headSha(repo);
+  if (!opts.known?.related && !(await relatedHistory(repo))) {
+    // merge-base が判定できなかったときだけ、追跡 ref があるかを聞く（なければ取り込むものがない。あれば rebase に任せる）
+    const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
+      allowFailure: true,
+    });
+    if (has.code !== 0) return { ok: true, changed: false };
+  }
+  const before = opts.known?.head ?? (await headSha(repo));
   const args = [
     "-c",
     `core.attributesFile=${attributesFile(repo)}`,
@@ -165,6 +192,7 @@ export async function integrate(
         throw e;
       },
     );
+    // rebase が先頭を動かしたかは、終わった後に読み直さないと分からない
     if (result.code === 0) return { ok: true, changed: (await headSha(repo)) !== before };
     try {
       const conflicts = (
@@ -190,7 +218,7 @@ const RESOLVE_LOG = "resolve-log.jsonl";
  */
 export async function integrateLogged(
   repo: GitRepo,
-  opts: { autostash?: boolean; resolve?: ResolveSide } = {},
+  opts: { autostash?: boolean; resolve?: ResolveSide; known?: IntegrateKnown } = {},
 ): Promise<{ result: IntegrateResult; resolved: ResolvedFile[] }> {
   const log = path.join(repo.localDir, RESOLVE_LOG);
   await writeFile(log, "");
@@ -403,6 +431,7 @@ export async function dropRebasedTip(repo: GitRepo, original: string): Promise<b
   const [mine] = await identities("-1", original);
   const [tip] = await identities("-1", "HEAD");
   if (mine === undefined || tip !== mine) return false;
+  // 追跡 ref があるかはここで聞く：取り込み直しの fetch が途中で止まっても呼ばれるので、呼び出し側の fetch の結果は使えない
   const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
     allowFailure: true,
   });
@@ -415,19 +444,29 @@ export async function dropRebasedTip(repo: GitRepo, original: string): Promise<b
   return true;
 }
 
-export async function syncStatus(repo: GitRepo): Promise<SyncStatus> {
-  const dirty = await isDirty(repo);
+/**
+ * 同期状態。known.dirty は、呼び出し側が同じ書き込みのロックの中で読み、その後に作業ツリーを変えていない「未コミットの変更があるか」
+ * （渡されれば status を聞き直さない。t1046）
+ */
+export async function syncStatus(
+  repo: GitRepo,
+  known: { dirty?: boolean } = {},
+): Promise<SyncStatus> {
+  const dirty = known.dirty ?? (await isDirty(repo));
   if (!repo.dataRemote) return { ahead: 0, behind: 0, dirty, remote: null };
-  const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
-    allowFailure: true,
-  });
-  if (has.code !== 0) {
+  // 追跡 ref があるかを先に聞かず、数え方が失敗したときだけ聞く（ほとんどの呼び出しでは ref がある。t1046）
+  const range = ["rev-list", "--left-right", "--count", `HEAD...${dataRemoteRef(repo)}`];
+  const counted = await git(repo, range, { allowFailure: true });
+  if (counted.code !== 0) {
+    const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
+      allowFailure: true,
+    });
+    // 追跡 ref があるのに数えられないのは別の失敗なので、今までどおり投げる
+    if (has.code === 0) await git(repo, range);
     const ahead = Number((await git(repo, ["rev-list", "--count", "HEAD"])).stdout.trim());
     return { ahead, behind: 0, dirty, remote: repo.dataRemote };
   }
-  const out = (
-    await git(repo, ["rev-list", "--left-right", "--count", `HEAD...${dataRemoteRef(repo)}`])
-  ).stdout.trim();
+  const out = counted.stdout.trim();
   const [ahead = "0", behind = "0"] = out.split(/\s+/);
   return { ahead: Number(ahead), behind: Number(behind), dirty, remote: repo.dataRemote };
 }

@@ -10,10 +10,10 @@ import {
 } from "../../test/helpers/git-fixture.js";
 import { OperationError } from "../errors.js";
 import { collectBranchFacts } from "./facts.js";
-import { checkOutside } from "./outside.js";
+import { checkOutside, dirtyFiles } from "./outside.js";
 import { markRebase, rebaseInProgress, rebaseLeftByDg } from "./rebase.js";
 import { GitError, runGit } from "./run.js";
-import { fetchData, integrate, push, syncStatus } from "./sync.js";
+import { fetchData, integrate, isDirty, push, syncStatus } from "./sync.js";
 import { LOCAL_DATA_BRANCH, ensureDeguboardWorktree } from "./worktree.js";
 import { resolveRepoPaths } from "./repo.js";
 import { flushPending, withWrite, type WriteContext } from "./write.js";
@@ -90,6 +90,34 @@ describe("同期", () => {
     await writeFile(path.join(a.repo.dataDir, "z.yaml"), "c: 1\n");
     await fetchData(a.repo);
     expect(await syncStatus(a.repo)).toMatchObject({ ahead: 0, behind: 1, dirty: true });
+  });
+
+  // sync は入口で読んだ dirtyFiles の件数を isDirty の代わりに使う（t1046）。両者の答えが git の設定で食い違わないことを確かめる
+  it("isDirty は、status.showUntrackedFiles=no のリポジトリでも追跡しないファイルを数え、dirtyFiles と同じ答えになる", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    await git(a.repo.dataDir, ["config", "status.showUntrackedFiles", "no"]);
+    expect(await isDirty(a.repo)).toBe(false);
+    expect(await dirtyFiles(a.repo)).toEqual({});
+    await mkdir(path.join(a.repo.dataDir, "tickets"), { recursive: true });
+    await writeFile(path.join(a.repo.dataDir, "tickets", "t1.md"), "a\n");
+    expect(await isDirty(a.repo)).toBe(true);
+    expect(Object.keys(await dirtyFiles(a.repo))).toEqual(["tickets/t1.md"]);
+  });
+
+  // integrate と syncStatus は、追跡 ref があるかを先に聞かない（t1046）。ないときの結果が前と同じことを確かめる
+  it("リモートにデータのブランチがまだないとき、integrate は何も取り込まず、syncStatus は手元のコミットを未 push と数える", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    const head = (await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    expect(await integrate(a.repo)).toEqual({ ok: true, changed: false });
+    expect((await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
+    expect(await syncStatus(a.repo)).toEqual({
+      ahead: 1,
+      behind: 0,
+      dirty: false,
+      remote: "origin",
+    });
   });
 
   it("同じ行を両方が変えたとき rebase を中止し、ローカルのコミットを残して競合を報告する", async () => {
