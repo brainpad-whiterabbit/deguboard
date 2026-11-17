@@ -60,6 +60,13 @@ const NEWER_WINS = new Set(["updated_at"]);
 const SAME_STATUS_TIMES = new Set(["closed_at", "started_at", "approved_at"]);
 
 /**
+ * 両側が違う値に変えても、要素の和集合にする配列のフィールド（消さずに足すだけの記録。Iteration の関所の記録 EX-8・IT-1）。
+ * dg checkpoint は配列の全体を書いてすぐ push するので、2 つの clone が同じ元に 1 件ずつ足すと、1 つの値として比べる pick では競合になる。
+ * どちらかの側を採る（dg sync --resolve）と、もう片側の記録が消えるので、採る側を渡されても和集合にする（unionRecords）
+ */
+const UNION_RECORDS = new Set(["checkpoints"]);
+
+/**
  * 競合したフィールドで採る側（dg sync --resolve）。git の %A（ours）か %B（theirs）で言う。
  * rebase の中では ours が upstream（リモート）、theirs が積み直すローカルのコミットなので、remote → ours・local → theirs に読み替えるのは呼び手（sync.ts）
  */
@@ -158,7 +165,46 @@ function earlierTimes(
   return fixes;
 }
 
-/** 1 つの値の 3-way。片側だけ変えたらその値、両側が同じ値に変えたらその値。決まらなければ conflict。配列も要素ごとにマージせず 1 つの値として比べる */
+/** 記録を見分ける鍵。name・at・by がそろった記録はその 3 つ（同じ関所を同じ主体が同じ時刻に通った記録は 1 件）、それ以外は値の全体 */
+function recordKey(record: unknown): string {
+  if (typeof record === "object" && record !== null && !Array.isArray(record)) {
+    const { name, at, by } = record as Record<string, unknown>;
+    if (typeof name === "string" && typeof at === "string" && typeof by === "string")
+      return JSON.stringify([name, at, by]);
+  }
+  return JSON.stringify(record);
+}
+
+/**
+ * UNION_RECORDS の規則で解く。ours の要素に、theirs にだけある要素を足す（同じ鍵の記録は ours の 1 件にまとめる）。
+ * 分岐点の要素は見ない：記録は消さないので、片側にしかなければ足されたものとして残す。
+ * すべての要素が読める at を持てば、古い順に並べる（数える側 countedCheckpoints が古い順を前提にする。同じ時刻は ours が先）。
+ * どちらかが配列でなければ（片側にキーがないのは空の配列とみなす）undefined（競合のまま）
+ */
+function unionRecords(ours: unknown, theirs: unknown): unknown[] | undefined {
+  const a = ours ?? [];
+  const b = theirs ?? [];
+  if (!Array.isArray(a) || !Array.isArray(b)) return undefined;
+  const seen = new Set<string>();
+  const merged: unknown[] = [];
+  for (const record of [...a, ...b] as unknown[]) {
+    const key = recordKey(record);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(record);
+  }
+  const times = merged.map((r) =>
+    typeof r === "object" && r !== null ? Date.parse(String((r as { at?: unknown }).at)) : NaN,
+  );
+  if (times.some((t) => Number.isNaN(t))) return merged;
+  // Array.prototype.sort は安定なので、同じ時刻の記録は足した順のまま
+  return merged
+    .map((record, i) => ({ record, time: times[i]! }))
+    .sort((x, y) => x.time - y.time)
+    .map((x) => x.record);
+}
+
+/** 1 つの値の 3-way。片側だけ変えたらその値、両側が同じ値に変えたらその値。決まらなければ conflict。配列も要素ごとにマージせず 1 つの値として比べる（要素の和集合にするのは UNION_RECORDS だけ） */
 function pick(base: unknown, ours: unknown, theirs: unknown): { value: unknown } | "conflict" {
   if (isDeepStrictEqual(ours, theirs)) return { value: ours };
   if (isDeepStrictEqual(base, ours)) return { value: theirs };
@@ -246,6 +292,7 @@ async function conflictHunks(
 /**
  * frontmatter つき Markdown と素の YAML（最上位がマッピング）の 3-way マージ。
  * - フィールド（最上位のキー）ごとに、片側だけ変えた値を採る。両側が違う値に変えたら競合（updated_at だけは新しい方を採る）
+ * - 消さずに足すだけの記録の配列（UNION_RECORDS。Iteration の checkpoints）は、両側が違う値に変えたら要素の和集合にする（競合にせず、prefer があっても片側を捨てない）
  * - 本文は片側だけ変えたらその本文、両側が変えたら行単位でマージし、同じ行がぶつかれば競合
  * - 両側の status が同じ（status のない Plan も含む）で、ぶつかったのが状態と一緒に書く時刻（SAME_STATUS_TIMES）だけなら、早い方を採り auto: true で resolved に返す（競合にしない）
  * - 読めない・base にない（add/add）・3 つの形（frontmatter の有無）が揃わないときは ok: false の代わりに undefined を返し、
@@ -284,6 +331,10 @@ export async function mergeDocuments(
     let picked = pick(o.data[key], a.data[key], b.data[key]);
     if (picked === "conflict" && NEWER_WINS.has(key)) {
       const value = newer(a.data[key], b.data[key]);
+      if (value !== undefined) picked = { value };
+    }
+    if (picked === "conflict" && UNION_RECORDS.has(key)) {
+      const value = unionRecords(a.data[key], b.data[key]);
       if (value !== undefined) picked = { value };
     }
     if (picked === "conflict") {
