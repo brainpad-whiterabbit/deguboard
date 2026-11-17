@@ -1,0 +1,34 @@
+{
+  "id": "r20261117-024849-3c9d",
+  "ticket": "t1053",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-17T02:48:49Z",
+  "finished_at": "2026-11-17T02:50:31Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ADR-034 の「和集合はどちらの側が解いても同じ」は、同じ時刻や時刻が読めない記録で並びが解いた側によって変わるので、記録の集合が同じだと書き直す"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 2408,
+    "cache_read": 182731,
+    "cache_write": 25690
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 1,
+    "bash": 4,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "0b151a56-4156-48a8-8028-d330dabf5be2",
+  "review": null,
+  "waited_seconds": 0
+}
