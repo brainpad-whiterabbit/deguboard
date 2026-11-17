@@ -27,7 +27,31 @@
     "errors": 0
   },
   "session": "0b151a56-4156-48a8-8028-d330dabf5be2",
-  "review": null,
+  "review": {
+    "heavy": 0,
+    "light": 4,
+    "passed": true,
+    "causes": {
+      "heavy": {
+        "ticket": 0,
+        "plan": 0,
+        "implementation": 0,
+        "tests": 0,
+        "documents": 0,
+        "environment": 0,
+        "unknown": 0
+      },
+      "light": {
+        "ticket": 1,
+        "plan": 0,
+        "implementation": 3,
+        "tests": 0,
+        "documents": 0,
+        "environment": 0,
+        "unknown": 0
+      }
+    }
+  },
   "head": "2c303e2485eb25019a09e7bb8927c8faa1c815f5",
   "waited_seconds": 0
 }
