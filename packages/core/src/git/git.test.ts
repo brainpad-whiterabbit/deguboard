@@ -1,4 +1,4 @@
-import { readFile, utimes, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -358,6 +358,88 @@ describe("rebase の途中と時間切れ", () => {
       message: expect.stringContaining("git rebase --continue"),
     });
     expect(await rebaseInProgress(a.repo)).toBe(true);
+  });
+
+  // 途中の rebase の状態の置き場所は GitRepo ごとに 1 回だけ git に聞いて覚える（rebase.ts の rebaseDirsOf。t1045）。
+  // 覚えるのは場所だけで、途中かどうかは毎回確かめることを、同じ GitRepo で「途中でない → 途中」と変わる流れで確かめる
+  it("push が拒否された後の取り込み直しの途中で git が殺されて rebase が残ったら、同じコマンドが途中と見分けて印を残し、次の書き込みが取り消す", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    const x = path.join(a.repo.dataDir, "x.yaml");
+    await writeFile(x, "a: 1\n");
+    await git(a.repo.dataDir, ["add", "-A"]);
+    await git(a.repo.dataDir, ["commit", "-qm", "a1"]);
+    await push(a.repo);
+    const b = await openRepo(f.cloneB);
+    // A の push の直前に B が同じ行を変えて先に push する。A の push は拒否され、取り込み直しの rebase が x.yaml をマージする。
+    // マージドライバが親の git を SIGKILL で殺す（dg ごと殺されたときと同じく、git は index.lock と途中の状態を片付けられない）
+    const hooks = {
+      beforePush: async () => {
+        hooks.beforePush = async () => {};
+        await writeFile(path.join(b.repo.dataDir, "x.yaml"), "a: 2\n");
+        await git(b.repo.dataDir, ["commit", "-qam", "b1"]);
+        await push(b.repo);
+        await writeFile(path.join(f.cloneA, ".git", "info", "attributes"), "x.yaml merge=killer\n");
+        await git(f.cloneA, ["config", "merge.killer.driver", "kill -KILL $PPID"]);
+      },
+    };
+    // 書き込みの入口（settleRebase）は、同じ GitRepo で先に「途中でない」と確かめている
+    const { write } = await withWrite(ctxOf(a, hooks), () => writeFile(x, "a: 3\n"), {
+      message: "a2",
+      immediate: true,
+    });
+    expect(write).toMatchObject({ committed: true, pushed: false });
+    // 残った index.lock のために中止できず、途中の状態が残る。印は外さず、外の変更とも報告しない
+    expect(await rebaseInProgress(a.repo)).toBe(true);
+    expect(await rebaseLeftByDg(a.repo)).toBe(true);
+    expect(await checkOutside(a.repo)).toEqual({ kind: "rebasing", byDg: true });
+
+    // 殺された git の残した index.lock を消すと、次の書き込みが dg の残りとして取り消してから書く
+    await rm(
+      path.resolve(
+        a.repo.dataDir,
+        (await git(a.repo.dataDir, ["rev-parse", "--git-path", "index.lock"])).stdout.trim(),
+      ),
+    );
+    await git(f.cloneA, ["config", "--unset", "merge.killer.driver"]);
+    const next = await withWrite(ctxOf(a), () => a.store.create("ticket", ticketData("t1")), {
+      message: "t1 を作成",
+      immediate: true,
+    });
+    expect(next.write).toMatchObject({ committed: true });
+    expect(await rebaseInProgress(a.repo)).toBe(false);
+    expect(await rebaseLeftByDg(a.repo)).toBe(false);
+    const log = (await git(a.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
+    expect(log.slice(0, 2)).toEqual(["t1 を作成", "a2"]);
+  });
+
+  it("1 回の書き込みが rebase の途中かを何度確かめても、置き場所を聞く git の起動は 1 回だけ", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    // git の起動を引数ごと記録する git を PATH の先頭に置く（runGit は呼ぶたびに process.env を読む）
+    const bin = path.join(f.root, "counting-bin");
+    const calls = path.join(f.root, "git-calls.log");
+    const saved = process.env["PATH"];
+    await mkdir(bin);
+    await writeFile(
+      path.join(bin, "git"),
+      `#!/bin/sh\necho "$*" >> '${calls}'\nPATH='${saved ?? ""}' exec git "$@"\n`,
+      { mode: 0o755 },
+    );
+    process.env["PATH"] = bin + path.delimiter + (saved ?? "");
+    cleanups.push(async () => {
+      process.env["PATH"] = saved;
+    });
+    // 書き込みの入口（settleRebase・checkOutside）、取り込みの後（unmarkRebase）、基準の記録（recordBaseline）が確かめる
+    const { write } = await withWrite(ctxOf(a), () => a.store.create("ticket", ticketData("t1")), {
+      message: "t1 を作成",
+      immediate: true,
+    });
+    expect(write).toMatchObject({ committed: true, pushed: true });
+    const asked = (await readFile(calls, "utf8"))
+      .split("\n")
+      .filter((line) => line.includes("--git-path rebase-"));
+    expect(asked).toEqual(["rev-parse --git-path rebase-merge --git-path rebase-apply"]);
   });
 
   it("fetch と push の時間切れは届かないときと同じ扱いで、CAS は自分のコミットを捨てて PUSH_FAILED になる", async () => {

@@ -19,12 +19,39 @@ const exists = (file: string) =>
     () => false,
   );
 
+/** git が途中の rebase の状態を置くディレクトリの名前（データの worktree の git dir の下） */
+const REBASE_DIRS = ["rebase-merge", "rebase-apply"];
+
+// 途中の rebase の状態の置き場所（絶対パス）を GitRepo ごとに覚える。場所は worktree の git dir で決まり、コマンドの途中で変わらないので、
+// git（rev-parse --git-path）は 1 つの GitRepo につき 1 回だけ起動する（書くコマンドは rebaseInProgress を何度も呼ぶ。t1045）。
+// 覚えるのは場所だけ。途中かどうかは、同じコマンドの中で dg が rebase を始めて終えるので、呼ばれるたびにファイルシステムで確かめる
+const rebaseDirs = new WeakMap<GitRepo, Promise<string[]>>();
+
+/** 途中の rebase の状態の置き場所。git が失敗したら空（途中でないとみなす）で、失敗は覚えずに次の呼び出しで引き直す */
+function rebaseDirsOf(repo: GitRepo): Promise<string[]> {
+  const known = rebaseDirs.get(repo);
+  if (known) return known;
+  const found = runGit(
+    repo.dataDir,
+    ["rev-parse", ...REBASE_DIRS.flatMap((name) => ["--git-path", name])],
+    { allowFailure: true },
+  ).then((r) =>
+    r.code === 0
+      ? r.stdout
+          .split("\n")
+          .filter(Boolean)
+          .map((p) => path.resolve(repo.dataDir, p))
+      : [],
+  );
+  rebaseDirs.set(repo, found);
+  const forget = () => rebaseDirs.delete(repo);
+  found.then((dirs) => dirs.length === REBASE_DIRS.length || forget(), forget);
+  return found;
+}
+
 /** データの worktree で rebase が途中か（rebase-merge か rebase-apply があるか） */
 export async function rebaseInProgress(repo: GitRepo): Promise<boolean> {
-  for (const name of ["rebase-merge", "rebase-apply"]) {
-    const r = await runGit(repo.dataDir, ["rev-parse", "--git-path", name], { allowFailure: true });
-    if (r.code === 0 && (await exists(path.resolve(repo.dataDir, r.stdout.trim())))) return true;
-  }
+  for (const dir of await rebaseDirsOf(repo)) if (await exists(dir)) return true;
   return false;
 }
 
