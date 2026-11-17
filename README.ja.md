@@ -118,6 +118,10 @@ MCP サーバーを使えば、Jira や GitHub Projects のチケットもエー
 - [開発ガイド](docs/development.md)：このリポジトリで開発する人向け
 - `dg --help` と `dg guide <topic>`：コマンドの一覧と、エージェント向けの手順の正本（CLI に同梱。英語）
 
+## deguboard で作っています
+
+deguboard は [Claude Code](https://claude.com/product/claude-code) と deguboard 自身で開発しています。変更はどれもこのリポジトリのボードのチケットから始まり、エージェントが品質ゲートを通して、チケットの ID を書いた[プルリクエスト](https://github.com/brainpad-whiterabbit/deguboard/pulls?q=is%3Apr+is%3Amerged)にします。
+
 ## ライセンス
 
 [MIT](LICENSE)。配布物に束ねた依存のライセンスは、ビルドで出る `THIRD_PARTY_LICENSES.md`（VSIX の `dist/`）にまとめています。
