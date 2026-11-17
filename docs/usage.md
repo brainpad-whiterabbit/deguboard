@@ -209,9 +209,9 @@ dg does not write or change your agent instructions (`CLAUDE.md`, `AGENTS.md`). 
 ```
 
 - If `dg` is not on the agent's PATH, also write how to call it, for example `~/.local/share/deguboard/dg` (the launcher the extension installs) or "Install dg command" in [Use the CLI](#use-the-cli).
-- `dg guide release` looks for the release steps in the repository's rules (the agent instructions, README, and development docs). Without them, it does not guess the steps and asks you whether to close the Iteration with no release.
+- The steps of `dg guide release` have the agent look for the release steps in the repository's rules (the agent instructions, README, and development docs). Without them, the agent does not guess the steps and asks you whether to close the Iteration with no release.
 
-Do not copy dg's steps (how to plan, implement, review, and merge) into the agent instructions. dg cannot read them there, and a copy goes stale when `dg skill install` updates the guides. To change a step for your repository, write a document without headings and set its path in `guide.notes.<topic>` (for example `guide.notes.work`); dg inserts it just after the title of `dg guide <topic>`. The check commands go in `actions.test` and `actions.light_test`. See the values with `dg config show`, and change them with `/dgconfig`.
+Do not copy dg's steps (how to plan, implement, review, and merge) into the agent instructions. `dg guide` does not include them, and because the guides come with dg, a copy goes stale when dg is updated. To change a step for your repository, write a document without headings and set its path in `guide.notes.<topic>` (for example `guide.notes.work`); dg inserts it just after the title of `dg guide <topic>`. The check commands go in `actions.test` and `actions.light_test`. See the values with `dg config show`, and change them with `/dgconfig`.
 
 ## Use other agents
 
