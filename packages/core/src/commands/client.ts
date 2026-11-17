@@ -190,13 +190,8 @@ export const WEBVIEW_CONTRACT = {
     "detailTicket",
     "configRow",
   ],
-  /** 拡張が開く画面のルート（web の router のハッシュ）。uninstall は導入のチェックリストを「アンインストール」の節を開いて出す */
-  routes: {
-    board: "#/board",
-    config: "#/config",
-    setup: "#/setup",
-    uninstall: "#/setup?uninstall=1",
-  },
+  /** 拡張が開く画面のルート（web の router のハッシュ）。導入のチェックリストを「アンインストール」の節を開いて出すルートは uninstallRouteOf */
+  routes: { board: "#/board", config: "#/config", setup: "#/setup" },
   /** 詳細の画面のルートの頭。後ろに ID を付ける（#/tickets/t12）。組み立てと読み取りは detailRouteOf・detailOfRoute */
   detailRoutes: {
     ticket: "#/tickets/",
@@ -213,6 +208,14 @@ export const WEBVIEW_CONTRACT = {
   detailRoutes: Record<IdKind, `#/${string}/`>;
   eventNames: readonly WebviewEvent["name"][];
 };
+
+/**
+ * 導入のチェックリストを「アンインストール」の節を開いて出すルート（#/setup?uninstall=<nonce>）。nonce は開くたびに変える値。
+ * なぜ要るか：同じハッシュへの移動は何も起こさないので、節を閉じた後にコマンドをもう一度実行しても開き直せない
+ */
+export function uninstallRouteOf(nonce: number): string {
+  return `${WEBVIEW_CONTRACT.routes.setup}?uninstall=${nonce}`;
+}
 
 /** ID の詳細の画面のルート（t12 → #/tickets/t12、s3 → #/iterations/s3）。ID の形が違えば（x1・t01）undefined */
 export function detailRouteOf(id: string): string | undefined {

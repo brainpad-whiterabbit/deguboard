@@ -26,6 +26,7 @@ import { PlansPage } from "./pages/plans.js";
 import { HistoryPage } from "./pages/history.js";
 import { ConfigPage } from "./pages/config.js";
 import { tr, msg } from "./l10n.js";
+import { SETUP_UNINSTALL_KEY } from "./ui-state.js";
 
 /** 左パネルのタブ（UI-12） */
 const NAV: { page: Route["page"]; label: string }[] = [
@@ -107,8 +108,11 @@ export function App() {
   useEffect(() => {
     const needed = neededSetupRef.current;
     neededSetupRef.current = store.needsSetup;
-    if (needed && !store.needsSetup && setupOpen) toggleRoute(hrefOf({ page: "setup" }));
-  }, [store.needsSetup, setupOpen]);
+    if (!needed || store.needsSetup) return;
+    // ボードが戻った（入れ直した）：画面から外したことの印を残さない（後でボードが壊れたときに、外したと言わないように。setup-uninstall.tsx）
+    host.state.remove(SETUP_UNINSTALL_KEY);
+    if (setupOpen) toggleRoute(hrefOf({ page: "setup" }));
+  }, [store.needsSetup, setupOpen, host]);
   // Iteration と Plan の詳細はカンバンのタブ、Epic の詳細はバックログのタブの下にあるものとして扱う（一覧の画面はない）。
   // 導入のチェックリストはどのタブの下でもないので、開いている間はタブを選んでいない見た目になる（タブを押すとその画面に戻る）
   const active =
@@ -167,14 +171,14 @@ export function App() {
               </>
             ) : store.needsSetup && store.setup ? (
               // 導入の必須の項目を満たさない間は、一覧の代わりにチェックリストを出す（満たすと確かめ直しでいつもの画面に変わる）
-              <SetupChecklist view={store.setup} />
+              <SetupChecklist
+                view={store.setup}
+                uninstall={shown.page === "setup" ? shown.uninstall : undefined}
+              />
             ) : setupOpen ? (
               // タイトル行のアイコン・帯から開いた導入のチェックリスト。帯を出さないと決めている間は、開いてから初めて確かめるので待つ
               store.setup ? (
-                <SetupChecklist
-                  view={store.setup}
-                  uninstall={shown.page === "setup" && shown.uninstall === true}
-                />
+                <SetupChecklist view={store.setup} uninstall={shown.uninstall} />
               ) : (
                 <p className="muted">{tr("読み込み中…")}</p>
               )

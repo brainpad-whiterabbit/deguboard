@@ -10,10 +10,17 @@ export const SETUP_BAND_DISMISSED_KEY = "setup.band.dismissed";
 
 /**
  * 導入のチェックリストの「アンインストール」（components/setup-uninstall.tsx）で、画面から dg uninstall を実行したことを残す鍵。
- * 値は "started"（実行した）か "shown"（外した後の知らせを出した）。外すとボードがなくなって画面が必須を満たさないチェックリストに
- * 替わるので、その画面が知らせを出せるように、部品の中ではなくここに持つ。知らせを閉じるか、入れ直した後に節を出すと消す
+ * 値は UninstallMarker。外すとボードがなくなって画面が必須を満たさないチェックリストに替わるので、その画面が知らせを出せるように、
+ * 部品の中ではなくここに持つ。Webview の状態はワークスペースごとで、フォルダごとではないので、実行したフォルダ（cwd）を値に持ち、
+ * ほかのフォルダのチェックリストには知らせを出さない。消すのは、知らせを閉じたとき・節を出し直したとき（入れ直した後を含む）・
+ * 実行の後もボードが残っていると分かったとき（dg が断った）
  */
 export const SETUP_UNINSTALL_KEY = "setup.uninstall";
+
+/** SETUP_UNINSTALL_KEY の値。cwd は dg uninstall を実行したフォルダ（SetupView の cwd） */
+export interface UninstallMarker {
+  cwd: string | null;
+}
 
 export interface UiState {
   get<T>(key: string): T | undefined;

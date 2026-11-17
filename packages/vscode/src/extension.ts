@@ -27,6 +27,7 @@ import {
   refreshInstalledSkills,
   toCommandFailure,
   uninstall,
+  uninstallRouteOf,
   WEBVIEW_CONTRACT,
   type CommandClient,
   type ResolveSide,
@@ -246,10 +247,11 @@ export function activate(context: vscode.ExtensionContext): void {
     // コマンドパレットの「dg コマンドを入れる」「外す」。同梱の dg を ~/.local/bin/dg に張り、外す（launcher.ts）
     vscode.commands.registerCommand("deguboard.installDg", () => void installDgCommand(context)),
     vscode.commands.registerCommand("deguboard.uninstallDg", () => void uninstallDgCommand()),
-    // 「このリポジトリからアンインストール」。消さずに、導入のチェックリストを「アンインストール」の節を開いて出す（確かめて実行するのは画面）
+    // 「このリポジトリからアンインストール」。消さずに、導入のチェックリストを「アンインストール」の節を開いて出す（確かめて実行するのは画面）。
+    // ルートに時刻を付け、実行のたびに違うハッシュにする（節を閉じた後でも、もう一度実行すれば開き直す）
     vscode.commands.registerCommand(
       "deguboard.uninstall",
-      () => void showInSidebar(WEBVIEW_CONTRACT.routes.uninstall),
+      () => void showInSidebar(uninstallRouteOf(Date.now())),
     ),
     vscode.workspace.onDidChangeWorkspaceFolders((e) => {
       for (const folder of e.removed) forgetFolder(folder);

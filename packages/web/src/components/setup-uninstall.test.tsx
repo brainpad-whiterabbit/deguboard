@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import type { SetupAction, SetupView, UninstallPreview } from "@deguboard/core";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
 import { mockClient, setupView } from "../test-helpers.js";
-import { createUiState, memoryBackend } from "../ui-state.js";
+import { createUiState, memoryBackend, SETUP_UNINSTALL_KEY } from "../ui-state.js";
 import { SetupBand, SetupChecklist } from "./setup-checklist.js";
+import { UNINSTALL_SETTLE_MS } from "./setup-uninstall.js";
 
 afterEach(cleanup);
 
@@ -73,7 +74,7 @@ function vscodeHost(previews: UninstallPreview[] = [CLEAN]) {
   return { host, acts, asked };
 }
 
-function tree(view: SetupView, host: Host, uninstall = false) {
+function tree(view: SetupView, host: Host, uninstall?: string) {
   const client = mockClient();
   client.setup = async () => view;
   return (
@@ -197,11 +198,29 @@ describe("導入のチェックリストの「アンインストール」の節"
     expect(acts).toEqual(["uninstallPersonal"]);
   });
 
-  it("コマンドパレットから開いたとき（uninstall）は、節を開いて出す", async () => {
+  it("コマンドパレットから開いたとき（uninstall）は、節を開いて出す。節を閉じた後にもう一度実行すると、開き直す", async () => {
     const { host, asked } = vscodeHost();
-    render(tree(setupView(), host, true));
+    const view = setupView();
+    const { rerender } = render(tree(view, host, "1"));
     expect(toggle().getAttribute("aria-expanded")).toBe("true");
     await waitFor(() => expect(asked).toEqual([false]));
+    fireEvent.click(toggle());
+    expect(toggle().getAttribute("aria-expanded")).toBe("false");
+    // 同じ印のままなら閉じたまま。コマンドの実行のたびに印が変わるので、開き直す
+    rerender(tree(view, host, "1"));
+    expect(toggle().getAttribute("aria-expanded")).toBe("false");
+    rerender(tree(view, host, "2"));
+    expect(toggle().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("必須を満たさない間にコマンドパレットから開くと、外すものがないことを知らせる。ふつうに開いたときは出さない", () => {
+    const { host } = vscodeHost();
+    const gone = setupView({ board: { status: "unmet", fix: ["dg init"] } });
+    const { rerender } = render(tree(gone, host));
+    expect(screen.queryByText("ボードがないので、この画面から外すものはありません。")).toBeNull();
+    rerender(tree(gone, host, "1"));
+    expect(screen.getByText("ボードがないので、この画面から外すものはありません。")).toBeTruthy();
+    expect(document.querySelector(".setup-uninstalled")).toBeNull();
   });
 
   it("実行後に必須を満たさないチェックリストに戻ると、拡張は最後に消すことを知らせ、拡張の画面を開くボタンを置く。閉じると消える", async () => {
@@ -230,18 +249,75 @@ describe("導入のチェックリストの「アンインストール」の節"
   it("画面から実行していなければ、必須を満たさないチェックリストに知らせを出さない。入れ直した後は前の知らせを残さない", async () => {
     const { host } = vscodeHost();
     const gone = setupView({ board: { status: "unmet", fix: ["dg init"] } });
-    const { rerender } = render(tree(gone, host));
+    render(tree(gone, host));
     expect(document.querySelector(".setup-uninstalled")).toBeNull();
     // 外した後の知らせを出したまま入れ直し、その後にまた必須を満たさなくなった
-    host.state.set("setup.uninstall", "started");
+    host.state.set(SETUP_UNINSTALL_KEY, { cwd: gone.cwd });
     cleanup();
     const again = render(tree(gone, host));
     expect(document.querySelector(".setup-uninstalled")).toBeTruthy();
     again.rerender(tree(setupView(), host));
-    await waitFor(() => expect(host.state.get("setup.uninstall")).toBeUndefined());
+    await waitFor(() => expect(host.state.get(SETUP_UNINSTALL_KEY)).toBeUndefined());
     cleanup();
     render(tree(gone, host));
     expect(document.querySelector(".setup-uninstalled")).toBeNull();
-    void rerender;
+  });
+
+  it("知らせは実行したフォルダのチェックリストにだけ出す（Webview の状態はフォルダごとではない）", () => {
+    const { host } = vscodeHost();
+    const gone = setupView({ board: { status: "unmet", fix: ["dg init"] } });
+    host.state.set(SETUP_UNINSTALL_KEY, { cwd: gone.cwd });
+    const { rerender } = render(tree({ ...gone, cwd: "/work/other" }, host));
+    expect(document.querySelector(".setup-uninstalled")).toBeNull();
+    rerender(tree(gone, host));
+    expect(document.querySelector(".setup-uninstalled")).toBeTruthy();
+  });
+
+  /** 節を開き、2 段階に確かめて実行するところまで進める */
+  async function runFromScreen(): Promise<void> {
+    fireEvent.click(toggle());
+    const first = await screen.findByRole("button", { name: "外す…" });
+    await waitFor(() => expect(first).toHaveProperty("disabled", false));
+    fireEvent.click(first);
+    fireEvent.click(screen.getByRole("button", { name: "外す" }));
+  }
+
+  it("実行の後に取り直した結果に止める理由があれば（dg が断った）、印を消し、後で必須を満たさなくなっても外したと言わない", async () => {
+    const { host, acts } = vscodeHost([CLEAN, BLOCKED]);
+    const { rerender } = render(tree(setupView(), host));
+    await runFromScreen();
+    expect(acts).toEqual(["uninstall"]);
+    expect(host.state.get(SETUP_UNINSTALL_KEY)).toEqual({ cwd: "/work/repo" });
+    // 確かめ直しでチェックリストが新しくなり（ボードは残っている）、消すものを取り直す
+    rerender(tree(setupView(), host));
+    await waitFor(() => expect(document.querySelector(".setup-uninstall-stop")).toBeTruthy());
+    expect(host.state.get(SETUP_UNINSTALL_KEY)).toBeUndefined();
+    expect(body().textContent).not.toContain("deguboard のターミナルで実行しました");
+    rerender(tree(setupView({ board: { status: "unmet", fix: ["dg init"] } }), host));
+    expect(document.querySelector(".setup-uninstalled")).toBeNull();
+  });
+
+  it("実行して待ってもボードが残っていれば（ターミナルが実行中で送らなかったなど）、印を消し、まだ外れていないことを知らせる", async () => {
+    const { host, asked } = vscodeHost();
+    render(tree(setupView(), host));
+    fireEvent.click(toggle());
+    const first = await screen.findByRole("button", { name: "外す…" });
+    await waitFor(() => expect(first).toHaveProperty("disabled", false));
+    fireEvent.click(first);
+    // 実行の時刻と待つタイマーを偽の時計に載せる（実行のボタンを押す前から）
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "外す" }));
+      expect(asked).toEqual([false]);
+      // すぐには決めない（消している途中かもしれない）。待った後に取り直し、ボードが残っていれば外れなかった
+      await act(() => vi.advanceTimersByTimeAsync(UNINSTALL_SETTLE_MS - 1));
+      expect(asked).toEqual([false]);
+      await act(() => vi.advanceTimersByTimeAsync(1));
+    } finally {
+      vi.useRealTimers();
+    }
+    await waitFor(() => expect(host.state.get(SETUP_UNINSTALL_KEY)).toBeUndefined());
+    expect(asked).toEqual([false, false]);
+    expect(body().textContent).toContain("まだ外れていません。");
   });
 });

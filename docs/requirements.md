@@ -237,7 +237,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たず、別オリジンとほかのホスト名からの要求を断る（細部は `dg serve --help`）
 - UI-10 Epic：open の Epic を番号の札で出し、題と進み（EP-3）はツールチップで読める。Epic で絞れる。カンバンとバックログでは、札に触れるとその Epic の行が分かる。絞っている間は選んでいる Epic の見出しを出し、そこから頼める（UI-15）。詳細の画面で中のチケットを出す
 - UI-11 VS Code 拡張は `core` と CLI を同梱して `dg` なしで動き、起動ファイルで外に出す。コマンドで `~/.local/bin/dg` に張り、外せる。PATH の `dg` の有無と版は UI-12 で示す。文言は表示言語で出す（core の文・既定のままの値も訳し、チケットの中身・人の値・指示は訳さない）。細部は `vscode/src/launcher.ts`・`vscode/src/l10n.ts`・`web/src/l10n.ts` とそのテスト
-- UI-12 VS Code 拡張は左パネルを主画面にし、パネルには詳細だけを出す。コード中の ID から要約と詳細を開け、ID か題から探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせる（設定で切れる）。導入はいつでも開けるチェックリストで進め、必須を満たすと一覧に変え、推奨は帯で示す。末尾から確かめて外せる（CL-10）。細部は `packages/vscode/package.json`・`src/extension.ts`
+- UI-12 VS Code 拡張は左パネルを主画面にし、エディタのパネルには詳細だけを出す。ID から要約と詳細を開け、コマンドで ID か題から探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせる。導入はタイトル行から開けるチェックリストで進め、必須を満たすと一覧に変え、推奨は帯で示す。末尾から確かめて外せる（CL-10）。細部は `packages/vscode/package.json`・`src/extension.ts`
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
 - UI-14 設定画面：チームの `config.yaml` の項目（5.10）と個人の上書きを分けて直せ、上書きは外せる。影響の大きい項目は保存前に確かめ、振り返りの観点と Workflow（5.8）は読むだけ。行から頼める（UI-15）。settings.json は使わない（細部は `packages/web/src/pages/config.tsx` のテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 - UI-15 エージェントに頼む：行・見出しから `dg ask` の依頼文を作って頼め、データには書き込まない。対象を選ばずに頼むときは、設定の説明と変更（5.10）も頼める。設定画面の行からは、その項目の説明と変更か、その観点の振り返り（MT-7）を頼める。VS Code では開いているターミナルにも送れる。細部は `packages/web/src/components/ask-menu.tsx`・`packages/vscode/src/terminals.ts` のテスト

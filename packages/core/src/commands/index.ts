@@ -80,4 +80,5 @@ export {
   detailOfRoute,
   detailRouteOf,
   setupViewOf,
+  uninstallRouteOf,
 } from "./client.js";

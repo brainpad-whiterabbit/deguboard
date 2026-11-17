@@ -13,13 +13,33 @@ import type {
   UninstallKept,
   UninstallPreview,
 } from "@deguboard/core";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { failureOf } from "../client/http.js";
-import { useHost } from "../host.js";
+import { useHost, type Host } from "../host.js";
 import { msg, tr } from "../l10n.js";
 import { useStore } from "../store.js";
-import { SETUP_UNINSTALL_KEY } from "../ui-state.js";
+import { SETUP_UNINSTALL_KEY, type UninstallMarker } from "../ui-state.js";
 import { CopyableCode } from "./copyable-code.js";
+
+/**
+ * 実行してから、ボードがまだ残っているかを確かめ直すまでの時間。dg uninstall はふつう数秒で終わるので、これだけ待ってもボードが
+ * 残っていれば、外れなかった（dg が断った、ターミナルが実行中で送らなかった）とみなす。すぐに確かめないのは、消している途中の結果を
+ * 外れなかったと取り違えないため
+ */
+export const UNINSTALL_SETTLE_MS = 15_000;
+
+/** 画面から dg uninstall を実行したことの印（ui-state.ts の SETUP_UNINSTALL_KEY）。形の違う値（前の版の文字列）は読まない */
+function markerOf(host: Host): UninstallMarker | undefined {
+  const value = host.state.get<unknown>(SETUP_UNINSTALL_KEY);
+  return typeof value === "object" && value !== null && "cwd" in value
+    ? (value as UninstallMarker)
+    : undefined;
+}
+
+/** 消すものにボード（worktree か手元のブランチ）が残っているか */
+function hasBoard(data: UninstallPreview): boolean {
+  return data.removes.some((i) => i.kind === "data_worktree" || i.kind === "data_branch");
+}
 
 const REMOVES: Record<UninstallItem["kind"], string> = {
   hooks: msg("dg のフック"),
@@ -66,14 +86,16 @@ type Checked = { personal: boolean } & ({ data: UninstallPreview } | { error: st
 
 /**
  * 「アンインストール」の節。initiallyOpen はコマンドパレットの「このリポジトリからアンインストール」から開いたとき。
- * revision は確かめ直しのたびに変わる値（チェックリストの view）で、変わると消すものを取り直す
+ * revision は確かめ直しのたびに変わる値（チェックリストの view）で、変わると消すものを取り直す。cwd は確かめたフォルダ（view.cwd）
  */
 export function UninstallSection({
   initiallyOpen,
   revision,
+  cwd,
 }: {
   initiallyOpen: boolean;
   revision: unknown;
+  cwd: string | null;
 }) {
   const host = useHost();
   const store = useStore();
@@ -82,23 +104,43 @@ export function UninstallSection({
   const [personal, setPersonal] = useState(false);
   const [checked, setChecked] = useState<Checked | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [started, setStarted] = useState(false);
+  /** running は実行した後、stalled は待ってもボードが残っていた（外れなかった）後 */
+  const [started, setStarted] = useState<"running" | "stalled" | null>(null);
+  /** 実行した時刻。消すものを取り直した結果から、外れなかったことを見分けるのに使う */
+  const startedAt = useRef<number | null>(null);
   const [syncing, setSyncing] = useState(false);
-  /** 同期の後に取り直すための数（同期は確かめ直しを起こさないので） */
+  /** 同期の後と、実行して待った後に取り直すための数（どちらも確かめ直しを起こさないので） */
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    // 外した後に入れ直して、またこの節が出た：前の知らせを残さない（次に必須を満たさなくなったときに、外したと言わないように）
-    if (host.state.get<string>(SETUP_UNINSTALL_KEY) === "shown")
-      host.state.remove(SETUP_UNINSTALL_KEY);
-  }, [host]);
+    // 節が出るのは、このフォルダにボードがある間だけ。出し直したときにこのフォルダの印が残っていれば、前の実行では外れなかったか、
+    // 外した後に入れ直している。どちらも印を残さない（次に必須を満たさなくなったときに、外したと言わないように）
+    if (markerOf(host)?.cwd === cwd) host.state.remove(SETUP_UNINSTALL_KEY);
+  }, [host, cwd]);
+
+  useEffect(() => {
+    if (started !== "running") return;
+    const timer = setTimeout(() => setTick((n) => n + 1), UNINSTALL_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [started]);
 
   useEffect(() => {
     if (!open || !uninstallPreview) return;
     let stale = false;
     uninstallPreview(personal).then(
       (data) => {
-        if (!stale) setChecked({ personal, data });
+        if (stale) return;
+        setChecked({ personal, data });
+        // 実行の後も節が出ていて、取り直した結果にボードが残っている：外れなかった。印を消し、外した後の知らせを出させない。
+        // 止める理由があれば dg は必ず断るので、すぐに外れなかったと分かる。なければ、消している途中かもしれないので待ってから見る
+        const at = startedAt.current;
+        if (at === null) return;
+        const refused = data.blockers.length > 0;
+        if (refused || (hasBoard(data) && Date.now() - at >= UNINSTALL_SETTLE_MS)) {
+          startedAt.current = null;
+          if (markerOf(host)?.cwd === cwd) host.state.remove(SETUP_UNINSTALL_KEY);
+          setStarted(refused ? null : "stalled");
+        }
       },
       (error: unknown) => {
         if (!stale) setChecked({ personal, error: failureOf(error).message });
@@ -107,7 +149,7 @@ export function UninstallSection({
     return () => {
       stale = true;
     };
-  }, [open, personal, revision, tick, uninstallPreview]);
+  }, [open, personal, revision, tick, uninstallPreview, host, cwd]);
 
   if (!setupAct || !uninstallPreview) return null;
 
@@ -124,8 +166,9 @@ export function UninstallSection({
   };
   const toggle = (): void => {
     // 開け閉めは新しい流れの始まり：実行したまま外れなかった（dg が止めた）ときの印を残さない
-    host.state.remove(SETUP_UNINSTALL_KEY);
-    setStarted(false);
+    if (markerOf(host)?.cwd === cwd) host.state.remove(SETUP_UNINSTALL_KEY);
+    startedAt.current = null;
+    setStarted(null);
     setConfirming(false);
     setOpen(!open);
   };
@@ -139,9 +182,12 @@ export function UninstallSection({
       });
   };
   const run = (): void => {
-    // 外した後の画面（必須を満たさないチェックリスト）が知らせを出せるように、実行したことを先に残す
-    host.state.set(SETUP_UNINSTALL_KEY, "started");
-    setStarted(true);
+    // 外した後の画面（必須を満たさないチェックリスト）が知らせを出せるように、実行したことを先に残す。Webview の状態はフォルダごとでは
+    // ないので、実行したフォルダを持たせる（ほかのフォルダのチェックリストに、外したと言わせない）
+    const marker: UninstallMarker = { cwd };
+    host.state.set(SETUP_UNINSTALL_KEY, marker);
+    startedAt.current = Date.now();
+    setStarted("running");
     setConfirming(false);
     void setupAct(personal ? "uninstallPersonal" : "uninstall").catch(fail);
   };
@@ -261,9 +307,11 @@ export function UninstallSection({
           )}
           {started ? (
             <p className="muted" role="status">
-              {tr(
-                "deguboard のターミナルで実行しました。外し終わると、この画面は始めるときのチェックリストに戻ります。",
-              )}
+              {started === "running"
+                ? tr(
+                    "deguboard のターミナルで実行しました。外し終わると、この画面は始めるときのチェックリストに戻ります。",
+                  )
+                : tr("まだ外れていません。deguboard のターミナルの出力を確かめてください。")}
             </p>
           ) : null}
           {confirming && data !== null && !blocked ? (
@@ -313,23 +361,26 @@ export function UninstallSection({
 /**
  * 外した後の知らせ。画面から dg uninstall を実行した後、ボードがなくなって必須を満たさないチェックリストに替わったときに、その上に出す。
  * 拡張は自分では消さない（ほかのリポジトリでも使う）。消すのは最後にすること（先に消すと、ほかのリポジトリに残ったフックが呼ぶ dg がなくなる）を
- * 知らせ、拡張の画面を開くボタンだけを置く
+ * 知らせ、拡張の画面を開くボタンだけを置く。出すのは、実行したフォルダ（印の cwd）のチェックリストにだけ（cwd は view.cwd）。
+ * 印は、ボードが戻ったとき（app.tsx）と節を出し直したときに消える。
+ * requested は、コマンドパレットの「このリポジトリからアンインストール」で開いたとき。画面から外した後でなければ、黙って
+ * チェックリストだけを出さずに、外すものがないことを 1 行で知らせる
  */
-export function UninstalledNotice() {
+export function UninstalledNotice({ cwd, requested }: { cwd: string | null; requested: boolean }) {
   const host = useHost();
   const store = useStore();
   const { setupAct } = host;
-  const [shown, setShown] = useState(
-    () => host.state.get<string>(SETUP_UNINSTALL_KEY) !== undefined,
-  );
-  useEffect(() => {
-    if (host.state.get<string>(SETUP_UNINSTALL_KEY) === "started")
-      host.state.set(SETUP_UNINSTALL_KEY, "shown");
-  }, [host]);
-  if (!shown || !setupAct) return null;
+  const [closed, setClosed] = useState(false);
+  if (!setupAct || !host.uninstallPreview || closed) return null;
+  if (markerOf(host)?.cwd !== cwd)
+    return requested ? (
+      <p className="muted" role="status">
+        {tr("ボードがないので、この画面から外すものはありません。")}
+      </p>
+    ) : null;
   const close = (): void => {
     host.state.remove(SETUP_UNINSTALL_KEY);
-    setShown(false);
+    setClosed(true);
   };
   return (
     <div className="setup-uninstalled" role="status">

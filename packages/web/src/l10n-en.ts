@@ -298,6 +298,10 @@ export const EN: Readonly<Record<string, string>> = {
   同期する: "Sync",
   "deguboard のターミナルで実行しました。外し終わると、この画面は始めるときのチェックリストに戻ります。":
     "It was run in the deguboard terminal. Once it is removed, this view goes back to the getting-started checklist.",
+  "まだ外れていません。deguboard のターミナルの出力を確かめてください。":
+    "It is not removed yet. Check the output in the deguboard terminal.",
+  "ボードがないので、この画面から外すものはありません。":
+    "There is no board here, so there is nothing to uninstall from this view.",
   "上の「消すもの」を、このクローンとホームディレクトリから消します。":
     "This removes what is listed under Removed from this clone and your home directory.",
   "上の「消すもの」を、このクローンから消します。":

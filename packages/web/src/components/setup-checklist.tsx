@@ -624,22 +624,23 @@ function Item({ item, view, open }: { item: SetupViewItem; view: SetupView; open
  * （その下は、前の項目を満たすまで確かめられないので待たせる）。必須を満たした後（タイトル行のアイコンか帯から開いたとき）は、
  * 必須を 1 行にまとめ、推奨は満たした項目も ✓ と値付きで並べ（何が済んだかを読める）、満たさない項目をすべて開く。
  * 画面の中に戻るボタンは置かない（タイトル行のアイコンとタブで行き来する。app.tsx）。
- * 必須を満たした後の末尾には、閉じた節「アンインストール」を置く（setup-uninstall.tsx。uninstall は開いて出す）。画面から外した後は、
+ * 必須を満たした後の末尾には、閉じた節「アンインストール」を置く（setup-uninstall.tsx）。uninstall はコマンドパレットの
+ * 「このリポジトリからアンインストール」から開いたときの印（ルートの値。実行のたびに変わる）で、あれば節を開いて出す。画面から外した後は、
  * 必須を満たさない間のチェックリストの上に、拡張は最後に消すことの知らせを出す
  */
 export function SetupChecklist({
   view,
-  uninstall = false,
+  uninstall,
 }: {
   view: SetupView;
-  uninstall?: boolean;
+  uninstall?: string | undefined;
 }) {
   const required = view.items.filter((i) => i.level === "required");
   const recommended = view.items.filter((i) => i.level === "recommended");
   const firstUnmet = view.items.find((i) => i.status === "unmet");
   return (
     <section className="setup" aria-labelledby="setup-title">
-      {view.ready ? null : <UninstalledNotice />}
+      {view.ready ? null : <UninstalledNotice cwd={view.cwd} requested={uninstall !== undefined} />}
       <div className="setup-head">
         <h2 id="setup-title">{view.ready ? tr("セットアップ") : tr("deguboard を始める")}</h2>
         <RecheckButton />
@@ -676,9 +677,14 @@ export function SetupChecklist({
         </>
       )}
       {view.ready ? <BandRestore /> : null}
-      {/* コマンドパレットから開き直したら（uninstall が変わる）、節を開いた形で作り直す */}
+      {/* コマンドパレットから開くたびに uninstall が変わるので、節を閉じた後でも、開いた形で作り直す */}
       {view.ready ? (
-        <UninstallSection key={String(uninstall)} initiallyOpen={uninstall} revision={view} />
+        <UninstallSection
+          key={uninstall ?? ""}
+          initiallyOpen={uninstall !== undefined}
+          revision={view}
+          cwd={view.cwd}
+        />
       ) : null}
     </section>
   );
