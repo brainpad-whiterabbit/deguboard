@@ -10,7 +10,7 @@ after:
   t1085:
     - t1075
     - t1084
-pending_approval: true
+pending_approval: false
 details:
   t1072:
     scope: 拡張の説明（package.nls*.json）と dg --help の説明を README の新しい冒頭の位置づけに揃える。README は変えない
@@ -55,3 +55,5 @@ details:
   t1089:
     scope: v1.0.0 の Release の本文だけを英語にする。人の承認の後に gh release edit。PR なし
     tier: light
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-17T06:48:26Z
