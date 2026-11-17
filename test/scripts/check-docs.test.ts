@@ -412,7 +412,7 @@ describe.concurrent("check-docs の README.md と README.ja.md の節の構成",
 });
 
 describe.concurrent("check-docs の docs/usage と docs/how-it-works の英日の節の構成（t1002）", () => {
-  const PAIRS = [
+  const PAIRS: [string, string][] = [
     ["docs/usage.md", "docs/usage.ja.md"],
     ["docs/how-it-works.md", "docs/how-it-works.ja.md"],
   ];
