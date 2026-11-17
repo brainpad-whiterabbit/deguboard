@@ -12,7 +12,7 @@ import { DeguboardError, OperationError } from "../errors.js";
 import { createHistoryCache } from "../git/history.js";
 import { remoteWebUrl } from "../git/repo.js";
 import { withLock } from "../git/lock.js";
-import { fetchData, syncStatus } from "../git/sync.js";
+import { fastForwardIfClean, fetchData, syncStatus } from "../git/sync.js";
 import type { CommandClient, CommandFailure, StatusView } from "./client.js";
 import { openContext } from "./context.js";
 import type { ActorKind, UserSource } from "../model/actor.js";
@@ -41,6 +41,7 @@ export interface LocalClientOptions {
 const STATUS_FETCH_INTERVAL_MS = 60_000;
 /**
  * status の後ろの fetch の時間の上限。書き込みのロックを持って fetch するので、ほかの dg の書き込みがロックを待つ上限（lock.ts の WAIT_MS）より短くする
+ * （fetch の後の自動の取り込みは手元の git だけで済み、短い）
  */
 const STATUS_FETCH_TIMEOUT_MS = 8_000;
 
@@ -70,6 +71,8 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
   // status の後ろで最後に fetch を始めた時刻（失敗しても次の間隔まで試さない）
   const fetchInterval = options.statusFetchIntervalMs ?? STATUS_FETCH_INTERVAL_MS;
   let lastFetch: number | undefined;
+  // status の後ろの fetch の後に、自動で取り込んだ回数（StatusView の auto_pulls）
+  let autoPulls = 0;
 
   /** arrivedAt が undefined（書き込み）なら必ず再走査する。読みは届いた後に始まった走査が成功していればそれを使う */
   const context = async (arrivedAt: number | undefined): Promise<CommandContext> => {
@@ -159,12 +162,13 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
         return {
           ...status,
           issues: ctx.store.issues.length,
+          auto_pulls: autoPulls,
           data_dir: ctx.repo.dataDir,
           web_url: await remoteWebUrl(ctx.repo),
         };
       });
-      // 未取り込みの数は fetch しないと増えない（ほかの clone の push が見えない）。間を空けて、この status の後ろで fetch する。
-      // 結果はこの status ではなく次の status に出る（画面は 15 秒ごとに読む）。状態の表示を fetch で待たせないため
+      // 未取り込みの数は fetch しないと増えない（ほかの clone の push が見えない）。間を空けて、この status の後ろで fetch し、
+      // fast-forward で済めば取り込む。結果はこの status ではなく次の status に出る（画面は 15 秒ごとに読む）。状態の表示を fetch で待たせないため
       const now = Date.now();
       if (lastFetch === undefined || now - lastFetch >= fetchInterval) {
         lastFetch = now;
@@ -175,17 +179,30 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
   };
 
   /**
-   * status の後ろの fetch。失敗（届かない・時間切れ・ロックを取れない）は捨てる（状態の表示を止めない。次の間隔でまた試す）。
+   * status の後ろの fetch と自動の取り込み（UI-6）。失敗（届かない・時間切れ・ロックを取れない・取り込めない）は捨てる
+   * （状態の表示を止めず、通知もしない。未取り込みの印が残り、次の間隔でまた試す）。
    * 同じマシンの dg（CLI）の書き込みも fetch するので、書き込みのロックを待たずに取れたときだけ fetch する
-   * （同じ追跡ブランチの ref を同時に書くと片方の fetch が失敗する。取れないのはほかの dg が書き込み中で、その書き込みが fetch する）
+   * （同じ追跡ブランチの ref を同時に書くと片方の fetch が失敗する。取れないのはほかの dg が書き込み中で、その書き込みが fetch する）。
+   * fetch の後、同じロックの中で、fast-forward で済むときだけ取り込む（条件は fastForwardIfClean）。古いのは画面の表示だけなので
+   * （書くコマンドは書く前に取り込む。SY-2）、人の同期を待たずに映す。取り込んだら、後に続く読みに新しく走査させ、
+   * 回数を status に出して画面に読み直させる（VS Code はデータのファイルの見張りでも読み直す）
    */
   async function backgroundFetch(): Promise<void> {
     const ctx = await ctxPromise;
     if (!ctx?.repo.dataRemote) return;
     const repo = ctx.repo;
-    await withLock(repo.localDir, "write", () => fetchData(repo, STATUS_FETCH_TIMEOUT_MS), {
-      waitMs: 0,
-    });
+    const pulled = await withLock(
+      repo.localDir,
+      "write",
+      async () => {
+        const fetched = await fetchData(repo, STATUS_FETCH_TIMEOUT_MS);
+        return fetched.ok && fetched.remoteBranch && (await fastForwardIfClean(repo));
+      },
+      { waitMs: 0 },
+    );
+    if (!pulled) return;
+    scanned = 0;
+    autoPulls++;
   }
 }
 

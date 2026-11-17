@@ -143,7 +143,8 @@ export interface Store {
 
 const StoreContext = createContext<Store | null>(null);
 
-const STATUS_POLL_MS = 15_000;
+/** 同期の状態を読み直す間隔 */
+export const STATUS_POLL_MS = 15_000;
 
 export function StoreProvider({
   client,
@@ -241,11 +242,20 @@ export function StoreProvider({
     }
   }, [client, setupBand, bandDismissed]);
 
-  const refreshStatus = useCallback(async () => {
+  // 前に読んだ、入口が自動で取り込んだ回数（StatusView の auto_pulls）
+  const pullsSeen = useRef<number | undefined>(undefined);
+
+  /** 同期の状態を読む。前に読んだ後に入口がリモートの更新を自動で取り込んでいたら true（UI-6。呼び出し側が一覧を読み直す） */
+  const refreshStatus = useCallback(async (): Promise<boolean> => {
     try {
-      setStatus(await client.status());
+      const next = await client.status();
+      setStatus(next);
+      const pulled = pullsSeen.current !== undefined && next.auto_pulls !== pullsSeen.current;
+      pullsSeen.current = next.auto_pulls;
+      return pulled;
     } catch {
       // 同期の状態が取れなくても画面は動かす
+      return false;
     }
   }, [client]);
 
@@ -346,9 +356,14 @@ export function StoreProvider({
   }, [reload]);
 
   useEffect(() => {
-    const timer = setInterval(() => void refreshStatus(), STATUS_POLL_MS);
+    // 入口が自動で取り込んだら、新しいデータを映すために一覧を読み直す（dg serve の画面にはデータの見張りがない）。
+    // reload の中の refreshStatus は回数を覚えるだけなので、読み直しは繰り返さない
+    const timer = setInterval(
+      () => void refreshStatus().then((pulled) => (pulled ? reload() : undefined)),
+      STATUS_POLL_MS,
+    );
     return () => clearInterval(timer);
-  }, [refreshStatus]);
+  }, [refreshStatus, reload]);
 
   const run = useCallback(
     async <O,>(name: string, input: unknown = {}): Promise<RunResult<O>> => {

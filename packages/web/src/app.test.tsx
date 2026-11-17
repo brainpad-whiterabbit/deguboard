@@ -11,7 +11,7 @@ import type { WebviewClient } from "./client/webview.js";
 import type { SetupBoardSource, WebviewEvent } from "@deguboard/core";
 import { HostBridge, HostProvider, showsSetupBand, type Host } from "./host.js";
 import { parseRoute, type Route } from "./router.js";
-import { StoreProvider } from "./store.js";
+import { STATUS_POLL_MS, StoreProvider } from "./store.js";
 import {
   boardFixture,
   fixture,
@@ -1144,6 +1144,37 @@ describe("画面", () => {
 
     act(() => send()({ kind: "event", name: "navigate", hash: "#/backlog" }));
     expect(window.location.hash).toBe("#/backlog");
+  });
+
+  it("同期の状態を読んだとき、入口がリモートの更新を自動で取り込んでいたら（auto_pulls が変わったら）一覧を読み直す。変わらなければ読み直さない", async () => {
+    vi.useFakeTimers({
+      toFake: ["Date", "setInterval", "clearInterval"],
+      now: new Date("2026-11-04T12:00:00Z"),
+    });
+    // データの見張りのない dg serve の画面
+    const client = mount(boardClient());
+    await screen.findByText("ログイン");
+    client.data.tickets = [
+      ...client.data.tickets,
+      ticket({ id: "t9", title: "取り込んだ", iteration: "s0" }),
+    ];
+    const lists = () => client.calls.filter((c) => c.name === "ticket.list").length;
+    const before = lists();
+    await act(async () => {
+      vi.advanceTimersByTime(STATUS_POLL_MS);
+    });
+    expect(lists()).toBe(before);
+    client.data.status = { ...client.data.status, auto_pulls: 1 };
+    act(() => {
+      vi.advanceTimersByTime(STATUS_POLL_MS);
+    });
+    expect(await screen.findByText("取り込んだ")).toBeTruthy();
+    // 読み直しの中で読んだ状態は回数を覚えるだけで、次の読みでは読み直さない
+    const after = lists();
+    await act(async () => {
+      vi.advanceTimersByTime(STATUS_POLL_MS);
+    });
+    expect(lists()).toBe(after);
   });
 
   it("dg init 前（NOT_INITIALIZED）は一覧の代わりに導入のチェックリストを出し、エラーの通知は出さない。init の後の reload の event でいつもの画面に変わる", async () => {

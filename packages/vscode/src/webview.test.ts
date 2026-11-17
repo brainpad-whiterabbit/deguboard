@@ -122,6 +122,7 @@ function fakeClient(): CommandClient & { calls: unknown[] } {
         dirty: false,
         remote: "origin",
         issues: 0,
+        auto_pulls: 0,
         data_dir: "/x",
         web_url: null,
       };
@@ -537,7 +538,14 @@ describe("エージェントに頼む入力欄の届け方（UI-15）", () => {
 });
 
 describe("サイドバーのバッジ", () => {
-  const base = { dirty: false, remote: "origin", issues: 0, data_dir: "/x", web_url: null };
+  const base = {
+    dirty: false,
+    remote: "origin",
+    issues: 0,
+    auto_pulls: 0,
+    data_dir: "/x",
+    web_url: null,
+  };
   it("未 push と未取り込みの合計を出し、どちらもなければ消す", () => {
     expect(badgeOf({ ...base, ahead: 2, behind: 1 })).toEqual({
       value: 3,

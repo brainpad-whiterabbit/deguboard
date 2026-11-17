@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readdir, utimes } from "node:fs/promises";
+import { readdir, rm, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,8 @@ import { initializedFixture, runCleanups } from "../../test/helpers/commands-con
 import { createLocalOnlyRepo, git, type Fixture } from "../../test/helpers/git-fixture.js";
 import { OperationError } from "../errors.js";
 import { withLock } from "../git/lock.js";
+import { DG_COMMIT_TRAILER, dirtyFiles } from "../git/outside.js";
+import { fetchData, headSha } from "../git/sync.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
 import { createLocalClient, toCommandFailure } from "./local.js";
@@ -77,31 +79,88 @@ describe("プロセス内の CommandClient", () => {
     expect(r.write).toMatchObject({ pushed: true });
   }
 
-  it("status は後ろでリモートを fetch し、次の status がほかの clone の push を未取り込みに数える。間隔の中では fetch しない", async () => {
+  const listIds = async (client: ReturnType<typeof createLocalClient>) =>
+    (await client.run<{ id: string }[]>("ticket.list")).data.map((t) => t.id);
+
+  it("status は後ろでリモートを fetch し、fast-forward で済めば取り込んで、次の読みが新しいデータを返す。間隔の中では fetch しない", async () => {
     const f = await initializedFixture();
     await pushFromB(f, "B から 1");
     const client = createLocalClient({ cwd: f.cloneA });
-    // 最初の status は fetch を待たずに今の追跡ブランチで数える（fetch はこの status の後ろで走る）
-    expect((await client.status()).behind).toBe(0);
-    const fetched = (await client.status()).behind;
-    expect(fetched).toBeGreaterThan(0);
+    expect(await listIds(client)).toEqual([]);
+    // 最初の status は fetch を待たない（fetch と取り込みはこの status の後ろで走り、次の status に出る）
+    expect(await client.status()).toMatchObject({ behind: 0, auto_pulls: 0 });
+    expect(await client.status()).toMatchObject({
+      ahead: 0,
+      behind: 0,
+      dirty: false,
+      auto_pulls: 1,
+    });
+    expect(await listIds(client)).toEqual(["t1"]);
+    // 取り込んだ後の状態は外の変更にならず、書き込みも通る
+    const updated = await client.run("ticket.update", { ticket: "t1", title: "A で直した" });
+    expect(updated.warnings).toEqual([]);
     // 既定の間隔（1 分）の中なので、続けて読んでも fetch しない
     await pushFromB(f, "B から 2");
-    expect((await client.status()).behind).toBe(fetched);
-    expect((await client.status()).behind).toBe(fetched);
+    await client.status();
+    expect(await client.status()).toMatchObject({ behind: 0, auto_pulls: 1 });
+    expect(await listIds(client)).toEqual(["t1"]);
   });
 
-  it("間隔が過ぎた後の status はまた fetch する", async () => {
+  it("間隔が過ぎた後の status はまた fetch して取り込む", async () => {
     const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
     await client.status();
     await pushFromB(f, "B から 1");
     await client.status();
-    const first = (await client.status()).behind;
-    expect(first).toBeGreaterThan(0);
+    expect(await client.status()).toMatchObject({ behind: 0, auto_pulls: 1 });
     await pushFromB(f, "B から 2");
     await client.status();
-    expect((await client.status()).behind).toBeGreaterThan(first);
+    expect(await client.status()).toMatchObject({ behind: 0, auto_pulls: 2 });
+    expect(await listIds(client)).toEqual(["t1", "t2"]);
+  });
+
+  // 人の同期に任せる状態（fastForwardIfClean の条件）。どれも取り込まずに、未取り込みの印を出し続ける
+  const blocked: Array<[string, (client: ReturnType<typeof createLocalClient>) => Promise<void>]> =
+    [
+      [
+        "未 push のコミットがある",
+        async (client) => {
+          const dataDir = (await client.status()).data_dir;
+          await git(dataDir, ["commit", "--allow-empty", "-qm", "手元", "-m", DG_COMMIT_TRAILER]);
+        },
+      ],
+      [
+        "commit.mode が batch のまとめ待ちの変更がある",
+        async (client) => {
+          await client.run("ticket.create", { title: "A から" });
+          await client.run("config.set", { key: "commit.mode", value: "batch" });
+          const r = await client.run("ticket.update", { ticket: "t1", title: "まとめ待ち" });
+          expect(r.write).toMatchObject({ committed: false });
+        },
+      ],
+      [
+        "dg の外の変更がある",
+        async (client) => {
+          await writeFile(path.join((await client.status()).data_dir, "outside.txt"), "x\n");
+        },
+      ],
+    ];
+  it.each(blocked)("%s ときは、fetch の後に自動で取り込まない", async (_name, prepare) => {
+    const f = await initializedFixture();
+    const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
+    await prepare(client);
+    // 準備の status の後ろの fetch を終わらせてから、手元の状態を読む
+    await client.status();
+    const repo = (await openContext({ cwd: f.cloneA })).repo;
+    const head = await headSha(repo);
+    const dirty = await dirtyFiles(repo);
+    await pushFromB(f, "B から");
+    await client.status();
+    const status = await client.status();
+    expect(status.behind).toBeGreaterThan(0);
+    expect(status.auto_pulls).toBe(0);
+    expect(await headSha(repo)).toBe(head);
+    expect(await dirtyFiles(repo)).toEqual(dirty);
   });
 
   it("リモートに届かなくても、status は失敗せずに同期の状態を返し続ける", async () => {
@@ -116,17 +175,51 @@ describe("プロセス内の CommandClient", () => {
     expect(created.data.id).toBe("t1");
   });
 
-  it("ほかの dg が書き込みのロックを持つ間は fetch を飛ばし、放した後の status で fetch する", async () => {
+  it("未取り込みがあるままリモートに届かなくなったら、取り込まずに未取り込みの印を出し続ける", async () => {
+    const f = await initializedFixture();
+    await pushFromB(f, "B から 1");
+    expect((await fetchData((await openContext({ cwd: f.cloneA })).repo)).ok).toBe(true);
+    await git(f.cloneA, ["remote", "set-url", "origin", path.join(f.root, "nowhere.git")]);
+    const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
+    for (let i = 0; i < 3; i++) {
+      expect(await client.status()).toMatchObject({ behind: 1, auto_pulls: 0 });
+    }
+  });
+
+  it("取り込みが失敗しても status は失敗せずに未取り込みの印を出し続け、失敗の元がなくなれば取り込む", async () => {
+    const f = await initializedFixture();
+    await pushFromB(f, "B から 1");
+    const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
+    const dataDir = (await openContext({ cwd: f.cloneA })).repo.dataDir;
+    // 残った index.lock があると、git は作業ツリーを変えずに fast-forward を断る
+    const lock = path.resolve(
+      dataDir,
+      (await git(dataDir, ["rev-parse", "--git-path", "index.lock"])).stdout.trim(),
+    );
+    await writeFile(lock, "");
+    await client.status();
+    expect(await client.status()).toMatchObject({ behind: 1, auto_pulls: 0 });
+    await rm(lock);
+    // 上の status の後ろの fetch は lock を消す前に走ったかもしれないので、消した後の fetch を 1 回待つ
+    await client.status();
+    await client.status();
+    expect(await client.status()).toMatchObject({ behind: 0, auto_pulls: 1 });
+    expect(await listIds(client)).toEqual(["t1"]);
+  });
+
+  it("ほかの dg が書き込みのロックを持つ間は fetch と取り込みを飛ばし、放した後の status で fetch して取り込む", async () => {
     const f = await initializedFixture();
     await pushFromB(f, "B から 1");
     const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
     const localDir = (await openContext({ cwd: f.cloneA })).repo.localDir;
     await withLock(localDir, "write", async () => {
       await client.status();
-      expect((await client.status()).behind).toBe(0);
+      expect(await client.status()).toMatchObject({ behind: 0, auto_pulls: 0 });
+      expect(await listIds(client)).toEqual([]);
     });
     await client.status();
-    expect((await client.status()).behind).toBeGreaterThan(0);
+    expect(await client.status()).toMatchObject({ behind: 0, auto_pulls: 1 });
+    expect(await listIds(client)).toEqual(["t1"]);
   });
 
   it("初期化前は NOT_INITIALIZED で失敗し、toCommandFailure が code と message に写す", async () => {

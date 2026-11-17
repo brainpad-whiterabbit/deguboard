@@ -19,6 +19,11 @@ export interface CommandFailure {
 export interface StatusView extends SyncStatus {
   /** 読めないファイルと参照の不整合の件数 */
   issues: number;
+  /**
+   * この client が、status の後ろの fetch の後に fast-forward で自動で取り込んだ回数（開いてからの数）。
+   * 画面は前に読んだ値から変わったら一覧を読み直す
+   */
+  auto_pulls: number;
   data_dir: string;
   /** リモートを Web で開く URL（https://github.com/owner/repo）。PR へのリンクに使う。リモートがない・直せなければ null */
   web_url: string | null;
