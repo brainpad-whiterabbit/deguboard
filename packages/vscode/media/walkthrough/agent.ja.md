@@ -1,6 +1,6 @@
 # 3. エージェントに頼む
 
-Claude Code を使うなら、Skill（`/dgimport` など）とフックを入れます。サイドバーのいつもの画面の上の帯を開き、**Skill と hooks を入れる** を押します。ターミナルで行うなら、`dg skill install` と `dg hooks install` を一度ずつ実行します。Skill とフックは git が追跡しない（2 つのコマンドが `.claude/.gitignore` に足します。この `.gitignore` はコミットします）ので、clone した人もそれぞれ入れます。
+Claude Code を使うなら、Skill（`/dgimport` など）とフックを入れます。サイドバーのいつもの画面の上の帯を開き、**Skill と hooks を入れる** を押します。ターミナルで行うなら、`dg skill install` と `dg hooks install` を一度ずつ実行します。Skill とフックは git が追跡しない（2 つのコマンドが `.claude/.gitignore` に足します。この `.gitignore` はコミットします）ので、clone した人もそれぞれ入れます。帯を消していたら、サイドバーのタイトル行のチェックリストのアイコン（**セットアップ**）から、チェックリストを開き直します。
 
 ほかのエージェントには「`dg guide` を読んでから `dg` で進めて」と頼みます。
 
