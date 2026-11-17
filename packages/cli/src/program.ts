@@ -20,7 +20,9 @@ import {
   runCommand,
   runMergeDriver,
   skillInstallWarnings,
+  skillUninstallWarnings,
   uninstallHooks,
+  uninstallSkill,
   UsageError,
   type ActorInfo,
   type AnyCommand,
@@ -184,12 +186,13 @@ export function buildProgram(options: ProgramOptions = {}): Command {
 
   // skill も CLI だけの操作（AG-4）。Skill は guide を読ませるだけで手順を持たない（AG-2）。
   // 判定と書き込みと警告の組み立ては core の commands/skill-files.ts にあり、ここは引数と結果を写す
-  program
+  const skillCmd = program
     .command("skill")
     .description("Operations on Claude Code Skills")
     .helpCommand("help [command]", "Show usage for a command")
     .exitOverride()
-    .configureOutput(program.configureOutput())
+    .configureOutput(program.configureOutput());
+  skillCmd
     .command("install")
     .description(
       "Write the Claude Code Skills that read dg guide at each stage (dgimport, dgplan, dgwork, etc.) into <repository>/.claude/skills/. Skills you have not edited are updated to the latest, and retired deguboard Skills are deleted. Each person installs the Skills on their own machine: it adds a line per Skill it installs (skills/dgwork/ and so on) to <repository>/.claude/.gitignore when the line is missing (commit that .gitignore), and warns if those Skills are already tracked by git. Your own Skills are not ignored, even when their names start with dg",
@@ -232,6 +235,50 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           for (const [label, names] of lines)
             if (names.length > 0) streams.out(`${label}: ${names.join(", ")}`);
           for (const f of result.files) streams.out(`\n--- ${f.path}\n${f.content}`);
+          for (const w of warnings) streams.err(`Warning: ${w}`);
+        }
+        process.exitCode = 0;
+      } catch (error) {
+        const view = toErrorView(error);
+        if (global.json) printJsonError(streams, view);
+        else printError(streams, view);
+        process.exitCode = view.exitCode;
+      }
+    });
+  skillCmd
+    .command("uninstall")
+    .description(
+      "Remove the Claude Code Skills that dg distributes (the ones this dg installs, and retired deguboard Skills) from <repository>/.claude/skills/. Only SKILL.md is removed; a Skill folder that holds other files is kept. Your own Skills are not touched, even when their names start with dg. It does not change <repository>/.claude/.gitignore: the team commits that file and the others still use the Skills, so removing the ignore lines would let git track the Skills they installed",
+    )
+    .option("--personal", "Remove from ~/.claude/skills instead of the repository")
+    .option("--force", "Also remove the dg Skills you have edited")
+    .option(
+      "--dry-run",
+      "Remove nothing; print the Skills that would be removed. --json returns them in data.removed",
+    )
+    .exitOverride()
+    .configureOutput(program.configureOutput())
+    .action(async (opts: { personal?: boolean; force?: boolean; dryRun?: boolean }) => {
+      const global = program.opts<{ json?: boolean; C?: string }>();
+      try {
+        const result = await uninstallSkill({
+          cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
+          scope: opts.personal ? "personal" : "project",
+          env,
+          force: opts.force ?? false,
+          dryRun: opts.dryRun ?? false,
+        });
+        const warnings = skillUninstallWarnings(result);
+        if (global.json)
+          streams.out(JSON.stringify({ ok: true, data: result, warnings, write: null }, null, 2));
+        else {
+          if (result.dryRun) streams.out("--dry-run: nothing was removed");
+          streams.out(`Skill directory: ${result.dir}`);
+          if (result.removed.length > 0)
+            streams.out(
+              `${result.dryRun ? "Would remove" : "Removed"}: ${result.removed.join(", ")}`,
+            );
+          else if (result.kept.length === 0) streams.out("No dg Skills are installed here");
           for (const w of warnings) streams.err(`Warning: ${w}`);
         }
         process.exitCode = 0;
