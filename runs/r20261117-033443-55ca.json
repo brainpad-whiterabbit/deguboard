@@ -1,0 +1,35 @@
+{
+  "id": "r20261117-033443-55ca",
+  "ticket": "t1069",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-17T03:34:43Z",
+  "finished_at": "2026-11-17T03:36:01Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "Copies go stale when dg is updated, not when skills are installed, since the guides ship with dg",
+    "Wording: the release guide steps have the agent look for steps, and dg guide does not include them"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 3176,
+    "cache_read": 224505,
+    "cache_write": 25659
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 4,
+    "bash": 4,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "5307e022-b0d4-491f-a0d9-9d8169d6214f",
+  "review": null,
+  "waited_seconds": 0
+}
