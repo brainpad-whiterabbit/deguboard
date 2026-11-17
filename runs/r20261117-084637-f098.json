@@ -1,0 +1,35 @@
+{
+  "id": "r20261117-084637-f098",
+  "ticket": "t1084",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-17T08:46:37Z",
+  "finished_at": "2026-11-17T08:51:35Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "Startup check result returned to a later view even after another screen re-specified the board",
+    "Comment cites sidebar rebuild as a time the dot is refreshed though it is not"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 4865,
+    "cache_read": 516607,
+    "cache_write": 33894
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 3,
+    "bash": 6,
+    "other": 2,
+    "read_before_write": 4,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "e7cdf1d0-a575-49c1-9b18-a3c120b47586",
+  "review": null,
+  "waited_seconds": 0
+}
