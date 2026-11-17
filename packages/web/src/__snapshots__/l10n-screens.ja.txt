@@ -1588,7 +1588,9 @@ Ctrl+↵
 バックログ
 履歴
 deguboard を始める
-確かめ直す
+[title] 確かめ直す
+[aria-label] 確かめ直す
+↻
 上から順に確かめています。満たしていない項目を直すと、自動で確かめ直し、必須の項目をすべて満たすといつもの画面に変わります。
 [aria-label] 満たしている
 ✓
@@ -1630,7 +1632,9 @@ dg コマンド
 バックログ
 履歴
 deguboard を始める
-確かめ直す
+[title] 確かめ直す
+[aria-label] 確かめ直す
+↻
 上から順に確かめています。満たしていない項目を直すと、自動で確かめ直し、必須の項目をすべて満たすといつもの画面に変わります。
 [aria-label] 満たしている
 ✓
@@ -1674,7 +1678,9 @@ dg コマンド
 バックログ
 履歴
 deguboard を始める
-確かめ直す
+[title] 確かめ直す
+[aria-label] 確かめ直す
+↻
 上から順に確かめています。満たしていない項目を直すと、自動で確かめ直し、必須の項目をすべて満たすといつもの画面に変わります。
 [aria-label] 満たしている
 ✓
@@ -1854,7 +1860,9 @@ t1
 バックログ
 履歴
 セットアップ
-確かめ直す
+[title] 確かめ直す
+[aria-label] 確かめ直す
+↻
 [aria-label] 満たしている
 ✓
 必須の 5 項目
@@ -1897,4 +1905,38 @@ git add .claude/.gitignore
 git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore
 [title] git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore をコピー
 [aria-label] git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore をコピー
-いつもの画面に戻る
+
+## タイトル行のアイコンから開いた、推奨を一部満たしたチェックリスト
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+セットアップ
+[title] 確かめ直す
+[aria-label] 確かめ直す
+↻
+[aria-label] 満たしている
+✓
+必須の 5 項目
+推奨
+[aria-label] 推奨の項目が未完了
+!
+Skill と hooks
+そろっていない
+このマシンに dg の Skill と hooks が入っていません。
+入れると、Claude Code が手順を読んでチケットを進め、Run が記録されます。
+Skill と hooks を入れる
+ターミナルで行うなら
+dg hooks install
+[title] dg hooks install をコピー
+[aria-label] dg hooks install をコピー
+dg skill install
+[title] dg skill install をコピー
+[aria-label] dg skill install をコピー
+[aria-label] 満たしている
+✓
+dg コマンド
+1.4.0
+[aria-label] 満たしている
+✓
+.claude/.gitignore

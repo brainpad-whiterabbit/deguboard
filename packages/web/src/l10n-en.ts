@@ -134,7 +134,6 @@ export const EN: Readonly<Record<string, string>> = {
     "The items are checked from the top. When you fix an unmet item, they are checked again automatically, and the usual view appears once every required item is met.",
   "必須の {0} 項目": "{0} required items",
   推奨: "Recommended",
-  いつもの画面に戻る: "Back to the usual view",
   "推奨の {0} 項目が未完了です（{1}）。": "{0} recommended items are not done ({1}).",
   残りの項目を開く: "Open the remaining items",
   このリポジトリでは出さない: "Do not show in this repository",

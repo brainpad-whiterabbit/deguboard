@@ -3757,7 +3757,7 @@ button.ask-copy svg {
 }
 .setup-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin: 0 0 6px;
@@ -3766,9 +3766,40 @@ button.ask-copy svg {
   margin: 0;
   font-size: 14px;
 }
-.setup-head button {
+/* 見出しの右の確かめ直すボタン（↻）。確かめている間はアイコンを回す */
+.setup-recheck {
   flex: none;
-  white-space: nowrap;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.setup-recheck:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-foreground);
+}
+.setup-recheck:disabled {
+  cursor: default;
+}
+.setup-recheck-icon {
+  display: inline-block;
+}
+.setup-recheck-icon.spinning {
+  animation: dg-setup-recheck-spin 1s linear infinite;
+}
+@keyframes dg-setup-recheck-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .setup-recheck-icon.spinning {
+    animation: none;
+  }
 }
 .setup-group {
   margin: 10px 0 2px;

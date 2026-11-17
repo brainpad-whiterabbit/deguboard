@@ -1200,7 +1200,7 @@ describe("画面", () => {
     expect(screen.queryByRole("heading", { name: "deguboard を始める" })).toBeNull();
   });
 
-  it("推奨の項目が欠けている間は、いつもの画面の上に帯を出す。開くと項目をその場で直せ、戻るといつもの画面に戻る", async () => {
+  it("推奨の項目が欠けている間は、いつもの画面の上に帯を出す。開くと項目をその場で直せ、画面の中に戻るボタンはなく、タイトル行のアイコンでいつもの画面に戻る", async () => {
     const client = boardClient();
     let view = setupView({
       skills_hooks: { status: "unmet", fix: ["dg hooks install", "dg skill install"] },
@@ -1231,7 +1231,9 @@ describe("画面", () => {
     await waitFor(() =>
       expect(screen.queryByText("このマシンに dg の Skill と hooks が入っていません。")).toBeNull(),
     );
-    fireEvent.click(screen.getByRole("button", { name: "いつもの画面に戻る" }));
+    // 行き来はタイトル行のアイコンとタブでするので、画面の中に戻るボタンを置かない
+    expect(screen.queryByRole("button", { name: "いつもの画面に戻る" })).toBeNull();
+    act(() => send()({ kind: "event", name: "toggle", hash: "#/setup" }));
     expect(await screen.findByText("ログイン")).toBeTruthy();
     expect(screen.getByText("推奨の 1 項目が未完了です（dg コマンド）。")).toBeTruthy();
   });
@@ -1352,7 +1354,7 @@ describe("画面", () => {
     expect(screen.queryByRole("heading", { name: "セットアップ" })).toBeNull();
   });
 
-  it("帯を出さないと決めたリポジトリでは、チェックリストに「帯をまた出す」が出る。押すと決めたことを消して帯を出す状態で確かめ直し、戻ると帯が出る。決めていなければ出ない", async () => {
+  it("帯を出さないと決めたリポジトリでは、チェックリストに「帯をまた出す」が出る。押すと決めたことを消して帯を出す状態で確かめ直し、アイコンで戻ると帯が出る。決めていなければ出ない", async () => {
     const client = boardClient();
     const setup = vi.fn(async (_options?: SetupOptions) =>
       setupView({ skills_hooks: { status: "unmet", fix: [] } }),
@@ -1384,7 +1386,7 @@ describe("画面", () => {
     await waitFor(() => expect(setup).toHaveBeenCalledTimes(3));
     expect(setup).toHaveBeenLastCalledWith({ bandDismissed: false });
 
-    fireEvent.click(screen.getByRole("button", { name: "いつもの画面に戻る" }));
+    act(() => send()({ kind: "event", name: "toggle", hash: "#/setup" }));
     expect(await screen.findByText("推奨の 1 項目が未完了です（Skill と hooks）。")).toBeTruthy();
 
     // 出さないと決めていなければ、チェックリストに「帯をまた出す」は出ない

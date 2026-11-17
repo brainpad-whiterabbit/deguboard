@@ -341,6 +341,22 @@ const SCENES: Scene[] = [
       fireEvent.click(document.querySelector<HTMLElement>(".setup-band button")!);
     },
   },
+  {
+    // 満たした推奨の項目も ✓ と値付きで並ぶ
+    name: "タイトル行のアイコンから開いた、推奨を一部満たしたチェックリスト",
+    surface: "sidebar",
+    hash: "#/setup",
+    client: () => {
+      const client = richClient();
+      client.setup = async () =>
+        setupView({
+          skills_hooks: { status: "unmet", fix: ["dg hooks install", "dg skill install"] },
+          dg_command: { status: "ok", value: "1.4.0" },
+        });
+      return client;
+    },
+    extension: true,
+  },
 ];
 
 /** 一覧を読めず（導入の途中）、導入のチェックリストとして view を返す client */
