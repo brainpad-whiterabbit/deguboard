@@ -54,7 +54,7 @@ export const slugSchema = z
 
 /**
  * `git check-ref-format --branch` 相当の検査。先頭の `-` を拒み、git にオプションとして読まれないようにする
- * （`--upload-pack=<コマンド>` のような注入で actions.shell を回り込ませない。AG-7）。
+ * （`--upload-pack=<コマンド>` のような注入で任意のコマンドを実行させない）。
  * config のスキーマ（git.data_branch）も使うので、git の層でなくモデルに置く
  */
 export function isSafeBranchName(name: string): boolean {

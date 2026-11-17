@@ -119,15 +119,10 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     {
       ja: "承認待ちの Plan や review のチケットが増えたとき、VS Code 拡張が通知を出すか（件数の表示は常に出る）",
     },
-  // actions.shell
-  "Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation":
-    {
-      ja: "任意のシェルの Action（shell）を許すか。許しても実行のたびに確認する",
-    },
   // actions.test
-  "Argument array of the command that the test Action (run_tests) and the quality gate's check (dg gate, dg pr ready, dg pr merge) run (e.g. [mise, run, check]). When empty, run_tests is rejected and the gate's check does not judge (the repo's own checks are confirmed instead)":
+  "Argument array of the command that the quality gate's check (dg gate, dg pr ready, dg pr merge) runs (e.g. [mise, run, check]). When empty, the gate's check does not judge (the repo's own checks are confirmed instead)":
     {
-      ja: "テスト実行の Action（run_tests）と、品質ゲート（dg gate・dg pr ready・dg pr merge）の検査が呼ぶコマンドの引数配列（例 [mise, run, check]）。空なら run_tests は拒否し、品質ゲートの検査は判定しない（リポジトリの規約の検査で確かめる）",
+      ja: "品質ゲート（dg gate・dg pr ready・dg pr merge）の検査が呼ぶコマンドの引数配列（例 [mise, run, check]）。空なら品質ゲートの検査は判定しない（リポジトリの規約の検査で確かめる）",
     },
   // actions.light_test
   "Argument array of the lighter check the quality gate's check runs instead of actions.test when every file changed since the last commit whose actions.test passed (the diff against base when there is none) falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either":
@@ -242,11 +237,9 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "Notify in VS Code when Plans awaiting approval or tickets in review increase": {
     ja: "承認待ちの Plan や review のチケットが増えたら VS Code で通知する",
   },
-  // actions.shell
-  "Allow the arbitrary shell Action": { ja: "任意のシェルの Action を許す" },
   // actions.test
-  "Command run by the quality gate's check and the test Action": {
-    ja: "品質ゲートの検査とテストの Action が回すコマンド",
+  "Command run by the quality gate's check": {
+    ja: "品質ゲートの検査が回すコマンド",
   },
   // actions.light_test
   "Lighter check run instead of actions.test when only light paths changed": {
@@ -313,8 +306,8 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   // worktree.setup
   "Runs nothing": { ja: "何も回さない" },
   // actions.test
-  "The gate's check does not judge, and run_tests is rejected": {
-    ja: "品質ゲートの検査を判定しない（run_tests も拒否する）",
+  "The gate's check does not judge": {
+    ja: "品質ゲートの検査を判定しない",
   },
   // actions.light_test・actions.light_paths
   "The lighter check is not used (actions.test runs)": {

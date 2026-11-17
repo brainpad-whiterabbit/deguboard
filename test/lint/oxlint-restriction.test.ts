@@ -114,7 +114,7 @@ describe("core の import の制限（.oxlintrc.json）", () => {
     expect(restricted.get("packages/core/src/node-http-import.ts")).toBe(1);
   });
 
-  it("core の汎用部分（core/commands）で素の http を import すると落ちる。上の override が下の制限を上書きするので、ここも別に確かめる", () => {
+  it("core/commands で素の http を import すると落ちる", () => {
     expect(restricted.get("packages/core/src/commands/bare-http-import.ts")).toBe(1);
   });
 

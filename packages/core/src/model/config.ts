@@ -15,9 +15,9 @@ const COMMIT_MODES = ["each", "batch", "manual"] as const;
 export type CommitMode = (typeof COMMIT_MODES)[number];
 const PUSH_MODES = ["auto", "manual"] as const;
 export type PushMode = (typeof PUSH_MODES)[number];
-/** gh pr merge のマージの方法。merge.method・dg pr merge・actions の merge_pr がここを読む */
+/** gh pr merge のマージの方法。merge.method・dg pr merge がここを読む */
 export const PR_MERGE_METHODS = ["squash", "merge", "rebase"] as const;
-/** actions.test を回す時間の上限（run_tests の既定と品質ゲートの検査）。リポジトリの検査の全体（テストを含む）を回すので長めにとる */
+/** actions.test を回す時間の上限（品質ゲートの検査）。リポジトリの検査の全体（テストを含む）を回すので長めにとる */
 export const ACTIONS_TEST_TIMEOUT_MS = 30 * 60_000;
 
 /** コードのリモートの名前の既定（git.remote・dg init --remote を省いたとき） */
@@ -302,18 +302,12 @@ export const configSchema = z.looseObject({
     .prefault({}),
   actions: z
     .looseObject({
-      // 任意のシェルの Action を許す設定（AG-7）
-      shell: described(z.boolean().default(false), {
-        summary: "Allow the arbitrary shell Action",
-        description:
-          "Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation",
-      }),
       test: described(z.array(z.string().min(1)).default([]), {
-        summary: "Command run by the quality gate's check and the test Action",
+        summary: "Command run by the quality gate's check",
         description:
-          "Argument array of the command that the test Action (run_tests) and the quality gate's check (dg gate, dg pr ready, dg pr merge) run (e.g. [mise, run, check]). When empty, run_tests is rejected and the gate's check does not judge (the repo's own checks are confirmed instead)",
+          "Argument array of the command that the quality gate's check (dg gate, dg pr ready, dg pr merge) runs (e.g. [mise, run, check]). When empty, the gate's check does not judge (the repo's own checks are confirmed instead)",
         example: ["mise", "run", "check"],
-        empty: "The gate's check does not judge, and run_tests is rejected",
+        empty: "The gate's check does not judge",
       }),
       light_test: described(z.array(z.string().min(1)).default([]), {
         summary: "Lighter check run instead of actions.test when only light paths changed",
@@ -500,7 +494,6 @@ const LOCAL_KEYS: ReadonlySet<string> = new Set([
   ...detectableAgentNames().flatMap((agent) =>
     MODEL_TIERS.map((tier) => `models.${agent}.${tier}`),
   ),
-  "actions.shell",
   "notify.approvals",
   // 同時に回せる数はマシンの重さと契約の上限で人ごとに違う
   "work.parallel",

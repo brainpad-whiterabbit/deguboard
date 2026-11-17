@@ -485,7 +485,6 @@ export const EN: Readonly<Record<string, string>> = {
   その他: "Other",
   コミットの仕方: "Commit mode",
   "push の仕方": "Push mode",
-  "シェルの Action を許す": "Allow shell Actions",
   テストのコマンド: "Test command",
   軽い検査のコマンド: "Lighter check command",
   軽い検査で済ませるパス: "Paths the lighter check is enough for",
@@ -560,8 +559,6 @@ export const EN: Readonly<Record<string, string>> = {
     "changes the command run as the lighter check without confirmation (same as allowing a shell)",
   "claim のたびに確認なしで回すコマンドが変わる（シェルを許すのと同じ）":
     "changes the command run on every claim without confirmation (same as allowing a shell)",
-  エージェントが任意のシェルを実行できるかが変わる:
-    "changes whether agents can run any shell command",
   空: "Empty",
   "{0} を {1} にした": "Set {0} to {1}",
   "（{0}）": " ({0})",
