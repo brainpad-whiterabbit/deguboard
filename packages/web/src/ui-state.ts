@@ -3,7 +3,8 @@
 
 /**
  * 推奨の項目の帯（components/setup-checklist.tsx の SetupBand）を出さないと決めたことを残す鍵。Webview の状態はワークスペース（リポジトリ）ごと
- * なので、このリポジトリでだけ出なくなる。store も読み、出さないと決めた間は推奨の項目を確かめない（store.tsx）
+ * なので、このリポジトリでだけ出なくなる。store も読み、出さないと決めた間は推奨の項目を確かめない（store.tsx）。
+ * チェックリストの「帯をまた出す」（BandRestore）が鍵ごと消して、帯を出す状態に戻す
  */
 export const SETUP_BAND_DISMISSED_KEY = "setup.band.dismissed";
 

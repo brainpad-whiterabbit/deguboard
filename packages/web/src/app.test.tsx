@@ -10,7 +10,7 @@ import { formatTime } from "./components/timeline.js";
 import type { WebviewClient } from "./client/webview.js";
 import type { SetupBoardSource, WebviewEvent } from "@deguboard/core";
 import { HostBridge, HostProvider, showsSetupBand, type Host } from "./host.js";
-import type { Route } from "./router.js";
+import { parseRoute, type Route } from "./router.js";
 import { StoreProvider } from "./store.js";
 import {
   boardFixture,
@@ -43,7 +43,12 @@ const runningSummary = (partial: Partial<RunSummary> = {}) =>
 
 /** 実行中の Run が 1 回だけあるチケットの run.recent の 1 件 */
 const runningOf = (ticketId: TicketRunsView["ticket"]) => ticketRuns(ticketId, [runningSummary()]);
-import { createUiState, memoryBackend, type UiState } from "./ui-state.js";
+import {
+  createUiState,
+  memoryBackend,
+  SETUP_BAND_DISMISSED_KEY,
+  type UiState,
+} from "./ui-state.js";
 
 // 履歴の日付の書き方は今に依るので、今を固定する（Date だけ。個別に timer を使う試験は自分で入れ替える）
 beforeEach(() => {
@@ -109,7 +114,8 @@ function mountWithBridge(
     surface = "sidebar",
     readRunning = true,
     host = hostOf(surface),
-  }: { surface?: "sidebar" | "panel"; readRunning?: boolean; host?: Host } = {},
+    cache,
+  }: { surface?: "sidebar" | "panel"; readRunning?: boolean; host?: Host; cache?: UiState } = {},
 ) {
   let send: ((event: WebviewEvent) => void) | undefined;
   const bridge: WebviewClient = {
@@ -128,7 +134,12 @@ function mountWithBridge(
     },
   };
   render(
-    <StoreProvider client={client} readRunning={readRunning} setupBand={showsSetupBand(host)}>
+    <StoreProvider
+      client={client}
+      cache={cache}
+      readRunning={readRunning}
+      setupBand={showsSetupBand(host)}
+    >
       <HostProvider host={host}>
         <HostBridge client={bridge} />
         <App />
@@ -1203,8 +1214,9 @@ describe("画面", () => {
     );
     expect(band.closest("[role='status']")).toBeTruthy();
 
+    // 開く・戻るはハッシュ（#/setup）の切り替えなので、画面が変わるのを待つ
     fireEvent.click(screen.getByRole("button", { name: "残りの項目を開く" }));
-    expect(screen.getByRole("heading", { name: "セットアップ" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "セットアップ" })).toBeTruthy();
     expect(screen.getByText("必須の 5 項目")).toBeTruthy();
     // 推奨の満たさない項目は、どちらも開いて直し方を出す
     expect(screen.getByText("このマシンに dg の Skill と hooks が入っていません。")).toBeTruthy();
@@ -1220,7 +1232,7 @@ describe("画面", () => {
       expect(screen.queryByText("このマシンに dg の Skill と hooks が入っていません。")).toBeNull(),
     );
     fireEvent.click(screen.getByRole("button", { name: "いつもの画面に戻る" }));
-    expect(screen.getByText("ログイン")).toBeTruthy();
+    expect(await screen.findByText("ログイン")).toBeTruthy();
     expect(screen.getByText("推奨の 1 項目が未完了です（dg コマンド）。")).toBeTruthy();
   });
 
@@ -1267,6 +1279,132 @@ describe("画面", () => {
     mount(client, met, met.state);
     await settled(4);
     expect(screen.queryByText(/未完了です/)).toBeNull();
+  });
+
+  it("タイトル行のセットアップのアイコン（toggle の event）は、推奨をすべて満たしていても導入のチェックリストを開き、もう一度押すと来る前の画面に戻る。開いている間はタブを選んでいない見た目で、タブを押すとその画面に戻る", async () => {
+    const client = boardClient();
+    const setup = vi.fn(async (_options?: SetupOptions) => setupView());
+    client.setup = setup;
+    window.location.hash = "#/backlog";
+    const send = mountWithBridge(client, { readRunning: false, host: extensionHost() });
+    await waitFor(() => expect(setup).toHaveBeenCalledTimes(1));
+    const tab = (name: string) => screen.getByRole("link", { name });
+    expect(tab("バックログ").getAttribute("aria-current")).toBe("page");
+    // 推奨をすべて満たしているので帯はなく、入口はタイトル行のアイコンだけ
+    expect(screen.queryByText(/未完了です/)).toBeNull();
+
+    act(() => send()({ kind: "event", name: "toggle", hash: "#/setup" }));
+    expect(window.location.hash).toBe("#/setup");
+    expect(await screen.findByRole("heading", { name: "セットアップ" })).toBeTruthy();
+    expect(screen.getByText("必須の 5 項目")).toBeTruthy();
+    // 開くたびに確かめ直す（すべて満たした後は、入口が自動で確かめ直さないので）
+    await waitFor(() => expect(setup).toHaveBeenCalledTimes(2));
+    // タブはどれも選んでいない見た目
+    for (const name of ["カンバン", "バックログ", "履歴"]) {
+      expect(tab(name).getAttribute("aria-current")).toBeNull();
+      expect(tab(name).className).toBe("");
+    }
+
+    // もう一度アイコンを押すと、来る前の画面（バックログ）に戻る
+    act(() => send()({ kind: "event", name: "toggle", hash: "#/setup" }));
+    expect(window.location.hash).toBe("#/backlog");
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "セットアップ" })).toBeNull());
+    expect(tab("バックログ").getAttribute("aria-current")).toBe("page");
+
+    // 開いている間にタブを押すと、その画面に戻る
+    act(() => send()({ kind: "event", name: "toggle", hash: "#/setup" }));
+    expect(await screen.findByRole("heading", { name: "セットアップ" })).toBeTruthy();
+    fireEvent.click(tab("カンバン"));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "セットアップ" })).toBeNull());
+    expect(parseRoute(window.location.hash).page).toBe("board");
+    expect(tab("カンバン").getAttribute("aria-current")).toBe("page");
+    expect(await screen.findByText("ログイン")).toBeTruthy();
+  });
+
+  it("必須を満たさない間にタイトル行のセットアップのアイコンを押していても、必須を満たすと推奨のチェックリストを残さず、来る前の画面の一覧に変わる", async () => {
+    const client = boardClient();
+    const original = client.handlers["config.show"]!;
+    client.handlers["config.show"] = () => {
+      throw new ClientError({ code: "NOT_INITIALIZED", message: "初期化されていない" });
+    };
+    let view = setupView({ board: { status: "unmet", state: "no_remote", fix: ["dg init"] } });
+    client.setup = async () => view;
+    window.location.hash = "#/backlog";
+    const send = mountWithBridge(client, { readRunning: false, host: extensionHost() });
+    expect(await screen.findByRole("heading", { name: "deguboard を始める" })).toBeTruthy();
+
+    // 必須のチェックリストを出している間にアイコンを押す：見た目は変わらず、ハッシュだけが変わる
+    act(() => send()({ kind: "event", name: "toggle", hash: "#/setup" }));
+    expect(window.location.hash).toBe("#/setup");
+    expect(screen.getByRole("heading", { name: "deguboard を始める" })).toBeTruthy();
+
+    // dg init の後の reload の event で、来る前の画面（バックログ）の一覧に変わる
+    client.handlers["config.show"] = original;
+    view = setupView();
+    act(() => send()({ kind: "event", name: "reload" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/backlog"));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "バックログ" }).getAttribute("aria-current")).toBe(
+        "page",
+      ),
+    );
+    expect(screen.queryByRole("heading", { name: "deguboard を始める" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "セットアップ" })).toBeNull();
+  });
+
+  it("帯を出さないと決めたリポジトリでは、チェックリストに「帯をまた出す」が出る。押すと決めたことを消して帯を出す状態で確かめ直し、戻ると帯が出る。決めていなければ出ない", async () => {
+    const client = boardClient();
+    const setup = vi.fn(async (_options?: SetupOptions) =>
+      setupView({ skills_hooks: { status: "unmet", fix: [] } }),
+    );
+    client.setup = setup;
+    const host = extensionHost();
+    host.state.set(SETUP_BAND_DISMISSED_KEY, true);
+    const send = mountWithBridge(client, { readRunning: false, host, cache: host.state });
+    await screen.findByText("ログイン");
+    await act(async () => {});
+    // 出さないと決めている間は、帯を出さず、一覧を読めた後に推奨の項目を確かめない
+    expect(screen.queryByText(/未完了です/)).toBeNull();
+    expect(setup).not.toHaveBeenCalled();
+
+    // アイコンで開くと、そこで初めて確かめて（出さないと決めたままで）チェックリストを出す
+    act(() => send()({ kind: "event", name: "toggle", hash: "#/setup" }));
+    expect(await screen.findByRole("heading", { name: "セットアップ" })).toBeTruthy();
+    expect(setup).toHaveBeenCalledTimes(1);
+    expect(setup).toHaveBeenLastCalledWith({ bandDismissed: true });
+
+    fireEvent.click(screen.getByRole("button", { name: "帯をまた出す" }));
+    expect(screen.queryByRole("button", { name: "帯をまた出す" })).toBeNull();
+    expect(host.state.get(SETUP_BAND_DISMISSED_KEY)).toBeUndefined();
+    // 帯を出す状態を入口に伝える（拡張ホストが、推奨だけ欠けている間の自動の確かめ直しを再開する）
+    await waitFor(() => expect(setup).toHaveBeenCalledTimes(2));
+    expect(setup).toHaveBeenLastCalledWith({ bandDismissed: false });
+    // 入口の見張りの setup の event でも、帯を出している状態と同じに確かめ直す
+    act(() => send()({ kind: "event", name: "setup" }));
+    await waitFor(() => expect(setup).toHaveBeenCalledTimes(3));
+    expect(setup).toHaveBeenLastCalledWith({ bandDismissed: false });
+
+    fireEvent.click(screen.getByRole("button", { name: "いつもの画面に戻る" }));
+    expect(await screen.findByText("推奨の 1 項目が未完了です（Skill と hooks）。")).toBeTruthy();
+
+    // 出さないと決めていなければ、チェックリストに「帯をまた出す」は出ない
+    fireEvent.click(screen.getByRole("button", { name: "残りの項目を開く" }));
+    expect(await screen.findByRole("heading", { name: "セットアップ" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "帯をまた出す" })).toBeNull();
+  });
+
+  it("導入のチェックリストの画面（#/setup）は VS Code の左パネルにだけ出す。開発用の dg serve ではカンバンを出し、導入の項目を確かめない", async () => {
+    const client = boardClient();
+    const setup = vi.fn(async () => setupView());
+    client.setup = setup;
+    window.location.hash = "#/setup";
+    mount(client, hostOf("sidebar"));
+    expect(await screen.findByText("ログイン")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "セットアップ" })).toBeNull();
+    expect(screen.getByRole("link", { name: "カンバン" }).getAttribute("aria-current")).toBe(
+      "page",
+    );
+    expect(setup).not.toHaveBeenCalled();
   });
 
   it("推奨の帯は VS Code の左パネルにだけ出す。エディタのパネルと、開発用の dg serve（拡張ホストがない）には出さず、一覧を読めた後に導入の項目を確かめない", async () => {

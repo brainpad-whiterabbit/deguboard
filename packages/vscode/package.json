@@ -78,6 +78,12 @@
         "icon": "$(gear)"
       },
       {
+        "command": "deguboard.setup",
+        "title": "%command.setup.title%",
+        "category": "deguboard",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "deguboard.ask",
         "title": "%command.ask.title%",
         "category": "deguboard",
@@ -120,19 +126,24 @@
     "menus": {
       "view/title": [
         {
-          "command": "deguboard.askInSidebar",
+          "command": "deguboard.setup",
           "when": "view == deguboard.screens",
           "group": "navigation@0"
         },
         {
-          "command": "deguboard.sync",
+          "command": "deguboard.askInSidebar",
           "when": "view == deguboard.screens",
           "group": "navigation@1"
         },
         {
-          "command": "deguboard.config",
+          "command": "deguboard.sync",
           "when": "view == deguboard.screens",
           "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.config",
+          "when": "view == deguboard.screens",
+          "group": "navigation@3"
         }
       ],
       "commandPalette": [

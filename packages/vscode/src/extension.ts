@@ -213,6 +213,12 @@ export function activate(context: vscode.ExtensionContext): void {
       "deguboard.config",
       () => void toggleInSidebar(WEBVIEW_CONTRACT.routes.config),
     ),
+    // ビューのタイトル行の左端のセットアップのアイコンとコマンドパレット。サイドバーの中を来る前の画面と導入のチェックリストで切り替える
+    // （推奨をすべて満たした後と、帯を出さないと決めた後も、いつでも開ける。UI-12）
+    vscode.commands.registerCommand(
+      "deguboard.setup",
+      () => void toggleInSidebar(WEBVIEW_CONTRACT.routes.setup),
+    ),
     // エージェントに頼む入力欄（UI-15）。タイトル行の吹き出しは左パネルの下に、画面の今の対象（カンバンで選んでいる Iteration、
     // 履歴で開いている行。なければ対象なし）で出す。コマンドパレットは開いているパネルの下（パネルが手前になければ左パネルの下）に、対象なしで出す
     vscode.commands.registerCommand("deguboard.ask", () => void askFromPalette()),

@@ -68,18 +68,28 @@ describe("package.json の右クリックのメニュー", () => {
 describe("package.json のビューのタイトル行", () => {
   const { commands, menus } = pkg.contributes;
 
-  it("吹き出し（エージェントに頼む）・同期・歯車（設定画面の切り替え）の順に並べる", () => {
+  it("セットアップ（導入のチェックリストの切り替え）・吹き出し（エージェントに頼む）・同期・歯車（設定画面の切り替え）の順に並べる", () => {
     const items = menus["view/title"]!;
     expect(items.map((m) => [m.command, m.group])).toEqual([
-      ["deguboard.askInSidebar", "navigation@0"],
-      ["deguboard.sync", "navigation@1"],
-      ["deguboard.config", "navigation@2"],
+      ["deguboard.setup", "navigation@0"],
+      ["deguboard.askInSidebar", "navigation@1"],
+      ["deguboard.sync", "navigation@2"],
+      ["deguboard.config", "navigation@3"],
     ]);
     for (const item of items) expect(item.when).toBe("view == deguboard.screens");
     expect(commands.find((c) => c.command === "deguboard.config")).toMatchObject({
       title: "設定",
       icon: "$(gear)",
     });
+  });
+
+  it("セットアップはチェックリストのアイコンで左端に置き、コマンドパレットにも「deguboard: セットアップ」で出す", () => {
+    expect(commands.find((c) => c.command === "deguboard.setup")).toMatchObject({
+      title: "セットアップ",
+      category: "deguboard",
+      icon: "$(checklist)",
+    });
+    expect(menus["commandPalette"]!.some((m) => m.command === "deguboard.setup")).toBe(false);
   });
 
   it("「エージェントに頼む」はコマンドパレットに「deguboard: エージェントに頼む」で出し、タイトル行の吹き出しはパレットに重ねて出さない（UI-15）", () => {

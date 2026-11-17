@@ -138,6 +138,9 @@ export const EN: Readonly<Record<string, string>> = {
   "推奨の {0} 項目が未完了です（{1}）。": "{0} recommended items are not done ({1}).",
   残りの項目を開く: "Open the remaining items",
   このリポジトリでは出さない: "Do not show in this repository",
+  "このリポジトリでは、推奨の項目が未完了でも帯を出さないことにしています。":
+    "In this repository, the banner is hidden even when recommended items are not done.",
+  帯をまた出す: "Show the banner again",
   フォルダ: "Folder",
   "Git リポジトリ": "Git repository",
   ボード: "Board",

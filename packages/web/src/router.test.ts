@@ -30,6 +30,7 @@ describe("ハッシュのルーティング", () => {
     });
     expect(parseRoute("#/history?q=&result=x")).toEqual({ page: "history" });
     expect(parseRoute("#/config")).toEqual({ page: "config" });
+    expect(parseRoute("#/setup")).toEqual({ page: "setup" });
     // Run の画面はない（UI-4）。前の版の #/runs はカンバンとして読む
     expect(parseRoute("#/runs")).toEqual({ page: "board" });
     expect(parseRoute("#/runs?by=iteration&iteration=s5")).toEqual({
@@ -62,6 +63,7 @@ describe("ハッシュのルーティング", () => {
         result: "abandoned" as const,
       },
       { page: "config" as const },
+      { page: "setup" as const },
     ]) {
       expect(parseRoute(hrefOf(route))).toEqual(route);
     }
@@ -70,7 +72,15 @@ describe("ハッシュのルーティング", () => {
   it("チケット・Epic・Iteration・Plan の詳細だけを詳細のルートとして扱う（エディタのパネルに開く。UI-12）", () => {
     for (const hash of ["#/tickets/t1", "#/epics/e1", "#/iterations/s1", "#/plans/p1"])
       expect(isDetailRoute(parseRoute(hash)), hash).toBe(true);
-    for (const hash of ["#/board", "#/backlog", "#/history", "#/runs", "#/config", "#/plans"])
+    for (const hash of [
+      "#/board",
+      "#/backlog",
+      "#/history",
+      "#/runs",
+      "#/config",
+      "#/setup",
+      "#/plans",
+    ])
       expect(isDetailRoute(parseRoute(hash)), hash).toBe(false);
   });
 });

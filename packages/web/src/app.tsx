@@ -5,9 +5,10 @@
 // タイトル行のない dg serve の画面では、同期の印（未 push・未取り込み）だけを上のバーに出す（SyncMark。UI-6）。
 // エディタのパネルは詳細だけを出し、上のバーを出さない。
 // 導入の必須の項目を満たさない間は、ページの代わりにチェックリストを出し、推奨の項目が欠けている間は左パネルのページの上に帯を出す（UI-12。components/setup-checklist.tsx）。
+// 左パネルでは、タイトル行のセットアップのアイコン（とコマンドパレット）からいつでもチェックリストを開ける（ハッシュは #/setup。タブはどれも選ばない）。
 // エージェントに頼む入力欄（UI-15）は、開いていればページの下に出す。左パネルでは初めて開いたときに 1 度だけ、行の吹き出しの案内を出す
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useRef, type MouseEvent } from "react";
 import { AskComposer } from "./components/ask-composer.js";
 import { AskHint, AskMenuProvider, SelectionBar } from "./components/ask-menu.js";
 import { useRowNav } from "./components/row-nav.js";
@@ -15,7 +16,7 @@ import { SelectionProvider } from "./components/selection.js";
 import { SetupBand, SetupChecklist } from "./components/setup-checklist.js";
 import { showsSetupBand, useAsk, useHost, useUiState } from "./host.js";
 import { useStore, type Store } from "./store.js";
-import { hrefOf, isDetailRoute, parseRoute, useRoute, type Route } from "./router.js";
+import { hrefOf, isDetailRoute, parseRoute, toggleRoute, useRoute, type Route } from "./router.js";
 import { BoardPage, boardIterationSelection } from "./pages/board.js";
 import { BacklogPage } from "./pages/backlog.js";
 import { TicketPage } from "./pages/ticket.js";
@@ -86,8 +87,30 @@ export function App() {
     board: useLastHref("board", route, store),
     history: useLastHref("history", route, store),
   };
-  const shown = sidebarRoute(route, sidebar);
-  // Iteration と Plan の詳細はカンバンのタブ、Epic の詳細はバックログのタブの下にあるものとして扱う（一覧の画面はない）
+  // 推奨の項目の帯と、タイトル行のアイコンから開く導入のチェックリストは、VS Code の左パネルにだけ出す（理由は host.tsx の showsSetupBand）
+  const band = showsSetupBand(host);
+  const shown = sidebarRoute(route, sidebar, band);
+  // 導入のチェックリストを開いているか（タイトル行のアイコン・コマンドパレット・帯から。ハッシュに持つので、アイコンをもう一度押すと来る前の画面に戻る。
+  // router.ts の toggleRoute）
+  const setupOpen = shown.page === "setup";
+  // 開くたびに確かめ直す。帯を出さないと決めている間は確かめた結果がなく、推奨をすべて満たした後は入口が自動で確かめ直さない（vscode の autoRecheck）ので
+  const recheckSetupRef = useRef(store.recheckSetup);
+  useEffect(() => {
+    recheckSetupRef.current = store.recheckSetup;
+  });
+  useEffect(() => {
+    if (setupOpen) void recheckSetupRef.current();
+  }, [setupOpen]);
+  // 必須の項目を満たさない間（一覧の代わりにチェックリストを出している間）にアイコンを押すと、見た目は変わらずハッシュだけが #/setup になる。
+  // そのまま必須を満たすと推奨のチェックリストが残って一覧に変わらないので、満たしたときに来る前の画面（なければカンバン）に戻す（UI-12）
+  const neededSetupRef = useRef(store.needsSetup);
+  useEffect(() => {
+    const needed = neededSetupRef.current;
+    neededSetupRef.current = store.needsSetup;
+    if (needed && !store.needsSetup && setupOpen) toggleRoute(hrefOf({ page: "setup" }));
+  }, [store.needsSetup, setupOpen]);
+  // Iteration と Plan の詳細はカンバンのタブ、Epic の詳細はバックログのタブの下にあるものとして扱う（一覧の画面はない）。
+  // 導入のチェックリストはどのタブの下でもないので、開いている間はタブを選んでいない見た目になる（タブを押すとその画面に戻る）
   const active =
     shown.page === "ticket" || shown.page === "epics"
       ? "backlog"
@@ -98,10 +121,8 @@ export function App() {
   const panel = !sidebar;
   // サイドバーの行を ↑↓・Enter・Space・a で操作する（roving tabindex。components/row-nav.tsx）
   const { ref: rowNavRef, ...rowNav } = useRowNav(sidebar);
-  // 推奨の項目のチェックリストを帯から開いているか。開き直したら閉じてよいので、見た目の状態には残さない
-  const [setupOpen, setSetupOpen] = useState(false);
-  // 推奨の項目の帯は VS Code の左パネルにだけ出す（理由は host.tsx の showsSetupBand）
-  const band = showsSetupBand(host);
+  /** 導入のチェックリストと来る前の画面を切り替える（帯の「開く」とチェックリストの「戻る」。タイトル行のアイコンと同じ行き来） */
+  const toggleSetup = () => toggleRoute(hrefOf({ page: "setup" }));
   return (
     <div
       className="app"
@@ -147,16 +168,18 @@ export function App() {
             ) : store.needsSetup && store.setup ? (
               // 導入の必須の項目を満たさない間は、一覧の代わりにチェックリストを出す（満たすと確かめ直しでいつもの画面に変わる）
               <SetupChecklist view={store.setup} />
-            ) : band && setupOpen && store.setup ? (
-              // 帯から開いた、推奨の項目のチェックリスト
-              <SetupChecklist view={store.setup} onClose={() => setSetupOpen(false)} />
+            ) : setupOpen ? (
+              // タイトル行のアイコン・帯から開いた導入のチェックリスト。帯を出さないと決めている間は、開いてから初めて確かめるので待つ
+              store.setup ? (
+                <SetupChecklist view={store.setup} onClose={toggleSetup} />
+              ) : (
+                <p className="muted">{tr("読み込み中…")}</p>
+              )
             ) : (
               // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く。UI-12）
               <>
                 {/* 推奨の項目が欠けている間は、いつもの画面の上に帯を出す */}
-                {band && store.setup ? (
-                  <SetupBand view={store.setup} onOpen={() => setSetupOpen(true)} />
-                ) : null}
+                {band && store.setup ? <SetupBand view={store.setup} onOpen={toggleSetup} /> : null}
                 {/* 案内は頼める場所のある画面（カンバン・バックログ・履歴）にだけ出す */}
                 {sidebar && ASK_HINT_PAGES.has(shown.page) ? <AskHint /> : null}
                 <Page route={shown} />
@@ -243,8 +266,12 @@ function followHashLink(e: MouseEvent<HTMLElement>, show?: (route: Route) => voi
   else window.location.hash = href;
 }
 
-/** サイドバーで出す画面。チケット詳細はバックログに替える（前の版の Run の画面のハッシュは parseRoute がカンバンにする） */
-function sidebarRoute(route: Route, sidebar: boolean): Route {
+/**
+ * 出す画面。サイドバーでは、チケット詳細をバックログに替える（前の版の Run の画面のハッシュは parseRoute がカンバンにする）。
+ * 導入のチェックリストの画面は、出す入口（setup。VS Code の左パネル）のほかではカンバンに替える
+ */
+function sidebarRoute(route: Route, sidebar: boolean, setup: boolean): Route {
+  if (route.page === "setup" && !setup) return { page: "board" };
   if (!sidebar) return route;
   if (route.page === "ticket") return { page: "backlog" };
   return route;
@@ -272,6 +299,9 @@ function Page({ route }: { route: Route }) {
       return <HistoryPage route={route} />;
     case "config":
       return <ConfigPage />;
+    case "setup":
+      // App が導入のチェックリストを出すので、ここには来ない（出さない入口では sidebarRoute がカンバンに替える）
+      return null;
   }
 }
 

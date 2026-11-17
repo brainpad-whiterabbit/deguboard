@@ -2,6 +2,7 @@
 // - Git リポジトリの項目が満たさず、ボタンとコマンドが出ること。人がターミナルの代わりに外で git init しても、見張りが拾ってボードの項目に進むこと
 // - ボードの項目のボタンを押すと、deguboard のターミナルで起動ファイルの dg が init を実行し、終わるといつもの画面（タブのあるサイドバー）に変わること
 // - いつもの画面の上に推奨の項目の帯が出て、開くと「Skill と hooks を入れる」でその場で入れられること
+// - タイトル行のセットアップのアイコンでチェックリストと来る前の画面を行き来でき、帯を出さないと決めた後も開けて、帯をまた出せること（t1021）
 // 途中の画面をライトとダークで撮る（test/vscode/screenshots/）。
 // 拡張は起動のたびに起動ファイルを HOME（~/.local/share/deguboard/）に書くが、launchHost が HOME を一時ディレクトリにするので手元には書かない。
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す
@@ -112,6 +113,35 @@ describe("VS Code の実機の導入のチェックリスト", () => {
       .toBe(true);
     // 実行の終わりで確かめ直し、項目のボタンが消える（満たした印に変わる）
     await install.waitFor({ state: "detached", timeout: 60_000 });
+  }, 240_000);
+
+  it("タイトル行のセットアップのアイコンでチェックリストと来る前の画面を行き来でき、帯を出さないと決めた後も開けて、帯をまた出せる（t1021）", async () => {
+    // ビューのタイトル行（ワークベンチの側）の左端のアイコン。前の検査でチェックリストを開いたままなので、押すと来る前の画面に戻る
+    // 同じアイコンがビューの見出し（ビューが 1 つの間は隠れている）にもあるので、見えているほうを押す
+    const icon = host.page
+      .locator(".part.sidebar a.action-label.codicon-checklist")
+      .locator("visible=true");
+    const heading = sidebar.locator("h2", { hasText: "Setup" });
+    const board = sidebar.locator('nav a[href^="#/board"]');
+    await icon.click();
+    await heading.waitFor({ state: "detached" });
+    await sidebar.locator("nav a.active").waitFor();
+    // 推奨の項目が残っている（.claude/.gitignore をコミットしていない）ので帯が出る。このリポジトリでは出さないと決める
+    await sidebar.getByRole("button", { name: "Do not show in this repository" }).click();
+    await sidebar.locator(".setup-band").waitFor({ state: "detached" });
+    // 帯がなくても、アイコンからチェックリストを開ける。開いている間はタブを選んでいない見た目
+    await icon.click();
+    await heading.waitFor();
+    const restore = sidebar.getByRole("button", { name: "Show the banner again" });
+    await restore.waitFor();
+    expect(await sidebar.locator("nav a.active").count()).toBe(0);
+    await shoot("setup-title-icon");
+    // 帯をまた出すと決め直し、タブを押すとその画面に戻って帯が出る
+    await restore.click();
+    await restore.waitFor({ state: "detached" });
+    await board.click();
+    await heading.waitFor({ state: "detached" });
+    await sidebar.locator(".setup-band").waitFor({ timeout: 60_000 });
   }, 240_000);
 
   it("ワークベンチと Webview に CSP 違反と捕まえていない例外がない", () => {
