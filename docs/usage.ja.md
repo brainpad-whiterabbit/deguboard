@@ -211,7 +211,7 @@ dg はエージェントへの指示（`CLAUDE.md`・`AGENTS.md`）を書かず�
 - エージェントの PATH に `dg` がないときは、呼び方も書く。たとえば `~/.local/share/deguboard/dg`（拡張が入れるランチャー）か、[CLI で使う](#cli-で使う)の「dg コマンドを入れる」
 - `dg guide release` の手順は、リポジトリの規約（エージェントへの指示・README・開発の文書）からリリースの手順をエージェントに探させる。見つからなければ、エージェントは手順を推し量らず、リリースなしで Iteration を閉じるかを人に尋ねる
 
-dg の手順（計画・実装・見直し・マージの進め方）は、エージェントへの指示に写さない。`dg guide` はそれを含めず、guide は dg に同梱されるので、写しは dg を更新すると古くなる。リポジトリに合わせて手順を変えるときは、見出しのない文書を書き、そのパスを `guide.notes.<topic>`（たとえば `guide.notes.work`）に設定する。dg はそれを `dg guide <topic>` の題の直後に差し込む。検査のコマンドは `actions.test` と `actions.light_test` に置く。値は `dg config show` で見て、`/dgconfig` で変える。
+dg の手順（計画・実装・見直し・マージの進め方）は、エージェントへの指示に写さない。`dg guide` はエージェントへの指示に写したものを読まず、guide は dg に同梱されるので、写しは dg を更新すると古くなる。リポジトリに合わせて手順を変えるときは、見出しのない文書を書き、そのパスを `guide.notes.<topic>`（たとえば `guide.notes.work`）に設定する。dg はそれを `dg guide <topic>` の題の直後に差し込む。検査のコマンドは `actions.test` と `actions.light_test` に置く。値は `dg config show` で見て、`/dgconfig` で変える。
 
 ## 他のエージェントで使う
 
