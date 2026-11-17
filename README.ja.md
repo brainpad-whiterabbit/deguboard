@@ -120,7 +120,7 @@ MCP サーバーを使えば、Jira や GitHub Projects のチケットもエー
 
 ## deguboard で作っています
 
-deguboard は [Claude Code](https://claude.com/product/claude-code) と deguboard 自身で開発しています。変更はどれもこのリポジトリのボードのチケットから始まり、エージェントが品質ゲートを通して、チケットの ID を書いた[プルリクエスト](https://github.com/brainpad-whiterabbit/deguboard/pulls?q=is%3Apr+is%3Amerged)にします。
+deguboard は [Claude Code](https://claude.com/product/claude-code) と deguboard 自身で開発しています。変更はこのリポジトリのボードのチケットから始まり、エージェントが品質ゲートを通して、チケットの ID を書いた[プルリクエスト](https://github.com/brainpad-whiterabbit/deguboard/pulls?q=is%3Apr+is%3Amerged)にします。
 
 ## ライセンス
 

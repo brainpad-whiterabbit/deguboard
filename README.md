@@ -120,7 +120,7 @@ The documents below are written in Japanese, except the usage guide and How it w
 
 ## Built with deguboard
 
-deguboard is developed with [Claude Code](https://claude.com/product/claude-code) and deguboard itself: every change starts as a ticket on this repository's own board, and agents carry it through the quality gate to a [pull request](https://github.com/brainpad-whiterabbit/deguboard/pulls?q=is%3Apr+is%3Amerged) that names the ticket ID.
+deguboard is developed with [Claude Code](https://claude.com/product/claude-code) and deguboard itself: changes start as tickets on this repository's own board, and agents carry them through the quality gate to a [pull request](https://github.com/brainpad-whiterabbit/deguboard/pulls?q=is%3Apr+is%3Amerged) that names the ticket ID.
 
 ## License
 
