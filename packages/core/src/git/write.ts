@@ -283,6 +283,8 @@ async function writeLocked<T>(
   let attempts = 0;
   for (;;) {
     attempts += 1;
+    // この回の fetch の後に、取り込み（rebase）が読んだ HEAD。rebase を始めなかったとき・fetch に失敗したときは undefined
+    let rebased: string | undefined;
     if (repo.dataRemote) {
       const fetched = await fetchData(repo);
       if (!fetched.ok) {
@@ -296,6 +298,7 @@ async function writeLocked<T>(
         // 取り込みが rebase の後に読んだ HEAD を使う。rebase を始めなかったとき（head がない）は動いていないので、そのまま。
         // 競合で中止したときは、中止できずに途中の状態が残ることがあるので、読み直す
         head = integrated.ok ? (integrated.head ?? head) : undefined;
+        rebased = integrated.ok ? integrated.head : undefined;
         warnings.push(...autoResolvedWarnings(resolved));
         if (!integrated.ok) {
           const detail = `Conflicts: ${integrated.conflicts.join(", ")}`;
@@ -317,8 +320,11 @@ async function writeLocked<T>(
     }
 
     // 変更の前の先頭。上の取り込み（rebase）とまとめ待ちのコミット、やり直しの前の reset が先頭を動かしうるので、
-    // 動かした後に読んだ値（取り込みが返した HEAD）か、どれも動かさなかったときの入口の値だけを使い、なければここで読み直す
-    const before = head ?? (await headSha(repo));
+    // 動かした後に読んだ値（取り込みが返した HEAD）か、どれも動かさなかったときの入口の値だけを使い、なければここで読み直す。
+    // push する操作は、失敗したときに before へ reset しうる（下の resetHard と dropOwnCommit）。入口の値は fetch の前に読んだもので、
+    // fetch の間に dg の外で積まれたコミットを reset が消すので、使わない：fetch の後に読んだ値（rebased）がなければ読み直す。
+    // push しない操作は before へ戻さないので、入口の値でよい
+    const before = (shouldPush ? rebased : head) ?? (await headSha(repo));
     // この後の mutate とコミットが先頭を動かす
     head = undefined;
     const value = await mutate().catch((e: unknown) => {

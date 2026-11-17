@@ -211,8 +211,11 @@ function identityConfig(
     return values;
   });
   identityConfigs.set(repo, read);
-  // 失敗（git が起動できないなど）は覚えずに、次の呼び出しで読み直す
-  read.catch(() => identityConfigs.delete(repo));
+  // 失敗（git が起動できないなど）は覚えずに、次の呼び出しで読み直す。
+  // 覚えがこの読みのままのときだけ消す（forgetIdentityConfig の後に始まった新しい読みの覚えを消さない）
+  read.catch(() => {
+    if (identityConfigs.get(repo) === read) identityConfigs.delete(repo);
+  });
   return read;
 }
 
