@@ -111,7 +111,7 @@ describe("拡張ホストの文言の置き場所", () => {
 /** 英語の文言にする前（日本語の直書きだったとき）の manifest の文言。表示言語が日本語なら今と同じに出ることを確かめる */
 const MANIFEST_JA_BEFORE: Record<string, string> = {
   description:
-    "Agentic-Agile に着想を得た、開発の流れを備え、VS Code の中で AI エージェントと一緒に使うカンバンボード。小さなチケットを AI エージェントに任せて並列に進め、その働きを測れます。",
+    "AI エージェントに開発を任せるための開発の流れを Git リポジトリに組み込むツールで、VS Code のカンバンはその窓口です。エージェントがアイデアを小さなチケットにして、品質ゲートを通るまで並列に進め、その働きを測れます。Agentic-Agile に着想を得ています。",
   "command.gotoTicket.title": "チケットへ移動",
   "command.sync.title": "同期",
   "command.config.title": "設定",
