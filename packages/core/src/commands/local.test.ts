@@ -3,37 +3,26 @@ import { readdir, utimes } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  createFixture,
-  createLocalOnlyRepo,
-  git,
-  type Fixture,
-} from "../../test/helpers/git-fixture.js";
+import { initializedFixture, runCleanups } from "../../test/helpers/commands-context.js";
+import { createLocalOnlyRepo, git, type Fixture } from "../../test/helpers/git-fixture.js";
 import { OperationError } from "../errors.js";
 import { withLock } from "../git/lock.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
 import { createLocalClient, toCommandFailure } from "./local.js";
 import { commands } from "./registry.js";
-import { init } from "./setup.js";
 import { Store } from "../storage/store.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   vi.restoreAllMocks();
   await Promise.all(cleanups.splice(0).map((c) => c()));
+  await runCleanups();
 });
-
-async function initialized(): Promise<Fixture> {
-  const f = await createFixture();
-  cleanups.push(f.cleanup);
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
-  return f;
-}
 
 describe("プロセス内の CommandClient", () => {
   it("名前でコマンドを引いて実行し、主体は人。init は出さず、知らない名前は UNKNOWN_COMMAND", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA, user: "ui" });
     expect(client.commands.some((c) => c.name === "init")).toBe(false);
     const created = await client.run<{ id: string }>("ticket.create", { title: "画面から" });
@@ -48,14 +37,14 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("user と userSource env を渡すと、whoami の user_source が env になる", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA, user: "eiki", userSource: "env" });
     const me = await client.run<{ id: string; user: string; user_source: string }>("whoami");
     expect(me.data).toMatchObject({ id: "eiki", user: "eiki", user_source: "env" });
   });
 
   it("他のプロセスの変更を呼び出しごとに取り込み、status が同期の状態を返す", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA });
     expect((await client.run<unknown[]>("ticket.list")).data).toEqual([]);
     const cli = await openContext({ cwd: f.cloneA });
@@ -89,7 +78,7 @@ describe("プロセス内の CommandClient", () => {
   }
 
   it("status は後ろでリモートを fetch し、次の status がほかの clone の push を未取り込みに数える。間隔の中では fetch しない", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     await pushFromB(f, "B から 1");
     const client = createLocalClient({ cwd: f.cloneA });
     // 最初の status は fetch を待たずに今の追跡ブランチで数える（fetch はこの status の後ろで走る）
@@ -103,7 +92,7 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("間隔が過ぎた後の status はまた fetch する", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
     await client.status();
     await pushFromB(f, "B から 1");
@@ -116,7 +105,7 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("リモートに届かなくても、status は失敗せずに同期の状態を返し続ける", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     await git(f.cloneA, ["remote", "set-url", "origin", path.join(f.root, "nowhere.git")]);
     const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
     for (let i = 0; i < 3; i++) {
@@ -128,7 +117,7 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("ほかの dg が書き込みのロックを持つ間は fetch を飛ばし、放した後の status で fetch する", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     await pushFromB(f, "B から 1");
     const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
     const localDir = (await openContext({ cwd: f.cloneA })).repo.localDir;
@@ -150,7 +139,7 @@ describe("プロセス内の CommandClient", () => {
     expect(toCommandFailure(new Error("x"))).toEqual({ code: "INTERNAL", message: "x" });
   });
   it("データが変わっていなければ、続けて呼んだコマンドはファイルを読み直さない", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "一" });
     await client.run("ticket.create", { title: "二" });
@@ -170,7 +159,7 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("CLI と同じ経路（openContext）で開き直すと、前の呼び出しが残した結果を使い、変わっていないファイルを読み直さない", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const cli = () => openContext({ cwd: f.cloneA });
     const create = commands.find((c) => c.name === "ticket.create")!;
     await runCommand(create, await cli(), { title: "一" });
@@ -207,7 +196,7 @@ describe("プロセス内の CommandClient", () => {
   }
 
   it("別に開いた文脈（CLI と同じ経路）が書き込んだチケットの変更は、次のコマンドの結果に出る", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "画面から" });
     await ageTickets(client);
@@ -234,7 +223,7 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("別のプロセスが同じ大きさに書き換えたチケットのファイルは、次のコマンドの結果に出る", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "画面から" });
     const dir = await ageTickets(client);
@@ -254,7 +243,7 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("同じ瞬間に届いた N 本の読みは、再走査を 1 回だけ行って結果を共有する", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "一" });
     const rescan = vi.spyOn(Store.prototype, "rescan");
@@ -270,7 +259,7 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("届く前に始まった再走査は使わず、届いた後の再走査で、要求の前に外で書いた変更が見える", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "画面から" });
     // 最初の再走査を読み終えたところで止め、そのあいだに要求を届けて外から書き換える
@@ -305,7 +294,7 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("書き込みが列で待っているあいだに届いた読みは、書き込みのあとに新しく再走査し、書き込みの結果が見える", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "一" });
     await client.run("ticket.list");
@@ -321,7 +310,7 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("書き込みは再走査を共有せず、同時に届いても 1 本ずつ自分で再走査する", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "一" });
     const rescan = vi.spyOn(Store.prototype, "rescan");
@@ -334,7 +323,7 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("同時に届いた読みの 1 本が失敗しても、他の結果は返り、失敗はその呼び出しの失敗になる", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "一" });
     const [missing, list] = await Promise.allSettled([
@@ -349,7 +338,7 @@ describe("プロセス内の CommandClient", () => {
   });
 
   it("再走査が失敗すると、その要求だけが失敗し、次の要求は自分で再走査する", async () => {
-    const f = await initialized();
+    const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "一" });
     vi.spyOn(Store.prototype, "rescan").mockRejectedValueOnce(new Error("走査に失敗"));

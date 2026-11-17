@@ -40,7 +40,8 @@ const ARGV = hookArgv("claude-code", "PreToolUse");
 const STOP_ARGV = hookArgv("claude-code", "Stop");
 const SESSION = "s-fast";
 
-async function initialized(): Promise<string> {
+/** dg init 済みの雛形から写した clone A の場所（init はテストファイルで 1 度だけ） */
+async function initializedCopy(): Promise<string> {
   const f = await createFixtureFrom("fast-hook-init", async (l) => {
     const code = await run(["init"], {
       cwd: l.cloneA,
@@ -142,7 +143,7 @@ async function compare(cwd: string, stdin: string, argv = ARGV): Promise<Ran> {
 
 describe("PreToolUse の速い経路（bin/dg.js。t768）", () => {
   it("拒む Bash・拒む書き込み・通す Bash・gh pr merge は速い経路が受け持ち、標準出力・標準エラー・終了コード・記録が今の経路と同じ", async () => {
-    const cwd = await initialized();
+    const cwd = await initializedCopy();
     const { dataDir } = await resolveRepoPaths(cwd);
     const cases: Array<[string, string, boolean]> = [
       ["拒む Bash", payload(cwd, "Bash", { command: "cat .git/deguboard/tickets/t1.md" }), true],
@@ -169,7 +170,7 @@ describe("PreToolUse の速い経路（bin/dg.js。t768）", () => {
   });
 
   it("初期化していない・git の外・JSON でない・別のツール・オブジェクトでない入力は今の経路に回し、結果は今の経路と同じ", async () => {
-    const init = await initialized();
+    const init = await initializedCopy();
     const cases: Array<[string, string, string]> = [
       [
         "初期化していない",
@@ -191,7 +192,7 @@ describe("PreToolUse の速い経路（bin/dg.js。t768）", () => {
 
 describe("PreToolUse と Stop の速い経路が受け持つ引数（t768・t786）", () => {
   it("dg hooks install が書く PreToolUse と Stop のコマンドの引数を、速い経路が受け持つ。ほかのイベントと引数は受け持たない", async () => {
-    const cwd = await initialized();
+    const cwd = await initializedCopy();
     const result = await installHooks({
       cwd,
       scope: "project",
@@ -243,7 +244,7 @@ describe("Stop の速い経路（bin/dg.js。t786）", () => {
   };
 
   it("dg の外の変更がない・未コミットの変更・続けさせた後・dg の外のコミットは速い経路が受け持ち、標準出力・標準エラー・終了コード・記録が今の経路と同じ", async () => {
-    const cwd = await initialized();
+    const cwd = await initializedCopy();
     const { dataDir } = await resolveRepoPaths(cwd);
     // 変更がなければ何も出さない
     expect((await compareStop(cwd, stop())).out).toEqual([]);
@@ -264,7 +265,7 @@ describe("Stop の速い経路（bin/dg.js。t786）", () => {
   });
 
   it("初期化していない・git の外・JSON でない・オブジェクトでない・セッションのない入力は今の経路に回し、結果は今の経路と同じ", async () => {
-    const init = await initialized();
+    const init = await initializedCopy();
     const cases: Array<[string, string, string]> = [
       ["初期化していない", await uninitialized(), stop()],
       ["git の外", await outsideGit(), stop()],
@@ -411,7 +412,7 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
   }
 
   it("速い経路のファイルを消した dist でも、PreToolUse は今の経路で同じ結果を返す", async () => {
-    const cwd = await initialized();
+    const cwd = await initializedCopy();
     const copied = await copyDist({ remove: ["fast-hook.js"] });
     const inputs = [
       payload(cwd, "Bash", { command: "gh pr merge 5 --squash" }),
@@ -431,7 +432,7 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
   });
 
   it("速い経路のファイルを消した dist でも、ほかのコマンドは今の経路で同じ結果を返す", async () => {
-    const cwd = await initialized();
+    const cwd = await initializedCopy();
     const copied = await copyDist({ remove: ["fast-hook.js"] });
     const expected = await dg(normalBin, ["ticket", "list"], cwd, "");
     const actual = await dg(copied, ["ticket", "list"], cwd, "");
@@ -440,7 +441,7 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
   });
 
   it("@deguboard/core の dist/fast-hook.js が無い古いクローンでも、PreToolUse は今の経路で同じ結果を返す", async () => {
-    const cwd = await initialized();
+    const cwd = await initializedCopy();
     const copied = await copyDist({ coreWithoutFastHook: true });
     const inputs = [
       payload(cwd, "Bash", { command: "gh pr merge 5 --squash" }),
@@ -460,7 +461,7 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
   });
 
   it("古い dist で main が import 先の名前を持たない（SyntaxError）ときも、main に頼るコマンドは直し方を英語で出して 1 で終わる", async () => {
-    const cwd = await initialized();
+    const cwd = await initializedCopy();
     // 速い経路の dist は今のまま。main だけが古く、fast-hook.js に無い名前を import する
     const copied = await copyDist({
       replace: {
@@ -487,7 +488,7 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
   });
 
   it("main も読めない dist では、止まらずに dist が無いか古いことと直し方を英語で出して 1 で終わる", async () => {
-    const cwd = await initialized();
+    const cwd = await initializedCopy();
     const copied = await copyDist({ remove: ["fast-hook.js", "main.js"] });
     const hook = await dg(copied, ARGV, cwd, payload(cwd, "Bash", { command: "ls" }));
     const list = await dg(copied, ["ticket", "list"], cwd, "");
@@ -502,7 +503,7 @@ describe("bin/dg.js の dist の読み込み（t777）", () => {
   it("速い経路が受け持たない入力は、読んだ標準入力を添えて本体に回り、速い経路を欠いた dist（本体が標準入力を自分で読む）と同じ結果になる（t781）", async () => {
     // 初期化していない repo の出力は標準入力に依らない（「not initialized」で終わる）ので、標準入力を取りこぼしても気づけない。
     // 初期化した repo で、標準入力の中身が本体の出力と記録を決める入力を使う
-    const cwd = await initialized();
+    const cwd = await initializedCopy();
     const cases: Array<[string, string]> = [
       [
         "JSON でない（YAML）で拒む Bash",

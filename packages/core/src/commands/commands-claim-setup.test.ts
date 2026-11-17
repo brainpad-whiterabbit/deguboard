@@ -4,9 +4,13 @@ import { existsSync } from "node:fs";
 import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { git } from "../../test/helpers/git-fixture.js";
+import { git, type Fixture } from "../../test/helpers/git-fixture.js";
 import { runGit } from "../git/run.js";
-import { fixture, initialized, runCleanups } from "../../test/helpers/commands-context.js";
+import {
+  initializedFixture,
+  reopenInitialized,
+  runCleanups,
+} from "../../test/helpers/commands-context.js";
 import { iterationTargetFor } from "./claim-setup.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -21,13 +25,8 @@ const NOW = new Date("2026-11-09T03:00:00Z");
 
 describe("承認待ちの Plan に入ったチケットの claim（PL-5）", () => {
   it("承認待ちの Plan に入った todo の claim は成功し、承認を待つよう警告する。Plan の外のチケットは警告しない", async () => {
-    const f = await fixture();
-    await initialized(f.cloneA, { now: () => NOW });
-    const human = await openContext({
-      cwd: f.cloneA,
-      actor: { kind: "human", user: "eiki" },
-      now: () => NOW,
-    });
+    const f = await initializedFixture();
+    const human = await reopenInitialized(f, { now: () => NOW });
     await runCommand(ticketCreate, human, { title: "A" });
     await runCommand(ticketCreate, human, { title: "B" });
     await runCommand(planCreate, human, { tickets: ["t1"] });
@@ -43,10 +42,10 @@ describe("承認待ちの Plan に入ったチケットの claim（PL-5）", () 
 });
 
 /** require_iteration を true にした文脈（config を読み直すため開き直す） */
-async function requiringIteration(cwd: string): Promise<CommandContext> {
-  const ctx = await initialized(cwd, { now: () => NOW });
+async function requiringIteration(f: Fixture): Promise<CommandContext> {
+  const ctx = await reopenInitialized(f, { now: () => NOW });
   await runCommand(configSet, ctx, { key: "lint.require_iteration", value: "true" });
-  return openContext({ cwd, actor: { kind: "human", user: "eiki" }, now: () => NOW });
+  return reopenInitialized(f, { now: () => NOW });
 }
 
 /** git の標準出力（前後の空白を除く） */
@@ -57,8 +56,8 @@ const iterationOf = async (ctx: CommandContext, id: string) =>
 
 describe("claim の Iteration の準備", () => {
   it("require_iteration が true なら、Iteration の空いたチケットを active の Iteration に入れる", async () => {
-    const f = await fixture();
-    const ctx = await requiringIteration(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await requiringIteration(f);
     await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(iterationCreate, ctx, { name: "S2" });
     await runCommand(iterationStart, ctx, { iteration: "s1" });
@@ -77,8 +76,8 @@ describe("claim の Iteration の準備", () => {
   });
 
   it("active がなく planned が 1 つなら、そこに入れて開始する。started_at だけを書き、予定の日付は書かない（IT-1）", async () => {
-    const f = await fixture();
-    const ctx = await requiringIteration(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await requiringIteration(f);
     await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(ticketCreate, ctx, { title: "A" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", no_worktree: true });
@@ -101,8 +100,8 @@ describe("claim の Iteration の準備", () => {
   });
 
   it("active がなく planned が複数なら、どれにも入れず開始もせず、warnings で入れる先を人に頼む", async () => {
-    const f = await fixture();
-    const ctx = await requiringIteration(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await requiringIteration(f);
     await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(iterationCreate, ctx, { name: "S2" });
     await runCommand(ticketCreate, ctx, { title: "A" });
@@ -117,8 +116,8 @@ describe("claim の Iteration の準備", () => {
   });
 
   it("入れ先がなければ Iteration は空のまま claim し、warnings で人に頼むよう伝える。require_iteration が false なら入れない", async () => {
-    const f = await fixture();
-    const ctx = await requiringIteration(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await requiringIteration(f);
     await runCommand(ticketCreate, ctx, { title: "A" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", no_worktree: true });
     expect(claimed.data).toMatchObject({ status: "in_progress" });
@@ -127,8 +126,8 @@ describe("claim の Iteration の準備", () => {
       "There is no Iteration (active or planned) to add t1 to",
     );
 
-    const g = await fixture();
-    const plain = await initialized(g.cloneA, { now: () => NOW });
+    const g = await initializedFixture();
+    const plain = await reopenInitialized(g, { now: () => NOW });
     await runCommand(iterationCreate, plain, { name: "S1" });
     await runCommand(ticketCreate, plain, { title: "B" });
     const free = await runCommand(ticketClaim, plain, { ticket: "t1", no_worktree: true });
@@ -139,8 +138,8 @@ describe("claim の Iteration の準備", () => {
   });
 
   it("チケットの Iteration が planned なら開始し、ほかに active があれば開始せず warnings に出して claim は成功する", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA, { now: () => NOW });
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f, { now: () => NOW });
     await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(iterationCreate, ctx, { name: "S2" });
     await runCommand(ticketCreate, ctx, { title: "A", iteration: "s1" });
@@ -155,8 +154,8 @@ describe("claim の Iteration の準備", () => {
   });
 
   it("agent の claim も Iteration への追加と開始を行う", async () => {
-    const f = await fixture();
-    const human = await requiringIteration(f.cloneA);
+    const f = await initializedFixture();
+    const human = await requiringIteration(f);
     await runCommand(iterationCreate, human, { name: "S1" });
     await runCommand(ticketCreate, human, { title: "A" });
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
@@ -176,8 +175,8 @@ describe("claim の Iteration の準備", () => {
 
 describe("claim の worktree の作成", () => {
   it("claim は作業ブランチを base から切って worktree.root/<ブランチ名> に worktree を作り、ticket show も同じ場所を返す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1" });
     // 既定の worktree.root は ../<repo>.worktrees
@@ -203,8 +202,8 @@ describe("claim の worktree の作成", () => {
   });
 
   it("--worktree-path で場所を変えられ、no_worktree・without_branch では作らない。worktree_path と同時の指定は使い方の誤り", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B", "C", "D"]) await runCommand(ticketCreate, ctx, { title });
     const custom = path.join(f.root, "custom-wt");
     const a = await runCommand(ticketClaim, ctx, {
@@ -231,8 +230,8 @@ describe("claim の worktree の作成", () => {
   });
 
   it("unclaim の後にローカルに残ったブランチはそのまま checkout し、作れなければ warnings に出して claim は成功する", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketCreate, ctx, { title: "B" });
     const first = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-again" });
@@ -267,15 +266,15 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
   const marker = ["node", "-e", "require('node:fs').writeFileSync('setup-ran.txt', 'ok')"];
 
   /** worktree.setup を書いたあと、読み直した文脈を返す（claim は開いたときの config で回る） */
-  async function withSetup(cwd: string, value: unknown): Promise<CommandContext> {
-    const ctx = await initialized(cwd);
+  async function withSetup(f: Fixture, value: unknown): Promise<CommandContext> {
+    const ctx = await reopenInitialized(f);
     await runCommand(configSet, ctx, { key: "worktree.setup", value });
-    return openContext({ cwd, actor: { kind: "human", user: "eiki" } });
+    return reopenInitialized(f);
   }
 
   it("既定の空のままなら何も回さず、印のファイルも準備の警告も出ない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-empty" });
     const dir = claimed.data.worktree!;
@@ -285,12 +284,8 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
   });
 
   it("終了コードで止まったときは、警告に stderr の末尾を添える", async () => {
-    const f = await fixture();
-    const ctx = await withSetup(f.cloneA, [
-      "node",
-      "-e",
-      "console.error('原因の行'); process.exit(4)",
-    ]);
+    const f = await initializedFixture();
+    const ctx = await withSetup(f, ["node", "-e", "console.error('原因の行'); process.exit(4)"]);
     await runCommand(ticketCreate, ctx, { title: "A" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-stderr" });
     expect(claimed.warnings.join("\n")).toContain("exit code 4");
@@ -298,8 +293,8 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
   });
 
   it("claim が作った worktree で、引数配列のコマンドを worktree の中で回す（元のクローンでは回さない）", async () => {
-    const f = await fixture();
-    const ctx = await withSetup(f.cloneA, marker);
+    const f = await initializedFixture();
+    const ctx = await withSetup(f, marker);
     await runCommand(ticketCreate, ctx, { title: "A" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-setup" });
     const dir = claimed.data.worktree!;
@@ -309,8 +304,8 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
   });
 
   it("準備が失敗しても claim は成功し、warnings に失敗と手で回すコマンドを出す", async () => {
-    const f = await fixture();
-    const ctx = await withSetup(f.cloneA, ["node", "-e", "process.exit(3)"]);
+    const f = await initializedFixture();
+    const ctx = await withSetup(f, ["node", "-e", "process.exit(3)"]);
     await runCommand(ticketCreate, ctx, { title: "A" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-exit" });
     expect(claimed.data).toMatchObject({ status: "in_progress" });
@@ -322,8 +317,8 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
   });
 
   it("起動できないコマンドも claim は成功し、回せなかったことと手で回すコマンドを warnings に出す", async () => {
-    const f = await fixture();
-    const ctx = await withSetup(f.cloneA, ["deguboard-no-such-command-t621"]);
+    const f = await initializedFixture();
+    const ctx = await withSetup(f, ["deguboard-no-such-command-t621"]);
     await runCommand(ticketCreate, ctx, { title: "A" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "t1-missing" });
     expect(claimed.data).toMatchObject({ status: "in_progress" });

@@ -28,6 +28,9 @@ import {
   cleanups,
   fixture,
   initialized,
+  initializedBothFixture,
+  initializedFixture,
+  reopenInitialized,
   runCleanups,
   setDependsOn,
 } from "../../test/helpers/commands-context.js";
@@ -69,6 +72,7 @@ describe("init", () => {
   it("リモートがなくても init と起票ができる", async () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);
+    // リモートのないリポジトリでの init を確かめるので、雛形（リモート付き）を写さずに init する
     const ctx = await initialized(local.dir);
     expect(ctx.repo.dataRemote).toBeNull();
     const r = await runCommand(ticketCreate, ctx, { title: "オフラインの起票" });
@@ -84,8 +88,8 @@ describe("init", () => {
 
 describe("用意", () => {
   it("validate と lint が指摘を出し、config.set が 1 項目を変える", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A", body: "本文だけ\n" });
     // 雛形のまま（項目が空）
     await runCommand(ticketCreate, ctx, { title: "B", summary: "s" });
@@ -159,8 +163,8 @@ describe("用意", () => {
   });
 
   it("config.set は文字列の項目に数字だけ・true だけの値を文字列のまま保存し、真偽値・数値・リストの項目は変換して保存する", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     // 文字列の項目：数字だけ・true・false だけでも文字列のまま
     const year = await runCommand(configSet, ctx, { key: "git.base_branch", value: "2026" });
     expect(year.data.git.base_branch).toBe("2026");
@@ -213,8 +217,8 @@ describe("用意", () => {
   });
 
   it("config.set は enum の項目（commit.mode）を空・null・値の省略にしても既定に戻さず弾き、値は変わらない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
     for (const value of ["", null, undefined]) {
       await expect(runCommand(configSet, ctx, { key: "commit.mode", value })).rejects.toMatchObject(
@@ -226,8 +230,8 @@ describe("用意", () => {
   });
 
   it("config.set は空にすると既定に戻る項目（clears_to_default）を空にすると既定に戻し、既定が空の項目は空のまま、配列の項目は空の配列にする", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const defaults = defaultConfig();
     // 空の扱いは項目の定義の clears_to_default で決まる（既定が空でない文字列の項目だけ true）
     const byKey = new Map(configFields().map((x) => [x.key, x]));
@@ -252,8 +256,8 @@ describe("用意", () => {
   });
 
   it("config.set --local は個人の設定（deguboard-local/config.yaml）に書き、各コマンドは個人 > チーム > 既定 の値を使い、コミットも push もしない（t437）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(configSet, ctx, { key: "models.light", value: "team-light" });
     await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
     const head = (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout;
@@ -304,8 +308,8 @@ describe("用意", () => {
   });
 
   it("config.set --local はチーム専用・未知の項目と不正な値を VALIDATION_FAILED で拒み、個人のファイルに書かない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const localFile = path.join(ctx.repo.localDir, "config.yaml");
     for (const [key, value] of [
       ["merge.delete_branch", "true"],
@@ -326,8 +330,8 @@ describe("用意", () => {
   });
 
   it("config.unset は --local で個人の上書きを外してチームの値に戻し、--local なしでチームの値を既定に戻す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const localFile = path.join(ctx.repo.localDir, "config.yaml");
     await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
     await runCommand(configSet, ctx, { key: "commit.mode", value: "manual", local: true });
@@ -383,8 +387,8 @@ describe("用意", () => {
   });
 
   it("個人のファイルにあるチーム専用・未知の項目と読めない値は無視して validate が警告し、チームの set は個人の上書きを写さない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await mkdir(ctx.repo.localDir, { recursive: true });
     await writeFile(
       path.join(ctx.repo.localDir, "config.yaml"),
@@ -447,8 +451,8 @@ describe("用意", () => {
   });
 
   it("config.show --fields は項目ごとの scope と、チームの値・個人の上書きを返す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(configSet, ctx, { key: "models.light", value: "team-light" });
     await runCommand(configSet, ctx, { key: "models.light", value: "my-light", local: true });
     await runCommand(configSet, ctx, { key: "actions.shell", value: "true", local: true });
@@ -484,8 +488,8 @@ describe("用意", () => {
   });
 
   it("validate は読めない Run のファイルを指摘し、ほかの読み込みは止めない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a"] });
     const run = {
       id: "r20261031-041500-3fa2",
@@ -516,8 +520,8 @@ describe("用意", () => {
   });
 
   it("lint は閉じた Epic に残る終わっていないチケットと、すべて終わったのに開いている Epic・Plan を指摘する", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const acceptance = ["a"];
     await runCommand(epicCreate, ctx, { title: "閉じた", summary: "s" });
     await runCommand(epicCreate, ctx, { title: "終わった", summary: "s" });
@@ -541,8 +545,8 @@ describe("用意", () => {
   });
 
   it("lint は Plan を作った後の depends_on の変更でできた after とまたぐ循環を、開いた Plan だけ経路つきで指摘する", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const acceptance = ["a"];
     await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance });
     await runCommand(ticketCreate, ctx, { title: "B", summary: "s", acceptance });
@@ -586,8 +590,8 @@ describe("用意", () => {
   });
 
   it("lint.require_iteration が true のときだけ、Iteration に入らずに todo・abandoned 以外に進んだチケットを指摘し、閉じた Epic の done は除く", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     const acceptance = ["a"];
     await runCommand(epicCreate, ctx, { title: "閉じた", summary: "s" });
     await runCommand(epicCreate, ctx, { title: "開いた", summary: "s" });
@@ -627,8 +631,8 @@ describe("用意", () => {
   });
 
   it("入力の形が違えば UsageError、sprint は iteration のエイリアス", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await expect(runCommand(ticketCreate, ctx, { title: "" })).rejects.toBeInstanceOf(UsageError);
     expect(findCommand("sprint.create")?.name).toBe("iteration.create");
     expect(findCommand("ticket.nope")).toBeUndefined();
@@ -637,9 +641,9 @@ describe("用意", () => {
 
 describe("仮番号の振り直し（DT-5）", () => {
   it("オフラインで起票した仮番号がリモートの番号と衝突したら、sync が番号・ファイル名・参照・コミットの題を振り直して push する", async () => {
-    const f = await fixture();
-    const a = await initialized(f.cloneA);
-    const b = await initialized(f.cloneB);
+    const f = await initializedBothFixture();
+    const a = await reopenInitialized(f);
+    const b = await reopenInitialized(f, { cwd: f.cloneB });
 
     // A はオフラインで t1・t2（t1 に依存）を起票する。push できないので仮番号
     await git(f.cloneA, ["remote", "set-url", "origin", path.join(f.root, "nonexistent.git")]);
@@ -685,9 +689,9 @@ describe("仮番号の振り直し（DT-5）", () => {
   });
 
   it("仮番号でない競合はこれまでどおり報告し、何も書き換えない", async () => {
-    const f = await fixture();
-    const a = await initialized(f.cloneA);
-    const b = await initialized(f.cloneB);
+    const f = await initializedBothFixture();
+    const a = await reopenInitialized(f);
+    const b = await reopenInitialized(f, { cwd: f.cloneB });
     await runCommand(ticketCreate, a, { title: "共通" });
     await runCommand(sync, b, {});
     // 同じチケットの同じ項目を両方で変えて、まとめてコミットしてから push を競わせる

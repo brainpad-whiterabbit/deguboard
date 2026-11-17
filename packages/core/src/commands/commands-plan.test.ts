@@ -17,9 +17,9 @@ import {
 import { configSet, lint } from "./setup.js";
 import { ticketCreate, ticketDelete, ticketMove, ticketShow, ticketUpdate } from "./ticket.js";
 import {
-  fixture,
+  initializedFixture,
+  reopenInitialized,
   setDependsOn,
-  initialized,
   runCleanups,
 } from "../../test/helpers/commands-context.js";
 
@@ -27,8 +27,8 @@ afterEach(runCleanups);
 
 describe("Plan", () => {
   it("create は承認待ちで作って即 push し、存在しない・終わった・別の開いた Plan のチケットを拒否する（PL-3）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B", "C", "D", "E"]) await runCommand(ticketCreate, ctx, { title });
     await runCommand(ticketMove, ctx, { ticket: "t4", status: "done", override: "PR なし" });
     await runCommand(ticketMove, ctx, { ticket: "t5", status: "abandoned" });
@@ -81,8 +81,8 @@ describe("Plan", () => {
   });
 
   it("create は after の循環と、Plan の外のチケットへの scope を拒否する", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
     await expect(
       runCommand(planCreate, ctx, {
@@ -97,8 +97,8 @@ describe("Plan", () => {
   });
 
   it("create は after と depends_on（Plan の外の終わっていないチケットを含む）をまたぐ循環を拒否し、経路をメッセージに出す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketCreate, ctx, { title: "B", depends_on: ["t1"] });
     await runCommand(ticketCreate, ctx, { title: "C", depends_on: ["t2"] });
@@ -140,8 +140,8 @@ describe("Plan", () => {
   });
 
   it("ticket の作成と更新は、開いた Plan の after と循環を作る depends_on を拒否し、何も書かない（PL-3）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
     // t1 は after で t2 を待つ（t2 が先）
     await runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t1: "t2" } });
@@ -175,8 +175,8 @@ describe("Plan", () => {
   });
 
   it("create は after が空の Plan を、depends_on だけの循環があっても拒否しない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B"]) await runCommand(ticketCreate, ctx, { title });
     // TK-2 は作成時に循環を拒否するので、ファイルを直接書いて壊れたデータ（t1 と t2 が互いを待つ）を作る
     await setDependsOn(ctx, "t1", "[t2]");
@@ -188,8 +188,8 @@ describe("Plan", () => {
   });
 
   it("depends_on の書き込みは、別の開いた Plan にすでにある壊れた循環に関係なく、その Plan に新しくできる循環を拒否する（PL-3）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B", "C", "D"]) await runCommand(ticketCreate, ctx, { title });
     // p1 は t2 が after で t1 を待つ。直接の編集で t1 が t2 を depends_on で待つと、p1 の中で壊れた循環になる
     await runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t2: "t1" } });
@@ -207,8 +207,8 @@ describe("Plan", () => {
   });
 
   it("create は after があっても、見つかる循環が after の辺を含まない（depends_on だけ）なら拒否しない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
     // t1 と t2 は depends_on だけで互いを待つ（壊れたデータ）。t3 は after で t1 を待つ（after の辺は循環しない）
     await setDependsOn(ctx, "t1", "[t2]");
@@ -223,8 +223,8 @@ describe("Plan", () => {
   });
 
   it("create は段階（tier）を details に記録し、不正な値と Plan の外のチケットを拒否する", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B"]) await runCommand(ticketCreate, ctx, { title });
     await expect(
       runCommand(planCreate, ctx, { tickets: ["t1"], tier: { t1: "huge" as "light" } }),
@@ -246,8 +246,8 @@ describe("Plan", () => {
   });
 
   it("show は進捗を Plan に書かず、チケットの状態から求めて待ちを出す（PL-2）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
     await runCommand(planCreate, ctx, { tickets: ["t1", "t2", "t3"], after: { t2: ["t1"] } });
     const yaml = path.join(ctx.repo.dataDir, "plans/p1.yaml");
@@ -274,8 +274,8 @@ describe("Plan", () => {
   });
 
   it("show は状態を Plan に書かず、list と同じく pending_approval と closed_at から求める（PL-5）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(planCreate, ctx, { tickets: ["t1"] });
     const statuses = async () => {
@@ -295,8 +295,8 @@ describe("Plan", () => {
   });
 
   it("show と list は、待ちの相手を after が先・depends_on が後で出し、着手できるものと次を Plan の順で決める（PL-6）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B", "C", "D"]) await runCommand(ticketCreate, ctx, { title });
     await runCommand(ticketCreate, ctx, { title: "E", depends_on: ["t3", "t4"] });
     // items が [t1(after t2), t2, t3, t5(after t3、depends_on t3・t4)]
@@ -333,8 +333,8 @@ describe("Plan", () => {
   });
 
   it("消したチケットを after が指しても待たない。depends_on は deps_done と同じく待つ（PL-6）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B"]) await runCommand(ticketCreate, ctx, { title });
     await runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t2: "t1" } });
     await runCommand(ticketDelete, ctx, { ticket: "t1" });
@@ -347,8 +347,8 @@ describe("Plan", () => {
   });
 
   it("depends_on は abandoned の依存先と Plan の外の終わった依存先を待たず、消した依存先は deps_done と同じく待つ（PL-6）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     // t1 は Plan の外、t2 は abandoned にし、t3 は消す
     for (const title of ["Plan の外", "やめる", "消す"])
       await runCommand(ticketCreate, ctx, { title });
@@ -374,8 +374,8 @@ describe("Plan", () => {
   });
 
   it("終わったかの判定は消したチケットを数えず、abandoned だけの Plan も終わったものとして lint が指摘する（表で比べる）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     // p1：done と消したチケット / p2：abandoned だけ / p3：消したチケットだけ / p4：done と未完了
     for (const title of ["A", "B", "C", "D", "E", "F"])
       await runCommand(ticketCreate, ctx, { title });
@@ -420,8 +420,8 @@ describe("Plan", () => {
   });
 
   it("approve は approved_by と approved_at を書いて pending_approval を外し、close は closed_at を書く", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(planCreate, ctx, { tickets: ["t1"] });
     const approved = await runCommand(planApprove, ctx, { plan: "p1" });
@@ -446,8 +446,8 @@ describe("Plan", () => {
   });
 
   it("list は状態と進捗を出して open・pending・approved・closed で絞り、ticket show は開いた Plan を出す", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
     await runCommand(planCreate, ctx, { tickets: ["t1"] });
     await runCommand(planClose, ctx, { plan: "p1" });
@@ -478,8 +478,8 @@ describe("Plan", () => {
   });
 
   it("agent が --auto で聞かずに承認すると agent の ID を、人の承認（--approved-by）で承認するとその人を approved_by に記録する。なくした config の actor.human_only が残っていても読まない", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketCreate, ctx, { title: "B" });
     await runCommand(planCreate, ctx, { tickets: ["t1"] });
