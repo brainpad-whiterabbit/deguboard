@@ -143,3 +143,7 @@ checkpoints:
     approved_by: Eiki Kitajima/agent
     basis:
       facts: f4f3ff74833607e8
+  - name: release
+    at: 2026-11-17T05:49:50Z
+    by: Eiki Kitajima/agent
+    approved_by: Eiki Kitajima
