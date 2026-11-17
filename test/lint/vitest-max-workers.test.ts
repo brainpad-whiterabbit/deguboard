@@ -40,7 +40,7 @@ describe("test:related のワーカー数（t1076）", () => {
     const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
       scripts: Record<string, string>;
     };
-    const script = pkg.scripts["test:related"];
+    const script = pkg.scripts["test:related"] ?? "";
     expect(isRelatedRun(script.split(/\s+/))).toBe(true);
     expect(script).not.toContain("test-locked");
   });
