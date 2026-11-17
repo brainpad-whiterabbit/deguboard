@@ -1,0 +1,66 @@
+id: p153
+tickets: [t1053, t1054, t1055, t1051, t1056, t1059, t1063, t1064, t1060, t1068, t1065, t1057, t1058, t1067, t1061, t1062, t1066]
+after:
+  t1060:
+    - t1054
+    - t1055
+  t1068:
+    - t1055
+    - t1056
+  t1057:
+    - t1051
+    - t1068
+  t1058:
+    - t1053
+    - t1068
+  t1065:
+    - t1051
+  t1061:
+    - t1065
+  t1062:
+    - t1065
+  t1067:
+    - t1060
+  t1066:
+    - t1060
+pending_approval: true
+details:
+  t1053:
+    scope: マージドライバで checkpoints を要素の和集合にする。データの同期の道なので、push を拒まれた後に取り込み直す途中で止まった場合もテストで確かめる
+    approach: merge.ts に checkpoints の和集合を足し、bare リモートと 2 つの clone で競合を再現するテストを書く
+    tier: heavy
+  t1051:
+    scope: todo → in_progress の既定を ask_unless_auto にし、guide・Skill・ADR-003・要件を合わせる
+    tier: heavy
+  t1065:
+    scope: dg uninstall を core のコマンド定義に足す。800 行を超えそうなら、止める判定と消す処理を分ける提案を人に返す
+    tier: heavy
+  t1057:
+    scope: 判断は変えずに ADR-003・ADR-030 を 8000 字の警告の下にする。t1051・t1068 の書き換えの後に行う
+    tier: standard
+  t1054:
+    tier: standard
+  t1055:
+    tier: standard
+  t1056:
+    tier: standard
+  t1059:
+    tier: standard
+  t1063:
+    tier: standard
+  t1064:
+    tier: standard
+  t1060:
+    tier: standard
+  t1068:
+    tier: standard
+  t1058:
+    tier: standard
+  t1067:
+    tier: heavy
+  t1061:
+    tier: standard
+  t1062:
+    tier: standard
+  t1066:
+    tier: standard
