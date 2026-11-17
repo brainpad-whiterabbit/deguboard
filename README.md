@@ -27,6 +27,8 @@ deguboard builds into your Git repository a development flow for handing develop
 
 Teammates install the extension, clone the repository, and follow the same checklist to see the same board.
 
+To stop using deguboard on this machine, in one clone, or as a team, follow [Uninstall](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#uninstall) in the usage guide. Uninstall the extension last.
+
 ## Usage
 
 You run the board by asking agents. Unlike most kanban tools, there is no drag and drop, and there are no buttons for creating tickets or for changing Iterations, Epics, and Plans, so that every change goes through dg's rule checks, the Skill's checks, and your approval. In the ticket details you can still edit the text and attributes, including the status. We may let you do more directly in the future.
