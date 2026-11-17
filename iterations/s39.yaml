@@ -1,7 +1,7 @@
 id: s39
 name: sprint39
 goal: エージェントに任せる範囲と人の承認を、workflow.yaml の 1 か所で決められるようにする（e37）
-status: active
+status: closed
 started_at: 2026-11-16T03:18:36Z
 checkpoints:
   - name: assign
@@ -197,3 +197,6 @@ checkpoints:
         - t1074
         - t1082
         - t1083
+closed_at: 2026-11-17T05:53:12Z
+completed: 57
+carried_over: 0
