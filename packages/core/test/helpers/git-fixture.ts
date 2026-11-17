@@ -207,6 +207,15 @@ export async function createLocalOnlyRepo(): Promise<{ dir: string; cleanup(): P
   return { dir, cleanup: () => removeDir(root) };
 }
 
+/**
+ * clone のリモートをすべて外す（追跡 ref も消える）。init の後の雛形の setup の終わりに呼び、データのリモートのない clone にする。
+ * データのリポジトリ（.git/deguboard）は linked worktree で clone の config を共有するので、そちらのリモートも外れる
+ */
+export async function removeRemotes(clone: string): Promise<void> {
+  const names = (await runGit(clone, ["remote"])).stdout.split("\n").filter(Boolean);
+  for (const name of names) await runGit(clone, ["remote", "remove", name]);
+}
+
 export interface OpenedRepo {
   repo: GitRepo;
   store: Store;

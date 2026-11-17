@@ -1,12 +1,13 @@
 // 流れの段階の関所（dg checkpoint）：段階の値での判定と、Iteration の checkpoints に足す記録（EX-8）。
 // 記録を dg flow next がどう数えるかは flow.test.ts
+// 同期を確かめないので、すべてデータのリモートのない initializedLocalFixture で回す
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { git } from "../../test/helpers/git-fixture.js";
 import {
-  initializedFixture,
+  initializedLocalFixture,
   reopenInitialized,
   runCleanups,
   writeWorkflowYaml,
@@ -28,7 +29,7 @@ const NOW = new Date("2026-03-04T05:06:07Z");
  * agent の --approved-by human は claude になる。Iteration s1 に t1（done）と t2（todo）があり、t3 は Iteration に入っていない todo
  */
 async function humanAndAgent() {
-  const f = await initializedFixture();
+  const f = await initializedLocalFixture();
   const human: CommandContext = { ...(await reopenInitialized(f)), now: () => NOW };
   const opened = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
   const agent: CommandContext = { ...human, actor: opened.actor };

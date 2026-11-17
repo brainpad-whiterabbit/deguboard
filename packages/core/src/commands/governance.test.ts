@@ -1,9 +1,10 @@
 // カンバンの管理の操作（Workflow の governance）と Core に固定の操作の判定（WF-7）
+// 同期を確かめないので、すべてデータのリモートのない initializedLocalFixture で回す
 
 import { afterEach, describe, expect, it } from "vitest";
 import { git } from "../../test/helpers/git-fixture.js";
 import {
-  initializedFixture,
+  initializedLocalFixture,
   reopenInitialized,
   runCleanups,
   writeWorkflowYaml,
@@ -28,7 +29,7 @@ afterEach(runCleanups);
 
 /** 人（eiki）と、別のユーザのエージェント（claude/agent）の文脈。索引は同じものを使う。agent の --approved-by human は claude になる */
 async function humanAndAgent() {
-  const f = await initializedFixture();
+  const f = await initializedLocalFixture();
   const human = await reopenInitialized(f);
   const opened = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
   const agent = { ...human, actor: opened.actor };

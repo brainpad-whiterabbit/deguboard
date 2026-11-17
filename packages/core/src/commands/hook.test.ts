@@ -12,7 +12,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createFixtureFrom, type Layout } from "../../test/helpers/git-fixture.js";
+import { createFixtureFrom, removeRemotes, type Layout } from "../../test/helpers/git-fixture.js";
 import type { Run } from "../model/run.js";
 import { toIsoDateTime } from "../model/common.js";
 import { unfixedLightLines } from "../run/findings.js";
@@ -72,9 +72,18 @@ async function prepareRepo(f: Layout): Promise<void> {
   await runCommand(commit, ctx, {});
 }
 
-/** prepareRepo を済ませた雛形から写した、チケット t1・t2 があるリポジトリの文脈。HOME は一時ディレクトリ */
-async function prepared() {
-  const f = await createFixtureFrom("prepared", prepareRepo);
+/**
+ * prepareRepo を済ませた雛形から写した、チケット t1・t2 があるリポジトリの文脈。HOME は一時ディレクトリ。
+ * 既定はデータのリモートのない雛形で、フックと Run の開閉を書き込みのたびの取り込みと push なしで確かめる（SY-6）。
+ * withRemote は作業ブランチの push（手直しの Run を閉じる最後の push）を確かめるテストだけが使う
+ */
+async function prepared(withRemote = false) {
+  const f = withRemote
+    ? await createFixtureFrom("prepared", prepareRepo)
+    : await createFixtureFrom("prepared-local", async (l) => {
+        await prepareRepo(l);
+        await removeRemotes(l.cloneA);
+      });
   cleanups.push(f.cleanup);
   const actor = { kind: "agent" as const, user: "eiki" };
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
@@ -909,7 +918,7 @@ describe("dg hook の移行の経路と兄弟の Run（RN-7）", () => {
   });
 
   it("手直しを続きで頼んだ会話で claim が開いた手直しの Run は、待ちの印から続けて止まっても印の step（実装）に直さず、push があれば fix のまま success で閉じる", async () => {
-    const { ctx, parent, subagent } = await prepared();
+    const { ctx, parent, subagent } = await prepared(true);
     await runCommand(ticketClaim, ctx, {
       approved_by: "human",
       no_worktree: true,

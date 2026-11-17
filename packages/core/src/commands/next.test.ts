@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { asHuman } from "../../test/helpers/commands-context.js";
-import { createFixture } from "../../test/helpers/git-fixture.js";
+import {
+  asHuman,
+  initializedLocalFixture,
+  reopenInitialized,
+  runCleanups,
+} from "../../test/helpers/commands-context.js";
 import type { Run, RunReview } from "../model/run.js";
 import { BRANCH_VALUE_MAX } from "../model/ticket.js";
 import { openContext } from "./context.js";
@@ -9,16 +13,14 @@ import { next, nextOf, stageOf, type NextStep, type StageFacts } from "./next.js
 import { planApprove, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
 import { runStart } from "./run.js";
-import { configSet, init } from "./setup.js";
+import { configSet } from "./setup.js";
 import { ticketCreate, ticketMove, ticketShow, ticketUpdate, type TicketDetail } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
 import { wipOverOf } from "../workflow/wip.js";
 import type { Ticket } from "../model/ticket.js";
 
-const cleanups: Array<() => Promise<void>> = [];
-afterEach(async () => {
-  await Promise.all(cleanups.splice(0).map((c) => c()));
-});
+// 次の一手の判定は同期を確かめないので、データのリモートのない initializedLocalFixture で回す（SY-6）
+afterEach(runCleanups);
 
 let seq = 0;
 /** 閉じた（finished を渡せば）か実行中の Run。at は開始の時刻の分（2026-11-07T10:<at>:00Z） */
@@ -203,11 +205,9 @@ describe("作業の段階（stageOf。EX-3）", () => {
 
 describe("dg next と ticket show の stage（EX-3）", () => {
   async function prepared() {
-    const f = await createFixture();
-    cleanups.push(f.cleanup);
-    const actor = { kind: "agent" as const, user: "eiki" };
-    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
-    const ctx = await openContext({ cwd: f.cloneA, actor });
+    const ctx = await reopenInitialized(await initializedLocalFixture(), {
+      actor: { kind: "agent", user: "eiki" },
+    });
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketCreate, ctx, { title: "B" });
     return ctx;
@@ -768,11 +768,7 @@ describe("列の WIP の上限（wipOverOf。WF-8）", () => {
 
 describe("dg next の WIP の上限（WF-8）", () => {
   async function board() {
-    const f = await createFixture();
-    cleanups.push(f.cleanup);
-    const actor = { kind: "human" as const, user: "eiki" };
-    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
-    const ctx = await openContext({ cwd: f.cloneA, actor });
+    const ctx = await reopenInitialized(await initializedLocalFixture());
     for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
     return ctx;
   }

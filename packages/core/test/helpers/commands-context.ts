@@ -8,7 +8,13 @@ import { runCommand, type CommandContext } from "../../src/commands/define.js";
 import { init } from "../../src/commands/setup.js";
 import { resetGhCache } from "../../src/git/facts.js";
 import { recordBaseline } from "../../src/git/outside.js";
-import { createFixture, createFixtureFrom, git, type Fixture } from "./git-fixture.js";
+import {
+  createFixture,
+  createFixtureFrom,
+  git,
+  removeRemotes,
+  type Fixture,
+} from "./git-fixture.js";
 
 export const cleanups: Array<() => Promise<void>> = [];
 
@@ -30,6 +36,39 @@ export async function fixture(): Promise<Fixture> {
 export async function initializedFixture(): Promise<Fixture> {
   const f = await createFixtureFrom("initialized", async (layout) => {
     await initialized(layout.cloneA);
+  });
+  cleanups.push(f.cleanup);
+  return f;
+}
+
+/**
+ * initializedFixture と同じく init 済みで、clone A からリモート（コードとデータの両方の origin）を外した雛形から写す。
+ * 即時の操作（作成・claim など）は push.mode によらず取り込みと push をする（SY-2・SY-3）ので、リモートがあると書き込みのたびに
+ * fetch・rebase・push が走る。同期を確かめないテストはこれで回す（SY-6：リモートがなくても同期を除くすべての操作が動く）。
+ * 同期・取り込み・push・リモート・即時の操作の取得を確かめるテストは initializedFixture（リモート付き）のまま回す。
+ * 文脈は reopenInitialized で開く。
+ *
+ * データのリモートのない雛形で回すファイル（同期を確かめない。押し出しや取得を確かめる数件だけリモート付きの雛形に残す）：
+ * - commands-flow-ticket・commands-plan：遷移・担当・Plan の判定。2 つの clone の claim・start・reopen の競合（SY-3）と
+ *   plan create の即時の push の 1 件だけリモート付き
+ * - run・hook：Run の記録とフック。push.mode auto の finish の push（run の RN-3）と、手直しの Run を閉じる作業ブランチの push（hook）だけリモート付き
+ * - workflow：Workflow の検証と書き込み。workflow set の push.mode auto の push と別の clone での読み取りだけリモート付き
+ * - flow・flow-permission・governance・checkpoint・retro・metrics・next・brief：判定と集計と文の組み立てで、すべてリモートなし
+ *
+ * リモート付きのまま残すファイル（同期・取り込み・push・リモート・即時の操作の取得そのものを確かめる）：
+ * commands・commands-offline・commands-data-remote・commands-data-branch（書き込みの単位・push の再送・git の起動の上限・
+ * リモートの有無と別のリポジトリ）、commands-flow-reconcile・commands-flow-reclaim・pr・gate・orphan-review（作業ブランチの push と
+ * PR の照合・sync の取り込み）、commands-claim-setup（claim の取得と作業ブランチ）、history（浅い clone の fetch）、git/ の各テスト（取り込み・
+ * マージドライバ・採番の振り直し）、cli の program・mcp と server の app（入口から init と push を通す）
+ *
+ * 上の 2 つの一覧は、t1078 で時間を測って見直したファイルだけを分けたもの。一覧にないファイル（core の ask・iteration-next・
+ * local・hook-settings・setup-check・skill-files・uninstall、cli の ask・fast-hook・serve など）は見直しておらず、既定の
+ * initializedFixture（リモート付き）のまま回す。同期を確かめないものはこの雛形へ移す候補
+ */
+export async function initializedLocalFixture(): Promise<Fixture> {
+  const f = await createFixtureFrom("initialized-local", async (layout) => {
+    await initialized(layout.cloneA);
+    await removeRemotes(layout.cloneA);
   });
   cleanups.push(f.cleanup);
   return f;

@@ -1,7 +1,7 @@
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createFixture, git } from "../../test/helpers/git-fixture.js";
+import { git } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { recordBaseline } from "../git/outside.js";
 import { emptyCauseCounts, emptyUsage } from "../model/run.js";
@@ -10,24 +10,23 @@ import { runCommand, type CommandContext } from "./define.js";
 import { epicAdd, epicCreate } from "./epic.js";
 import { findCommand } from "./index.js";
 import { iterationAdd, iterationClose, iterationCreate, iterationStart } from "./iteration.js";
-import { fakeGh } from "../../test/helpers/commands-context.js";
+import {
+  fakeGh,
+  initializedLocalFixture,
+  reopenInitialized,
+  runCleanups,
+} from "../../test/helpers/commands-context.js";
 import { metricsLines, metricsShow, metricsSources } from "./metrics.js";
-import { commit, init } from "./setup.js";
+import { commit } from "./setup.js";
 import { ticketCreate } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
 
-const cleanups: Array<() => Promise<void>> = [];
-afterEach(async () => {
-  await Promise.all(cleanups.splice(0).map((c) => c()));
-});
+// 指標は同期を確かめないので、データのリモートのない initializedLocalFixture で回す（SY-6）
+afterEach(runCleanups);
 
 /** t1（e1）・t2 を起票し、Run を 3 つ runs/ に直接置いてコミットする（Run を作るコマンドはまだない） */
 async function scenario(): Promise<CommandContext> {
-  const f = await createFixture();
-  cleanups.push(f.cleanup);
-  const actor = { kind: "human" as const, user: "eiki" };
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
-  const ctx = await openContext({ cwd: f.cloneA, actor });
+  const ctx = await reopenInitialized(await initializedLocalFixture());
   await runCommand(ticketCreate, ctx, { title: "A" });
   await runCommand(ticketCreate, ctx, { title: "B" });
   await runCommand(epicCreate, ctx, { title: "E" });
@@ -374,11 +373,8 @@ describe("metrics show", () => {
 describe("metrics lines", () => {
   /** t1〜t4 を done にする。t1 は PR #11（マージ済み）、t2 は PR #12（閉じた）、t3 は PR なし、t4 は PR #14 で行数を記録済み */
   async function doneTickets(): Promise<{ ctx: CommandContext; root: string }> {
-    const f = await createFixture();
-    cleanups.push(f.cleanup);
-    const actor = { kind: "human" as const, user: "eiki" };
-    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
-    const ctx = await openContext({ cwd: f.cloneA, actor });
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
     for (const title of ["A", "B", "C", "D", "E"]) await runCommand(ticketCreate, ctx, { title });
     await ctx.store.update("ticket", "t1", { status: "done", pr: 11 });
     await ctx.store.update("ticket", "t2", { status: "done", pr: 12 });
@@ -508,11 +504,8 @@ describe("metrics sources", () => {
    * t4（PR #14 マージ済み、Iteration なし。題に t1 を書く）
    */
   async function tickets(): Promise<{ ctx: CommandContext; root: string }> {
-    const f = await createFixture();
-    cleanups.push(f.cleanup);
-    const actor = { kind: "human" as const, user: "eiki" };
-    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
-    const ctx = await openContext({ cwd: f.cloneA, actor });
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
     await runCommand(ticketCreate, ctx, {
       title: "A",
       body: "t1 自身と、語の中の at2・t2x は参照でない",

@@ -12,6 +12,13 @@ import {
   type Fixture,
   type Layout,
 } from "../../test/helpers/git-fixture.js";
+import {
+  initializedLocalFixture,
+  reopenInitialized,
+  runCleanups,
+} from "../../test/helpers/commands-context.js";
+import { runCommand } from "../commands/define.js";
+import { ticketCreate } from "../commands/ticket.js";
 import { resolveRepoPaths } from "./repo.js";
 import { ensureDeguboardWorktree } from "./worktree.js";
 
@@ -203,5 +210,19 @@ describe("createFixtureFrom（setup を済ませた雛形から写す）", () =>
       path.join(template ?? "", "remote.git"),
     );
     await copy.cleanup();
+  });
+});
+
+describe("initializedLocalFixture（データのリモートのない init 済みの雛形）", () => {
+  it("clone A とデータの worktree にリモートがなく、即時の操作は取り込みも push もせずにコミットし、警告を出さない（SY-6）", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    expect(ctx.repo).toMatchObject({ codeRemote: null, dataRemote: null });
+    expect((await git(ctx.repo.dataDir, ["remote"])).stdout).toBe("");
+    const created = await runCommand(ticketCreate, ctx, { title: "A" });
+    expect(created.write).toMatchObject({ committed: true, pushed: false });
+    expect(created.warnings).toEqual([]);
+    expect(created.data).not.toHaveProperty("provisional");
+    await runCleanups();
   });
 });

@@ -1,9 +1,10 @@
 // 流れの段階の操作（Workflow の flow の assign・plan・release）の判定と、聞かずに進める流れ（--auto）の判定（WF-9・EX-7）
+// 同期を確かめないので、すべてデータのリモートのない initializedLocalFixture で回す
 
 import { afterEach, describe, expect, it } from "vitest";
 import { git } from "../../test/helpers/git-fixture.js";
 import {
-  initializedFixture,
+  initializedLocalFixture,
   reopenInitialized,
   runCleanups,
   writeWorkflowYaml,
@@ -30,7 +31,7 @@ afterEach(runCleanups);
  * Iteration s1・Epic e1 と、チケット t1〜t3 がある
  */
 async function humanAndAgent() {
-  const f = await initializedFixture();
+  const f = await initializedLocalFixture();
   const human = await reopenInitialized(f);
   const opened = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
   const agent = { ...human, actor: opened.actor };
