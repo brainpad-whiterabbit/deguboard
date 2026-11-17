@@ -512,7 +512,7 @@ export interface SkillUninstallResult {
  * 名前で選ぶので、dg で始まる名前でも dg が配らない Skill（利用者が自分で作ったもの）には触れない（t804 と同じ）。
  * 手を加えていないかは、今の dg が配る Skill は印のハッシュ（どの版の dg が書いたものでも見分けられる）で、廃止した Skill は配っていたときの中身のハッシュで見る。
  * 手を加えたものは force がなければ残して kept に返す。消すのは SKILL.md だけで、ほかのファイルを置いた Skill のフォルダは残す（利用者のファイル）。
- * .claude/.gitignore は書き換えない。チームでコミットしているファイルで、消した人のほかはまだ Skill を使っており、行を消すと各自が入れた Skill が追跡に上がる
+ * ignoreSkills が無視の行を足す .gitignore（agent の設定のディレクトリの .gitignore）は書き換えない。チームでコミットしているファイルで、消した人のほかはまだ Skill を使っており、行を消すと各自が入れた Skill が追跡に上がる
  */
 export async function uninstallSkill(options: {
   cwd: string;
