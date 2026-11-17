@@ -23,7 +23,7 @@ after:
     - t1060
   t1066:
     - t1060
-pending_approval: true
+pending_approval: false
 details:
   t1053:
     scope: マージドライバで checkpoints を要素の和集合にする。データの同期の道なので、push を拒まれた後に取り込み直す途中で止まった場合もテストで確かめる
@@ -64,3 +64,5 @@ details:
     tier: standard
   t1066:
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-17T02:32:27Z
