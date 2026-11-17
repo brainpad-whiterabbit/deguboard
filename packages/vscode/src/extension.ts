@@ -660,11 +660,13 @@ async function readSetup(
   if (bandDismissed === true) setupBandDismissed.add(key);
   else if (bandDismissed === false) setupBandDismissed.delete(key);
   // 拡張が左パネルを作ったときに始めた確かめが進んでいれば、その結果を使う（指定し直した画面は、その指定で確かめる）。
-  // 始めた確かめが失敗したら、ここで確かめ直す
+  // 待っている間に別の画面が指定し直した（setupBoards が替わった）ら、古い指定の結果を返さず、今の指定で確かめ直す。
+  // view.board は確かめた時に setupBoards へ入れたのと同じオブジェクトなので、同一性で比べる。始めた確かめが失敗したときも確かめ直す
   const started = sent === undefined ? sidebarSetupChecks.get(key) : undefined;
   if (started) {
     try {
-      return await started;
+      const view = await started;
+      if (view.board === (setupBoards.get(key) ?? null)) return view;
     } catch {
       // 下で確かめ直す
     }

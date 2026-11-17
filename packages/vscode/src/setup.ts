@@ -187,7 +187,7 @@ export function missingSetupCount(view: SetupView | undefined): number {
  * - 推奨だけが欠けていて、人が帯を「このリポジトリでは出さない」にしている（bandDismissed）ときも確かめ直さない。結果はタイトル行の
  *   アイコンの点にしか出ないのに、ターミナルの実行の終わりとウィンドウに戻るたびに git と dg --version を起こさない（Claude Code を使わない人は
  *   推奨を入れないままでよい）。そのため、この間に人がターミナルで推奨を満たしても、すべて満たした後に項目が欠けても、点は次に確かめたとき
- *   （チェックリストを開いたとき・左パネルを作り直したときなど）に更新する
+ *   （チェックリストを開いたとき・ウィンドウを開き直したときなど）に更新する
  */
 export function autoRecheck(view: SetupView | undefined, bandDismissed: boolean): boolean {
   if (!view) return true;
