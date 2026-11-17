@@ -8,29 +8,29 @@
 
 Skill は Claude Code 向けです。普通の言葉で頼むか、コマンドを打ちます。コマンドの列は例で、引数は Skill の `argument-hint` と `dg guide <topic>` にあります。Skill を入れていないエージェントには、Ask Agent の文章の形を使います。
 
-| Skill       | 何をするか                                                           | 頼み方の例                        | コマンド                |
-| ----------- | -------------------------------------------------------------------- | --------------------------------- | ----------------------- |
-| `dgimport`  | 会話・計画・設計書を、承認を得てチケットにする                       | 「この検討をチケットにして」      | `/dgimport`             |
-| `dgassign`  | チケットを Iteration か Epic に入れる（承認を得てから）              | 「これをスプリントに入れて」      | `/dgassign s3`          |
-| `dgcheck`   | チケット・Epic・Iteration・Plan の食い違いを見つけ、直す             | 「s3 のチケットを点検して」       | `/dgcheck s3`           |
-| `dgplan`    | チケットの進める順を決め、承認待ちの Plan に記録する                 | 「s3 を計画して」                 | `/dgplan s3`            |
-| `dgwork`    | 承認した Plan を ready・承認後のマージ・片付けまで進める             | 「p3 を進めて」                   | `/dgwork p3`            |
-| `dgall`     | Iteration かチケットを、割り当てからリリースまで一つの流れで進める   | 「s3 を自動でリリースまで進めて」 | `/dgall s3 --auto`      |
-| `dgaudit`   | リリースの前に、リポジトリ全体を観点ごとに見直し、指摘を起票する     | 「リリースの前に見直して」        | `/dgaudit s3`           |
-| `dgrelease` | Iteration の完了を確かめ、承認を得てリリースする                     | 「s3 をリリースして」             | `/dgrelease s3`         |
-| `dgdone`    | マージ済みのチケットが完了かを確かめ、残った枝と worktree を片付ける | 「t12 はマージした。片付けて」    | `/dgdone t12`           |
-| `dgretro`   | 閉じた Iteration を、チームの観点で振り返る                          | 「s3 を振り返って」               | `/dgretro s3`           |
-| `dgchange`  | 人が頼んだ変更を一つ行う（直す・閉じる・再開・やめる・取り消す）     | 「s3 を閉じて」                   | `/dgchange s3 閉じて`   |
-| `dgdiscuss` | チケット・Epic・Iteration の論点を、人と相談して決める               | 「t12 を検討して」                | `/dgdiscuss t12`        |
-| `dgstatus`  | 進行中のチケットの作業がどこまで進み、止まっていれば理由を教える     | 「t12 はどこまで進んだ？」        | `/dgstatus t12`         |
-| `dgexplain` | チケット・Epic・Iteration の中身を、図を入れて人に説明する           | 「t12 を説明して」                | `/dgexplain t12`        |
-| `dgconfig`  | 設定と Workflow の項目を説明し、変更は前と後の差の承認を得てから書く | 「commit.mode って何？」          | `/dgconfig commit.mode` |
+| Skill       | 何をするか                                                                                              | 頼み方の例                        | コマンド                |
+| ----------- | ------------------------------------------------------------------------------------------------------- | --------------------------------- | ----------------------- |
+| `dgimport`  | 会話・計画・設計書を、承認を得てチケットにする                                                          | 「この検討をチケットにして」      | `/dgimport`             |
+| `dgassign`  | チケットを Iteration か Epic に入れる（承認を得てから）                                                 | 「これをスプリントに入れて」      | `/dgassign s3`          |
+| `dgcheck`   | チケット・Epic・Iteration・Plan の食い違いを見つけ、直す                                                | 「s3 のチケットを点検して」       | `/dgcheck s3`           |
+| `dgplan`    | チケットの進める順を決め、承認待ちの Plan に記録する                                                    | 「s3 を計画して」                 | `/dgplan s3`            |
+| `dgwork`    | 承認した Plan を ready・承認後のマージ・片付けまで進める                                                | 「p3 を進めて」                   | `/dgwork p3`            |
+| `dgall`     | Iteration かチケットを、割り当てからリリースまで一つの流れで進める                                      | 「s3 を自動でリリースまで進めて」 | `/dgall s3 --auto`      |
+| `dgaudit`   | リリースの前に、リポジトリ全体を観点ごとに見直し、指摘を起票する                                        | 「リリースの前に見直して」        | `/dgaudit s3`           |
+| `dgrelease` | Iteration の完了を確かめてリリースを準備する。既定では関所を通すことと Iteration を閉じることは人に頼む | 「s3 をリリースして」             | `/dgrelease s3`         |
+| `dgdone`    | マージ済みのチケットが完了かを確かめ、残った枝と worktree を片付ける                                    | 「t12 はマージした。片付けて」    | `/dgdone t12`           |
+| `dgretro`   | 閉じた Iteration を、チームの観点で振り返る                                                             | 「s3 を振り返って」               | `/dgretro s3`           |
+| `dgchange`  | 人が頼んだ変更を一つ行う（直す・閉じる・再開・やめる・取り消す）                                        | 「s3 を閉じて」                   | `/dgchange s3 閉じて`   |
+| `dgdiscuss` | チケット・Epic・Iteration の論点を、人と相談して決める                                                  | 「t12 を検討して」                | `/dgdiscuss t12`        |
+| `dgstatus`  | 進行中のチケットの作業がどこまで進み、止まっていれば理由を教える                                        | 「t12 はどこまで進んだ？」        | `/dgstatus t12`         |
+| `dgexplain` | チケット・Epic・Iteration の中身を、図を入れて人に説明する                                              | 「t12 を説明して」                | `/dgexplain t12`        |
+| `dgconfig`  | 設定と Workflow の項目を説明し、変更は前と後の差の承認を得てから書く                                    | 「commit.mode って何？」          | `/dgconfig commit.mode` |
 
 ## 最後まで任せる
 
 Claude Code で `/dgall s3 --auto` のように Iteration かチケットを渡すと、エージェントが割り当て・計画・実装・見直し・リリースを続けて進める。作りたいものの起票はしないので、先に `/dgimport` でチケットにする。
 
-- `--auto` を付けると、カンバンの Workflow（`workflow.yaml`）の値が `ask_unless_auto` の場面だけを聞かずに進める。既定では、割り当て・点検の直し・Plan の承認・品質ゲートを通った PR のマージ。見直しの指摘、リリース、チケットをやめる・削除する、Epic・Iteration を閉じるなど、ほかの場面では止まって聞く（値の見方と変え方は [Workflow](#workflow)、一覧は `dg guide all`）
+- `--auto` を付けると、カンバンの Workflow（`workflow.yaml`）の値が `ask_unless_auto` の場面だけを聞かずに進める。既定では、割り当て・点検の直し・Plan の承認・品質ゲートを通った PR のマージ。ほかの場面は `--auto` でも止まって聞く。既定では、見直しの指摘、リリースの PR のマージと公開、チケットをやめる・done を取り消す、Epic を閉じる・再開するなど。人だけが行う操作（`human_only`）もあり、エージェントは承認があっても行えないので、コマンドを示して人を待つ。既定では、リリースの関所を通すことと Iteration を閉じること（`dg checkpoint release <S>`・`dg iteration close <S>`）、チケットの削除（値の見方と変え方は [Workflow](#workflow)、一覧は `dg guide all`）
 - 品質ゲートを通った PR は、エージェントがマージしてよいかを聞き、承認したときだけマージする（承認は PR に残る）。聞かずにマージするのは、`--auto` で、review → done の境目の値が `ask_unless_auto`（既定）のときだけ。品質ゲートを満たさない PR は、満たさない条件を示してそれでもマージするかを聞く。承認すれば満たさない条件を越えてマージするが、PR が開いていて下書きでないこと、base と衝突しないこと、判定したコミットをマージすることは越えられない
 - 進み具合はカンバンで見られ、計画の帯を押すと依存のグラフが出る
 - Claude Code 以外のエージェントには「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼む
