@@ -235,13 +235,14 @@ async function inspect(paths: RepoPaths, options: UninstallOptions): Promise<Uni
       if (active.length > 0)
         blockers.push({
           kind: "active_worktrees",
-          message: `Tickets in progress have worktrees in this clone: ${active.sort().join(", ")}. Without the board, dg no longer tracks or cleans them up. Finish the tickets, or remove the worktrees.`,
-          next: ["dg ticket list --status in_progress", "git worktree list"],
+          message: `Tickets not finished yet have worktrees in this clone: ${active.sort().join(", ")}. Without the board, dg no longer tracks or cleans them up. Finish the tickets, or remove the worktrees.`,
+          // review のチケットの worktree も止める理由になるので、Status で絞らずに一覧を案内する
+          next: ["dg ticket list", "git worktree list"],
         });
     } catch (error) {
       blockers.push({
         kind: "unreadable",
-        message: `The board data cannot be read, so the tickets in progress cannot be checked (${error instanceof Error ? error.message : String(error)}).`,
+        message: `The board data cannot be read, so the tickets not finished yet cannot be checked (${error instanceof Error ? error.message : String(error)}).`,
         next: ["dg validate"],
       });
     }
