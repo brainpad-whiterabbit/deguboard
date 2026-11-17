@@ -1,0 +1,36 @@
+{
+  "id": "r20261117-030325-4927",
+  "ticket": "t1051",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-17T03:03:25Z",
+  "finished_at": "2026-11-17T03:04:41Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "The usage document's list of what --auto skips by default omits starting a ticket, in both language versions",
+    "The ADR sentence copies the decide defaults of all three boundaries instead of stating only the decision",
+    "The how-it-works sequence diagram shows the agent's claim without an approval flag, in both language versions"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 4456,
+    "cache_read": 197570,
+    "cache_write": 32828
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 5,
+    "bash": 5,
+    "other": 1,
+    "read_before_write": 5,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "0b151a56-4156-48a8-8028-d330dabf5be2",
+  "review": null,
+  "waited_seconds": 0
+}
