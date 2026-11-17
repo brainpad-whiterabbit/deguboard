@@ -78,7 +78,7 @@ The facts for `requires` are `deps_done` (the tickets it depends on are done), `
 
 When an agent goes ahead with your approval, dg records you as the approver (`dg history` shows it). Moves that `dg sync` makes from Git facts count as the agent's side. A person can pass an unmet `requires` with `--override "<reason>"`.
 
-By default, an agent starts work and opens review on its own. It asks you before merging a PR (review → done), assigning, fixing what the check found, and approving a Plan; `--auto` passes these. It always asks before abandoning or reopening a ticket, filing audit findings and retro improvements, changing the team's settings, and changing another person's claim. Only a person may close an Iteration (release), close an Epic, and delete a ticket. The WIP limits are 5 for in_progress and 3 for review.
+By default, an agent starts work and opens review on its own. It asks you before merging a PR (review → done), assigning, fixing what the check found, and approving a Plan; `--auto` passes these. It always asks before abandoning or reopening a ticket, filing audit findings and retro improvements, changing the team's settings, changing another person's claim, and closing or reopening an Epic. Only a person may close an Iteration (release) and delete a ticket. The WIP limits are 5 for in_progress and 3 for review.
 
 ### Fixed in Core
 
