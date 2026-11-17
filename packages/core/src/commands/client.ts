@@ -6,6 +6,7 @@ import { idKindOf, parseId, type IdKind } from "../model/id.js";
 import type { CommandResult } from "./define.js";
 // setup-check.ts からは型だけを取り込む（setup-check.ts はこのファイルを取り込まない。値の取り込みを両向きにしない）
 import type { SetupCheckItem, SetupCheckResult, SetupItemId } from "./setup-check.js";
+import type { UninstallResult } from "./uninstall.js";
 
 /** 入口の失敗。CLI の --json のエラーと同じ形 */
 export interface CommandFailure {
@@ -55,7 +56,9 @@ export interface SetupView {
 /**
  * チェックリストのボタンが拡張ホストに頼む操作（UI-12）。どれも人が押したときだけ動く。
  * openFolder はフォルダを開く。gitInit・init・newBoard・installSkillsHooks は deguboard のターミナルで git init・dg init・dg init --new-board・
- * Skill と hooks を入れるコマンドを実行する（dg は同梱の起動ファイルで呼ぶ）。installDg は ~/.local/bin/dg を起動ファイルへ張る
+ * Skill と hooks を入れるコマンドを実行する（dg は同梱の起動ファイルで呼ぶ）。installDg は ~/.local/bin/dg を起動ファイルへ張る。
+ * 残りは「アンインストール」の節の操作。uninstall・uninstallPersonal は deguboard のターミナルで dg uninstall・dg uninstall --personal を実行し、
+ * sync は止める理由（送っていないデータ）を片付けるために同期し、showExtension は拡張の画面を開く（拡張は人が最後に消す）
  */
 export const SETUP_ACTIONS = [
   "openFolder",
@@ -64,6 +67,10 @@ export const SETUP_ACTIONS = [
   "newBoard",
   "installSkillsHooks",
   "installDg",
+  "uninstall",
+  "uninstallPersonal",
+  "sync",
+  "showExtension",
 ] as const;
 export type SetupAction = (typeof SETUP_ACTIONS)[number];
 
@@ -94,7 +101,8 @@ export function setupViewOf(result: SetupCheckResult, cwd: string): SetupView {
  * （拡張ホストが、推奨だけが欠けている間の自動の確かめ直しをやめる）。帯を出さない画面は付けない。
  * setup と setupAct の board は、人がボードの項目で指定したデータの置き場所（SetupBoardSource）。setup はそこを確かめ、setupAct の init・newBoard は dg init に渡す。
  * 拡張ホストは setup の指定をフォルダごとに持ち、board を付けない setup・setupAct にも使う。setup の board の null は、人がコードのリモートを
- * 選び直したこと（持っている指定を消す）
+ * 選び直したこと（持っている指定を消す）。
+ * uninstallPreview は dg uninstall --dry-run の結果（消すもの・残すもの・止める理由）を返す（応答の data は UninstallPreview）。personal は --personal を付けるか
  */
 export type WebviewRequest =
   | { id: number; kind: "run"; name: string; input: unknown }
@@ -116,7 +124,11 @@ export type WebviewRequest =
       name: "setupAct";
       act: SetupAction;
       board?: SetupBoardSource | undefined;
-    };
+    }
+  | { id: number; kind: "action"; name: "uninstallPreview"; personal: boolean };
+
+/** uninstallPreview の応答の data。dg uninstall --dry-run の結果のうち、画面が出す部分 */
+export type UninstallPreview = Pick<UninstallResult, "personal" | "removes" | "keeps" | "blockers">;
 
 /** sendToTerminal の応答の data。clipboardKept は、貼り付けのために書いたクリップボードを元に戻せず、依頼文が残っていること */
 export interface TerminalSendResult {
@@ -178,8 +190,13 @@ export const WEBVIEW_CONTRACT = {
     "detailTicket",
     "configRow",
   ],
-  /** 拡張が開く画面のルート（web の router のハッシュ） */
-  routes: { board: "#/board", config: "#/config", setup: "#/setup" },
+  /** 拡張が開く画面のルート（web の router のハッシュ）。uninstall は導入のチェックリストを「アンインストール」の節を開いて出す */
+  routes: {
+    board: "#/board",
+    config: "#/config",
+    setup: "#/setup",
+    uninstall: "#/setup?uninstall=1",
+  },
   /** 詳細の画面のルートの頭。後ろに ID を付ける（#/tickets/t12）。組み立てと読み取りは detailRouteOf・detailOfRoute */
   detailRoutes: {
     ticket: "#/tickets/",

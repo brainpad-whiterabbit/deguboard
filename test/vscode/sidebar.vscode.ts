@@ -4,6 +4,8 @@
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
 // - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
+// - 導入のチェックリストの「アンインストール」の節で、消すものを確かめてから一時リポジトリを外せること（閉じた節・開いた節・確認・外した後の知らせを撮る。
+//   ボードを消すので、ボードの要る検査の後に置く。HOME は一時ディレクトリなので、手元の個人の設定には触れない）
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
 import { access } from "node:fs/promises";
@@ -348,6 +350,46 @@ describe("VS Code の実機の左パネル", () => {
     await sidebar.locator("body").evaluate(() => {
       location.hash = "#/board";
     });
+  });
+
+  it("導入のチェックリストの「アンインストール」で、消すものを確かめてからこのクローンから外し、外した後の知らせを出す（ライトとダークで撮る）", async () => {
+    const shoot = async (name: string): Promise<void> => {
+      for (const theme of ["dark", "light"] as const) {
+        await host.setTheme(theme);
+        const shot = await host.screenshot(name, theme);
+        await access(shot.sidebar);
+      }
+    };
+    // 閉じた節：タイトル行のセットアップのアイコンと同じルート
+    await sidebar.locator("body").evaluate(() => {
+      location.hash = "#/setup";
+    });
+    const section = sidebar.locator(".setup-uninstall");
+    await section.waitFor({ timeout: 60_000 });
+    expect(await section.locator(".setup-uninstall-body").count()).toBe(0);
+    await section.scrollIntoViewIfNeeded();
+    await shoot("setup-uninstall-closed");
+    // コマンドパレットの「このリポジトリからアンインストール」と同じルート。節を開いて出し、dg uninstall --dry-run の結果を並べる
+    await sidebar.locator("body").evaluate(() => {
+      location.hash = "#/setup?uninstall=1";
+    });
+    await section.locator(".setup-uninstall-list.removes").waitFor({ timeout: 60_000 });
+    const remove = section.locator(".setup-uninstall-buttons .setup-danger");
+    await remove.scrollIntoViewIfNeeded();
+    await shoot("setup-uninstall-open");
+    // 1 段階目（外す…）で確認を出し、2 段階目（外す）で deguboard のターミナルが dg uninstall を実行する
+    await remove.click();
+    const confirm = section.locator(".setup-uninstall-confirm");
+    await confirm.waitFor();
+    await confirm.scrollIntoViewIfNeeded();
+    await shoot("setup-uninstall-confirm");
+    await confirm.locator(".setup-danger").click();
+    // ボードがなくなり、始めるときのチェックリストに戻って、その上に知らせが出る
+    const notice = sidebar.locator(".setup-uninstalled");
+    await notice.waitFor({ timeout: 120_000 });
+    expect(await sidebar.locator(".setup-uninstall").count()).toBe(0);
+    await notice.scrollIntoViewIfNeeded();
+    await shoot("setup-uninstalled");
   });
 
   it("ワークベンチと Webview に CSP 違反と捕まえていない例外がない", () => {

@@ -21,6 +21,7 @@ import type {
   SetupBoardSource,
   TerminalChoice,
   TerminalSendResult,
+  UninstallPreview,
 } from "@deguboard/core";
 import { askKey, parseAskKey } from "./ask-key.js";
 import type { WebviewClient } from "./client/webview.js";
@@ -52,6 +53,11 @@ export interface Host {
    * board は、人がボードの項目で指定したデータの置き場所（dg init に --data-remote・--data-branch を付ける）
    */
   setupAct?: ((act: SetupAction, board?: SetupBoardSource) => Promise<void>) | undefined;
+  /**
+   * 導入のチェックリストの「アンインストール」の節が出す、dg uninstall --dry-run の結果（personal は --personal を付けるか）。
+   * Webview だけにあり、dg serve にはない（節を出さない）
+   */
+  uninstallPreview?: ((personal: boolean) => Promise<UninstallPreview>) | undefined;
 }
 
 /**
@@ -94,6 +100,7 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
       copy: (text) => client.copy(text),
       state: state ?? standalone.state,
       setupAct: (act, board) => client.setupAct(act, board),
+      uninstallPreview: (personal) => client.uninstallPreview(personal),
       terminals: {
         list: () => client.terminals(),
         send: (terminal, text) => client.sendToTerminal(terminal, text),

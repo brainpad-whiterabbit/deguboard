@@ -3965,6 +3965,123 @@ button.ask-copy svg {
 .setup-band-restore {
   margin: 8px 0;
 }
+/* チェックリストの末尾の「アンインストール」の節（components/setup-uninstall.tsx）。上の線で項目と分け、閉じた形で置く */
+.setup-uninstall {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--dg-border);
+}
+.setup-uninstall h3 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 400;
+}
+.setup-uninstall-toggle {
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+.setup-uninstall-toggle:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+.setup-uninstall-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+}
+.setup-uninstall-body p {
+  margin: 0;
+}
+.setup-uninstall-body .setup-slot {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+.setup-uninstall-body .copyable {
+  max-width: 100%;
+}
+.setup-uninstall-list {
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.setup-uninstall-list li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 0 4px;
+  padding: 1px 0;
+}
+.setup-uninstall-list li > span:first-child {
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+}
+.setup-uninstall-list.removes li > span:first-child {
+  color: var(--vscode-errorForeground);
+}
+.setup-uninstall-list code {
+  display: block;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  padding: 0;
+  overflow-wrap: anywhere;
+}
+/* 止める理由（黄）と、実行の前の確認（赤） */
+.setup-uninstall-stop,
+.setup-uninstall-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  align-self: stretch;
+  padding: 8px 10px;
+  border: 1px solid var(--dg-border);
+  border-left: 3px solid var(--dg-warning);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--dg-warning) 10%, transparent);
+}
+.setup-uninstall-confirm {
+  border-left-color: var(--vscode-errorForeground);
+  background: color-mix(in srgb, var(--vscode-errorForeground) 8%, transparent);
+}
+.setup-uninstall-blocker {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 100%;
+}
+.setup-uninstall-stop .setup-output {
+  color: var(--vscode-descriptionForeground);
+}
+.setup-uninstall-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+button.setup-danger {
+  color: var(--vscode-errorForeground);
+  border-color: var(--vscode-errorForeground);
+}
+/* 外した後の知らせ（拡張は最後に消す）。チェックリストの上に置く */
+.setup-uninstalled {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--dg-border);
+  border-left: 3px solid var(--vscode-textLink-foreground);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--vscode-textLink-foreground) 8%, transparent);
+}
 
 .worktree-row {
   display: flex;

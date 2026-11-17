@@ -171,7 +171,10 @@ export function App() {
             ) : setupOpen ? (
               // タイトル行のアイコン・帯から開いた導入のチェックリスト。帯を出さないと決めている間は、開いてから初めて確かめるので待つ
               store.setup ? (
-                <SetupChecklist view={store.setup} />
+                <SetupChecklist
+                  view={store.setup}
+                  uninstall={shown.page === "setup" && shown.uninstall === true}
+                />
               ) : (
                 <p className="muted">{tr("読み込み中…")}</p>
               )

@@ -210,12 +210,17 @@ export function skillsHooksCommands(view: SetupView | undefined): string[] {
   return item.fix.filter((command) => !command.includes("--force"));
 }
 
-/** ボタンのうち、deguboard のターミナルでコマンドを流すもの（フォルダを開く・dg コマンドを入れるは拡張が自分で行う） */
-export type TerminalSetupAction = Exclude<SetupAction, "openFolder" | "installDg">;
+/** ボタンのうち、deguboard のターミナルでコマンドを流すもの（フォルダを開く・dg コマンドを入れる・同期する・拡張の画面を開くは拡張が自分で行う） */
+export type TerminalSetupAction = Exclude<
+  SetupAction,
+  "openFolder" | "installDg" | "sync" | "showExtension"
+>;
 
 /**
  * ボタンが deguboard のターミナルで流すコマンド。init・newBoard は、人がボードの項目で別のリポジトリを指定していれば（board）、
- * 確かめたときと同じ値を dg init の --data-remote・--data-branch に渡す（core の initCommandLine。値はシェルに渡せる形に囲む）
+ * 確かめたときと同じ値を dg init の --data-remote・--data-branch に渡す（core の initCommandLine。値はシェルに渡せる形に囲む）。
+ * uninstall・uninstallPersonal は「アンインストール」の節で選んだ範囲の dg uninstall。--force は画面から流さない
+ * （止める理由を越えるのは、ターミナルで自分で打つ人だけ）。ターミナルで打つのは人なので --actor は付けない（dg uninstall は人だけが実行できる）
  */
 export function setupCommands(
   act: TerminalSetupAction,
@@ -232,5 +237,9 @@ export function setupCommands(
       return [initCommandLine({ ...source, newBoard: true })];
     case "installSkillsHooks":
       return skillsHooksCommands(view);
+    case "uninstall":
+      return ["dg uninstall"];
+    case "uninstallPersonal":
+      return ["dg uninstall --personal"];
   }
 }

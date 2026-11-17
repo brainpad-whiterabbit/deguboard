@@ -71,6 +71,7 @@ export type {
   WebviewRequest,
   TerminalChoice,
   TerminalSendResult,
+  UninstallPreview,
   WebviewResponse,
 } from "./client.js";
 export {

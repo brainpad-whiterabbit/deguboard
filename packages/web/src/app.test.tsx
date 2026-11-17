@@ -128,6 +128,7 @@ function mountWithBridge(
     sendToTerminal: async () => null,
     setup: async () => ({ ready: true, items: [], cwd: null }),
     setupAct: async () => {},
+    uninstallPreview: async (personal) => ({ personal, removes: [], keeps: [], blockers: [] }),
     onEvent: (listener) => {
       send = listener;
       return () => (send = undefined);

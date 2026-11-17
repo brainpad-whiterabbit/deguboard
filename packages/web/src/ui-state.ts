@@ -8,6 +8,13 @@
  */
 export const SETUP_BAND_DISMISSED_KEY = "setup.band.dismissed";
 
+/**
+ * 導入のチェックリストの「アンインストール」（components/setup-uninstall.tsx）で、画面から dg uninstall を実行したことを残す鍵。
+ * 値は "started"（実行した）か "shown"（外した後の知らせを出した）。外すとボードがなくなって画面が必須を満たさないチェックリストに
+ * 替わるので、その画面が知らせを出せるように、部品の中ではなくここに持つ。知らせを閉じるか、入れ直した後に節を出すと消す
+ */
+export const SETUP_UNINSTALL_KEY = "setup.uninstall";
+
 export interface UiState {
   get<T>(key: string): T | undefined;
   set(key: string, value: unknown): void;

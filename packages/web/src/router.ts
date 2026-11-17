@@ -35,8 +35,11 @@ export type Route =
   | { page: "plans"; id: string }
   | ({ page: "history" } & HistoryQuery)
   | { page: "config" }
-  /** 導入のチェックリスト（左パネルのタイトル行のアイコン・推奨の項目の帯から開く。出すのは VS Code の左パネルだけ。app.tsx） */
-  | { page: "setup" };
+  /**
+   * 導入のチェックリスト（左パネルのタイトル行のアイコン・推奨の項目の帯から開く。出すのは VS Code の左パネルだけ。app.tsx）。
+   * uninstall は「アンインストール」の節を開いて出す（コマンドパレットの「このリポジトリからアンインストール」）
+   */
+  | { page: "setup"; uninstall?: true | undefined };
 
 const BOARD_KEYS = [
   "iteration",
@@ -77,7 +80,9 @@ export function parseRoute(hash: string): Route {
     case "config":
       return { page: "config" };
     case "setup":
-      return { page: "setup" };
+      return params.get("uninstall") === "1"
+        ? { page: "setup", uninstall: true }
+        : { page: "setup" };
     case "iterations":
       // Iteration の一覧の画面はない（planned・active はカンバンの絞り込み、closed は履歴）。ID がなければカンバン
       return id ? { page: "iterations", id } : board();
@@ -119,7 +124,7 @@ export function hrefOf(route: Route): string {
     case "config":
       return "#/config";
     case "setup":
-      return "#/setup";
+      return route.uninstall ? "#/setup?uninstall=1" : "#/setup";
   }
 }
 

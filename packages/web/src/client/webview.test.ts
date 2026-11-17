@@ -191,7 +191,12 @@ describe("拡張と合わせる値（core の WEBVIEW_CONTRACT の写し）", ()
     expect(parseRoute(WEBVIEW_CONTRACT.routes.board).page).toBe("board");
     expect(parseRoute(WEBVIEW_CONTRACT.routes.config).page).toBe("config");
     expect(hrefOf({ page: "setup" })).toBe(WEBVIEW_CONTRACT.routes.setup);
-    expect(parseRoute(WEBVIEW_CONTRACT.routes.setup).page).toBe("setup");
+    expect(parseRoute(WEBVIEW_CONTRACT.routes.setup)).toEqual({ page: "setup" });
+    expect(hrefOf({ page: "setup", uninstall: true })).toBe(WEBVIEW_CONTRACT.routes.uninstall);
+    expect(parseRoute(WEBVIEW_CONTRACT.routes.uninstall)).toEqual({
+      page: "setup",
+      uninstall: true,
+    });
   });
 
   it("拡張が開く詳細のルート（core の detailRouteOf）は router の hrefOf と同じで、その詳細の画面に戻る", () => {

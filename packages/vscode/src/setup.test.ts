@@ -314,4 +314,11 @@ describe("ボタンがターミナルで流すコマンド（setupCommands）", 
       setupCommands("init", undefined, { dataRemote: "/srv/my repo; rm -rf ~", dataBranch: "a'b" }),
     ).toEqual([`dg init --data-remote '/srv/my repo; rm -rf ~' --data-branch 'a'\\''b'`]);
   });
+
+  it("アンインストールは選んだ範囲の引数を付けた dg uninstall で、--force は付けない", () => {
+    expect(setupCommands("uninstall", undefined)).toEqual(["dg uninstall"]);
+    expect(setupCommands("uninstallPersonal", undefined, board)).toEqual([
+      "dg uninstall --personal",
+    ]);
+  });
 });

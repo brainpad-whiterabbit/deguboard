@@ -7,6 +7,7 @@
 //   1. 状態（事実の 1 文） 2. すること（文・場所・ボタン 1 つ） 3. ターミナルで行うなら（同じことをするコマンド） 4. 条件を書いた別の道
 // ボタンは VS Code の中でだけ出る（拡張ホストに頼み、deguboard のターミナルで実行する）。dg serve のブラウザにはなく、コマンドをコピーするだけ（ADR-027）。
 // 確かめ直しは、拡張ホストの見張りと手のボタン（store.recheckSetup）が行う。
+// 必須を満たした後の末尾には「アンインストール」の節を置く（setup-uninstall.tsx。VS Code の中でだけ出る）。
 // ボードの項目だけは、チームのボードが別のリポジトリにあるときのために、データのリポジトリとブランチを入れて確かめ直す道を持つ（BoardItemGuide。
 // 入れた値は store.setupBoard に持ち、確かめ直しとボタンの dg init の --data-remote・--data-branch に渡す）。
 // web は core から型だけを取り込む（.oxlintrc.json の no-restricted-imports）ので、DEFAULT_DATA_BRANCH と initCommandLine は core の写しを置く
@@ -19,6 +20,7 @@ import { msg, tr } from "../l10n.js";
 import { useStore } from "../store.js";
 import { SETUP_BAND_DISMISSED_KEY } from "../ui-state.js";
 import { CopyableCode } from "./copyable-code.js";
+import { UninstalledNotice, UninstallSection } from "./setup-uninstall.js";
 
 /** ボタン 1 つ。recheck は確かめ直す（どの入口でも動く）。ほかは拡張ホストに頼む操作で、頼めない入口（dg serve）では出さない */
 interface GuideAction {
@@ -621,14 +623,23 @@ function Item({ item, view, open }: { item: SetupViewItem; view: SetupView; open
  * チェックリスト。必須を満たさない間（view.ready が偽）は全項目を並べ、満たさない最初の項目だけを開く
  * （その下は、前の項目を満たすまで確かめられないので待たせる）。必須を満たした後（タイトル行のアイコンか帯から開いたとき）は、
  * 必須を 1 行にまとめ、推奨は満たした項目も ✓ と値付きで並べ（何が済んだかを読める）、満たさない項目をすべて開く。
- * 画面の中に戻るボタンは置かない（タイトル行のアイコンとタブで行き来する。app.tsx）
+ * 画面の中に戻るボタンは置かない（タイトル行のアイコンとタブで行き来する。app.tsx）。
+ * 必須を満たした後の末尾には、閉じた節「アンインストール」を置く（setup-uninstall.tsx。uninstall は開いて出す）。画面から外した後は、
+ * 必須を満たさない間のチェックリストの上に、拡張は最後に消すことの知らせを出す
  */
-export function SetupChecklist({ view }: { view: SetupView }) {
+export function SetupChecklist({
+  view,
+  uninstall = false,
+}: {
+  view: SetupView;
+  uninstall?: boolean;
+}) {
   const required = view.items.filter((i) => i.level === "required");
   const recommended = view.items.filter((i) => i.level === "recommended");
   const firstUnmet = view.items.find((i) => i.status === "unmet");
   return (
     <section className="setup" aria-labelledby="setup-title">
+      {view.ready ? null : <UninstalledNotice />}
       <div className="setup-head">
         <h2 id="setup-title">{view.ready ? tr("セットアップ") : tr("deguboard を始める")}</h2>
         <RecheckButton />
@@ -665,6 +676,10 @@ export function SetupChecklist({ view }: { view: SetupView }) {
         </>
       )}
       {view.ready ? <BandRestore /> : null}
+      {/* コマンドパレットから開き直したら（uninstall が変わる）、節を開いた形で作り直す */}
+      {view.ready ? (
+        <UninstallSection key={String(uninstall)} initiallyOpen={uninstall} revision={view} />
+      ) : null}
     </section>
   );
 }

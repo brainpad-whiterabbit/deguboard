@@ -255,6 +255,62 @@ export const EN: Readonly<Record<string, string>> = {
   "{0} にコミットしていない変更があります。": "{0} has uncommitted changes.",
   "コミットすると、各自の設定と dg の Skill が、ほかの人のクローンで追跡の候補に出なくなります。リポジトリの最上位で、次のコマンドを実行します。":
     "Once it is committed, each person's settings and dg Skills stop showing up as untracked in other people's clones. Run these commands at the repository root.",
+  // components/setup-uninstall.tsx
+  アンインストール: "Uninstall",
+  "このクローンから deguboard を外します。リモートとチームで共有するものには触れないので、あとでボードを取り込み直せます。":
+    "This removes deguboard from this clone. It does not touch the remote or what the team shares, so you can take the board in again later.",
+  このリポジトリだけ: "This repository only",
+  "個人の Skill とフックも": "Personal Skills and hooks too",
+  "個人の Skill とフックは、ほかのリポジトリでも使えなくなります。":
+    "The personal Skills and hooks stop working in your other repositories too.",
+  "消すものを確かめています…": "Checking what would be removed…",
+  "消すものを確かめられませんでした。": "Could not check what would be removed.",
+  "消すもの（dg uninstall --dry-run）": "Removed (dg uninstall --dry-run)",
+  "消すものはありません。": "Nothing to remove.",
+  残すもの: "Kept",
+  "dg のフック": "dg hooks",
+  "dg の Skill（{0} 個）": "dg Skills ({0})",
+  "ボードの worktree": "The board's worktree",
+  手元のボードのブランチ: "The local board branch",
+  "git config のマージドライバの登録": "The merge driver in git config",
+  "個人の設定・会話記録・キャッシュ": "Personal settings, transcripts, and caches",
+  リモートのボード: "The board on the remote",
+  データのリモートの登録: "The data remote",
+  "チームでコミットした .gitignore": "The .gitignore the team commits",
+  チームで共有する設定のフック: "The hooks in the settings the team shares",
+  "手を加えた dg の Skill": "dg Skills edited by hand",
+  個人の設定のフック: "The hooks in your personal settings",
+  "個人の Skill": "Personal Skills",
+  "VS Code 拡張と dg コマンド": "The VS Code extension and the dg command",
+  このままでは外せません: "It cannot be removed yet",
+  "リモートへ送っていないボードのデータがあります。":
+    "Some board data is not pushed to the remote.",
+  "dg がまだコミットしていないボードの変更があります。":
+    "The board has changes that dg has not committed yet.",
+  "ボードのデータに、dg の外で行った変更があります。":
+    "The board data has changes made outside dg.",
+  "ボードの worktree で rebase が途中のため、失うものを判定できません。":
+    "A rebase is in progress in the board's worktree, so what would be lost cannot be judged.",
+  "終わっていないチケットの worktree が、このクローンにあります。":
+    "Tickets not finished yet have worktrees in this clone.",
+  "ボードのデータを読めないため、終わっていないチケットを確かめられません。":
+    "The board data cannot be read, so the tickets not finished yet cannot be checked.",
+  同期する: "Sync",
+  "deguboard のターミナルで実行しました。外し終わると、この画面は始めるときのチェックリストに戻ります。":
+    "It was run in the deguboard terminal. Once it is removed, this view goes back to the getting-started checklist.",
+  "上の「消すもの」を、このクローンとホームディレクトリから消します。":
+    "This removes what is listed under Removed from this clone and your home directory.",
+  "上の「消すもの」を、このクローンから消します。":
+    "This removes what is listed under Removed from this clone.",
+  "次のコマンドを deguboard のターミナルで実行します":
+    "This command runs in the deguboard terminal",
+  外す: "Remove",
+  "外す…": "Remove…",
+  "止める理由がなくなると押せます。": "Available once nothing above blocks it.",
+  "このリポジトリから deguboard を外しました": "deguboard was removed from this repository",
+  "VS Code 拡張と dg コマンドは残っています。拡張を消すのは最後にしてください（先に消すと、ほかのリポジトリに残ったフックが動かなくなります）。ほかのリポジトリでも使わないなら、拡張の画面から消せます。":
+    "The VS Code extension and the dg command are still installed. Uninstall the extension last (if you remove it first, the hooks left in your other repositories stop working). If you no longer use it in any repository, you can uninstall it from the extension's page.",
+  拡張の画面を開く: "Open the extension's page",
   // components/parts.tsx
   上に並ぶ: "listed first",
   既定の並び: "default order",
