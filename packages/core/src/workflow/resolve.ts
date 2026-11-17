@@ -86,7 +86,7 @@ const DEFAULT_GOVERNANCE: Record<GovernanceOperation, Decision> = {
   delete: "human_only",
   config: "always_ask",
   reassign: "always_ask",
-  epic: "human_only",
+  epic: "always_ask",
   create: "anyone",
 };
 

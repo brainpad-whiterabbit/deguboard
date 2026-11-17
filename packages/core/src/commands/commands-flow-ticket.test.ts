@@ -1171,7 +1171,7 @@ describe("Epic と Iteration", () => {
     await expect(runCommand(epicClose, ctx, { epic: "e1" })).rejects.toMatchObject({
       code: "REJECTED",
     });
-    // 閉じる・再開するのは既定では人だけ（Workflow の governance.epic。値ごとの判定は governance.test.ts）
+    // 閉じる・再開するのは既定ではエージェントに人の承認が要る（Workflow の governance.epic。値ごとの判定は governance.test.ts）
     const closed = await runCommand(epicClose, ctx, { epic: "e1", force: true });
     expect(closed.data.status).toBe("closed");
     expect(closed.data.closed_at).toBeDefined();

@@ -32,7 +32,7 @@ Puts tickets into Iterations (a period of planning. `sprint` is an alias) and Ep
 - List and progress: `dg --json --actor agent epic list` (`progress.done / progress.total`)
 - Add: `dg --json --actor agent epic add <e3> <t12> <t13> --approved-by human`. A closed Epic cannot take tickets. `flow.assign` judges it, as for an Iteration above
 - Remove: `dg --json --actor agent epic remove <e3> <t12> --approved-by human`
-- Close and reopen: `dg --json --actor agent epic close <e3>` / `epic reopen <e3>`. If anything other than done or abandoned remains, it is refused, and `--force` closes it anyway. The Workflow's `governance.epic` judges both: with the default (`human_only`) the agent's call is refused, so give the human the exact command to run; when the board's value asks for approval, run it only on a human's instruction, with `--approved-by human` (see the "Operations that may be limited to humans" section of `dg guide overview`)
+- Close and reopen: `dg --json --actor agent epic close <e3>` / `epic reopen <e3>`. If anything other than done or abandoned remains, it is refused, and `--force` closes it anyway. The Workflow's `governance.epic` judges both: with the default (`always_ask`), run it only on a human's instruction, with `--approved-by human`; when the board's value is `human_only`, the agent's call is refused, so give the human the exact command to run (see the "Operations that may be limited to humans" section of `dg guide overview`)
 
 ## Assignee
 

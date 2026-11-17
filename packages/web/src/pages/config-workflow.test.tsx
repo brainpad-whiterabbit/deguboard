@@ -393,7 +393,7 @@ describe("Workflow のタブの部品", () => {
       workflowMatches(sections, "human_only").map((s) => [s.key, s.rows.map((r) => r.key)]),
     ).toEqual([
       ["boundaries", ["boundaries.review.done.decide"]],
-      ["governance", ["governance.delete", "governance.epic"]],
+      ["governance", ["governance.delete"]],
     ]);
   });
 });
