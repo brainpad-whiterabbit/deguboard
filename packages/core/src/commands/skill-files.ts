@@ -5,7 +5,7 @@
 // dg setup check（setup-check.ts）は、Skill が入っているかと古いかを skillInstallStateOf で見る（古いかの数え方は警告と同じ staleSkillsIn）。
 // 警告と拡張は、そのうえで印の版を比べ（skillAgeOf）、今の dg より新しい版の dg が書いた Skill を古いと言わず、戻さない（ADR-030）。
 // Skill を書くのも、dg skill install と拡張で同じ writeSkillFiles を通し、リポジトリに書いた Skill の無視の行も同じ ignoreSkills で足す。
-// dg skill install の判定と書き込みと警告の組み立て（installSkill・skillInstallWarnings）もここに置き、CLI（program.ts）は引数と結果を写すだけにする（入口にロジックを書かない）。
+// dg skill install と dg skill uninstall の判定と書き込みと警告の組み立て（installSkill・skillInstallWarnings・uninstallSkill・skillUninstallWarnings）もここに置き、CLI（program.ts）は引数と結果を写すだけにする（入口にロジックを書かない）。
 // 公開（commands/index.ts）は入口が呼ぶものだけにする。判定の部品（skillStateOf・skillAgeOf・findStaleSkills・staleSkillWarnings）はここのテストが直接引く。
 // Skill の組み立て（buildSkills）は guide を読むので、1 回の操作で 1 回にし、組み立てたものを部品に渡して使い回す（拡張の起動時の更新と案内も 1 回）。
 // 名前・説明・引数の案内は guide の frontmatter から、冒頭の 1 文は SKILL_SUMMARY の en から、本文は SKILL_TEMPLATE から作る。
@@ -442,11 +442,7 @@ export async function installSkill(options: {
   /** true なら何も書かず消さず、書く先と中身だけを返す */
   dryRun?: boolean;
 }): Promise<SkillInstallResult> {
-  const dirs = skillDirsOf(DEFAULT_SKILL_AGENT);
-  if (!dirs) throw new Error(`The ${DEFAULT_SKILL_AGENT} Adapter has no Skill directory`);
-  const topLevel =
-    options.scope === "personal" ? undefined : (await resolveRepoPaths(options.cwd)).topLevel;
-  const dir = topLevel === undefined ? dirs.personal(options.env) : dirs.project(topLevel);
+  const { dir, topLevel } = await skillDirFor(options);
   const dryRun = options.dryRun ?? false;
   const result: SkillInstallResult = {
     scope: options.scope,
@@ -480,6 +476,92 @@ export async function installSkill(options: {
   Object.assign(result, await writeSkillFiles(dir, { force: options.force, dryRun, skills }));
   Object.assign(result, await removeRetiredSkills(dir, { dryRun }));
   return result;
+}
+
+/** dg skill install と dg skill uninstall が Skill を書く・消す置き場所。既定のエージェントの Adapter の skillDirs が決める */
+async function skillDirFor(options: {
+  cwd: string;
+  scope: "project" | "personal";
+  env: AgentEnv;
+}): Promise<{ dir: string; topLevel: string | undefined }> {
+  const dirs = skillDirsOf(DEFAULT_SKILL_AGENT);
+  if (!dirs) throw new Error(`The ${DEFAULT_SKILL_AGENT} Adapter has no Skill directory`);
+  const topLevel =
+    options.scope === "personal" ? undefined : (await resolveRepoPaths(options.cwd)).topLevel;
+  return {
+    dir: topLevel === undefined ? dirs.personal(options.env) : dirs.project(topLevel),
+    topLevel,
+  };
+}
+
+export interface SkillUninstallResult {
+  /** project（リポジトリの Skill のディレクトリ）か personal（ホームディレクトリの下の Skill のディレクトリ） */
+  scope: "project" | "personal";
+  /** Skill を消したディレクトリの絶対パス */
+  dir: string;
+  /** 消した（--dry-run では消すことになる）dg の Skill の名前。廃止した Skill と、--force で消した手を加えた Skill も含む */
+  removed: string[];
+  /** 手を加えてあるので残した dg の Skill の名前。--force で消す */
+  kept: string[];
+  /** --dry-run のとき true。何も消さない */
+  dryRun: boolean;
+}
+
+/**
+ * dg skill uninstall：dir に入れてある dg が配る Skill（今の dg が配るものと、廃止した Skill（RETIRED_SKILLS））の SKILL.md を消す（AG-2）。
+ * 名前で選ぶので、dg で始まる名前でも dg が配らない Skill（利用者が自分で作ったもの）には触れない（t804 と同じ）。
+ * 手を加えていないかは、今の dg が配る Skill は印のハッシュ（どの版の dg が書いたものでも見分けられる）で、廃止した Skill は配っていたときの中身のハッシュで見る。
+ * 手を加えたものは force がなければ残して kept に返す。消すのは SKILL.md だけで、ほかのファイルを置いた Skill のフォルダは残す（利用者のファイル）。
+ * ignoreSkills が無視の行を足す .gitignore（agent の設定のディレクトリの .gitignore）は書き換えない。チームでコミットしているファイルで、消した人のほかはまだ Skill を使っており、行を消すと各自が入れた Skill が追跡に上がる
+ */
+export async function uninstallSkill(options: {
+  cwd: string;
+  scope: "project" | "personal";
+  env: AgentEnv;
+  force: boolean;
+  /** true なら何も消さず、消すことになる Skill を返す */
+  dryRun?: boolean;
+}): Promise<SkillUninstallResult> {
+  const { dir } = await skillDirFor(options);
+  const dryRun = options.dryRun ?? false;
+  const result: SkillUninstallResult = {
+    scope: options.scope,
+    dir,
+    removed: [],
+    kept: [],
+    dryRun,
+  };
+  const candidates: Array<{ name: string; unmodified: (text: string) => boolean }> = [
+    ...(await buildSkills()).map((s) => ({ name: s.name, unmodified: isUnmodified })),
+    ...Object.entries(RETIRED_SKILLS).map(([name, hashes]) => ({
+      name,
+      unmodified: (text: string) => hashes.includes(sha256(text)),
+    })),
+  ];
+  for (const { name, unmodified } of candidates) {
+    const path = join(dir, name, "SKILL.md");
+    const current = await readFile(path, "utf8").catch(() => undefined);
+    if (current === undefined) continue;
+    if (!unmodified(current) && !options.force) {
+      result.kept.push(name);
+      continue;
+    }
+    if (!dryRun) {
+      await rm(path);
+      // ほかのファイルを置いていればフォルダは残す
+      await rmdir(dirname(path)).catch(() => undefined);
+    }
+    result.removed.push(name);
+  }
+  return result;
+}
+
+/** dg skill uninstall の結果の警告。手を加えたので残した Skill を知らせる */
+export function skillUninstallWarnings(result: SkillUninstallResult): string[] {
+  return result.kept.map(
+    (name) =>
+      `${name}: it was edited by hand, so it ${result.dryRun ? "will not be" : "was not"} removed. To remove it, add --force`,
+  );
 }
 
 /** dg skill install の結果の警告。手を加えたので残した Skill と、追跡されていて無視の行が効かない Skill を知らせる */

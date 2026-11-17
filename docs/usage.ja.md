@@ -237,4 +237,4 @@ dg のフックは、エージェントの協力なしに Run を記録し、デ
 
 拡張が呼ぶコマンドは `git`・`gh`・`dg --version` だけで、信頼したフォルダーでだけ動く。
 
-Skill は `dg guide` を読ませる文面だけ。フックは `dg hook <イベント>` を呼ぶだけで、Run を記録し、`dg` を通さない PR の ready・マージとデータへの書き込みを拒む。Skill は `dg skill install --dry-run`、フックは `dg hooks install --dry-run` で中身を見られる。
+Skill は `dg guide` を読ませる文面だけ。フックは `dg hook <イベント>` を呼ぶだけで、Run を記録し、`dg` を通さない PR の ready・マージとデータへの書き込みを拒む。Skill は `dg skill install --dry-run`、フックは `dg hooks install --dry-run` で中身を見られる。dg の Skill は `dg skill uninstall` で外せる（自分の Skill と `.claude/.gitignore` は残る）。

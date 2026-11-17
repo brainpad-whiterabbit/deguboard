@@ -402,6 +402,112 @@ describe("dg skill install", () => {
   });
 });
 
+describe("dg skill uninstall", () => {
+  it("dg が配る Skill と廃止した Skill を消し、dg で始まる利用者の Skill と .claude/.gitignore は残す", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    expect((await dg(local.dir, ["--json", "skill", "install"])).code).toBe(0);
+    const ignoreFile = path.join(local.dir, ".claude", ".gitignore");
+    const ignoreBefore = await readFile(ignoreFile, "utf8");
+    await mkdir(path.dirname(skillPath(local.dir, "deguboard")), { recursive: true });
+    await writeFile(skillPath(local.dir, "deguboard"), RETIRED_TEMPLATE);
+    await mkdir(path.dirname(skillPath(local.dir, "dgmine")), { recursive: true });
+    await writeFile(skillPath(local.dir, "dgmine"), "# 利用者の Skill\n");
+    const result = await dg(local.dir, ["--json", "skill", "uninstall"]);
+    expect(result.code).toBe(0);
+    const skills = await buildSkills();
+    expect(JSON.parse(result.out)).toMatchObject({
+      ok: true,
+      data: {
+        scope: "project",
+        dir: path.join(local.dir, ".claude", "skills"),
+        removed: [...skills.map((s) => s.name), "deguboard"],
+        kept: [],
+        dryRun: false,
+      },
+      warnings: [],
+    });
+    for (const s of skills)
+      expect(await exists(path.dirname(skillPath(local.dir, s.name))), s.name).toBe(false);
+    expect(await exists(path.dirname(skillPath(local.dir, "deguboard")))).toBe(false);
+    expect(await readFile(skillPath(local.dir, "dgmine"), "utf8")).toBe("# 利用者の Skill\n");
+    expect(await readFile(ignoreFile, "utf8")).toBe(ignoreBefore);
+  });
+
+  it("手を加えた dg の Skill は既定では残して警告で知らせ、--force で消す", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    await dg(local.dir, ["--json", "skill", "install"]);
+    const edited = skillPath(local.dir, "dgwork");
+    await writeFile(edited, `${await readFile(edited, "utf8")}\n自分で足した行\n`);
+    const kept = JSON.parse((await dg(local.dir, ["--json", "skill", "uninstall"])).out);
+    expect(kept.data.kept).toEqual(["dgwork"]);
+    expect(kept.data.removed).not.toContain("dgwork");
+    expect(kept.warnings).toEqual([expect.stringContaining("dgwork: it was edited by hand")]);
+    expect(await exists(edited)).toBe(true);
+    const forced = JSON.parse(
+      (await dg(local.dir, ["--json", "skill", "uninstall", "--force"])).out,
+    );
+    expect(forced.data).toMatchObject({ removed: ["dgwork"], kept: [] });
+    expect(await exists(edited)).toBe(false);
+  });
+
+  it("Skill のフォルダにほかのファイルがあれば、SKILL.md だけを消してフォルダは残す", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    await dg(local.dir, ["--json", "skill", "install"]);
+    const other = path.join(path.dirname(skillPath(local.dir, "dgplan")), "notes.md");
+    await writeFile(other, "メモ\n");
+    expect((await dg(local.dir, ["--json", "skill", "uninstall"])).code).toBe(0);
+    expect(await exists(skillPath(local.dir, "dgplan"))).toBe(false);
+    expect(await readFile(other, "utf8")).toBe("メモ\n");
+  });
+
+  it("--dry-run は何も消さずに消すものの一覧を返す", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    await dg(local.dir, ["--json", "skill", "install"]);
+    const result = JSON.parse(
+      (await dg(local.dir, ["--json", "skill", "uninstall", "--dry-run"])).out,
+    );
+    const skills = await buildSkills();
+    expect(result.data).toMatchObject({
+      dryRun: true,
+      removed: skills.map((s) => s.name),
+      kept: [],
+    });
+    for (const s of skills) expect(await exists(skillPath(local.dir, s.name)), s.name).toBe(true);
+  });
+
+  it("--personal は HOME の下の .claude/skills を対象にし、リポジトリの Skill に触れない", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const home = await tempHome();
+    await dg(local.dir, ["--json", "skill", "install"]);
+    await dg(home, ["--json", "skill", "install", "--personal"], { HOME: home });
+    const result = JSON.parse(
+      (await dg(local.dir, ["--json", "skill", "uninstall", "--personal"], { HOME: home })).out,
+    );
+    const skills = await buildSkills();
+    expect(result.data).toMatchObject({
+      scope: "personal",
+      dir: path.join(home, ".claude", "skills"),
+      removed: skills.map((s) => s.name),
+    });
+    for (const s of skills) {
+      expect(await exists(skillPath(home, s.name)), s.name).toBe(false);
+      expect(await exists(skillPath(local.dir, s.name)), s.name).toBe(true);
+    }
+  });
+
+  it("dg の Skill が入っていなければ何も消さずに成功する", async () => {
+    const home = await tempHome();
+    const result = await dg(home, ["skill", "uninstall", "--personal"], { HOME: home });
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("No dg Skills are installed here");
+  });
+});
+
 describe("Skill の本文", () => {
   it("段階ごとの Skill が guide の frontmatter から作られ、dg guide <topic> を読ませ、agent を名乗らせる", async () => {
     const skills = await buildSkills();
