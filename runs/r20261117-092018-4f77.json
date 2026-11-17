@@ -1,0 +1,36 @@
+{
+  "id": "r20261117-092018-4f77",
+  "ticket": "t1085",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-17T09:20:18Z",
+  "finished_at": "2026-11-17T09:30:53Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "reload remembers the auto pull count after reading the lists, so a pull that lands in between leaves the screen stale",
+    "no test for an outside change that leaves the worktree clean, so the outside-change branch of the auto pull is unguarded",
+    "usage docs say the first command after a config change stops, which no longer holds when an open screen pulls it automatically"
+  ],
+  "usage": {
+    "input": 44,
+    "output": 13440,
+    "cache_read": 1390084,
+    "cache_write": 66904
+  },
+  "tools": {
+    "read": 8,
+    "search": 0,
+    "write": 9,
+    "bash": 13,
+    "other": 1,
+    "read_before_write": 5,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "e7cdf1d0-a575-49c1-9b18-a3c120b47586",
+  "review": null,
+  "waited_seconds": 0
+}
