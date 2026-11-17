@@ -923,6 +923,33 @@ describe("dg flow next", () => {
     expect(ctx.store.require("iteration", "s1").data.checkpoints).toHaveLength(6);
   });
 
+  it("再開と同じ秒に通った関所の記録は数え、再開の 1 秒前の記録は数えない（時刻は秒まで）", async () => {
+    const base = await ready();
+    // 時計はテストが決める。再開の時刻と、その 1 秒前
+    const reopenAt = new Date("2026-01-01T00:10:00Z");
+    let clock = new Date(reopenAt.getTime() - 1_000);
+    const ctx: CommandContext = { ...base, now: () => clock };
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
+    // 再開の 1 秒前に点検の関所を通して閉じ、次の秒に再開する
+    await pass(ctx, "check");
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    clock = reopenAt;
+    await runCommand(iterationReopen, ctx, { iteration: "s1" });
+    const reopened = ctx.store.require("iteration", "s1").data;
+    const before = reopened.checkpoints![0]!;
+    // 期待値は、テストが書いた記録と再開の時刻から求める（1 秒ずれている）
+    expect(Date.parse(reopened.reopened_at!) - Date.parse(before.at)).toBe(1_000);
+    // 1 秒前の記録は数えないので、点検からやり直す
+    expect((await flow(ctx, {})).stage.name).toBe("check");
+    // 再開と同じ秒に通った点検は数えるので、見直しに進む
+    const same = await pass(ctx, "check");
+    expect(same.checkpoint.at).toBe(reopened.reopened_at);
+    expect((await flow(ctx, {})).stage.name).toBe("audit");
+  });
+
   it("Iteration のない流れは割り当てで Iteration を決める。入れないと決めた割り当ての記録だけをこのマシンに書き、Iteration が決まると記録は Iteration に書く", async () => {
     const ctx = await ready();
     await runCommand(iterationCreate, ctx, { name: "S1" });
@@ -1245,6 +1272,48 @@ describe("dg flow next", () => {
       "check",
       "verify-staging",
       "notify",
+    ]);
+  });
+
+  it("閉じた Iteration でも独自の段階と振り返りの関所を通せ、release のあと → 振り返り → retro のあとの段階の順に進んで止まる", async () => {
+    const ctx = await ready();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    await runCommand(workflowSet, ctx, {
+      definition: {
+        flow: {
+          announce: { decide: "anyone", after: "release", guide: "docs/flow/announce.md" },
+          "follow-up": { decide: "anyone", after: "retro", guide: "docs/flow/follow-up.md" },
+        },
+      },
+    });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "PR なし" });
+    for (const stage of ["check", "audit", "release"] as const) await pass(ctx, stage);
+    // 閉じるまではリリースを返し続け、release のあとの段階を返さない
+    expect((await flow(ctx, {})).stage.name).toBe("release");
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+
+    // 閉じると release のあとの段階。閉じた Iteration に関所の記録を足せる
+    expect((await flow(ctx, {})).stage).toMatchObject({ name: "announce", after: "release" });
+    await pass(ctx, "announce");
+    // 振り返りの関所の記録がなければ、流れを終えたとして止まる（振り返りは flow next が返さない）
+    expect((await flow(ctx, {})).stage).toMatchObject({ name: "stop", rule: 8 });
+    await pass(ctx, "retro");
+    expect((await flow(ctx, {})).stage).toMatchObject({ name: "follow-up", after: "retro" });
+    await pass(ctx, "follow-up");
+    const finished = await flow(ctx, {});
+    expect(finished.stage).toMatchObject({ name: "stop", rule: 8 });
+    expect(finished.ask_human).toContain("s1 is closed, and the flow is finished");
+    const s1 = ctx.store.require("iteration", "s1").data;
+    expect(s1.status).toBe("closed");
+    expect(s1.checkpoints?.map((c) => c.name)).toEqual([
+      "check",
+      "audit",
+      "release",
+      "announce",
+      "retro",
+      "follow-up",
     ]);
   });
 
