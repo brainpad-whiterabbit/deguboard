@@ -3,6 +3,7 @@
 // - カンバンにチケットの行が出て、タブ（バックログ）に切り替えても戻しても行が出ること
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
+// - 未 push のコミットがある間はタイトル行の同期のボタンが点付きになり、押して同期すると元に戻ること（UI-6）
 // - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
 // - 導入のチェックリストの「アンインストール」の節で、消すものを確かめてから一時リポジトリを外せること（閉じた節・開いた節・確認・外した後の知らせを撮る。
 //   ボードを消すので、ボードの要る検査の後に置く。HOME は一時ディレクトリなので、手元の個人の設定には触れない）
@@ -13,6 +14,8 @@ import path from "node:path";
 import type { FrameLocator } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  configSet,
+  configUnset,
   epicCreate,
   init,
   iterationCreate,
@@ -24,9 +27,11 @@ import {
   retroMetric,
   retroPerspective,
   runCommand,
+  syncStatus,
   ticketClaim,
   ticketCreate,
   ticketMove,
+  ticketUpdate,
   uninstallRouteOf,
   workflowSet,
 } from "../../packages/core/src/index.js";
@@ -351,6 +356,43 @@ describe("VS Code の実機の左パネル", () => {
     await sidebar.locator("body").evaluate(() => {
       location.hash = "#/board";
     });
+  });
+
+  it("未 push のコミットがある間はタイトル行の同期のボタンが点付きになって件数をツールチップに出し、押して同期すると元のアイコンに戻る（UI-6。ライトとダークで撮る）", async () => {
+    const dotted = host.page
+      .locator('.part.sidebar a.action-label[aria-label^="Sync ("]')
+      .locator("visible=true");
+    const plain = host.page
+      .locator(".part.sidebar a.action-label.codicon-sync")
+      .locator("visible=true");
+    // ここまでの書き込みは push 済みなので点はない。個人の設定で書き込みごとにコミットし、push は同期のときだけにして、未 push のコミットを 1 つ作る
+    // （テンプレートの commit.mode は batch で、コミットしない）
+    await plain.waitFor({ timeout: 60_000 });
+    const ctx = await openContext({ cwd: fixture.cloneA });
+    const personal = [
+      ["commit.mode", "each"],
+      ["push.mode", "manual"],
+    ] as const;
+    for (const [key, value] of personal)
+      await runCommand(configSet, ctx, { key, value, local: true });
+    // 設定は開いたときに読むので、書き換えた設定で開き直して書く。起票はすぐ push するので、題の書き換えで作る
+    const manual = await openContext({ cwd: fixture.cloneA });
+    await runCommand(ticketUpdate, manual, { ticket: "t2", title: `${TITLES[1]}（未 push）` });
+    expect((await syncStatus(manual.repo)).ahead).toBe(1);
+    // 左パネルが間を空けて読む同期の状態から差し替わる
+    await dotted.waitFor({ timeout: 60_000 });
+    expect(await dotted.getAttribute("aria-label")).toBe("Sync (1 unpushed)");
+    expect(await plain.count()).toBe(0);
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("sync-title-dot", theme);
+      await access(shot.sidebar);
+    }
+    // 点付きのアイコンも、元と同じく同期する。push して点が消える
+    await dotted.click();
+    await plain.waitFor({ timeout: 60_000 });
+    expect(await dotted.count()).toBe(0);
+    for (const [key] of personal) await runCommand(configUnset, ctx, { key, local: true });
   });
 
   it("導入のチェックリストの「アンインストール」で、消すものを確かめてからこのクローンから外し、外した後の知らせを出す（ライトとダークで撮る）", async () => {

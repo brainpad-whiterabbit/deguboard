@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { WEBVIEW_CONTRACT } from "@deguboard/core";
-import { attentionCommands, attentionValue, SETUP_ATTENTION } from "./attention.js";
+import {
+  attentionCommands,
+  attentionValue,
+  SETUP_ATTENTION,
+  SYNC_ATTENTION,
+  syncAttentionCounts,
+} from "./attention.js";
 import { MENU_COMMANDS, MENU_SECTION, menuItemOf } from "./context-menu.js";
 
 interface Contributes {
@@ -77,17 +83,20 @@ describe("package.json の右クリックのメニュー", () => {
 describe("package.json のビューのタイトル行", () => {
   const { commands, menus } = pkg.contributes;
   const attention = attentionCommands(SETUP_ATTENTION);
+  const syncAttention = attentionCommands(SYNC_ATTENTION);
 
   it("セットアップ（導入のチェックリストの切り替え）・吹き出し（エージェントに頼む）・同期・歯車（設定画面の切り替え）の順に並べる", () => {
-    // 点付きのアイコンの差し替え用のコマンドは、元のコマンドと同じ場所に出す（次の describe で確かめる）
-    const items = menus["view/title"]!.filter((m) => !attention.includes(m.command!));
+    // 点付きのアイコンの差し替え用のコマンドは、元のコマンドと同じ場所に出す（下の検査で確かめる）
+    const items = menus["view/title"]!.filter(
+      (m) => !attention.includes(m.command!) && !syncAttention.includes(m.command!),
+    );
     expect(items.map((m) => [m.command, m.group])).toEqual([
       ["deguboard.setup", "navigation@0"],
       ["deguboard.askInSidebar", "navigation@1"],
       ["deguboard.sync", "navigation@2"],
       ["deguboard.config", "navigation@3"],
     ]);
-    for (const item of items.slice(1)) expect(item.when).toBe("view == deguboard.screens");
+    for (const item of [items[1]!, items[3]!]) expect(item.when).toBe("view == deguboard.screens");
     expect(commands.find((c) => c.command === "deguboard.config")).toMatchObject({
       title: "設定",
       icon: "$(gear)",
@@ -113,7 +122,7 @@ describe("package.json のビューのタイトル行", () => {
       "deguboard.setup.attention2",
       "deguboard.setup.attention3",
     ]);
-    expect(max).toBe(3);
+    expect(max).toEqual([3]);
     attention.forEach((id, i) => {
       expect(titleItems.find((m) => m.command === id)).toEqual({
         command: id,
@@ -141,23 +150,69 @@ describe("package.json のビューのタイトル行", () => {
   });
 
   it("context key に入れる値は件数で、0 は点なし、上限より多い件数は上限のコマンドにまとめる", () => {
-    expect(attentionValue(SETUP_ATTENTION, 0)).toBe(0);
-    expect(attentionValue(SETUP_ATTENTION, 2)).toBe(2);
-    expect(attentionValue(SETUP_ATTENTION, 7)).toBe(SETUP_ATTENTION.max);
+    expect(attentionValue(SETUP_ATTENTION, [0])).toBe(0);
+    expect(attentionValue(SETUP_ATTENTION, [2])).toBe("2");
+    expect(attentionValue(SETUP_ATTENTION, [7])).toBe("3");
+  });
+
+  it("人の同期が要る間は、context key の未 push と未取り込みの件数の組で、件数をツールチップに出す点付きの同期のアイコンのコマンドに差し替える（UI-6）", () => {
+    const { command, contextKey, max } = SYNC_ATTENTION;
+    const view = "view == deguboard.screens";
+    const titleItems = menus["view/title"]!;
+    expect(titleItems.find((m) => m.command === command)?.when).toBe(`${view} && !${contextKey}`);
+    expect(max).toEqual([3, 3]);
+    // 未 push は 1 から、未取り込みは 0 から、どちらも 3（3 以上）まで
+    const combos = [1, 2, 3].flatMap((a) => [0, 1, 2, 3].map((b) => [a, b] as const));
+    expect(syncAttention).toEqual(combos.map(([a, b]) => `deguboard.sync.attention${a}_${b}`));
+    const many = (n: number) => (n === 3 ? "3+" : String(n));
+    combos.forEach(([a, b], i) => {
+      const id = syncAttention[i]!;
+      expect(titleItems.find((m) => m.command === id)).toEqual({
+        command: id,
+        when: `${view} && ${contextKey} == ${a}_${b}`,
+        group: "navigation@2",
+      });
+      expect(commands.find((c) => c.command === id)).toEqual({
+        command: id,
+        title: `同期（未 push ${many(a)}${b > 0 ? ` / 未取り込み ${many(b)}` : ""}）`,
+        category: "deguboard",
+        icon: {
+          light: "media/sync-attention-light.svg",
+          dark: "media/sync-attention-dark.svg",
+        },
+      });
+      expect(nlsEn[`command.sync.attention${a}_${b}.title`]).toBe(
+        `Sync (${many(a)} unpushed${b > 0 ? ` / ${many(b)} to pull` : ""})`,
+      );
+      // 差し替え用なので、コマンドパレットには出さない
+      expect(menus["commandPalette"]).toContainEqual({ command: id, when: "false" });
+    });
+  });
+
+  it("同期のボタンの点は未 push があるときだけ出し、未取り込みだけ（自動で取り込める）とすべて同期済みでは出さない", () => {
+    const value = (ahead: number, behind: number) =>
+      attentionValue(SYNC_ATTENTION, syncAttentionCounts({ ahead, behind }));
+    expect(value(0, 0)).toBe(0);
+    expect(value(0, 4)).toBe(0);
+    expect(value(1, 0)).toBe("1_0");
+    expect(value(2, 1)).toBe("2_1");
+    // 上限より多い件数は「3+」のコマンドにまとめる
+    expect(value(12, 5)).toBe("3_3");
   });
 
   it("点付きのアイコンはライトとダークで、線をテーマのアイコンの色、点を警告の色で描く", () => {
-    for (const [theme, stroke, dot] of [
-      ["light", "#424242", "#BF8803"],
-      ["dark", "#C5C5C5", "#CCA700"],
-    ] as const) {
-      const svg = readFileSync(
-        new URL(`../media/setup-attention-${theme}.svg`, import.meta.url),
-        "utf8",
-      );
-      expect(svg).toContain(`stroke="${stroke}"`);
-      expect(svg).toContain(`fill="${dot}"`);
-    }
+    for (const name of ["setup", "sync"])
+      for (const [theme, stroke, dot] of [
+        ["light", "#424242", "#BF8803"],
+        ["dark", "#C5C5C5", "#CCA700"],
+      ] as const) {
+        const svg = readFileSync(
+          new URL(`../media/${name}-attention-${theme}.svg`, import.meta.url),
+          "utf8",
+        );
+        expect(svg).toContain(`stroke="${stroke}"`);
+        expect(svg).toContain(`fill="${dot}"`);
+      }
   });
 
   it("「エージェントに頼む」はコマンドパレットに「deguboard: エージェントに頼む」で出し、タイトル行の吹き出しはパレットに重ねて出さない（UI-15）", () => {

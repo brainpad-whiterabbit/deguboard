@@ -72,6 +72,114 @@
         "icon": "$(sync)"
       },
       {
+        "command": "deguboard.sync.attention1_0",
+        "title": "%command.sync.attention1_0.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention1_1",
+        "title": "%command.sync.attention1_1.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention1_2",
+        "title": "%command.sync.attention1_2.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention1_3",
+        "title": "%command.sync.attention1_3.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention2_0",
+        "title": "%command.sync.attention2_0.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention2_1",
+        "title": "%command.sync.attention2_1.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention2_2",
+        "title": "%command.sync.attention2_2.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention2_3",
+        "title": "%command.sync.attention2_3.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention3_0",
+        "title": "%command.sync.attention3_0.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention3_1",
+        "title": "%command.sync.attention3_1.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention3_2",
+        "title": "%command.sync.attention3_2.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention3_3",
+        "title": "%command.sync.attention3_3.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
         "command": "deguboard.config",
         "title": "%command.config.title%",
         "category": "deguboard",
@@ -184,7 +292,67 @@
         },
         {
           "command": "deguboard.sync",
-          "when": "view == deguboard.screens",
+          "when": "view == deguboard.screens && !deguboard.syncAttention",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention1_0",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 1_0",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention1_1",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 1_1",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention1_2",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 1_2",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention1_3",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 1_3",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention2_0",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 2_0",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention2_1",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 2_1",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention2_2",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 2_2",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention2_3",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 2_3",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention3_0",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 3_0",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention3_1",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 3_1",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention3_2",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 3_2",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention3_3",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 3_3",
           "group": "navigation@2"
         },
         {
@@ -208,6 +376,54 @@
         },
         {
           "command": "deguboard.sync",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention1_0",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention1_1",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention1_2",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention1_3",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention2_0",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention2_1",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention2_2",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention2_3",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention3_0",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention3_1",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention3_2",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention3_3",
           "when": "false"
         },
         {
