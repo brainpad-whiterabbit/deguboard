@@ -17,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { init, openContext, runCommand } from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
+import { SETUP_OVERRIDE } from "./setup-override.js";
 
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 /** 左パネルの幅 */
@@ -111,7 +112,8 @@ beforeAll(async () => {
   });
   await call("ticket.update", { ticket: "t5", pr: PR_DONE });
   await call("ticket.update", { ticket: "t7", pr: PR });
-  for (const ticket of ["t5", "t6", "t7"]) await call("ticket.move", { ticket, status: "done" });
+  for (const ticket of ["t5", "t6", "t7"])
+    await call("ticket.move", { ticket, status: "done", override: SETUP_OVERRIDE });
   browser = await chromium.launch().catch((error: unknown) => {
     throw new Error(
       `Chromium を起動できない。mise run playwright:install を実行する（${String(error)}）`,

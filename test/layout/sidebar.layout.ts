@@ -32,6 +32,7 @@ import { amendRunning } from "../../packages/core/src/run/record.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
 import { LANGUAGES, useLanguage } from "./language.js";
+import { SETUP_OVERRIDE } from "./setup-override.js";
 
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 const WIDTHS = [300, 260];
@@ -131,7 +132,7 @@ beforeAll(async () => {
     });
   }
   await call("ticket.move", { ticket: "t2", status: "review" });
-  await call("ticket.move", { ticket: "t3", status: "done" });
+  await call("ticket.move", { ticket: "t3", status: "done", override: SETUP_OVERRIDE });
   await call("ticket.move", { ticket: "t4", status: "abandoned" });
   const done = (await call("run.start", {
     ticket: "t3",
@@ -172,7 +173,7 @@ beforeAll(async () => {
     await call("ticket.create", { title: `閉じた週のチケット ${i}`, iteration: "s8" });
   // s8 と s9 の実績の期間は固定の日時で書き、区切りの見出しの長さが回した時刻で変わらないようにする（t874）
   await atTime(TYPICAL_PERIOD.start, iterationStart, { iteration: "s8" });
-  await call("ticket.move", { ticket: "t13", status: "done" });
+  await call("ticket.move", { ticket: "t13", status: "done", override: SETUP_OVERRIDE });
   await call("ticket.move", { ticket: "t14", status: "abandoned" });
   await atTime(TYPICAL_PERIOD.end, iterationClose, { iteration: "s8" });
   // 日をまたいで閉じた Iteration（s9）：区切りの見出しが幅 300px で折り返す長さの期間。続く行は 2 件（t16・t17）
@@ -180,7 +181,7 @@ beforeAll(async () => {
   for (let i = 16; i <= 17; i++)
     await call("ticket.create", { title: `日をまたいだ週のチケット ${i}`, iteration: "s9" });
   await atTime(LONG_PERIOD.start, iterationStart, { iteration: "s9" });
-  await call("ticket.move", { ticket: "t16", status: "done" });
+  await call("ticket.move", { ticket: "t16", status: "done", override: SETUP_OVERRIDE });
   await call("ticket.move", { ticket: "t17", status: "abandoned" });
   await atTime(LONG_PERIOD.end, iterationClose, { iteration: "s9" });
   await call("iteration.start", { iteration: "s2" });
