@@ -255,4 +255,59 @@ dg のフックは、エージェントの協力なしに Run を記録し、デ
 
 拡張が呼ぶコマンドは `git`・`gh`・`dg --version` だけで、信頼したフォルダーでだけ動く。
 
-Skill は `dg guide` を読ませる文面だけ。フックは `dg hook <イベント>` を呼ぶだけで、Run を記録し、`dg` を通さない PR の ready・マージとデータへの書き込みを拒む。Skill は `dg skill install --dry-run`、フックは `dg hooks install --dry-run` で中身を見られる。dg の Skill は `dg skill uninstall` で外せる（自分の Skill と `.claude/.gitignore` は残る）。
+Skill は `dg guide` を読ませる文面だけ。フックは `dg hook <イベント>` を呼ぶだけで、Run を記録し、`dg` を通さない PR の ready・マージとデータへの書き込みを拒む。Skill は `dg skill install --dry-run`、フックは `dg hooks install --dry-run` で中身を見られる。dg の Skill は `dg skill uninstall` で外せる（自分の Skill と `.claude/.gitignore` は残る）。deguboard をすべて外すときは[アンインストール](#アンインストール)を見る。
+
+## アンインストール
+
+やめ方は 3 つある。このマシンで止める、1 つのクローンから外す、チームでやめる。リモートのボードのデータに触れるのは最後だけなので、クローンから外した後は `dg init` でボードを取り込み直せる（このマシンで止めた後は、先に拡張を入れ直す）。
+
+VS Code 拡張は最後に消す。フックとマージドライバは、拡張が入れる起動ファイル（`~/.local/share/deguboard/dg`）を通して `dg` を絶対パスで呼ぶ。拡張を先に消すと、フックが毎回失敗し、それを外す `dg hooks uninstall` も動かなくなる。外すには Claude Code の設定を手で直すしかなくなる。
+
+### このマシンで止める
+
+消すもの：各クローンの中のもの（次の節）、`~/.claude/settings.json` の dg のフック、`~/.claude/skills` の dg の Skill、拡張と起動ファイル。
+
+1. deguboard を使ったクローンごとに、次の節のとおりに外す。最後のクローンでは `dg uninstall --personal` を実行し、このマシンのどのリポジトリでも使う個人のフックと Skill も外す。クローンをもう外した後なら、代わりに `dg hooks uninstall --personal` と `dg skill uninstall --personal` を実行する
+2. VS Code 拡張を消す。起動ファイル・その `current`・`~/.local/bin/dg` のリンクが、その拡張の `dg` を指していれば、それらも片付く。ほかの版やほかのエディタの拡張が使う起動ファイルは残る
+
+### このクローンから外す
+
+消すもの：`.claude/settings.local.json` の dg のフック、`.claude/skills` の dg の Skill（手で直した Skill は残る）、ボードの worktree（`.git/deguboard`）、手元のデータのブランチ、git config のマージドライバ（`merge.deguboard`）、`.git/deguboard-local`（個人の設定・会話記録・キャッシュ）。残すもの：リモートのデータのブランチ、データのリモート、コミットした `.claude/.gitignore`、`.claude/settings.json` の dg のフック。
+
+リポジトリの最上位で次を実行する。`dg uninstall` を実行できるのは人だけで、エージェントは `--dry-run` だけを実行できる。
+
+```sh
+dg sync
+dg uninstall --dry-run
+dg uninstall
+```
+
+- `--dry-run` は、消すもの、残すもの（それぞれを手で消すコマンドつき）、止める理由を出す
+- このクローンにしかないもの（送っていないデータ、dg の外でしたデータの変更や dg がコミットしていない変更、進行中か review のチケットの worktree）があるとき、rebase の途中のとき、データを読めないときは、何も消さずに止まる。`--dry-run` は理由ごとに次にすること（`dg sync`・`dg adopt`・`dg commit` など）を出すので、それをしてから実行し直す。`--force` を付けると消し、それらは失われる
+
+VS Code では、Setup のチェックリスト（サイドバーのタイトル行のチェックリストのアイコン）の末尾の **アンインストール** の節を開くか、コマンドパレットの「deguboard: このリポジトリからアンインストール」を実行する。
+
+1. **このリポジトリだけ** か、**個人の Skill とフックも**（`--personal` と同じ）を選ぶ
+2. `dg uninstall --dry-run` の結果の **消すもの** と **残すもの** を確かめる。止める理由がある間はボタンを押せない。**同期する** でデータを送る
+3. **外す…** を押し、続けて **外す** を押す。deguboard のターミナルで `dg uninstall`（か `dg uninstall --personal`）が動く
+
+外し終わると、画面は始めるときのチェックリストに戻り、拡張は最後に消すことを知らせる。
+
+### チームでやめる
+
+1. フックを共有の設定に入れていたなら、1 人が `dg hooks uninstall --shared` で外し、`.claude/settings.json` をコミットする。これを先にする。そのフックが残ったまま拡張を消した人は、フックが失敗するようになる
+2. 全員が、[このクローンから外す](#このクローンから外す)のとおりにクローンから外す
+3. `.claude/.gitignore` から dg の行を消してコミットする
+4. リモートのデータのブランチをどうするか決める。残すことを勧める。チケット・Plan・Run の履歴があり、dg がなくても読める（たとえば `git show origin/deguboard:tickets/t1.md`）。消すと戻せない。消すときは次を実行する
+
+   ```sh
+   git push origin --delete deguboard
+   ```
+
+   データを別のリポジトリに置いていたなら、そのリモートとデータのブランチを使う（たとえば `git push deguboard-data --delete deguboard`）。
+
+5. `dg init --data-remote <URL>` がデータ用のリモートを足していたなら、クローンごとに外す
+
+   ```sh
+   git remote remove deguboard-data
+   ```

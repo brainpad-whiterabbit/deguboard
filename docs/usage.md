@@ -255,4 +255,59 @@ It does not install a Skill that is not already there by itself. Where some dg S
 
 The extension runs only `git`, `gh`, and `dg --version`, and only in trusted folders.
 
-The Skills only tell the agent to read `dg guide`. The hooks only call `dg hook <event>`, which records Runs and refuses to mark a PR ready, merge it, or write to the data outside `dg`. See the Skills with `dg skill install --dry-run` and the hooks with `dg hooks install --dry-run`. Remove the dg Skills with `dg skill uninstall` (your own Skills and `.claude/.gitignore` stay).
+The Skills only tell the agent to read `dg guide`. The hooks only call `dg hook <event>`, which records Runs and refuses to mark a PR ready, merge it, or write to the data outside `dg`. See the Skills with `dg skill install --dry-run` and the hooks with `dg hooks install --dry-run`. Remove the dg Skills with `dg skill uninstall` (your own Skills and `.claude/.gitignore` stay). To remove all of deguboard, see [Uninstall](#uninstall).
+
+## Uninstall
+
+There are three ways to stop using deguboard: stop on this machine, remove it from one clone, or stop as a team. Only the last one touches the board data on the remote, so after removing it from a clone, `dg init` takes the board in again (after stopping on this machine, reinstall the extension first).
+
+Remove the VS Code extension last. The hooks and the merge driver call `dg` by absolute path, through the launcher that the extension installs (`~/.local/share/deguboard/dg`). If the extension goes first, every hook fails, and `dg hooks uninstall` can no longer run to remove them; you would have to edit the Claude Code settings by hand.
+
+### Stop on this machine
+
+What goes: everything in each clone (as in the next section), dg's hooks in `~/.claude/settings.json`, the dg Skills in `~/.claude/skills`, and the extension with its launcher.
+
+1. Remove deguboard from every clone where you used it, as in the next section. In the last clone, run `dg uninstall --personal` to also remove the personal hooks and Skills, which every repository on this machine uses. If the clones are already removed, run `dg hooks uninstall --personal` and `dg skill uninstall --personal` instead.
+2. Uninstall the VS Code extension. It also removes the launcher, its `current` file, and the `~/.local/bin/dg` link when they point to that extension's `dg`. A launcher that another version or another editor's extension uses stays.
+
+### Remove it from this clone
+
+What goes: dg's hooks in `.claude/settings.local.json`, the dg Skills in `.claude/skills` (Skills you edited by hand stay), the board's worktree (`.git/deguboard`), the local data branch, the merge driver in git config (`merge.deguboard`), and `.git/deguboard-local` (personal settings, transcripts, and caches). What stays: the data branch on the remote, the data remote, the committed `.claude/.gitignore`, and dg's hooks in `.claude/settings.json`.
+
+Run these at the repository root. Only a person can run `dg uninstall`; an agent can run only `--dry-run`.
+
+```sh
+dg sync
+dg uninstall --dry-run
+dg uninstall
+```
+
+- `--dry-run` lists what it would remove, what stays (with the command that removes each one by hand), and what stops it.
+- It removes nothing and stops when something exists only in this clone (data not pushed, changes to the data made outside dg or not committed by dg, or worktrees of tickets in progress or in review), when a rebase is in progress, or when the data cannot be read. `--dry-run` shows each reason with what to do next (for example `dg sync`, `dg adopt`, or `dg commit`); do that, then run it again. `--force` removes them anyway, and they are lost.
+
+In VS Code, open the **Uninstall** section at the end of the Setup checklist (the checklist icon in the sidebar's title bar), or run "deguboard: Uninstall from This Repository" from the Command Palette.
+
+1. Choose **This repository only**, or **Personal Skills and hooks too** (the same as `--personal`).
+2. Check the **Removed** and **Kept** lists, which come from `dg uninstall --dry-run`. While something blocks the removal, the button is disabled; press **Sync** to push the data.
+3. Press **Remove…**, then **Remove**. It runs `dg uninstall` (or `dg uninstall --personal`) in the deguboard terminal.
+
+Once it is removed, the view goes back to the getting-started checklist, and a notice reminds you to uninstall the extension last.
+
+### Stop as a team
+
+1. If the hooks were installed into the shared settings, one person removes them with `dg hooks uninstall --shared` and commits `.claude/settings.json`. Do this first: a teammate who removes the extension while those hooks are still there gets failing hooks.
+2. Everyone removes deguboard from their clones, as in [Remove it from this clone](#remove-it-from-this-clone).
+3. Delete dg's lines from `.claude/.gitignore` and commit it.
+4. Decide what to do with the data branch on the remote. We recommend keeping it: it holds the history of the tickets, Plans, and Runs, and it can still be read without dg (for example `git show origin/deguboard:tickets/t1.md`). To delete it, which cannot be undone, run:
+
+   ```sh
+   git push origin --delete deguboard
+   ```
+
+   If the data is in another repository, use its remote and data branch instead, such as `git push deguboard-data --delete deguboard`.
+
+5. If `dg init --data-remote <URL>` added a remote for the data, remove it in each clone:
+
+   ```sh
+   git remote remove deguboard-data
+   ```
