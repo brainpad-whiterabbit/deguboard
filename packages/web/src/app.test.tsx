@@ -150,6 +150,20 @@ function mountWithBridge(
   return () => send!;
 }
 
+/**
+ * 拡張ホストからの event を、画面が落ち着いてから送り、それで始まる読み直し・描画・effect・hashchange が終わるまで待つ。
+ * 前の描画の effect か hashchange に結果が依る event（必須のチェックリストを出した直後の setup、toggle の直後の reload など）は、
+ * act(() => send()(event)) ではなくこれで送る。
+ * findBy・waitFor は DOM に出たことしか待たない。CPU を取り合って描画が 5ms を超えると、React はその描画の passive effect
+ * （HostBridge が最新の onSetupEvent を ref に写す）を次の setImmediate に回すので、DOM を見てすぐ送った event は古い受け手に届く。
+ * jsdom の hashchange も setImmediate で届くので、toggle の直後に送った reload の結果が、ハッシュの変化より先に描かれることがある。
+ * async の act は、先に積まれた setImmediate を済ませ、中で起きた更新と effect を残さず流してから返る
+ */
+async function deliver(send: () => (event: WebviewEvent) => void, event: WebviewEvent) {
+  await act(async () => {});
+  await act(async () => send()(event));
+}
+
 /** 左パネルのカンバンのチケットの行を題で引く（Plan の帯にも同じ題が出るので、行の題と一致するものだけ） */
 function kanbanRowOf(title: string): Element {
   return [...document.querySelectorAll(".ticket-row")].find(
@@ -1169,7 +1183,7 @@ describe("画面", () => {
     // 人がターミナルで git init と dg init を済ませた：拡張ホストの見張りが setup の event を送る
     client.handlers["config.show"] = original;
     view = setupView();
-    act(() => send()({ kind: "event", name: "setup" }));
+    await deliver(send, { kind: "event", name: "setup" });
     expect(await screen.findByText("ログイン")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "deguboard を始める" })).toBeNull();
   });
@@ -1337,14 +1351,14 @@ describe("画面", () => {
     expect(await screen.findByRole("heading", { name: "deguboard を始める" })).toBeTruthy();
 
     // 必須のチェックリストを出している間にアイコンを押す：見た目は変わらず、ハッシュだけが変わる
-    act(() => send()({ kind: "event", name: "toggle", hash: "#/setup" }));
+    await deliver(send, { kind: "event", name: "toggle", hash: "#/setup" });
     expect(window.location.hash).toBe("#/setup");
     expect(screen.getByRole("heading", { name: "deguboard を始める" })).toBeTruthy();
 
     // dg init の後の reload の event で、来る前の画面（バックログ）の一覧に変わる
     client.handlers["config.show"] = original;
     view = setupView();
-    act(() => send()({ kind: "event", name: "reload" }));
+    await deliver(send, { kind: "event", name: "reload" });
     await waitFor(() => expect(window.location.hash).toBe("#/backlog"));
     await waitFor(() =>
       expect(screen.getByRole("link", { name: "バックログ" }).getAttribute("aria-current")).toBe(
@@ -1468,9 +1482,9 @@ describe("画面", () => {
     const send = mountWithBridge(client, { readRunning: false, host: extensionHost("panel") });
     expect(await screen.findByRole("heading", { name: "deguboard を始める" })).toBeTruthy();
     // 見張りが続けて setup の event を送る（ファイルの変化・ターミナルの実行の終わり）。チェックリストを出しているので確かめ直す
-    act(() => send()({ kind: "event", name: "setup" }));
+    await deliver(send, { kind: "event", name: "setup" });
     await waitFor(() => expect(setup).toHaveBeenCalledTimes(2));
-    act(() => send()({ kind: "event", name: "setup" }));
+    await deliver(send, { kind: "event", name: "setup" });
     await waitFor(() => expect(setup).toHaveBeenCalledTimes(3));
     await act(async () => {});
     // パネルはボードの指定を送らない（指定なしで消さない）ので、どの確かめも左パネルの指定で行い、指定は残る
