@@ -3,6 +3,7 @@
 // - ボードの項目のボタンを押すと、deguboard のターミナルで起動ファイルの dg が init を実行し、終わるといつもの画面（タブのあるサイドバー）に変わること
 // - いつもの画面の上に推奨の項目の帯が出て、開くと「Skill と hooks を入れる」でその場で入れられること
 // - タイトル行のセットアップのアイコンでチェックリストと来る前の画面を行き来でき、帯を出さないと決めた後も開けて、帯をまた出せること（t1021）
+// - 項目が欠けている間はそのアイコンが点付きになって件数をツールチップに出し、帯を出さないと決めた後も残り、すべて満たすと元に戻ること（t1084）
 // 途中の画面をライトとダークで撮る（test/vscode/screenshots/）。
 // 拡張は起動のたびに起動ファイルを HOME（~/.local/share/deguboard/）に書くが、launchHost が HOME を一時ディレクトリにするので手元には書かない。
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す
@@ -116,10 +117,10 @@ describe("VS Code の実機の導入のチェックリスト", () => {
   }, 240_000);
 
   it("タイトル行のセットアップのアイコンでチェックリストと来る前の画面を行き来でき、帯を出さないと決めた後も開けて、帯をまた出せる（t1021）", async () => {
-    // ビューのタイトル行（ワークベンチの側）の左端のアイコン。
+    // ビューのタイトル行（ワークベンチの側）の左端のアイコン。項目が欠けている間は点付きのアイコン（題が「Setup (1 item missing)」など）に替わる。
     // 同じアイコンがビューの見出し（ビューが 1 つの間は隠れている）にもあるので、見えているほうを押す
     const icon = host.page
-      .locator(".part.sidebar a.action-label.codicon-checklist")
+      .locator('.part.sidebar a.action-label[aria-label^="Setup"]')
       .locator("visible=true");
     const heading = sidebar.locator("h2", { hasText: "Setup" });
     const board = sidebar.locator('nav a[href^="#/board"]');
@@ -149,6 +150,40 @@ describe("VS Code の実機の導入のチェックリスト", () => {
     await board.click();
     await heading.waitFor({ state: "detached" });
     await sidebar.locator(".setup-band").waitFor({ timeout: 60_000 });
+  }, 240_000);
+
+  it("項目が欠けている間はタイトル行のセットアップのアイコンが点付きになって件数をツールチップに出し、帯を出さないと決めた後も残り、すべて満たすと元のアイコンに戻る（t1084）", async () => {
+    const dotted = host.page
+      .locator('.part.sidebar a.action-label[aria-label^="Setup ("]')
+      .locator("visible=true");
+    const plain = host.page
+      .locator(".part.sidebar a.action-label.codicon-checklist")
+      .locator("visible=true");
+    const heading = sidebar.locator("h2", { hasText: "Setup" });
+    // 前の検査の終わりは帯を出してボードを出している。.claude/.gitignore をコミットしていないので 1 件欠けている
+    await dotted.waitFor({ timeout: 60_000 });
+    expect(await dotted.getAttribute("aria-label")).toBe("Setup (1 item missing)");
+    expect(await plain.count()).toBe(0);
+    await shoot("setup-title-dot");
+    // 帯を出さないと決めても点は残る
+    await sidebar.getByRole("button", { name: "Do not show in this repository" }).click();
+    await sidebar.locator(".setup-band").waitFor({ state: "detached" });
+    await dotted.waitFor();
+    // 点付きのアイコンも、元のアイコンと同じくチェックリストを開閉する
+    await dotted.click();
+    await heading.waitFor();
+    await dotted.click();
+    await heading.waitFor({ state: "detached" });
+    // 残りの項目を満たす。帯を出さない間は見張りでは確かめ直さないので、チェックリストを開いて確かめ直させる
+    await run("git", ["add", ".claude/.gitignore"], { cwd: folder });
+    await run("git", ["commit", "-m", "ignore", "--", ".claude/.gitignore"], { cwd: folder });
+    await dotted.click();
+    await heading.waitFor();
+    await plain.waitFor({ timeout: 60_000 });
+    expect(await dotted.count()).toBe(0);
+    await plain.click();
+    await heading.waitFor({ state: "detached" });
+    await shoot("setup-title-plain");
   }, 240_000);
 
   it("ワークベンチと Webview に CSP 違反と捕まえていない例外がない", () => {

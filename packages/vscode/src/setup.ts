@@ -172,12 +172,22 @@ export function buildSetupView(facts: SetupFacts): SetupView {
 }
 
 /**
+ * 満たさない項目（必須と推奨）の数。タイトル行のセットアップのアイコンの点とツールチップの件数に使う（attention.ts）。
+ * 確かめていない項目（pending）は数えない。確かめた結果がなければ 0（点を出さない）
+ */
+export function missingSetupCount(view: SetupView | undefined): number {
+  return view?.items.filter((item) => item.status === "unmet").length ?? 0;
+}
+
+/**
  * 拡張ホストの見張り（ファイルの変化・ターミナルの実行の終わり・ウィンドウに戻った）で、自動で確かめ直すか。
  * - すべて満たしていれば確かめ直さない（欠けたことは次に画面を開いたときに分かる）
  * - 満たさない最初の項目がボードのときも確かめ直さない。ボードの確かめは remote に尋ねる（git ls-remote。最長 30 秒）ので見張りのたびには回さず、
  *   dg init が済んだことはデータ worktree の見張り（extension.ts の watchInit）が拾う。remote を直した後は、人が手で確かめ直す
- * - 推奨だけが欠けていて、人が帯を「このリポジトリでは出さない」にしている（bandDismissed）ときも確かめ直さない。結果を出す場所がないのに、
- *   ターミナルの実行の終わりとウィンドウに戻るたびに git と dg --version を起こさない（Claude Code を使わない人は推奨を入れないままでよい）
+ * - 推奨だけが欠けていて、人が帯を「このリポジトリでは出さない」にしている（bandDismissed）ときも確かめ直さない。結果はタイトル行の
+ *   アイコンの点にしか出ないのに、ターミナルの実行の終わりとウィンドウに戻るたびに git と dg --version を起こさない（Claude Code を使わない人は
+ *   推奨を入れないままでよい）。そのため、この間に人がターミナルで推奨を満たしても、すべて満たした後に項目が欠けても、点は次に確かめたとき
+ *   （チェックリストを開いたとき・ウィンドウを開き直したときなど）に更新する
  */
 export function autoRecheck(view: SetupView | undefined, bandDismissed: boolean): boolean {
   if (!view) return true;

@@ -5,12 +5,14 @@ import {
   buildSetupView,
   dgCommandItem,
   heldSetupBoard,
+  missingSetupCount,
   PATH_EXPORT_LINE,
   setupCommands,
   skillsHooksCommands,
   supportedPlatform,
   type DgCommandFacts,
 } from "./setup.js";
+import { SETUP_ATTENTION } from "./attention.js";
 
 const LINK = "/home/u/.local/bin/dg";
 
@@ -207,6 +209,46 @@ describe("画面に渡す導入のチェックリスト（UI-12）", () => {
       "skills_hooks",
       "dg_command",
     ]);
+  });
+});
+
+describe("タイトル行のセットアップのアイコンの点に出す件数（missingSetupCount）", () => {
+  const view = (
+    core: SetupCheckResult | undefined,
+    dg = dgFacts({ lookup: { kind: "found", version: "1.4.0" } }),
+  ) => buildSetupView({ folder: "/work/repo", platform: "linux", core, dg });
+
+  it("必須と推奨の満たさない項目を数え、すべて満たせば 0。確かめた結果がなければ 0", () => {
+    expect(missingSetupCount(view(coreResult()))).toBe(0);
+    expect(missingSetupCount(undefined)).toBe(0);
+    expect(missingSetupCount(view(coreResult({ gitignore: { status: "unmet" } })))).toBe(1);
+  });
+
+  it("確かめていない項目（必須を満たさない間の後の項目）は数えない", () => {
+    expect(
+      missingSetupCount(
+        view(
+          coreResult({
+            board: { status: "unmet" },
+            skills_hooks: { status: "pending" },
+            gitignore: { status: "pending" },
+          }),
+        ),
+      ),
+    ).toBe(1);
+    expect(
+      missingSetupCount(
+        buildSetupView({ folder: undefined, platform: "linux", core: undefined, dg: undefined }),
+      ),
+    ).toBe(1);
+  });
+
+  it("推奨がすべて欠けたときの件数が、差し替え用のコマンドを用意した上限に収まる（推奨を足したら package.json のコマンドも足す）", () => {
+    const all = view(
+      coreResult({ skills_hooks: { status: "unmet" }, gitignore: { status: "unmet" } }),
+      dgFacts(),
+    );
+    expect(missingSetupCount(all)).toBe(SETUP_ATTENTION.max);
   });
 });
 

@@ -84,6 +84,33 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "deguboard.setup.attention1",
+        "title": "%command.setup.attention1.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/setup-attention-light.svg",
+          "dark": "media/setup-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.setup.attention2",
+        "title": "%command.setup.attention2.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/setup-attention-light.svg",
+          "dark": "media/setup-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.setup.attention3",
+        "title": "%command.setup.attention3.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/setup-attention-light.svg",
+          "dark": "media/setup-attention-dark.svg"
+        }
+      },
+      {
         "command": "deguboard.ask",
         "title": "%command.ask.title%",
         "category": "deguboard",
@@ -132,7 +159,22 @@
       "view/title": [
         {
           "command": "deguboard.setup",
-          "when": "view == deguboard.screens",
+          "when": "view == deguboard.screens && !deguboard.setupAttention",
+          "group": "navigation@0"
+        },
+        {
+          "command": "deguboard.setup.attention1",
+          "when": "view == deguboard.screens && deguboard.setupAttention == 1",
+          "group": "navigation@0"
+        },
+        {
+          "command": "deguboard.setup.attention2",
+          "when": "view == deguboard.screens && deguboard.setupAttention == 2",
+          "group": "navigation@0"
+        },
+        {
+          "command": "deguboard.setup.attention3",
+          "when": "view == deguboard.screens && deguboard.setupAttention == 3",
           "group": "navigation@0"
         },
         {
@@ -152,6 +194,18 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "deguboard.setup.attention1",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.setup.attention2",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.setup.attention3",
+          "when": "false"
+        },
         {
           "command": "deguboard.sync",
           "when": "false"
