@@ -1060,7 +1060,7 @@ describe("チケットの流れ（照合と claim）", () => {
     expect(ctx.store.tickets.get("t5")?.data.branch).toBe("t5-cut");
   });
 
-  it("claim と update の branch は、値の前に <id>- を付けて記録し、自分の ID と - で始まる値はそのまま使う。別のチケットの ID・使えない文字・50 文字を超える値は拒む（ST-3・t966）", async () => {
+  it("claim と update の branch は、値の前に <id>- を付けて記録し、自分の ID と - で始まる値はそのまま使う。別のチケットの ID・使えない文字・50 文字を超える値は拒む。branch を省いた claim は、title が ASCII だけなら <id>-<title の slug>、ほかの文字を含むなら <id> だけにする（ST-3・t966）", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
     for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
@@ -1128,11 +1128,8 @@ describe("チケットの流れ（照合と claim）", () => {
     await recordBaseline(ctx.repo);
     const kept = await runCommand(ticketUpdate, ctx, { ticket: "t2", branch: "feat/legacy" });
     expect(kept.data.branch).toBe("feat/legacy");
-  });
 
-  it("branch を省いた claim は、title が ASCII だけなら <id>-<title の slug>、ほかの文字を含むなら <id> だけにする（ST-3・t966）", async () => {
-    const f = await initializedFixture();
-    const ctx = await reopenInitialized(f);
+    // branch を省いた claim は title から名前を作る（t4〜t7）
     const titles = [
       "Fix the Login form (v2)!",
       // 日本語の title から ASCII の断片（dg・id）を拾うと中身を誤って伝えるので、slug を作らない
@@ -1143,12 +1140,12 @@ describe("チケットの流れ（照合と claim）", () => {
     ];
     for (const title of titles) await runCommand(ticketCreate, ctx, { title });
     const branches: (string | undefined)[] = [];
-    for (const ticket of ["t1", "t2", "t3", "t4"]) {
+    for (const ticket of ["t4", "t5", "t6", "t7"]) {
       branches.push(
         (await runCommand(ticketClaim, ctx, { no_worktree: true, ticket })).data.branch,
       );
     }
-    expect(branches).toEqual(["t1-fix-the-login-form-v2", "t2", "t3", `t4-${"a".repeat(39)}`]);
+    expect(branches).toEqual(["t4-fix-the-login-form-v2", "t5", "t6", `t7-${"a".repeat(39)}`]);
   });
 
   it("PR の要らない作業は claim の without_branch で branch を持たず、照合で動かず警告も出ない。update の branch で付け外しできる", async () => {
@@ -1246,7 +1243,7 @@ describe("チケットの流れ（照合と claim）", () => {
     }
   });
 
-  it("agent の claim は実装の Run を開いて run に ID を出し、no_run と人の claim では開かず、agent を判定できなければ警告だけして claim は成功する（RN-5）", async () => {
+  it("agent の claim は実装の Run を開いて run に ID を出し、no_run と人の claim では開かず、agent を判定できなければ警告だけして claim は成功する。開く step は Core が決める implement で、workflow.yaml に前の形の steps（opens_on）を書いても変わらない（RN-5）", async () => {
     const f = await initializedFixture();
     const human = await reopenInitialized(f);
     for (const title of ["A", "B", "C", "D", "E"]) await runCommand(ticketCreate, human, { title });
@@ -1306,25 +1303,24 @@ describe("チケットの流れ（照合と claim）", () => {
       expect.stringMatching(/^The implement Run is not open: .*--agent/),
     ]);
     expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket).sort()).toEqual(["t1", "t2"]);
-  });
 
-  it("claim が開く step は Core が決める implement で、workflow.yaml に前の形の steps（opens_on）を書いても変わらない（RN-5）", async () => {
-    const f = await initializedFixture();
-    const human = await reopenInitialized(f);
+    // claim が開く step は Core が決める implement で、workflow.yaml に前の形の steps（opens_on）を書いても変わらない
     await writeFile(
       path.join(human.repo.dataDir, "workflow.yaml"),
       "steps:\n  - { id: build, opens_on: claim }\n  - { id: review }\n",
     );
     await recordBaseline(human.repo);
     await human.store.rescan();
-    await runCommand(ticketCreate, human, { title: "A" });
-    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
-    agent.env = { CLAUDECODE: "1" };
-    const claimed = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1" });
-    expect(claimed.data.run).not.toBeNull();
-    expect((await peekRunningRuns(agent.repo)).map((r) => [r.ticket, r.step])).toEqual([
-      ["t1", "implement"],
-    ]);
+    await runCommand(ticketCreate, human, { title: "F" });
+    const later = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
+    later.env = { CLAUDECODE: "1" };
+    const legacy = await runCommand(ticketClaim, later, { no_worktree: true, ticket: "t6" });
+    expect(legacy.data.run).not.toBeNull();
+    expect(
+      (await peekRunningRuns(later.repo))
+        .filter((r) => r.ticket === "t6")
+        .map((r) => [r.ticket, r.step]),
+    ).toEqual([["t6", "implement"]]);
   });
 
   it("ticket update --pr と照合の PR の発見は、実行中の実装の Run を success で閉じて finished_at を PR の作成時刻にし、閉じた Run への run finish は記録を変えない（RN-6）", async () => {
@@ -1640,13 +1636,24 @@ describe("チケットの流れ（照合と claim）", () => {
     }
   });
 
-  it("unclaim は実行中の実装の Run を failure で閉じ、branch のないチケットの move の review・done は success で閉じる。branch のあるチケットの move では閉じない（RN-6）", async () => {
+  it("unclaim は実行中の実装の Run を failure で閉じ、branch のないチケットの move の review・done は success で閉じる。branch のあるチケットの move では閉じない。move の abandoned は開いたままの実装・手直しの Run を failure で閉じ、branch のあるチケットを PR なしで done にすると実装の Run を success で閉じる（RN-6）", async () => {
     const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await reopenInitialized(f, { now: () => clock });
-    // agent が PR なしで done に動かせる Workflow（既定は done に pr_merged と人の承認を求める）
+    // agent が abandoned と PR なしの done に動かせる Workflow（既定は人に限り、done に pr_merged と人の承認を求める）
     await writeOpenWorkflow(human);
-    for (const title of ["Unclaim", "Review", "Done", "With branch"])
+    /** 閉じた Run の知らせだけを取り出す（読み取りの警告は除く） */
+    const closedWarnings = (warnings: string[]) =>
+      warnings.filter((w) => /^Closed the .* with (failure|success)/.test(w));
+    for (const title of [
+      "Unclaim",
+      "Review",
+      "Done",
+      "With branch",
+      "Abandoned",
+      "Abandoned after fix",
+      "Done without PR",
+    ])
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const runs = {
@@ -1669,6 +1676,25 @@ describe("チケットの流れ（照合と claim）", () => {
       t4: (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t4", branch: "t4" }))
         .data.run!,
     };
+    const implement = (
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t5", branch: "t5" })
+    ).data.run!;
+    const implement2 = (
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t6", branch: "t6" })
+    ).data.run!;
+    // PR の記録を直接書いてから claim し直し、手直しの Run を開く（PR の発見の代わり）
+    await agent.store.update("ticket", "t6", { pr: 42 });
+    await recordBaseline(agent.repo);
+    const fix = (
+      await runCommand(ticketClaim, agent, {
+        no_worktree: true,
+        ticket: "t6",
+        retry_reasons: ["指摘 A"],
+      })
+    ).data.run!;
+    const doneRun = (
+      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t7", branch: "t7" })
+    ).data.run!;
     clock = new Date("2026-11-06T05:00:00Z");
 
     const unclaimed = await runCommand(ticketUnclaim, agent, { ticket: "t1" });
@@ -1694,6 +1720,40 @@ describe("チケットの流れ（照合と claim）", () => {
     const moved = await runCommand(ticketMove, agent, { ticket: "t4", status: "review" });
     expect(moved.warnings).toEqual([]);
     expect(agent.store.runs.has(runs.t4)).toBe(false);
+    // t5〜t7 の Run は後の abandoned・done が閉じるので、ここでは t1〜t4 の Run だけを見る
+    const firstFour: string[] = Object.values(runs);
+    expect(
+      (await peekRunningRuns(agent.repo)).map((r) => r.id).filter((id) => firstFour.includes(id)),
+    ).toEqual([runs.t4]);
+
+    const abandoned = await runCommand(ticketMove, agent, { ticket: "t5", status: "abandoned" });
+    expect(closedWarnings(abandoned.warnings)).toEqual([
+      expect.stringMatching(/^Closed the implementation Run r\S+ of t5 with failure/),
+    ]);
+    expect(agent.store.runs.get(implement)!.data).toMatchObject({
+      result: "failure",
+      finished_at: "2026-11-06T05:00:00Z",
+    });
+
+    // 手直しの Run も、実装の Run と同じく開いたままなら failure で閉じる
+    const abandonedFix = await runCommand(ticketMove, agent, { ticket: "t6", status: "abandoned" });
+    expect(closedWarnings(abandonedFix.warnings)).toEqual([
+      expect.stringMatching(/^Closed the implementation Run r\S+ of t6 with failure/),
+      expect.stringMatching(/^Closed the fix Run r\S+ of t6 with failure/),
+    ]);
+    expect(agent.store.runs.get(implement2)!.data).toMatchObject({ result: "failure" });
+    expect(agent.store.runs.get(fix)!.data).toMatchObject({ result: "failure" });
+
+    // branch のあるチケットを PR なしで done にすると、実装の Run を success で閉じる
+    const finished = await runCommand(ticketMove, agent, { ticket: "t7", status: "done" });
+    expect(closedWarnings(finished.warnings)).toEqual([
+      expect.stringMatching(/^Closed the implementation Run r\S+ of t7 with success/),
+    ]);
+    expect(agent.store.runs.get(doneRun)!.data).toMatchObject({
+      result: "success",
+      finished_at: "2026-11-06T05:00:00Z",
+    });
+    // 閉じた Run は実行中の記録から消えている（残るのは branch のある move で開いたままの t4 だけ）
     expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([runs.t4]);
     // 閉じる Run のない unclaim は警告を出さない
     await runCommand(ticketClaim, human, {
@@ -1702,69 +1762,5 @@ describe("チケットの流れ（照合と claim）", () => {
       branch: "t1-again",
     });
     expect((await runCommand(ticketUnclaim, human, { ticket: "t1" })).warnings).toEqual([]);
-  });
-
-  it("ticket move の abandoned は開いたままの実装・手直しの Run を failure で閉じ、branch のあるチケットを PR なしで done にすると実装の Run を success で閉じる（RN-6）", async () => {
-    const f = await initializedFixture();
-    let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await reopenInitialized(f, { now: () => clock });
-    // agent が abandoned と PR なしの done に動かせる Workflow（既定は人に限り、done に pr_merged を求める）
-    await writeOpenWorkflow(human);
-    /** 閉じた Run の知らせだけを取り出す（読み取りの警告は除く） */
-    const closedWarnings = (warnings: string[]) =>
-      warnings.filter((w) => /^Closed the .* with (failure|success)/.test(w));
-    for (const title of ["Abandoned", "Abandoned after fix", "Done without PR"])
-      await runCommand(ticketCreate, human, { title });
-    const agent = await agentWithRuns(f.cloneA, () => clock);
-    const implement = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1", branch: "t1" })
-    ).data.run!;
-    const implement2 = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", branch: "t2" })
-    ).data.run!;
-    // PR の記録を直接書いてから claim し直し、手直しの Run を開く（PR の発見の代わり）
-    await agent.store.update("ticket", "t2", { pr: 42 });
-    await recordBaseline(agent.repo);
-    const fix = (
-      await runCommand(ticketClaim, agent, {
-        no_worktree: true,
-        ticket: "t2",
-        retry_reasons: ["指摘 A"],
-      })
-    ).data.run!;
-    const done = (
-      await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", branch: "t3" })
-    ).data.run!;
-    clock = new Date("2026-11-06T05:00:00Z");
-
-    const abandoned = await runCommand(ticketMove, agent, { ticket: "t1", status: "abandoned" });
-    expect(closedWarnings(abandoned.warnings)).toEqual([
-      expect.stringMatching(/^Closed the implementation Run r\S+ of t1 with failure/),
-    ]);
-    expect(agent.store.runs.get(implement)!.data).toMatchObject({
-      result: "failure",
-      finished_at: "2026-11-06T05:00:00Z",
-    });
-
-    // 手直しの Run も、実装の Run と同じく開いたままなら failure で閉じる
-    const abandonedFix = await runCommand(ticketMove, agent, { ticket: "t2", status: "abandoned" });
-    expect(closedWarnings(abandonedFix.warnings)).toEqual([
-      expect.stringMatching(/^Closed the implementation Run r\S+ of t2 with failure/),
-      expect.stringMatching(/^Closed the fix Run r\S+ of t2 with failure/),
-    ]);
-    expect(agent.store.runs.get(implement2)!.data).toMatchObject({ result: "failure" });
-    expect(agent.store.runs.get(fix)!.data).toMatchObject({ result: "failure" });
-
-    // branch のあるチケットを PR なしで done にすると、実装の Run を success で閉じる
-    const finished = await runCommand(ticketMove, agent, { ticket: "t3", status: "done" });
-    expect(closedWarnings(finished.warnings)).toEqual([
-      expect.stringMatching(/^Closed the implementation Run r\S+ of t3 with success/),
-    ]);
-    expect(agent.store.runs.get(done)!.data).toMatchObject({
-      result: "success",
-      finished_at: "2026-11-06T05:00:00Z",
-    });
-    // 閉じた Run は実行中の記録から消えている
-    expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([]);
   });
 });
