@@ -3,8 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
+import { checkpoint } from "../commands/checkpoint.js";
 import { openContext } from "../commands/context.js";
 import { runCommand, type CommandContext } from "../commands/define.js";
+import { iterationCreate } from "../commands/iteration.js";
 import { planApprove, planClose, planCreate } from "../commands/plan.js";
 import { configSet, init, sync } from "../commands/setup.js";
 import { ticketCreate, ticketUpdate } from "../commands/ticket.js";
@@ -161,6 +163,72 @@ describe("frontmatter の 3-way マージ", () => {
       details: [{ field: "approved_by", base: null, ours: "eiki", theirs: "agent" }],
     });
     expect(await mergeDocuments(base, doc({ id: "p1" }), base)).toBeUndefined();
+  });
+
+  it("Iteration の checkpoints は、両側が別の記録を足したら要素の和集合にして古い順に並べ、同じ記録（name・at・by）は 1 件にまとめる。採る側を渡しても片側を捨てない（t1053）", async () => {
+    const record = (name: string, at: string, by = "eiki") => [
+      `  - name: ${name}`,
+      `    at: ${at}`,
+      `    by: ${by}`,
+    ];
+    const iteration = (updatedAt: string, ...records: string[][]) =>
+      [
+        "id: s1",
+        "name: S1",
+        `updated_at: ${updatedAt}`,
+        ...(records.length > 0 ? ["checkpoints:", ...records.flat()] : []),
+        "",
+      ].join("\n");
+    const assign = record("assign", "2026-11-01T00:00:01Z");
+    const check = record("check", "2026-11-01T00:00:05Z", "eiki/agent");
+    const audit = record("audit", "2026-11-01T00:00:03Z");
+    const base = iteration("2026-11-01T00:00:01Z", assign);
+    const ours = iteration("2026-11-01T00:00:05Z", assign, check);
+    const theirs = iteration("2026-11-01T00:00:03Z", assign, audit);
+    // 分岐点の記録（assign）は 1 件のまま、両側の記録が at の古い順に並ぶ
+    const merged = iteration("2026-11-01T00:00:05Z", assign, audit, check);
+    expect(await mergeDocuments(base, ours, theirs)).toEqual({
+      ok: true,
+      text: merged,
+      resolved: [],
+    });
+    // 逆の向き（もう片方の clone が解く）でも同じ結果になる
+    expect(await mergeDocuments(base, theirs, ours)).toEqual({
+      ok: true,
+      text: merged,
+      resolved: [],
+    });
+    // 人が側を選んでも（dg sync --resolve）、関所の記録は選ばせずに両方を残す
+    for (const prefer of ["ours", "theirs"] as const)
+      expect(await mergeDocuments(base, ours, theirs, prefer)).toEqual({
+        ok: true,
+        text: merged,
+        resolved: [],
+      });
+    // 両側が同じ記録を足し（同じコミットを 2 つの経路で取り込んだ）、片側がもう 1 件足しても、同じ記録は 1 件
+    expect(
+      await mergeDocuments(
+        base,
+        iteration("2026-11-01T00:00:05Z", assign, audit, check),
+        iteration("2026-11-01T00:00:03Z", assign, audit),
+      ),
+    ).toEqual({ ok: true, text: merged, resolved: [] });
+    // 分岐点に checkpoints がなく、両側が初めての記録を足したときも両方を残す
+    expect(
+      await mergeDocuments(
+        iteration("2026-11-01T00:00:00Z"),
+        iteration("2026-11-01T00:00:05Z", check),
+        iteration("2026-11-01T00:00:03Z", audit),
+      ),
+    ).toEqual({ ok: true, text: iteration("2026-11-01T00:00:05Z", audit, check), resolved: [] });
+    // 配列でない値に変えた側があれば、和集合にせず競合のまま返す
+    expect(
+      await mergeDocuments(
+        base,
+        ours,
+        base.replace(/checkpoints:[\s\S]*$/, "checkpoints: 壊れた値\n"),
+      ),
+    ).toMatchObject({ ok: false, conflicts: ["checkpoints"] });
   });
 
   it("採る側を渡すと、競合したフィールドと本文のぶつかった行だけその側を採り、採った値と捨てた値を返す", async () => {
@@ -872,6 +940,90 @@ describe("同期のマージドライバ", () => {
     expect(await readFile(path.join(a.repo.dataDir, file), "utf8")).toBe(
       await readFile(path.join(b.repo.dataDir, file), "utf8"),
     );
+  });
+
+  describe("2 つの clone が同じ Iteration で別の関所を通す（t1053。EX-8・IT-1）", () => {
+    /** a が Iteration s1 を作り、b も取り込んだ 2 つの clone。s1 の関所の記録（名前の並び）とファイルを読む */
+    async function sharedIteration() {
+      const f = await fixture();
+      const { a, b } = await twoClones(f);
+      await runCommand(iterationCreate, a, { name: "S1" });
+      await runCommand(sync, b, {});
+      const names = (ctx: CommandContext) =>
+        (ctx.store.require("iteration", "s1").data.checkpoints ?? []).map((c) => c.name);
+      const file = (ctx: CommandContext) =>
+        readFile(path.join(ctx.repo.dataDir, "iterations/s1.yaml"), "utf8");
+      const pass = (ctx: CommandContext, stage: string) =>
+        runCommand(checkpoint, ctx, { stage, targets: ["s1"] });
+      return { a, b, names, file, pass };
+    }
+
+    /** a の最初の push の直前に、b が audit の関所を通して push する。a の push は拒否され、取り込み直しに入る */
+    function raceWith(b: CommandContext, pass: (ctx: CommandContext, stage: string) => unknown) {
+      const hooks = {
+        beforePush: async () => {
+          hooks.beforePush = async () => {};
+          await pass(b, "audit");
+        },
+      };
+      return hooks;
+    }
+
+    it("push が競合しても、--resolve を使わずにマージドライバが両方の記録を 1 件ずつ残して push し、もう片方も取り込めば同じ内容になる", async () => {
+      const { a, b, names, file, pass } = await sharedIteration();
+      const passed = await pass({ ...a, hooks: raceWith(b, pass) }, "check");
+      expect(passed.write).toMatchObject({ committed: true, pushed: true, attempts: 2 });
+      expect(passed.write?.warnings.join("\n")).not.toContain("Conflicts with remote changes");
+      // a の check は push の前に記録したので時刻が早く、その後に通した b の audit が続く。どちらも 1 件ずつ
+      expect(names(a)).toEqual(["check", "audit"]);
+      const synced = await runCommand(sync, b, {});
+      expect(synced.data.conflicts).toEqual([]);
+      expect(names(b)).toEqual(["check", "audit"]);
+      expect(await file(b)).toBe(await file(a));
+    });
+
+    it("リモートに届かないまま通した関所も、後の sync が競合にせず両方の記録を 1 件ずつ残す", async () => {
+      const { a, b, names, file, pass } = await sharedIteration();
+      // b はリモートに届かない間に audit を通す（コミットは手元に残る）
+      const url = (await git(b.repo.dataDir, ["remote", "get-url", "origin"])).stdout.trim();
+      await git(b.repo.dataDir, ["remote", "set-url", "origin", path.join(url, "missing")]);
+      const offline = await pass(b, "audit");
+      expect(offline.write).toMatchObject({ committed: true, pushed: false });
+      await git(b.repo.dataDir, ["remote", "set-url", "origin", url]);
+      // その間に a が check を通して push する
+      expect((await pass(a, "check")).write).toMatchObject({ committed: true, pushed: true });
+      const synced = await runCommand(sync, b, {});
+      expect(synced.data.conflicts).toEqual([]);
+      expect(synced.data.pushed).toBe(true);
+      expect(names(b)).toEqual(["audit", "check"]);
+      await runCommand(sync, a, {});
+      expect(names(a)).toEqual(["audit", "check"]);
+      expect(await file(a)).toBe(await file(b));
+    });
+
+    it("push を拒まれた後の取り込み直しが途中で止まったら、自分の記録だけが消えて相手の記録は残り、もう一度通すと両方の記録が 1 件ずつになる", async () => {
+      const { a, b, names, file, pass } = await sharedIteration();
+      const hooks = raceWith(b, pass);
+      const first = hooks.beforePush;
+      hooks.beforePush = async () => {
+        await first();
+        // 取り込み直し（rebase で両方の記録を残した後）の、もう一度の push の直前で止める
+        hooks.beforePush = async () => {
+          throw new Error("取り込み直しの後のエラー");
+        };
+      };
+      await expect(pass({ ...a, hooks }, "check")).rejects.toThrow("取り込み直しの後のエラー");
+      // 積み直した自分のコミット（check）だけが捨てられ、取り込んだ b の記録は残る
+      expect(names(a)).toEqual(["audit"]);
+      expect((await git(a.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+      expect(await file(a)).toBe(await file(b));
+      // もう一度通すと push まで進み、check は 2 件にならない
+      expect((await pass(a, "check")).write).toMatchObject({ committed: true, pushed: true });
+      expect(names(a)).toEqual(["audit", "check"]);
+      await runCommand(sync, b, {});
+      expect(names(b)).toEqual(["audit", "check"]);
+      expect(await file(b)).toBe(await file(a));
+    });
   });
 
   it("同じ Plan の同じフィールド（時刻でないもの）を双方で違う値にした分岐は、今までどおり競合として報告する", async () => {
