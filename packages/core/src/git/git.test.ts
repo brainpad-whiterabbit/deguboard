@@ -10,10 +10,11 @@ import {
 } from "../../test/helpers/git-fixture.js";
 import { OperationError } from "../errors.js";
 import { collectBranchFacts } from "./facts.js";
+import { withLock } from "./lock.js";
 import { checkOutside, dirtyFiles } from "./outside.js";
 import { markRebase, rebaseInProgress, rebaseLeftByDg } from "./rebase.js";
 import { GitError, runGit } from "./run.js";
-import { fetchData, integrate, isDirty, push, syncStatus } from "./sync.js";
+import { fastForwardIfClean, fetchData, integrate, isDirty, push, syncStatus } from "./sync.js";
 import { LOCAL_DATA_BRANCH, ensureDeguboardWorktree } from "./worktree.js";
 import { resolveRepoPaths } from "./repo.js";
 import { flushPending, withWrite, type WriteContext } from "./write.js";
@@ -427,6 +428,20 @@ describe("rebase の途中と時間切れ", () => {
     expect(await rebaseInProgress(a.repo)).toBe(true);
     expect(await rebaseLeftByDg(a.repo)).toBe(true);
     expect(await checkOutside(a.repo)).toEqual({ kind: "rebasing", byDg: true });
+
+    // 画面の自動の取り込み（fastForwardIfClean）は、リモートがさらに進んでも途中の rebase に手を出さない。
+    // 途中の HEAD はリモートの先端にあって未 push のコミットがないように見えるので、数だけで決めると fast-forward してしまう
+    await writeFile(path.join(b.repo.dataDir, "y.yaml"), "b: 1\n");
+    await git(b.repo.dataDir, ["add", "-A"]);
+    await git(b.repo.dataDir, ["commit", "-qm", "b2"]);
+    await push(b.repo);
+    expect((await fetchData(a.repo)).ok).toBe(true);
+    const stopped = (await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    expect(await syncStatus(a.repo)).toMatchObject({ ahead: 0, behind: 1 });
+    expect(await withLock(a.repo.localDir, "write", () => fastForwardIfClean(a.repo))).toBe(false);
+    expect((await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(stopped);
+    expect(await rebaseInProgress(a.repo)).toBe(true);
+    expect(await rebaseLeftByDg(a.repo)).toBe(true);
 
     // 殺された git の残した index.lock を消すと、次の書き込みが dg の残りとして取り消してから書く
     await rm(

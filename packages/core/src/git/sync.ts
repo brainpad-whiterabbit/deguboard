@@ -12,7 +12,7 @@ import {
   mergeDocuments,
   type ResolvedField,
 } from "./merge.js";
-import { DG_COMMIT_TRAILER } from "./outside.js";
+import { DG_COMMIT_TRAILER, inspectOutsideLocked, recordBaseline } from "./outside.js";
 import { abortRebase, markRebase, unmarkRebase } from "./rebase.js";
 import { dataRemoteRef, type GitRepo } from "./repo.js";
 import { type ExecResult, GitError, runGit } from "./run.js";
@@ -216,6 +216,34 @@ export async function integrate(
   } finally {
     await unmarkRebase(repo);
   }
+}
+
+/**
+ * 画面の自動の取り込み（UI-6）。追跡 ref（dataRemoteRef）へ fast-forward だけで進め、進めたら true。
+ * 呼び出し側が書き込みのロックを持っていること（fetch と同じロックの中で呼ぶ）。
+ * 人の同期に任せる状態では何もせずに false：未 push のコミットがある（fast-forward にならない）、未コミットの変更がある
+ * （commit.mode が batch・manual のまとめ待ちも含む）、rebase の途中（SY-9。書き込みの入口と違い、取り消しも止めもしない）、
+ * dg の外の変更がある（SY-7）、外の変更の基準がまだない。rebase も commit もしないので、競合せず、利用者の名前とメールも要らない。
+ * git が失敗したときも false（作業ツリーの変更とぶつかるときは git が何も変えずに止まる）
+ */
+export async function fastForwardIfClean(repo: GitRepo): Promise<boolean> {
+  if (!repo.dataRemote) return false;
+  const remote = dataRemoteRef(repo);
+  // 取り込むものがあるかを先に 1 回で確かめる（ほとんどの呼び出しでは何もない）。追跡 ref がなければ失敗して false
+  const counted = await git(repo, ["rev-list", "--left-right", "--count", `HEAD...${remote}`], {
+    allowFailure: true,
+  });
+  if (counted.code !== 0) return false;
+  const [ahead, behind] = counted.stdout.trim().split(/\s+/).map(Number);
+  if (ahead !== 0 || !behind) return false;
+  // 途中の rebase は rebasing で返る。state がないのは基準がまだないとき
+  const { check, state } = await inspectOutsideLocked(repo);
+  if (check.kind !== "clean" || !state || Object.keys(state.dirty).length > 0) return false;
+  const merged = await git(repo, ["merge", "--ff-only", "--quiet", remote], { allowFailure: true });
+  if (merged.code !== 0) return false;
+  // 進めた HEAD を基準にする（記録できなくても、基準の HEAD は今の HEAD の祖先で、取り込んだコミットはリモートにあるので外の変更にならない）
+  await recordBaseline(repo).catch(() => undefined);
+  return true;
 }
 
 /** 取り込みの途中でドライバが書き足すログ（localDir に置く。書き込みのロックの中でだけ使うので名前は 1 つ） */

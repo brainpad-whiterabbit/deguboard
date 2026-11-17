@@ -133,7 +133,7 @@ To move an existing board to another repository, a person does the following in 
    dg sync
    ```
 
-3. In every other clone, add the remote under the same name (`git remote add kanban <URL>`) and run `dg sync`. The first command that takes in the config change stops without pushing and asks you to run it again; from then on that clone uses the new remote. A clone that does not have the remote stops and shows the `git remote add` command. To use another remote name in one clone, run `dg config set git.data_remote <name> --local`.
+3. In every other clone, add the remote under the same name (`git remote add kanban <URL>`) and run `dg sync`. The first command that takes in the config change stops without pushing and asks you to run it again; from then on that clone uses the new remote. A clone with the board open in VS Code or `dg serve` may already have taken the change in automatically; there the next command uses the new remote without stopping. A clone that does not have the remote stops and shows the `git remote add` command. To use another remote name in one clone, run `dg config set git.data_remote <name> --local`.
 4. After every clone has moved, delete the branch from the old remote. A clone that has not moved would push its data to the old remote again, so do this last.
 
    ```sh
