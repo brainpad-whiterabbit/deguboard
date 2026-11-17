@@ -755,7 +755,7 @@ export const flowNext = defineCommand({
     "2 check: no check checkpoint matches the current tickets / 3 plan: an approval-waiting Plan includes the target / 4 work: an approved Plan that includes the target has unfinished tickets, and if none, an approved open Plan that includes the target is finished (close: plan close) / " +
     "5 plan: an open Plan does not include some todo / 6 audit: all tickets of <S> are done or abandoned but not yet audited / 7 release: the same, and audited. Tickets labeled release-<S> (the two release tickets that the release steps file) are not counted in 6 and 7 nor planned in 5, so release keeps returning until <S> is closed / 8 stop. If <S> is closed, nothing is assigned, and the flow stops as finished before 6 and 7). " +
     "Whether assign, check, and audit are finished is read from the checkpoint records of <S> (checkpoints of the Iteration, added by dg checkpoint), so a flow goes on from where it was across conversations, people, and machines. A record counts only while its basis holds, and records from before dg iteration reopen are not counted. " +
-    "Assign: the candidates are, for an Iteration target, the todos that are neither in an Iteration nor labeled audit-<S>, and for a ticket or Plan target, the unfinished target tickets that are not in an Iteration. A record holds the candidates it saw, and only candidates that no record has seen are asked about. " +
+    "Assign: the candidates are the unfinished target tickets that are not in an Iteration, for a ticket or Plan target only. An Iteration target has no candidates, so it never returns assign (putting other todos into the Iteration is left to the assignment steps, dg guide assign, when a person asks for it), and --no-assign has a meaning only for a ticket or Plan target. A record holds the candidates it saw, and only candidates that no record has seen are asked about. " +
     "Check: a record holds a hash of the tickets (which tickets there are, and each one's title, body without the acceptance marks, priority, labels, dependencies, Epic, and Iteration; not its Status, assignee, branch, PR, or gate level), and it stops counting when they change. " +
     "Audit (audited): a record holds the done tickets, and it stops counting when a ticket that it did not see is done (tickets labeled audit-<S> or release-<S> are not looked at, so merging the audit's own fixes does not ask for another audit). " +
     "The stage's steps pass the checkpoint with the command in checkpoint (null when the stage has none, and for release once it is passed). If it is not passed, the same stage is returned again. " +
@@ -779,7 +779,12 @@ export const flowNext = defineCommand({
       .describe(
         "Go ahead without asking where the Workflow's value is ask_unless_auto (the person started the flow with --auto). The judged commands returned then carry --auto",
       ),
-    no_assign: z.boolean().optional().describe("Skip the assign stage"),
+    no_assign: z
+      .boolean()
+      .optional()
+      .describe(
+        "Skip the assign stage (meaningful only for a ticket or Plan target; an Iteration target never returns assign)",
+      ),
     // 要件 TK-9
     gate: z
       .enum(GATE_LEVELS)

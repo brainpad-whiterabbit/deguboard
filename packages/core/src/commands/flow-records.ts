@@ -73,21 +73,19 @@ const releaseLabeled = (s: string | null) => (t: Ticket) =>
   s !== null && t.labels.includes(`release-${s}`);
 
 /**
- * 割り当ての候補。Iteration の指定では、Iteration に入っていない todo（ラベル audit-<S> を除く）。
- * チケットか Plan の指定では、対象のうち Iteration に入っていない、終わっていないチケット（todo に限らない。着手済みでも Iteration を決める）。
- * 閉じた Iteration には入れられないので、候補はない
+ * 割り当ての候補。チケットか Plan の指定で、対象のうち Iteration に入っていない、終わっていないチケット
+ * （todo に限らない。着手済みでも、関所の記録を置く Iteration を決める）。
+ * Iteration の指定では候補はない。流れは Iteration の中のチケットを進めるもので、ほかの todo を Iteration に
+ * 入れるかは、人が頼んだときに dgassign で決める。閉じた Iteration には入れられないので、候補はない
  */
 export function flowCandidates(store: Store, target: FlowTarget): string[] {
+  if (target.kind === "iteration") return [];
   const s = target.iteration;
   if (s !== null && store.iterations.get(s as IterationId)?.data.status === "closed") return [];
-  const found =
-    target.kind === "iteration"
-      ? allTickets(store).filter(
-          (t) =>
-            t.status === "todo" && t.iteration === undefined && !t.labels.includes(`audit-${s}`),
-        )
-      : target.tickets.filter((t) => !isTerminal(t.status) && t.iteration === undefined);
-  return found.map((t) => t.id).sort(compareIds);
+  return target.tickets
+    .filter((t) => !isTerminal(t.status) && t.iteration === undefined)
+    .map((t) => t.id)
+    .sort(compareIds);
 }
 
 /**
