@@ -1,0 +1,35 @@
+{
+  "id": "r20261117-004726-06d1",
+  "ticket": "t1046",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-17T00:47:26Z",
+  "finished_at": "2026-11-17T00:55:45Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "withWriteLock の説明が、基準を記録し直さない経路では外の変更を次のコマンドが見つけることを書いていない",
+    "setup の dirty の判定が isDirty と違う規則で追跡しないファイルを数え、status.showUntrackedFiles=no のリポジトリで振る舞いがずれる"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 7901,
+    "cache_read": 614687,
+    "cache_write": 46038
+  },
+  "tools": {
+    "read": 7,
+    "search": 0,
+    "write": 6,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 7,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "147110cf-2746-45b5-8eda-29947186c7b0",
+  "review": null,
+  "waited_seconds": 0
+}
