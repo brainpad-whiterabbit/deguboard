@@ -159,6 +159,17 @@ dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-api
 - 見る権限はリポジトリ単位でしか分けられない。専用のリポジトリを読める人は、そこのどのカンバンも読める。一部の人にだけ見せるカンバンは、別のリポジトリに置く
 - 今あるカンバンのデータのブランチ名を変えるときは、前の節の手順を同じリモートで行う。1 で `git push <データのリモート> deguboard:<新しい名前>`、2 で `dg config set git.data_branch <新しい名前>` と `dg sync` を実行し、4 で元のブランチを消す。共有のリポジトリへ新しい名前で移すときは、先にブランチ名を変えてから、リポジトリへ移す（1 つずつ移す）。両方を一度に変えると、次のコマンドが新しいリポジトリの元のブランチ名へ push し、そこがほかのカンバンのブランチのこともある
 
+## 振り返りの観点と指標
+
+`/dgretro` は、閉じた Iteration をチームの観点で振り返る。観点はチームの `config.yaml` の `retro.perspectives` に置く。既定の観点は 7 つで、Outcome（成果、`outcome`）・Review effectiveness（見直しの効き目、`review`）・Spec quality（仕様の質、`spec`）・Slicing（分け方、`slicing`）・Agent stability（エージェントの安定、`stability`）・Cost（コスト、`cost`）・Improvement tracking（改善の追跡、`improvement`）。最初はどの観点にも指標はない。
+
+- **指標とは**：dg が計算する式ではなく、数え方の文と、数の出どころのコマンドの組。振り返りのたびに、エージェントが定義を読んでコマンドを実行し、対象の Iteration と直近の回の値を計算して傾向を出す。値は保存しない
+- **指標の決め方**：指標のない観点には、エージェントが dg の持つ推薦の指標を参照して指標を提案する。記録するのは人が承認したものだけ。トークンを数える指標には `metrics.read_transcripts` が要る（[トークンを数える](#トークンを数える)）
+- **変える**：`dg retro perspective` で観点を足すか名前・問いを変え、`dg retro metric` で承認した指標を記録し、`dg retro remove` で指標か観点ごと消す。`dg config unset retro.perspectives` で既定の観点に戻る。`dg config set` と設定画面では書けない
+- **見る**：`dg config show` か、設定画面（読むだけ）
+
+推薦の指標とその定義、引数は `dg retro --help` と `dg guide retro` にある。
+
 ## トークンを数える
 
 トークンは、会話記録から使用量を取り込む設定を有効にしたときだけ集計されます（Claude Code・Codex・Copilot CLI）。設定するには次のとおりにします。

@@ -159,6 +159,17 @@ dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-api
 - Read access can only be split by repository. Everyone who can read the dedicated repository can read every kanban in it. Keep a kanban that only some people may see in a repository of its own.
 - To rename the data branch of an existing board, follow the steps of the previous section on the same remote: in step 1 run `git push <data remote> deguboard:<new name>`, in step 2 run `dg config set git.data_branch <new name>` and `dg sync`, and in step 4 delete the old branch. To move a board into a shared repository under a new name, rename the branch first and then move it to the repository, one move at a time. Changing both at once makes the next command push to the old branch name in the new repository, which may be another board's branch.
 
+## Retrospective perspectives and metrics
+
+`/dgretro` looks back on a closed Iteration by the team's perspectives, kept in `retro.perspectives` of the team's `config.yaml`. There are seven default perspectives: Outcome (`outcome`), Review effectiveness (`review`), Spec quality (`spec`), Slicing (`slicing`), Agent stability (`stability`), Cost (`cost`), and Improvement tracking (`improvement`). At first, none of them has a metric.
+
+- **What a metric is**: not a formula that dg runs, but a pair of a sentence that says how to count and the commands the numbers come from. At each retrospective, the agent reads the definition, runs the commands, and computes the values for the Iteration and the recent ones to show the trend. The values are not stored.
+- **How metrics are decided**: for a perspective with no metric, the agent proposes metrics, referring to the recommended metrics that dg holds. Only the ones a person approves are recorded. Metrics that count tokens need `metrics.read_transcripts` (see [Count tokens](#count-tokens)).
+- **Change**: `dg retro perspective` adds a perspective or changes its name or question, `dg retro metric` records an approved metric, `dg retro remove` removes a metric or a whole perspective, and `dg config unset retro.perspectives` returns to the default perspectives. `dg config set` and the settings screen cannot write them.
+- **See**: `dg config show`, or the settings screen (read only).
+
+The recommended metrics, their definitions, and the arguments are in `dg retro --help` and `dg guide retro`.
+
 ## Count tokens
 
 Tokens are counted only when deguboard reads usage from conversation transcripts (Claude Code, Codex, and Copilot CLI). To turn it on:
