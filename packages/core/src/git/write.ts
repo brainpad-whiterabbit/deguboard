@@ -139,9 +139,17 @@ export interface WriteResult<T> {
 
 const BATCH_MESSAGE = "Commit batched changes";
 
-/** 未コミットの変更を 1 コミットにする。`dg commit`・`dg sync`・即時の操作（作成・claim・Iteration の開始と再開）の直前に呼ばれる。コミットしたら true */
-export async function flushPending(ctx: WriteContext, message = BATCH_MESSAGE): Promise<boolean> {
-  if (!(await isDirty(ctx.repo))) return false;
+/**
+ * 未コミットの変更を 1 コミットにする。`dg commit`・`dg sync`・即時の操作（作成・claim・Iteration の開始と再開）の直前に呼ばれる。コミットしたら true。
+ * known.dirty は、呼び出し側が同じ書き込みのロックの中で読み、その後に作業ツリーを変えていない「未コミットの変更があるか」
+ * （渡されれば status を聞き直さない。t1075）
+ */
+export async function flushPending(
+  ctx: WriteContext,
+  message = BATCH_MESSAGE,
+  known: { dirty?: boolean } = {},
+): Promise<boolean> {
+  if (!(known.dirty ?? (await isDirty(ctx.repo)))) return false;
   await requireIdentity(ctx.repo);
   return commitAll(ctx.repo, message);
 }
@@ -151,7 +159,7 @@ export async function withWrite<T>(
   mutate: () => Promise<T>,
   opts: WriteOptions<T>,
 ): Promise<WriteResult<T>> {
-  return withWriteLock(ctx.repo, () => writeLocked(ctx, mutate, opts));
+  return withWriteLock(ctx.repo, (entry) => writeLocked(ctx, mutate, opts, entry));
 }
 
 /**
@@ -173,13 +181,17 @@ export async function withWriteLock<T>(
     // 入口（runCommand）もロックの外で同じことを確かめているが、ロックを待つ間にほかの dg が書きうるので、ここで読み直す
     const before = await inspectOutsideLocked(repo);
     if (before.check.kind === "found") throw outsideError(before.check.changes);
-    const entry: LockEntry = { state: before.state, untouched: false };
+    const entry: LockEntry = { state: before.state, untouched: false, headKept: false };
     try {
       return await fn(entry);
     } finally {
       // fn が何も変えず、基準が入口の状態と同じ中身なら、記録し直しても同じ中身なので読み直さない。
-      // ほかは、fn の書き込みで HEAD と作業ツリーが変わりうるので、放す前に読み直して記録する
-      if (!(entry.untouched && before.recorded)) await recordBaseline(repo).catch(() => undefined);
+      // ほかは、fn の書き込みで HEAD と作業ツリーが変わりうるので、放す前に読み直して記録する。
+      // fn が HEAD を動かさなかった（まとめ待ちに残す書き込み）なら、HEAD は入口で読んだものを使い、作業ツリーの変更だけを読み直す
+      if (!(entry.untouched && before.recorded)) {
+        const head = entry.headKept ? before.state?.head : undefined;
+        await recordBaseline(repo, head === undefined ? {} : { head }).catch(() => undefined);
+      }
     }
   });
 }
@@ -196,6 +208,11 @@ export interface LockEntry {
    * 変えたのに true にすると、dg 自身の書き込みが基準に入らず、次のコマンドが dg の外の変更として止まる）
    */
   untouched: boolean;
+  /**
+   * fn が HEAD を動かさなかった（コミット・rebase・reset をしなかった）と言い切れるときだけ、fn が true にする。作業ツリーは変えていてよい
+   * （まとめ待ちに残す書き込み）。true なら、放す前の基準の記録は rev-parse を聞き直さずに state の HEAD を使う（t1075）
+   */
+  headKept: boolean;
 }
 
 /**
@@ -219,6 +236,7 @@ async function writeLocked<T>(
   ctx: WriteContext,
   mutate: () => Promise<T>,
   opts: WriteOptions<T>,
+  entry: LockEntry,
 ): Promise<WriteResult<T>> {
   const { repo, config } = ctx;
   const warnings: string[] = [];
@@ -233,10 +251,15 @@ async function writeLocked<T>(
   const maxAttempts = opts.maxAttempts ?? 3;
 
   // やめた Project の残り（projects/）は、書く前に印付きのコミットで一度だけ消す（retire-projects.ts）
-  await retireProjects(repo, ctx.store);
+  const retired = await retireProjects(repo, ctx.store);
+  // ロックの入口で読んだ HEAD と作業ツリーの変更（LockEntry の state）。消したとき（コミットした）は使わない。
+  // 下で HEAD か作業ツリーを変えるたびに、変わった方を捨てて、その後は git に聞き直す（t1075）
+  const known = retired ? undefined : entry.state;
 
   if (!shouldCommit) {
-    // batch / manual：作業ツリーに残す。コミットは dg commit・dg sync・即時の操作が行う
+    // batch / manual：作業ツリーに残す。コミットは dg commit・dg sync・即時の操作が行う。
+    // mutate はファイルを書くだけで HEAD を動かさない（途中で例外になっても同じ）ので、放す前の基準の記録は入口で読んだ HEAD を使う
+    entry.headKept = known !== undefined;
     const value = await mutate();
     return {
       value,
@@ -245,10 +268,18 @@ async function writeLocked<T>(
   }
 
   await requireIdentity(repo);
-  // 即時の操作は、まとめ待ちの変更を先にコミットして作業ツリーを空にする
-  const flushed = await flushPending(ctx);
+  // 即時の操作は、まとめ待ちの変更を先にコミットして作業ツリーを空にする。
+  // 入口で読んだ dirtyFiles の件数は、isDirty と同じ答えになる（どちらも追跡しないファイルを git の設定によらず数える。sync.ts の isDirty）
+  const flushed = await flushPending(
+    ctx,
+    undefined,
+    known ? { dirty: Object.keys(known.dirty).length > 0 } : {},
+  );
   if (flushed) warnings.push("Committed the pending changes first");
 
+  // 分かっている今の HEAD。HEAD を動かしたら（まとめ待ちのコミット・取り込み・自分のコミット・reset）undefined にし、
+  // 要るときに rev-parse HEAD で読み直す。push が拒否された後のやり直しと取り込み直しは、自分のコミットの後なのでいつも読み直す
+  let head = flushed ? undefined : known?.head;
   let attempts = 0;
   for (;;) {
     attempts += 1;
@@ -258,7 +289,13 @@ async function writeLocked<T>(
         warnings.push(`Cannot fetch from the remote: ${fetched.detail}`);
       } else if (fetched.remoteBranch) {
         const nameBefore = dataTargetOf(ctx.store.config);
-        const { result: integrated, resolved } = await integrateLogged(repo);
+        const { result: integrated, resolved } = await integrateLogged(
+          repo,
+          head === undefined ? {} : { known: { head } },
+        );
+        // 取り込みが rebase の後に読んだ HEAD を使う。rebase を始めなかったとき（head がない）は動いていないので、そのまま。
+        // 競合で中止したときは、中止できずに途中の状態が残ることがあるので、読み直す
+        head = integrated.ok ? (integrated.head ?? head) : undefined;
         warnings.push(...autoResolvedWarnings(resolved));
         if (!integrated.ok) {
           const detail = `Conflicts: ${integrated.conflicts.join(", ")}`;
@@ -279,8 +316,11 @@ async function writeLocked<T>(
       }
     }
 
-    // 先頭はここで読み直す：上の取り込み（rebase）とまとめ待ちのコミット、やり直しの前の reset が先頭を動かしうる
-    const before = await headSha(repo);
+    // 変更の前の先頭。上の取り込み（rebase）とまとめ待ちのコミット、やり直しの前の reset が先頭を動かしうるので、
+    // 動かした後に読んだ値（取り込みが返した HEAD）か、どれも動かさなかったときの入口の値だけを使い、なければここで読み直す
+    const before = head ?? (await headSha(repo));
+    // この後の mutate とコミットが先頭を動かす
+    head = undefined;
     const value = await mutate().catch((e: unknown) => {
       if (e instanceof AbortWrite) e.warnings.push(...warnings);
       throw e;

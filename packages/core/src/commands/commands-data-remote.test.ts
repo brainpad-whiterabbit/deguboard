@@ -461,6 +461,66 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
       await syncsAfterStop(f.cloneB, dataDir);
     });
 
+    /**
+     * 止まった操作と同じ文脈（dg serve・VS Code 拡張は文脈を持ち続ける）で次の操作を続ける（t1075）。
+     * 書き込みは、ロックの入口で読んだ HEAD と作業ツリーの変更、主体と作者の git config を 1 回の操作の中で使い回す。
+     * 止まった操作が読んだ値（取り込み直しと戻しの前の HEAD・作者）が次の操作に残らないことを確かめる：
+     * 作者の設定を消すと次の操作は IDENTITY_MISSING で止まり（覚えた作者で進まない）、戻すと取り込んだコミットの上に 1 回だけ書いて送る
+     */
+    async function continuesOnSameContext(racer: CommandContext, dataDir: string) {
+      racer.hooks = undefined;
+      const email = (await git(racer.repo.topLevel, ["config", "user.email"])).stdout.trim();
+      await git(racer.repo.topLevel, ["config", "--unset", "user.email"]);
+      await expect(
+        runCommand(ticketUpdate, racer, { ticket: "t1", priority: "high" }),
+      ).rejects.toMatchObject({ code: "IDENTITY_MISSING" });
+      await git(racer.repo.topLevel, ["config", "user.email", email]);
+
+      const updated = await runCommand(ticketUpdate, racer, { ticket: "t1", priority: "high" });
+      expect(updated.write).toMatchObject({ committed: true, pushed: true, attempts: 1 });
+      expect(updated.warnings).toEqual([]);
+      // 取り込んだコミット（t2）と前からの手元のコミットの上に、同じ変更のコミットが 1 つだけ載って届いた
+      expect(await tipOf(dataDir, "deguboard")).toBe(await headOf(racer));
+      const subjects = (await git(racer.repo.dataDir, ["log", "--format=%s"])).stdout.split("\n");
+      expect(subjects.filter((s) => s === subjects[0])).toHaveLength(1);
+      expect(subjects[1]).toBe("Commit batched changes");
+      expect([...racer.store.tickets.keys()].sort()).toEqual(["t1", "t2"]);
+      expect(racer.store.tickets.get("t1")?.data).toMatchObject({
+        priority: "high",
+        title: "前からの変更",
+      });
+      // ロックを放す前の基準には今の HEAD が入った：続く操作は dg 自身の書き込みを外の変更と取り違えない
+      expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+      expect(await checkOutside(racer.repo)).toEqual({ kind: "clean", initial: false });
+      const next = await runCommand(ticketUpdate, racer, { ticket: "t1", title: "続き" });
+      expect(next.write).toMatchObject({ committed: true, pushed: true });
+      expect(await tipOf(dataDir, "deguboard")).toBe(await headOf(racer));
+    }
+
+    it("rebase の後に止まった後、同じ文脈の次の操作は、止まった操作が読んだ HEAD と作者を使わずに読み直して続ける", async () => {
+      const { dataDir, racer } = await rejectedThenStopped(async (_racer, hooks) => {
+        hooks.beforePush = async () => {
+          throw new Error("取り込み直しの後の新しいエラー");
+        };
+      });
+      await expect(
+        runCommand(ticketUpdate, racer, { ticket: "t1", priority: "high" }),
+      ).rejects.toThrow("取り込み直しの後の新しいエラー");
+      await continuesOnSameContext(racer, dataDir);
+    });
+
+    it("rebase の前に止まった後、同じ文脈の次の操作は、リモートの変更を取り込んでから続ける", async () => {
+      const logOf = (ctx: CommandContext) => path.join(ctx.repo.localDir, "resolve-log.jsonl");
+      const { dataDir, racer } = await rejectedThenStopped(async (ctx) => {
+        await mkdir(logOf(ctx));
+      });
+      await expect(
+        runCommand(ticketUpdate, racer, { ticket: "t1", priority: "high" }),
+      ).rejects.toMatchObject({ code: "EISDIR" });
+      await rmdir(logOf(racer));
+      await continuesOnSameContext(racer, dataDir);
+    });
+
     it("競合で止まったときは今までどおり、コミットを手元に残して警告で戻し方を案内する", async () => {
       const { f, a, b } = await twoClones();
       await runCommand(ticketCreate, a, { title: "A" });

@@ -12,7 +12,7 @@ import {
   type OutsideChanges,
 } from "../git/outside.js";
 import { REBASE_REMEDY } from "../git/rebase.js";
-import { missingDataRemote } from "../git/repo.js";
+import { forgetIdentityConfig, missingDataRemote } from "../git/repo.js";
 import type { ActorKind, UserSource } from "../model/actor.js";
 import type { WriteContext, WriteOutcome } from "../git/write.js";
 import type { WorktreeOrigin } from "../git/worktree.js";
@@ -105,9 +105,23 @@ export function ok<O>(data: O, write?: WriteOutcome, warnings: string[] = []): C
  * データのリポジトリに dg の外の変更（SY-7）があれば、書くコマンドは OUTSIDE_CHANGES で止め、読むだけのコマンドは警告を足す
  * （ストアを開かない文脈・初期化の前に動く needs: repo・検査を自分で扱うコマンドでは見ない）。
  * config が名指ししたデータのリモート（git.data_remote）がこのクローンになければ、済んだ操作に警告を足す（push の要る操作は書く前にエラーになる）。
- * ここはロックの外なので、書く前の決め手はデータに書くときの書き込みのロックの中の検査（withWriteLock）で、ここは早く知らせるだけ
+ * ここはロックの外なので、書く前の決め手はデータに書くときの書き込みのロックの中の検査（withWriteLock）で、ここは早く知らせるだけ。
+ * 操作の中で覚えた git config の値（主体と作者。git/repo.ts の identityConfigs）は、成否によらず操作の終わりに捨てる
+ * （文脈を持ち続ける入口（local.ts）で、次の操作が古い値を使わないように。t1075）
  */
 export async function runCommand<I extends z.ZodType, O>(
+  def: CommandDef<I, O>,
+  ctx: CommandContext,
+  rawInput: unknown,
+): Promise<CommandResult<O>> {
+  try {
+    return await runChecked(def, ctx, rawInput);
+  } finally {
+    forgetIdentityConfig(ctx.repo);
+  }
+}
+
+async function runChecked<I extends z.ZodType, O>(
   def: CommandDef<I, O>,
   ctx: CommandContext,
   rawInput: unknown,

@@ -1,10 +1,11 @@
 // コマンドの結合テストのうち、init・用意（setup のコマンド）・仮番号の振り直し。チケット・Epic・Iteration・Plan は commands-*.test.ts
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createLocalOnlyRepo, git } from "../../test/helpers/git-fixture.js";
 import { UsageError } from "../errors.js";
+import { checkOutside } from "../git/outside.js";
 import { configFields, defaultConfig, flattenConfig } from "../model/config.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
@@ -705,6 +706,98 @@ describe("仮番号の振り直し（DT-5）", () => {
   });
 });
 
+/**
+ * fn の間の git の起動を、引数ごとに記録して返す（起動した順。1 件が 1 回の起動）。
+ * 記録する git を PATH の先頭に置く（runGit は呼ぶたびに process.env を読む）。fn が終わったら PATH を戻す
+ */
+async function countingGit<T>(
+  root: string,
+  fn: () => Promise<T>,
+): Promise<{ value: T; asked: string[] }> {
+  const bin = await mkdtemp(path.join(root, "counting-bin-"));
+  const calls = path.join(bin, "git-calls.log");
+  const saved = process.env["PATH"];
+  await writeFile(
+    path.join(bin, "git"),
+    `#!/bin/sh\necho "$*" >> '${calls}'\nPATH='${saved ?? ""}' exec git "$@"\n`,
+    { mode: 0o755 },
+  );
+  process.env["PATH"] = bin + path.delimiter + (saved ?? "");
+  try {
+    const value = await fn();
+    const asked = (await readFile(calls, "utf8").catch(() => "")).split("\n").filter(Boolean);
+    return { value, asked };
+  } finally {
+    process.env["PATH"] = saved;
+  }
+}
+
+// 書き込みの操作 1 回の中で、間に状態が変わりえない問い合わせ（主体と作者の git config・まとめ待ちがあるかの status・rev-parse HEAD）は
+// 1 回の結果を使い回す（t1075）。上限は今の起動の数で、足したら落ちる：同じ問い合わせを足すなら、間に状態が変わりうる理由を
+// 呼び出し元（git/write.ts の withWriteLock・writeLocked、git/sync.ts の integrate、commands/define.ts の runCommand）のコメントに書いて上限を直す。
+// CLI と同じに数えるため、文脈を開くところ（主体のユーザ名を git config から決める）から数える
+describe("書き込みの操作の git の起動", () => {
+  /** 数えた起動のうち、引数（hooksPath などの -c を除く）が args で始まるもの */
+  const callsOf = (asked: string[], args: string) =>
+    asked.filter((line) => ` ${line.replace(/(^| )-c \S+/g, "")} `.includes(` ${args} `));
+
+  it("dg ticket create（すぐにコミットして push する）は git を 19 回以下しか起動せず、作者の git config と変更の前の HEAD を聞き直さない", async () => {
+    const f = await initializedFixture();
+    const { value: created, asked } = await countingGit(f.root, async () => {
+      const ctx = await openContext({ cwd: f.cloneA, actor: { kind: "human" } });
+      return runCommand(ticketCreate, ctx, { title: "A" });
+    });
+    expect(created.write).toMatchObject({ committed: true, pushed: true, attempts: 1 });
+    expect(created.warnings).toEqual([]);
+    expect(asked.length).toBeLessThanOrEqual(19);
+    // 主体のユーザ名（文脈を開くとき）と作者（書き込みの入口）は、同じ 1 回の git config で読む
+    expect(callsOf(asked, "config")).toHaveLength(1);
+    // まとめ待ちがあるかは、ロックの入口で読んだ作業ツリーの変更で分かる
+    expect(callsOf(asked, "status --porcelain --untracked-files=normal")).toEqual([]);
+    // 変更の前の HEAD は、取り込み（rebase）の後に読んだ 1 回を使う
+    expect(callsOf(asked, "rev-parse HEAD")).toHaveLength(1);
+    // 残る重なり：外の変更の確かめ（HEAD と作業ツリーの変更）は、入口・ロックの入口・ロックを放す前の 3 回
+    expect(callsOf(asked, "rev-parse --verify --quiet HEAD")).toHaveLength(3);
+    expect(callsOf(asked, "status --porcelain=v1 -z --untracked-files=all")).toHaveLength(3);
+
+    // 聞き直さなかった値で書いた後も、次の操作は dg 自身の書き込みを外の変更と取り違えない
+    const next = await reopenInitialized(f);
+    expect((await runCommand(ticketCreate, next, { title: "B" })).data.id).toBe("t2");
+    expect(await checkOutside(next.repo)).toEqual({ kind: "clean", initial: false });
+  });
+
+  it("dg ticket update（まとめ待ちに残す）は git を 10 回以下しか起動せず、ロックを放す前の基準の記録で HEAD を聞き直さない", async () => {
+    const f = await initializedFixture();
+    const a = await reopenInitialized(f);
+    await runCommand(ticketCreate, a, { title: "A" });
+    const { value: updated, asked } = await countingGit(f.root, async () => {
+      const ctx = await openContext({ cwd: f.cloneA, actor: { kind: "human" } });
+      return runCommand(ticketUpdate, ctx, { ticket: "t1", title: "まとめ待ち" });
+    });
+    expect(updated.write).toMatchObject({ committed: false, pushed: false });
+    expect(asked.length).toBeLessThanOrEqual(10);
+    // HEAD は入口とロックの入口の 2 回。作業ツリーの変更は、書いた後の基準の記録でも読み直す（3 回）
+    expect(callsOf(asked, "rev-parse --verify --quiet HEAD")).toHaveLength(2);
+    expect(callsOf(asked, "status --porcelain=v1 -z --untracked-files=all")).toHaveLength(3);
+
+    // 基準には、入口で読んだ HEAD と書いた後の作業ツリーの変更が入った：続く操作は外の変更と取り違えない
+    const next = await reopenInitialized(f);
+    expect(await checkOutside(next.repo)).toEqual({ kind: "clean", initial: false });
+    // まとめ待ちがあるときの即時の操作は、入口で読んだ変更から「ある」と分かり、status を聞き直さずに先にコミットする
+    const { value: created, asked: withPending } = await countingGit(f.root, () =>
+      runCommand(ticketCreate, next, { title: "B" }),
+    );
+    expect(created.warnings).toEqual(["Committed the pending changes first"]);
+    expect(created.write).toMatchObject({ committed: true, pushed: true });
+    expect(callsOf(withPending, "status --porcelain --untracked-files=normal")).toEqual([]);
+    // まとめ待ちのコミットが HEAD を動かしたので、取り込みの前に読み直す（取り込みの後の 1 回と合わせて 2 回）
+    expect(callsOf(withPending, "rev-parse HEAD")).toHaveLength(2);
+    expect(next.store.tickets.get("t1")?.data.title).toBe("まとめ待ち");
+    expect((await git(next.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+    expect(await checkOutside(next.repo)).toEqual({ kind: "clean", initial: false });
+  });
+});
+
 // 同じ問い合わせ（status・show-ref・rev-parse HEAD）は、間に書き込みのない範囲で 1 回の結果を使い回す（t1046）。
 // 残る重なりの理由は、呼び出し元（git/write.ts の withWriteLock、setup.ts の syncLocked・reconcileLocked・syncResult）のコメントにある
 describe("sync の git の起動", () => {
@@ -717,27 +810,11 @@ describe("sync の git の起動", () => {
     await runCommand(ticketCreate, a, { title: "A" });
     await runCommand(sync, a, {});
     const idle = await openContext({ cwd: f.cloneA, actor: a.actor, mergeDriver });
-    // git の起動を引数ごと記録する git を PATH の先頭に置く（runGit は呼ぶたびに process.env を読む）
-    const bin = path.join(f.root, "counting-bin");
-    const calls = path.join(f.root, "git-calls.log");
-    const saved = process.env["PATH"];
-    await mkdir(bin);
-    await writeFile(
-      path.join(bin, "git"),
-      `#!/bin/sh\necho "$*" >> '${calls}'\nPATH='${saved ?? ""}' exec git "$@"\n`,
-      { mode: 0o755 },
-    );
-    process.env["PATH"] = bin + path.delimiter + (saved ?? "");
-    cleanups.push(async () => {
-      process.env["PATH"] = saved;
-    });
-    const synced = await runCommand(sync, idle, {});
-    process.env["PATH"] = saved;
+    const { value: synced, asked } = await countingGit(f.root, () => runCommand(sync, idle, {}));
     expect(synced.data).toMatchObject({ fetched: true, integrated: false, pushed: false });
     expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
     expect(synced.warnings).toEqual([]);
-    // CLI の dg sync は、このほかにリポジトリを開くときの 5 回を起動する（合わせて 25 回以下）
-    const asked = (await readFile(calls, "utf8")).split("\n").filter(Boolean);
+    // CLI の dg sync は、このほかにリポジトリを開くときの 4 回を起動する（合わせて 24 回以下）
     expect(asked.length).toBeLessThanOrEqual(20);
     expect(asked.filter((line) => line.includes(" show-ref "))).toHaveLength(1);
     expect(asked.filter((line) => line.includes(" merge-base "))).toHaveLength(1);

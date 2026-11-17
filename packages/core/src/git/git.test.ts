@@ -233,9 +233,15 @@ describe("書き込みの 1 単位", () => {
       immediate: true,
     });
     expect(await fetchData(a.repo)).toEqual({ ok: true, remoteBranch: true });
-    expect(await integrate(a.repo)).toEqual({ ok: true, changed: true });
+    const integrated = await integrate(a.repo);
     const log = (await git(a.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
     expect(log).toEqual(["B", "Create the deguboard branch"]);
+    // 取り込みの後の HEAD も返す（書き込みが rev-parse HEAD を聞き直さずに使う。t1075）
+    expect(integrated).toEqual({
+      ok: true,
+      changed: true,
+      head: (await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim(),
+    });
     expect((await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(
       (await git(b.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim(),
     );

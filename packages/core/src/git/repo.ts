@@ -178,16 +178,56 @@ export async function isInitialized(paths: RepoPaths): Promise<boolean> {
   return pathExists(path.join(paths.dataDir, ".git"));
 }
 
+/** 主体と作者を決める git config のキー（defaultUser と requireIdentity が読む） */
+const IDENTITY_KEYS = ["deguboard.user", "user.name", "user.email"] as const;
+type IdentityKey = (typeof IDENTITY_KEYS)[number];
+
+// 主体と作者の git config の値を、1 回の操作の中で GitRepo ごとに覚える（t1075）。文脈を開くときの defaultUser と、書き込みの中の
+// requireIdentity（やめた Project の片付け・書き込みの入口・まとめ待ちのコミットがそれぞれ呼ぶ）が、同じ 3 つのキーを 1 回の git で読む。
+// git config は dg の書き込みでは変わらないので、操作の途中で読み直す理由がない。操作の終わり（runCommand）に forgetIdentityConfig で捨てる：
+// 文脈を持ち続ける入口（dg serve・VS Code 拡張）で、人が操作の間に git config を直したら、次の操作が読み直す
+const identityConfigs = new WeakMap<object, Promise<Partial<Record<IdentityKey, string>>>>();
+
+/**
+ * IDENTITY_KEYS の値（前後の空白を落とす）。同じキーが複数あれば、git config --get と同じく最後の値。
+ * -z の出力は、1 件ごとに「キー、改行、値、NUL」（値のないキーは改行もない）
+ */
+function identityConfig(
+  repo: Pick<GitRepo, "dataDir">,
+): Promise<Partial<Record<IdentityKey, string>>> {
+  const known = identityConfigs.get(repo);
+  if (known) return known;
+  const pattern = `^(${IDENTITY_KEYS.map((k) => k.replace(".", "\\.")).join("|")})$`;
+  const read = runGit(repo.dataDir, ["config", "-z", "--get-regexp", pattern], {
+    allowFailure: true,
+  }).then((r) => {
+    const values: Partial<Record<IdentityKey, string>> = {};
+    for (const entry of r.stdout.split("\0")) {
+      const at = entry.indexOf("\n");
+      const key = at < 0 ? entry : entry.slice(0, at);
+      if ((IDENTITY_KEYS as readonly string[]).includes(key))
+        values[key as IdentityKey] = at < 0 ? "" : entry.slice(at + 1).trim();
+    }
+    return values;
+  });
+  identityConfigs.set(repo, read);
+  // 失敗（git が起動できないなど）は覚えずに、次の呼び出しで読み直す
+  read.catch(() => identityConfigs.delete(repo));
+  return read;
+}
+
+/** 覚えた主体と作者の git config の値を捨てる。操作の終わりに runCommand が呼ぶ（identityConfigs のコメント） */
+export function forgetIdentityConfig(repo: Pick<GitRepo, "dataDir">): void {
+  identityConfigs.delete(repo);
+}
+
 /** コミットの作者が決まるか。決まらなければ IDENTITY_MISSING（捏造しない） */
 export async function requireIdentity(
   repo: Pick<GitRepo, "dataDir">,
 ): Promise<{ name: string; email: string }> {
-  const name = (
-    await runGit(repo.dataDir, ["config", "--get", "user.name"], { allowFailure: true })
-  ).stdout.trim();
-  const email = (
-    await runGit(repo.dataDir, ["config", "--get", "user.email"], { allowFailure: true })
-  ).stdout.trim();
+  const config = await identityConfig(repo);
+  const name = config["user.name"];
+  const email = config["user.email"];
   if (!name || !email) {
     throw new OperationError(
       "IDENTITY_MISSING",
@@ -204,13 +244,12 @@ export async function requireIdentity(
 export async function defaultUser(
   repo: Pick<GitRepo, "dataDir">,
 ): Promise<{ user: string; source: Extract<UserSource, "git-config" | "user.name" | "os"> }> {
+  const config = await identityConfig(repo);
   for (const [key, source] of [
     ["deguboard.user", "git-config"],
     ["user.name", "user.name"],
   ] as const) {
-    const name = (
-      await runGit(repo.dataDir, ["config", "--get", key], { allowFailure: true })
-    ).stdout.trim();
+    const name = config[key];
     if (name) return { user: name, source };
   }
   return { user: osUserName(), source: "os" };
