@@ -82,7 +82,7 @@ By default, an agent opens review on its own. It asks you before starting a tick
 
 ### Fixed in Core
 
-Some operations are fixed in Core, and `workflow.yaml` cannot loosen them: changing the Workflow itself (`dg workflow set`) always needs a person's approval, uninstalling the hooks and lowering a ticket's gate level can only be done by a person, and merging a PR that does not meet the quality gate always needs a person's approval.
+Some operations are fixed in Core, and `workflow.yaml` cannot loosen them: changing the Workflow itself (`dg workflow set`) always needs a person's approval, uninstalling the hooks, removing deguboard from the clone (`dg uninstall`), and lowering a ticket's gate level can only be done by a person, and merging a PR that does not meet the quality gate always needs a person's approval.
 
 ### See and change it
 

@@ -21,6 +21,7 @@ import {
   runMergeDriver,
   skillInstallWarnings,
   skillUninstallWarnings,
+  uninstall,
   uninstallHooks,
   uninstallSkill,
   UsageError,
@@ -414,6 +415,67 @@ export function buildProgram(options: ProgramOptions = {}): Command {
             );
           }
           for (const w of warnings) streams.err(`Warning: ${w}`);
+        }
+        process.exitCode = 0;
+      } catch (error) {
+        const view = toErrorView(error);
+        if (global.json) printJsonError(streams, view);
+        else printError(streams, view);
+        process.exitCode = view.exitCode;
+      }
+    });
+
+  // uninstall も CLI だけの操作（AG-4）。判定と消す処理は core の commands/uninstall.ts にあり、ここは引数と結果を写す
+  program
+    .command("uninstall")
+    .description(
+      "Remove deguboard from this clone, in this order: dg's hooks in .claude/settings.local.json (as dg hooks uninstall), the dg Skills in .claude/skills (as dg skill uninstall; Skills edited by hand are kept), the data worktree (.git/deguboard), the local data branch, the merge driver in git config (merge.deguboard), and .git/deguboard-local (personal settings, transcripts, caches). Run it while dg still works, and remove dg itself (the VS Code extension or the CLI) last: the hooks and the merge driver call dg by absolute path. " +
+        "It does not touch what the team shares: the data branch on the remote, the registration of the data remote (including deguboard-data added by dg init), the committed .claude/.gitignore, and the dg hooks in .claude/settings.json. data.keeps lists what stays, with the commands to remove each by hand (commands), so dg init can take the board in again. " +
+        "It removes nothing and fails with REJECTED when something exists only in this clone: data commits not pushed, changes to the data made outside dg or not committed yet, or worktrees of tickets in progress. The error's detail gives each reason and what to do next (such as dg sync). " +
+        "Only a person can run it: an agent's call (--actor agent or DEGUBOARD_ACTOR=agent) is rejected with TRANSITION_REJECTED. This is fixed in Core, and workflow.yaml cannot change it (--dry-run removes nothing and is not rejected)",
+    )
+    .option(
+      "--personal",
+      "Also remove dg's hooks from the personal settings (~/.claude/settings.json) and the dg Skills from ~/.claude/skills, which other repositories on this machine may use",
+    )
+    .option("--force", "Remove even when something exists only in this clone (it is lost)")
+    .option(
+      "--dry-run",
+      "Remove nothing; print what would be removed, what stays, and the reasons it would stop. --json returns them in data.removes (in the order of removal), data.keeps, and data.blockers (each with message and next), and data.proceeds tells whether the same call without --dry-run would remove",
+    )
+    .exitOverride()
+    .configureOutput(program.configureOutput())
+    .action(async (opts: { personal?: boolean; force?: boolean; dryRun?: boolean }) => {
+      const global = program.opts<{ json?: boolean; C?: string; actor?: string }>();
+      try {
+        const data = await uninstall({
+          cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
+          env,
+          // 主体は dg hooks uninstall と同じ順で決める（--actor、DEGUBOARD_ACTOR、既定は human）
+          actor: (global.actor ?? env["DEGUBOARD_ACTOR"]) === "agent" ? "agent" : "human",
+          personal: opts.personal ?? false,
+          force: opts.force ?? false,
+          dryRun: opts.dryRun ?? false,
+        });
+        if (global.json)
+          streams.out(JSON.stringify({ ok: true, data, warnings: [], write: null }, null, 2));
+        else {
+          if (data.dryRun) streams.out("--dry-run: nothing was removed");
+          if (data.removes.length === 0) streams.out("Nothing to remove in this clone");
+          for (const item of data.removes)
+            streams.out(
+              `${data.dryRun ? "Would remove" : "Removed"} ${item.kind} (${item.scope}): ${item.target}${item.names ? ` (${item.names.join(", ")})` : ""}`,
+            );
+          for (const kept of data.keeps) {
+            streams.out(`Kept ${kept.kind}: ${kept.target}. ${kept.reason}`);
+            for (const command of kept.commands) streams.out(`         to remove: ${command}`);
+          }
+          for (const b of data.blockers) {
+            streams.out(
+              `${data.force ? "Overridden by --force" : "Would stop"} (${b.kind}): ${b.message}`,
+            );
+            for (const command of b.next) streams.out(`         next: ${command}`);
+          }
         }
         process.exitCode = 0;
       } catch (error) {

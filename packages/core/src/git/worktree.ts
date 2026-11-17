@@ -19,7 +19,8 @@ async function branchExists(paths: RepoPaths, ref: string): Promise<boolean> {
   );
 }
 
-async function hasWorktree(paths: RepoPaths): Promise<boolean> {
+/** データの worktree（paths.dataDir）が git に登録されているか。init と dg uninstall（commands/uninstall.ts）が見る */
+export async function hasWorktree(paths: RepoPaths): Promise<boolean> {
   const out = (await runGit(paths.topLevel, ["worktree", "list", "--porcelain"])).stdout;
   return out.split("\n").some((line) => line === `worktree ${paths.dataDir}`);
 }

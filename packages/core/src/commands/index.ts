@@ -51,6 +51,14 @@ export {
   type SkillInstallResult,
   type SkillUninstallResult,
 } from "./skill-files.js";
+// dg uninstall の判定と消す処理（CLI が写す。VS Code 拡張は dryRun の結果を読む）
+export {
+  uninstall,
+  type UninstallBlocker,
+  type UninstallItem,
+  type UninstallKept,
+  type UninstallResult,
+} from "./uninstall.js";
 export type {
   CommandClient,
   CommandFailure,

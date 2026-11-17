@@ -18,7 +18,7 @@ import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
 
 /** git config の merge.<名前> と .gitattributes の merge=<名前> */
-const MERGE_DRIVER_NAME = "deguboard";
+export const MERGE_DRIVER_NAME = "deguboard";
 
 /**
  * ドライバを当てるパス。frontmatter を持つ Markdown（チケット・墓標・Epic）と、素の YAML（Plan・Iteration）。

@@ -4,7 +4,7 @@
 
 ## 要約
 
-PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だけにし、品質ゲートをチケットの段（`high`・`low`・`free`）の条件で満たすときだけ gh を呼ぶ。満たさない PR のマージは、人が承認したときだけ同じコマンドが行う。緩めると守りが崩れる操作（フックを外す・段を下げる・`workflow.yaml` の書き換え・品質ゲートを越えるマージ）は Core に固定し、設定でも `workflow.yaml` でも緩められない。ツールを使う前のフックは語の有無で粗く止め、フックをすり抜けた変更は、データの dg の外の変更として事後の検査が見つけて書き込みを止める。
+PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だけにし、品質ゲートをチケットの段（`high`・`low`・`free`）の条件で満たすときだけ gh を呼ぶ。満たさない PR のマージは、人が承認したときだけ同じコマンドが行う。緩めると守りが崩れる操作（フックを外す・クローンから deguboard を外す・段を下げる・`workflow.yaml` の書き換え・品質ゲートを越えるマージ）は Core に固定し、設定でも `workflow.yaml` でも緩められない。ツールを使う前のフックは語の有無で粗く止め、フックをすり抜けた変更は、データの dg の外の変更として事後の検査が見つけて書き込みを止める。
 
 ## 背景
 
@@ -29,6 +29,7 @@ PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だ�
 次の操作の権限は Core が持ち、config でも `workflow.yaml`（[ADR-003](ADR-003-status-and-workflow.md)）でも緩められない。判定の順で `workflow.yaml` の値より先に見る。
 
 - フックを外す（`dg hooks uninstall`）：人だけ。エージェントの呼び出しは拒否する
+- このクローンから deguboard を外す（`dg uninstall`）：人だけ。エージェントの呼び出しは拒否する。何も消さない `--dry-run` は誰でも通る。消すのはクローンの中のものだけで、リモートのデータブランチ・リモートの登録・コミットした共有のファイルには触れず、残すものと手で消すコマンドを返す
 - チケットの段を下げる（`dg ticket update --gate`）：人だけ。エージェントの呼び出しは拒否する。上げるのは誰でもできる。`high` より下の段での起票（`dg ticket create`・`dg ticket import`）は下げる操作に数えず、`governance.create` で判定する。起票は人がチケットごと承認し、段もそのとき人が見るため
 - `workflow.yaml` の書き換え（`dg workflow set`）：エージェントにはいつも人の承認（`--approved-by`）を求め、承認者を履歴に残す。聞かずに進める流れ（`--auto`）でも求める（`workflow set` は `--auto` を受けない）
 - 段の条件を満たさない PR のマージ（`dg pr merge`）：呼ぶ主体によらず、いつも人の承認（`--approved-by`）を求める。エージェントは満たさない条件を示して人に聞く。承認者を渡さなければ何も越えず、越えた条件は承認者と一緒に PR に残す
@@ -52,7 +53,7 @@ PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だ�
 止める語と除く形・gh や git の引数・検査の条件と確かめない場面・基準の形・拒む文と戻し方は、次のコードとテストが正本で、「なぜ」はそのコメントとテスト名にある。
 
 - `packages/core/src/commands/pr.ts`（`dg pr ready`・`dg pr merge`）・`packages/core/src/commands/gate.ts`（`judgeGate`）
-- `packages/core/src/workflow/resolve.ts`（`CORE_FIXED`）・`packages/core/src/commands/permission.ts`（`requireOperation`）・`packages/core/src/commands/governance.test.ts`
+- `packages/core/src/workflow/resolve.ts`（`CORE_FIXED`）・`packages/core/src/commands/permission.ts`（`requireOperation`）・`packages/core/src/commands/governance.test.ts`・`packages/core/src/commands/uninstall.ts`（`dg uninstall`）とそのテスト
 - `packages/core/src/commands/pre-tool-use.ts`（`advancesPrOutsideDg`・`touchesDataDir`・`toolDenyReason`）・`packages/core/src/commands/hook.ts`（`turnStopped`）
 - `packages/core/src/git/outside.ts`（基準と比べ方・戻し方）・`packages/core/src/git/write.ts`（`withWriteLock`）・`packages/core/src/commands/define.ts`（`runCommand` の検査）
 - `packages/core/src/commands/pr.test.ts`・`gate.test.ts`・`hook.test.ts` の「PreToolUse」・`packages/core/src/git/outside.test.ts`
@@ -67,6 +68,7 @@ PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だ�
 - 段をチケットに持たせるのは、見直しの要らない変更（版上げ・文書の小さな直し）のたびに人が gh を打つと、流れが人で止まるため。段は記録に残るので、どのチケットをどの条件で通したかを後から確かめられる
 - フックを外す・段を下げる・`workflow.yaml` の書き換え・品質ゲートを越えるマージを Core に固定するのは、どれもほかの守りの前提だから。フックは dg を経由しない書き込みを止め、段は品質ゲートが判定する条件を決め、`workflow.yaml` はエージェントに任せる範囲を決める。これらを設定で緩められると、エージェントが自分に許す範囲を自分で広げられ、ほかの値をどう書いても守りにならない
 - フックを外すのと段を下げるのを承認でなく人に限るのは、どちらも人が 1 つのコマンドを打てば済み、エージェントに任せる利点が小さいため。`workflow.yaml` の書き換えを承認で任せるのは、項目が多く、人が前と後を見て承認した内容をエージェントが書くほうが誤りが少ないため
+- `dg uninstall` を人に限るのは、フックを外す操作を含み、手元のデータと個人の設定も消すため。リモートに触れないのは、データブランチを消すと戻せず、まだ使っているチームの全員に効くため。残しておけば `dg init` でまた取り込め、消すかどうかはチームが決めて人が手で行う
 - 人が承認して agent がマージする形にするのは、決めるのは人のままで、品質ゲートの通過にかかわらず人が打つ手間だけを省くため。承認と越えた条件が PR に残り、先端への固定も同じコードを通る。人が gh を打つと、どちらも残らない
 - 承認で越える条件を設定に置かないのは、越えるかどうかは PR ごとに人が満たさない条件を見て決めることで、条件の一覧を先に絞っても人の判断の代わりにならないため
 - 衝突と先端を承認でも越えないのは、越えると gh がマージできないか、誰も判定していないコミットをマージすることになり、承認した人が見たものと違うものが入るため
@@ -87,4 +89,5 @@ PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だ�
 - **承認したマージは人が画面か gh で行う**：品質ゲートを通った PR やリリースの PR も人が操作するまで流れが止まり、誰の承認でどの条件を越えたかも残らない
 - **段を下げるのを規約に置き、コードで人に限らない**：人が段を指示した `--auto` の流れは止まらないが、指示のない段の変更をエージェントが自分で行え、品質ゲートの条件を自分で減らせる
 - **承認で越えてよい条件を config の一覧（`merge.approval_overrides`）で絞る**：一覧にない条件は人が承認しても越えられず、人が gh を打つ道に戻る。越えた条件と承認者が PR に残らない
+- **`dg uninstall` がリモートのデータブランチとコミットした共有のファイルも消す**：1 人の操作でチームのボードが戻せない形で消え、まだ使っている人の Skill の無視の行とフックもなくなる
 - **Core に固定の操作も `workflow.yaml` の値で緩められるようにする**：`workflow.yaml` を書き換えられるエージェントが、自分でフックを外せる・段を下げられる値にできる

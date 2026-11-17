@@ -259,12 +259,14 @@ export interface OperationPolicy {
  * Core に固定の操作と権限の値。緩めると守りが崩れるので、workflow.yaml では変えられない（WF-7）。
  * - workflow_set：workflow.yaml の書き換え。エージェントが自分に許す範囲を聞かずに広げないように、いつも人の承認を求める
  * - hooks_uninstall：フックを外す。dg を経由しない書き込みと PR の操作を止める守り（AG-10）がなくなる
+ * - uninstall：このクローンから deguboard を外す（dg uninstall）。フックも外れ、手元のデータと個人の設定が消える（commands/uninstall.ts）
  * - lower_gate：チケットの品質ゲートの段を下げる。判定する条件が減る
  * - merge_over_gate：品質ゲートを満たさない PR のマージ。dg pr merge は主体によらず承認者（--approved-by）を求める（commands/pr.ts）
  */
 export const CORE_FIXED = {
   workflow_set: "always_ask",
   hooks_uninstall: "human_only",
+  uninstall: "human_only",
   lower_gate: "human_only",
   merge_over_gate: "always_ask",
 } as const satisfies Record<string, Decision>;
