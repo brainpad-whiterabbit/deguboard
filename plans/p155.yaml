@@ -1,0 +1,57 @@
+id: p155
+tickets: [t1072, t1073, t1075, t1076, t1079, t1087, t1088, t1084, t1077, t1078, t1085, t1086, t1089]
+after:
+  t1084:
+    - t1072
+  t1077:
+    - t1076
+  t1078:
+    - t1075
+  t1085:
+    - t1075
+    - t1084
+pending_approval: true
+details:
+  t1072:
+    scope: 拡張の説明（package.nls*.json）と dg --help の説明を README の新しい冒頭の位置づけに揃える。README は変えない
+    tier: standard
+  t1073:
+    scope: app.test.tsx の全体の検査でだけ落ちる 2 件と同じ形の待ち方を直す。原因を PR に書く
+    tier: heavy
+  t1075:
+    scope: 書き込みの操作の中で状態が変わりえない git の問い合わせをまとめ、起動回数の上限のテストを足す
+    approach: repo.ts・outside.ts・write.ts の問い合わせを操作の文脈にキャッシュし、push の拒否後の取り込み直しで捨てる
+    tier: heavy
+  t1076:
+    scope: test:related を lock の外のまま全体より少ないワーカー数で回す。DEGUBOARD_TEST_MAX_WORKERS で上書き可
+    tier: standard
+  t1077:
+    scope: check-docs.test.ts を半分以下の時間にする。件数・指摘・check:docs の出力は変えない
+    tier: standard
+  t1078:
+    scope: 同期を確かめないテストファイルをデータのリモートのない fixture に移す。同期の経路のテストは残す
+    tier: standard
+  t1079:
+    scope: usage.md と usage.ja.md の Count tokens の前に振り返りの観点と指標の節を足す
+    tier: standard
+  t1084:
+    scope: セットアップの項目が欠けている間、タイトル行のアイコンを点付きに差し替える。UI-12 を直す
+    approach: context key deguboard.setupAttention で点付き SVG のコマンドに差し替え、package.json の menus で切り替える
+    tier: standard
+  t1085:
+    scope: core の backgroundFetch の後に、条件を満たすときだけ fast-forward で取り込み画面を読み直す。UI-6 を直す
+    approach: local.ts の backgroundFetch の直後に同じロックの中で条件を確かめて fast-forward し、変更の通知で画面を読み直す
+    tier: heavy
+  t1086:
+    scope: 人の同期が要る間、同期のボタンを点付きに差し替える。UI-6 を直す
+    approach: t1084 と同じ作りで context key を足し、同期の状態から点を出すかを決める
+    tier: standard
+  t1087:
+    scope: README.md と README.ja.md の Documentation と License の間に Built with deguboard の節を足す
+    tier: standard
+  t1088:
+    scope: CLAUDE.md の言語の規約に GitHub Release の本文を英語で書くことを足す
+    tier: standard
+  t1089:
+    scope: v1.0.0 の Release の本文だけを英語にする。人の承認の後に gh release edit。PR なし
+    tier: light
