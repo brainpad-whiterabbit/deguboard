@@ -1586,7 +1586,9 @@ Board
 Backlog
 History
 Get Started with deguboard
-Check again
+[title] Check again
+[aria-label] Check again
+↻
 The items are checked from the top. When you fix an unmet item, they are checked again automatically, and the usual view appears once every required item is met.
 [aria-label] Met
 ✓
@@ -1628,7 +1630,9 @@ Board
 Backlog
 History
 Get Started with deguboard
-Check again
+[title] Check again
+[aria-label] Check again
+↻
 The items are checked from the top. When you fix an unmet item, they are checked again automatically, and the usual view appears once every required item is met.
 [aria-label] Met
 ✓
@@ -1672,7 +1676,9 @@ Board
 Backlog
 History
 Get Started with deguboard
-Check again
+[title] Check again
+[aria-label] Check again
+↻
 The items are checked from the top. When you fix an unmet item, they are checked again automatically, and the usual view appears once every required item is met.
 [aria-label] Met
 ✓
@@ -1852,7 +1858,9 @@ Board
 Backlog
 History
 Setup
-Check again
+[title] Check again
+[aria-label] Check again
+↻
 [aria-label] Met
 ✓
 5 required items
@@ -1895,4 +1903,38 @@ git add .claude/.gitignore
 git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore
 [title] Copy git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore
 [aria-label] Copy git commit -m "Ignore the files dg installs on each machine" .claude/.gitignore
-Back to the usual view
+
+## タイトル行のアイコンから開いた、推奨を一部満たしたチェックリスト
+[aria-label] Views
+Board
+Backlog
+History
+Setup
+[title] Check again
+[aria-label] Check again
+↻
+[aria-label] Met
+✓
+5 required items
+Recommended
+[aria-label] Recommended item not done
+!
+Skills and hooks
+Incomplete
+The dg Skills and hooks are not installed on this machine.
+With them installed, Claude Code reads the steps to work on tickets, and Runs are recorded.
+Install the Skills and hooks
+To do it in a terminal
+dg hooks install
+[title] Copy dg hooks install
+[aria-label] Copy dg hooks install
+dg skill install
+[title] Copy dg skill install
+[aria-label] Copy dg skill install
+[aria-label] Met
+✓
+dg command
+1.4.0
+[aria-label] Met
+✓
+.claude/.gitignore

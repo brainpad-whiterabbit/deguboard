@@ -619,11 +619,11 @@ function Item({ item, view, open }: { item: SetupViewItem; view: SetupView; open
 
 /**
  * チェックリスト。必須を満たさない間（view.ready が偽）は全項目を並べ、満たさない最初の項目だけを開く
- * （その下は、前の項目を満たすまで確かめられないので待たせる）。必須を満たした後（タイトル行のアイコンか帯から開いたとき。onClose を渡す）は、
- * 必須を 1 行にまとめ、推奨の満たさない項目をすべて開く
+ * （その下は、前の項目を満たすまで確かめられないので待たせる）。必須を満たした後（タイトル行のアイコンか帯から開いたとき）は、
+ * 必須を 1 行にまとめ、推奨は満たした項目も ✓ と値付きで並べ（何が済んだかを読める）、満たさない項目をすべて開く。
+ * 画面の中に戻るボタンは置かない（タイトル行のアイコンとタブで行き来する。app.tsx）
  */
-export function SetupChecklist({ view, onClose }: { view: SetupView; onClose?: () => void }) {
-  const store = useStore();
+export function SetupChecklist({ view }: { view: SetupView }) {
   const required = view.items.filter((i) => i.level === "required");
   const recommended = view.items.filter((i) => i.level === "recommended");
   const firstUnmet = view.items.find((i) => i.status === "unmet");
@@ -631,14 +631,7 @@ export function SetupChecklist({ view, onClose }: { view: SetupView; onClose?: (
     <section className="setup" aria-labelledby="setup-title">
       <div className="setup-head">
         <h2 id="setup-title">{view.ready ? tr("セットアップ") : tr("deguboard を始める")}</h2>
-        <button
-          type="button"
-          className="link"
-          disabled={store.checkingSetup}
-          onClick={() => void store.recheckSetup()}
-        >
-          {tr("確かめ直す")}
-        </button>
+        <RecheckButton />
       </div>
       {view.ready ? (
         <>
@@ -671,15 +664,35 @@ export function SetupChecklist({ view, onClose }: { view: SetupView; onClose?: (
           </ul>
         </>
       )}
-      {onClose ? (
-        <>
-          <BandRestore />
-          <button type="button" onClick={onClose}>
-            {tr("いつもの画面に戻る")}
-          </button>
-        </>
-      ) : null}
+      {view.ready ? <BandRestore /> : null}
     </section>
+  );
+}
+
+/**
+ * 見出しの右の確かめ直すボタン（↻ のアイコン。題と読み上げの名前は「確かめ直す」）。確かめている間は押せず、アイコンが回る。
+ * タイトル行の同期のボタンとはまとめない（同期はボードがないと動かず、タイトル行のアイコンの題は固定なので意味がずれる）
+ */
+function RecheckButton() {
+  const store = useStore();
+  const label = tr("確かめ直す");
+  return (
+    <button
+      type="button"
+      className="setup-recheck"
+      aria-label={label}
+      title={label}
+      aria-busy={store.checkingSetup}
+      disabled={store.checkingSetup}
+      onClick={() => void store.recheckSetup()}
+    >
+      <span
+        aria-hidden="true"
+        className={store.checkingSetup ? "setup-recheck-icon spinning" : "setup-recheck-icon"}
+      >
+        ↻
+      </span>
+    </button>
   );
 }
 

@@ -62,18 +62,36 @@ function browserHost(copy: Host["copy"] = async () => {}): Host {
   };
 }
 
-function mount(view: SetupView, host: Host = vscodeHost(), onClose?: () => void) {
+function mount(view: SetupView, host: Host = vscodeHost()) {
   const client = mockClient();
   const setup = vi.fn(async () => view);
   client.setup = setup;
   render(
     <StoreProvider client={client}>
       <HostProvider host={host}>
-        <SetupChecklist view={view} {...(onClose ? { onClose } : {})} />
+        <SetupChecklist view={view} />
       </HostProvider>
     </StoreProvider>,
   );
   return { client, setup };
+}
+
+/** 見出しの右の確かめ直すボタン（↻）が、題と読み上げの名前が「確かめ直す」のアイコンで、押すと確かめている間は回って押せず、終わると止まる */
+async function expectRecheckIcon(setup: ReturnType<typeof mount>["setup"], view: SetupView) {
+  const head = document.querySelector<HTMLElement>(".setup-head")!;
+  const button = within(head).getByRole("button", { name: "確かめ直す" });
+  expect(button.getAttribute("title")).toBe("確かめ直す");
+  expect(button.textContent).toBe("↻");
+  const icon = button.querySelector(".setup-recheck-icon")!;
+  expect(icon.classList.contains("spinning")).toBe(false);
+  let finish: (v: SetupView) => void = () => {};
+  setup.mockImplementationOnce(() => new Promise<SetupView>((resolve) => (finish = resolve)));
+  fireEvent.click(button);
+  await waitFor(() => expect(icon.classList.contains("spinning")).toBe(true));
+  expect((button as HTMLButtonElement).disabled).toBe(true);
+  await act(async () => finish(view));
+  await waitFor(() => expect(icon.classList.contains("spinning")).toBe(false));
+  expect((button as HTMLButtonElement).disabled).toBe(false);
 }
 
 /** 項目の行（<li>）を名前で引く */
@@ -151,6 +169,12 @@ describe("導入のチェックリスト（必須を満たさない間）", () =
     const again = setup.mock.calls.length;
     fireEvent.click(within(row("git")).getByRole("button", { name: "もう一度確かめる" }));
     await waitFor(() => expect(setup.mock.calls.length).toBeGreaterThan(again));
+  });
+
+  it("見出しの右の確かめ直すは ↻ のアイコンのボタンで、題と読み上げの名前は「確かめ直す」、確かめている間は回る", async () => {
+    const view = setupView({ repository: { status: "unmet", fix: ["git init"] } });
+    const { setup } = mount(view);
+    await expectRecheckIcon(setup, view);
   });
 
   it("dg serve のブラウザには拡張に頼むボタンがなく、コマンドをコピーするだけ。ボタンしかない別の道は出さない", async () => {
@@ -404,8 +428,7 @@ describe("ボードの項目で別のリポジトリのボードを指定する"
 });
 
 describe("推奨の項目（帯から開いたとき）", () => {
-  it("必須を 1 行にまとめ、推奨の満たさない項目をすべて開く。戻るボタンで閉じる", () => {
-    const onClose = vi.fn();
+  it("必須を 1 行にまとめ、推奨の満たさない項目をすべて開く。画面の中に戻るボタンはない", () => {
     mount(
       setupView({
         skills_hooks: { status: "unmet", fix: ["dg hooks install", "dg skill install"] },
@@ -415,8 +438,6 @@ describe("推奨の項目（帯から開いたとき）", () => {
           params: { link: "/home/u/.local/bin/dg" },
         },
       }),
-      vscodeHost(),
-      onClose,
     );
     expect(screen.getByRole("heading", { name: "セットアップ" })).toBeTruthy();
     expect(screen.getByText("必須の 5 項目")).toBeTruthy();
@@ -428,8 +449,35 @@ describe("推奨の項目（帯から開いたとき）", () => {
     expect(
       within(row(".claude/.gitignore")).getByRole("img", { name: "満たしている" }),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "いつもの画面に戻る" }));
-    expect(onClose).toHaveBeenCalledTimes(1);
+    // 行き来はタイトル行のアイコンとタブでする（app.tsx）
+    expect(screen.queryByRole("button", { name: "いつもの画面に戻る" })).toBeNull();
+  });
+
+  it("満たした推奨の項目も ✓ と値付きで並べ、開かない", () => {
+    mount(
+      setupView({
+        skills_hooks: { status: "unmet", fix: ["dg hooks install", "dg skill install"] },
+        dg_command: { status: "ok", value: "1.4.0" },
+      }),
+    );
+    const dg = row("dg コマンド");
+    expect(within(dg).getByRole("img", { name: "満たしている" }).textContent).toBe("✓");
+    expect(dg.querySelector(".setup-value")!.textContent).toBe("1.4.0");
+    expect(dg.querySelector(".setup-guide")).toBeNull();
+    expect(
+      within(row(".claude/.gitignore")).getByRole("img", { name: "満たしている" }).textContent,
+    ).toBe("✓");
+    expect(
+      [...document.querySelectorAll(".setup-items")[1]!.querySelectorAll(".setup-item")].map((li) =>
+        li.className.replace("setup-item ", ""),
+      ),
+    ).toEqual(["recommended", "ok", "ok"]);
+  });
+
+  it("見出しの確かめ直すは、必須を満たした後の画面でも ↻ のアイコンで、確かめている間は回る", async () => {
+    const view = setupView({ skills_hooks: { status: "unmet", fix: ["dg hooks install"] } });
+    const { setup } = mount(view);
+    await expectRecheckIcon(setup, view);
   });
 
   it("Skill と hooks は、入れるボタンと core が返したコマンドを出す。上書き（--force）しかないときはボタンを出さず、コマンドだけにする", () => {

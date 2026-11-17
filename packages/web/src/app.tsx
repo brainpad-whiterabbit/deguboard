@@ -121,7 +121,7 @@ export function App() {
   const panel = !sidebar;
   // サイドバーの行を ↑↓・Enter・Space・a で操作する（roving tabindex。components/row-nav.tsx）
   const { ref: rowNavRef, ...rowNav } = useRowNav(sidebar);
-  /** 導入のチェックリストと来る前の画面を切り替える（帯の「開く」とチェックリストの「戻る」。タイトル行のアイコンと同じ行き来） */
+  /** 導入のチェックリストと来る前の画面を切り替える（帯の「開く」。タイトル行のアイコンと同じ行き来。チェックリストの中に戻るボタンはない） */
   const toggleSetup = () => toggleRoute(hrefOf({ page: "setup" }));
   return (
     <div
@@ -171,7 +171,7 @@ export function App() {
             ) : setupOpen ? (
               // タイトル行のアイコン・帯から開いた導入のチェックリスト。帯を出さないと決めている間は、開いてから初めて確かめるので待つ
               store.setup ? (
-                <SetupChecklist view={store.setup} onClose={toggleSetup} />
+                <SetupChecklist view={store.setup} />
               ) : (
                 <p className="muted">{tr("読み込み中…")}</p>
               )
