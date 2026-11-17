@@ -1,0 +1,34 @@
+{
+  "id": "r20261117-042006-9a62",
+  "ticket": "t1061",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-17T04:20:06Z",
+  "finished_at": "2026-11-17T04:37:18Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "設定の画面の見た目が変わるのに PR の本文にスクリーンショットがない"
+  ],
+  "usage": {
+    "input": 80,
+    "output": 12231,
+    "cache_read": 1962148,
+    "cache_write": 122349
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 0,
+    "bash": 20,
+    "other": 18,
+    "read_before_write": 3,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "0b151a56-4156-48a8-8028-d330dabf5be2",
+  "review": null,
+  "waited_seconds": 787
+}
