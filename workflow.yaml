@@ -32,7 +32,7 @@ wip:
   in_progress: 5
   review: 3
 flow:
-  assign: ask_unless_auto
+  assign: always_ask
   check: ask_unless_auto
   plan: ask_unless_auto
   audit: always_ask
