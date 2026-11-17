@@ -110,7 +110,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   const jsonMode = (): boolean => program.opts<{ json?: boolean }>().json === true;
   program
     .description(
-      "An agentic kanban inspired by Agentic-Agile, with the development flow built in. Data lives on the data branch (deguboard by default)",
+      "Builds into your Git repository a development flow for handing development to AI agents; the kanban board is your window onto that flow. Inspired by Agentic-Agile. Data lives on the data branch (deguboard by default)",
     )
     .version(version(), "-v, --version", "Print the version")
     .helpOption("-h, --help", "Show usage")

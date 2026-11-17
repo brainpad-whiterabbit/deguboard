@@ -1,5 +1,5 @@
 {
-  "description": "An agentic kanban board inside VS Code, with the development flow built in, inspired by Agentic-Agile. Hand small tickets to AI agents, run them in parallel, and measure how the work goes.",
+  "description": "Builds into your Git repository a development flow for handing development to AI agents, and its kanban board in VS Code is your window onto that flow. Agents turn your idea into small tickets, work them in parallel through the quality gate, and every run is measured. Inspired by Agentic-Agile.",
   "command.gotoTicket.title": "Go to Ticket",
   "command.sync.title": "Sync",
   "command.config.title": "Settings",
