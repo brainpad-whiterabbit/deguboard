@@ -734,6 +734,7 @@ async function pullLocked(ctx: CommandContext, resolve: ResolveSide | undefined,
     renumbered = await renumberCollisions(repo);
     if (await isDirty(repo)) flushed = await flushPending(ctx);
   }
+  // 入口で読んだ dirtyFiles の件数は、isDirty と同じ答えになる（どちらも追跡しないファイルを git の設定によらず数える）
   const dirty = known ? Object.keys(known.dirty).length > 0 : await isDirty(repo);
   if (dirty && ctx.config.commit.mode !== "manual") {
     known = undefined;

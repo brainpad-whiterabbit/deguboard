@@ -99,8 +99,14 @@ export async function headSha(repo: GitRepo): Promise<string> {
   return (await git(repo, ["rev-parse", "HEAD"])).stdout.trim();
 }
 
+/**
+ * 未コミットの変更があるか。追跡しないファイルは、git の設定（status.showUntrackedFiles）によらず数える：
+ * 外の変更の確かめ（outside.ts の dirtyFiles）が数え、コミット（commitAll の add -A）が入れるものと揃える。
+ * dirtyFiles の件数が 0 でないことと同じ答えになるので、呼び出し側は読んだ dirtyFiles で代えてよい（t1046）
+ */
 export async function isDirty(repo: GitRepo): Promise<boolean> {
-  return (await git(repo, ["status", "--porcelain"])).stdout.trim().length > 0;
+  const out = await git(repo, ["status", "--porcelain", "--untracked-files=normal"]);
+  return out.stdout.trim().length > 0;
 }
 
 /**
