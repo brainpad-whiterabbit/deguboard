@@ -34,6 +34,8 @@ const allowed: RegExp[] = [
   /^dist\/web\/index\.html$/,
   /^dist\/web\/assets\/[\w.-]+\.(js|css)$/,
   /^media\/deguboard\.svg$/,
+  // タイトル行のボタンの点付きのアイコン（attention.ts）。ライトとダークのテーマで 1 つずつ
+  /^media\/[\w-]+-attention-(light|dark)\.svg$/,
   /^media\/icon\.png$/,
   /^media\/walkthrough\/[\w-]+(\.ja)?\.md$/,
   /^package\.nls(\.ja)?\.json$/,

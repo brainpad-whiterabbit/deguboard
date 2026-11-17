@@ -6,6 +6,7 @@
 // dg init 前は .git/deguboard/ ができるのを見張り（watchInit）、できたら見張りを張り直して画面を普段の画面に変える。
 // 導入のチェックリスト（UI-12）は、core の dg setup check に拡張だけの項目（フォルダ・OS・PATH の dg）を足して画面に渡し（readSetup。組み立ては setup.ts）、
 // ボタンの操作を deguboard のターミナルで実行し（setupAct）、人がターミナルで直したことを見張りで拾って確かめ直させる（watchSetup・autoSetup）。
+// 項目が欠けている間は、タイトル行のセットアップのアイコンを点付きに差し替える（showSetupAttention。仕組みは attention.ts）。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-027）。サーバーは起動しない。
 // 同梱した dg は、起動のたびに版の付かない起動ファイルと行き先を書いて外に出す（launcher.ts）。コマンドで ~/.local/bin/dg に張り、外せる。
 // PATH の dg がない・版のメジャーが違うことは、通知にせずチェックリストの項目で示す（UI-11）。起動のたびに、入れてある dg の Skill を同梱の dg のものに更新し、足りない同梱の Skill を案内する（skills.ts）。
@@ -42,6 +43,12 @@ import {
   type WebviewEvent,
 } from "@deguboard/core";
 import * as vscode from "vscode";
+import {
+  type AttentionButton,
+  attentionCommands,
+  attentionValue,
+  SETUP_ATTENTION,
+} from "./attention.js";
 import { MENU_COMMANDS, menuItemOf, type MenuItem } from "./context-menu.js";
 import {
   type ApprovalItem,
@@ -91,6 +98,7 @@ import {
   buildSetupView,
   type DgCommandFacts,
   heldSetupBoard,
+  missingSetupCount,
   setupCommands,
   supportedPlatform,
 } from "./setup.js";
@@ -218,9 +226,12 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     // ビューのタイトル行の左端のセットアップのアイコンとコマンドパレット。サイドバーの中を来る前の画面と導入のチェックリストで切り替える
     // （推奨をすべて満たした後と、帯を出さないと決めた後も、いつでも開ける。UI-12）
-    vscode.commands.registerCommand(
-      "deguboard.setup",
-      () => void toggleInSidebar(WEBVIEW_CONTRACT.routes.setup),
+    // 項目が欠けている間は、点付きのアイコンの差し替え用のコマンド（attention.ts）に替わるので、同じ処理を登録する
+    ...[SETUP_ATTENTION.command, ...attentionCommands(SETUP_ATTENTION)].map((command) =>
+      vscode.commands.registerCommand(
+        command,
+        () => void toggleInSidebar(WEBVIEW_CONTRACT.routes.setup),
+      ),
     ),
     // エージェントに頼む入力欄（UI-15）。タイトル行の吹き出しは左パネルの下に、画面の今の対象（カンバンで選んでいる Iteration、
     // 履歴で開いている行。なければ対象なし）で出す。コマンドパレットは開いているパネルの下（パネルが手前になければ左パネルの下）に、対象なしで出す
@@ -550,6 +561,10 @@ async function resolveSidebar(
   view.onDidDispose(() => {
     if (sidebar === view) sidebar = undefined;
   });
+  // タイトル行のセットアップのアイコンの点。画面は推奨の帯を出さないと決めている間は確かめないので、まだ確かめていなければ拡張が確かめる
+  if (setupViews.has(folderKey(folder))) showSetupAttention();
+  // （確かめられなければ点を出さず、画面が確かめたときに出す）
+  else void readSetup(folder).catch(() => {});
   if (folder && folders.length > 1) view.description = folder.name;
   view.title = viewTitle(approvalCount);
   const route = pendingSidebarRoute ?? WEBVIEW_CONTRACT.routes.board;
@@ -654,12 +669,32 @@ async function readSetup(
     board: board ?? null,
   };
   // 確かめている間に別の画面が指定し直したら、古い指定の結果でフォルダの結果を上書きしない（指定し直した画面の確かめが入れる）
-  if (setupBoards.get(key) === board) setupViews.set(key, view);
+  if (setupBoards.get(key) === board) {
+    setupViews.set(key, view);
+    showSetupAttention();
+  }
   if (folder) {
     watchSetup(folder, view);
     if (!view.ready) void watchData(folder, clientFor(folder));
   }
   return view;
+}
+
+/**
+ * タイトル行のセットアップのアイコンを、左パネルのフォルダで最後に確かめた結果の満たさない項目の数で、点付きのアイコンに差し替える
+ * （0 なら元のアイコン）。推奨の帯を出さないと決めた後も、欠けている間は点を残す（UI-12）
+ */
+function showSetupAttention(): void {
+  showAttention(SETUP_ATTENTION, missingSetupCount(setupViews.get(folderKey(sidebarFolder))));
+}
+
+/** タイトル行のボタンの点（attention.ts）を件数で付け外しする。package.json の menus が context key で差し替える */
+function showAttention(button: AttentionButton, count: number): void {
+  void vscode.commands.executeCommand(
+    "setContext",
+    button.contextKey,
+    attentionValue(button, count),
+  );
 }
 
 /** PATH の dg と ~/.local/bin/dg の今の状態（dg コマンドの項目の事実）。dg --version はフォルダを cwd にして確かめる（理由は resolveDg） */
@@ -1139,6 +1174,7 @@ function forgetFolder(folder: vscode.WorkspaceFolder): void {
     map.delete(key);
   }
   setupViews.delete(key);
+  showSetupAttention();
   setupBandDismissed.delete(key);
   setupBoards.delete(key);
   watchStarting.delete(key);
