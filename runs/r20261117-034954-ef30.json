@@ -1,0 +1,35 @@
+{
+  "id": "r20261117-034954-ef30",
+  "ticket": "t1065",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-17T03:49:54Z",
+  "finished_at": "2026-11-17T03:53:35Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "uninstall message and next for active worktrees say in progress although tickets in review also block",
+    "awkward repeated nominalisation in the Japanese usage sentence about human-only operations"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 4342,
+    "cache_read": 274965,
+    "cache_write": 28009
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 4,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "0b151a56-4156-48a8-8028-d330dabf5be2",
+  "review": null,
+  "waited_seconds": 0
+}
