@@ -163,6 +163,7 @@ describe("claim の Iteration の準備", () => {
       ticket: "t1",
       no_worktree: true,
       no_run: true,
+      approved_by: "human",
     });
     expect(a.data.iteration).toBe("s1");
     expect(a.warnings.join("\n")).toContain("Added t1 to s1");

@@ -911,6 +911,7 @@ describe("dg hook の移行の経路と兄弟の Run（RN-7）", () => {
   it("手直しを続きで頼んだ会話で claim が開いた手直しの Run は、待ちの印から続けて止まっても印の step（実装）に直さず、push があれば fix のまま success で閉じる", async () => {
     const { ctx, parent, subagent } = await prepared();
     await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t1",
       branch: "t1",
@@ -1998,6 +1999,7 @@ describe("手直しの Run の印と run retry-reason（RN-7・RN-8）", () => {
     const { ctx } = await prepared();
     // PR のある自分の claim（もう一度の claim になる）を作る
     await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t2",
       branch: "t2",
@@ -2005,6 +2007,7 @@ describe("手直しの Run の印と run retry-reason（RN-7・RN-8）", () => {
     });
     await runCommand(ticketUpdate, ctx, { ticket: "t2", pr: 9 });
     const claimed = await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t2",
       agent: "claude-code",
@@ -2031,6 +2034,7 @@ describe("フックが届いていないセッションの警告（t697）", () 
     const silentIn = (warnings: string[]) => warnings.some((w) => w.includes(SILENT));
 
     const claimed = await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t1",
       branch: "t1",
@@ -2059,6 +2063,7 @@ describe("フックが届いていないセッションの警告（t697）", () 
       silentIn((await runCommand(brief, ctx, { ticket: "t1", role: "implement" })).warnings),
     ).toBe(false);
     const again = await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t2",
       branch: "t2",
@@ -2274,6 +2279,7 @@ describe("フックが届くセッションで親が自分で Run を開く clai
     await reach(ctx, parent);
 
     const self = await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t1",
       branch: "t1",
@@ -2284,6 +2290,7 @@ describe("フックが届くセッションで親が自分で Run を開く clai
     expect((self.data as { status: string }).status).toBe("in_progress");
 
     const delegated = await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t2",
       branch: "t2",
@@ -2291,13 +2298,18 @@ describe("フックが届くセッションで親が自分で Run を開く clai
     });
     expect(selfIn(delegated.warnings)).toBe(false);
 
-    const noPr = await runCommand(ticketClaim, ctx, { ticket: "t3", without_branch: true });
+    const noPr = await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
+      ticket: "t3",
+      without_branch: true,
+    });
     expect(selfIn(noPr.warnings)).toBe(false);
     expect((noPr.data as { run: string | null }).run).not.toBeNull();
 
     // もう一度の claim（手直し）も、--no-run なしなら手直しの Run を開いたうえで警告する
     await runCommand(ticketUpdate, ctx, { ticket: "t2", pr: 9 });
     const reclaimed = await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t2",
       retry_reasons: ["親が直す"],
@@ -2305,6 +2317,7 @@ describe("フックが届くセッションで親が自分で Run を開く clai
     expect(selfIn(reclaimed.warnings)).toBe(true);
     expect((reclaimed.data as { run: string | null }).run).not.toBeNull();
     const reclaimedNoRun = await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t2",
       no_run: true,
@@ -2318,6 +2331,7 @@ describe("フックが届くセッションで親が自分で Run を開く clai
     await call(ctx, "SessionStart", { session_id: "s-other", transcript_path: parent });
     ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
     const silent = await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t1",
       branch: "t1",
@@ -2328,6 +2342,7 @@ describe("フックが届くセッションで親が自分で Run を開く clai
     await reach(ctx, parent);
     ctx.env = { HOME: home };
     const outside = await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       ticket: "t2",
       branch: "t2",
@@ -2365,12 +2380,14 @@ describe("フックが届くセッションで親が run start で実装・手�
     ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
     // PR のあるチケット（branch あり）。--no-run の claim は Run を開かず branch だけ付ける
     await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       no_run: true,
       ticket: "t1",
       branch: "t1",
     });
     await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
       no_worktree: true,
       no_run: true,
       ticket: "t2",
@@ -2439,18 +2456,28 @@ describe("フックが届くセッションで親が run start で実装・手�
     const { ctx, home, parent } = await prepared();
     ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
     await reach(ctx, parent);
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1" });
+    await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
+      no_worktree: true,
+      ticket: "t1",
+      branch: "t1",
+    });
     await expect(
-      runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1" }),
+      runCommand(ticketClaim, ctx, { approved_by: "human", no_worktree: true, ticket: "t1" }),
     ).rejects.toMatchObject({
       code: "CLAIM_LOST",
       message: expect.stringContaining("ask a sub-agent with the brief from dg next"),
     });
 
     ctx.env = { HOME: home };
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "t2" });
+    await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
+      no_worktree: true,
+      ticket: "t2",
+      branch: "t2",
+    });
     await expect(
-      runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2" }),
+      runCommand(ticketClaim, ctx, { approved_by: "human", no_worktree: true, ticket: "t2" }),
     ).rejects.toMatchObject({
       code: "CLAIM_LOST",
       message: expect.stringContaining("To keep implementing, use run start"),
@@ -2461,8 +2488,14 @@ describe("フックが届くセッションで親が run start で実装・手�
     const { ctx, home, parent } = await prepared();
     ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
     await reach(ctx, parent);
-    await runCommand(ticketClaim, ctx, { ticket: "t1", without_branch: true });
-    await expect(runCommand(ticketClaim, ctx, { ticket: "t1" })).rejects.toMatchObject({
+    await runCommand(ticketClaim, ctx, {
+      approved_by: "human",
+      ticket: "t1",
+      without_branch: true,
+    });
+    await expect(
+      runCommand(ticketClaim, ctx, { approved_by: "human", ticket: "t1" }),
+    ).rejects.toMatchObject({
       code: "CLAIM_LOST",
       message: expect.stringContaining("To keep implementing, use run start"),
     });
@@ -2500,6 +2533,7 @@ describe("落ちたセッションに残ったサブエージェントの Run（
     const p = await prepared();
     for (const t of ["t1", "t2"])
       await runCommand(ticketClaim, p.ctx, {
+        approved_by: "human",
         no_worktree: true,
         ticket: t,
         branch: `${t}`,

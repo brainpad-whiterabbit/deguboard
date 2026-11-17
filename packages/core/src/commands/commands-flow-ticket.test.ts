@@ -65,18 +65,40 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const { human, agent, subject } = await humanAndAgent();
     await runCommand(ticketCreate, human, { title: "A" });
     await runCommand(ticketCreate, human, { title: "B", depends_on: ["t1"] });
-    // todo → in_progress（requires: deps_done、decide: anyone）：依存が終わるまで claim は誰でも拒否される
-    for (const ctx of [agent, human]) {
+    // todo → in_progress（requires: deps_done、decide: ask_unless_auto）：依存が終わるまで claim は誰でも拒否される（エージェントは承認があっても）
+    for (const [ctx, extra] of [
+      [agent, { approved_by: "human" }],
+      [human, {}],
+    ] as const) {
       expect(
-        await rejected(runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2" })),
+        await rejected(runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", ...extra })),
       ).toMatchObject({
         code: "TRANSITION_REJECTED",
         message:
           "The conditions for claiming t2 are not met: deps_done (requires of boundaries todo → in_progress)",
       });
     }
-    const started = (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1" }))
-      .data;
+    // エージェントの claim は、人の承認（--approved-by）も --auto もなければ承認を求めて拒否される。案内は --auto の道も示す
+    const asked = await rejected(
+      runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1" }),
+    );
+    expect(asked).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for claiming t1 (boundaries todo → in_progress: ask_unless_auto)",
+    });
+    expect(asked!.detail).toContain("--approved-by human");
+    expect(asked!.detail).toContain("run the command again with --auto");
+    expect(human.store.require("ticket", "t1").data.status).toBe("todo");
+    // 承認者を渡せば通り、承認者がコミットの文に残る
+    const started = (
+      await runCommand(ticketClaim, agent, {
+        no_worktree: true,
+        ticket: "t1",
+        approved_by: "human",
+      })
+    ).data;
+    expect(await subject()).toBe("Claim t1: claude/agent (approved by claude)");
     expect(started.status).toBe("in_progress");
     expect(started.branch_base).toBeDefined();
     // abandon は always_ask：エージェントは人の承認（--approved-by）がなければ拒否される
@@ -166,15 +188,26 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     // 依存先が abandoned なら deps_done は満たされ、着手できる（WF-2）
     const ready = await runCommand(ticketList, human, { ready: true });
     expect(ready.data.map((t) => t.id)).toEqual(["t2"]);
-    const claimed = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2" });
+    // 人が --auto で始めた流れでは、エージェントは --auto で聞かずに着手でき、承認者にエージェントが残る
+    const claimed = await runCommand(ticketClaim, agent, {
+      no_worktree: true,
+      ticket: "t2",
+      auto: true,
+    });
     expect(claimed.data.status).toBe("in_progress");
+    expect(await subject()).toBe("Claim t2: claude/agent (approved by claude/agent with --auto)");
   });
 
   it("既定の Workflow：ブランチなしで着手したチケット（PR の要らない作業）には pr_merged を当てず、エージェントが人の承認を記録して done にできる（ST-10）", async () => {
     const { human, agent, subject } = await humanAndAgent();
     await runCommand(ticketCreate, human, { title: "A" });
     await runCommand(ticketCreate, human, { title: "B" });
-    await runCommand(ticketClaim, agent, { ticket: "t1", without_branch: true, no_run: true });
+    await runCommand(ticketClaim, agent, {
+      ticket: "t1",
+      without_branch: true,
+      no_run: true,
+      approved_by: "human",
+    });
     await runCommand(ticketMove, agent, { ticket: "t1", status: "review" });
     // decide（ask_unless_auto）は当たる：承認がなければ拒否される。満たさない条件（pr_merged）では拒否されない
     expect(
@@ -191,8 +224,9 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     });
     expect(done.data.status).toBe("done");
     expect(await subject()).toBe("Move t1 from review to done (approved by claude)");
-    // 境目を飛ばす in_progress → done も同じ。人は --override なしで進める
+    // 境目を飛ばす in_progress → done も同じ。人は --override なしで進める（人の claim は既定の ask_unless_auto でも聞かずに通る）
     await runCommand(ticketClaim, human, { ticket: "t2", without_branch: true });
+    expect(await subject()).toBe("Claim t2: eiki");
     expect(
       (await runCommand(ticketMove, human, { ticket: "t2", status: "done" })).data.status,
     ).toBe("done");
@@ -201,7 +235,12 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
   it("ticket move は境目の decide の 5 つの値の表どおりに、通す・承認を求める・拒否する。承認者と強制の理由はコミットの文に残る", async () => {
     const { human, agent, workflow, subject } = await humanAndAgent();
     await runCommand(ticketCreate, human, { title: "A" });
-    await runCommand(ticketClaim, agent, { ticket: "t1", without_branch: true, no_run: true });
+    await runCommand(ticketClaim, agent, {
+      ticket: "t1",
+      without_branch: true,
+      no_run: true,
+      approved_by: "human",
+    });
     const boundary = (decide: string) =>
       workflow(["boundaries:", `  - { from: in_progress, to: review, decide: ${decide} }`]);
     /** in_progress → review を試し、通ったら戻す（back は anyone）。結果は通ったか、拒否の文の先頭 */
@@ -313,8 +352,8 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       "  reopen: anyone",
     ]);
     await runCommand(ticketCreate, human, { title: "A" });
-    const claim = (ctx: typeof human) =>
-      runCommand(ticketClaim, ctx, { ticket: "t1", without_branch: true, no_run: true });
+    const claim = (ctx: typeof human, extra = {}) =>
+      runCommand(ticketClaim, ctx, { ticket: "t1", without_branch: true, no_run: true, ...extra });
     await claim(human);
     // back（agent_only）：人の unclaim と move は拒否され、--override で越える。エージェントは聞かずにできる
     expect(await rejected(runCommand(ticketUnclaim, human, { ticket: "t1" }))).toMatchObject({
@@ -326,7 +365,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     ).toMatchObject({ code: "TRANSITION_REJECTED" });
     await runCommand(ticketUnclaim, human, { ticket: "t1", override: "取り違え" });
     expect(await subject()).toBe("Unclaim t1 (override by eiki: 取り違え)");
-    await claim(agent);
+    await claim(agent, { approved_by: "human" });
     expect((await runCommand(ticketUnclaim, agent, { ticket: "t1" })).data.status).toBe("todo");
     // abandon（always_ask）：エージェントは人の承認があればできる
     expect(
@@ -502,7 +541,11 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
 
     // eiki の AI が claim したものは eiki 本人が force なしで外せる
     const eikiAgent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
-    const byAgent = await runCommand(ticketClaim, eikiAgent, { no_worktree: true, ticket: "t1" });
+    const byAgent = await runCommand(ticketClaim, eikiAgent, {
+      no_worktree: true,
+      ticket: "t1",
+      approved_by: "human",
+    });
     expect(byAgent.data.assignee).toBe("eiki/agent");
     await eiki.store.rescan();
     const released = await runCommand(ticketUnclaim, eiki, { ticket: "t1" });
@@ -641,12 +684,12 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const hooks = {
       beforePush: async () => {
         hooks.beforePush = async () => {};
-        await runCommand(ticketClaim, b, { no_worktree: true, ticket: "t1" });
+        await runCommand(ticketClaim, b, { no_worktree: true, ticket: "t1", approved_by: "human" });
       },
     };
     const racer = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "a" }, hooks });
     await expect(
-      runCommand(ticketClaim, racer, { no_worktree: true, ticket: "t1" }),
+      runCommand(ticketClaim, racer, { no_worktree: true, ticket: "t1", approved_by: "human" }),
     ).rejects.toMatchObject({
       code: "CLAIM_LOST",
     });

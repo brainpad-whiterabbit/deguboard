@@ -292,16 +292,23 @@ describe("--auto は ask_unless_auto の場面だけを聞かずに進め、承�
     expect(await subject()).toBe(
       "Move t1 from review to done (approved by claude/agent with --auto)",
     );
-    // 例外の動き（reopen は always_ask）と、聞かない境目（todo → in_progress は anyone）の --auto は拒否される
+    // 例外の動き（reopen は always_ask）の --auto は拒否される
     expect(
       await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "review", auto: true })),
     ).toMatchObject(notAutoPlace("moving t1 from done to review", "exceptions.reopen: always_ask"));
+    // 着手の境目（todo → in_progress）も既定で ask_unless_auto：--auto で進み、承認者にエージェントが残る
+    await runCommand(ticketMove, agent, { ticket: "t2", status: "in_progress", auto: true });
+    expect(await subject()).toBe(
+      "Move t2 from todo to in_progress (approved by claude/agent with --auto)",
+    );
+    // 聞かない境目（in_progress → review は anyone）の --auto は拒否される
     expect(
-      await rejected(
-        runCommand(ticketMove, agent, { ticket: "t2", status: "in_progress", auto: true }),
-      ),
+      await rejected(runCommand(ticketMove, agent, { ticket: "t2", status: "review", auto: true })),
     ).toMatchObject(
-      notAutoPlace("moving t2 from todo to in_progress", "boundaries todo → in_progress: anyone"),
+      notAutoPlace(
+        "moving t2 from in_progress to review",
+        "boundaries in_progress → review: anyone",
+      ),
     );
 
     // governance：既定の config は always_ask で --auto は効かず、ask_unless_auto にすると効く

@@ -158,6 +158,8 @@ describe("dg", () => {
       "ticket",
       "claim",
       "1",
+      "--approved-by",
+      "human",
     ]);
     expect(claimed.json().data).toMatchObject({
       status: "in_progress",
@@ -344,6 +346,8 @@ describe("dg", () => {
       "1",
       "--agent",
       "claude-code",
+      "--approved-by",
+      "human",
     ]);
     expect(opened.code).toBe(0);
     expect(opened.out).toContain("## Acceptance criteria");
@@ -357,6 +361,8 @@ describe("dg", () => {
       "claim",
       "2",
       "--no-run",
+      "--approved-by",
+      "human",
     ]);
     expect(skipped.code).toBe(0);
     expect(skipped.json().data.run).toBeNull();

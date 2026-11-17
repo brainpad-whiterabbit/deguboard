@@ -78,6 +78,7 @@ async function prepareRepo(f: Layout): Promise<void> {
     ticket: "t1",
     branch: "t1",
     no_run: true,
+    approved_by: "human",
   });
   await git(f.cloneA, ["checkout", "-qb", "t1"]);
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
