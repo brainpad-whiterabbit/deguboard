@@ -17,7 +17,7 @@
 //   「自分の値を使う」を入れるとチームの値を自分の値として写し、外すと config.unset --local で上書きを外してチームの値を出す
 // VS Code の settings.json は使わない（requirements.md 5.10）。左パネルのビューのタイトル行の歯車で開け閉めする。
 // 選択欄とチェックは変えたらすぐ、テキストと数は Enter か欄を離れたとき、リストは足す・外すたびに保存する。
-// 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、どちらのタブでも保存の前に欄の下で確かめる
+// 同期先とブランチの判定・worktree の置き場所・実行するコマンドを変える項目（CONFIRM_KEYS）は、どちらのタブでも保存の前に欄の下で確かめる
 // （自分の値を外して効く値が変わるときも確かめる。空にすると既定に戻る項目を空にするときは、戻る既定の値を出す）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す。
 // 保存は通って読み直しだけが失敗したら、保存できたことと読み直せないことを分けて出し、欄は保存した値で出す。
 // 項目の行と観点の行の名前の横には、エージェントに頼む吹き出しを出す（UI-15）。項目の行はそのキーを、観点の行は retro.perspectives.<id> を
@@ -71,7 +71,6 @@ const OTHER_GROUP = { id: "other", label: msg("その他") };
 const NAMES: Record<string, string> = {
   "commit.mode": msg("コミットの仕方"),
   "push.mode": msg("push の仕方"),
-  "actions.shell": msg("シェルの Action を許す"),
   "actions.test": msg("テストのコマンド"),
   "actions.light_test": msg("軽い検査のコマンド"),
   "actions.light_paths": msg("軽い検査で済ませるパス"),
@@ -163,9 +162,9 @@ function noteLabel(key: string): string {
 }
 
 /**
- * 保存の前に確かめる項目と、確かめの文に出す変わること。誤ると同期・照合・worktree・実行するコマンド・エージェントに許す操作を壊し、
+ * 保存の前に確かめる項目と、確かめの文に出す変わること。誤ると同期・照合・worktree・実行するコマンドを壊し、
  * 戻すまで気づきにくい（チームのタブでは全員に効く）。どちらのタブでも確かめる。
- * actions.test・actions.light_test と worktree.setup は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う
+ * actions.test・actions.light_test と worktree.setup は確認なしで実行するコマンドなので、シェルの許可と同じ重さで扱う
  */
 export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   ["git.remote", msg("作業ブランチと PR の先が変わる（git.data_remote が空ならデータの同期先も）")],
@@ -179,7 +178,6 @@ export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
     "actions.light_test",
     msg("軽い検査として確認なしで実行するコマンドが変わる（シェルを許すのと同じ）"),
   ],
-  ["actions.shell", msg("エージェントが任意のシェルを実行できるかが変わる")],
 ]);
 
 type Values = Record<string, unknown>;

@@ -83,7 +83,6 @@ describe("スキーマ", () => {
       "commit.mode",
       "push.mode",
       "notify.approvals",
-      "actions.shell",
       "work.parallel",
       "models.light",
       "models.standard",
@@ -404,7 +403,6 @@ describe("スキーマ", () => {
       "push.mode",
       "metrics.read_transcripts",
       "notify.approvals",
-      "actions.shell",
       "actions.test",
       "actions.light_test",
       "actions.light_paths",
@@ -457,9 +455,12 @@ describe("スキーマ", () => {
     // 前の版の config.yaml に残った値は、未知の項目として読み飛ばす（読み込みを止めない）
     expect(byKey.has("merge.approval_overrides")).toBe(false);
     expect(byKey.has("actor.human_only")).toBe(false);
+    // 任意のシェルの Action をなくしたので actions.shell も持たない（t1061）
+    expect(byKey.has("actions.shell")).toBe(false);
     const stale = configSchema.safeParse({
       merge: { approval_overrides: ["pr"] },
       actor: { human_only: ["epic.close"] },
+      actions: { shell: true },
     });
     expect(stale.success).toBe(true);
     // 並列の上限は数の項目で、既定 3・個人で上書きできる（t685）
@@ -489,7 +490,7 @@ describe("スキーマ", () => {
     // 例は値と同じ形（配列の項目は配列）
     expect(byKey.get("actions.test")).toMatchObject({
       example: ["mise", "run", "check"],
-      empty: "The gate's check does not judge, and run_tests is rejected",
+      empty: "The gate's check does not judge",
     });
     expect(byKey.get("models.light")).toMatchObject({
       example: "haiku",

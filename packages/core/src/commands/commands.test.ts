@@ -455,11 +455,11 @@ describe("用意", () => {
     const ctx = await reopenInitialized(f);
     await runCommand(configSet, ctx, { key: "models.light", value: "team-light" });
     await runCommand(configSet, ctx, { key: "models.light", value: "my-light", local: true });
-    await runCommand(configSet, ctx, { key: "actions.shell", value: "true", local: true });
+    await runCommand(configSet, ctx, { key: "notify.approvals", value: "false", local: true });
     const shown = (await runCommand(configShow, ctx, { fields: true })).data as ConfigShowView;
     expect(shown.config.models.light).toBe("my-light");
     expect(shown.team.models.light).toBe("team-light");
-    expect(shown.local).toEqual({ "models.light": "my-light", "actions.shell": true });
+    expect(shown.local).toEqual({ "models.light": "my-light", "notify.approvals": false });
     const byKey = new Map(shown.fields.map((x) => [x.key, x]));
     expect(byKey.get("models.light")?.scope).toBe("local");
     expect(byKey.get("merge.delete_branch")?.scope).toBe("team");

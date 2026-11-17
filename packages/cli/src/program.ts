@@ -323,13 +323,18 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       .exitOverride()
       .configureOutput(program.configureOutput())
       .action(
-        async (opts: {
-          personal?: boolean;
-          shared?: boolean;
-          command?: string;
-          dryRun?: boolean;
-        }) => {
+        async (
+          opts: {
+            personal?: boolean;
+            shared?: boolean;
+            command?: string;
+            dryRun?: boolean;
+          },
+          command: Command,
+        ) => {
           const global = program.opts<{ json?: boolean; C?: string; actor?: string }>();
+          // install は主体を使わないが、誤った --actor はほかのコマンドと同じ引数の誤りにする
+          const actor = actorKindOf(command, global.actor, env);
           try {
             const base = {
               cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
@@ -337,8 +342,6 @@ export function buildProgram(options: ProgramOptions = {}): Command {
               env,
               dryRun: opts.dryRun ?? false,
             };
-            // 主体はほかのコマンドと同じ順で決める（--actor、DEGUBOARD_ACTOR、既定は human）。agent でなければ人として扱う
-            const actor = (global.actor ?? env["DEGUBOARD_ACTOR"]) === "agent" ? "agent" : "human";
             const result =
               action === "install"
                 ? await installHooks({ ...base, command: opts.command, self: selfCommand })
@@ -445,46 +448,48 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     )
     .exitOverride()
     .configureOutput(program.configureOutput())
-    .action(async (opts: { personal?: boolean; force?: boolean; dryRun?: boolean }) => {
-      const global = program.opts<{ json?: boolean; C?: string; actor?: string }>();
-      try {
-        const data = await uninstall({
-          cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
-          env,
-          // 主体は dg hooks uninstall と同じ順で決める（--actor、DEGUBOARD_ACTOR、既定は human）
-          actor: (global.actor ?? env["DEGUBOARD_ACTOR"]) === "agent" ? "agent" : "human",
-          personal: opts.personal ?? false,
-          force: opts.force ?? false,
-          dryRun: opts.dryRun ?? false,
-        });
-        if (global.json)
-          streams.out(JSON.stringify({ ok: true, data, warnings: [], write: null }, null, 2));
-        else {
-          if (data.dryRun) streams.out("--dry-run: nothing was removed");
-          if (data.removes.length === 0) streams.out("Nothing to remove in this clone");
-          for (const item of data.removes)
-            streams.out(
-              `${data.dryRun ? "Would remove" : "Removed"} ${item.kind} (${item.scope}): ${item.target}${item.names ? ` (${item.names.join(", ")})` : ""}`,
-            );
-          for (const kept of data.keeps) {
-            streams.out(`Kept ${kept.kind}: ${kept.target}. ${kept.reason}`);
-            for (const command of kept.commands) streams.out(`         to remove: ${command}`);
+    .action(
+      async (opts: { personal?: boolean; force?: boolean; dryRun?: boolean }, command: Command) => {
+        const global = program.opts<{ json?: boolean; C?: string; actor?: string }>();
+        const actor = actorKindOf(command, global.actor, env);
+        try {
+          const data = await uninstall({
+            cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
+            env,
+            actor,
+            personal: opts.personal ?? false,
+            force: opts.force ?? false,
+            dryRun: opts.dryRun ?? false,
+          });
+          if (global.json)
+            streams.out(JSON.stringify({ ok: true, data, warnings: [], write: null }, null, 2));
+          else {
+            if (data.dryRun) streams.out("--dry-run: nothing was removed");
+            if (data.removes.length === 0) streams.out("Nothing to remove in this clone");
+            for (const item of data.removes)
+              streams.out(
+                `${data.dryRun ? "Would remove" : "Removed"} ${item.kind} (${item.scope}): ${item.target}${item.names ? ` (${item.names.join(", ")})` : ""}`,
+              );
+            for (const kept of data.keeps) {
+              streams.out(`Kept ${kept.kind}: ${kept.target}. ${kept.reason}`);
+              for (const command of kept.commands) streams.out(`         to remove: ${command}`);
+            }
+            for (const b of data.blockers) {
+              streams.out(
+                `${data.force ? "Overridden by --force" : "Would stop"} (${b.kind}): ${b.message}`,
+              );
+              for (const command of b.next) streams.out(`         next: ${command}`);
+            }
           }
-          for (const b of data.blockers) {
-            streams.out(
-              `${data.force ? "Overridden by --force" : "Would stop"} (${b.kind}): ${b.message}`,
-            );
-            for (const command of b.next) streams.out(`         next: ${command}`);
-          }
+          process.exitCode = 0;
+        } catch (error) {
+          const view = toErrorView(error);
+          if (global.json) printJsonError(streams, view);
+          else printError(streams, view);
+          process.exitCode = view.exitCode;
         }
-        process.exitCode = 0;
-      } catch (error) {
-        const view = toErrorView(error);
-        if (global.json) printJsonError(streams, view);
-        else printError(streams, view);
-        process.exitCode = view.exitCode;
-      }
-    });
+      },
+    );
 
   // setup check も CLI だけの操作。判定は core の commands/setup-check.ts にあり、ここは引数と結果を写す。
   // git がない・リポジトリの外・dg init の前でも結果を返すので、文脈（リポジトリ・ストア）を開かない
@@ -619,10 +624,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       }>();
       const cwd = resolve(options.cwd ?? process.cwd(), global.C ?? ".");
       const input = collectInput(bound, positionals, opts);
-      const actorKind = (global.actor ?? env["DEGUBOARD_ACTOR"] ?? "human") as ActorInfo["kind"];
-      if (actorKind !== "human" && actorKind !== "agent") {
-        command.error("--actor must be human or agent", { exitCode: 2 });
-      }
+      const actorKind = actorKindOf(command, global.actor, env);
       const actor = { kind: actorKind, ...pickUser(global.user, env["DEGUBOARD_USER"]) };
       const initialize =
         def.needs === "repo"
@@ -678,6 +680,21 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     });
   }
   return program;
+}
+
+/**
+ * 主体の種類を決める（--actor、DEGUBOARD_ACTOR、既定は human）。human と agent 以外は引数の誤り（終了コード 2）。
+ * 人だけの操作（hooks uninstall・uninstall）でも誤った値を人とみなさず、すべての入口で同じ判定にする
+ */
+function actorKindOf(
+  command: Command,
+  flag: string | undefined,
+  env: NodeJS.ProcessEnv,
+): ActorInfo["kind"] {
+  const kind = flag ?? env["DEGUBOARD_ACTOR"] ?? "human";
+  if (kind !== "human" && kind !== "agent")
+    command.error("--actor must be human or agent", { exitCode: 2 });
+  return kind;
 }
 
 /** ファイル（- で標準入力）の中身を文字列で読む。読めなければ使い方の誤り。中身の検査は core の命令が行う */

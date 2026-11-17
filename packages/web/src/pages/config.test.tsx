@@ -101,10 +101,10 @@ const FIELDS: ConfigField[] = (
       clears_to_default: false,
     },
     {
-      key: "actions.shell",
+      key: "notify.approvals",
       type: "boolean",
-      description: "シェルを許す",
-      default: false,
+      description: "承認待ちが増えたら通知する",
+      default: true,
       scope: "local",
       clears_to_default: false,
     },
@@ -193,7 +193,8 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
     commit: { mode: "each" },
     push: { mode: "auto" },
     metrics: { read_transcripts: false },
-    actions: { shell: false, test: ["mise", "run", "check"] },
+    notify: { approvals: true },
+    actions: { test: ["mise", "run", "check"] },
     merge: { delete_branch: false },
     review: { sample_choices: ["assign", "check", "plan", "audit", "accept"] },
     models: { light: "", sample: "inherit" },
@@ -305,6 +306,7 @@ describe("設定画面", () => {
       "コミットと push",
       "エージェント",
       "計測",
+      "通知",
       "Git",
       "ガイドの差し込み",
     ]);
@@ -364,14 +366,6 @@ describe("設定画面", () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
-    // チェック：入れて、枠を閉じずに外す
-    const shell = within(fieldOf("actions.shell")).getByRole<HTMLInputElement>("checkbox");
-    fireEvent.click(shell);
-    expect(within(fieldOf("actions.shell")).getByRole("alertdialog")).toBeTruthy();
-    fireEvent.click(shell);
-    expect(within(fieldOf("actions.shell")).queryByRole("alertdialog")).toBeNull();
-    expect(shell.checked).toBe(false);
-
     // リスト：足して、枠を閉じずに外す
     const add = within(fieldOf("worktree.setup")).getByPlaceholderText("項目を足す");
     fireEvent.change(add, { target: { value: "pnpm" } });
@@ -434,7 +428,7 @@ describe("設定画面", () => {
     ]);
   });
 
-  it("actions.test・actions.shell・worktree.setup も保存の前に確かめ、変わることを出し、やめると戻す", async () => {
+  it("actions.test・worktree.setup も保存の前に確かめ、変わることを出し、やめると戻す", async () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
@@ -445,15 +439,6 @@ describe("設定画面", () => {
     expect(test.textContent).toContain("確認なしで実行するコマンドが変わる");
     fireEvent.click(within(test).getByText("やめる"));
     expect(within(fieldOf("actions.test")).getByLabelText("check を外す")).toBeTruthy();
-
-    // シェルの許可：チェックを入れても、保存するまで config.set を呼ばない
-    fireEvent.click(within(fieldOf("actions.shell")).getByRole("checkbox"));
-    const shell = within(fieldOf("actions.shell")).getByRole("alertdialog");
-    expect(shell.textContent).toContain("任意のシェルを実行できるかが変わる");
-    fireEvent.click(within(shell).getByText("やめる"));
-    expect(within(fieldOf("actions.shell")).getByRole<HTMLInputElement>("checkbox").checked).toBe(
-      false,
-    );
     expect(setCalls(client)).toEqual([]);
 
     // claim の準備のコマンド：足してから保存する
@@ -756,14 +741,14 @@ describe("設定画面", () => {
   });
 
   it("チームのタブは自分で上書きしている項目に「自分：値」の印を出し、押すと自分のタブのその項目に移る", async () => {
-    const { client } = configClient({ "commit.mode": "manual", "actions.shell": true });
+    const { client } = configClient({ "commit.mode": "manual", "notify.approvals": false });
     mount(client);
     await screen.findByText("コミットの仕方");
     // チームのタブは全項目を出し、上書きしている 2 項目にだけ印を出す
     expect(document.querySelectorAll(".config-field")).toHaveLength(FIELDS.length);
     expect([...document.querySelectorAll(".config-override")].map((e) => e.textContent)).toEqual([
       "自分：manual",
-      "自分：true",
+      "自分：false",
     ]);
     expect(within(fieldOf("push.mode")).queryByText(/^自分：/)).toBeNull();
     // 自分のタブには上書きしている件数を添える
@@ -795,12 +780,12 @@ describe("設定画面", () => {
     expect(
       [...document.querySelectorAll(".config-field")].map((e) => e.getAttribute("data-key")),
     ).toEqual([
-      // まとまりの順（コミットと push・エージェント・Git）
+      // まとまりの順（コミットと push・エージェント・通知・Git）
       "commit.mode",
       "push.mode",
-      "actions.shell",
       "models.light",
       "models.sample",
+      "notify.approvals",
       "git.remote",
       "worktree.root",
     ]);
@@ -973,8 +958,10 @@ describe("設定画面", () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
-    fireEvent.click(within(fieldOf("actions.shell")).getByRole("checkbox"));
-    expect(within(fieldOf("actions.shell")).getByRole("alertdialog")).toBeTruthy();
+    const add = within(fieldOf("worktree.setup")).getByPlaceholderText("項目を足す");
+    fireEvent.change(add, { target: { value: "pnpm" } });
+    fireEvent.keyDown(add, { key: "Enter" });
+    expect(within(fieldOf("worktree.setup")).getByRole("alertdialog")).toBeTruthy();
     fireEvent.click(tabOf("自分"));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     fireEvent.click(tabOf("チーム"));
@@ -985,9 +972,7 @@ describe("設定画面", () => {
     fireEvent.click(tabOf("自分"));
     expect(screen.queryByText(/^保存した: /)).toBeNull();
     fireEvent.click(tabOf("チーム"));
-    expect(within(fieldOf("actions.shell")).getByRole<HTMLInputElement>("checkbox").checked).toBe(
-      false,
-    );
+    expect(within(fieldOf("worktree.setup")).queryByText("pnpm")).toBeNull();
     expect(setCalls(client)).toEqual([{ key: "metrics.read_transcripts", value: true }]);
   });
 
@@ -1248,10 +1233,9 @@ describe("設定画面の部品", () => {
     }
   });
 
-  it("保存の前に確かめるのは、同期と照合・worktree・実行するコマンド・エージェントに許す操作を変える項目だけ", () => {
+  it("保存の前に確かめるのは、同期と照合・worktree・実行するコマンドを変える項目だけ", () => {
     expect([...CONFIRM_KEYS.keys()].sort()).toEqual([
       "actions.light_test",
-      "actions.shell",
       "actions.test",
       "git.base_branch",
       "git.data_branch",

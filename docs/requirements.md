@@ -172,7 +172,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 ### 5.10 設定（`config.yaml`）
 
-項目と意味・値・既定値・範囲（scope）はスキーマ（`packages/core/src/model/config.ts`）、`config.set` の値の扱いは `dg config set --help` が正本。エージェントや記録に関わるもの（`metrics.read_transcripts`・`actions.shell`）は既定で `false`。
+項目と意味・値・既定値・範囲（scope）はスキーマ（`packages/core/src/model/config.ts`）、`config.set` の値の扱いは `dg config set --help` が正本。エージェントや記録に関わるもの（`metrics.read_transcripts`）は既定で `false`。
 
 - チームの `config.yaml` はデータのブランチ（既定は `deguboard`）で全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）
 - 値は「個人 > チーム > 既定」の順に読み、どの入口も Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する（細部は `dg config set --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
@@ -252,8 +252,6 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）。起票・着手・マージは人が頼んだ段階までにする（決まりは `dg guide overview`）
 - AG-4 MCP サーバー（`dg mcp`。stdio）は Bash のないクライアントの入口で、ツールを Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`hooks`・`setup`・`uninstall`・`serve`・`open` を除く）、結果は `--json` と同じ形（CL-1）で、主体は常に agent。細部は `packages/cli/src/mcp.ts` とそのテスト
 - AG-5 AI 製品ごとの差（使用量の取得・dg を呼んだエージェントの判定・フックの入力と設定）は Agent Adapter が吸収し、実装は Core の `agents/adapters/` に閉じる（対応する製品はそこのコード）。エージェントの起動と権限は扱わない（EX-1、[ADR-033](adr/ADR-033-architecture.md)）
-- AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、Core の公開にも出さない（[ADR-033](adr/ADR-033-architecture.md)）
-- AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 - AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンドで、人に限られた操作なら人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補・おすすめ・文の形は `dg ask --help` と `packages/core/src/commands/ask.ts`・そのテストが正本
 - AG-9 `dg hooks install` は追跡しない設定に `dg hook` を呼ぶフックを書き（`.gitignore` に足す）、`uninstall` は外す。届かないフック（SubagentStop だけも）と中の失敗は `check` と印で頼む操作が警告する。届かないと使用量・時間は残らない（RN-9）。主体は agent（RN-7）。細部は `dg hook --help`、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
 - AG-10 フック（AG-9）は、データの直接の書き換えと dg を経由しない PR の ready・マージを、字句を読まずに語の有無で粗く拒み、dg の読み書きのコマンドと `dg pr ready`・`dg pr merge`（EX-6）へ案内する。応答の終わりに dg の外の変更（SY-7）があれば、止まらずに続けさせて伝える。細部は `dg hook --help` とそのテスト、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)
@@ -285,7 +283,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 ## 7. 非機能要件
 
-機能要件と重なる項は 6 章に置く（オフライン SY-6、Core の共有 CL-6、原子的な書き込み DT-1、競合 SY-4、Status の変更の判定 ST-2、Run の復旧 EX-2、バインド UI-8、コマンドの実行 WF-2・AG-7）。消した番号は再利用しない。
+機能要件と重なる項は 6 章に置く（オフライン SY-6、Core の共有 CL-6、原子的な書き込み DT-1、競合 SY-4、Status の変更の判定 ST-2、Run の復旧 EX-2、バインド UI-8、コマンドの実行 WF-2）。消した番号は再利用しない。
 
 - NF-3 データ形式は人と AI の両方が読める（Markdown・YAML・JSON）
 - NF-10 Git 管理するログと実績に秘密情報を含めない

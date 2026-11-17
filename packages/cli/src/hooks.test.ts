@@ -257,6 +257,29 @@ describe("dg hooks install / uninstall（AG-9）", () => {
     expect((await settingsOf(file)).hooks).toBeUndefined();
   });
 
+  it("install と uninstall は human と agent 以外の主体（--actor・DEGUBOARD_ACTOR）をほかのコマンドと同じ引数の誤りにし、何も書かない", async () => {
+    const cwd = await repo();
+    const file = path.join(cwd, ".claude", "settings.local.json");
+    await dg(cwd, ["hooks", "install"]);
+    const installed = await readFile(file, "utf8");
+    // ほかのコマンド（ticket list）の誤りの形を基準にする
+    const other = await dg(cwd, ["--json", "--actor", "robot", "ticket", "list"]);
+    expect(other.code).toBe(2);
+    const expected = JSON.parse(other.out) as unknown;
+    expect(expected).toMatchObject({ ok: false, error: { code: "INVALID_INPUT" } });
+    for (const action of ["install", "uninstall"]) {
+      for (const [argv, env] of [
+        [["--json", "--actor", "robot", "hooks", action], {}],
+        [["--json", "hooks", action], { DEGUBOARD_ACTOR: "robot" }],
+      ] as const) {
+        const r = await dg(cwd, [...argv], env);
+        expect(r.code).toBe(2);
+        expect(JSON.parse(r.out)).toEqual(expected);
+        expect(await readFile(file, "utf8")).toBe(installed);
+      }
+    }
+  });
+
   it("uninstall は .claude/.gitignore の settings.local.json の行を残す（Claude Code が dg の外でも各自のマシンの設定に使うため）", async () => {
     const cwd = await repo();
     const ignore = path.join(cwd, ".claude", ".gitignore");

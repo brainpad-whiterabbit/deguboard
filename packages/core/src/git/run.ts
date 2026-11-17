@@ -141,7 +141,7 @@ export async function runGh(
   return exec("gh", args, cwd, opts);
 }
 
-/** git・gh 以外のプログラムを引数配列で呼ぶ（Action のテスト実行と許可したシェル（actions モジュール）、dg hooks check のハンドラの確かめ） */
+/** git・gh 以外のプログラムを引数配列で呼ぶ（品質ゲートの検査・worktree.setup・dg hooks check のハンドラの確かめ） */
 export async function runProcess(
   cwd: string,
   file: string,

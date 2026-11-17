@@ -305,32 +305,20 @@ manual
 詳しく
 push.mode
 エージェント
-シェルの Action を許す
-actions.shell
-[title] 既定は false
-変更あり
-[title] エージェントに頼む（Shift+F10）
-[aria-label] エージェントに頼む（設定の項目 actions.shell）
-任意のシェルの Action を許す
-無効
-[title] 既定の false に戻す
-既定に戻す
-詳しく
-actions.shell
 テストのコマンド
 actions.test
 [title] 既定は 空
 変更あり
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（設定の項目 actions.test）
-品質ゲートの検査とテストの Action が回すコマンド
+品質ゲートの検査が回すコマンド
 空
 [aria-label] 項目
 [placeholder] 例 [mise, run, check]
 足す
 [title] 既定の 空 に戻す
 既定に戻す
-空のとき: 品質ゲートの検査を判定しない（run_tests も拒否する）
+空のとき: 品質ゲートの検査を判定しない
 詳しく
 actions.test
 軽い検査のコマンド

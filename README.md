@@ -2,9 +2,10 @@
 
 English | [日本語](https://github.com/brainpad-whiterabbit/deguboard/blob/main/README.ja.md)
 
-An agentic kanban board inside VS Code, with the development flow built in, so you and AI agents can grow your software together while keeping its quality high. Inspired by [Agentic-Agile](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md), it supports our own take on Agentic-Agile. You bring the idea; agents turn it into small tickets with acceptance criteria, implement them in parallel, and keep revising each one until it passes the quality gate. Every agent run is measured, and in the retrospective you decide how to improve the agents and the software.
+deguboard builds into your Git repository a development flow for handing development to AI agents, and its kanban board in VS Code is your window onto that flow, so you and AI agents can grow your software together while keeping its quality high. Inspired by [Agentic-Agile](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md), it supports our own take on Agentic-Agile. You bring the idea; agents turn it into small tickets with acceptance criteria, implement them in parallel, and keep revising each one until it passes the quality gate. Every agent run is measured, and in the retrospective you decide how to improve the agents and the software.
 
-- **You stay in charge**: Agents work under your oversight. You decide what to build and what ships, and the agents drive the work forward within those bounds. You build alongside them, and the AI never runs away with the work.
+- **Rules enforced by the tool**: Agents follow dg's judgment, not promises in a prompt. The board's Workflow decides the Git facts that each Status move needs (such as a work branch or a PR) and where a person must approve, the quality gate decides whether a PR can be marked ready and merged, and dg refuses operations that break them. In Claude Code, the hooks also stop merges and direct data edits that bypass dg.
+- **You stay in charge**: You decide what to build and what ships, and the agents drive the work forward within those bounds while you oversee them. By default, only a person can pass the release checkpoint and close an Iteration.
 - **Made for teams**: The board lives on a dedicated branch of your Git repository, so everyone who clones it sees the same board. There is no server or service to run.
 - **Measure and improve**: Every agent run records how long it took and how much rework it needed, and when your team turns on reading conversation transcripts, it also records how many tokens it used. In the retrospective, your team reviews the trends of the metrics it chose, and any bottleneck it finds becomes a ticket for the next round of work.
 
@@ -16,7 +17,7 @@ An agentic kanban board inside VS Code, with the development flow built in, so y
 - **VS Code**: 1.123 or later, the desktop edition.
 - **Git**: 2.30 or later.
 - **GitHub CLI (`gh`)**: optional. The pull request steps (opening, marking ready, and merging PRs, through `dg pr ready`, `dg pr merge`, and the agent's workflow actions) and showing pull request status on tickets need it. The board, the tickets, and reconciliation by Git facts work without it.
-- **Agent**: Claude Code is the primary supported agent, and the Skills and hooks are made for it. Other agents that can run a shell, such as Codex and Copilot CLI, can also use `dg`, but without the hooks the measurement of agent Runs and tokens is less accurate, and the guards on data and merges do not work. See [Use other agents](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-other-agents) in the usage guide.
+- **Agent**: Claude Code is the primary supported agent, and the Skills and hooks are made for it. Other agents that can run a shell, such as Codex and Copilot CLI, can also use `dg`; what changes without the hooks is under [Why deguboard](https://github.com/brainpad-whiterabbit/deguboard/blob/main/README.md#why-deguboard).
 
 ## Installation
 
@@ -27,6 +28,8 @@ An agentic kanban board inside VS Code, with the development flow built in, so y
 Teammates install the extension, clone the repository, and follow the same checklist to see the same board.
 
 ## Usage
+
+You run the board by asking agents. Unlike most kanban tools, there is no drag and drop, and there are no buttons for creating tickets or for changing Iterations, Epics, and Plans, so that every change goes through dg's rule checks, the Skill's checks, and your approval. In the ticket details you can still edit the text and attributes, including the status. We may let you do more directly in the future.
 
 Click the deguboard icon in the Activity Bar. The tabs at the top switch between **Backlog**, **Board**, and **History**. You ask for work with **Ask Agent**, the speech bubble on a row or a heading: choose what to ask for, then paste the copied request into your agent or send it to an open terminal. The request comes in a Skill form and a plain-text form, and you can switch between them in the menu.
 
@@ -65,6 +68,28 @@ Choose **Ask Agent** → **Retrospect** on a finished Iteration. The agent shows
 
 Tokens are counted only when deguboard reads usage from conversation transcripts. [Count tokens](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#count-tokens) in the usage guide explains how to turn it on.
 
+## Why deguboard
+
+With an MCP server added to a ticket tool such as Jira, Redmine, or GitHub Projects, agents can read and write tickets too. That setup gives the tickets a home, but how the work proceeds, and whether the rules are kept, is left to the agent's instructions. deguboard puts the development flow itself in dg, and agents proceed by dg's judgment. The table compares the two setups; ✅ marks the side with the advantage.
+
+| Axis                | Point                 | Ticket tool + MCP                                                                                | deguboard                                                                                                                                                                  |
+| ------------------- | --------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hand work to agents | What to do next       | The agent decides from its instructions and the conversation                                     | ✅ dg returns the one next step from the facts of the ticket, its work branch, its PR, and its Runs                                                                        |
+|                     | Stop and resume       | Picking up again relies on the conversation's context and on what a person explains              | ✅ The stage is not stored but derived from the facts, so the same request resumes the work                                                                                |
+|                     | Parallel work         | A person or the agent prepares the work branches and working copies                              | ✅ A claim creates a work branch and a worktree per ticket, and agents implement the tickets that are not blocked in parallel                                              |
+| Rules and approvals | Human approval        | Where to ask a person is written in the instructions, and keeping to it is up to the agent       | ✅ The Workflow decides which operations need a person, and dg refuses an agent's operation that has no recorded approval or that only a person may do                     |
+|                     | Quality gate          | Can be built with CI checks and branch protection                                                | Judges the checks and an independent review by a separate agent against the reviewed commit, at the ticket's gate level; merging a PR that fails needs a person's approval |
+|                     | Agent mistakes        | The agent acts within what its MCP token allows; keeping to the steps relies on the instructions | ✅ dg refuses operations that break the rules. The hooks stop merges and data edits that bypass dg, and dg finds a data edit that slipped past at its next command         |
+| Measure and improve | Records of agent work | No record per piece of agent work                                                                | ✅ The hooks record the time and rework of each piece of work (Run), and the tokens when you turn it on                                                                    |
+|                     | Retrospective metrics | Rich metrics of human work, such as velocity and burndown                                        | Computes the trends of the metrics your team chose from the Run records, and files improvements as tickets                                                                 |
+| Made for teams      | Concurrent edits      | ✅ A server keeps the one copy, so conflicts are rare                                            | Merged field by field automatically; for a conflict it cannot merge, it shows both values and a person chooses                                                             |
+|                     | Who can see the board | ✅ People outside engineering can see it on the web, with fine-grained permissions               | People who clone the repository and use VS Code or the CLI                                                                                                                 |
+|                     | Other services        | ✅ Many integrations                                                                             | Git and GitHub only                                                                                                                                                        |
+| Setup and operation | Where the data lives  | An external service or server; agents read it through MCP with credentials                       | ✅ A branch of your repository; anyone who clones it, person or agent, reads the same board                                                                                |
+|                     | Setup effort and cost | A service subscription, or a server to run                                                       | ✅ Install the extension and follow the checklist. MIT licensed, with no server                                                                                            |
+
+Today, the hooks work in full only in Claude Code. Other agents that can run a shell (Codex, Copilot CLI, and others) get the same judgment from the Workflow and the quality gate, but their Runs are recorded only from their own `dg run` calls, and nothing stops, on the spot, a merge or a data edit that bypasses dg (dg finds such a data edit the next time it runs and stops writing). The differences are in [Use other agents](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-other-agents) in the usage guide.
+
 ## How it works
 
 Tickets and Runs live in a branch of your repository, every screen and agent goes through the same `dg` commands, and hooks record each Run without the agent's help. [How it works](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/how-it-works.md) shows the overall structure and what each Run records, with diagrams.
@@ -73,7 +98,6 @@ Tickets and Runs live in a branch of your repository, every screen and agent goe
 
 The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md).
 
-- **Let agents run the board**: Unlike most kanban tools, there is no drag and drop, and there are no buttons for creating tickets or for changing Iterations, Epics, and Plans. Ask with **Ask Agent**, and the change goes through the Skill's checks and your approval. In the ticket details you can still edit the text and attributes, including the status. We may let you do more directly in the future.
 - [Hand off everything](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#hand-off-everything): say "Carry s3 through to release automatically", and the agent runs the tickets of the Iteration from the check to release in one go. By default it asks you to pass the release checkpoint and to close the Iteration.
 - [Quality gate levels](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#quality-gate-levels): `high` (the default), `low`, or `free` per ticket.
 - [Resolve a sync conflict](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#resolve-a-sync-conflict) when two people change the same field.
@@ -83,7 +107,7 @@ The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deg
 - [Go to Ticket](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#go-to-ticket): jump to details by ID or title.
 - [Use the CLI](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-the-cli) and [use it from Claude Desktop (MCP)](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-it-from-claude-desktop-mcp).
 - [Write the agent instructions](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#write-the-agent-instructions): a few lines in `CLAUDE.md` or `AGENTS.md` keep requests that match no Skill on the board, and give the release steps.
-- Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup: ask them to "read `dg guide` and proceed with `dg`". Where deguboard's hooks do not reach the agent, Runs are recorded only from the agent's own `dg run` calls, and nothing stops a merge that skips `dg pr merge`. The differences are in [Use other agents](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-other-agents).
+- Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup: ask them to "read `dg guide` and proceed with `dg`". The differences are in [Use other agents](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-other-agents).
 
 ## Security and privacy
 

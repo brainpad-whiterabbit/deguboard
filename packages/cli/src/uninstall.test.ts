@@ -62,6 +62,11 @@ describe("dg uninstall（CL-10）", () => {
     const refused = await dg(r.dir, ["--json", "uninstall", "--force"], agent);
     expect(refused.code).toBe(1);
     expect(JSON.parse(refused.out)).toMatchObject({ error: { code: "TRANSITION_REJECTED" } });
+    // human と agent 以外の主体は人とみなさず、ほかのコマンドと同じ引数の誤りにする
+    const unknown = await dg(r.dir, ["--json", "--actor", "robot", "uninstall", "--force"], human);
+    expect(unknown.code).toBe(2);
+    expect(JSON.parse(unknown.out)).toMatchObject({ error: { code: "INVALID_INPUT" } });
+    await access(dataDir);
     const stopped = await dg(r.dir, ["uninstall"], human);
     expect(stopped.code).toBe(1);
     expect(stopped.err).toContain("dg uninstall removed nothing");

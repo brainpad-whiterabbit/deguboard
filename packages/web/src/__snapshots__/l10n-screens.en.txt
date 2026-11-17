@@ -305,34 +305,22 @@ Reset to Default
 Details
 auto: push on every commit / manual: dg sync pushes (immediate operations push even in manual)
 Agents
-Allow shell Actions
-actions.shell
-[title] Default: false
-Modified
-[title] Ask Agent (Shift+F10)
-[aria-label] Ask Agent (Setting actions.shell)
-Allow the arbitrary shell Action
-Off
-[title] Reset to default false
-Reset to Default
-Details
-Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation
 Test command
 actions.test
 [title] Default: Empty
 Modified
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Setting actions.test)
-Command run by the quality gate's check and the test Action
+Command run by the quality gate's check
 Empty
 [aria-label] Items
 [placeholder] e.g. [mise, run, check]
 Add
 [title] Reset to default Empty
 Reset to Default
-When empty: The gate's check does not judge, and run_tests is rejected
+When empty: The gate's check does not judge
 Details
-Argument array of the command that the test Action (run_tests) and the quality gate's check (dg gate, dg pr ready, dg pr merge) run (e.g. [mise, run, check]). When empty, run_tests is rejected and the gate's check does not judge (the repo's own checks are confirmed instead)
+Argument array of the command that the quality gate's check (dg gate, dg pr ready, dg pr merge) runs (e.g. [mise, run, check]). When empty, the gate's check does not judge (the repo's own checks are confirmed instead)
 Lighter check command
 actions.light_test
 [title] Default: Empty
