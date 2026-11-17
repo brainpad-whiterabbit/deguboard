@@ -1882,7 +1882,7 @@ describe("run finish のモデル名と finished_at", () => {
 });
 
 describe("run refresh の取り直し（RN-4・MT-5）", () => {
-  /** 会話記録を読める・コミットごとにコミットする文脈（データのリモートはない）。会話記録は finish の後に置き、閉じた Run を取り直す */
+  /** 会話記録を読める・書き込みのたびにコミットする（commit.mode: each）文脈（データのリモートはない）。会話記録は finish の後に置き、閉じた Run を取り直す */
   async function closedRuns() {
     const ctx = await prepared();
     await runCommand(configSet, asHuman(ctx), { key: "commit.mode", value: "each" });
@@ -1950,7 +1950,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     await transcriptFor(b, full);
     const r = await runCommand(runRefresh, ctx, { runs: [a.id, b.id] });
     expect(r.warnings).toEqual([]);
-    expect(r.write).toMatchObject({ committed: true });
+    expect(r.write).toMatchObject({ committed: true, pushed: false });
     const items = r.data as RunRefreshItem[];
     expect(items.map((i) => [i.id, i.updated])).toEqual([
       [a.id, true],

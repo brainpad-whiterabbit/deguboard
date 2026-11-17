@@ -60,6 +60,10 @@ export async function initializedFixture(): Promise<Fixture> {
  * リモートの有無と別のリポジトリ）、commands-flow-reconcile・commands-flow-reclaim・pr・gate・orphan-review（作業ブランチの push と
  * PR の照合・sync の取り込み）、commands-claim-setup（claim の取得と作業ブランチ）、history（浅い clone の fetch）、git/ の各テスト（取り込み・
  * マージドライバ・採番の振り直し）、cli の program・mcp と server の app（入口から init と push を通す）
+ *
+ * 上の 2 つの一覧は、t1078 で時間を測って見直したファイルだけを分けたもの。一覧にないファイル（core の ask・iteration-next・
+ * local・hook-settings・setup-check・skill-files・uninstall、cli の ask・fast-hook・serve など）は見直しておらず、既定の
+ * initializedFixture（リモート付き）のまま回す。同期を確かめないものはこの雛形へ移す候補
  */
 export async function initializedLocalFixture(): Promise<Fixture> {
   const f = await createFixtureFrom("initialized-local", async (layout) => {
