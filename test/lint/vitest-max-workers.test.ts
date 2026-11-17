@@ -1,8 +1,50 @@
 // vitest のワーカー数の上限（vitest.workers.ts）が、DEGUBOARD_TEST_MAX_WORKERS の値をどう読むかを確かめる（t800）。
-// 既定は CPU 数の半分で、数と百分率だけを受ける。vitest に渡す前に、受けない値と 0 を受ける形を示すエラーで止める
+// 既定は全体のテストで CPU 数の半分、test:related で 4 分の 1（t1076）で、数と百分率だけを受ける。
+// vitest に渡す前に、受けない値と 0 を受ける形を示すエラーで止める
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_MAX_WORKERS, resolveMaxWorkers } from "../../vitest.workers.js";
+import {
+  DEFAULT_MAX_WORKERS,
+  RELATED_MAX_WORKERS,
+  isRelatedRun,
+  resolveMaxWorkers,
+} from "../../vitest.workers.js";
+
+const root = path.resolve(import.meta.dirname, "../..");
+
+describe("test:related のワーカー数（t1076）", () => {
+  it("環境変数がなければ、全体のテストより少ない上限にする", () => {
+    expect(RELATED_MAX_WORKERS).toBe("25%");
+    expect(Number.parseInt(RELATED_MAX_WORKERS)).toBeLessThan(Number.parseInt(DEFAULT_MAX_WORKERS));
+    expect(resolveMaxWorkers(undefined, true)).toBe("25%");
+    expect(resolveMaxWorkers("", true)).toBe("25%");
+  });
+
+  it("環境変数を渡せば、test:related でもその値で上書きする", () => {
+    expect(resolveMaxWorkers("6", true)).toBe(6);
+    expect(resolveMaxWorkers("75%", true)).toBe("75%");
+    expect(() => resolveMaxWorkers("0", true)).toThrow(/DEGUBOARD_TEST_MAX_WORKERS must be/);
+  });
+
+  it("vitest run の --changed があれば test:related とみなす", () => {
+    expect(isRelatedRun(["node", "vitest", "run", "--changed", "origin/main"])).toBe(true);
+    expect(isRelatedRun(["node", "vitest", "run", "--changed=origin/main"])).toBe(true);
+    expect(isRelatedRun(["node", "vitest", "run", "--changed"])).toBe(true);
+    expect(isRelatedRun(["node", "vitest", "run"])).toBe(false);
+    expect(isRelatedRun(["node", "vitest", "run", "--changedSince"])).toBe(false);
+  });
+
+  it("package.json の test:related は --changed を渡し、lock（test-locked.sh）の外で回る", () => {
+    const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    const script = pkg.scripts["test:related"];
+    expect(isRelatedRun(script.split(/\s+/))).toBe(true);
+    expect(script).not.toContain("test-locked");
+  });
+});
 
 describe("resolveMaxWorkers", () => {
   it("環境変数がないときと空のときは CPU 数の半分を既定にする", () => {
