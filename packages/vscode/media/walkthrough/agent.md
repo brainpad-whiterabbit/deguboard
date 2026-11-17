@@ -1,6 +1,6 @@
 # 3. Ask an agent
 
-If you use Claude Code, install the Skills (such as `/dgimport`) and the hooks: open the band above the usual views in the sidebar and press **Install the Skills and hooks**. To do it in a terminal instead, run `dg skill install` and `dg hooks install` once. Git does not track the Skills or the hooks (the two commands add them to `.claude/.gitignore`, which you commit), so everyone who clones the repository installs them too.
+If you use Claude Code, install the Skills (such as `/dgimport`) and the hooks: open the band above the usual views in the sidebar and press **Install the Skills and hooks**. To do it in a terminal instead, run `dg skill install` and `dg hooks install` once. Git does not track the Skills or the hooks (the two commands add them to `.claude/.gitignore`, which you commit), so everyone who clones the repository installs them too. If you hid the band, open the checklist again from the checklist icon (**Setup**) in the sidebar's title bar.
 
 For other agents, ask them to "read `dg guide`, then proceed with `dg`".
 

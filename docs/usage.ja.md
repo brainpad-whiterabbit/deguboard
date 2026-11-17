@@ -98,7 +98,7 @@ PR を ready にする・マージするときに判定する条件は、チケ�
 
 - 通知の「remote を採る」か「local を採る」を押すと、競合した項目だけがその側の値になる（ほかの変更は残る）。ターミナルでは `dg sync --resolve remote` か `dg sync --resolve local`
 - 解くまで、push と、起票・claim のようにすぐ push する書き込みは待つ
-- `config.yaml` やワークフローの競合にはボタンが出ない。`dg sync` の警告にある手順で、人が手で解く
+- `config.yaml` や Workflow（`workflow.yaml`）の競合にはボタンが出ない。`dg sync` の警告にある手順で、人が手で解く
 
 エージェント向けの手順は `dg guide overview` の「When sync stops」、細部は `dg sync --help`。
 
@@ -206,7 +206,7 @@ dg のフックは、エージェントの協力なしに Run を記録し、デ
 - トークン数は、会話記録を読めるエージェント（今は Claude Code・Codex・Copilot CLI）だけで集計される。数えるには、[トークンを数える](#トークンを数える)の設定を有効にする
 - 見直し役を起動できないエージェントは、PR の見直しを人に頼み、PR の本文に見直していないと書く
 
-## Claude Desktop から使う
+## Claude Desktop から使う（MCP）
 
 `dg mcp` は stdio の MCP サーバーで、`dg` のコマンドをツールとして出す。`claude_desktop_config.json` の `command` に、拡張が入れる起動ファイル `~/.local/share/deguboard/dg` の絶対パスを書き（JSON は `~` を展開しないので、macOS は `/Users/<you>/...`、Linux は `/home/<you>/...`）、引数に `-C <対象のリポジトリ>` と `mcp` を渡す。Claude Code は Bash で `dg` を呼べるので、登録は要らない。
 

@@ -98,7 +98,7 @@ When two people change the same field of a ticket to different values, sync stop
 
 - Press "Take remote" or "Take local" in the notification, and only the conflicting field takes that side's value (other changes stay). In a terminal, use `dg sync --resolve remote` or `dg sync --resolve local`.
 - Until the conflict is resolved, the push waits, and so do writes that push right away, such as creating tickets and claims.
-- Conflicts in `config.yaml` or in the workflow get no buttons. Resolve them by hand, following the warning from `dg sync`.
+- Conflicts in `config.yaml` or in the Workflow (`workflow.yaml`) get no buttons. Resolve them by hand, following the warning from `dg sync`.
 
 For agents, see the "When sync stops" section of `dg guide overview`. For details, see `dg sync --help`.
 

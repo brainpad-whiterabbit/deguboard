@@ -10,4 +10,4 @@ Please include the steps to reproduce, the affected versions, and the environmen
 
 ## Supported versions
 
-Fixes are provided only for the latest release. We do not provide fixes for older releases. "The latest release" refers to the latest version on GitHub Release (including the VSIX).
+Fixes are provided only for the latest release. We do not provide fixes for older releases. "The latest release" refers to the latest version of the extension on the Visual Studio Marketplace and on GitHub Releases (including the VSIX).

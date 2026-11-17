@@ -24,7 +24,7 @@ VS Code の中で AI エージェントと一緒に使うカンバンボード�
 
 1. **拡張を入れる**：VS Code の拡張機能のビューで `deguboard` を検索して **deguboard for VS Code** を入れるか、[Marketplace の拡張のページ](https://marketplace.visualstudio.com/items?itemName=deguboard.deguboard-vscode)の Install を押します。Marketplace を使えないエディタ（Cursor・VSCodium など）では、[GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を取得し、コマンドパレットの **Extensions: Install from VSIX...** でそのファイルを選んで入れ、ウィンドウを再読み込みします。
 2. **チェックリストに沿って進める**：リポジトリを開き、Activity Bar の deguboard のアイコンを押して、サイドバーのチェックリストに沿って進めます。満たしていない最初の項目に、理由が出ます。コマンドで直せるときは、ボタンと実行するコマンドも出ます。コマンドで直せないとき（git がない、remote に届かないなど）は、手で直してから「もう一度確かめる」を押します。ボードの項目では、チームのボードを取り込むか、新しく作ります。チームのボードを別のリポジトリに置いているなら、そちらを選び、リポジトリ（URL か remote 名）とブランチを入れて確かめてから取り込みます。
-3. **推奨の項目を済ませる**：ボードができるといつもの画面に変わり、その上の帯に、まだ済んでいない推奨の項目が出ます。Claude Code の Skill（`/dgplan` など）とフックを入れ、`dg` コマンドを入れて、足された `.claude/.gitignore` をコミットします。`dg` コマンドは人だけでなくエージェントにも要ります。Skill とエージェントは、シェルで `dg` を呼んでボードを読み書きします。
+3. **推奨の項目を済ませる**：ボードができるといつもの画面に変わり、その上の帯に、まだ済んでいない推奨の項目が出ます。Claude Code の Skill（`/dgplan` など）とフックを入れ、`dg` コマンドを入れて、足された `.claude/.gitignore` をコミットします。`dg` コマンドは人だけでなくエージェントにも要ります。Skill とエージェントは、シェルで `dg` を呼んでボードを読み書きします。帯を消しても、サイドバーのタイトル行のチェックリストのアイコン（**セットアップ**）から、いつでもチェックリストを開き直せます。そこで **帯をまた出す** を押すと、帯が戻ります。
 
 チームの仲間は、拡張を入れて clone し、同じチェックリストに沿って進めれば同じボードが見えます。
 
@@ -83,7 +83,7 @@ Claude Code では、「s3 を計画して」のように普通の言葉で言�
 - [1 つのリポジトリに複数のカンバンを置く](docs/usage.ja.md#1-つのリポジトリに複数のカンバンを置く)：コードのリポジトリごとのブランチで、専用のリポジトリにカンバンを並べられます。
 - [承認待ちの通知](docs/usage.ja.md#承認待ちの通知)：承認待ちの Plan と review のチケットを知らせます。
 - [チケットへ移動する](docs/usage.ja.md#チケットへ移動する)：ID かタイトルから詳細を開きます。
-- [CLI で使う](docs/usage.ja.md#cli-で使う)・[Claude Desktop から使う（MCP）](docs/usage.ja.md#claude-desktop-から使う)
+- [CLI で使う](docs/usage.ja.md#cli-で使う)・[Claude Desktop から使う（MCP）](docs/usage.ja.md#claude-desktop-から使うmcp)
 - シェルを使えるほかのエージェント（Codex・Copilot CLI など）は準備が要りません。「`dg guide` を読んでから `dg` で進めて」と頼みます。フックが届かないエージェントでは、Run はエージェント自身の `dg run` の呼び出しでしか残らず、`dg pr merge` を経由しないマージを止めるものがありません。違いは[他のエージェントで使う](docs/usage.ja.md#他のエージェントで使う)にあります。
 
 ## セキュリティとプライバシー
