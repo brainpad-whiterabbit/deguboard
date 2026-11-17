@@ -39,3 +39,41 @@ checkpoints:
     approved_by: maji/agent
     basis:
       facts: 793a53a4bf5e308d
+  - name: audit
+    at: 2026-11-17T02:16:51Z
+    by: Eiki Kitajima/agent
+    approved_by: Eiki Kitajima
+    basis:
+      done:
+        - t826
+        - t840
+        - t1011
+        - t1012
+        - t1021
+        - t1022
+        - t1023
+        - t1024
+        - t1025
+        - t1026
+        - t1027
+        - t1028
+        - t1029
+        - t1030
+        - t1031
+        - t1034
+        - t1035
+        - t1036
+        - t1037
+        - t1038
+        - t1039
+        - t1040
+        - t1042
+        - t1043
+        - t1044
+        - t1045
+        - t1046
+        - t1047
+        - t1048
+        - t1049
+        - t1050
+        - t1052
