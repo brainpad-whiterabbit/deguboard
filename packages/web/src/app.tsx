@@ -101,6 +101,14 @@ export function App() {
   useEffect(() => {
     if (setupOpen) void recheckSetupRef.current();
   }, [setupOpen]);
+  // 必須の項目を満たさない間（一覧の代わりにチェックリストを出している間）にアイコンを押すと、見た目は変わらずハッシュだけが #/setup になる。
+  // そのまま必須を満たすと推奨のチェックリストが残って一覧に変わらないので、満たしたときに来る前の画面（なければカンバン）に戻す（UI-12）
+  const neededSetupRef = useRef(store.needsSetup);
+  useEffect(() => {
+    const needed = neededSetupRef.current;
+    neededSetupRef.current = store.needsSetup;
+    if (needed && !store.needsSetup && setupOpen) toggleRoute(hrefOf({ page: "setup" }));
+  }, [store.needsSetup, setupOpen]);
   // Iteration と Plan の詳細はカンバンのタブ、Epic の詳細はバックログのタブの下にあるものとして扱う（一覧の画面はない）。
   // 導入のチェックリストはどのタブの下でもないので、開いている間はタブを選んでいない見た目になる（タブを押すとその画面に戻る）
   const active =

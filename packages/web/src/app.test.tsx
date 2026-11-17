@@ -1321,6 +1321,37 @@ describe("画面", () => {
     expect(await screen.findByText("ログイン")).toBeTruthy();
   });
 
+  it("必須を満たさない間にタイトル行のセットアップのアイコンを押していても、必須を満たすと推奨のチェックリストを残さず、来る前の画面の一覧に変わる", async () => {
+    const client = boardClient();
+    const original = client.handlers["config.show"]!;
+    client.handlers["config.show"] = () => {
+      throw new ClientError({ code: "NOT_INITIALIZED", message: "初期化されていない" });
+    };
+    let view = setupView({ board: { status: "unmet", state: "no_remote", fix: ["dg init"] } });
+    client.setup = async () => view;
+    window.location.hash = "#/backlog";
+    const send = mountWithBridge(client, { readRunning: false, host: extensionHost() });
+    expect(await screen.findByRole("heading", { name: "deguboard を始める" })).toBeTruthy();
+
+    // 必須のチェックリストを出している間にアイコンを押す：見た目は変わらず、ハッシュだけが変わる
+    act(() => send()({ kind: "event", name: "toggle", hash: "#/setup" }));
+    expect(window.location.hash).toBe("#/setup");
+    expect(screen.getByRole("heading", { name: "deguboard を始める" })).toBeTruthy();
+
+    // dg init の後の reload の event で、来る前の画面（バックログ）の一覧に変わる
+    client.handlers["config.show"] = original;
+    view = setupView();
+    act(() => send()({ kind: "event", name: "reload" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/backlog"));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "バックログ" }).getAttribute("aria-current")).toBe(
+        "page",
+      ),
+    );
+    expect(screen.queryByRole("heading", { name: "deguboard を始める" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "セットアップ" })).toBeNull();
+  });
+
   it("帯を出さないと決めたリポジトリでは、チェックリストに「帯をまた出す」が出る。押すと決めたことを消して帯を出す状態で確かめ直し、戻ると帯が出る。決めていなければ出ない", async () => {
     const client = boardClient();
     const setup = vi.fn(async (_options?: SetupOptions) =>
