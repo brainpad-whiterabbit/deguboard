@@ -47,7 +47,7 @@ mise run dg -- guide done      # マージ後の後始末
   cd ../deguboard.worktrees/<ブランチ名> && mise trust && mise run setup
   ```
 
-- PR は `gh pr create --base main` で出し、本文にチケットの ID（`t12`）を書く。カンバンの Workflow（`workflow.yaml`。なければ既定）の照合で、PR が開けば `dg sync` が review に、squash マージされれば done に進める（`gh` が要る）
+- PR は `gh pr create --base main` で出し、本文にチケットの ID（`t12`）を書く。Core に固定した照合のきっかけ（[ADR-003](adr/ADR-003-status-and-workflow.md)）で、下書きでない PR が開けば `dg sync` が review に、squash マージされれば done に進める（`gh` が要る）
 - 画面の見た目を変える PR は、変えた画面のスクリーンショットを本文に載せる。左パネルとパネルの画面は `mise run test:vscode` が VS Code の実機でライトとダークを `test/vscode/screenshots/` に出したものを既定とする（「`packages/vscode`」の節。ほかの画面を撮るときは `test/vscode/sidebar.vscode.ts` に操作を足す。導入のチェックリストは dg init していないフォルダが要るので `test/vscode/onboarding.vscode.ts`）。`dg serve` で撮るのは VS Code を起動できないときだけとし、Playwright MCP で一時リポジトリの `dg serve` を `?surface=` の配置で開き（「`packages/web`」の節）、ライトとダーク（`browser_emulate_media` の `colorScheme`）で撮る。幅の目安は sidebar が 360×800、panel が 960×800。画像は orphan ブランチ `pr-screenshots` の `<チケット ID>/` に置く（作業ブランチに入れると squash で `main` に入る）
 
   ```sh
@@ -141,7 +141,7 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため）。ビルドは Vite で `dist/` に出し、`dg serve` は cli に写した `web/` を配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
 
-画面の文言は `l10n.ts` の `tr`（鍵は日本語の文。要素を挟む文は `l10n-node.tsx` の `trNode`）で書き、英語の訳は `l10n-en.ts` に置く。core が返す文をどの言語でも `l10n-core.ts` の表から引き、訳がなければ core の文のまま出す。表は 4 つで、鍵はどれも core の英語の文（可変の部分は `{0}`・`{1}`）、値は ja の訳を持つ：頼むの候補の名前と Plan の承認の状態（`CORE_LABELS`）、エラーと警告（`CORE_MESSAGES`）、設定の項目の文（`CONFIG_DESCRIPTIONS`：説明・要約・空のときの動き・選択肢ごとの説明）、dg の既定の値（`DEFAULT_VALUES`：優先度の判断基準・振り返りの既定の観点・Workflow の雛形の名前とラベル）。既定の値は、値が既定のままのときだけ表示言語の訳で出し、書き換えた値は訳さない。口は `l10n.ts` の関数で、`trCore`・`trCoreMessage`・`configDescription` が前の 3 つを引き、`shownDefault` が `DEFAULT_VALUES` を引く（画面の設定・振り返りの観点・Workflow の表示が使う。書き換えた値の横に既定そのものを添えるときは、比べない `shownDefaultText`）。`storedDefault` は、その訳の文を入力欄に打って離れたときに既定の値へ戻す。表にない文は core の文のまま出す。言語は Webview の `<html data-language>` で決まり、ない（`dg serve`）と日本語。揃っているかは `l10n.test.ts`、日本語の文言が変わっていないかは `l10n-screens.test.tsx` のスナップショットが確かめる。
+画面の文言は `l10n.ts` の `tr`（鍵は日本語の文。要素を挟む文は `l10n-node.tsx` の `trNode`）で書き、英語の訳は `l10n-en.ts` に置く。core が返す文をどの言語でも `l10n-core.ts` の表から引き、訳がなければ core の文のまま出す。表は 4 つで、鍵はどれも core の英語の文（可変の部分は `{0}`・`{1}`）、値は ja の訳を持つ：頼むの候補の名前と Plan の承認の状態（`CORE_LABELS`）、エラーと警告（`CORE_MESSAGES`）、設定の項目の文（`CONFIG_DESCRIPTIONS`：説明・要約・空のときの動き・選択肢ごとの説明）、dg の既定の値（`DEFAULT_VALUES`：優先度の判断基準・振り返りの既定の観点・Run の step と Status の既定の表示名）。既定の値は、値が既定のままのときだけ表示言語の訳で出し、書き換えた値は訳さない。口は `l10n.ts` の関数で、`trCore`・`trCoreMessage`・`configDescription` が前の 3 つを引き、`shownDefault` が `DEFAULT_VALUES` を引く（画面の設定・振り返りの観点・Workflow の表示が使う。書き換えた値の横に既定そのものを添えるときは、比べない `shownDefaultText`）。`storedDefault` は、その訳の文を入力欄に打って離れたときに既定の値へ戻す。表にない文は core の文のまま出す。言語は Webview の `<html data-language>` で決まり、ない（`dg serve`）と日本語。揃っているかは `l10n.test.ts`、日本語の文言が変わっていないかは `l10n-screens.test.tsx` のスナップショットが確かめる。
 
 見た目は Playwright MCP（`.mcp.json`。Chromium は `mise run playwright:install`）で一時リポジトリの `dg serve` を見る。配置は `?surface=sidebar`（既定）か `panel` で選ぶ（ブラウザだけの配置はない）。Webview に固有の色・CSP・拡張ホストとのやり取りは `mise run test:vscode` で見る（「`packages/vscode`」の節）。
 
