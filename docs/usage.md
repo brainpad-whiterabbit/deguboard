@@ -259,7 +259,7 @@ The Skills only tell the agent to read `dg guide`. The hooks only call `dg hook 
 
 ## Uninstall
 
-There are three ways to stop using deguboard: stop on this machine, remove it from one clone, or stop as a team. Only the last one touches the board data on the remote, so after the first two, `dg init` takes the board in again.
+There are three ways to stop using deguboard: stop on this machine, remove it from one clone, or stop as a team. Only the last one touches the board data on the remote, so after removing it from a clone, `dg init` takes the board in again (after stopping on this machine, reinstall the extension first).
 
 Remove the VS Code extension last. The hooks and the merge driver call `dg` by absolute path, through the launcher that the extension installs (`~/.local/share/deguboard/dg`). If the extension goes first, every hook fails, and `dg hooks uninstall` can no longer run to remove them; you would have to edit the Claude Code settings by hand.
 
@@ -283,7 +283,7 @@ dg uninstall
 ```
 
 - `--dry-run` lists what it would remove, what stays (with the command that removes each one by hand), and what stops it.
-- It removes nothing and stops when something exists only in this clone: data not pushed, changes to the data not committed by dg, or worktrees of tickets in progress or in review. Push with `dg sync` and finish those tickets, then run it again. `--force` removes them anyway, and they are lost.
+- It removes nothing and stops when something exists only in this clone (data not pushed, changes to the data made outside dg or not committed by dg, or worktrees of tickets in progress or in review), when a rebase is in progress, or when the data cannot be read. `--dry-run` shows each reason with what to do next (for example `dg sync`, `dg adopt`, or `dg commit`); do that, then run it again. `--force` removes them anyway, and they are lost.
 
 In VS Code, open the **Uninstall** section at the end of the Setup checklist (the checklist icon in the sidebar's title bar), or run "deguboard: Uninstall from This Repository" from the Command Palette.
 
