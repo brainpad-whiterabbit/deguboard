@@ -17,7 +17,7 @@ deguboard builds into your Git repository a development flow for handing develop
 - **VS Code**: 1.123 or later, the desktop edition.
 - **Git**: 2.30 or later.
 - **GitHub CLI (`gh`)**: optional. The pull request steps (opening, marking ready, and merging PRs, through `dg pr ready`, `dg pr merge`, and the agent's workflow actions) and showing pull request status on tickets need it. The board, the tickets, and reconciliation by Git facts work without it.
-- **Agent**: Claude Code is the primary supported agent, and the Skills and hooks are made for it. Other agents that can run a shell, such as Codex and Copilot CLI, can also use `dg`; what changes without the hooks is under [Why deguboard](https://github.com/brainpad-whiterabbit/deguboard/blob/main/README.md#why-deguboard).
+- **Agent**: Claude Code is the primary supported agent, and the Skills and hooks are made for it. Other agents that can run a shell, such as Codex and Copilot CLI, can also use `dg`; what changes without the hooks is under [Use other agents](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-other-agents).
 
 ## Installation
 
@@ -70,29 +70,19 @@ Tokens are counted only when deguboard reads usage from conversation transcripts
 
 ## Why deguboard
 
-With an MCP server added to a ticket tool such as Jira, Redmine, or GitHub Projects, agents can read and write tickets too. That setup gives the tickets a home, but how the work proceeds, and whether the rules are kept, is left to the agent's instructions. deguboard puts the development flow itself in dg, and agents proceed by dg's judgment. The table compares the two setups; ✅ marks the side with the advantage.
+With an MCP server, agents can read and write tickets in Jira or GitHub Projects too, but how the work proceeds and whether the rules are kept is left to the agent's instructions. deguboard puts the development flow itself in dg:
 
-| Axis                | Point                 | Ticket tool + MCP                                                                                | deguboard                                                                                                                                                                  |
-| ------------------- | --------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hand work to agents | What to do next       | The agent decides from its instructions and the conversation                                     | ✅ dg returns the one next step from the facts of the ticket, its work branch, its PR, and its Runs                                                                        |
-|                     | Stop and resume       | Picking up again relies on the conversation's context and on what a person explains              | ✅ The stage is not stored but derived from the facts, so the same request resumes the work                                                                                |
-|                     | Parallel work         | A person or the agent prepares the work branches and working copies                              | ✅ A claim creates a work branch and a worktree per ticket, and agents implement the tickets that are not blocked in parallel                                              |
-| Rules and approvals | Human approval        | Where to ask a person is written in the instructions, and keeping to it is up to the agent       | ✅ The Workflow decides which operations need a person, and dg refuses an agent's operation that has no recorded approval or that only a person may do                     |
-|                     | Quality gate          | Can be built with CI checks and branch protection                                                | Judges the checks and an independent review by a separate agent against the reviewed commit, at the ticket's gate level; merging a PR that fails needs a person's approval |
-|                     | Agent mistakes        | The agent acts within what its MCP token allows; keeping to the steps relies on the instructions | ✅ dg refuses operations that break the rules. The hooks stop merges and data edits that bypass dg, and dg finds a data edit that slipped past at its next command         |
-| Measure and improve | Records of agent work | No record per piece of agent work                                                                | ✅ The hooks record the time and rework of each piece of work (Run), and the tokens when you turn it on                                                                    |
-|                     | Retrospective metrics | Rich metrics of human work, such as velocity and burndown                                        | Computes the trends of the metrics your team chose from the Run records, and files improvements as tickets                                                                 |
-| Made for teams      | Concurrent edits      | ✅ A server keeps the one copy, so conflicts are rare                                            | Merged field by field automatically; for a conflict it cannot merge, it shows both values and a person chooses                                                             |
-|                     | Who can see the board | ✅ People outside engineering can see it on the web, with fine-grained permissions               | People who clone the repository and use VS Code or the CLI                                                                                                                 |
-|                     | Other services        | ✅ Many integrations                                                                             | Git and GitHub only                                                                                                                                                        |
-| Setup and operation | Where the data lives  | An external service or server; agents read it through MCP with credentials                       | ✅ A branch of your repository; anyone who clones it, person or agent, reads the same board                                                                                |
-|                     | Setup effort and cost | A service subscription, or a server to run                                                       | ✅ Install the extension and follow the checklist. MIT licensed, with no server                                                                                            |
+- **Next step from facts** — dg returns the one next step from the ticket, its branch, PR, and Runs, so stopped work resumes with the same request.
+- **Parallel by default** — a claim creates a branch and worktree per ticket; agents work the unblocked tickets in parallel.
+- **Rules enforced, not requested** — dg refuses operations that lack a recorded human approval, and hooks stop merges and data edits that bypass dg.
+- **Measured** — each piece of agent work is recorded as a Run, and retrospectives compute the metrics your team chose.
+- **No server** — the board lives on a branch of your repository; install the extension and go. MIT licensed.
 
-Today, the hooks work in full only in Claude Code. Other agents that can run a shell (Codex, Copilot CLI, and others) get the same judgment from the Workflow and the quality gate, but their Runs are recorded only from their own `dg run` calls, and nothing stops, on the spot, a merge or a data edit that bypasses dg (dg finds such a data edit the next time it runs and stops writing). The differences are in [Use other agents](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#use-other-agents) in the usage guide.
+Trade-offs: the board is for people who clone the repository (no web view for non-engineers), integrates with Git and GitHub only, and its hooks work in full only in Claude Code. See [the full comparison](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/how-it-works.md#compared-with-a-ticket-tool-and-mcp).
 
 ## How it works
 
-Tickets and Runs live in a branch of your repository, every screen and agent goes through the same `dg` commands, and hooks record each Run without the agent's help. [How it works](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/how-it-works.md) shows the overall structure and what each Run records, with diagrams.
+Tickets and Runs live in a branch of your repository, every screen and agent goes through the same `dg` commands, and hooks record each Run without the agent's help. [How it works](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/how-it-works.md) shows the overall structure and what each Run records, with diagrams, and compares deguboard with a ticket tool and MCP.
 
 ## Tips
 
@@ -120,7 +110,7 @@ The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deg
 The documents below are written in Japanese, except the usage guide and How it works, which are in English.
 
 - [Usage guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md): the details that this README leaves out
-- [How it works](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/how-it-works.md): the overall structure and what each Run records, with diagrams
+- [How it works](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/how-it-works.md): the overall structure and what each Run records, with diagrams, and the comparison with a ticket tool and MCP
 - [Requirements](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md): the source of truth for the current specification
 - [ADRs](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/adr/README.md): background and reasons for design decisions
 - [Development guide](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/development.md): for people developing in this repository
