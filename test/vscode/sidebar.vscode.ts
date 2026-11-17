@@ -27,6 +27,7 @@ import {
   ticketClaim,
   ticketCreate,
   ticketMove,
+  uninstallRouteOf,
   workflowSet,
 } from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
@@ -369,10 +370,10 @@ describe("VS Code の実機の左パネル", () => {
     expect(await section.locator(".setup-uninstall-body").count()).toBe(0);
     await section.scrollIntoViewIfNeeded();
     await shoot("setup-uninstall-closed");
-    // コマンドパレットの「このリポジトリからアンインストール」と同じルート。節を開いて出し、dg uninstall --dry-run の結果を並べる
-    await sidebar.locator("body").evaluate(() => {
-      location.hash = "#/setup?uninstall=1";
-    });
+    // コマンドパレットの「このリポジトリからアンインストール」と同じルート（実行のたびに変わる印つき）。節を開いて出し、dg uninstall --dry-run の結果を並べる
+    await sidebar.locator("body").evaluate((_, hash) => {
+      location.hash = hash;
+    }, uninstallRouteOf(1));
     await section.locator(".setup-uninstall-list.removes").waitFor({ timeout: 60_000 });
     const remove = section.locator(".setup-uninstall-buttons .setup-danger");
     await remove.scrollIntoViewIfNeeded();
@@ -384,10 +385,21 @@ describe("VS Code の実機の左パネル", () => {
     await confirm.scrollIntoViewIfNeeded();
     await shoot("setup-uninstall-confirm");
     await confirm.locator(".setup-danger").click();
-    // ボードがなくなり、始めるときのチェックリストに戻って、その上に知らせが出る
+    // ボードがなくなり、始めるときのチェックリストに戻って、その上に知らせが出る。待つのはテストの上限（120 秒）より短くし、
+    // 外れなかったとき（dg が断った）に、時間切れではなくこの行で落ちるようにする
     const notice = sidebar.locator(".setup-uninstalled");
-    await notice.waitFor({ timeout: 120_000 });
+    await notice.waitFor({ timeout: 60_000 });
     expect(await sidebar.locator(".setup-uninstall").count()).toBe(0);
+    // dg uninstall が実際にボードの worktree を消している。知らせは消している途中にも出るので、消え終わるまで見る
+    // （知らせが出るのはボードがなくなった時点で、dg はその後にブランチ・マージドライバ・deguboard-local を消す）
+    await expect
+      .poll(() =>
+        access(path.join(fixture.cloneA, ".git", "deguboard")).then(
+          () => true,
+          () => false,
+        ),
+      )
+      .toBe(false);
     await notice.scrollIntoViewIfNeeded();
     await shoot("setup-uninstalled");
   });

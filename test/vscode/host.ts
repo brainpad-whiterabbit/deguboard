@@ -3,7 +3,8 @@
 // - 画面がない環境（SSH 先・Claude Code の中）では Xvfb を起動して DISPLAY にする。DISPLAY が既にあればそれを使う
 // - 起動は Playwright の _electron（@vscode/test-electron の runTests は拡張ホストの中で Mocha を走らせる作りで、Webview の中に触れない）。
 //   Claude Code（VS Code の拡張ホストの子）の環境変数 ELECTRON_RUN_AS_NODE が残っていると
-//   Electron が Node として起動して画面が出ないので、ELECTRON_*・VSCODE_*・NODE_OPTIONS を外して渡す（cleanEnv）
+//   Electron が Node として起動して画面が出ないので、ELECTRON_*・VSCODE_*・NODE_OPTIONS を外して渡す（cleanEnv）。
+//   エージェントと dg の変数（DEGUBOARD_ACTOR=agent など）も外し、エージェントの中で回しても人の VS Code として動かす
 // - ウィンドウ全体（ワークベンチと Webview）の CSP 違反（Chromium が Console の error に出す）と捕まえていない例外（pageerror）を集め、
 //   あれば検査を落とす（WebviewWatch。Playwright の console・pageerror は OOPIF の Webview の分も page に届く）
 // - 起動の PATH にビルド済みの dg（packages/cli/bin）を足し、導入のチェックリストの dg コマンドの項目（PATH に dg がない）がスクリーンショットに写らないようにする
@@ -37,7 +38,10 @@ const VSCODE_VERSION = "1.145.1";
  * ELECTRON_RUN_AS_NODE（Electron を Node として起動する。画面が出ない）、ほかの ELECTRON_*、
  * VSCODE_*（親の VS Code の IPC・言語・作業ディレクトリ。子の VS Code が親の設定を拾う）、NODE_OPTIONS（Electron の Node にも効く）、
  * XDG_CONFIG_HOME・XDG_DATA_HOME・XDG_CACHE_HOME・XDG_STATE_HOME（本物のホームの下を指し、HOME を一時ディレクトリにしても
- * Electron や git がそこを読み書きする）。DISPLAY は渡された値で上書きする
+ * Electron や git がそこを読み書きする）、エージェントと dg の変数（CLAUDE*・CODEX_*・COPILOT_*・AI_AGENT・DEGUBOARD_*。
+ * 外す範囲は vitest.config.ts と同じ）。起動する VS Code は人のものとして動かす：エージェントのセッションのフックが入れた
+ * DEGUBOARD_ACTOR=agent が残ると、deguboard のターミナルで実行する人だけの操作（dg uninstall）が拒まれ、エージェントの中で
+ * 回したときだけ「アンインストール」の検査が落ちる（t1083）。DISPLAY は渡された値で上書きし、extra は外した後に足す
  */
 export function cleanEnv(
   env: NodeJS.ProcessEnv,
@@ -48,7 +52,9 @@ export function cleanEnv(
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) continue;
     if (
-      /^(ELECTRON_|VSCODE_|XDG_(CONFIG|DATA|CACHE|STATE)_HOME$)/.test(key) ||
+      /^(ELECTRON_|VSCODE_|XDG_(CONFIG|DATA|CACHE|STATE)_HOME$|CLAUDE|CODEX_|COPILOT_|AI_AGENT$|DEGUBOARD_)/.test(
+        key,
+      ) ||
       key === "NODE_OPTIONS"
     )
       continue;
