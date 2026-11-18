@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { asHuman } from "../../test/helpers/commands-context.js";
-import { createFixture, git } from "../../test/helpers/git-fixture.js";
+import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
 import { OperationError } from "../errors.js";
 import { resetGhCache } from "../git/facts.js";
 import { runGit } from "../git/run.js";
@@ -124,14 +124,10 @@ async function fakeGh(root: string, pr: () => string) {
 }
 
 /**
- * t1 を t1 で claim して 1 コミット push し、PR #7（偽の gh。draft）がある文脈。
- * 既定の Workflow の review → done は ask_unless_auto で、エージェントのマージには人の承認か --auto が要る。
- * free が true なら review → done の decide を anyone にして、エージェントが何も付けずにマージできるようにする
- * （品質ゲートと gh の呼び方を確かめるテストは true で回す）
+ * 雛形の準備（free ごとにテストファイルで 1 度だけ走る）：init・t1 を t1 で claim して 1 コミット push する。
+ * free が true なら review → done の decide を anyone にする
  */
-async function prepared(free = true) {
-  const f = await createFixture();
-  cleanups.push(f.cleanup);
+async function prepareRepo(f: Layout, free: boolean): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
   const first = await openContext({ cwd: f.cloneA, initialize: {}, actor });
   await runCommand(init, first, {});
@@ -155,6 +151,22 @@ async function prepared(free = true) {
   await git(f.cloneA, ["checkout", "-qb", "t1"]);
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
   await git(f.cloneA, ["push", "-q", "origin", "t1"]);
+}
+
+/**
+ * prepareRepo を済ませた雛形から写し、PR #7（偽の gh。draft）がある文脈。
+ * 既定の Workflow の review → done は ask_unless_auto で、エージェントのマージには人の承認か --auto が要る。
+ * free が true なら review → done の decide を anyone にして、エージェントが何も付けずにマージできるようにする
+ * （品質ゲートと gh の呼び方を確かめるテストは true で回す）。
+ * 雛形の claim（branch_at）と push は雛形を作った時刻（雛形は free ごとに別にあり、それぞれを最初に使う件の時刻）のままなので、件の中の時刻より前になる
+ */
+async function prepared(free = true) {
+  const f = await createFixtureFrom(free ? "prepared-free" : "prepared-ask", (layout) =>
+    prepareRepo(layout, free),
+  );
+  cleanups.push(f.cleanup);
+  const actor = { kind: "agent" as const, user: "eiki" };
+  const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   const state = { draft: true, noHead: false, conflict: false };
   // 今の push した先端（PR の headRefOid。偽の gh が __TIP__ をリモートの先端に置き換える）
   const tip = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
@@ -205,7 +217,12 @@ async function prepared(free = true) {
   };
 }
 
-/** 見直しの 1 回を記録する（offset 秒後の時刻。回の順と作業ブランチの後を分けるため） */
+/**
+ * 見直しの 1 回を記録する（offset 秒後の時刻。回の順と作業ブランチの後を分けるため）。
+ * 雛形の claim と push は雛形を作った時刻 T（雛形ごとに、その雛形を最初に使う件で作る）で、件の中の今 N は T より後にしかならない。
+ * 正の offset は N + offset > N ≥ T なので、雛形がいつできても claim と push より後になる。
+ * 負の offset（-3600）は、T がこのファイルを回し始めてから 1 時間以内（ファイル全体で数十秒）なので claim より前になる
+ */
 async function reviewRound(
   ctx: CommandContext,
   offset: number,
@@ -230,7 +247,10 @@ async function reviewRound(
   await runCommand(runFinish, ctx, { run: run.id, result: "success" });
 }
 
-/** 最後の push より後に通った見直しを記録する */
+/**
+ * 最後の push より後に通った見直しを記録する。最後の push は雛形を作った時刻 T（件の中の今より前）か件の中の push で、
+ * 見直しの時刻は今の 60 秒後なので、雛形がいつできても push より後になる
+ */
 async function passedReview(ctx: CommandContext) {
   ctx.now = () => new Date(Date.now() + 60_000);
   const run = (
@@ -663,6 +683,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
 
   it("dg pr ready は直さなかった軽い指摘を PR の本文に書き足し、もとの本文は残す。受け入れ条件の軽い指摘は手直しに回るので書かない（t600）。gh pr view --json body・gh pr edit が Projects (classic) のエラーで落ちても、REST で読み書きして ready にする（t637）", async () => {
     const { ctx, calls, editedBody } = await prepared();
+    // 雛形の push（雛形を作った時刻）は今より前なので、今の 60 秒後の見直しは雛形がいつできても push より後になる
     ctx.now = () => new Date(Date.now() + 60_000);
     const run = (
       await runCommand(runStart, ctx, { ticket: "t1", step: "review", agent: "claude-code" })

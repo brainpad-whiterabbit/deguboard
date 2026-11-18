@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { asHuman } from "../../test/helpers/commands-context.js";
-import { createFixture, git } from "../../test/helpers/git-fixture.js";
+import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { runGit } from "../git/run.js";
 import { toIsoDateTime } from "../model/common.js";
@@ -179,15 +179,19 @@ async function fakeGh(root: string) {
 
 const later = (minutes: number) => new Date(Date.now() + minutes * 60_000);
 
-/** t1 を t1 で Run なしに claim し、1 コミット push して PR #7 を記録した文脈（フックのない環境） */
-async function prepared() {
-  const f = await createFixture();
-  cleanups.push(f.cleanup);
+/**
+ * 雛形の準備（テストファイルで 1 度だけ走る）：init・t1 を t1 で Run なしに claim し、1 コミット push して PR #7 を記録する。
+ * PR の番号を書くのに偽の gh は要らない（閉じる実装の Run がないので gh を呼ばない）ので、偽の gh は写した先で置く
+ */
+async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, { title: "A" });
-  // 作業ブランチ（branch_at）を 2 時間前からにする（push より前の保留を作業ブランチの中に置くため）
+  // 作業ブランチ（branch_at）を 2 時間前からにする（push より前の保留を作業ブランチの中に置くため）。
+  // branch_at と最初の push は雛形を作った時刻 T（このファイルの最初の件の時刻）から決まり、各件の今 N は T より後になる。
+  // 件の中の時刻は later(-30) から later(5)（N の 30 分前から 5 分後）。N − T が 90 分より短ければ（ファイル全体で数十秒）
+  // どれも branch_at（T の 2 時間前）より後になり、later(1) 以降は N > T なので雛形がいつできても最初の push（T）より後になる
   ctx.now = () => later(-120);
   await runCommand(ticketClaim, ctx, {
     no_worktree: true,
@@ -199,8 +203,18 @@ async function prepared() {
   await git(f.cloneA, ["checkout", "-qb", "t1"]);
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
   await git(f.cloneA, ["push", "-q", "origin", "t1"]);
-  await fakeGh(f.root);
   await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 7 });
+}
+
+/** prepareRepo を済ませた雛形から写し、偽の gh を置いた文脈（フックのない環境） */
+async function prepared() {
+  const f = await createFixtureFrom("prepared", prepareRepo);
+  cleanups.push(f.cleanup);
+  const ctx: CommandContext = await openContext({
+    cwd: f.cloneA,
+    actor: { kind: "agent", user: "eiki" },
+  });
+  await fakeGh(f.root);
   /** コミッタの時刻を at にした直しを push する */
   const pushAt = async (at: Date) => {
     await runGit(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "直し"], {
