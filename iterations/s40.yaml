@@ -60,4 +60,10 @@ checkpoints:
         - t1088
         - t1089
         - t1099
+  - name: check
+    at: 2026-11-18T14:16:04Z
+    by: maji/agent
+    approved_by: maji/agent
+    basis:
+      facts: 42d4d81fc0172452
 started_at: 2026-11-17T06:49:14Z
