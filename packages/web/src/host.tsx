@@ -11,6 +11,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -281,8 +282,10 @@ export function HostBridge({ client }: { client: WebviewClient }) {
   const { request, open: openAsk, close: closeAsk, current } = useAsk();
   const reloadRef = useRef(store.reload);
   const setupEventRef = useRef(store.onSetupEvent);
-  // 最新の reload・onSetupEvent を通知の受け手から呼ぶ。描画中に ref を書かない（react/refs）ので、描いた後に写す
-  useEffect(() => {
+  // 最新の reload・onSetupEvent を通知の受け手から呼ぶ。描画中に ref を書かない（react/refs）ので、描いた後に写す。
+  // useEffect で写すと、描画のコミットと副作用の間に届いた event が古い受け手に渡る（setup の event は needsSetup が古い値のまま捨てられる）ので、
+  // コミットの中で同期に走る useLayoutEffect で写す
+  useLayoutEffect(() => {
     reloadRef.current = store.reload;
     setupEventRef.current = store.onSetupEvent;
   });

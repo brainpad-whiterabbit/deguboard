@@ -152,10 +152,11 @@ function mountWithBridge(
 
 /**
  * 拡張ホストからの event を、画面が落ち着いてから送り、それで始まる読み直し・描画・effect・hashchange が終わるまで待つ。
- * 前の描画の effect か hashchange に結果が依る event（必須のチェックリストを出した直後の setup、toggle の直後の reload など）は、
+ * 前の描画の effect か hashchange に結果が依る event（toggle の直後の reload など）は、
  * act(() => send()(event)) ではなくこれで送る。
  * findBy・waitFor は DOM に出たことしか待たない。CPU を取り合って描画が 5ms を超えると、React はその描画の passive effect
- * （HostBridge が最新の onSetupEvent を ref に写す）を次の setImmediate に回すので、DOM を見てすぐ送った event は古い受け手に届く。
+ * （HostBridge が ask の受け手を購読し直すなど）を次の setImmediate に回すので、DOM を見てすぐ送った event はその effect より先に届く
+ * （最新の reload・onSetupEvent は HostBridge が layout effect で写すので、effect を待たなくても届く。host-bridge.test.tsx）。
  * jsdom の hashchange も setImmediate で届くので、toggle の直後に送った reload の結果が、ハッシュの変化より先に描かれることがある。
  * async の act は、先に積まれた setImmediate を済ませ、中で起きた更新と effect を残さず流してから返る
  */
