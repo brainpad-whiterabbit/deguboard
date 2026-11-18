@@ -50,3 +50,4 @@ details:
     scope: claim の拒否の判定と、前の手直しの Run を閉じるか・結果・finished_at の決定を純粋な関数にする
     approach: t1105 で決めた Run の閉じ方の形に揃え、push の時刻とセッションを事実として受け取り、finished_at は fixRunFinishedAt で出す
     tier: heavy
+closed_at: 2026-11-18T14:10:51Z
