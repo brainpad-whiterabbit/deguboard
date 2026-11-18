@@ -1,64 +1,31 @@
 // 品質ゲート（EX-3、ADR-011）。the "Quality gate" section of `dg guide review` のうち、記録と Git・PR の事実で判定できるものをコードで判定する。
 // 判定は保存せず、呼ぶたびに事実から求める。dg pr ready・dg pr merge が gh を呼ぶ前に呼ぶ（pr.ts。EX-6）
+// このファイルは事実を集めて（collectGateFacts）検査を回す（judgeCheck）。決めるのは gate-judge.ts の読まない関数
 
 import { NEVER_OVERRIDDEN } from "./pr-approval.js";
 import { z } from "zod";
-import { fetchPrGateFacts, remoteTip, type BranchTip } from "../git/facts.js";
+import { fetchPrGateFacts, remoteTip } from "../git/facts.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
-import {
-  gateLevelOf,
-  gateScopeOf,
-  parseAcceptance,
-  type GateLevel,
-  type Ticket,
-} from "../model/ticket.js";
+import { gateLevelOf, parseAcceptance, type Ticket } from "../model/ticket.js";
 import { readRunningRuns } from "../run/record.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeCheck, latestCommit } from "./gate-check.js";
+import {
+  FIX_ROUNDS_LIMIT,
+  GATE_STAGES,
+  concludeGate,
+  gateReads,
+  judgeBeforeCheck,
+  type GateConditionId,
+  type GateFacts,
+  type GateStage,
+  type GateView,
+  type PrFact,
+  type ReviewFacts,
+} from "./gate-judge.js";
 import { unlinkedReviewWarning } from "./hook-sessions.js";
 import { ticketRef } from "./helpers.js";
 import { orphanReviewRuns } from "./orphan-review.js";
-
-/** 重い指摘を直す回数の上限（見直しは最初を含めて 3 回まで。the "Limit" section of `dg guide review`） */
-export const FIX_ROUNDS_LIMIT = 2;
-
-export const GATE_STAGES = ["ready", "merge"] as const;
-export type GateStage = (typeof GATE_STAGES)[number];
-
-export const GATE_CONDITIONS = [
-  "pr",
-  "acceptance",
-  "review",
-  "fix_rounds",
-  "mergeable",
-  "head",
-  "check",
-] as const;
-export type GateConditionId = (typeof GATE_CONDITIONS)[number];
-
-export interface GateCondition {
-  id: GateConditionId;
-  ok: boolean;
-  /** 判定の材料か、満たさない理由（1 文） */
-  detail: string;
-  /** ほかの条件が満たされず検査を回さなかった印。理由の文を判定に使わない */
-  not_run?: true;
-}
-
-export interface GateView {
-  ticket: string;
-  /** ready は PR を出す前（gh pr ready）、merge はマージの前（gh pr merge） */
-  for: GateStage;
-  /** 判定した段（チケットの gate。ないときは high。TK-9） */
-  gate: GateLevel;
-  pr: number | null;
-  /** 判定した PR の先端のコミット（gh の headRefOid）。PR を読めなければ null。dg pr merge はこの SHA を --match-head-commit で渡す（t750） */
-  sha: string | null;
-  passed: boolean;
-  conditions: GateCondition[];
-}
-
-const short = (sha: string) => sha.slice(0, 8);
 
 /** 見直しの Run（閉じたものと、extra の実行中のものと持ち主のない保留）を開始の順に */
 function reviewRuns(ctx: CommandContext, ticket: Ticket, extra: readonly Run[]): Run[] {
@@ -67,36 +34,80 @@ function reviewRuns(ctx: CommandContext, ticket: Ticket, extra: readonly Run[]):
     .sort((a, b) => a.started_at.localeCompare(b.started_at) || a.id.localeCompare(b.id));
 }
 
-/**
- * 見直しが作業ブランチのリモートの先端（tip）を見直したか（t763）。見直した SHA（Run の head）があれば先端の SHA と同じか、
- * なければ（この項目より前の Run・読めなかった Run）見直しの開始が先端のコミットの時刻より後か（push した時刻は Git に残らないので近似）。
- * SHA で比べるのは、見直しの前に作って後で push したコミット・時計のずれ・古いコミットへの force-push を時刻では見分けられないため。
- * dg gate の review と dg next の段階が同じ関数で判定する
- */
-export function reviewedTip(run: Pick<Run, "head" | "started_at">, tip: BranchTip): boolean {
-  return run.head !== undefined ? run.head === tip.sha : run.started_at >= tip.at;
+/** PR の事実を gh で読む。チケットに PR の番号も作業ブランチもなければ gh を呼ばない */
+async function readPrFact(ctx: CommandContext, ticket: Ticket): Promise<PrFact> {
+  const selector = ticket.pr !== undefined ? String(ticket.pr) : ticket.branch;
+  if (!selector) return { kind: "no_selector" };
+  const facts = await fetchPrGateFacts(ctx.repo, selector);
+  if ("reason" in facts) return { kind: "unreadable", reason: facts.reason };
+  if ("missing" in facts) return { kind: "missing", selector };
+  return { kind: "read", pr: facts.pr };
+}
+
+/** 見直しの事実（見直しの Run とリモートの先端）を読む。見直しの Run と push の時刻（fetch を含む）はここでだけ読む */
+async function readReviewFacts(
+  ctx: CommandContext,
+  ticket: Ticket,
+  warnings: string[],
+): Promise<ReviewFacts> {
+  const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
+  const tip = ticket.branch
+    ? await remoteTip(ctx.repo, ticket.branch, { fetch: true }).catch(() => undefined)
+    : undefined;
+  // フックが記録しなかった見直し（持ち主のない保留）も数える（dg next と同じ関数。orphan-review.ts）。コミットの時刻を読むので fetch の後
+  const runs = reviewRuns(ctx, ticket, [
+    ...running,
+    ...(await orphanReviewRuns(ctx, ticket, running)),
+  ]);
+  const unlinked = unlinkedReviewWarning(ctx.env ?? process.env, ticket.id, runs, ticket.branch_at);
+  if (unlinked) warnings.push(unlinked);
+  return { tip: tip ?? null, runs };
 }
 
 /**
- * 修正ループの回数：このブランチ（branch_at より後）の見直しのうち、結果に重い指摘が出た回の数。
- * 実行中でも結果を記録した見直しは数える（dg gate の fix_rounds と dg next の段階が同じ数を使う）
+ * 品質ゲートの判定に使う事実を集める。段と for が判定しない条件の材料（見直しの Run・push の時刻とそのための fetch・
+ * 受け入れ条件・作業ブランチの最新のコミット）は読まず、空の値で渡す（どれを読むかは gate-judge.ts の gateReads）。
+ * gh・Git が読めなかったことも値で持つ（判定が満たさないとする）。
+ * warnings には、フックが結ばなかった見直しを数えたときの警告を足す（t702。dg gate だけが渡す）
  */
-export function heavyReviewRounds(runs: readonly Run[], branchAt: string | undefined): number {
-  const since = branchAt ?? "";
-  return runs.filter(
-    (r) =>
-      r.step === REVIEW_STEP && r.started_at >= since && r.review !== null && r.review.heavy > 0,
-  ).length;
+export async function collectGateFacts(
+  ctx: CommandContext,
+  ticket: Ticket,
+  stage: GateStage,
+  warnings: string[] = [],
+): Promise<GateFacts> {
+  const level = gateLevelOf(ticket);
+  const reads = gateReads(level, stage);
+  const pr = await readPrFact(ctx, ticket);
+  const acceptance = reads.acceptance
+    ? (parseAcceptance(ctx.store.tickets.get(ticket.id)?.body ?? "") ?? [])
+    : [];
+  const review = reads.review
+    ? await readReviewFacts(ctx, ticket, warnings)
+    : { tip: null, runs: [] };
+  // 作業ブランチの最新のコミットは、見直しの事実の fetch の後に読む（追跡 ref が進んだ後）。PR を読めなければ比べないので読まない
+  const latest =
+    reads.latest && pr.kind === "read" && ticket.branch
+      ? ((await latestCommit(ctx, ticket.branch)) ?? null)
+      : null;
+  return {
+    ticket: ticket.id,
+    level,
+    for: stage,
+    recordedPr: ticket.pr ?? null,
+    branchAt: ticket.branch_at,
+    pr,
+    acceptance,
+    review,
+    latest,
+    checkConfigured: ctx.config.actions.test.length > 0,
+  };
 }
 
 /**
- * チケットの品質ゲートを判定する。gh・Git が読めない条件は満たさないとする（判定できないものを通さない）。
- * 判定する条件はチケットの段（gate。TK-9）で決まる。high はすべて、low は見直し（review・fix_rounds）を除き、
- * free は pr と（マージの前の）mergeable だけ。判定しない条件は conditions に出さず、その材料（見直しの Run・push の時刻と
- * そのための fetch・検査）も読まない。warnings には、フックが結ばなかった見直しを数えたときの警告を足す（t702。dg gate だけが渡す）。
- * waived は、人の承認で越える条件（dg pr merge --approved-by だけが渡す。t884）。判定は変えず（満たさない条件は ok: false のまま返す）、
- * 検査を回すかだけに使う：ほかの満たさない条件がすべて越えられるなら、検査を「回さなかった」で落とさずに回す
- * （検査が一覧になければ、検査は実際に通らなければならないため。一覧にあっても、通ったかどうかを PR に残す記録を事実にするため）
+ * チケットの品質ゲートを判定する：事実を集め（collectGateFacts）、検査のほかの条件を決め（judgeBeforeCheck）、
+ * 検査を判定すると決まったときだけ回して（judgeCheck。時間がかかるので最後）、結論を出す（concludeGate）。
+ * 判定する条件・読めない事実の扱い・waived（人の承認で越える条件。dg pr merge --approved-by だけが渡す）は gate-judge.ts
  */
 export async function judgeGate(
   ctx: CommandContext,
@@ -105,173 +116,9 @@ export async function judgeGate(
   warnings: string[] = [],
   waived: ReadonlySet<GateConditionId> = new Set(),
 ): Promise<GateView> {
-  const level = gateLevelOf(ticket);
-  const scope = gateScopeOf(level);
-  const conditions: GateCondition[] = [];
-  const add = (id: GateConditionId, ok: boolean, detail: string) =>
-    conditions.push({ id, ok, detail });
-
-  // PR
-  const selector = ticket.pr !== undefined ? String(ticket.pr) : ticket.branch;
-  let prNumber: number | null = ticket.pr ?? null;
-  let mergeable: string | undefined;
-  let head: string | undefined;
-  let prRead = false;
-  if (!selector) add("pr", false, "The ticket has neither a PR nor a work branch");
-  else {
-    const facts = await fetchPrGateFacts(ctx.repo, selector);
-    if ("reason" in facts) add("pr", false, `Cannot check the PR: ${facts.reason}`);
-    else if ("missing" in facts) add("pr", false, `No PR (${selector})`);
-    else {
-      prNumber = facts.pr.number;
-      mergeable = facts.pr.mergeable;
-      head = facts.pr.head;
-      prRead = true;
-      if (facts.pr.state !== "OPEN")
-        add("pr", false, `PR #${prNumber} is not open (${facts.pr.state})`);
-      else if (stage === "merge" && facts.pr.isDraft)
-        add("pr", false, `PR #${prNumber} is still a draft`);
-      else add("pr", true, `PR #${prNumber} is open${facts.pr.isDraft ? " (draft)" : ""}`);
-    }
-  }
-
-  // 受け入れ条件。PR を出す前は、付けられない項目の理由を PR の本文に書けばよいので見ない。段が判定しない（free）ときも見ない
-  if (stage === "merge" && scope.acceptance) {
-    const items = parseAcceptance(ctx.store.tickets.get(ticket.id)?.body ?? "") ?? [];
-    const unchecked = items.filter((i) => !i.checked).map((i) => i.index);
-    add(
-      "acceptance",
-      unchecked.length === 0,
-      unchecked.length === 0
-        ? `All ${items.length} acceptance criteria are marked`
-        : `Acceptance criteria ${unchecked.join(", ")} are not marked`,
-    );
-  }
-
-  // 見直しは段が判定するときだけ（high）
-  if (scope.review) await judgeReview(ctx, ticket, add, warnings);
-
-  // base と衝突しない（マージの前だけ）
-  if (stage === "merge") {
-    if (mergeable === undefined)
-      add("mergeable", false, "Cannot read the PR, so conflicts cannot be checked");
-    else
-      add(
-        "mergeable",
-        mergeable === "MERGEABLE",
-        mergeable === "MERGEABLE"
-          ? "No conflict with base"
-          : `mergeable is ${mergeable} (there is a conflict, or it is still being computed. Wait a moment and check again)`,
-      );
-
-    // PR の先端は、見直しと検査が判定したブランチの最新のコミット（リモートの先端）と同じでなければならない（t750）。
-    // 違えば判定していないコミットをマージすることになるので通さない。先端を読めないときは、見直し（review）と検査（check）が
-    // 別の条件で落ちるので比べない。free は見直しも検査も判定しないので比べず、マージは判定した PR の先端（sha）に固定する
-    if (prRead && (scope.review || scope.check)) {
-      const tip = ticket.branch ? await latestCommit(ctx, ticket.branch) : undefined;
-      if (tip !== undefined) {
-        const same = head === tip;
-        add(
-          "head",
-          same,
-          same
-            ? `PR #${prNumber}'s head ${short(tip)} is the latest commit of the work branch`
-            : head === undefined
-              ? `Cannot read the head commit of PR #${prNumber} from gh, so it cannot be compared with the work branch`
-              : `PR #${prNumber}'s head ${short(head)} is not the latest commit of the work branch (${short(tip)}). Push or fetch so they match, then judge again`,
-        );
-      }
-    }
-  }
-
-  // 検査（actions.test）。free は回さない。時間がかかるので、ほかの条件をすべて満たしたときだけ回す（空なら回さずに通すので、いつでも判定する）
-  if (scope.check) {
-    if (ctx.config.actions.test.length === 0 || conditions.every((c) => c.ok || waived.has(c.id))) {
-      const check = await judgeCheck(ctx, ticket);
-      add("check", check.ok, check.detail);
-    } else
-      conditions.push({
-        id: "check",
-        ok: false,
-        detail: "The other conditions are not met, so the check (actions.test) was not run",
-        not_run: true,
-      });
-  }
-
-  return {
-    ticket: ticket.id,
-    for: stage,
-    gate: level,
-    pr: prNumber,
-    sha: head ?? null,
-    passed: conditions.every((c) => c.ok),
-    conditions,
-  };
-}
-
-/** 見直しの条件（review・fix_rounds）を足す。見直しの Run と push の時刻（fetch を含む）はここでだけ読む */
-async function judgeReview(
-  ctx: CommandContext,
-  ticket: Ticket,
-  add: (id: GateConditionId, ok: boolean, detail: string) => void,
-  warnings: string[],
-): Promise<void> {
-  // 見直し：リモートの先端を見直した最後の見直しが、閉じていて通っている
-  const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
-  const tip = ticket.branch
-    ? await remoteTip(ctx.repo, ticket.branch, { fetch: true }).catch(() => undefined)
-    : undefined;
-  // フックが記録しなかった見直し（持ち主のない保留）も数える（dg next と同じ関数。orphan-review.ts）。コミットの時刻を読むので fetch の後
-  const reviews = reviewRuns(ctx, ticket, [
-    ...running,
-    ...(await orphanReviewRuns(ctx, ticket, running)),
-  ]);
-  const unlinked = unlinkedReviewWarning(
-    ctx.env ?? process.env,
-    ticket.id,
-    reviews,
-    ticket.branch_at,
-  );
-  if (unlinked) warnings.push(unlinked);
-  // リモートの先端と比べる（見直した SHA があれば SHA、なければ先端のコミットの時刻。reviewedTip）
-  if (tip === undefined)
-    add("review", false, "Cannot read the remote tip of the work branch (the last push)");
-  else {
-    const after = reviews.filter((r) => reviewedTip(r, tip));
-    const latest = after.at(-1);
-    if (!latest)
-      add(
-        "review",
-        false,
-        `No review of the last push (remote tip ${short(tip.sha)}, committed at ${tip.at})`,
-      );
-    else if (latest.finished_at === null)
-      add("review", false, `Review ${latest.id} of the last push has not finished`);
-    else if (latest.result !== "success")
-      add("review", false, `Review ${latest.id} of the last push closed as ${latest.result}`);
-    else if (latest.review === null)
-      add(
-        "review",
-        false,
-        `The result of review ${latest.id} is not recorded (dg run review-result)`,
-      );
-    else if (!latest.review.passed)
-      add(
-        "review",
-        false,
-        `Review ${latest.id} did not pass (${latest.review.heavy} heavy findings)`,
-      );
-    else add("review", true, `Review ${latest.id} of the last push passed`);
-  }
-
-  const rounds = heavyReviewRounds(reviews, ticket.branch_at);
-  add(
-    "fix_rounds",
-    rounds <= FIX_ROUNDS_LIMIT,
-    rounds <= FIX_ROUNDS_LIMIT
-      ? `${rounds} review rounds found heavy findings (limit ${FIX_ROUNDS_LIMIT})`
-      : `${rounds} review rounds found heavy findings, which exceeds the limit of ${FIX_ROUNDS_LIMIT}. Ask the human whether to continue`,
-  );
+  const facts = await collectGateFacts(ctx, ticket, stage, warnings);
+  const draft = judgeBeforeCheck(facts, waived);
+  return concludeGate(draft, draft.check === "judge" ? await judgeCheck(ctx, ticket) : undefined);
 }
 
 // 要件 EX-3（品質ゲートの判定）・TK-9（段ごとに判定する条件）

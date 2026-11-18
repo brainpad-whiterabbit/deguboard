@@ -7,12 +7,12 @@ import { resetGhCache } from "../git/facts.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { chooseCheck, matchesAnyGlob } from "./gate-check.js";
-import { gate, type GateView } from "./gate.js";
+import { gate } from "./gate.js";
+import type { GateView } from "./gate-judge.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
 import { ticketCheck, ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
-import { toIsoDateTime } from "../model/common.js";
-import { emptyUsage, newRunId, type Run } from "../model/run.js";
+import type { Run } from "../model/run.js";
 
 const cleanups: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
@@ -124,15 +124,23 @@ const later = (minutes: number) => new Date(Date.now() + minutes * 60_000);
 
 describe("dg gate（品質ゲート。t532）", () => {
   it("最後の push より後の見直しが通り、受け入れ条件がすべて付き、PR が開いて衝突しなければ通る", async () => {
-    const { ctx } = await prepared();
+    const { ctx, f } = await prepared();
     await review(ctx, later(1), 0);
     expect(failed(await judge(ctx, "ready"))).toEqual([]);
     // マージの前は受け入れ条件もすべて要る
     expect(failed(await judge(ctx))).toEqual(["acceptance"]);
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
     const view = await judge(ctx);
-    // gate のないチケットは high として判定し、判定した段を gate に出す
-    expect(view).toMatchObject({ ticket: "t1", for: "merge", gate: "high", pr: 7, passed: true });
+    // gate のないチケットは high として判定し、判定した段を gate に出す。sha は gh が返した PR の先端（t750）
+    const tip = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
+    expect(view).toMatchObject({
+      ticket: "t1",
+      for: "merge",
+      gate: "high",
+      pr: 7,
+      sha: tip,
+      passed: true,
+    });
     expect(view.conditions.map((c) => c.id)).toEqual([
       "pr",
       "acceptance",
@@ -147,55 +155,6 @@ describe("dg gate（品質ゲート。t532）", () => {
       ok: true,
       detail: expect.stringContaining("actions.test is empty, so the check is not judged"),
     });
-  });
-
-  it("結果に判定した PR の先端の SHA を含め、PR の先端がブランチの最新のコミットと違えば head を満たさない（t750）", async () => {
-    const { ctx, setPr, f } = await prepared();
-    await review(ctx, later(1), 0);
-    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
-    const tip = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
-    const view = await judge(ctx);
-    expect(view).toMatchObject({ passed: true, sha: tip });
-    // PR の先端が別のコミットなら、head だけが落ち、結果の SHA は PR の先端を指す
-    const other = "1".repeat(40);
-    await setPr(pr({ headRefOid: other }));
-    const moved = await judge(ctx);
-    expect(moved).toMatchObject({ passed: false, sha: other });
-    expect(failed(moved)).toEqual(["head"]);
-    expect(moved.conditions.find((c) => c.id === "head")!.detail).toContain(
-      "not the latest commit",
-    );
-  });
-
-  it("受け入れ条件は英語の名前の節（## Acceptance criteria）も読む", async () => {
-    const { ctx } = await prepared();
-    await runCommand(ticketUpdate, ctx, {
-      ticket: "t1",
-      body: "## Summary\n\ns\n\n## Acceptance criteria\n\n- [x] 1 つめ\n- [ ] 2 つめ\n",
-    });
-    await review(ctx, later(1), 0);
-    const view = await judge(ctx);
-    expect(failed(view)).toEqual(["acceptance"]);
-    expect(view.conditions.find((c) => c.id === "acceptance")?.detail).toContain("2");
-    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [2] });
-    expect(failed(await judge(ctx))).toEqual([]);
-  });
-
-  it("見直しが最後の push を見ていない・通っていない・結果がないなら review を満たさない", async () => {
-    const { ctx, f } = await prepared();
-    expect(failed(await judge(ctx, "ready"))).toEqual(["review"]);
-    await review(ctx, later(1), 0);
-    // 見直しの後に新しいコミットを push すると、見直した SHA がリモートの先端と違う
-    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "見直しの後"]);
-    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
-    const before = await judge(ctx, "ready");
-    expect(before.conditions.find((c) => c.id === "review")!.detail).toContain(
-      "No review of the last push",
-    );
-    await review(ctx, later(2), 2);
-    const heavy = await judge(ctx, "ready");
-    expect(heavy.conditions.find((c) => c.id === "review")).toMatchObject({ ok: false });
-    expect(heavy.conditions.find((c) => c.id === "review")!.detail).toContain("2 heavy findings");
   });
 
   it("見直しは開いたときのローカルの先端の SHA を記録し、見直しの前に別の clone で作ったコミットを後で push すると review を満たさない（t763）", async () => {
@@ -218,95 +177,18 @@ describe("dg gate（品質ゲート。t532）", () => {
     );
   });
 
-  it("push の前に見直したコミットを後で push すれば review を満たす（t763）", async () => {
-    const { ctx, f } = await prepared();
-    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "まだ push しない"]);
-    await review(ctx, later(1), 0);
-    // push の前は、見直した SHA がリモートの先端と違うので満たさない
-    expect(failed(await judge(ctx, "ready"))).toEqual(["review"]);
-    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
-    expect(failed(await judge(ctx, "ready"))).toEqual([]);
-  });
-
-  it("SHA を持たない見直し（前の版の Run）は、今までどおり開始とリモートの先端のコミットの時刻で判定する（t763）", async () => {
-    const { ctx } = await prepared();
-    // 前の版が書いた閉じた見直しの Run（head のキーがない）
-    const closedReview = async (at: Date) => {
-      const started = toIsoDateTime(at);
-      await ctx.store.create("run", {
-        id: newRunId(at),
-        ticket: "t1",
-        step: "review",
-        agent: "claude-code",
-        model: null,
-        started_at: started,
-        finished_at: started,
-        result: "success",
-        error: null,
-        retries: 0,
-        retry_reasons: [],
-        usage: emptyUsage(),
-        tools: null,
-        session: null,
-        review: { heavy: 0, light: 0, passed: true },
-      });
-    };
-    await closedReview(later(-60));
-    expect(failed(await judge(ctx, "ready"))).toEqual(["review"]);
-    await closedReview(later(1));
-    expect(failed(await judge(ctx, "ready"))).toEqual([]);
-  });
-
-  it("重い指摘が出た見直しが上限（2 回）を超えたら fix_rounds を満たさない", async () => {
-    const { ctx } = await prepared();
-    await review(ctx, later(1), 1);
-    await review(ctx, later(2), 1);
-    expect(failed(await judge(ctx, "ready"))).toEqual(["review"]);
-    await review(ctx, later(3), 1);
-    expect(failed(await judge(ctx, "ready"))).toEqual(["review", "fix_rounds"]);
-  });
-
-  it("PR が draft ならマージの前を、衝突していればマージの前を、PR がなければどちらも満たさない", async () => {
+  it("gh が返した PR の事実（draft・衝突）を判定に渡し、gh の出力を読めなければ PR を読めないとして pr と mergeable を満たさない", async () => {
     const { ctx, setPr } = await prepared();
     await review(ctx, later(1), 0);
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
-    await setPr(pr({ isDraft: true }));
-    expect(failed(await judge(ctx, "ready"))).toEqual([]);
-    expect(failed(await judge(ctx))).toEqual(["pr"]);
-    await setPr(pr({ mergeable: "CONFLICTING" }));
-    expect(failed(await judge(ctx))).toEqual(["mergeable"]);
-    await setPr("");
-    // 空の JSON は読めない PR として扱い、通さない
+    await setPr(pr({ isDraft: true, mergeable: "CONFLICTING" }));
     expect(failed(await judge(ctx))).toEqual(["pr", "mergeable"]);
-  });
-
-  it("high と書いた段は gate のないチケットと同じ条件で判定する", async () => {
-    const { ctx } = await prepared();
-    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "high" });
-    const view = await judge(ctx, "ready");
-    expect(view.gate).toBe("high");
-    expect(view.conditions.map((c) => c.id)).toEqual(["pr", "review", "fix_rounds", "check"]);
-    expect(failed(view)).toEqual(["review"]);
-  });
-
-  it("low は見直しの Run がなくても pr・acceptance・mergeable・check で通り、受け入れ条件に印がなければ acceptance で落ちる", async () => {
-    const { ctx } = await prepared();
-    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "low" });
-    const ready = await judge(ctx, "ready");
-    expect(ready).toMatchObject({ gate: "low", passed: true });
-    expect(ready.conditions.map((c) => c.id)).toEqual(["pr", "check"]);
-    const merge = await judge(ctx);
-    expect(merge.conditions.map((c) => c.id)).toEqual([
-      "pr",
-      "acceptance",
-      "mergeable",
-      "head",
-      "check",
-    ]);
-    // actions.test が空なので、check はほかの条件によらず判定せずに通る
-    expect(failed(merge)).toEqual(["acceptance"]);
-    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
-    expect(await judge(ctx)).toMatchObject({ gate: "low", passed: true });
+    await setPr("");
+    // 空の JSON は読めない PR として扱い、通さない。番号はチケットに記録がないので null、先端も null
+    const unreadable = await judge(ctx);
+    expect(failed(unreadable)).toEqual(["pr", "mergeable"]);
+    expect(unreadable).toMatchObject({ pr: null, sha: null });
+    expect(unreadable.conditions[0]!.detail).toContain("Cannot check the PR");
   });
 
   it("low と free は、リモートの追跡 ref がなく fetch もできなくても通る。high は push の時刻を読めず review で落ちる（t663）", async () => {
@@ -443,33 +325,6 @@ describe("dg gate の検査（actions.test。t601）", () => {
       process.env["PATH"] = saved;
     });
     expect(check(await judge(ctx, "ready")).ok).toBe(true);
-  });
-
-  it("low は見直しがなくても検査を回して判定し、検査が落ちれば通さない", async () => {
-    const { f, ctx, runs, setCode } = await withCheck();
-    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "low" });
-    expect(await judge(ctx, "ready")).toMatchObject({ gate: "low", passed: true });
-    expect(await runs()).toBe(1);
-    await setCode(1);
-    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
-    // 通った結果はコミットごとに覚えるので、検査を落とすには新しいコミットが要る
-    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "直し"]);
-    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
-    expect(failed(await judge(ctx))).toEqual(["check"]);
-  });
-
-  it("free は merge で pr・mergeable、ready で pr だけを判定し、actions.test が落ちる設定でも見直しなしで通る", async () => {
-    const { ctx, runs, setCode } = await withCheck();
-    await setCode(1);
-    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "free" });
-    const ready = await judge(ctx, "ready");
-    expect(ready).toMatchObject({ gate: "free", passed: true });
-    expect(ready.conditions.map((c) => c.id)).toEqual(["pr"]);
-    // 受け入れ条件に印がなくても通る
-    const merge = await judge(ctx);
-    expect(merge).toMatchObject({ gate: "free", passed: true });
-    expect(merge.conditions.map((c) => c.id)).toEqual(["pr", "mergeable"]);
-    expect(await runs()).toBe(0);
   });
 
   it("worktree が最新のコミットでない・未コミットの変更があるなら回さずに満たさない", async () => {

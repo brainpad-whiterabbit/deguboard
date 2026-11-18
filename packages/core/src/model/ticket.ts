@@ -18,7 +18,7 @@ export type Priority = (typeof PRIORITIES)[number];
 /**
  * 品質ゲートの段（TK-9）。high は見直しを含むすべての条件、low は見直しを除く条件、free は PR が開いていることと
  * 衝突しないことだけを判定する。段の既定と、段ごとに何を判定するかはこのファイルの gateLevelOf・gateScopeOf で決まり、
- * 判定の手順は commands/gate.ts の judgeGate。チケットに gate がなければ high
+ * 判定の手順は commands/gate.ts の judgeGate（条件を決めるのは commands/gate-judge.ts）。チケットに gate がなければ high
  */
 export const GATE_LEVELS = ["high", "low", "free"] as const;
 export type GateLevel = (typeof GATE_LEVELS)[number];
@@ -53,7 +53,7 @@ export function lowersGate(before: GateLevel, after: GateLevel): boolean {
   return GATE_LEVELS.indexOf(after) > GATE_LEVELS.indexOf(before);
 }
 
-/** 段ごとに判定する条件の範囲。gate.ts・next.ts・brief.ts・flow.ts は段をここに渡して使う */
+/** 段ごとに判定する条件の範囲。gate-judge.ts・next.ts・brief.ts・flow.ts は段をここに渡して使う */
 export function gateScopeOf(level: GateLevel): GateScope {
   return GATE_SCOPES[level];
 }
