@@ -7,7 +7,7 @@ after:
     - t1092
   t1095:
     - t1090
-pending_approval: true
+pending_approval: false
 details:
   t1099:
     scope: store.tsx の reload で最新でない reload が状態を書き換えないようにし、順序を決めた再現テストを足す。HostBridge は触らない
@@ -45,3 +45,5 @@ details:
     scope: sidebar.vscode.ts の同期のボタンの点のテストで、落ちても commit.mode と push.mode を戻す
     approach: 設定の変更と確かめを try/finally で囲み、finally で configUnset する
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-18T13:33:08Z
