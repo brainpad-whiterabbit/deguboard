@@ -1,0 +1,34 @@
+{
+  "id": "r20261118-215257-a727",
+  "ticket": "t1100",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-18T21:52:57Z",
+  "finished_at": "2026-11-18T22:01:45Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "雛形のコメントが、キーごとに最初に使う件で作ることを書かず、ファイルの最初の件と書いていた"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 3485,
+    "cache_read": 616043,
+    "cache_write": 34014
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 2,
+    "bash": 7,
+    "other": 6,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "e50a5c37-155d-4dd8-acc1-a12cf2872bca",
+  "review": null,
+  "waited_seconds": 0
+}
