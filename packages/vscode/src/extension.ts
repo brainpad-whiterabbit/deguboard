@@ -224,7 +224,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // アクティブなターミナル（送り先の既定）と名前の変化も送り先に反映する
     vscode.window.onDidChangeActiveTerminal(() => broadcastTerminals()),
     vscode.window.onDidChangeTerminalState(() => broadcastTerminals()),
-    // ビューのタイトル行の同期ボタン（UI-12）。拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む
+    // ビューのタイトル行の同期ボタン（UI-6）。拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む
     // （サイドバーが描かれていなくても動く）。リモートがなくても読み直しだけはするので、手の再読み込みも兼ねる。
     // 人の同期が要る間は、点付きのアイコンの差し替え用のコマンド（attention.ts）に替わるので、同じ処理を登録する
     ...[SYNC_ATTENTION.command, ...attentionCommands(SYNC_ATTENTION)].map((command) =>

@@ -38,7 +38,7 @@ export const SYNC_ATTENTION: AttentionButton = {
 };
 
 /** 件数の組（1 つ目は 1 から max）のときに元のコマンドに差し替えるコマンド。件数は "_" でつなぐ（例 deguboard.sync.attention2_0） */
-export function attentionCommandOf(button: AttentionButton, counts: readonly number[]): string {
+function attentionCommandOf(button: AttentionButton, counts: readonly number[]): string {
   return `${button.command}.attention${counts.join("_")}`;
 }
 

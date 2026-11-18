@@ -219,6 +219,24 @@ export async function integrate(
 }
 
 /**
+ * 未 push（ahead）と未取り込み（behind）のコミット数を、追跡 ref（dataRemoteRef）と比べて 1 回の git で数える。
+ * 数えられなかったとき（追跡 ref がまだない、など）は undefined。strict を渡すと、数えられないときに git の失敗を投げる
+ */
+async function aheadBehind(
+  repo: GitRepo,
+  strict = false,
+): Promise<{ ahead: number; behind: number } | undefined> {
+  const counted = await git(
+    repo,
+    ["rev-list", "--left-right", "--count", `HEAD...${dataRemoteRef(repo)}`],
+    { allowFailure: !strict },
+  );
+  if (counted.code !== 0) return undefined;
+  const [ahead = "0", behind = "0"] = counted.stdout.trim().split(/\s+/);
+  return { ahead: Number(ahead), behind: Number(behind) };
+}
+
+/**
  * 画面の自動の取り込み（UI-6）。追跡 ref（dataRemoteRef）へ fast-forward だけで進め、進めたら true。
  * 呼び出し側が書き込みのロックを持っていること（fetch と同じロックの中で呼ぶ）。
  * 人の同期に任せる状態では何もせずに false：未 push のコミットがある（fast-forward にならない）、未コミットの変更がある
@@ -229,13 +247,9 @@ export async function integrate(
 export async function fastForwardIfClean(repo: GitRepo): Promise<boolean> {
   if (!repo.dataRemote) return false;
   const remote = dataRemoteRef(repo);
-  // 取り込むものがあるかを先に 1 回で確かめる（ほとんどの呼び出しでは何もない）。追跡 ref がなければ失敗して false
-  const counted = await git(repo, ["rev-list", "--left-right", "--count", `HEAD...${remote}`], {
-    allowFailure: true,
-  });
-  if (counted.code !== 0) return false;
-  const [ahead, behind] = counted.stdout.trim().split(/\s+/).map(Number);
-  if (ahead !== 0 || !behind) return false;
+  // 取り込むものがあるかを先に 1 回で確かめる（ほとんどの呼び出しでは何もない）。追跡 ref がなければ数えられずに false
+  const counted = await aheadBehind(repo);
+  if (!counted || counted.ahead !== 0 || counted.behind === 0) return false;
   // 途中の rebase は rebasing で返る。state がないのは基準がまだないとき
   const { check, state } = await inspectOutsideLocked(repo);
   if (check.kind !== "clean" || !state || Object.keys(state.dirty).length > 0) return false;
@@ -491,19 +505,16 @@ export async function syncStatus(
 ): Promise<SyncStatus> {
   const dirty = known.dirty ?? (await isDirty(repo));
   if (!repo.dataRemote) return { ahead: 0, behind: 0, dirty, remote: null };
-  // 追跡 ref があるかを先に聞かず、数え方が失敗したときだけ聞く（ほとんどの呼び出しでは ref がある。t1046）
-  const range = ["rev-list", "--left-right", "--count", `HEAD...${dataRemoteRef(repo)}`];
-  const counted = await git(repo, range, { allowFailure: true });
-  if (counted.code !== 0) {
+  // 追跡 ref があるかを先に聞かず、数えられなかったときだけ聞く（ほとんどの呼び出しでは ref がある。t1046）
+  const counted = await aheadBehind(repo);
+  if (!counted) {
     const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
       allowFailure: true,
     });
     // 追跡 ref があるのに数えられないのは別の失敗なので、今までどおり投げる
-    if (has.code === 0) await git(repo, range);
+    if (has.code === 0) await aheadBehind(repo, true);
     const ahead = Number((await git(repo, ["rev-list", "--count", "HEAD"])).stdout.trim());
     return { ahead, behind: 0, dirty, remote: repo.dataRemote };
   }
-  const out = counted.stdout.trim();
-  const [ahead = "0", behind = "0"] = out.split(/\s+/);
-  return { ahead: Number(ahead), behind: Number(behind), dirty, remote: repo.dataRemote };
+  return { ...counted, dirty, remote: repo.dataRemote };
 }

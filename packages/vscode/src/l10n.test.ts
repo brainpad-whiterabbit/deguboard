@@ -108,8 +108,8 @@ describe("拡張ホストの文言の置き場所", () => {
   });
 });
 
-/** 英語の文言にする前（日本語の直書きだったとき）の manifest の文言。表示言語が日本語なら今と同じに出ることを確かめる */
-const MANIFEST_JA_BEFORE: Record<string, string> = {
+/** 表示言語が日本語のときの manifest の文言（Walkthrough の本文のファイルを指す鍵を除く）。package.nls.ja.json がこのとおりに出すことを確かめる */
+const MANIFEST_JA: Record<string, string> = {
   description:
     "AI エージェントに開発を任せるための開発の流れを Git リポジトリに組み込むツールで、VS Code のカンバンはその窓口です。エージェントがアイデアを小さなチケットにして、品質ゲートを通るまで並列に進め、その働きを測れます。Agentic-Agile に着想を得ています。",
   "command.gotoTicket.title": "チケットへ移動",
@@ -181,11 +181,11 @@ describe("manifest の文言の置き場所", () => {
     );
     expect(found).toEqual([]);
   });
-  it("package.nls.json（既定）は英語で、表示言語が日本語なら package.nls.ja.json が今までと同じ文言を出す", () => {
+  it("package.nls.json（既定）は英語で、表示言語が日本語なら package.nls.ja.json が決めた日本語の文言を出す", () => {
     for (const [key, value] of Object.entries(nlsEn)) expect(value, key).not.toMatch(JAPANESE);
     const entries = Object.entries(nlsJa);
     const isMarkdown = ([key]: [string, string]) => key.endsWith(".markdown");
-    expect(Object.fromEntries(entries.filter((e) => !isMarkdown(e)))).toEqual(MANIFEST_JA_BEFORE);
+    expect(Object.fromEntries(entries.filter((e) => !isMarkdown(e)))).toEqual(MANIFEST_JA);
     // Walkthrough の本文は言語ごとのファイルを指す
     for (const [key, path] of entries.filter(isMarkdown)) {
       expect(path, key).toMatch(/\.ja\.md$/);
