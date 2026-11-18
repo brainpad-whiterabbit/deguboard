@@ -133,7 +133,7 @@ To move an existing board to another repository, a person does the following in 
    dg sync
    ```
 
-3. In every other clone, add the remote under the same name (`git remote add kanban <URL>`) and run `dg sync`. The first command that takes in the config change stops without pushing and asks you to run it again; from then on that clone uses the new remote. A clone with the board open in VS Code or `dg serve` may already have taken the change in automatically; there the next command uses the new remote without stopping. A clone that does not have the remote stops and shows the `git remote add` command. To use another remote name in one clone, run `dg config set git.data_remote <name> --local`.
+3. In every other clone, add the remote under the same name (`git remote add kanban <URL>`) and run `dg sync`. The first command that takes in the config change stops without pushing and asks you to run it again; from then on that clone uses the new remote. A clone with the board open in VS Code may already have taken the change in automatically; there the next command uses the new remote without stopping. A clone that does not have the remote stops and shows the `git remote add` command. To use another remote name in one clone, run `dg config set git.data_remote <name> --local`.
 4. After every clone has moved, delete the branch from the old remote. A clone that has not moved would push its data to the old remote again, so do this last.
 
    ```sh
@@ -180,19 +180,23 @@ dg config set metrics.read_transcripts true
 
 The setting is shared with your team. To turn it off on your own machine only, set `DEGUBOARD_NO_TRANSCRIPTS=1`.
 
-## Notifications
+## Approval notifications
 
-When there are Plans awaiting approval or tickets in review, the count appears in the sidebar title (for example, "DEGUBOARD: Awaiting Approval/Review 3"), and a notification appears when the count goes up. Press "Open" in the notification to open the details. The number on the Activity Bar icon is separate: it is the total of unpushed commits and remote updates that have not been pulled.
-
-While the board is open in VS Code or `dg serve`, dg fetches the remote from time to time. When the remote updates can be taken in by a fast-forward alone, it takes them in and reloads the screen without asking. It does not take them in while there are unpushed commits, uncommitted changes, a rebase in progress, or changes made outside dg; then press the sync button (in `dg serve`, run `dg sync`). While there are unpushed commits, the sync button in the sidebar title has a dot, and its tooltip shows the counts (for example, "Sync (1 unpushed / 2 to pull)").
-
-While items of the setup checklist are missing, the setup icon at the left of the sidebar title has a dot, and its tooltip shows how many are missing (for example, "Setup (2 items missing)").
+When there are Plans awaiting approval or tickets in review, the count appears in the sidebar title (for example, "DEGUBOARD: Awaiting Approval/Review 3"), and a notification appears when the count goes up. Press "Open" in the notification to open the details.
 
 You can turn approval notifications off in the settings screen (the gear icon) under "Notifications". The count stays visible. To turn them off only for yourself while keeping the team setting, use the "Mine" tab of the settings screen or `--local`.
 
 ```sh
 dg config set notify.approvals false --local
 ```
+
+## Take in remote updates
+
+While the board is open in VS Code, dg fetches the remote from time to time. When the remote updates can be taken in by a fast-forward alone, it takes them in and reloads the screen without asking. It does not take them in while there are unpushed commits, uncommitted changes, a rebase in progress, or changes made outside dg; then press the sync button. While there are unpushed commits, the sync button in the sidebar title has a dot, and its tooltip shows the counts (for example, "Sync (1 unpushed / 2 to pull)"). The number on the Activity Bar icon is the total of unpushed commits and remote updates that have not been pulled.
+
+## Setup checklist
+
+While items of the setup checklist are missing, the setup icon at the left of the sidebar title has a dot, and its tooltip shows how many are missing (for example, "Setup (2 items missing)").
 
 ## Go to Ticket
 
