@@ -48,7 +48,7 @@ guide:
     work: docs/guide-notes/work.md
     run: ""
     parallel: ""
-    review: ""
+    review: docs/guide-notes/review.md
     audit: ""
     release: ""
     done: ""
