@@ -27,6 +27,7 @@ AI エージェントに開発を任せるための開発の流れを Git リポ
 - `packages/core` は VS Code API・HTTP・React に依存させない。`server`・`vscode` は `core` だけに依存し、`cli` は `dg serve` と `dg mcp` のために `server` にも依存する。`web` は `core` の型と `CommandClient` のインターフェースだけに依存する（[ADR-033](docs/adr/ADR-033-architecture.md)）
 - すべての操作は `packages/core/src/commands/` のコマンド定義に置き、CLI・HTTP・Webview は写すだけにする。入口にロジックを書かない
 - git・gh は `child_process.execFile` で引数配列として呼ぶ。シェルを経由しない
+- コマンドの中で事実から結果を決める処理は、git・gh・ファイルを読まない関数に置く。判定の組み合わせはその関数のテストで網羅し、git を通す結合テストは経路の代表だけにする（書き方は [development.md の「ビルドとテスト」](docs/development.md#ビルドとテスト)、理由は [ADR-033](docs/adr/ADR-033-architecture.md)）
 - Git 操作のテストは、一時ディレクトリの bare リモート付きリポジトリで行う
 - コメント・ドキュメント・テスト名は日本語で書く。README.md（GitHub・Marketplace の入口）と SECURITY.md（GitHub の Security タブの入口）と docs/usage.md（README から引く使い方）と docs/how-it-works.md（README から引く仕組み）と docs/guide-notes/（dg guide に差し込む補足）は英語で書く（日本語版の README.ja.md と docs/usage.ja.md と docs/how-it-works.ja.md も同じ PR で、英語版と同じ節の構成に合わせ、先頭から英語版と互いに辿れるようにする）。README から指すほかの docs（requirements.md・development.md・ADR 一覧）は日本語のままにする。guide・Skill の雛形・dg の出力（ヘルプ・エラー・警告などエージェントと利用者が読む文字列）・GitHub Release の本文（Release ページの利用者が読む）も英語で書く（[ADR-001](docs/adr/ADR-001-doc-strategy.md)）。例外は dg ask の言語（packages/core/src/commands/ask.ts の ASK_LANGUAGES）と画面の訳（要件 UI-11）
 
