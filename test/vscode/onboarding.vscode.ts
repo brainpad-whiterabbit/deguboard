@@ -40,12 +40,17 @@ const RECOMMENDED = {
   gitignore: ".claude/.gitignore",
 } as const;
 
-/** 推奨の項目の帯が挙げている、欠けている項目の id */
+/**
+ * 推奨の項目の帯が挙げている、欠けている項目の id。帯の文「N recommended items are not done (名前, 名前).」の括弧の中を読む。
+ * RECOMMENDED にない名前（後から足された推奨の項目）はその名前のまま返し、括弧が読めないときは帯の文をそのまま返して、
+ * 落ちたときの差分に欠けている項目が出るようにする
+ */
 async function missingInBand(): Promise<string[]> {
-  const text = await sidebar.locator(".setup-band").innerText();
-  return Object.entries(RECOMMENDED)
-    .filter(([, name]) => text.includes(name))
-    .map(([id]) => id);
+  const text = await sidebar.locator(".setup-band > span").first().innerText();
+  const list = /\((.*)\)/.exec(text)?.[1];
+  if (list === undefined) return [text];
+  const idOf = new Map<string, string>(Object.entries(RECOMMENDED).map(([id, name]) => [name, id]));
+  return list.split(", ").map((name) => idOf.get(name) ?? name);
 }
 
 beforeAll(async () => {
