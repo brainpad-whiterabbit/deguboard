@@ -158,7 +158,7 @@ async function prepareRepo(f: Layout, free: boolean): Promise<void> {
  * 既定の Workflow の review → done は ask_unless_auto で、エージェントのマージには人の承認か --auto が要る。
  * free が true なら review → done の decide を anyone にして、エージェントが何も付けずにマージできるようにする
  * （品質ゲートと gh の呼び方を確かめるテストは true で回す）。
- * 雛形の claim（branch_at）と push は雛形を作った時刻（このファイルの最初の件の時刻）のままなので、件の中の時刻より前になる
+ * 雛形の claim（branch_at）と push は雛形を作った時刻（雛形は free ごとに別にあり、それぞれを最初に使う件の時刻）のままなので、件の中の時刻より前になる
  */
 async function prepared(free = true) {
   const f = await createFixtureFrom(free ? "prepared-free" : "prepared-ask", (layout) =>
@@ -219,7 +219,7 @@ async function prepared(free = true) {
 
 /**
  * 見直しの 1 回を記録する（offset 秒後の時刻。回の順と作業ブランチの後を分けるため）。
- * 雛形の claim と push は雛形を作った時刻 T（このファイルの最初の件で作る）で、件の中の今 N は T より後にしかならない。
+ * 雛形の claim と push は雛形を作った時刻 T（雛形ごとに、その雛形を最初に使う件で作る）で、件の中の今 N は T より後にしかならない。
  * 正の offset は N + offset > N ≥ T なので、雛形がいつできても claim と push より後になる。
  * 負の offset（-3600）は、T がこのファイルを回し始めてから 1 時間以内（ファイル全体で数十秒）なので claim より前になる
  */
