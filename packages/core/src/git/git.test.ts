@@ -121,6 +121,19 @@ describe("同期", () => {
     });
   });
 
+  // 追跡 ref をコミットでないもの（tree）に向けて、ref はあるのに rev-list が数えられない状態を作る
+  it("追跡 ref があるのに数えられないとき、syncStatus は数えたときの git の失敗を投げる", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    await push(a.repo);
+    const tree = (await git(a.repo.dataDir, ["rev-parse", "HEAD^{tree}"])).stdout.trim();
+    await git(a.repo.dataDir, ["update-ref", "refs/remotes/origin/deguboard", tree]);
+    const error = await syncStatus(a.repo).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(GitError);
+    expect((error as GitError).kind).toBe("exit");
+    expect((error as GitError).args).toContain("rev-list");
+  });
+
   it("同じ行を両方が変えたとき rebase を中止し、ローカルのコミットを残して競合を報告する", async () => {
     const f = await fixture();
     const a = await openRepo(f.cloneA);
