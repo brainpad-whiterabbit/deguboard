@@ -5,7 +5,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WebviewEvent } from "@deguboard/core";
 import { ClientError } from "./client/http.js";
 import type { WebviewClient } from "./client/webview.js";
-import { HostBridge, HostProvider, type Host } from "./host.js";
+import {
+  ASK_OPEN_KEY,
+  HostBridge,
+  HostProvider,
+  useAsk,
+  useAskCurrent,
+  type Ask,
+  type Host,
+} from "./host.js";
 import { StoreProvider, useStore, type Store } from "./store.js";
 import { mockClient, setupView, type MockClient } from "./test-helpers.js";
 import { createUiState, memoryBackend } from "./ui-state.js";
@@ -58,15 +66,42 @@ function SendOnCommit({
   return null;
 }
 
-function tree(client: MockClient, bridge: WebviewClient, sender: ReactNode) {
+function tree(client: MockClient, bridge: WebviewClient, sender: ReactNode, host = panelHost()) {
   return (
     <StoreProvider client={client} readRunning={false} setupBand={false}>
-      <HostProvider host={panelHost()}>
+      <HostProvider host={host}>
         <HostBridge client={bridge} />
         {sender}
       </HostProvider>
     </StoreProvider>
   );
+}
+
+/**
+ * 入力欄の開閉（ask）を report に渡し、ask が when を満たした描画のコミットの中（layout effect）で、event を 1 回送る。
+ * SendOnCommit と同じく HostBridge より後ろに置く（targets を渡すと、その描画で画面の今の対象として知らせる）
+ */
+function AskSendOnCommit({
+  report,
+  when,
+  send,
+  targets,
+}: {
+  report: (ask: Ask) => void;
+  when: (ask: Ask) => boolean;
+  send: () => void;
+  targets?: readonly string[];
+}) {
+  const ask = useAsk();
+  useAskCurrent(targets ?? []);
+  const sent = useRef(false);
+  useLayoutEffect(() => {
+    report(ask);
+    if (sent.current || !when(ask)) return;
+    sent.current = true;
+    send();
+  });
+  return null;
 }
 
 const countOf = (client: MockClient, name: string) =>
@@ -120,5 +155,79 @@ describe("HostBridge が描画のコミットの後、副作用より前に届�
     await waitFor(() => expect(countOf(after, "config.show")).toBe(2));
     await act(async () => {});
     expect(before.calls.length).toBe(beforeCalls);
+  });
+
+  it("入力欄を開いた描画のコミットの直後に届いた toggle つきの ask の event は、開いた欄を閉じる（開く前の request を見て開き直さない）", async () => {
+    const { bridge, send } = bridgeOf();
+    const seen: { ask?: Ask } = {};
+    const report = (ask: Ask) => void (seen.ask = ask);
+    render(
+      tree(
+        mockClient(),
+        bridge,
+        <AskSendOnCommit
+          report={report}
+          when={(ask) => ask.request !== null}
+          send={() => send({ kind: "event", name: "ask", targets: [], toggle: true })}
+        />,
+      ),
+    );
+    await act(async () => {});
+    expect(seen.ask!.request).toBeNull();
+
+    await act(async () => seen.ask!.open(["t1"]));
+
+    expect(seen.ask!.request).toBeNull();
+    // 開いたのは 1 回だけ（toggle で開き直していない）
+    expect(seen.ask!.serial).toBe(1);
+  });
+
+  it("入力欄を閉じた描画のコミットの直後に届いた toggle つきの ask の event は、閉じた欄を開く（閉じる前の request を見て閉じたままにしない）", async () => {
+    const { bridge, send } = bridgeOf();
+    const seen: { ask?: Ask } = {};
+    const report = (ask: Ask) => void (seen.ask = ask);
+    const host = panelHost();
+    host.state.set(ASK_OPEN_KEY, { targets: ["t1"] });
+    render(
+      tree(
+        mockClient(),
+        bridge,
+        <AskSendOnCommit
+          report={report}
+          when={(ask) => ask.request === null}
+          send={() => send({ kind: "event", name: "ask", targets: ["t2"], toggle: true })}
+        />,
+        host,
+      ),
+    );
+    await act(async () => {});
+    expect(seen.ask!.request).toEqual({ targets: ["t1"] });
+
+    await act(async () => seen.ask!.close());
+
+    expect(seen.ask!.request).toEqual({ targets: ["t2"] });
+  });
+
+  it("画面の今の対象が変わった描画のコミットの直後に届いた current つきの ask の event は、新しい対象で開く", async () => {
+    const { bridge, send } = bridgeOf();
+    const seen: { ask?: Ask } = {};
+    const report = (ask: Ask) => void (seen.ask = ask);
+    const host = panelHost();
+    const client = mockClient();
+    const sender = (targets: string[], armed: boolean) => (
+      <AskSendOnCommit
+        report={report}
+        targets={targets}
+        when={() => armed}
+        send={() => send({ kind: "event", name: "ask", targets: [], current: true })}
+      />
+    );
+    const view = render(tree(client, bridge, sender(["s1"], false), host));
+    await act(async () => {});
+
+    view.rerender(tree(client, bridge, sender(["s2"], true), host));
+    await act(async () => {});
+
+    expect(seen.ask!.request).toEqual({ targets: ["s2"] });
   });
 });
