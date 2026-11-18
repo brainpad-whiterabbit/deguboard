@@ -66,4 +66,8 @@ checkpoints:
     approved_by: maji/agent
     basis:
       facts: 42d4d81fc0172452
+  - name: release
+    at: 2026-11-18T20:33:19Z
+    by: maji/agent
+    approved_by: maji
 started_at: 2026-11-17T06:49:14Z
