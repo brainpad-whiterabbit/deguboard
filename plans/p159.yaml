@@ -1,7 +1,7 @@
 id: p159
 tickets: [t1111, t1112, t1110, t1108, t1109, t1113]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t1111:
     scope: host.tsx の HostBridge で、描画と副作用の間に届いた ask の event を最新の request と current で開閉し、その順序のテストを足す
@@ -27,3 +27,5 @@ details:
     scope: vitest.layout.config.ts と vitest.vscode.config.ts に違う理由を書き、vitest-max-workers.test.ts のコメントを正本への参照にする
     approach: 設定の値は変えずにコメントだけを直す
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-18T14:16:29Z
