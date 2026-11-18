@@ -373,26 +373,30 @@ describe("VS Code の実機の左パネル", () => {
       ["commit.mode", "each"],
       ["push.mode", "manual"],
     ] as const;
-    for (const [key, value] of personal)
-      await runCommand(configSet, ctx, { key, value, local: true });
-    // 設定は開いたときに読むので、書き換えた設定で開き直して書く。起票はすぐ push するので、題の書き換えで作る
-    const manual = await openContext({ cwd: fixture.cloneA });
-    await runCommand(ticketUpdate, manual, { ticket: "t2", title: `${TITLES[1]}（未 push）` });
-    expect((await syncStatus(manual.repo)).ahead).toBe(1);
-    // 左パネルが間を空けて読む同期の状態から差し替わる
-    await dotted.waitFor({ timeout: 60_000 });
-    expect(await dotted.getAttribute("aria-label")).toBe("Sync (1 unpushed)");
-    expect(await plain.count()).toBe(0);
-    for (const theme of ["dark", "light"] as const) {
-      await host.setTheme(theme);
-      const shot = await host.screenshot("sync-title-dot", theme);
-      await access(shot.sidebar);
+    // 途中で落ちても、個人の設定を後のテストに残さないよう finally で戻す
+    try {
+      for (const [key, value] of personal)
+        await runCommand(configSet, ctx, { key, value, local: true });
+      // 設定は開いたときに読むので、書き換えた設定で開き直して書く。起票はすぐ push するので、題の書き換えで作る
+      const manual = await openContext({ cwd: fixture.cloneA });
+      await runCommand(ticketUpdate, manual, { ticket: "t2", title: `${TITLES[1]}（未 push）` });
+      expect((await syncStatus(manual.repo)).ahead).toBe(1);
+      // 左パネルが間を空けて読む同期の状態から差し替わる
+      await dotted.waitFor({ timeout: 60_000 });
+      expect(await dotted.getAttribute("aria-label")).toBe("Sync (1 unpushed)");
+      expect(await plain.count()).toBe(0);
+      for (const theme of ["dark", "light"] as const) {
+        await host.setTheme(theme);
+        const shot = await host.screenshot("sync-title-dot", theme);
+        await access(shot.sidebar);
+      }
+      // 点付きのアイコンも、元と同じく同期する。push して点が消える
+      await dotted.click();
+      await plain.waitFor({ timeout: 60_000 });
+      expect(await dotted.count()).toBe(0);
+    } finally {
+      for (const [key] of personal) await runCommand(configUnset, ctx, { key, local: true });
     }
-    // 点付きのアイコンも、元と同じく同期する。push して点が消える
-    await dotted.click();
-    await plain.waitFor({ timeout: 60_000 });
-    expect(await dotted.count()).toBe(0);
-    for (const [key] of personal) await runCommand(configUnset, ctx, { key, local: true });
   });
 
   it("導入のチェックリストの「アンインストール」で、消すものを確かめてからこのクローンから外し、外した後の知らせを出す（ライトとダークで撮る）", async () => {
