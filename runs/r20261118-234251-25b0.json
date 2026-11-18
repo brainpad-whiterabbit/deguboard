@@ -1,0 +1,34 @@
+{
+  "id": "r20261118-234251-25b0",
+  "ticket": "t1102",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-18T23:42:51Z",
+  "finished_at": "2026-11-18T23:43:34Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ADR-033 の冒頭の要約が、コマンドの中を集める・決める・行うに分ける判断に触れていない"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 2436,
+    "cache_read": 304733,
+    "cache_write": 26005
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 1,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "e671c729-9c11-485c-ad52-6e18ca5fc79b",
+  "review": null,
+  "waited_seconds": 0
+}
