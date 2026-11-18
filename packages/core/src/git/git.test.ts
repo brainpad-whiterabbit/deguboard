@@ -451,7 +451,9 @@ describe("rebase の途中と時間切れ", () => {
     expect((await fetchData(a.repo)).ok).toBe(true);
     const stopped = (await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
     expect(await syncStatus(a.repo)).toMatchObject({ ahead: 0, behind: 1 });
-    expect(await withLock(a.repo.localDir, "write", () => fastForwardIfClean(a.repo))).toBe(false);
+    expect(await withLock(a.repo.localDir, "write", () => fastForwardIfClean(a.repo))).toBe(
+      "blocked",
+    );
     expect((await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(stopped);
     expect(await rebaseInProgress(a.repo)).toBe(true);
     expect(await rebaseLeftByDg(a.repo)).toBe(true);

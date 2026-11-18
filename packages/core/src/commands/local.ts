@@ -73,6 +73,9 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
   let lastFetch: number | undefined;
   // status の後ろの fetch の後に、自動で取り込んだ回数（StatusView の auto_pulls）
   let autoPulls = 0;
+  // 最後に試した自動の取り込みが、取り込むものがあるのに止まったか（StatusView の auto_pull_blocked）。
+  // 試せなかったとき（届かない・ロックを取れない）は前の値のままにする
+  let autoPullBlocked = false;
 
   /** arrivedAt が undefined（書き込み）なら必ず再走査する。読みは届いた後に始まった走査が成功していればそれを使う */
   const context = async (arrivedAt: number | undefined): Promise<CommandContext> => {
@@ -159,10 +162,13 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       const view = serialized(true, async (arrivedAt) => {
         const ctx = await context(arrivedAt);
         const status = await syncStatus(ctx.repo);
+        // 止まった後に人の同期や書き込みが取り込んだら、止まった印を消す（次に試すまで残すと、後から届いた未取り込みを止まったと知らせてしまう）
+        if (status.behind === 0) autoPullBlocked = false;
         return {
           ...status,
           issues: ctx.store.issues.length,
           auto_pulls: autoPulls,
+          auto_pull_blocked: autoPullBlocked,
           data_dir: ctx.repo.dataDir,
           web_url: await remoteWebUrl(ctx.repo),
         };
@@ -179,8 +185,9 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
   };
 
   /**
-   * status の後ろの fetch と自動の取り込み（UI-6）。失敗（届かない・時間切れ・ロックを取れない・取り込めない）は捨てる
+   * status の後ろの fetch と自動の取り込み（UI-6）。失敗（届かない・時間切れ・ロックを取れない）は捨てる
    * （状態の表示を止めず、通知もしない。未取り込みの印が残り、次の間隔でまた試す）。
+   * 取り込むものがあるのに取り込めないときは捨てずに、auto_pull_blocked として status に出し、画面が人の同期が要ると知らせられるようにする。
    * 同じマシンの dg（CLI）の書き込みも fetch するので、書き込みのロックを待たずに取れたときだけ fetch する
    * （同じ追跡ブランチの ref を同時に書くと片方の fetch が失敗する。取れないのはほかの dg が書き込み中で、その書き込みが fetch する）。
    * fetch の後、同じロックの中で、fast-forward で済むときだけ取り込む（条件は fastForwardIfClean）。古いのは画面の表示だけなので
@@ -191,16 +198,18 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
     const ctx = await ctxPromise;
     if (!ctx?.repo.dataRemote) return;
     const repo = ctx.repo;
-    const pulled = await withLock(
+    const result = await withLock(
       repo.localDir,
       "write",
       async () => {
         const fetched = await fetchData(repo, STATUS_FETCH_TIMEOUT_MS);
-        return fetched.ok && fetched.remoteBranch && (await fastForwardIfClean(repo));
+        return fetched.ok && fetched.remoteBranch ? await fastForwardIfClean(repo) : undefined;
       },
       { waitMs: 0 },
     );
-    if (!pulled) return;
+    if (result === undefined) return;
+    autoPullBlocked = result === "blocked";
+    if (result !== "pulled") return;
     scanned = 0;
     autoPulls++;
   }

@@ -72,6 +72,33 @@
         "icon": "$(sync)"
       },
       {
+        "command": "deguboard.sync.attention0_1",
+        "title": "%command.sync.attention0_1.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention0_2",
+        "title": "%command.sync.attention0_2.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
+        "command": "deguboard.sync.attention0_3",
+        "title": "%command.sync.attention0_3.title%",
+        "category": "deguboard",
+        "icon": {
+          "light": "media/sync-attention-light.svg",
+          "dark": "media/sync-attention-dark.svg"
+        }
+      },
+      {
         "command": "deguboard.sync.attention1_0",
         "title": "%command.sync.attention1_0.title%",
         "category": "deguboard",
@@ -296,6 +323,21 @@
           "group": "navigation@2"
         },
         {
+          "command": "deguboard.sync.attention0_1",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 0_1",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention0_2",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 0_2",
+          "group": "navigation@2"
+        },
+        {
+          "command": "deguboard.sync.attention0_3",
+          "when": "view == deguboard.screens && deguboard.syncAttention == 0_3",
+          "group": "navigation@2"
+        },
+        {
           "command": "deguboard.sync.attention1_0",
           "when": "view == deguboard.screens && deguboard.syncAttention == 1_0",
           "group": "navigation@2"
@@ -376,6 +418,18 @@
         },
         {
           "command": "deguboard.sync",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention0_1",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention0_2",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.sync.attention0_3",
           "when": "false"
         },
         {

@@ -189,6 +189,7 @@ export function fixture(partial: Partial<Fixture> = {}): Fixture {
       remote: "origin",
       issues: 0,
       auto_pulls: 0,
+      auto_pull_blocked: false,
       data_dir: "/x",
       web_url: null,
     },

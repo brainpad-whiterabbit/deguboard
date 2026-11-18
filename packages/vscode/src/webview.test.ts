@@ -123,6 +123,7 @@ function fakeClient(): CommandClient & { calls: unknown[] } {
         remote: "origin",
         issues: 0,
         auto_pulls: 0,
+        auto_pull_blocked: false,
         data_dir: "/x",
         web_url: null,
       };
@@ -543,6 +544,7 @@ describe("サイドバーのバッジ", () => {
     remote: "origin",
     issues: 0,
     auto_pulls: 0,
+    auto_pull_blocked: false,
     data_dir: "/x",
     web_url: null,
   };

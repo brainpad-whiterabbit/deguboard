@@ -119,7 +119,7 @@ describe("プロセス内の CommandClient", () => {
     expect(await listIds(client)).toEqual(["t1", "t2"]);
   });
 
-  // 人の同期に任せる状態（fastForwardIfClean の条件）。どれも取り込まずに、未取り込みの印を出し続ける
+  // 人の同期に任せる状態（fastForwardIfClean の条件）。どれも取り込まずに、未取り込みの印を出し続け、止まったことを status に出す
   const blocked: Array<[string, (client: ReturnType<typeof createLocalClient>) => Promise<void>]> =
     [
       [
@@ -153,22 +153,40 @@ describe("プロセス内の CommandClient", () => {
         },
       ],
     ];
-  it.each(blocked)("%s ときは、fetch の後に自動で取り込まない", async (_name, prepare) => {
+  it.each(blocked)(
+    "%s ときは、fetch の後に自動で取り込まず、止まったことを auto_pull_blocked で出す",
+    async (_name, prepare) => {
+      const f = await initializedFixture();
+      const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
+      await prepare(client);
+      // 準備の status の後ろの fetch を終わらせてから、手元の状態を読む
+      await client.status();
+      const repo = (await openContext({ cwd: f.cloneA })).repo;
+      const head = await headSha(repo);
+      const dirty = await dirtyFiles(repo);
+      await pushFromB(f, "B から");
+      await client.status();
+      const status = await client.status();
+      expect(status.behind).toBeGreaterThan(0);
+      expect(status.auto_pulls).toBe(0);
+      expect(status.auto_pull_blocked).toBe(true);
+      expect(await headSha(repo)).toBe(head);
+      expect(await dirtyFiles(repo)).toEqual(dirty);
+    },
+  );
+
+  it("自動の取り込みが止まった後に人の同期で取り込んだら、auto_pull_blocked を消す", async () => {
     const f = await initializedFixture();
     const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
-    await prepare(client);
-    // 準備の status の後ろの fetch を終わらせてから、手元の状態を読む
+    await client.run("ticket.create", { title: "A から" });
+    await client.run("config.set", { key: "commit.mode", value: "batch" });
+    await client.run("ticket.update", { ticket: "t1", title: "まとめ待ち" });
     await client.status();
-    const repo = (await openContext({ cwd: f.cloneA })).repo;
-    const head = await headSha(repo);
-    const dirty = await dirtyFiles(repo);
     await pushFromB(f, "B から");
     await client.status();
-    const status = await client.status();
-    expect(status.behind).toBeGreaterThan(0);
-    expect(status.auto_pulls).toBe(0);
-    expect(await headSha(repo)).toBe(head);
-    expect(await dirtyFiles(repo)).toEqual(dirty);
+    expect(await client.status()).toMatchObject({ ahead: 0, behind: 1, auto_pull_blocked: true });
+    await client.run("sync");
+    expect(await client.status()).toMatchObject({ behind: 0, auto_pull_blocked: false });
   });
 
   it("リモートに届かなくても、status は失敗せずに同期の状態を返し続ける", async () => {

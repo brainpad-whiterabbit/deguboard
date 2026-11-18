@@ -24,6 +24,11 @@ export interface StatusView extends SyncStatus {
    * 画面は前に読んだ値から変わったら一覧を読み直す
    */
   auto_pulls: number;
+  /**
+   * 最後に試した自動の取り込みが、未取り込みがあるのに取り込めずに止まり、未取り込みが残っている（人の同期が要る。
+   * 条件は fastForwardIfClean）。VS Code 拡張は同期のボタンの点で知らせる
+   */
+  auto_pull_blocked: boolean;
   data_dir: string;
   /** リモートを Web で開く URL（https://github.com/owner/repo）。PR へのリンクに使う。リモートがない・直せなければ null */
   web_url: string | null;

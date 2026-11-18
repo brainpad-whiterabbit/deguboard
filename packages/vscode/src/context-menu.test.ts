@@ -161,10 +161,21 @@ describe("package.json のビューのタイトル行", () => {
     const titleItems = menus["view/title"]!;
     expect(titleItems.find((m) => m.command === command)?.when).toBe(`${view} && !${contextKey}`);
     expect(max).toEqual([3, 3]);
-    // 未 push は 1 から、未取り込みは 0 から、どちらも 3（3 以上）まで
-    const combos = [1, 2, 3].flatMap((a) => [0, 1, 2, 3].map((b) => [a, b] as const));
+    // 未 push も未取り込みも 0 から 3（3 以上）まで。どちらも 0 の組は点を出さないので持たない
+    const combos = [0, 1, 2, 3]
+      .flatMap((a) => [0, 1, 2, 3].map((b) => [a, b] as const))
+      .filter(([a, b]) => a + b > 0);
     expect(syncAttention).toEqual(combos.map(([a, b]) => `deguboard.sync.attention${a}_${b}`));
     const many = (n: number) => (n === 3 ? "3+" : String(n));
+    // 未 push が 0 の組は、自動の取り込みが止まっているとき。理由（自動では取り込めない）をツールチップに書く
+    const titleJa = (a: number, b: number) =>
+      a === 0
+        ? `同期（未取り込み ${many(b)}・自動では取り込めません）`
+        : `同期（未 push ${many(a)}${b > 0 ? ` / 未取り込み ${many(b)}` : ""}）`;
+    const titleEn = (a: number, b: number) =>
+      a === 0
+        ? `Sync (${many(b)} to pull, not pulled automatically)`
+        : `Sync (${many(a)} unpushed${b > 0 ? ` / ${many(b)} to pull` : ""})`;
     combos.forEach(([a, b], i) => {
       const id = syncAttention[i]!;
       expect(titleItems.find((m) => m.command === id)).toEqual({
@@ -174,30 +185,35 @@ describe("package.json のビューのタイトル行", () => {
       });
       expect(commands.find((c) => c.command === id)).toEqual({
         command: id,
-        title: `同期（未 push ${many(a)}${b > 0 ? ` / 未取り込み ${many(b)}` : ""}）`,
+        title: titleJa(a, b),
         category: "deguboard",
         icon: {
           light: "media/sync-attention-light.svg",
           dark: "media/sync-attention-dark.svg",
         },
       });
-      expect(nlsEn[`command.sync.attention${a}_${b}.title`]).toBe(
-        `Sync (${many(a)} unpushed${b > 0 ? ` / ${many(b)} to pull` : ""})`,
-      );
+      expect(nlsEn[`command.sync.attention${a}_${b}.title`]).toBe(titleEn(a, b));
       // 差し替え用なので、コマンドパレットには出さない
       expect(menus["commandPalette"]).toContainEqual({ command: id, when: "false" });
     });
   });
 
-  it("同期のボタンの点は未 push があるときだけ出し、未取り込みだけ（自動で取り込める）とすべて同期済みでは出さない", () => {
-    const value = (ahead: number, behind: number) =>
-      attentionValue(SYNC_ATTENTION, syncAttentionCounts({ ahead, behind }));
+  it("同期のボタンの点は人の同期が要る間（未 push がある、または未取り込みの自動の取り込みが止まっている）だけ出し、自動で取り込める未取り込みだけとすべて同期済みでは出さない", () => {
+    const value = (ahead: number, behind: number, auto_pull_blocked = false) =>
+      attentionValue(SYNC_ATTENTION, syncAttentionCounts({ ahead, behind, auto_pull_blocked }));
     expect(value(0, 0)).toBe(0);
     expect(value(0, 4)).toBe(0);
     expect(value(1, 0)).toBe("1_0");
     expect(value(2, 1)).toBe("2_1");
     // 上限より多い件数は「3+」のコマンドにまとめる
     expect(value(12, 5)).toBe("3_3");
+    // 自動の取り込みが止まって未取り込みが残る（まとめ待ちの変更・dg の外の変更など）ときも、人の同期が要るので点を出す
+    expect(value(0, 2, true)).toBe("0_2");
+    expect(value(0, 4, true)).toBe("0_3");
+    // 未 push があれば、止まっていてもいなくても未 push と未取り込みの件数で出す
+    expect(value(1, 2, true)).toBe("1_2");
+    // 止まった印が残っていても、取り込むものがなければ出さない
+    expect(value(0, 0, true)).toBe(0);
   });
 
   it("点付きのアイコンはライトとダークで、線をテーマのアイコンの色、点を警告の色で描く", () => {
