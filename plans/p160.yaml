@@ -20,7 +20,7 @@ after:
     - t1107
   t1117:
     - t1116
-pending_approval: true
+pending_approval: false
 details:
   t1100:
     scope: merge.test.ts・pr.test.ts・orphan-review.test.ts の準備を雛形から写す形にする。判定の切り出しは含めない
@@ -66,3 +66,5 @@ details:
     scope: 見直しに効く guide.notes に、要件 ID を持つ約束を変える PR が usage・usage.ja・requirements.md の節を同じ PR で直したかを確かめる規則を 1〜2 文と Basis の行 1 行で足す
     approach: retro.md の書き方に倣って docs/guide-notes に見直しの補足を置き、config の guide.notes.review にその file を設定する
     tier: light
+approved_by: maji/agent
+approved_at: 2026-11-18T21:13:34Z
