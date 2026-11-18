@@ -75,7 +75,7 @@ import {
 } from "./hook-sessions.js";
 import { runToolRequested } from "./pre-tool-use.js";
 import { runTurnStopped } from "./turn-stopped.js";
-import { adoptableReviewRecord } from "./orphan-review.js";
+import { adoptableReviewRecord } from "./orphan-review-judge.js";
 import {
   closePreviousFixRunOrWarn,
   crashedSubagentRunAt,

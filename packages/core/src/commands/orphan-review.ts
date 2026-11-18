@@ -1,108 +1,46 @@
 // 持ち主のない保留の見直しの結果を、見直しの記録として数える（RN-9、ADR-025。t699）。dg next の段階と dg gate の review・fix_rounds が
 // 同じ関数を読み、どちらも何も書かない。dg sync と dg pr ready は同じ判定で記録を Git に書き、保留をその Run に結び付ける
 // （recordOrphanReviews。t700）。書いた後は保留が残らないので、書く前と同じ見直しを Git の Run から数える。
-//   - 保留（run review-result が書く先の Run なしに置いた回。record.ts の ReviewRound の run が null）は、フックがあれば前景の見直し役が
-//     返ったときにフックが見直しの Run に結び付ける（adoptPendingRounds）。親が next・gate を呼ぶときにまだ結び付いていない保留は、
-//     フックが Run を記録しなかったもの（フックが届かない環境）なので、見直しの記録として数える
-//   - チケットに開いた見直しの Run があるか、動いているサブエージェントの印（bindTranscript の live）があれば、これから結び付く
-//     保留かもしれないので数えない
-//   - 見直しは結果を書いた時刻（保留の at）に閉じたものとして数える。今の時刻にすると、最後のコミットより前の結果が
-//     「最後の push より後の見直し」を満たしてしまう（見直した SHA を持たない前の回のとき。SHA を持つ回は SHA で比べる。t763）
-//   - 同じ push の後の保留が複数あれば最新の 1 件だけを数える（同じ状態の見直しの呼び直し）。push をまたぐ保留は別の回にする。
-//     push の区切りは作業ブランチのコミットの時刻で近似する（lastPushedAt と同じく push した時刻は Git に残らない）
-//   - 前景の見直し役が動いている間に書いた記録は、見直し役が返ったときに起動のフックが引き取り、capture: none を外す
-//     （adoptableReviewRecord。t701）
+// 数える判定（どの保留を数えるか、いつ数えないか、push の区切り）は orphan-review-judge.ts の countOrphanReviews にあり、
+// ここは事実（サブエージェントが動いているか・保留の回・コミットの時刻）を集めて渡すことと、記録を書くことだけをする
 
 import { branchCommitTimes } from "../git/facts.js";
 import { toIsoDateTime } from "../model/common.js";
-import { emptyUsage, newRunId, REVIEW_STEP, type Run, type RunId } from "../model/run.js";
-import type { TicketId } from "../model/id.js";
+import { newRunId, REVIEW_STEP, type Run, type RunId } from "../model/run.js";
 import type { Ticket } from "../model/ticket.js";
-import {
-  isLiveSubagent,
-  linkHeldRounds,
-  readReviewFindings,
-  type ReviewRound,
-} from "../run/record.js";
+import { isLiveSubagent, linkHeldRounds, readReviewFindings } from "../run/record.js";
 import type { CommandContext } from "./define.js";
-
-/** 持ち主のない保留から作った見直しの記録の ID。段階と判定の文に出る（Run の ID ではない） */
-const orphanId = (at: string) => `held review result written at ${at}` as RunId;
+import { countOrphanReviews } from "./orphan-review-judge.js";
 
 /**
- * 保留の回から、見直しとして数える記録を作る（純粋関数）。since（branch_at）より前の回は前の作業なので数えない。
- * commits は作業ブランチのコミットの時刻（push の区切り）。同じ区切りの中では最新の回だけを残す
- */
-export function orphanReviewsOf(
-  ticket: TicketId,
-  rounds: readonly Pick<ReviewRound, "run" | "at" | "review" | "session" | "head">[],
-  since: string | undefined,
-  commits: readonly string[],
-): Run[] {
-  const boundaries = [...commits].sort();
-  // 結果を書いた時刻の直前のコミットの時刻（なければ空）。同じ値の回は同じ push の後の回
-  const pushOf = (at: string) => boundaries.filter((c) => c <= at).at(-1) ?? "";
-  const latest = new Map<string, Pick<ReviewRound, "at" | "review" | "session" | "head">>();
-  const held = rounds
-    .filter((r) => r.run === null && r.at >= (since ?? ""))
-    .sort((a, b) => a.at.localeCompare(b.at));
-  for (const r of held) latest.set(pushOf(r.at), r);
-  return [...latest.values()].map((r) => ({
-    id: orphanId(r.at),
-    ticket,
-    step: REVIEW_STEP,
-    agent: "unknown",
-    model: null,
-    started_at: r.at,
-    finished_at: r.at,
-    result: "success",
-    error: null,
-    retries: 0,
-    retry_reasons: [],
-    usage: emptyUsage(),
-    tools: null,
-    // 結果を書いたセッション。起動のフックが同じセッションの記録だけを引き取る（adoptableReviewRecord）
-    session: r.session ?? null,
-    review: r.review,
-    // 結果を書いたときのローカルの先端。新しさは dg gate・dg next がこれをリモートの先端と比べる（t763。ない回は時刻で比べる）
-    ...(r.head ? { head: r.head } : {}),
-    // 会話記録を取らずに作った記録の印。書いた記録（recordOrphanReviews）にもそのまま入る
-    capture: "none",
-    waited_seconds: null,
-    waiting_since: null,
-    settling_since: null,
-  }));
-}
-
-/**
- * チケットの持ち主のない保留を、閉じた見直しの記録として返す。running は実行中の Run（ほかのチケットのものを含んでよい）。
- * 開いた見直しの Run か、動いているサブエージェントの印（止まって待つ印・書き終わり待ちの印のないもの）があれば空
+ * チケットの持ち主のない保留を、閉じた見直しの記録として返す（判定は countOrphanReviews）。running は実行中の Run
+ * （ほかのチケットのものを含んでよい）
  */
 export async function orphanReviewRuns(
   ctx: CommandContext,
   ticket: Pick<Ticket, "id" | "branch" | "branch_at">,
   running: readonly Run[],
 ): Promise<Run[]> {
-  const open = running.filter((r) => r.ticket === ticket.id && r.finished_at === null);
-  if (open.some((r) => r.step === REVIEW_STEP)) return [];
-  for (const r of open) {
-    // 止まったかの見方は run finish が動いているサブエージェントの Run を拒むとき（rejectLiveSubagentRun）と同じ
-    if (r.waiting_since !== null || r.settling_since !== null) continue;
-    if (await isLiveSubagent(ctx.repo, r.id)) return [];
+  const live = new Set<RunId>();
+  for (const r of running) {
+    if (r.ticket !== ticket.id || r.finished_at !== null) continue;
+    if (await isLiveSubagent(ctx.repo, r.id)) live.add(r.id);
   }
   const rounds = (await readReviewFindings(ctx.repo, ticket.id))?.rounds ?? [];
-  if (!rounds.some((r) => r.run === null)) return [];
+  // コミットの時刻は保留の回があるときだけ読む（git を呼ぶので。保留がなければ判定は区切りを使わない）。
   // fetch はしない（next と gate は先に remoteTip で取り込む）。読めなければ区切りなし（最新の 1 件だけ）
-  const commits = ticket.branch
-    ? ((await branchCommitTimes(ctx.repo, ticket.branch).catch(() => undefined)) ?? [])
-    : [];
-  return orphanReviewsOf(
-    ticket.id,
+  const commits =
+    ticket.branch && rounds.some((r) => r.run === null)
+      ? ((await branchCommitTimes(ctx.repo, ticket.branch).catch(() => undefined)) ?? [])
+      : [];
+  return countOrphanReviews(ticket.id, {
+    running,
+    live,
     rounds,
-    ticket.branch_at,
+    since: ticket.branch_at,
     // コミッタの時刻は時差付きなので、保留の時刻（UTC）と文字列で比べられる形にそろえる
-    commits.map((c) => toIsoDateTime(new Date(c.at))),
-  );
+    commits: commits.map((c) => toIsoDateTime(new Date(c.at))),
+  });
 }
 
 /** 持ち主のない保留から書いた見直しの記録。written は今回書いた Run、linked は保留を結び付ける Run（前に書いた記録を含む） */
@@ -155,31 +93,4 @@ export async function linkOrphanRounds(
   recorded: RecordedOrphanReviews,
 ): Promise<void> {
   await linkHeldRounds(ctx.repo, ticket.id, ticket.branch_at, recorded.linked);
-}
-
-/**
- * 前景の見直し役が返ったときに、起動のフックが新しい Run を開かずに引き取る見直しの記録（t701）。見直し役が動いている間は Run がないので、
- * 別のプロセスの dg sync・dg pr ready がその保留を持ち主のないものとして先に記録にしうる。引き取らずに開くと、結果のない Run が
- * 失敗で閉じて最新の見直しが失敗に見え、保留が新しい Run に結び付けば同じ見直しを 2 回数える。
- * 引き取るのは、同じチケットの capture: none の見直しの記録のうち、同じセッション（結果を書いたセッション）で起動（launchedAt）より後に
- * 書かれたものだけ。セッションの分からない記録・別のセッションの記録・起動より前の記録は、この見直し役の結果でないので引き取らない。
- * 複数あれば最も後のもの
- */
-export function adoptableReviewRecord(
-  runs: Iterable<Run>,
-  ticket: TicketId,
-  session: string,
-  launchedAt: string,
-): Run | undefined {
-  return [...runs]
-    .filter(
-      (r) =>
-        r.ticket === ticket &&
-        r.step === REVIEW_STEP &&
-        r.capture === "none" &&
-        r.session === session &&
-        r.started_at >= launchedAt,
-    )
-    .sort((a, b) => a.started_at.localeCompare(b.started_at) || a.id.localeCompare(b.id))
-    .at(-1);
 }

@@ -67,8 +67,8 @@ Run をエージェント自身が `run start`・`ticket claim` で開き、`run
 イベントごとの扱い・起動の時刻の補い・区切りの同じ秒の判定・書き終わりの待ち方・sync が閉じる範囲・保留の結び付け方は、次のコードとテストが正本で、「なぜ」はそのコメントとテスト名にある。
 
 - `packages/core/src/commands/hook.ts`（冒頭にイベントごとの扱い）・`packages/core/src/agents/adapters/claude-code-hooks.ts`（Claude Code のフックの入力と発火の順）
-- `packages/core/src/commands/run.ts`（`openRun`・`closePreviousFixRun`・`sessionOf`・`crashedSubagentRunAt`・`run review-result`・`run retry-reason`）・`packages/core/src/run/record.ts`（保留と実行中の記録）・`packages/core/src/commands/setup.ts`（照合の区切り）・`packages/core/src/commands/orphan-review.ts`（持ち主のない保留の判定と数え方・書き方）
-- `packages/core/src/commands/hook.test.ts`・`run.test.ts`・`commands-flow-reclaim.test.ts`・`orphan-review.test.ts`・`packages/core/src/agents/agents.test.ts`
+- `packages/core/src/commands/run.ts`（`openRun`・`closePreviousFixRun`・`sessionOf`・`crashedSubagentRunAt`・`run review-result`・`run retry-reason`）・`packages/core/src/run/record.ts`（保留と実行中の記録）・`packages/core/src/commands/setup.ts`（照合の区切り）・`packages/core/src/commands/orphan-review-judge.ts`（持ち主のない保留の判定と数え方）・`packages/core/src/commands/orphan-review.ts`（判定の事実の集め方と記録の書き方）
+- `packages/core/src/commands/hook.test.ts`・`run.test.ts`・`commands-flow-reclaim.test.ts`・`orphan-review-judge.test.ts`・`orphan-review.test.ts`・`packages/core/src/agents/agents.test.ts`
 
 ## 理由
 
