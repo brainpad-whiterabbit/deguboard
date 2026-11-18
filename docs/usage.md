@@ -192,7 +192,7 @@ dg config set notify.approvals false --local
 
 ## Take in remote updates
 
-While the board is open in VS Code, dg fetches the remote from time to time. When the remote updates can be taken in by a fast-forward alone, it takes them in and reloads the screen without asking. It does not take them in while there are unpushed commits, uncommitted changes, a rebase in progress, or changes made outside dg; then press the sync button. While there are unpushed commits, the sync button in the sidebar title has a dot, and its tooltip shows the counts (for example, "Sync (1 unpushed / 2 to pull)"). The number on the Activity Bar icon is the total of unpushed commits and remote updates that have not been pulled.
+While the board is open in VS Code, dg fetches the remote from time to time. When the remote updates can be taken in by a fast-forward alone, it takes them in and reloads the screen without asking. It does not take them in while there are unpushed commits, uncommitted changes, a rebase in progress, or changes made outside dg; then press the sync button. While your sync is needed, the sync button in the sidebar title has a dot, and its tooltip shows the counts: while there are unpushed commits (for example, "Sync (1 unpushed / 2 to pull)"), and while remote updates remain because dg could not take them in ("Sync (2 to pull, not pulled automatically)"). The number on the Activity Bar icon is the total of unpushed commits and remote updates that have not been pulled.
 
 ## Setup checklist
 

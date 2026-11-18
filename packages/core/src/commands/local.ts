@@ -73,6 +73,9 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
   let lastFetch: number | undefined;
   // status の後ろの fetch の後に、自動で取り込んだ回数（StatusView の auto_pulls）
   let autoPulls = 0;
+  // 最後に試した自動の取り込みが、取り込むものがあるのに止まったか（StatusView の auto_pull_blocked）。
+  // 試せなかったとき（届かない・ロックを取れない）は前の値のままにする
+  let autoPullBlocked = false;
 
   /** arrivedAt が undefined（書き込み）なら必ず再走査する。読みは届いた後に始まった走査が成功していればそれを使う */
   const context = async (arrivedAt: number | undefined): Promise<CommandContext> => {
@@ -159,10 +162,13 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       const view = serialized(true, async (arrivedAt) => {
         const ctx = await context(arrivedAt);
         const status = await syncStatus(ctx.repo);
+        // 止まった後に人の同期や書き込みが取り込んだら、止まった印を消す（次に試すまで残すと、後から届いた未取り込みを止まったと知らせてしまう）
+        if (status.behind === 0) autoPullBlocked = false;
         return {
           ...status,
           issues: ctx.store.issues.length,
           auto_pulls: autoPulls,
+          auto_pull_blocked: autoPullBlocked,
           data_dir: ctx.repo.dataDir,
           web_url: await remoteWebUrl(ctx.repo),
         };
@@ -185,22 +191,25 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
    * （同じ追跡ブランチの ref を同時に書くと片方の fetch が失敗する。取れないのはほかの dg が書き込み中で、その書き込みが fetch する）。
    * fetch の後、同じロックの中で、fast-forward で済むときだけ取り込む（条件は fastForwardIfClean）。古いのは画面の表示だけなので
    * （書くコマンドは書く前に取り込む。SY-2）、人の同期を待たずに映す。取り込んだら、後に続く読みに新しく走査させ、
-   * 回数を status に出して画面に読み直させる（VS Code はデータのファイルの見張りでも読み直す）
+   * 回数を status に出して画面に読み直させる（VS Code はデータのファイルの見張りでも読み直す）。
+   * 取り込むものがあるのに止まったら、それも status に出して、画面が人の同期が要ると知らせられるようにする
    */
   async function backgroundFetch(): Promise<void> {
     const ctx = await ctxPromise;
     if (!ctx?.repo.dataRemote) return;
     const repo = ctx.repo;
-    const pulled = await withLock(
+    const result = await withLock(
       repo.localDir,
       "write",
       async () => {
         const fetched = await fetchData(repo, STATUS_FETCH_TIMEOUT_MS);
-        return fetched.ok && fetched.remoteBranch && (await fastForwardIfClean(repo));
+        return fetched.ok && fetched.remoteBranch ? await fastForwardIfClean(repo) : undefined;
       },
       { waitMs: 0 },
     );
-    if (!pulled) return;
+    if (result === undefined) return;
+    autoPullBlocked = result === "blocked";
+    if (result !== "pulled") return;
     scanned = 0;
     autoPulls++;
   }
