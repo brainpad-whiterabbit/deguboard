@@ -73,7 +73,10 @@ interface Snapshot {
   me?: WhoamiView | null | undefined;
 }
 
-/** cache の置き場の鍵。形が変わったら番号を上げて古いものを読まない */
+/**
+ * cache の置き場の鍵。形が変わったら番号を上げて古いものを読まない。
+ * 本番で使うのはこのファイルだけ。export するのは、テストが今の鍵で cache を用意して読むため（番号を上げてもテストを直さずに済む）
+ */
 export const SNAPSHOT_KEY = "store.snapshot.v4";
 /** 前の版の鍵。読み直しの書き込みのときに消し、保存量を増やさない */
 const OLD_SNAPSHOT_KEYS = ["store.snapshot.v1", "store.snapshot.v2", "store.snapshot.v3"];

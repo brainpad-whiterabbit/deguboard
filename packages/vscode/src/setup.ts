@@ -212,7 +212,8 @@ export function heldSetupBoard(
 
 /**
  * 「Skill と hooks を入れる」ボタンが流すコマンド。最後に確かめた項目の直すコマンド（core が返す）から、--force の付くもの
- * （手を加えた Skill を上書きする）を除く。上書きは人がコマンドを見て自分で打つ。確かめた結果がなければ、どちらも入れる
+ * （手を加えた Skill を上書きする）を除く。上書きは人がコマンドを見て自分で打つ。確かめた結果がなければ、どちらも入れる。
+ * 本番で呼ぶのは下の setupCommands だけ。export するのは、--force を除くことと結果がないときの既定を、テストが直接確かめるため
  */
 export function skillsHooksCommands(view: SetupView | undefined): string[] {
   const item = view?.items.find((i) => i.id === "skills_hooks");

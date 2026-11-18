@@ -220,20 +220,24 @@ export async function integrate(
 
 /**
  * 未 push（ahead）と未取り込み（behind）のコミット数を、追跡 ref（dataRemoteRef）と比べて 1 回の git で数える。
- * 数えられなかったとき（追跡 ref がまだない、など）は undefined。strict を渡すと、数えられないときに git の失敗を投げる
+ * 数えられなかったとき（追跡 ref がまだない、など）は、git の失敗（GitError）を投げずに返す。
+ * 投げるかは呼び出し側が決め、投げるために同じ git を呼び直さない
  */
-async function aheadBehind(
-  repo: GitRepo,
-  strict = false,
-): Promise<{ ahead: number; behind: number } | undefined> {
-  const counted = await git(
-    repo,
-    ["rev-list", "--left-right", "--count", `HEAD...${dataRemoteRef(repo)}`],
-    { allowFailure: !strict },
-  );
-  if (counted.code !== 0) return undefined;
-  const [ahead = "0", behind = "0"] = counted.stdout.trim().split(/\s+/);
-  return { ahead: Number(ahead), behind: Number(behind) };
+async function aheadBehind(repo: GitRepo): Promise<{ ahead: number; behind: number } | GitError> {
+  try {
+    const counted = await git(repo, [
+      "rev-list",
+      "--left-right",
+      "--count",
+      `HEAD...${dataRemoteRef(repo)}`,
+    ]);
+    const [ahead = "0", behind = "0"] = counted.stdout.trim().split(/\s+/);
+    return { ahead: Number(ahead), behind: Number(behind) };
+  } catch (e) {
+    // 返すのは git が 0 以外で終わった失敗だけ。git がない・時間切れは、今までどおりここから投げる
+    if (e instanceof GitError && e.kind === "exit") return e;
+    throw e;
+  }
 }
 
 /**
@@ -249,7 +253,7 @@ export async function fastForwardIfClean(repo: GitRepo): Promise<boolean> {
   const remote = dataRemoteRef(repo);
   // 取り込むものがあるかを先に 1 回で確かめる（ほとんどの呼び出しでは何もない）。追跡 ref がなければ数えられずに false
   const counted = await aheadBehind(repo);
-  if (!counted || counted.ahead !== 0 || counted.behind === 0) return false;
+  if (counted instanceof GitError || counted.ahead !== 0 || counted.behind === 0) return false;
   // 途中の rebase は rebasing で返る。state がないのは基準がまだないとき
   const { check, state } = await inspectOutsideLocked(repo);
   if (check.kind !== "clean" || !state || Object.keys(state.dirty).length > 0) return false;
@@ -507,12 +511,12 @@ export async function syncStatus(
   if (!repo.dataRemote) return { ahead: 0, behind: 0, dirty, remote: null };
   // 追跡 ref があるかを先に聞かず、数えられなかったときだけ聞く（ほとんどの呼び出しでは ref がある。t1046）
   const counted = await aheadBehind(repo);
-  if (!counted) {
+  if (counted instanceof GitError) {
     const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
       allowFailure: true,
     });
-    // 追跡 ref があるのに数えられないのは別の失敗なので、今までどおり投げる
-    if (has.code === 0) await aheadBehind(repo, true);
+    // 追跡 ref があるのに数えられないのは別の失敗なので、数えたときの失敗をそのまま投げる
+    if (has.code === 0) throw counted;
     const ahead = Number((await git(repo, ["rev-list", "--count", "HEAD"])).stdout.trim());
     return { ahead, behind: 0, dirty, remote: repo.dataRemote };
   }
