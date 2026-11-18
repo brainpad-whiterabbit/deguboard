@@ -1,0 +1,34 @@
+{
+  "id": "r20261118-211840-0bd7",
+  "ticket": "t1116",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-18T21:18:40Z",
+  "finished_at": "2026-11-18T21:29:08Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "テスト dg-stale-dist.test.ts の 106 行目のコメントが、削除する done.md を案内の根拠に挙げている（development.md だけを挙げるよう直す）"
+  ],
+  "usage": {
+    "input": 56,
+    "output": 12319,
+    "cache_read": 1394957,
+    "cache_write": 52202
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 2,
+    "bash": 15,
+    "other": 12,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 2
+  },
+  "session": "e50a5c37-155d-4dd8-acc1-a12cf2872bca",
+  "review": null,
+  "waited_seconds": 0
+}
