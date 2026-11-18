@@ -1,0 +1,34 @@
+{
+  "id": "r20261118-213050-c372",
+  "ticket": "t1116",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-18T21:30:50Z",
+  "finished_at": "2026-11-18T21:31:48Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "PR 本文の「残った参照」節が直り済みのテストコメントを未対応と書いており、検査の通過も古いコミットのまま"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 4907,
+    "cache_read": 248123,
+    "cache_write": 28736
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 1,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "e50a5c37-155d-4dd8-acc1-a12cf2872bca",
+  "review": null,
+  "waited_seconds": 0
+}
