@@ -244,12 +244,13 @@ export function useAsk(): Ask {
 
 /**
  * 画面の今の対象を知らせる（UI-15）。タイトル行の吹き出しは、これを対象にして入力欄を開く。
- * 画面を離れる（外す）と取り下げ、対象なしに戻る
+ * 画面を離れる（外す）と取り下げ、対象なしに戻る。
+ * 描画のコミットと副作用の間に届いた current つきの ask の event（HostBridge）が前の対象を読まないよう、コミットの中で同期に走る useLayoutEffect で知らせる
  */
 export function useAskCurrent(targets: readonly string[]): void {
   const { setCurrent } = useAsk();
   const key = askKey(targets);
-  useEffect(() => setCurrent(parseAskKey(key).targets), [key, setCurrent]);
+  useLayoutEffect(() => setCurrent(parseAskKey(key).targets), [key, setCurrent]);
 }
 
 export function useHost(): Host {
@@ -279,15 +280,18 @@ export function useUiState<T>(key: string, initial: T): [T, (value: T) => void] 
  */
 export function HostBridge({ client }: { client: WebviewClient }) {
   const store = useStore();
-  const { request, open: openAsk, close: closeAsk, current } = useAsk();
+  const ask = useAsk();
   const reloadRef = useRef(store.reload);
   const setupEventRef = useRef(store.onSetupEvent);
-  // 最新の reload・onSetupEvent を通知の受け手から呼ぶ。描画中に ref を書かない（react/refs）ので、描いた後に写す。
-  // useEffect で写すと、描画のコミットと副作用の間に届いた event が古い受け手に渡る（setup の event は needsSetup が古い値のまま捨てられる）ので、
-  // コミットの中で同期に走る useLayoutEffect で写す
+  const askRef = useRef(ask);
+  // 最新の reload・onSetupEvent と入力欄の開閉（ask）を通知の受け手から使う。描画中に ref を書かない（react/refs）ので、描いた後に写す。
+  // useEffect で写す（か、受け手を張り直す）と、描画のコミットと副作用の間に届いた event が古い値で受けられる
+  // （setup の event は needsSetup が古い値のまま捨てられ、toggle つきの ask は開閉の変わる前の request を見る）ので、
+  // コミットの中で同期に走る useLayoutEffect で写し、購読は client が変わったときだけ張り直す
   useLayoutEffect(() => {
     reloadRef.current = store.reload;
     setupEventRef.current = store.onSetupEvent;
+    askRef.current = ask;
   });
   useEffect(
     () =>
@@ -297,11 +301,12 @@ export function HostBridge({ client }: { client: WebviewClient }) {
         else if (event.name === "reload") void reloadRef.current();
         else if (event.name === "setup") void setupEventRef.current();
         else if (event.name === "ask") {
-          if (event.toggle && request) closeAsk();
-          else openAsk(event.current ? current() : event.targets);
+          const { request, open, close, current } = askRef.current;
+          if (event.toggle && request) close();
+          else open(event.current ? current() : event.targets);
         }
       }),
-    [client, openAsk, closeAsk, request, current],
+    [client],
   );
   return null;
 }

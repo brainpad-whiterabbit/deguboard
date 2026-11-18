@@ -111,9 +111,9 @@ function mountWebview(
   );
   /**
    * 前の描画の副作用が済んでから event を送り、それで起きた更新と effect を流し切る（app.test.tsx の deliver と同じ待ち方）。
-   * 画面の今の対象は useAskCurrent が passive effect で知らせ、HostBridge は開閉（request）が変わるたびに passive effect で受け手を購読し直す。
+   * 画面の今の対象（useAskCurrent）と開閉（HostBridge）は layout effect で写すので、コミットの済んだ描画の分は待たなくても最新になる（host-bridge.test.tsx）。
    * findBy・waitFor は DOM に出たことしか待たない。CPU を取り合って React がその描画の passive effect を次の setImmediate に回すと、
-   * DOM を見てすぐ送った current・toggle つきの ask は、知らされる前の対象か、開閉の変わる前の受け手で受けられる。
+   * DOM を見てすぐ送った event は、その effect が起こす更新（次の描画）より先に届く。
    * async の act は、先に積まれた setImmediate を済ませ、中で起きた更新と effect を残さず流してから返る
    */
   const deliver = async (event: WebviewEvent) => {
@@ -130,7 +130,7 @@ function mountWebview(
     terminalsChanged: (next: TerminalChoice[]) =>
       act(() => send({ kind: "event", name: "terminals", terminals: next })),
     /**
-     * 対象を渡して開く。どの受け手も同じ openAsk に event の対象を渡すので、購読し直す effect の前に届いても結果は変わらず、同期の act で送る
+     * 対象を渡して開く。対象は event が持ち、画面の今の対象にも開閉にも依らないので、同期の act で送る
      */
     ask: (targets: string[]) => act(() => send({ kind: "event", name: "ask", targets })),
     /** タイトル行の吹き出し：画面の今の対象で開く */
@@ -836,8 +836,8 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
         .find((b) => b.querySelector("code")?.textContent === id)!;
 
     /**
-     * カンバンが対象（選んでいる Iteration）を選んだ描画を待ってから吹き出しで頼む。知らせる効果（useAskCurrent）は
-     * その描画のあとに流れるが、askCurrent が済ませてから送るので、頼み直さなくても選んだ対象で開く
+     * カンバンが対象（選んでいる Iteration）を選んだ描画を待ってから吹き出しで頼む。対象はその描画のコミットの中で
+     * 知らせる（useAskCurrent の layout effect）ので、頼み直さなくても選んだ対象で開く
      */
     const askAnnounced = async (view: ReturnType<typeof mountWebview>, id: string) => {
       await waitFor(() => expect(iterationChip(id).getAttribute("aria-pressed")).toBe("true"));

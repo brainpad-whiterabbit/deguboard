@@ -157,8 +157,8 @@ function mountWithBridge(
  * ほかの toggle と navigate は、router の toggleRoute か代入でハッシュを同期に書き換えるだけで、受け手の版にも前の描画の effect にも依らないので、
  * 同期の act で送り、ハッシュはその場で確かめ、画面はその後の findBy・waitFor で待つ。
  * findBy・waitFor は DOM に出たことしか待たない。CPU を取り合って描画が 5ms を超えると、React はその描画の passive effect
- * （HostBridge が ask の受け手を購読し直すなど）を次の setImmediate に回すので、DOM を見てすぐ送った event はその effect より先に届く
- * （最新の reload・onSetupEvent は HostBridge が layout effect で写すので、effect を待たなくても届く。host-bridge.test.tsx）。
+ * を次の setImmediate に回すので、DOM を見てすぐ送った event はその effect より先に届く
+ * （最新の reload・onSetupEvent と入力欄の開閉は HostBridge が layout effect で写すので、effect を待たなくても届く。host-bridge.test.tsx）。
  * jsdom の hashchange も setImmediate で届くので、toggle の直後に送った reload の結果が、ハッシュの変化より先に描かれることがある。
  * async の act は、先に積まれた setImmediate を済ませ、中で起きた更新と effect を残さず流してから返る
  */
