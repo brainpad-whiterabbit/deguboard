@@ -1,7 +1,14 @@
-// 照合に使う事実の収集（ST-4〜ST-6、ADR-028）。取れない事実は undefined（不明）
+// 照合に使う事実の収集（ST-4〜ST-6、ADR-028）。取れない事実は undefined（不明）。
+// 読んだ値から branch_merged と前の作業の PR を決める判定は facts-judge.ts にある
 
 import { toIsoDateTime, type Status } from "../model/common.js";
 import type { Facts } from "../workflow/conditions.js";
+import {
+  branchAncestryNeeded,
+  isEarlierWorkPr,
+  judgeBranchMerged,
+  type BranchMergeInput,
+} from "./facts-judge.js";
 import type { GitRepo } from "./repo.js";
 import { GitError, runGh, runGit } from "./run.js";
 
@@ -12,13 +19,9 @@ export interface BranchFactsOptions {
   needPr: boolean;
   /** チケットの今の Status。in_progress で push していないブランチは作業がまだないとみなす（ST-5） */
   status?: Status | undefined;
-  /**
-   * ブランチを記録した時刻（ISO）。ブランチ名で引いた PR のうち、開いていない（マージ済みか閉じた）もので
-   * 作成がこれより前のものは、同じ名前を使い回した前の作業の PR とみなして PR はないと読む（ST-6）。
-   * 記録した番号で引くときは見ない
-   */
+  /** ブランチを記録した時刻（ISO）。ブランチ名で引いた PR が前の作業のものかを決める（isEarlierWorkPr。ST-6） */
   since?: string | undefined;
-  /** claim が記録した作業ブランチの起点の SHA（`branch_base`）。先端がこれと同じならマージ済みにしない（ST-4）。なければ見ない */
+  /** claim が記録した作業ブランチの起点の SHA（`branch_base`）。branch_merged の判定が見る（judgeBranchMerged。ST-4） */
   start?: string | undefined;
 }
 
@@ -156,33 +159,25 @@ export async function collectBranchFacts(
   facts.branch_exists = local || remote;
   if (repo.codeRemote) facts.branch_pushed = remote;
 
+  // branch_merged は読んだ値から facts-judge.ts が決める。祖先かは、決めるのに要るときだけ git に聞く
   const tip = remote ? remoteRef : local ? localRef : undefined;
   const base = await baseRef(repo);
-  if (tip && base) {
-    // 先端が base と同じなら、切ったばかりで作業のないブランチとみなして merged にしない。
-    // ff マージの直後も同じ形になるが、base が進めば真の祖先になり、PR があれば pr_merged で先に拾える。
-    // 先端が base の真の祖先でも、commit のないブランチは base が進めば同じ形になる（グラフだけでは
-    // ff マージと区別できない）。in_progress で push していないブランチはまだ作業がないとみなして merged にしない。
-    // push した後は、claim が記録した起点（start）と先端が同じなら作業がないとみなして merged にしない（t764）。
-    // claim はブランチをその起点から切るので、claim の後に人が別の起点から切り直した形だけが拾えない（受け入れる）。
-    // 起点のない前からのチケットは祖先かだけで判定する。先端のコミット日時と branch_at を比べると
-    // PC ごとの時計のずれで判定が変わるので採らない。push せずローカルで ff マージした形は拾えない
-    const tipSha = await sha(repo, tip);
-    const same = tipSha === (await sha(repo, base));
-    const unworked = opts.start !== undefined && tipSha === opts.start;
-    const fresh = opts.status === "in_progress" && facts.branch_pushed === false;
-    const r =
-      same || fresh || unworked
-        ? undefined
-        : await runGit(repo.dataDir, ["merge-base", "--is-ancestor", tip, base], {
-            allowFailure: true,
-          });
-    if (same || fresh || unworked || r?.code === 1) facts.branch_merged = false;
-    else if (r?.code === 0) facts.branch_merged = true;
-  } else if (!tip && base) {
-    // ブランチがないならマージ済みとは言えない（消えたブランチは警告の対象）
-    facts.branch_merged = false;
+  const input: BranchMergeInput = {
+    tip: tip && base ? await sha(repo, tip) : undefined,
+    base: base ? await sha(repo, base) : undefined,
+    pushed: facts.branch_pushed,
+    start: opts.start,
+    status: opts.status,
+  };
+  let ancestor: boolean | undefined;
+  if (tip && base && branchAncestryNeeded(input)) {
+    const r = await runGit(repo.dataDir, ["merge-base", "--is-ancestor", tip, base], {
+      allowFailure: true,
+    });
+    ancestor = r.code === 0 ? true : r.code === 1 ? false : undefined;
   }
+  const merged = judgeBranchMerged({ ...input, ancestor });
+  if (merged !== undefined) facts.branch_merged = merged;
 
   if (!opts.needPr) return { facts };
   const pr = await collectPrFacts(repo, branch, opts.pr, opts.since);
@@ -403,17 +398,14 @@ async function collectPrFacts(
   if ("missing" in viewed) return missing;
   const data = viewed.data;
   const createdAt = isoOrUndefined(data.createdAt);
-  // ブランチを記録する前に作られ、開いていない PR（マージ済みも閉じたものも）は、同じブランチ名で出した前の作業のもの（t206・t747）。
-  // 開いたままの PR は、記録より前に作られても今の作業の PR として使う（手放して claim し直した後も続けられるように）。
-  // 作成の時刻が読めないときは外さない
+  // 前の作業の PR かは facts-judge.ts が決める。外した PR は PR がないと読み、番号が読めれば照合が警告する
   if (
-    pr === undefined &&
-    since !== undefined &&
-    data.state !== "OPEN" &&
-    createdAt !== undefined &&
-    Date.parse(createdAt) < Date.parse(since)
+    isEarlierWorkPr(
+      { state: data.state, createdAt },
+      { recorded: pr !== undefined, branchAt: since },
+    )
   ) {
-    return Number.isInteger(data.number) && (data.number as number) > 0
+    return Number.isInteger(data.number) && (data.number as number) > 0 && createdAt !== undefined
       ? {
           ...missing,
           ignored: { number: data.number as number, state: data.state, createdAt },

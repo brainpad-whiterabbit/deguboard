@@ -828,33 +828,25 @@ describe("チケットの流れ（照合と claim）", () => {
     }
   });
 
-  it("ブランチで探した PR のうち、記録より前に作られて開いていないもの（閉じたものも）は前の作業とみなして拾い、開いたままのものは記録より前に作られていても拾う（t747）", async () => {
+  // どの PR を前の作業とみなすか（開いたままの古い PR・claim し直した後の新しい PR）は facts-judge.test.ts が gh なしで見る。
+  // ここは外した閉じた PR の状態を警告の文に出す経路を見る
+  it("ブランチで探した PR のうち、記録より前に作られてマージされずに閉じたものは前の作業とみなして拾わず、閉じたことを警告する（t747）", async () => {
     const f = await initializedFixture();
     let clock = new Date("2026-11-02T05:00:00Z");
     const ctx = await reopenInitialized(f, { now: () => clock });
     await runCommand(ticketCreate, ctx, { title: "Closed old PR" });
-    await runCommand(ticketCreate, ctx, { title: "Open old PR" });
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: "t1",
       branch: "t1-closed-old",
     });
-    await runCommand(ticketClaim, ctx, {
-      no_worktree: true,
-      ticket: "t2",
-      branch: "t2-open-old",
-    });
     await recordBaseline(ctx.repo);
-    for (const b of ["t1-closed-old", "t2-open-old"]) {
-      await git(f.cloneA, ["branch", b]);
-    }
+    await git(f.cloneA, ["branch", "t1-closed-old"]);
 
-    // 前の作業：マージされずに閉じた PR #105 と、まだ開いたままの PR #110。どちらも claim より前に作られた
+    // 前の作業：claim より前に作られ、マージされずに閉じた PR #105
     const bin = await fakeGhPrs(f.root, {
       "t1-closed-old":
         '{"number":105,"state":"CLOSED","isDraft":false,"createdAt":"2026-10-31T10:00:00Z","mergedAt":null}',
-      "t2-open-old":
-        '{"number":110,"state":"OPEN","isDraft":false,"createdAt":"2026-10-31T11:00:00Z","mergedAt":null}',
     });
     const savedPath = process.env["PATH"];
     process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
@@ -870,53 +862,7 @@ describe("チケットの流れ（照合と claim）", () => {
       expect(t1Warnings[0]).toContain("PR #105");
       expect(t1Warnings[0]).toContain("is closed");
       expect(t1Warnings[0]).toContain("2026-10-31T10:00:00Z");
-      // 開いたままの古い PR は除外せず、記録して review に進む
-      expect(synced.data.pr_recorded).toContainEqual({ id: "t2", pr: 110 });
-      expect(ctx.store.tickets.get("t2")?.data).toMatchObject({ status: "review", pr: 110 });
-      expect(synced.warnings.join("\n")).not.toContain("PR #110");
-    } finally {
-      process.env["PATH"] = savedPath;
-      resetGhCache();
-    }
-  });
-
-  it("マージされずに閉じた前の作業の PR が残るブランチ名で claim し直し、新しい PR を出すと、その PR を記録して review に進む（t747）", async () => {
-    const f = await initializedFixture();
-    let clock = new Date("2026-11-02T05:00:00Z");
-    const ctx = await reopenInitialized(f, { now: () => clock });
-    await runCommand(ticketCreate, ctx, { title: "Reclaimed branch" });
-    await runCommand(ticketClaim, ctx, {
-      no_worktree: true,
-      ticket: "t1",
-      branch: "t1-reclaimed",
-    });
-    await recordBaseline(ctx.repo);
-    await git(f.cloneA, ["branch", "t1-reclaimed"]);
-
-    const savedPath = process.env["PATH"];
-    try {
-      // 前の作業の PR #105 は閉じたまま。claim し直した後の照合では拾わない
-      const bin = await fakeGhPrs(f.root, {
-        "t1-reclaimed":
-          '{"number":105,"state":"CLOSED","isDraft":false,"createdAt":"2026-10-31T10:00:00Z","mergedAt":null}',
-      });
-      process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
-      resetGhCache();
-      clock = new Date("2026-11-02T06:00:00Z");
-      const first = await runCommand(sync, ctx, {});
-      expect(first.data.pr_recorded).toEqual([]);
-      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "in_progress" });
-      expect(ctx.store.tickets.get("t1")?.data.pr).toBeUndefined();
-
-      // 同じブランチで新しい PR #200 を出す（claim の後に作られ、開いている）
-      await fakeGhPrs(f.root, {
-        "t1-reclaimed":
-          '{"number":200,"state":"OPEN","isDraft":false,"createdAt":"2026-11-02T06:30:00Z","mergedAt":null}',
-      });
-      clock = new Date("2026-11-02T06:35:00Z");
-      const second = await runCommand(sync, ctx, {});
-      expect(second.data.pr_recorded).toEqual([{ id: "t1", pr: 200 }]);
-      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "review", pr: 200 });
+      expect(synced.data.pr_recorded).toEqual([]);
     } finally {
       process.env["PATH"] = savedPath;
       resetGhCache();
