@@ -1,0 +1,58 @@
+id: p158
+tickets: [t1100, t1093, t1101, t1102, t1104, t1103, t1105, t1107, t1106]
+after:
+  t1101:
+    - t1100
+  t1102:
+    - t1101
+  t1104:
+    - t1101
+  t1103:
+    - t1100
+    - t1101
+  t1105:
+    - t1104
+    - t1102
+    - t1103
+  t1107:
+    - t1105
+  t1106:
+    - t1107
+pending_approval: true
+details:
+  t1100:
+    scope: merge.test.ts・pr.test.ts・orphan-review.test.ts の準備を雛形から写す形にする。判定の切り出しは含めない
+    approach: gate.test.ts の createFixtureFrom の形に倣い、ファイルごとに 1 度だけ雛形を作って各件は写し、時刻の前後関係の理由をコメントに書く
+    tier: standard
+  t1093:
+    scope: 人の同期が要るのに自動で取り込めない場合に同期のボタンで知らせるかを人が決め、その結論に沿って点・ツールチップ・要件 UI-6 かコメントとテストを揃える
+    approach: 着手したら先に人に知らせるかどうかを選択肢で聞き、結論をチケットに書いてから attention.ts（と要れば StatusView）を直す
+    tier: heavy
+  t1101:
+    scope: gate の条件と pr ready・merge の後処理を、事実を受け取る 2 段の純粋な関数に分け、判定の件を移す。ほかのコマンドの切り出しは含めない
+    approach: 事実の型（読めないときを値で持つ）を定めて judgeGate を集める・決める（検査の前後の 2 段）・行うに分け、flow.test.ts の facts({...}) の形で組み合わせを網羅する
+    tier: heavy
+  t1102:
+    scope: CLAUDE.md のコードの規約に 1 項、development.md のビルドとテストに 3 層の書き方、ADR-033 の Core の中の境界を書き換える。コードは変えない
+    approach: t1101 で入れた関数とテストを例として指し、ADR-033 の本文を直接書き換えて採らなかった案を 1 行残す
+    tier: standard
+  t1104:
+    scope: collectBranchFacts の branch_merged と collectPrFacts の前の作業の PR を外す判定を純粋な関数に分ける。照合の Run の閉じ方は含めない
+    approach: 読み取りは facts.ts に残して読んだ値を新しい関数に渡し、判定だけの件を facts.test.ts と commands-flow-reconcile.test.ts から移す
+    tier: standard
+  t1103:
+    scope: orphanReviewRuns の数える判定を、サブエージェントが動いているかを事実の値で受け取る純粋な関数にする
+    approach: isLiveSubagent の結果を先に集めて渡し、orphanReviewsOf・adoptableReviewRecord と合わせて判定を 1 つの関数にまとめ、判定の件を移す
+    tier: standard
+  t1105:
+    scope: reconcileAll の対象のチケットごとの、進める・pr と lines を記録する・PR による実装の Run を閉じる・警告するの決定を、行うことの列を返す純粋な関数にする。手直しの Run と対象外の Run は含めない
+    approach: 決める関数が列を返して行う側が順に実行する形にし、読み直しと集めた後の変更の扱いと、push の拒否の後の取り込み直しの扱いは保つ
+    tier: heavy
+  t1107:
+    scope: 手直しの Run と照合の対象外の実行中の Run の閉じ方を、t1105 の列の決め方に加える
+    approach: lastPushedAt をロックの外の事実の集めに移し、fixRunBoundary・closeFixRun と対象外の Run の分岐を決める関数の列に移す
+    tier: heavy
+  t1106:
+    scope: claim の拒否の判定と、前の手直しの Run を閉じるか・結果・finished_at の決定を純粋な関数にする
+    approach: t1107 で決めた Run の閉じ方の形に揃え、push の時刻とセッションを事実として受け取り、finished_at は fixRunFinishedAt で出す
+    tier: heavy
