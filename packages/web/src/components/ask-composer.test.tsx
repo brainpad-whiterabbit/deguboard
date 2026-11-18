@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { skillSummary, type TerminalChoice, type WebviewEvent } from "@deguboard/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../app.js";
 import type { WebviewClient } from "../client/webview.js";
 import { ASK_NOTE_KEY, ASK_OPEN_KEY, HostBridge, HostProvider, type Host } from "../host.js";
@@ -109,6 +109,17 @@ function mountWebview(
       </HostProvider>
     </StoreProvider>,
   );
+  /**
+   * 前の描画の副作用が済んでから event を送り、それで起きた更新と effect を流し切る（app.test.tsx の deliver と同じ待ち方）。
+   * 画面の今の対象は useAskCurrent が passive effect で知らせ、HostBridge は開閉（request）が変わるたびに passive effect で受け手を購読し直す。
+   * findBy・waitFor は DOM に出たことしか待たない。CPU を取り合って React がその描画の passive effect を次の setImmediate に回すと、
+   * DOM を見てすぐ送った current・toggle つきの ask は、知らされる前の対象か、開閉の変わる前の受け手で受けられる。
+   * async の act は、先に積まれた setImmediate を済ませ、中で起きた更新と effect を残さず流してから返る
+   */
+  const deliver = async (event: WebviewEvent) => {
+    await act(async () => {});
+    await act(async () => send(event));
+  };
   return {
     copied,
     sent,
@@ -118,12 +129,15 @@ function mountWebview(
     /** 拡張ホストからの、開いているターミナルが変わった通知 */
     terminalsChanged: (next: TerminalChoice[]) =>
       act(() => send({ kind: "event", name: "terminals", terminals: next })),
+    /**
+     * 対象を渡して開く。どの受け手も同じ openAsk に event の対象を渡すので、購読し直す effect の前に届いても結果は変わらず、同期の act で送る
+     */
     ask: (targets: string[]) => act(() => send({ kind: "event", name: "ask", targets })),
     /** タイトル行の吹き出し：画面の今の対象で開く */
-    askCurrent: () => act(() => send({ kind: "event", name: "ask", targets: [], current: true })),
+    askCurrent: () => deliver({ kind: "event", name: "ask", targets: [], current: true }),
     /** 左パネルのタイトル行の Ask ボタン：開いていれば閉じ、閉じていれば画面の今の対象で開く */
     askToggle: () =>
-      act(() => send({ kind: "event", name: "ask", targets: [], current: true, toggle: true })),
+      deliver({ kind: "event", name: "ask", targets: [], current: true, toggle: true }),
   };
 }
 
@@ -705,11 +719,11 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       target: { value: "下書き" },
     });
 
-    view.askToggle();
+    await view.askToggle();
     expect(screen.queryByRole("region", { name: "エージェントに頼む" })).toBeNull();
     expect(view.state.get(ASK_NOTE_KEY)).toBe("下書き");
 
-    view.askToggle();
+    await view.askToggle();
     await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
     expect(
       (within(composer()).getByRole("textbox", { name: "指示" }) as HTMLTextAreaElement).value,
@@ -822,22 +836,13 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
         .find((b) => b.querySelector("code")?.textContent === id)!;
 
     /**
-     * カンバンが対象（選んでいる Iteration）を知らせてから吹き出しで頼む。札が押された状態は描いた後に出るが、
-     * 知らせる効果（useAskCurrent）はその描画のあとに流れるので、早く頼むと対象が空のまま開く。
-     * そこで対象が合うまで頼み直す。開き直すと入力欄は作り直して候補を読み込みからやり直すので、
-     * 頼むのは合っていないときだけにし、確かめは読み込みが済むのを待てる間隔で回す（RTL の waitFor は
-     * 描き直しのたびに確かめ直して止まらなくなるので使わない）
+     * カンバンが対象（選んでいる Iteration）を選んだ描画を待ってから吹き出しで頼む。知らせる効果（useAskCurrent）は
+     * その描画のあとに流れるが、askCurrent が済ませてから送るので、頼み直さなくても選んだ対象で開く
      */
     const askAnnounced = async (view: ReturnType<typeof mountWebview>, id: string) => {
       await waitFor(() => expect(iterationChip(id).getAttribute("aria-pressed")).toBe("true"));
-      await vi.waitFor(
-        () => {
-          const open = screen.queryByRole("region", { name: "エージェントに頼む" }) !== null;
-          if (!open || JSON.stringify(chips()) !== JSON.stringify([id])) view.askCurrent();
-          expect(chips()).toEqual([id]);
-        },
-        { interval: 100, timeout: 3000 },
-      );
+      await view.askCurrent();
+      await waitFor(() => expect(chips()).toEqual([id]));
     };
 
     it("カンバンで選んでいる Iteration を対象にする（既定の active も、札で選んだ planned も）", async () => {
@@ -855,15 +860,15 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       const state = createUiState(memoryBackend({ "history.opened": ["s0"] }));
       const view = mountWebview(targetClient(), { state });
       await screen.findByText("済んだ");
-      view.askCurrent();
+      await view.askCurrent();
       await waitFor(() => expect(chips()).toEqual(["s0"]));
       fireEvent.click(within(composer()).getByRole("button", { name: "閉じる" }));
 
-      // 行を閉じると対象なしに戻る。開いた状態を書いただけでは描き直されていないので、行の中のチケットが消えるのを待ってから頼む
+      // 行を閉じると対象なしに戻る。開いた状態を書いただけでは描き直されていないので、行の中のチケットが消える（取り下げる描画が済む）のを待ってから頼む
       fireEvent.click(screen.getByText("前").closest("summary")!);
       await waitFor(() => expect(state.get("history.opened")).toEqual([]));
       await waitFor(() => expect(screen.queryByText("済んだ")).toBeNull());
-      view.askCurrent();
+      await view.askCurrent();
       await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★起票する"));
       expect(chips()).toEqual([]);
     });
@@ -876,7 +881,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       window.location.hash = hash;
       const view = mountWebview(targetClient());
       await waitFor(() => expect(screen.queryByText("読み込み中…")).toBeNull());
-      view.askCurrent();
+      await view.askCurrent();
       await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★起票する"));
       expect(chips()).toEqual([]);
     });

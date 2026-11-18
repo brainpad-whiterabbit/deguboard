@@ -152,8 +152,10 @@ function mountWithBridge(
 
 /**
  * 拡張ホストからの event を、画面が落ち着いてから送り、それで始まる読み直し・描画・effect・hashchange が終わるまで待つ。
- * 前の描画の effect か hashchange に結果が依る event（toggle の直後の reload など）は、
- * act(() => send()(event)) ではなくこれで送る。
+ * reload・setup の event は、読み直しか確かめ直しを始め、その結果を前の描画の effect や hashchange で決まった状態に重ねるので、
+ * 表示を待った直後でもどれも act(() => send()(event)) ではなくこれで送る。直後の reload の結果が hashchange に依る toggle（必須のチェックリストの間の toggle）もこれで送る。
+ * ほかの toggle と navigate は、router の toggleRoute か代入でハッシュを同期に書き換えるだけで、受け手の版にも前の描画の effect にも依らないので、
+ * 同期の act で送り、ハッシュはその場で確かめ、画面はその後の findBy・waitFor で待つ。
  * findBy・waitFor は DOM に出たことしか待たない。CPU を取り合って描画が 5ms を超えると、React はその描画の passive effect
  * （HostBridge が ask の受け手を購読し直すなど）を次の setImmediate に回すので、DOM を見てすぐ送った event はその effect より先に届く
  * （最新の reload・onSetupEvent は HostBridge が layout effect で写すので、effect を待たなくても届く。host-bridge.test.tsx）。
@@ -1140,7 +1142,7 @@ describe("画面", () => {
       ticket({ id: "t9", title: "外で起票した", iteration: "s0" }),
     ];
     expect(screen.queryByText("外で起票した")).toBeNull();
-    act(() => send()({ kind: "event", name: "reload" }));
+    await deliver(send, { kind: "event", name: "reload" });
     expect(await screen.findByText("外で起票した")).toBeTruthy();
 
     act(() => send()({ kind: "event", name: "navigate", hash: "#/backlog" }));
@@ -1200,7 +1202,7 @@ describe("画面", () => {
       return old;
     };
     const before = status.mock.calls.length;
-    act(() => send()({ kind: "event", name: "reload" }));
+    await deliver(send, { kind: "event", name: "reload" });
     // 読み直しの中の状態の読みは、取り込んだ後の回数を読む
     await vi.waitFor(() => expect(status.mock.calls.length).toBeGreaterThan(before));
     await act(async () => {});
@@ -1229,7 +1231,7 @@ describe("画面", () => {
 
     client.handlers["config.show"] = original;
     view = setupView();
-    act(() => send()({ kind: "event", name: "reload" }));
+    await deliver(send, { kind: "event", name: "reload" });
     expect(await screen.findByText("ログイン")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "deguboard を始める" })).toBeNull();
   });
@@ -1308,7 +1310,7 @@ describe("画面", () => {
 
     // 直した後の setup の event で、その場の項目が満たした印に変わる
     view = setupView({ dg_command: { status: "unmet", state: "missing" } });
-    act(() => send()({ kind: "event", name: "setup" }));
+    await deliver(send, { kind: "event", name: "setup" });
     await waitFor(() =>
       expect(screen.queryByText("このマシンに dg の Skill と hooks が入っていません。")).toBeNull(),
     );
@@ -1496,7 +1498,7 @@ describe("画面", () => {
     await waitFor(() => expect(setup).toHaveBeenCalledTimes(2));
     expect(setup).toHaveBeenLastCalledWith({ bandDismissed: false });
     // 入口の見張りの setup の event でも、帯を出している状態と同じに確かめ直す
-    act(() => send()({ kind: "event", name: "setup" }));
+    await deliver(send, { kind: "event", name: "setup" });
     await waitFor(() => expect(setup).toHaveBeenCalledTimes(3));
     expect(setup).toHaveBeenLastCalledWith({ bandDismissed: false });
 
@@ -1548,7 +1550,7 @@ describe("画面", () => {
     await waitFor(() => expect(client.calls.some((c) => c.name === "ticket.list")).toBe(true));
     await act(async () => {});
     const lists = client.calls.filter((c) => c.name === "ticket.list").length;
-    act(() => send()({ kind: "event", name: "setup" }));
+    await deliver(send, { kind: "event", name: "setup" });
     await act(async () => {});
     expect(setup).not.toHaveBeenCalled();
     // 一覧も読み直さない（必須を満たさなくなったかを確かめるのは、帯かチェックリストを出している画面）
@@ -1651,7 +1653,7 @@ describe("画面", () => {
         } as RunView,
       ];
       expect(screen.queryByText("外で始めた step")).toBeNull();
-      act(() => send()({ kind: "event", name: "reload" }));
+      await deliver(send, { kind: "event", name: "reload" });
       expect((await screen.findAllByText("外で始めた step")).length).toBeGreaterThan(0);
       expect(client.calls.filter((c) => c.name === "run.list").length).toBeGreaterThan(before);
     },
@@ -2100,7 +2102,7 @@ describe("画面", () => {
 
     // ターミナルで t3 の Run を始めた：todo でも実行中の Run があれば並べる。steps に label のない手は id のまま
     recent = [ticketRuns("t3", [runningSummary({ step: "fix" })])];
-    act(() => send()({ kind: "event", name: "reload" }));
+    await deliver(send, { kind: "event", name: "reload" });
     await waitFor(() => expect(kanbanRowOf("画面").querySelector(".run-pips")).toBeTruthy());
     expect(kanbanRowOf("画面").querySelector(".run-pips-caption")!.textContent).toBe("fix · 12分");
     expect(kanbanRowOf("API").querySelector(".run-pips")).toBeNull();
@@ -2230,9 +2232,9 @@ describe("画面", () => {
 
     // 読み直しを 2 回起こす。1 回目（古い）は t3、2 回目（新しい）は t2 が実行中と返す。
     // 重なった読み直しの古い方は run.recent まで進まないので、1 回目が run.recent を頼んでから 2 回目を起こす
-    act(() => send()({ kind: "event", name: "reload" }));
+    await deliver(send, { kind: "event", name: "reload" });
     await waitFor(() => expect(pending.length).toBe(2));
-    act(() => send()({ kind: "event", name: "reload" }));
+    await deliver(send, { kind: "event", name: "reload" });
     await waitFor(() => expect(pending.length).toBe(3));
     await act(async () => pending[2]!([runningOf("t2")]));
     await waitFor(() => expect(kanbanRowOf("API").querySelector(".run-pips")).toBeTruthy());
@@ -2255,7 +2257,7 @@ describe("画面", () => {
     const before = client.calls.filter((c) => c.name === "run.recent").length;
 
     fail = true;
-    act(() => send()({ kind: "event", name: "reload" }));
+    await deliver(send, { kind: "event", name: "reload" });
     await waitFor(() =>
       expect(client.calls.filter((c) => c.name === "run.recent").length).toBe(before + 1),
     );
@@ -2658,7 +2660,7 @@ describe("画面", () => {
     expect(document.querySelector(".epic-head")).toBeTruthy();
     // Epic が閉じて欄から消えても、見出しは残る
     client.data.epics = client.data.epics.map((e) => ({ ...e, status: "closed" as const }));
-    act(() => send()({ kind: "event", name: "reload" }));
+    await deliver(send, { kind: "event", name: "reload" });
     await waitFor(() => expect(document.querySelector(".epic-chips")).toBeNull());
     expect(group.querySelector(".filter-chip")).toBeNull();
     expect(document.querySelector(".epic-head .name")!.textContent).toBe("e1 最初の版");
