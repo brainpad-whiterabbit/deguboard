@@ -2,7 +2,12 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
+import {
+  createFixtureFrom,
+  git,
+  type Fixture,
+  type Layout,
+} from "../../test/helpers/git-fixture.js";
 import { checkpoint } from "../commands/checkpoint.js";
 import { openContext } from "../commands/context.js";
 import { runCommand, type CommandContext } from "../commands/define.js";
@@ -19,8 +24,9 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
+/** twoClones の準備（init・t1 の作成と sync・clone B の init）を済ませた雛形から写す */
 async function fixture(): Promise<Fixture> {
-  const f = await createFixture();
+  const f = await createFixtureFrom("two-clones", prepareTwoClones);
   cleanups.push(f.cleanup);
   return f;
 }
@@ -541,24 +547,43 @@ async function scopeOnBothSides(a: CommandContext, b: CommandContext, id: string
   await scope(b, "ローカルの範囲");
 }
 
-/** init まで済ませた 2 つの clone の文脈。時刻は呼び出しごとに 1 秒進める */
-async function twoClones(f: Fixture): Promise<{ a: CommandContext; b: CommandContext }> {
-  let tick = Date.parse("2026-11-01T00:00:00Z");
-  const now = () => new Date((tick += 1000));
-  const open = (cwd: string, initialize?: object) =>
-    openContext({
-      cwd,
-      actor: { kind: "human", user: "eiki" },
-      now,
-      mergeDriver: DRIVER,
-      initialize,
-    });
-  await runCommand(init, await open(f.cloneA, {}), {});
-  const a = await open(f.cloneA);
+/** start の次の秒から、呼び出しごとに 1 秒進める時計。last は最後に返した時刻 */
+function clockFrom(start: number): { now: () => Date; last: () => number } {
+  let tick = start;
+  return { now: () => new Date((tick += 1000)), last: () => tick };
+}
+
+const openWith = (now: () => Date, cwd: string, initialize?: object) =>
+  openContext({
+    cwd,
+    actor: { kind: "human", user: "eiki" },
+    now,
+    mergeDriver: DRIVER,
+    initialize,
+  });
+
+/**
+ * 雛形の準備で最後に返した時刻。各件の時計はこの次の秒から進める（雛形の時刻は実時間でなく固定の時計なので、
+ * 雛形を作った時刻によらず、件の中の書き込みはいつも雛形の書き込みより後の時刻になる）
+ */
+let tickAfterSetup = 0;
+
+/** 雛形の準備（テストファイルで 1 度だけ走る）：clone A で init して t1 を作って sync し、clone B で init する */
+async function prepareTwoClones(f: Layout): Promise<void> {
+  const clock = clockFrom(Date.parse("2026-11-01T00:00:00Z"));
+  await runCommand(init, await openWith(clock.now, f.cloneA, {}), {});
+  const a = await openWith(clock.now, f.cloneA);
   await runCommand(ticketCreate, a, { title: "ログイン" });
   await runCommand(sync, a, {});
-  await runCommand(init, await open(f.cloneB, {}), {});
-  const b = await open(f.cloneB);
+  await runCommand(init, await openWith(clock.now, f.cloneB, {}), {});
+  tickAfterSetup = clock.last();
+}
+
+/** init まで済ませた 2 つの clone の文脈（fixture の写しを開く）。時刻は雛形の準備の続きから、呼び出しごとに 1 秒進める */
+async function twoClones(f: Fixture): Promise<{ a: CommandContext; b: CommandContext }> {
+  const { now } = clockFrom(tickAfterSetup);
+  const a = await openWith(now, f.cloneA);
+  const b = await openWith(now, f.cloneB);
   return { a, b };
 }
 
