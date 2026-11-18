@@ -1,6 +1,5 @@
 // vitest のワーカー数の上限（vitest.workers.ts）が、DEGUBOARD_TEST_MAX_WORKERS の値をどう読むかを確かめる（t800）。
-// 既定は全体のテストで CPU 数の半分、test:related で 4 分の 1（t1076）で、数と百分率だけを受ける。
-// vitest に渡す前に、受けない値と 0 を受ける形を示すエラーで止める
+// 既定のワーカー数・受ける値・その理由の正本は vitest.workers.ts の冒頭のコメントで、ここでは言い直さない
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
