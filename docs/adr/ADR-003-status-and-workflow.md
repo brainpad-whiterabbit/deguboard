@@ -40,33 +40,29 @@
 
 ### Status の変更は、境目と例外の動きの方針で判定する
 
-- 前へ進む操作は、越える境目の `requires`（越える条件）と `decide`（権限の値）で判定する。`decide` は境目を越えるすべての操作に同じ値を当てる：todo → in_progress は claim、in_progress → review は PR を出す操作と手の move、review → done は `pr merge` と手の move。着手の `decide` の既定は `ask_unless_auto`
-- 境目を飛ばす動き（in_progress → done など）は、間の境目をすべて越えたものとして扱い、すべての `requires` と、厳しいほうの値が効く
-- `requires` は越える条件で、きっかけではない。満たしても自動では進まず、満たさずに手で越える操作は拒否する。事実を作る操作（`pr merge` は `pr_merged` を作る）は `decide` だけで判定し、Status を進めるのは事実を見た照合
-- ブランチなしで着手したチケット（`claim --without-branch`）には、`requires` のうちブランチと PR の事実（`branch_*`・`pr_*`）の条件を当てない。`decide` と `deps_done` は当て、着手していない todo には当てたままにする
-- 照合（reconcile）は、Core の固定のきっかけで進めようとし、越える境目の `requires` と `decide` をエージェントの側として判定する。`requires` を満たさないか `decide` が `human_only` の境目は越えず、人の承認を求める値（`always_ask`・`ask_unless_auto`）では止まらない。進めなかったチケットは、`sync` が理由を警告する
-- PR のないチケット（`gh` で PR の事実を読めなかったチケットも同じ）の照合には、`requires` のうち PR の事実（`pr_*`）の条件を当てない。手で越える操作には当てたままにする
-- 前へ進まない動きは `exceptions` の値で判定する：abandoned へは `abandon`、終端から戻すのは `reopen`、ほかの戻す動き（unclaim を含む）は `back`。既定は `abandon` と `reopen` が `always_ask`、`back` が `anyone`
-- 書き込みの操作は、Core の固定 → `exceptions` → `boundaries` → `flow` → `governance` の順に見て、最初に当てはまったものの値で判定する。どれにも当たらない操作（題や本文の編集など）は誰でもできる。行き先はコマンドの名前と引数だけで決まる。Core の固定は [ADR-026](ADR-026-guard-pr-and-data.md)。`flow` の値が判定する操作と `--auto` の扱いは [ADR-030](ADR-030-flow-and-guide-in-core.md)
+- 前へ進む操作は、越える境目の `requires`（越える条件）と `decide`（権限の値）で判定する。`decide` は境目を越えるすべての操作（claim・PR を出す操作・`pr merge`・手の move）に同じ値を当てる。境目を飛ばす動きは間の境目をすべて越えたものとし、厳しいほうの値が効く。着手の `decide` の既定は `ask_unless_auto`
+- `requires` は越える条件で、きっかけではない。満たしても自動では進まず、満たさずに手で越える操作は拒否する。事実を作る操作（`pr merge`）は `decide` だけで判定し、Status を進めるのは事実を見た照合
+- 照合（reconcile）は、越える境目の `requires` と `decide` をエージェントの側として判定し、`human_only` では止まり、人の承認を求める値では止まらない。進めなかったチケットは `sync` が理由を警告する
+- ブランチなしで着手したチケットにはブランチと PR の事実の条件を、PR のないチケットの照合には PR の事実の条件を当てない。手で越える操作と着手していない todo には当てたままにする（範囲は `core/workflow/resolve.ts` の `requiresForTicket` と `core/workflow/reconcile.ts`）
+- 前へ進まない動きは `exceptions`（`abandon`・`reopen`・`back`）の値で判定し、`abandon` と `reopen` の既定は `always_ask`
+- 書き込みの操作は、Core の固定・`exceptions`・`boundaries`・`flow`・`governance` のうち最初に当てはまったものの値で判定し、行き先はコマンドの名前と引数だけで決まる。順と操作の対応は `core/workflow/resolve.ts` の `operationPolicy` が正本。Core の固定は [ADR-026](ADR-026-guard-pr-and-data.md)、`flow` と `--auto` は [ADR-030](ADR-030-flow-and-guide-in-core.md)
 
 ### 権限の値は 5 つで、承認と強制を記録する
 
 値は `human_only`・`always_ask`・`ask_unless_auto`・`anyone`・`agent_only` の 5 つ。人・エージェント・聞かずに進める流れのエージェントのそれぞれに何を許すかの表は [usage の「What the values mean」](../usage.md#what-the-values-mean) と `core/workflow/conditions.ts` が、方針の引き方は `core/workflow/resolve.ts` が、拒否の文と記録は `core/commands/permission.ts` が正本。
 
-- 照合（reconcile）はエージェントと同じ側に数える
-- 聞かずに進める流れかは、エージェントがコマンドに付ける `--auto` で dg に伝える。効くのは `ask_unless_auto` の場面だけで、承認者にエージェントを記録する（[ADR-030](ADR-030-flow-and-guide-in-core.md)）
-- 人の承認は `--approved-by <人>` で渡す。エージェントが付けて呼び、dg は承認者を記録する。付けなければ拒否する。人の指示は承認とみなす。エージェントの ID は承認者にできない
-- 人の強制は `--override "理由"` で渡す。`agent_only` と満たさない `requires` を越えられるのは人だけで、理由は必須。誰が・いつ・なぜ越えたかを履歴に残す。エージェントの `--override` は値によらず拒否する
+- 照合はエージェントと同じ側に数える。聞かずに進める流れは `--auto` で伝え、効くのは `ask_unless_auto` の場面だけ（[ADR-030](ADR-030-flow-and-guide-in-core.md)）
+- 人の承認は、エージェントが `--approved-by <人>` を付けて渡し、dg は承認者を記録する。人の指示は承認とみなす。人の強制は `--override "理由"` で渡し、`agent_only` と満たさない `requires` を越えられるのは人だけで、履歴に残す
 - 権限は誤操作を防ぐ手すりで、安全の壁ではない。dg は主体を自己申告（`--actor`）で知るので、申告を偽る呼び出しと dg を経由しない操作は止められない。それを止めるフック（AG-10、ADR-026）は権限の値があっても要る
 
 ### Core が固定で持つもの
 
 `workflow.yaml` では緩められない決まりは Core が持つ。
 
-- Status の集合と前進の順、3 つの境目、同じ Status への move の拒否、遷移の副作用（ST-8）
-- Run の step の語彙（investigate・implement・review・fix・merge）と、Run を開く操作（agent の claim は implement、もう一度の claim は fix）。`dg run start` は語彙にない step を拒否する
-- 照合のきっかけ：ブランチができた → in_progress、下書きでない PR が開いた → review、PR かブランチがマージされた → done。`workflow.yaml` に照合の規則は書けず、書いても読まずに警告する。正本は `core/workflow/reconcile.ts`
-- `dg workflow set` は、いつも人の承認が要り、書く前に読み込み時と同じ検証をして、誤りがあれば何も書かない（WF-6）
+- Status の集合と前進の順、3 つの境目、遷移の副作用（ST-8）
+- Run の step の語彙と Run を開く操作（語彙は `dg run start --help`）
+- 照合のきっかけ（ブランチ・PR・マージの事実。正本は `core/workflow/reconcile.ts` と `dg sync --help`）。`workflow.yaml` に照合の規則は書けない
+- `dg workflow set` は、いつも人の承認が要り、書く前に検証して誤りがあれば何も書かない（WF-6）
 
 ## 理由
 
