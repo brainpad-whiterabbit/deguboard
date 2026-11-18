@@ -1,7 +1,7 @@
 id: s40
 name: sprint40
 goal: 検査を速く安定させ（t1073・t1075〜t1078）、README の新しい冒頭に拡張と dg --help の説明を合わせ、usage に振り返りの指標の節を足す。セットアップと同期が要る間は左パネルに点で知らせ、fast-forward で済むリモートの更新は自動で取り込む（t1084〜t1086）
-status: active
+status: closed
 checkpoints:
   - name: check
     at: 2026-11-17T06:47:13Z
@@ -71,3 +71,6 @@ checkpoints:
     by: maji/agent
     approved_by: maji
 started_at: 2026-11-17T06:49:14Z
+closed_at: 2026-11-18T20:53:45Z
+completed: 30
+carried_over: 0
