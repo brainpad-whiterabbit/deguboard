@@ -1,6 +1,6 @@
 # deguboard
 
-Agentic-Agile に着想を得た、開発の流れを備えた Git リポジトリの中で動くカンバン。CLI は `dg`。概要は [README.md](README.md)。このファイルには毎回守る規約だけを書く。
+AI エージェントに開発を任せるための開発の流れを Git リポジトリに組み込むツールで、VS Code のカンバンはその窓口。Agentic-Agile に着想を得た。CLI は `dg`。概要は [README.md](README.md)。このファイルには毎回守る規約だけを書く。
 
 ## ドキュメント（入口と正本）
 
