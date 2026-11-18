@@ -35,17 +35,7 @@ for (const key of Object.keys(process.env)) {
   if (agentEnv.test(key)) delete process.env[key];
 }
 
-// ワーカー数の上限。全体のテストは check の flock で 1 本ずつになるが、test:related は lock の外で回るので、
-// 全体のテストと重なる。vitest の既定（論理 CPU 数 - 1）のままだと 2 本で CPU 数のほぼ倍のワーカーが取り合い、
-// 時間に頼るテストが落ちやすくなる。8 CPU で測ると、重ねたときは 4 と 7 で時間が変わらず（全体 193 秒と 195 秒）、
-// 1 本だけのときは 4 が 2 割遅い（133 秒と 110 秒）だけだったので、全体のテストの既定を CPU 数の半分にする。
-// 並列のエージェントは worktree ごとに test:related を回すので、半分ずつでも何本も重なる（2026-11-17 に 3 本が重なり、
-// 8 CPU で負荷平均が 16、全体のテストが 432 秒かかった）。test:related は lock に入れず待たずに回したいので、
-// 既定を全体のテストより少ない CPU 数の 4 分の 1 にする。test:related かどうかは vitest run の --changed で見る（vitest.workers.ts）。
-// 手元で 1 本だけ速く回したいときや、もっと絞りたいときは DEGUBOARD_TEST_MAX_WORKERS（数か "75%" のような割合）で変える。
-// test:related でも、渡した値をそのまま使う。
-// vitest 自身の VITEST_MAX_WORKERS を使わないのは、vitest がその値を parseInt で読むので "75%" が 75 本になり、
-// 数でない値も黙って NaN になるから。この変数は vitest.workers.ts で読み、受けない値と 0 はエラーで止める
+// ワーカー数の上限。既定・変え方・理由は vitest.workers.ts の冒頭のコメント
 const maxWorkers = resolveMaxWorkers(
   process.env.DEGUBOARD_TEST_MAX_WORKERS,
   isRelatedRun(process.argv),
