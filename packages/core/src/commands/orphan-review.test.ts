@@ -15,7 +15,6 @@ import {
   type RunReview,
 } from "../model/run.js";
 import {
-  amendRunning,
   bindTranscript,
   peekRunningRuns,
   readReviewFindings,
@@ -29,7 +28,7 @@ import { gate } from "./gate.js";
 import type { GateView } from "./gate-judge.js";
 import { hook, type HookView } from "./hook.js";
 import { next, type NextStep } from "./next.js";
-import { adoptableReviewRecord, orphanReviewRuns, orphanReviewsOf } from "./orphan-review.js";
+import { orphanReviewRuns } from "./orphan-review.js";
 import { prReady, type PrAdvanceView } from "./pr.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
 import { configSet, init, lint, sync } from "./setup.js";
@@ -48,106 +47,8 @@ const passedByList: RunReview = {
   causes: { heavy: emptyCauseCounts(), light: emptyCauseCounts() },
 };
 
-describe("持ち主のない保留から見直しの記録を作る（orphanReviewsOf。t699）", () => {
-  const round = (at: string, review: RunReview, run: Run["id"] | null = null) => ({
-    run,
-    at,
-    review,
-  });
-
-  it("結果を書いた時刻に閉じた、通った見直しとして作る", () => {
-    const [r] = orphanReviewsOf("t1", [round("2026-11-07T10:06:00Z", passed)], undefined, []);
-    expect(r).toMatchObject({
-      ticket: "t1",
-      step: "review",
-      started_at: "2026-11-07T10:06:00Z",
-      finished_at: "2026-11-07T10:06:00Z",
-      result: "success",
-      review: passed,
-    });
-  });
-
-  it("同じ push の後の保留は最新の 1 件だけ、push をまたぐ保留は別の回にする", () => {
-    const rounds = [
-      round("2026-11-07T10:06:00Z", heavy),
-      round("2026-11-07T10:07:00Z", heavy),
-      round("2026-11-07T10:12:00Z", heavy),
-      round("2026-11-07T10:13:00Z", passed),
-    ];
-    const made = orphanReviewsOf("t1", rounds, undefined, [
-      "2026-11-07T10:05:00Z",
-      "2026-11-07T10:10:00Z",
-    ]);
-    expect(made.map((r) => [r.started_at, r.review?.passed])).toEqual([
-      ["2026-11-07T10:07:00Z", false],
-      ["2026-11-07T10:13:00Z", true],
-    ]);
-    // コミットの時刻が読めなければ区切りがなく、最新の 1 件だけ
-    expect(orphanReviewsOf("t1", rounds, undefined, []).map((r) => r.started_at)).toEqual([
-      "2026-11-07T10:13:00Z",
-    ]);
-  });
-
-  it("Run に結び付いた回と、作業ブランチ（branch_at）より前の回は数えない", () => {
-    const made = orphanReviewsOf(
-      "t1",
-      [
-        round("2026-11-07T09:00:00Z", passed),
-        round("2026-11-07T10:06:00Z", heavy, "r20261107-100600-0001"),
-      ],
-      "2026-11-07T10:00:00Z",
-      [],
-    );
-    expect(made).toEqual([]);
-  });
-
-  it("保留の回のセッションを記録の session に写し、セッションのない前の回は null にする（t701）", () => {
-    const made = orphanReviewsOf(
-      "t1",
-      [
-        { ...round("2026-11-07T10:06:00Z", passed), session: "s-a" },
-        round("2026-11-07T10:12:00Z", passed),
-      ],
-      undefined,
-      ["2026-11-07T10:10:00Z"],
-    );
-    expect(made.map((r) => r.session)).toEqual(["s-a", null]);
-  });
-});
-
-describe("起動のフックが引き取る見直しの記録（adoptableReviewRecord。t701）", () => {
-  const record = (over: Partial<Run>): Run => ({
-    ...orphanReviewsOf(
-      "t1",
-      [{ run: null, at: "2026-11-07T10:06:00Z", review: passed }],
-      "",
-      [],
-    )[0]!,
-    id: "r20261107-100600-0001",
-    session: "s-a",
-    ...over,
-  });
-
-  it("同じチケット・同じセッションで起動より後（同じ秒を含む）に書かれた capture: none の見直しの記録のうち、最も後のものを引き取る", () => {
-    const newer = record({ id: "r20261107-100700-0002", started_at: "2026-11-07T10:07:00Z" });
-    expect(
-      adoptableReviewRecord([record({}), newer], "t1", "s-a", "2026-11-07T10:06:00Z")?.id,
-    ).toBe(newer.id);
-  });
-
-  it("別のセッション・セッションの分からない記録・起動より前の記録・印のない Run・ほかのチケットは引き取らない", () => {
-    const launchedAt = "2026-11-07T10:05:00Z";
-    const { capture: _, ...captured } = record({});
-    for (const r of [
-      record({ session: "s-b" }),
-      record({ session: null }),
-      record({ started_at: "2026-11-07T10:04:59Z" }),
-      captured,
-      record({ ticket: "t2" }),
-    ])
-      expect(adoptableReviewRecord([r], "t1", "s-a", launchedAt)).toBeUndefined();
-  });
-});
+// 判定の組み合わせ（待ちの印・書き終わりの待ち・動いているサブエージェント・push の区切り）は orphan-review-judge.test.ts が
+// git なしで確かめる。ここは事実を集める経路（会話記録の live の印・保留の回・コミットの時刻を読む）と、数えて書く通しの代表を見る
 
 /** 偽の gh。PR #7 は開いた draft でない PR */
 async function fakeGh(root: string) {
@@ -340,7 +241,7 @@ describe("dg next と dg gate が持ち主のない保留を見直しとして�
     });
   });
 
-  it("見直しの Run が開いているか、動いているサブエージェントの印があれば、保留を数えない", async () => {
+  it("見直しの Run が開いているか、動いているサブエージェントの印（会話記録の live）を読めば、保留を数えない", async () => {
     const { ctx } = await prepared();
     await hold(ctx, later(1), false);
     const ticket = ctx.store.require("ticket", "t1").data;
@@ -351,16 +252,13 @@ describe("dg next と dg gate が持ち主のない保留を見直しとして�
     ).data as Run;
     expect(await orphanReviewRuns(ctx, ticket, [reviewRun])).toEqual([]);
     expect(condition(await judge(ctx), "review").detail).toContain("has not finished");
-    // 動いているサブエージェントの印がある Run（見直し以外）がある。止まって待つ印が付けば数える
+    // 見直し以外の Run：印を結ぶ前は数え、動いているサブエージェントの印を結べば数えない（待ちの印との組み合わせは orphan-review-judge.test.ts）
     const implement = (
       await runCommand(runStart, ctx, { ticket: "t1", step: "implement", agent: "claude-code" })
     ).data as Run;
+    expect(await orphanReviewRuns(ctx, ticket, [implement])).toHaveLength(1);
     await bindTranscript(ctx.repo, implement.id, path.join(ctx.repo.localDir, "a.jsonl"), true);
     expect(await orphanReviewRuns(ctx, ticket, [implement])).toEqual([]);
-    const waiting = await amendRunning(ctx.repo, implement.id, {
-      waiting_since: later(3).toISOString(),
-    });
-    expect(await orphanReviewRuns(ctx, ticket, [waiting])).toHaveLength(1);
   });
 });
 
