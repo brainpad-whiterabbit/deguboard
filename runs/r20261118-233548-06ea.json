@@ -1,0 +1,35 @@
+{
+  "id": "r20261118-233548-06ea",
+  "ticket": "t1117",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-18T23:35:48Z",
+  "finished_at": "2026-11-18T23:36:23Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "見直しの規則の限定句が requirements.md の節にしか掛からないように読める",
+    "placeholder"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 2936,
+    "cache_read": 202113,
+    "cache_write": 43491
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 1,
+    "bash": 4,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "e671c729-9c11-485c-ad52-6e18ca5fc79b",
+  "review": null,
+  "waited_seconds": 0
+}
