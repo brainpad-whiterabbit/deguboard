@@ -1,0 +1,34 @@
+{
+  "id": "r20261118-215234-ae0a",
+  "ticket": "t1093",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-18T21:52:34Z",
+  "finished_at": "2026-11-18T21:55:13Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "backgroundFetch の doc コメントが、取り込めない失敗を捨てて通知もしないと書いたままで、auto_pull_blocked で知らせる今の振る舞いと食い違う"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 2218,
+    "cache_read": 109745,
+    "cache_write": 39921
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 2,
+    "bash": 3,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "e50a5c37-155d-4dd8-acc1-a12cf2872bca",
+  "review": null,
+  "waited_seconds": 0
+}
