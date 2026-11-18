@@ -1,0 +1,2 @@
+When a PR changes a promise that users can see (a behavior stated with a requirement ID in docs/requirements.md), check that the same PR also updated the parts of docs/usage.md, docs/usage.ja.md, and docs/requirements.md that state it; if any of those parts was left unchanged, raise it as a heavy finding.
+Basis: in s40 escaped-defect-rate was 5/28 (0.18), with t1090 as the origin of t1108. Drop this rule when, for 3 Iterations in a row, no escaped defect has the origin_cause documents.
