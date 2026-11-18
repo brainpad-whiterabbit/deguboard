@@ -43,7 +43,7 @@
 - 前へ進む操作は、越える境目の `requires`（越える条件）と `decide`（権限の値）で判定する。`decide` は境目を越えるすべての操作（claim・PR を出す操作・`pr merge`・手の move）に同じ値を当てる。境目を飛ばす動きは間の境目をすべて越えたものとし、厳しいほうの値が効く。着手の `decide` の既定は `ask_unless_auto`
 - `requires` は越える条件で、きっかけではない。満たしても自動では進まず、満たさずに手で越える操作は拒否する。事実を作る操作（`pr merge`）は `decide` だけで判定し、Status を進めるのは事実を見た照合
 - 照合（reconcile）は、越える境目の `requires` と `decide` をエージェントの側として判定し、`human_only` では止まり、人の承認を求める値では止まらない。進めなかったチケットは `sync` が理由を警告する
-- ブランチなしで着手したチケットにはブランチと PR の事実の条件を、PR のないチケットの照合には PR の事実の条件を当てない。手で越える操作と着手していない todo には当てたままにする（範囲は `core/workflow/resolve.ts` の `requiresForTicket` と `core/workflow/reconcile.ts`）
+- ブランチなしで着手したチケット（in_progress・review）にはブランチと PR の事実の条件を当てない（着手していない todo には当てたままにする）。PR のないチケットの照合には PR の事実の条件を当てず、手で越える操作には当てたままにする（範囲は `core/workflow/resolve.ts` の `requiresForTicket` と `core/workflow/reconcile.ts`）
 - 前へ進まない動きは `exceptions`（`abandon`・`reopen`・`back`）の値で判定し、`abandon` と `reopen` の既定は `always_ask`
 - 書き込みの操作は、Core の固定・`exceptions`・`boundaries`・`flow`・`governance` のうち最初に当てはまったものの値で判定し、行き先はコマンドの名前と引数だけで決まる。順と操作の対応は `core/workflow/resolve.ts` の `operationPolicy` が正本。Core の固定は [ADR-026](ADR-026-guard-pr-and-data.md)、`flow` と `--auto` は [ADR-030](ADR-030-flow-and-guide-in-core.md)
 

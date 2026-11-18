@@ -36,7 +36,7 @@ Iteration の流れ（段階・次の 1 手・止まる判定・承認の要否�
 - 関所（`dg checkpoint <段階>`）は段階の手順が呼ぶ。段階の値（`flow`）で判定し、通ったときだけ Iteration の `checkpoints` に根拠付きの記録を足す。plan は関所を持たず、Plan の承認の記録を使う
 - 記録は消さずに足し、会話・人・マシンをまたいで有効にする。根拠が今の事実に合わない記録と `iteration reopen` より前の記録は数えない。`dg flow next` は段階を終えたかを記録と根拠で決める
 - 止まる判定（同じ段階が事実も変わらずに続いたら止める）は共有せず、このマシンに対象ごとに覚える
-- 記録を書く対象は Iteration だけ。Iteration のない流れは最初の割り当てで Iteration を決め、決まらないときの割り当ての記録だけをローカルに書く
+- 記録を書く対象は Iteration だけ。Iteration のない流れは最初の割り当てで Iteration を決め、決まらないときの割り当ての記録だけをローカルに書く。Epic への見直しは持たない
 - 割り当ての段は、チケットか Plan の流れで、Iteration にない対象のチケットの Iteration を決めるためだけに置く。Iteration の流れは、ほかの todo を割り当ての候補に集めない
 - 段階ごとの根拠と止まる判定の細部は `core/commands/flow-records.ts` と `dg flow next --help` が正本
 
