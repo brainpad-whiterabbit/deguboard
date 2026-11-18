@@ -1,0 +1,35 @@
+{
+  "id": "r20261118-143524-c332",
+  "ticket": "t1110",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-18T14:35:24Z",
+  "finished_at": "2026-11-18T14:40:09Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "The launch env flag changes more of VS Code's behavior than the comment says; a narrower launch flag that only skips the shell env resolution exists",
+    "The helper that lists missing items only knows three labels, so a newly added missing item would fail the count without being named"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 6794,
+    "cache_read": 552372,
+    "cache_write": 41602
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 4,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "56a671e4-6dfb-4d5c-a940-a9b055b71b16",
+  "review": null,
+  "waited_seconds": 0
+}
