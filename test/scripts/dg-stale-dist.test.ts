@@ -103,7 +103,7 @@ describe("dist が古いときの警告（t973）", () => {
   });
 
   it("ビルドが読まない docs/ だけのコミットでも出し、その差分なら無視してよいと案内する（t986）", async () => {
-    // 比べるのはコミットだけで、差分の中身は見ない（git を起動しない）。案内（done.md・development.md）はこの動きを書く
+    // 比べるのはコミットだけで、差分の中身は見ない（git を起動しない）。案内（development.md）はこの動きを書く
     const built = await commit(repo.dir, "a");
     await writeBuiltCommit(repo.dir, built);
     await mkdir(path.join(repo.dir, "docs"), { recursive: true });
