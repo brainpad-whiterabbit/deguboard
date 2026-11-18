@@ -184,7 +184,11 @@ The setting is shared with your team. To turn it off on your own machine only, s
 
 When there are Plans awaiting approval or tickets in review, the count appears in the sidebar title (for example, "DEGUBOARD: Awaiting Approval/Review 3"), and a notification appears when the count goes up. Press "Open" in the notification to open the details. The number on the Activity Bar icon is separate: it is the total of unpushed commits and remote updates that have not been pulled.
 
-You can turn notifications off in the settings screen (the gear icon) under "Notifications". The count stays visible. To turn them off only for yourself while keeping the team setting, use the "Mine" tab of the settings screen or `--local`.
+While the board is open in VS Code or `dg serve`, dg fetches the remote from time to time. When the remote updates can be taken in by a fast-forward alone, it takes them in and reloads the screen without asking. It does not take them in while there are unpushed commits, uncommitted changes, a rebase in progress, or changes made outside dg; then press the sync button. While there are unpushed commits, the sync button in the sidebar title has a dot, and its tooltip shows the counts (for example, "Sync (1 unpushed / 2 to pull)").
+
+While items of the setup checklist are missing, the setup icon at the left of the sidebar title has a dot, and its tooltip shows how many are missing (for example, "Setup (2 items missing)").
+
+You can turn approval notifications off in the settings screen (the gear icon) under "Notifications". The count stays visible. To turn them off only for yourself while keeping the team setting, use the "Mine" tab of the settings screen or `--local`.
 
 ```sh
 dg config set notify.approvals false --local
