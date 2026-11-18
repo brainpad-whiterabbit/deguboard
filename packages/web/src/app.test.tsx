@@ -1434,6 +1434,39 @@ describe("画面", () => {
     expect(screen.queryByRole("heading", { name: "セットアップ" })).toBeNull();
   });
 
+  it("重なった読み直しのうち古い方が、新しい方の成功の後に NOT_INITIALIZED で終わっても、needsSetup に戻さず、いつもの画面を残す", async () => {
+    const client = boardClient();
+    const original = client.handlers["config.show"]!;
+    // config.show の応答を、呼ばれた順に手で返す（古い読み直しを、新しい読み直しの後に終わらせる）
+    const pending: { resolve: (value: unknown) => void; reject: (error: unknown) => void }[] = [];
+    client.handlers["config.show"] = () =>
+      new Promise((resolve, reject) => {
+        pending.push({ resolve, reject });
+      });
+    client.setup = async () => setupView();
+    const send = mountWithBridge(client, { readRunning: false, host: extensionHost() });
+    await waitFor(() => expect(pending).toHaveLength(1));
+
+    // 最初の読み直しが終わる前に、dg init の後の reload の event が来る
+    await deliver(send, { kind: "event", name: "reload" });
+    expect(pending).toHaveLength(2);
+
+    // 新しい読み直しが先に成功して、いつもの画面を出す
+    await act(async () => pending[1]!.resolve(original({ fields: true })));
+    expect(await screen.findByText("ログイン")).toBeTruthy();
+
+    // 古い読み直しが後から dg init 前の失敗で終わる
+    await act(async () =>
+      pending[0]!.reject(
+        new ClientError({ code: "NOT_INITIALIZED", message: "初期化されていない" }),
+      ),
+    );
+    await act(async () => {});
+    expect(screen.queryByRole("heading", { name: "deguboard を始める" })).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("ログイン")).toBeTruthy();
+  });
+
   it("帯を出さないと決めたリポジトリでは、チェックリストに「帯をまた出す」が出る。押すと決めたことを消して帯を出す状態で確かめ直し、アイコンで戻ると帯が出る。決めていなければ出ない", async () => {
     const client = boardClient();
     const setup = vi.fn(async (_options?: SetupOptions) =>
@@ -2194,8 +2227,10 @@ describe("画面", () => {
     act(() => pending[0]!([runningOf("t3")]));
     await waitFor(() => expect(kanbanRowOf("画面").querySelector(".run-pips")).toBeTruthy());
 
-    // 読み直しを 2 回起こす。1 回目（古い）は t3、2 回目（新しい）は t2 が実行中と返す
+    // 読み直しを 2 回起こす。1 回目（古い）は t3、2 回目（新しい）は t2 が実行中と返す。
+    // 重なった読み直しの古い方は run.recent まで進まないので、1 回目が run.recent を頼んでから 2 回目を起こす
     act(() => send()({ kind: "event", name: "reload" }));
+    await waitFor(() => expect(pending.length).toBe(2));
     act(() => send()({ kind: "event", name: "reload" }));
     await waitFor(() => expect(pending.length).toBe(3));
     await act(async () => pending[2]!([runningOf("t2")]));

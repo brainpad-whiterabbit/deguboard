@@ -194,6 +194,9 @@ export function StoreProvider({
   const [checkingSetup, setCheckingSetup] = useState(false);
   // 確かめ直しが重なったとき、古い結果で上書きしない
   const setupSeq = useRef(0);
+  // 読み直しが重なったとき、最新でない読み直しは状態を書き換えない。古い読み直しが後から失敗で終わると、
+  // 新しい読み直しが出したいつもの画面を、必須のチェックリスト（needsSetup）やエラーの通知に戻してしまう
+  const reloadSeq = useRef(0);
   // 最後に確かめた結果。reload が、確かめ直すかを決めるのに読む（state を依存に入れると reload が作り直され、最初の読み込みが走り直す）
   const setupRef = useRef<SetupView | null>(null);
   const [setupBoard, setSetupBoard] = useState<SetupBoardSource | null>(null);
@@ -255,12 +258,15 @@ export function StoreProvider({
   }, [client]);
 
   const reload = useCallback(async () => {
+    const seq = ++reloadSeq.current;
+    const stale = () => seq !== reloadSeq.current;
     setLoading(true);
     try {
       const [config, whoami] = await Promise.all([
         client.run<ConfigShowView>("config.show", { fields: true }),
         client.run<WhoamiView>("whoami"),
       ]);
+      if (stale()) return;
       setNeedsSetup(false);
       setMe(whoami.data);
       if (config.data.config?.priority) setPriorityCriteria(priorityCriteriaOf(config.data));
@@ -271,6 +277,7 @@ export function StoreProvider({
         client.run<PlanRow[]>("plan.list"),
         client.run<WorkflowView>("workflow.show"),
       ]);
+      if (stale()) return;
       setTickets(t.data);
       setEpics(e.data);
       setIterations(i.data);
@@ -302,15 +309,20 @@ export function StoreProvider({
           .catch(() => {});
       }
     } catch (error) {
+      if (stale()) return;
       const f = failureOf(error);
       // 導入の途中（dg init 前・Git リポジトリの外・git がない）は失敗ではなく始まりの状態。エラーの通知は出さず、チェックリストを出す。
       // init が終わった直後は、確かめた結果が先に必須を満たすことがある（見張りの読み直しでいつもの画面に変わる）
       const view = await readSetup();
+      if (stale()) return;
       if (view && (!view.ready || f.code === "NOT_INITIALIZED")) setNeedsSetup(true);
       else setNotice({ kind: "error", text: f.message, detail: f.detail });
     } finally {
-      setLoading(false);
-      setLoaded(true);
+      // 読み込み中の印は、最新の読み直しが終わるまで残す
+      if (!stale()) {
+        setLoading(false);
+        setLoaded(true);
+      }
     }
   }, [client, cache, readRunning, setupBand, bandDismissed, refreshStatus, readSetup]);
 
