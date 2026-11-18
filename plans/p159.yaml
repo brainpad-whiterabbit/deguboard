@@ -1,0 +1,29 @@
+id: p159
+tickets: [t1111, t1112, t1110, t1108, t1109, t1113]
+after: {}
+pending_approval: true
+details:
+  t1111:
+    scope: host.tsx の HostBridge で、描画と副作用の間に届いた ask の event を最新の request と current で開閉し、その順序のテストを足す
+    approach: t1092 と同じく ask の受け手に要る値を useLayoutEffect で ref に写し、購読は client だけに依るようにして、host-bridge.test.tsx に順序のテストを足す
+    tier: heavy
+  t1112:
+    scope: sync.ts の syncStatus で失敗時に rev-list を呼び直さず投げ、その経路のテストを足し、skillsHooksCommands と SNAPSHOT_KEY の export を整理する
+    approach: aheadBehind が失敗の結果を返し、syncStatus が追跡 ref のあるときにそれを投げる形にする。振る舞いは変えず git.test.ts に 1 件足す
+    tier: heavy
+  t1110:
+    scope: onboarding.vscode.ts の件数のテストとインストールのテストを、欠けている項目と項目の状態で確かめる形に直し、件数のずれの原因を特定する
+    approach: 欠けている項目の id を確かめてから件数を待ち、test:vscode を回して 2 件目の項目を特定し、原因をテストかテストの環境で直す
+    tier: heavy
+  t1108:
+    scope: docs/usage.md と usage.ja.md から dg serve を利用者の入口とする記述を外し、自動の取り込みと点の段落を内容に合う見出しの節に置く
+    approach: dg serve --help と app.tsx で振る舞いを確かめ、英日で同じ構成に直して check:docs で確かめる
+    tier: standard
+  t1109:
+    scope: requirements.md 5.10 の git.data_remote・git.data_branch の止まる約束を ADR-034 に合わせ、ADR-003 の採らなかった案の時点の件数を消す
+    approach: write.ts の stopIfDataRemoteChanged で振る舞いを確かめ、要件は約束の 1〜2 文のまま直す
+    tier: standard
+  t1113:
+    scope: vitest.layout.config.ts と vitest.vscode.config.ts に違う理由を書き、vitest-max-workers.test.ts のコメントを正本への参照にする
+    approach: 設定の値は変えずにコメントだけを直す
+    tier: standard
