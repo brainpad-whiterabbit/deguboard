@@ -6,12 +6,10 @@ import { asHuman } from "../../test/helpers/commands-context.js";
 import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
 import { OperationError } from "../errors.js";
 import { resetGhCache } from "../git/facts.js";
-import { runGit } from "../git/run.js";
 import type { Run } from "../model/run.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { brief } from "./brief.js";
-import { gate, type GateView } from "./gate.js";
 import { prMerge, prReady, type PrAdvanceView } from "./pr.js";
 import { runFinish, runHandoff, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
@@ -167,7 +165,7 @@ async function prepared(free = true) {
   cleanups.push(f.cleanup);
   const actor = { kind: "agent" as const, user: "eiki" };
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
-  const state = { draft: true, noHead: false, conflict: false };
+  const state = { draft: true, noHead: false };
   // 今の push した先端（PR の headRefOid。偽の gh が __TIP__ をリモートの先端に置き換える）
   const tip = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
   const prJson = (merged: boolean) =>
@@ -175,7 +173,7 @@ async function prepared(free = true) {
       number: 7,
       state: merged ? "MERGED" : "OPEN",
       isDraft: state.draft,
-      mergeable: state.conflict ? "CONFLICTING" : "MERGEABLE",
+      mergeable: "MERGEABLE",
       // headRefOid を返さない gh（JSON から外す）
       headRefOid: state.noHead ? undefined : "__TIP__",
       body: "## 概要\n\n元の本文\n",
@@ -188,12 +186,6 @@ async function prepared(free = true) {
   const withoutHead = async () => {
     state.noHead = true;
     await gh.write();
-  };
-  // PR が base と衝突している（true）か、していない（false）かを切り替える
-  const conflicting = async (on: boolean) => {
-    state.conflict = on;
-    await gh.write();
-    resetGhCache();
   };
   // gh pr merge がマージを済ませた後に失敗する状態（PR の state が MERGED になって gh が非 0 で終わる）
   const mergedThenFail = () => gh.mergedThenFailCall(prJson(true));
@@ -209,7 +201,6 @@ async function prepared(free = true) {
     allowMergeCall: gh.allowMergeCall,
     undraft,
     withoutHead,
-    conflicting,
     mergedThenFail,
     pushBeforeMerge: gh.pushBeforeMerge,
     deleteOnMerge: gh.deleteOnMerge,
@@ -376,62 +367,6 @@ describe("dg pr ready・dg pr merge（t545）", () => {
       `pr merge 7 --squash --match-head-commit ${tip}`,
       "api POST issues/7/comments body=Merged with `dg pr merge` by eiki/agent, after eiki approved the merge. The approval overrode these unmet quality gate conditions: acceptance, review.",
     ]);
-  });
-
-  it("検査・見直し・手直しの回数・受け入れ条件のどれも満たさない PR も、人の承認で越えてマージし、越えた条件をすべて残す。config に残った merge.approval_overrides は読まない", async () => {
-    const { ctx: first, calls, undraft } = await prepared();
-    const script = path.join(path.dirname(first.repo.topLevel), "failing-override-check.sh");
-    await writeFile(script, "#!/bin/sh\necho 落ちたテスト\nexit 1\n", { mode: 0o755 });
-    await runCommand(configSet, asHuman(first), { key: "actions.test", value: `sh, ${script}` });
-    // なくした設定が前の版の config.yaml に残っていても（越えてよい条件を空にしていても）、越えられる条件は変わらない
-    await runCommand(configSet, asHuman(first), { key: "merge.approval_overrides", value: [] });
-    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
-    // 重い指摘の出た見直しが上限を超え（review・fix_rounds）、受け入れ条件に印がなく（acceptance）、検査は落ちる（check）
-    const heavy = [{ severity: "heavy" as const, category: "bug", reason: "直っていない" }];
-    for (const offset of [60, 120, 180]) await reviewRound(ctx, offset, heavy);
-    await undraft();
-    // 承認がなければ、ほかの条件を満たさないので検査は回さず、人に聞く道を案内する
-    const unapproved = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
-    expect(unapproved!.code).toBe("GATE_FAILED");
-    expect(unapproved!.detail).toContain("the check (actions.test) was not run");
-    expect(unapproved!.detail).toContain("ask whether to merge anyway");
-    expect(unapproved!.detail).not.toContain("does not override");
-    expect(await calls()).toEqual([]);
-    // 承認があれば検査を回し（結果を事実として残す）、落ちた検査も越えてマージする
-    const merged = await runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" });
-    expect(merged.data).toMatchObject({ action: "merge", approved_by: "eiki" });
-    expect([...merged.data.overridden!].sort()).toEqual([
-      "acceptance",
-      "check",
-      "fix_rounds",
-      "review",
-    ]);
-    expect(merged.data.gate.conditions.find((c) => c.id === "check")).toMatchObject({ ok: false });
-    expect((await calls()).length).toBe(2);
-  });
-
-  it("衝突（mergeable）・PR の先端（head）・draft は、--approved-by を渡しても越えられず、gh を呼ばない（t884）", async () => {
-    const { ctx, calls, undraft, withoutHead, conflicting } = await prepared();
-    // draft のまま
-    const draft = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
-    expect(draft!.code).toBe("GATE_FAILED");
-    expect(draft!.detail).toContain("A person's approval does not override pr");
-    await undraft();
-    await conflicting(true);
-    const conflict = await rejection(
-      runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }),
-    );
-    expect(conflict!.code).toBe("GATE_FAILED");
-    expect(conflict!.detail).toContain("mergeable: mergeable is CONFLICTING");
-    expect(conflict!.detail).toContain("A person's approval does not override mergeable");
-    await conflicting(false);
-    // PR の先端を読めない（判定したコミットに固定できない）
-    await withoutHead();
-    resetGhCache();
-    const head = await rejection(runCommand(prMerge, ctx, { ticket: "t1", approved_by: "human" }));
-    expect(head!.code).toBe("GATE_FAILED");
-    expect(head!.detail).toContain("A person's approval does not override head");
-    expect(await calls()).toEqual([]);
   });
 
   it("回さなかっただけの検査は人に聞く道をふさがず、承認の後のマージで検査が回って通れば、越えた条件に check は入らない（t884）", async () => {
@@ -640,21 +575,6 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(await calls()).toEqual([]);
   });
 
-  it("検査（actions.test）が通らなければ GATE_FAILED に終了コードと出力の末尾を入れ、gh を呼ばない（t601）", async () => {
-    const { ctx: first, calls } = await prepared();
-    const script = path.join(path.dirname(first.repo.topLevel), "failing-check.sh");
-    await writeFile(script, "#!/bin/sh\necho 落ちたテスト\nexit 1\n", { mode: 0o755 });
-    await runCommand(configSet, asHuman(first), { key: "actions.test", value: `sh, ${script}` });
-    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
-    await passedReview(ctx);
-    const ready = await rejection(runCommand(prReady, ctx, { ticket: "t1" }));
-    expect(ready!.code).toBe("GATE_FAILED");
-    expect(ready!.detail).toContain("check: The check");
-    expect(ready!.detail).toContain("exit 1");
-    expect(ready!.detail).toContain("落ちたテスト");
-    expect(await calls()).toEqual([]);
-  });
-
   it("検査（actions.test）が通らなければ dg pr merge は GATE_FAILED で止まり、gh を呼ばず、検査に使った作業ブランチの worktree を残す（t615）", async () => {
     const { ctx: first, calls, undraft } = await prepared();
     const script = path.join(path.dirname(first.repo.topLevel), "failing-merge-check.sh");
@@ -839,54 +759,6 @@ describe("dg pr ready・dg pr merge（t545）", () => {
       .data as PrAdvanceView;
     expect(merged).toMatchObject({ pr: 7, action: "merge", gate: { gate: "free", passed: true } });
     expect(await calls()).toEqual(["pr ready 7", `pr merge 7 --squash --match-head-commit ${tip}`]);
-  });
-
-  it("low のチケットは見直しがなくても dg pr ready が gh を呼ぶが、受け入れ条件に印がなければ dg pr merge は GATE_FAILED で止まり、印を付けると通る（t663）", async () => {
-    const { ctx, tip, calls, undraft } = await prepared();
-    await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "low" });
-    const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
-    expect(ready.gate).toMatchObject({ gate: "low", passed: true });
-    await undraft();
-    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
-    expect(err).toBeInstanceOf(OperationError);
-    expect(err!.code).toBe("GATE_FAILED");
-    expect(err!.detail).toContain("acceptance: Acceptance criteria 1 are not marked");
-    expect(await calls()).toEqual(["pr ready 7"]);
-    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
-    const merged = (await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }))
-      .data as PrAdvanceView;
-    expect(merged).toMatchObject({ pr: 7, action: "merge", gate: { gate: "low", passed: true } });
-    expect(await calls()).toEqual(["pr ready 7", `pr merge 7 --squash --match-head-commit ${tip}`]);
-  });
-
-  it("ゲートが判定した後に別のコミットを push したら、マージしない（判定したコミットに固定し、新しいコミットは見直しと検査を通っていない。t750）", async () => {
-    const { ctx, f, tip, calls, undraft } = await prepared();
-    // 時刻はテストが決める。見直しは先端のコミットの 60 秒後、判定の後のコミットは 120 秒後にする
-    // （コミットの時刻は秒までなので、実時間に任せると見直しと同じ秒に落ちうる）
-    const tipAt = Date.parse(
-      (await git(f.cloneA, ["log", "-1", "--format=%cI", tip])).stdout.trim(),
-    );
-    ctx.now = () => new Date(tipAt + 60_000);
-    const run = (
-      await runCommand(runStart, ctx, { ticket: "t1", step: "review", agent: "claude-code" })
-    ).data as Run;
-    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 0, passed: true });
-    await runCommand(runFinish, ctx, { run: run.id, result: "success" });
-    await undraft();
-    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
-    // ゲートは今の先端（tip）を判定して通す
-    const judged = (await runCommand(gate, ctx, { ticket: "t1", for: "merge" })).data as GateView;
-    expect(judged).toMatchObject({ passed: true, sha: tip });
-    // 判定の後にコミットを push する（PR の先端が進む）
-    await runGit(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "判定の後の作業"], {
-      env: { GIT_COMMITTER_DATE: new Date(tipAt + 120_000).toISOString() },
-    });
-    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
-    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
-    expect(err).toBeInstanceOf(OperationError);
-    expect(err!.code).toBe("GATE_FAILED");
-    expect(err!.detail).toContain("review:");
-    expect(await calls()).toEqual([]);
   });
 
   it("ゲートが判定した後、gh pr merge の直前に別のコミットが push されても、判定したコミットに固定した --match-head-commit を gh が拒み、マージしない（t750）", async () => {

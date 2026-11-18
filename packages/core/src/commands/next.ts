@@ -14,7 +14,7 @@ import { DEFAULT_WORKFLOW, operationPolicy } from "../workflow/resolve.js";
 import { wipAdvanceStepOf, wipOverOf, wipWarningsOf } from "../workflow/wip.js";
 import { briefOf, type BriefRole } from "./brief.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
-import { FIX_ROUNDS_LIMIT, heavyReviewRounds, reviewedTip } from "./gate.js";
+import { FIX_ROUNDS_LIMIT, heavyReviewRounds, reviewedTip } from "./gate-judge.js";
 import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";
 import { planReadiness } from "./plan.js";
 import { APPROVAL_OVERRIDES, NEVER_OVERRIDDEN } from "./pr-approval.js";
@@ -47,7 +47,7 @@ export interface Stage {
   /** 重い指摘が出た見直しの回数（fixed(n) の n。修正ループの回数。dg gate の fix_rounds と同じ数え方） */
   fixes: number;
   /**
-   * 最後の push を見直した見直しが通っているか（reviewed で ready と fix を分ける。新しさの判定は gate.ts の reviewedTip）。
+   * 最後の push を見直した見直しが通っているか（reviewed で ready と fix を分ける。新しさの判定は gate-judge.ts の reviewedTip）。
    * low・free の段は見直しを判定しないので、見直しは通ったものとして扱い、常に true（手は ready に進む）
    */
   review_passed: boolean;

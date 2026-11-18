@@ -1,7 +1,7 @@
-// PR を進めるコマンド（EX-6・AG-10、ADR-026）。品質ゲート（gate.ts の judgeGate）を満たすときだけ gh を呼ぶ。
+// PR を進めるコマンド（EX-6・AG-10、ADR-026）。品質ゲート（gate.ts の judgeGate と gate-judge.ts の gatePassage）を満たすときだけ gh を呼ぶ。
 // エージェントが PR を ready にする・マージする正しい道で、フックは dg を経由しない gh pr ready・merge を拒む（hook.ts）
 
-import { APPROVAL_OVERRIDES, NEVER_OVERRIDDEN } from "./pr-approval.js";
+import { NEVER_OVERRIDDEN } from "./pr-approval.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { z } from "zod";
@@ -24,7 +24,15 @@ import {
 } from "./branch-cleanup.js";
 import { setupFailureIn } from "./claim-setup.js";
 import { defineCommand, ok, outsideWarning, rebaseWarning, type CommandContext } from "./define.js";
-import { judgeGate, type GateConditionId, type GateStage, type GateView } from "./gate.js";
+import { judgeGate } from "./gate.js";
+import {
+  gateFailure,
+  gatePassage,
+  waivedBy,
+  type GateConditionId,
+  type GateStage,
+  type GateView,
+} from "./gate-judge.js";
 import { ticketRef } from "./helpers.js";
 import {
   approverOf,
@@ -147,24 +155,10 @@ async function noteGranted(
 }
 
 /**
- * GATE_FAILED の detail の、満たさないまま進める道の案内。ready は人が gh を打つ。merge は人に聞き、承認されたら agent が
- * --approved-by でマージする（越えられるのは APPROVAL_OVERRIDES の条件。t884）。
- * blocking は、承認があっても越えられない満たさない条件
- */
-function proceedHint(ticketId: string, stage: GateStage, blocking: readonly string[]): string {
-  if (stage === "ready")
-    return "Proceeding without meeting it (the review cannot be started, the fix loop went past its limit, or a human set the count) is a human decision, so ask a human to run gh pr ready (dg guide review)";
-  if (blocking.length > 0)
-    return `A person's approval does not override ${blocking.join(", ")} (${NEVER_OVERRIDDEN}), so resolve them first. Do not ask a person to run gh pr merge`;
-  return `Merging without meeting it is a human decision, and it always needs a person's approval (fixed in Core; neither the config nor workflow.yaml changes it, and a flow that goes ahead without asking does not skip it): show a person these unmet conditions and ask whether to merge anyway. Only when the person approves, run dg pr merge ${ticketId} --approved-by human (the approval overrides ${APPROVAL_OVERRIDES.join(", ")}). Do not ask a person to run gh pr merge, and never pass --approved-by without a person's approval`;
-}
-
-/**
  * ゲートを判定し、満たさなければ満たさない条件と理由を GATE_FAILED で返す（gh を呼ばない）。
  * 品質ゲートを満たさない PR のマージは Core に固定で、主体によらずいつも人の承認が要る（workflow/resolve.ts の CORE_FIXED の
- * merge_over_gate。人が呼ぶときも承認者を渡し、PR に残す）。承認者（approver。merge だけ）があれば APPROVAL_OVERRIDES の条件を
- * 満たさなくても通し、越えた条件を overridden に返す。承認がなければ何も越えない（--auto でも越えない。approver は人だけ）。
- * PR（pr）・衝突（mergeable）・先端（head と sha）は、承認があっても越えない（t884）
+ * merge_over_gate。人が呼ぶときも承認者を渡し、PR に残す）。承認者（approver。merge だけ）があれば越える条件（waivedBy）を
+ * 満たさなくても通し、越えた条件を overridden に返す。越えた条件と止める条件を決めるのは gate-judge.ts の gatePassage（読まない関数）
  */
 async function passGate(
   ctx: CommandContext,
@@ -173,36 +167,14 @@ async function passGate(
   approver: string | null = null,
 ) {
   const ticket = ctx.store.require("ticket", ticketId).data;
-  const waived = new Set<GateConditionId>(
-    stage === "merge" && approver !== null ? APPROVAL_OVERRIDES : [],
-  );
+  const waived = waivedBy(stage, approver !== null);
   const gate = await judgeGate(ctx, ticket, stage, [], waived);
-  const unmet = gate.conditions.filter((c) => !c.ok);
-  const overridden = unmet.filter((c) => waived.has(c.id)).map((c) => c.id);
-  // マージは判定した先端に固定するので、先端が読めなければ通さない（ready は固定しないので先端は要らない。t750）
-  if (
-    overridden.length < unmet.length ||
-    gate.pr === null ||
-    (stage === "merge" && gate.sha === null)
-  ) {
-    const failed = unmet.map((c) => `${c.id}: ${c.detail}`);
-    // 承認があっても越えられない条件（承認がないときは、承認を得ても残る条件を案内に出す）
-    const overridable = new Set<GateConditionId>(APPROVAL_OVERRIDES);
-    const blocking: string[] = unmet.filter((c) => !overridable.has(c.id)).map((c) => c.id);
-    // free は head の条件を判定しないので、先端が読めなかったときは理由を足す（落とした理由が空にならないように）
-    if (stage === "merge" && gate.sha === null && !gate.conditions.some((c) => c.id === "head")) {
-      failed.push(
-        "head: cannot read the PR head commit from gh, so the merge cannot be pinned to the judged commit",
-      );
-      blocking.push("head");
-    }
-    throw new OperationError(
-      "GATE_FAILED",
-      `${ticket.id} does not meet the quality gate (dg gate ${ticket.id} --for ${stage}), so gh pr ${stage} is not called`,
-      `${failed.join("\n")}\n${proceedHint(ticket.id, stage, blocking)}. If the level of the ticket does not fit the change, a person changes it with dg ticket update ${ticket.id} --gate <level> (only a person can lower it; an agent's call is rejected), then run dg pr ${stage} again`,
-    );
+  const passage = gatePassage(gate, waived);
+  if (!passage.proceed) {
+    const { message, detail } = gateFailure(gate, passage);
+    throw new OperationError("GATE_FAILED", message, detail);
   }
-  return { ticket, gate, pr: gate.pr, sha: gate.sha, overridden };
+  return { ticket, gate, pr: passage.pr, sha: passage.sha, overridden: passage.overridden };
 }
 
 /**
