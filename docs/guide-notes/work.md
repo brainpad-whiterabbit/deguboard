@@ -1,5 +1,2 @@
-When a document or a comment you write tells how to run a command, run the command once exactly as you wrote it (same arguments, from the same directory) before you commit, and write only what actually worked. Do not write a form you have not run.
-Basis: in s35 the review found that the command t951 wrote in development.md without running it (`mise run test -- -u <file>`) does not narrow to the file. Drop this rule when, for 3 Iterations in a row, no retry reason of a fix Run (retry_reasons in dg run list) says that a command written in a document or a comment does not work as written.
-
 In a test that compares times, take the expected value from what the test prepared (such as the modification time of the file or record it wrote), not from Date.now() or a new Date() taken separately, because two clocks read at different moments can fall on either side of a second boundary.
 Basis: in s35 t961 took the expected time from Date.now(), which can differ by a second from the time of the record it prepared. Drop this rule when, for 3 Iterations in a row, no escaped defect has the origin_cause tests.
