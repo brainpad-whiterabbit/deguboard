@@ -21,26 +21,24 @@ Iteration の流れ（段階・次の 1 手・止まる判定・承認の要否�
 
 - Iteration（かチケットの束）の流れの段階、次の 1 手、止まる判定、承認の要否は Core のコマンド（`dg flow next`）が返す。`dg guide all` は段階の順と判定の規則を書かず、返った手の行い方だけを書く
 - 承認の要否は、Workflow の権限の値（[ADR-003](ADR-003-status-and-workflow.md)）をエージェントに当てて決める。段階ごとの値は `flow`（assign・check・plan・audit・release・retro）に、作業の段階のマージは review → done の境目の `decide` に書く。既定の値は `core/workflow/resolve.ts` が正本
-- `flow` の値のうち、コマンドで止められる操作は dg が判定して拒否する：割り当て（Iteration・Epic への出し入れ）は assign、Plan の承認は plan、Iteration を閉じる・再開するは release。コマンドで止められない場面（点検の直す行・見直しの指摘の表・リリースの手順・振り返りの改善の起票）は、手順が関所を呼んで同じ値で判定する（次の節）
-- assign が判定するのは、すでにあるチケットの出し入れだけ。起票のときの指定（`ticket create`・`import` の `--iteration`・`--epic`）は起票の判定（`governance.create`）に、`claim` が自分で入れる Iteration は config の `lint.require_iteration` に従うので、assign の外に置く（同じ操作を 2 つの値で判定しない）
+- `flow` の値のうち、コマンドで止められる操作（割り当て・Plan の承認・Iteration を閉じる・再開する）は dg がそのコマンドで判定する。止められない場面は、手順が関所を呼んで同じ値で判定する（次の節）。操作と値の対応は `dg workflow show --help` と `core/workflow/resolve.ts` が正本
+- assign が判定するのは、すでにあるチケットの出し入れだけ。起票のときの指定と `claim` が自分で入れる Iteration は、ほかの値に従うので assign の外に置く（同じ操作を 2 つの値で判定しない）
 - 動かすのは引き続きエージェントで、dg はエージェントを起動も監視もしない（[ADR-028](ADR-028-agents-and-state.md)・EX-1）
 
 ### `--auto` は ask_unless_auto の場面を聞かずに進める意味だけを持ち、各コマンドが受ける
 
 - `--auto` の意味は 1 つ：権限の値が `ask_unless_auto` の場面を、人に聞かずに進める。どの判断を聞かずに進めてよいかは Workflow の値だけが決め、config に `--auto` の範囲を書く項目（前の `auto.merge`・`auto.decisions`）は持たない
-- 権限を判定するコマンド（Status の動き・`pr ready`・`pr merge`・流れの段階の操作・カンバンの管理の操作）は `--auto` を受ける。値が `ask_unless_auto` の場面でだけ聞かずに通し、承認者に進めたエージェントを記録する。ほかの場面（`always_ask`・`human_only`・Core の固定（[ADR-026](ADR-026-guard-pr-and-data.md)）・`anyone`・何も判定しない呼び出し）の `--auto` は拒否する
-- `--auto` はエージェントだけが渡せ、人の承認（`--approved-by`）や人の強制（`--override`）とは一緒に渡せない。`dg workflow set` は `--auto` を受けない
-- `dg flow next --auto` は、聞かずに進められる場面（`approval.auto_ok`）と、`--auto` を付けたコマンドを返す。値と拒否の文の細部は `core/commands/permission.ts` と各 `--help` が正本
+- 権限を判定するコマンドは `--auto` を受け、値が `ask_unless_auto` の場面でだけ聞かずに通して、承認者に進めたエージェントを記録する。ほかの場面（Core の固定（[ADR-026](ADR-026-guard-pr-and-data.md)）と `anyone` を含む）の `--auto` は拒否する
+- `--auto` はエージェントだけが渡せる。`dg flow next --auto` は、聞かずに進められる場面と `--auto` を付けたコマンドを返す。組み合わせと拒否の細部は `core/commands/permission.ts` と各 `--help` が正本
 
 ### 段階を終えたことは、関所の記録を Iteration に根拠付きで足して決める
 
-- 関所（`dg checkpoint <段階>`）は段階の手順が呼ぶ。段階の値（`flow`）で判定し、通ったときだけ Iteration の `checkpoints` に記録（名前・日時・主体・承認者・根拠）を足す。plan は関所を持たず、Plan の承認の記録を使う
-- 記録は消さずに足し、会話・人・マシンをまたいで有効にする。通ったときに見たもの（根拠）を添え、根拠が今の事実に合わない記録と `iteration reopen` より前の記録は数えない
-- `dg flow next` は、割り当て・点検・見直しを終えたかを記録と根拠で決める。関所を呼び忘れると同じ段階を返し続け、止まる判定が止める
-- 止まる判定（同じ段階が事実も変わらずに続いたら止める）は共有せず、`deguboard-local/flow/` に対象ごとに覚える
+- 関所（`dg checkpoint <段階>`）は段階の手順が呼ぶ。段階の値（`flow`）で判定し、通ったときだけ Iteration の `checkpoints` に根拠付きの記録を足す。plan は関所を持たず、Plan の承認の記録を使う
+- 記録は消さずに足し、会話・人・マシンをまたいで有効にする。根拠が今の事実に合わない記録と `iteration reopen` より前の記録は数えない。`dg flow next` は段階を終えたかを記録と根拠で決める
+- 止まる判定（同じ段階が事実も変わらずに続いたら止める）は共有せず、このマシンに対象ごとに覚える
 - 記録を書く対象は Iteration だけ。Iteration のない流れは最初の割り当てで Iteration を決め、決まらないときの割り当ての記録だけをローカルに書く。Epic への見直しは持たない
-- 割り当ての段は、チケットか Plan の流れで、Iteration にない対象のチケットの Iteration を決めるためだけに置く。Iteration の流れは、ほかの todo を割り当ての候補に集めない（Iteration に入れるかは、人が頼んだときに割り当ての手順 `dg guide assign` で決める）
-- 段階ごとの根拠と止まる判定の細部は `core/commands/flow-records.ts` と各 `--help` が正本
+- 割り当ての段は、チケットか Plan の流れで、Iteration にない対象のチケットの Iteration を決めるためだけに置く。Iteration の流れは、ほかの todo を割り当ての候補に集めない
+- 段階ごとの根拠と止まる判定の細部は `core/commands/flow-records.ts` と `dg flow next --help` が正本
 
 ### guide の読み込みは Core に置く
 
@@ -50,18 +48,16 @@ Iteration の流れ（段階・次の 1 手・止まる判定・承認の要否�
 
 ### カスタマイズは Workflow の値と config の項目と guide.notes の枠で行う
 
-- 利用者が既定の手続きを変える入口は、`workflow.yaml` の値（誰に任せるか・聞かずに進めてよい場面・流れから外す段階 `flow` の `skip`。[ADR-003](ADR-003-status-and-workflow.md)）と、`config.yaml` の項目（マージの方法・検査のコマンドなど。名前は config のスキーマが正本）と、guide の決まった位置に文を差し込む `guide.notes.<topic>` と、下の独自の段階だけにする。値と項目はコードが読んで判定に効かせ、同梱の手順に文を足せるのは `guide.notes` だけ。並列の上限 `work.parallel` の扱いは [ADR-011](ADR-011-procedure-in-code.md) に従う
-- 同梱の段階にない段階（検証環境で確かめる、など）は、`workflow.yaml` の `flow` に独自の段階として足す。書くのは、誰が決めるか `decide`・位置 `after`・手順の文書 `guide`（リポジトリの中のパス）の 3 つ。独自の段階はいつも関所で、`dg flow next` は同梱の段階と同じ形（文書の本文・関所のコマンド・承認の要否）で返す
-- `after` に書けるのは同梱の段階（work を含む）だけ。同じ `after` の段階は書いた順に行い、独自の段階どうしの順は検査しない
-- 手順の文書が読めないときは、警告を出して段階は返す（`guide.notes` と同じ）。位置と返し方の細部は `core/commands/flow.ts` と `dg flow next --help` が正本
+- 利用者が既定の手続きを変える入口は、`workflow.yaml` の値（[ADR-003](ADR-003-status-and-workflow.md)。流れから外す段階 `flow` の `skip` を含む）と、`config.yaml` の項目と、guide の決まった位置に文を差し込む `guide.notes.<topic>` と、下の独自の段階だけにする。値と項目はコードが読んで判定に効かせ、同梱の手順に文を足せるのは `guide.notes` だけ。`work.parallel` の扱いは [ADR-011](ADR-011-procedure-in-code.md) に従う
+- 同梱の段階にない段階は、`workflow.yaml` の `flow` に独自の段階（`decide`・`after`・`guide`）として足す。独自の段階はいつも関所で、`dg flow next` は同梱の段階と同じ形で返す
+- `after` に書けるのは同梱の段階だけで、同じ `after` の段階は書いた順に行う。手順の文書が読めないときは、警告を出して段階は返す。細部は `core/commands/flow.ts` と `dg workflow show --help`・`dg flow next --help` が正本
 - SKILL.md と guide の書き換えはカスタマイズの前提にしない。Skill は `dg skill install` で最新に保てる形のままにする
 - 修正ループの回数は config に置かない
 
 ### Skill の印は書いた dg の版を持ち、自動の更新と警告は版で新旧を比べる
 
-- SKILL.md は frontmatter の直後に印 `<!-- dg skill v<書いた dg の版> sha256:<印の行を除いた中身のハッシュ> -->` を持つ。ハッシュで手を加えたかを、版で今の dg より古いか新しいかを見分ける
-- 自動の更新と警告は版で新旧を比べ、新しい dg が書いた Skill を古いものに戻さない
-- 更新・警告の出し分けと手動のインストールの細部は、`packages/core/src/commands/skill-files.ts` とそのテストを正本にする
+- SKILL.md の印は、書いた dg の版と中身のハッシュを 1 行に持つ。ハッシュで手を加えたかを、版で新旧を見分ける
+- 自動の更新と警告は版で新旧を比べ、新しい dg が書いた Skill を古いものに戻さない。印の形と出し分けの細部は `packages/core/src/commands/skill-files.ts` とそのテストが正本
 
 ## 理由
 
