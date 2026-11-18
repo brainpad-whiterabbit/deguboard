@@ -1,0 +1,47 @@
+id: p156
+tickets: [t1099, t1092, t1091, t1090, t1095, t1096, t1097, t1098, t1094]
+after:
+  t1092:
+    - t1099
+  t1091:
+    - t1092
+  t1095:
+    - t1090
+pending_approval: true
+details:
+  t1099:
+    scope: store.tsx の reload で最新でない reload が状態を書き換えないようにし、順序を決めた再現テストを足す。HostBridge は触らない
+    approach: reload に世代番号を持たせ、await の後で最新でなければ setNeedsSetup・notice などを書かずに戻る。テストは config.show の応答を手で解決する順序で組む
+    tier: heavy
+  t1092:
+    scope: host.tsx の HostBridge が、コミットと副作用の間に届いた setup・reload の event を最新の handler に渡す
+    approach: ref への写しを useLayoutEffect か描画中の代入に変えるか、event の受け口で最新の store を引くようにし、その順序のテストを足す
+    tier: heavy
+  t1091:
+    scope: ask-composer.test.tsx と app.test.tsx の、表示だけ待って event を送る箇所を副作用まで待つ形に直す。本体は変えない
+    approach: t1073 の待ち方（副作用の済んだ印を待ってから deliver）を残りの箇所に当て、残した同期の act の理由を PR に書く
+    tier: standard
+  t1090:
+    scope: docs/usage.md と usage.ja.md の Notifications の節に、自動の取り込み・同期のボタンの点・セットアップのアイコンの点を足す
+    approach: 実装（sync.ts・attention.ts）で振る舞いを確かめてから、英日で同じ構成に書く
+    tier: standard
+  t1095:
+    scope: ADR-003・ADR-030 の細部を正本へ移して短くし、ADR-034 の止まる約束を自動の取り込みと矛盾しない記述に直す。判断は変えない
+    approach: 細部がコード・テスト・ヘルプにあることを確かめてから ADR から消し、check:docs で確かめる
+    tier: standard
+  t1096:
+    scope: sync.ts の未 push・未取り込みの数え方の共通化、attentionCommandOf の export の削除、extension.ts のコメントの要件 ID、l10n.test.ts の定数の名前を直す
+    approach: 数え方を sync.ts の内部の関数に切り出し、fastForwardIfClean と syncStatus から呼ぶ。振る舞いは変えず既存のテストで確かめる
+    tier: heavy
+  t1097:
+    scope: test:related のワーカー数の決まりの説明を正本 1 か所に寄せ、ほかはそこを指すか消す
+    approach: vitest.workers.ts のコメントを正本にし、mise.toml・development.md・vitest.config.ts はタスクのすることだけか参照にする
+    tier: standard
+  t1098:
+    scope: ルートの package.json の description と CLAUDE.md の 1 行目を README の冒頭の位置づけに合わせる
+    approach: README.md・README.ja.md の冒頭の文言に合わせて 2 か所の文言だけを書き換える
+    tier: light
+  t1094:
+    scope: sidebar.vscode.ts の同期のボタンの点のテストで、落ちても commit.mode と push.mode を戻す
+    approach: 設定の変更と確かめを try/finally で囲み、finally で configUnset する
+    tier: standard
