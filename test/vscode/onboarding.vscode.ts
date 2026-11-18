@@ -33,6 +33,26 @@ async function shoot(name: string): Promise<void> {
   }
 }
 
+/** 推奨の項目の id と、画面に出る名前。画面は id を出さないので、帯とチェックリストの項目の行の名前から id を引く */
+const RECOMMENDED = {
+  skills_hooks: "Skills and hooks",
+  dg_command: "dg command",
+  gitignore: ".claude/.gitignore",
+} as const;
+
+/**
+ * 推奨の項目の帯が挙げている、欠けている項目の id。帯の文「N recommended items are not done (名前, 名前).」の括弧の中を読む。
+ * RECOMMENDED にない名前（後から足された推奨の項目）はその名前のまま返し、括弧が読めないときは帯の文をそのまま返して、
+ * 落ちたときの差分に欠けている項目が出るようにする
+ */
+async function missingInBand(): Promise<string[]> {
+  const text = await sidebar.locator(".setup-band > span").first().innerText();
+  const list = /\((.*)\)/.exec(text)?.[1];
+  if (list === undefined) return [text];
+  const idOf = new Map<string, string>(Object.entries(RECOMMENDED).map(([id, name]) => [name, id]));
+  return list.split(", ").map((name) => idOf.get(name) ?? name);
+}
+
 beforeAll(async () => {
   await access(path.join(ROOT, "packages/vscode/dist/web/index.html")).catch(() => {
     throw new Error("packages/vscode/dist がない。先に mise run build を実行する");
@@ -112,8 +132,12 @@ describe("VS Code の実機の導入のチェックリスト", () => {
         { timeout: 120_000 },
       )
       .toBe(true);
-    // 実行の終わりで確かめ直し、項目のボタンが消える（満たした印に変わる）
-    await install.waitFor({ state: "detached", timeout: 60_000 });
+    // 実行の終わりで確かめ直し、項目が満たした印に変わる。ボタンが消えたことでは確かめない
+    // （入れるコマンドが --force だけのときは、項目が欠けたままでもボタンは出ない。setup-checklist.tsx の guideOf）
+    await sidebar
+      .locator(".setup-item.ok", { hasText: RECOMMENDED.skills_hooks })
+      .waitFor({ timeout: 60_000 });
+    expect(await install.count()).toBe(0);
   }, 240_000);
 
   it("タイトル行のセットアップのアイコンでチェックリストと来る前の画面を行き来でき、帯を出さないと決めた後も開けて、帯をまた出せる（t1021）", async () => {
@@ -160,9 +184,13 @@ describe("VS Code の実機の導入のチェックリスト", () => {
       .locator(".part.sidebar a.action-label.codicon-checklist")
       .locator("visible=true");
     const heading = sidebar.locator("h2", { hasText: "Setup" });
-    // 前の検査の終わりは帯を出してボードを出している。.claude/.gitignore をコミットしていないので 1 件欠けている
+    // 前の検査の終わりは帯を出してボードを出している。欠けているのは、コミットしていない .claude/.gitignore だけ。
+    // 件数の前に欠けている項目を確かめ、落ちたときにどの項目が欠けていたかがわかるようにする
+    await expect.poll(missingInBand, { timeout: 60_000 }).toEqual(["gitignore"]);
     await dotted.waitFor({ timeout: 60_000 });
-    expect(await dotted.getAttribute("aria-label")).toBe("Setup (1 item missing)");
+    await expect
+      .poll(() => dotted.getAttribute("aria-label"), { timeout: 60_000 })
+      .toBe("Setup (1 item missing)");
     expect(await plain.count()).toBe(0);
     await shoot("setup-title-dot");
     // 帯を出さないと決めても点は残る

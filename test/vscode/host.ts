@@ -7,7 +7,8 @@
 //   エージェントと dg の変数（DEGUBOARD_ACTOR=agent など）も外し、エージェントの中で回しても人の VS Code として動かす
 // - ウィンドウ全体（ワークベンチと Webview）の CSP 違反（Chromium が Console の error に出す）と捕まえていない例外（pageerror）を集め、
 //   あれば検査を落とす（WebviewWatch。Playwright の console・pageerror は OOPIF の Webview の分も page に届く）
-// - 起動の PATH にビルド済みの dg（packages/cli/bin）を足し、導入のチェックリストの dg コマンドの項目（PATH に dg がない）がスクリーンショットに写らないようにする
+// - 起動の PATH にビルド済みの dg（packages/cli/bin）を足し、導入のチェックリストの dg コマンドの項目（PATH に dg がない）が欠けないようにする。
+//   この PATH が拡張ホストに届くよう、--force-disable-user-env を付けて VS Code にログインシェルの環境変数を引かせない（launchIn）
 // - HOME は一時ディレクトリにする。拡張は起動のたびに起動ファイルを ~/.local/share/deguboard/ に書き、個人の置き場所
 //   （~/.claude/skills）の古い Skill を作業ブランチの版に更新するので、本物の HOME を渡すと開発者の手元を書き換える（t863）
 // VS Code の API に触れない純粋な部分（cleanEnv・isCspViolation・pickDisplay）は host.test.ts が確かめる
@@ -244,6 +245,11 @@ async function launchIn(
       "--disable-gpu",
       "--no-sandbox",
       "--disable-dev-shm-usage",
+      // VS Code は、ターミナルの外から起動されると、ログインシェルを起こして得た環境変数を拡張ホストに渡す。HOME が空の一時ディレクトリなので
+      // シェルの PATH は /etc/profile の既定だけになり、下で足す dg が拡張ホストから見えず、dg コマンドの項目が欠ける（t1110）。
+      // シェルの環境変数を引くのだけをやめさせ、下の env をそのまま拡張ホストに渡させる（code コマンドが付ける VSCODE_CLI でも
+      // 引かなくなるが、そちらは窓の開き方や引数の警告も code コマンドからの起動として扱わせるので使わない）
+      "--force-disable-user-env",
       folder,
     ],
     env: cleanEnv(process.env, display.name, {
