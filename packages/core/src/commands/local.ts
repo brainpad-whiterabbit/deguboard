@@ -185,14 +185,14 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
   };
 
   /**
-   * status の後ろの fetch と自動の取り込み（UI-6）。失敗（届かない・時間切れ・ロックを取れない・取り込めない）は捨てる
+   * status の後ろの fetch と自動の取り込み（UI-6）。失敗（届かない・時間切れ・ロックを取れない）は捨てる
    * （状態の表示を止めず、通知もしない。未取り込みの印が残り、次の間隔でまた試す）。
+   * 取り込むものがあるのに取り込めないときは捨てずに、auto_pull_blocked として status に出し、画面が人の同期が要ると知らせられるようにする。
    * 同じマシンの dg（CLI）の書き込みも fetch するので、書き込みのロックを待たずに取れたときだけ fetch する
    * （同じ追跡ブランチの ref を同時に書くと片方の fetch が失敗する。取れないのはほかの dg が書き込み中で、その書き込みが fetch する）。
    * fetch の後、同じロックの中で、fast-forward で済むときだけ取り込む（条件は fastForwardIfClean）。古いのは画面の表示だけなので
    * （書くコマンドは書く前に取り込む。SY-2）、人の同期を待たずに映す。取り込んだら、後に続く読みに新しく走査させ、
-   * 回数を status に出して画面に読み直させる（VS Code はデータのファイルの見張りでも読み直す）。
-   * 取り込むものがあるのに止まったら、それも status に出して、画面が人の同期が要ると知らせられるようにする
+   * 回数を status に出して画面に読み直させる（VS Code はデータのファイルの見張りでも読み直す）
    */
   async function backgroundFetch(): Promise<void> {
     const ctx = await ctxPromise;
