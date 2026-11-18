@@ -2,7 +2,7 @@
   "name": "deguboard-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "Agentic-Agile に着想を得た、開発の流れを備えた Git-native なカンバン。CLI は dg",
+  "description": "AI エージェントに開発を任せるための開発の流れを Git リポジトリに組み込むツールで、VS Code のカンバンはその窓口。Agentic-Agile に着想を得た。CLI は dg",
   "license": "MIT",
   "type": "module",
   "scripts": {
