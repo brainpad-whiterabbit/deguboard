@@ -11,6 +11,7 @@
 // 要件の 1 項が上限の 250 字を超えたときと、コードとテストが置き換え済みの ADR を指したときも落ちる（t580）。
 // packages のテスト以外の文字列に要件 ID があると落ち、コメントとテストのファイルの ID は落とさないことも確かめる（t902）。
 // 文書が「既定」「default」と Workflow の権限の値を同じ文に書くと落ち、ADR の「採らなかった案」は落とさないことも確かめる。見出しの行に既定の語を置いた表の値の行も落ちる（t1147）。packages のテスト以外の文字列（ヘルプ・エラー・警告）も、コメントの外で同じ文に書くと落ちる（t1156）。
+// 権限の値は model/workflow.ts の DECISIONS から読み、足した値も見て、配列が読めなければ落ちることも確かめる（t1175）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
@@ -39,6 +40,7 @@ const COPIED = [
   "docs",
   "packages/cli/src",
   "packages/core/src/guide",
+  "packages/core/src/model/workflow.ts",
   "packages/vscode/media/walkthrough",
 ];
 // ADR 番号そのものを検査するテストなので、検査の入力と期待する指摘の文には ADR 番号を残す（テストの文字列から番号を外す規則の例外）
@@ -1299,5 +1301,39 @@ describe.concurrent("check-docs の Workflow の既定値の書き写し（t1147
     );
     const { stderr } = await run(dir);
     expect(stderr).not.toContain(FOUND);
+  });
+
+  it("権限の値は正本の DECISIONS から読み、正本に足した値も既定の語と同じ文なら落ちる（t1175）", async ({
+    dir,
+    expect,
+  }) => {
+    await rewrite(
+      dir,
+      "packages/core/src/model/workflow.ts",
+      /export const DECISIONS = \[/,
+      'export const DECISIONS = [\n  "zz_probe_only",',
+    );
+    const usageLine = (await lineCount(dir, "docs/usage.md")) + 1;
+    await append(dir, "docs/usage.md", "Merging is `zz_probe_only` (the default).");
+    const { code, stderr } = await run(dir);
+    expect(code).toBe(1);
+    expect(stderr).toContain(`docs/usage.md:${usageLine}: ${FOUND}`);
+  });
+
+  it("正本の DECISIONS の配列を読めないと、正本の場所を出して落ちる（t1175）", async ({
+    dir,
+    expect,
+  }) => {
+    await rewrite(
+      dir,
+      "packages/core/src/model/workflow.ts",
+      /export const DECISIONS = \[/,
+      "export const DECISION_VALUES = [",
+    );
+    const { code, stderr } = await run(dir);
+    expect(code).toBe(1);
+    expect(findingsOf(stderr)).toContain(
+      "packages/core/src/model/workflow.ts: 権限の値の配列（export const DECISIONS = [...] as const）を読めない",
+    );
   });
 });
