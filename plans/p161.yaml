@@ -1,0 +1,49 @@
+id: p161
+tickets: [t1118, t1119, t1120, t1121, t1122, t1123, t1124, t1125, t1126]
+after:
+  t1124:
+    - t1118
+  t1122:
+    - t1121
+  t1123:
+    - t1122
+  t1126:
+    - t1125
+pending_approval: true
+details:
+  t1118:
+    scope: usage と README の Security and privacy の記述を、拡張が直接起動するものとターミナルに入れるものに分けて書き直す。拡張のコードは変えない
+    approach: extension.ts と terminals.ts で実際に起動・送信するものを確かめてから英語版を直し、日本語版を同じ構成で揃える
+    tier: standard
+  t1119:
+    scope: syncStatus が追跡 ref の途中の出現で古い失敗を投げないようにし、判定を読まない関数に出し、git.test.ts の不安定な件を直す
+    approach: 数えた結果と ref の有無から返す状態を決める関数を分けて組み合わせをテストし、結合テストは読み側の例外を拾う形にする
+    tier: heavy
+  t1120:
+    scope: ADR-025・ADR-026 の細部の正本と development.md のパッケージの表の、コードの場所の記述だけを直す。判断は変えない
+    approach: 各行が指すファイルと関数を今のコードで確かめてから書き換え、check:docs で参照を確かめる
+    tier: standard
+  t1121:
+    scope: fetchPrGateFacts の分岐と runsClosedByMove・startsAtOrAfterFixRun の直接のテストを足す。コードの振る舞いは変えない
+    approach: fetchPrGateFacts は gate.test.ts の偽の gh の形で facts.test.ts に表のテストを置き、2 つの判定は run-close-judge.test.ts の表で確かめる
+    tier: standard
+  t1122:
+    scope: gate.test.ts の時刻を比べうる件の期待値の取り方だけを直す
+    approach: テストが用意した固定の時刻かコミットの時刻を明示し、時刻で比べない件はその旨をコメントにする
+    tier: standard
+  t1123:
+    scope: judge まわりの再 export の理由・同名の型・外で使わない export・--branch の案内の重複を片付ける。振る舞いは変えない
+    approach: grep で使う側を確かめてから export を外し、型は用途の名前に改名し、案内の文は 1 か所の定数から両方が使う
+    tier: standard
+  t1124:
+    scope: README と usage の、Plan の帯から依存のグラフを開く操作の言い方を揃える
+    approach: 画面の実際の操作を確かめて一方の言い方に揃え、日本語版も合わせる
+    tier: light
+  t1125:
+    scope: release:version の npm の扱いを pnpm に寄せるか、理由を description に書く
+    approach: pnpm version で同じ書き換えができるかを確かめ、できなければ理由を mise.toml に書く
+    tier: standard
+  t1126:
+    scope: oxfmt と oxlint を最新の固定の版に上げ、要る直しを同じ PR に入れる
+    approach: 版を上げて lockfile を更新し、format と lint の差を確かめて直す
+    tier: standard
