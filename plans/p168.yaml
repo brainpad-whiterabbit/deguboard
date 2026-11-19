@@ -1,7 +1,7 @@
 id: p168
 tickets: [t1148, t1149]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t1148:
     scope: claim したセッションの記録と、別のセッションのもう一度の claim・unclaim の拒否と --take-over。Plan とチケットの claim 前の予約は含まない
@@ -11,3 +11,5 @@ details:
     scope: plan show と next の予約の指定、guide work・guide all と next の commands への組み込み、予約したチケットの claim の拒否と dg next の返し方
     approach: t1148 の記録と判定の関数を Plan とチケットの予約に広げ、見るだけの呼び出しは予約を作らない
     tier: heavy
+approved_by: Eiki Kitajima
+approved_at: 2026-11-19T09:19:29Z
