@@ -1,0 +1,47 @@
+id: p173
+tickets: [t1166, t1167, t1168, t1169, t1170, t1171, t1172, t1173, t1175, t1174]
+after:
+  t1174:
+    - t1167
+pending_approval: true
+details:
+  t1166:
+    scope: test:vscode の設定画面のテストの準備を今の既定と違う値にし、依存グラフのテストを前のテストに頼らなくする
+    approach: 準備の値とコメントを直し、依存グラフのテストの頭でカンバンに移る。test:vscode を回して結果を PR に書く
+    tier: standard
+  t1167:
+    scope: tip-merge.test.ts の worktree を作れなくする準備を root でも効くようにする
+    approach: 権限に頼らない塞ぎ方にするか、作れてしまう環境を確かめて理由付きで飛ばす
+    tier: standard
+  t1168:
+    scope: test:related が guide の .md で対のテストを選び、選べない変更を知らせ、比べる相手を config から決める
+    approach: related-tests.mjs の選び方に guide の .md の対応を足し、related-tests.test.ts に場合を足す
+    tier: standard
+  t1169:
+    scope: 配る guide と brief から deguboard 自身の mise のタスクの名指しと、既定で拒まれる --auto の例を外す
+    approach: guide-work.md・guide-all.md・brief.ts の文を一般の言い方にし、guide の snapshot を更新する
+    tier: standard
+  t1170:
+    scope: ADR-028 にセッションの記録と予約の排他を、ADR-026 の要約に base の条件を書く
+    approach: ADR-028 の排他の節に判断と採らなかった案を足し、ADR-026 の要約に 1 句足す
+    tier: standard
+  t1171:
+    scope: README の形式の切り替えと how-it-works の merge_base・deguboard-local の説明を今の形に合わせる
+    approach: 英語版と日本語版を同じ PR で直し、check:docs で節の構成を確かめる
+    tier: standard
+  t1172:
+    scope: 記録できるセッションかの判定を 1 つの読まない関数にし、予約の判定を決定の側へ寄せる
+    approach: claim-judge.ts に関数を置き、reservations.ts・claim-sessions.ts から呼ぶ。組み合わせを純粋な関数のテストで網羅する
+    tier: standard
+  t1173:
+    scope: CLAUDE.md の push の前の検査の条件と全体の検査の回数の言い方を実装に合わせる
+    approach: light_paths の条件と、base が進んだときのマージの前の回し直しを短く書く
+    tier: standard
+  t1175:
+    scope: check-docs.mjs の Workflow の値の一覧を正本から読むか、ずれを落とすテストを足す
+    approach: model/workflow.ts の値の配列を読み出すか、check-docs.test.ts で写しと正本を比べる
+    tier: standard
+  t1174:
+    scope: base の fetch・ref の名前・読む段の条件の重複をまとめる。振る舞いは変えない
+    approach: facts.ts に fetch と ref の名前の関数を置き、next.ts は gateReads から読む段を得る
+    tier: standard
