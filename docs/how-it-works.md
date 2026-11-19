@@ -99,7 +99,7 @@ sequenceDiagram
 - Where the hooks do not reach the agent, the Runs of marked subagents are not recorded; work the parent does itself gets its Run from the claim. Check with `dg hooks check` ([Use other agents](usage.md#use-other-agents))
 - A review result that no Run owns (no review Run is open and no hook has taken it, as when the hooks do not reach the agent) counts as a review Run closed when the result was written. `dg next` and `dg gate` count it, and `dg sync` and `dg pr ready` write it into Git and attach it to that Run ([ADR-025](adr/ADR-025-runs-by-hooks.md))
 - A fix Run still open when the next boundary comes (the next Run starts on the ticket, the PR is ready or merged, or the ticket ends) is closed with success at its last push, by the next start or by `dg sync` (details in `dg sync --help`)
-- Usage and tool counts stay empty unless `metrics.read_transcripts` is true, which is false by default ([Count tokens](usage.md#count-tokens))
+- Usage, tool counts, the seconds a Run waited for its parent, and the seconds it ran checks and tests stay empty unless `metrics.read_transcripts` is true, which is false by default. The last three are counted only for Claude Code ([Count tokens](usage.md#count-tokens))
 - Edge cases, such as what a crashed session leaves, are in `dg hook --help` and [ADR-025](adr/ADR-025-runs-by-hooks.md)
 
 ## Compared with a ticket tool and MCP

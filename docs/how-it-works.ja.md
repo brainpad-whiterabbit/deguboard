@@ -99,7 +99,7 @@ sequenceDiagram
 - フックが届かないエージェントでは、印で頼んだサブエージェントの Run は記録されません。親が自分で進める作業は claim が Run を開きます。届いているかは `dg hooks check` で確かめます（[他のエージェントで使う](usage.ja.md#他のエージェントで使う)）
 - 持ち主のない見直しの結果（開いている見直しの Run がなく、フックも取らなかったもの。フックが届かない環境など）は、結果を書いた時刻に閉じた見直しの Run として数えます。`dg next` と `dg gate` が数え、`dg sync` と `dg pr ready` がそれを Git に書いて Run に結び付けます（[ADR-025](adr/ADR-025-runs-by-hooks.md)）
 - 次の区切り（同じチケットの次の Run の開始・PR の ready かマージ・チケットの終わり）が来ても開いたままの手直しの Run は、最後の push で成功として閉じます。閉じるのは次の開始か `dg sync` です（細部は `dg sync --help`）
-- 使用量とツールの回数は、`metrics.read_transcripts` が true でなければ空のままです。既定は false です（[トークンを数える](usage.ja.md#トークンを数える)）
+- 使用量・ツールの回数・親の依頼を待った秒数・検査とテストを回した秒数は、`metrics.read_transcripts` が true でなければ空のままです。既定は false です。後ろの 3 つは Claude Code でだけ数えます（[トークンを数える](usage.ja.md#トークンを数える)）
 - 落ちたセッションの残りなど端のケースは、`dg hook --help` と [ADR-025](adr/ADR-025-runs-by-hooks.md) にあります
 
 ## チケット管理ツールと MCP との比較
