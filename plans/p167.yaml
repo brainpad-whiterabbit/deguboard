@@ -5,7 +5,7 @@ after:
     - t1146
   t1147:
     - t1145
-pending_approval: true
+pending_approval: false
 details:
   t1146:
     scope: 着手の既定値を ask_unless_auto に戻し、resolve.ts・テスト・ADR-003・着手の既定を書く guide・--help・usage・README を合わせる。ほかの既定値は変えない
@@ -19,3 +19,5 @@ details:
     scope: usage・README・ADR から Workflow の既定値の書き写しを外し、check:docs で書き写しを検出する。guide と既定値そのものは変えない
     approach: 文書は dg workflow show と resolve.ts を指す形に書き換え、ADR は既定を決める原則と理由に直し、check-docs.mjs に既定値の書き写しの検出を足す
     tier: standard
+approved_by: Eiki Kitajima
+approved_at: 2026-11-19T08:55:08Z
