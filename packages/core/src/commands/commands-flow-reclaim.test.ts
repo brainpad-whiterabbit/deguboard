@@ -805,21 +805,24 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     ]);
   });
 
+  // 区切りと finished_at の組み合わせ（同じ秒の次の Run・複数の次の Run・push が開始より前か区切りより後・PR のマージ時刻・
+  // PR の ready）は reconcile-judge.test.ts が git なしで見る。ここは、ロックの外で読んだ最後の push の時刻と索引の Run が決定に届き、
+  // 閉じた Run の記録とコミットの題になる経路を、対象のチケット（次の Run の開始・done への前進）と終わったチケットで見る
   it("照合は開いたままの手直しの Run を、次の Run の開始・マージ（done への前進）・終わったチケットの区切りで、それまでの最後の push の時刻で閉じる。unclaim は手直しの Run も failure で閉じる（RN-6）", async () => {
     const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await reopenInitialized(f, { now: () => clock });
-    for (const title of ["Next run", "Done by move", "Unclaimed", "Ready later"])
+    for (const title of ["Next run", "Done by move", "Unclaimed"])
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
-    for (const t of ["t1", "t2", "t3", "t4"])
+    for (const t of ["t1", "t2", "t3"])
       await runCommand(ticketClaim, agent, {
         approved_by: "human",
         no_worktree: true,
         ticket: t,
         branch: `${t}`,
       });
-    for (const t of ["t1", "t2", "t3", "t4"]) await git(f.cloneA, ["branch", `${t}`]);
+    for (const t of ["t1", "t2", "t3"]) await git(f.cloneA, ["branch", `${t}`]);
     const claimT2 = (await peekRunningRuns(agent.repo)).find((r) => r.ticket === "t2")!.id;
     // t2・t3 は PR 番号だけ記録する（gh は知らない）
     await agent.store.update("ticket", "t2", { pr: 42 });
@@ -828,17 +831,12 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     let restore = await fakeGh(f.root, {
       "t1|41":
         '{"number":41,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
-      "t4|44":
-        '{"number":44,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
     });
     try {
       clock = new Date("2026-11-06T00:30:00Z");
       await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
-      await runCommand(ticketUpdate, agent, { ticket: "t4", pr: 44 });
       await runCommand(sync, agent, {});
       expect(agent.store.tickets.get("t1")!.data.status).toBe("review");
-      // t4 の PR は draft のまま（上限を超えて人を待つ形）なので in_progress のまま
-      expect(agent.store.tickets.get("t4")!.data.status).toBe("in_progress");
 
       // 区切り 1：同じチケットの次の Run（review）の開始。finished_at はそれまでの最後の push。
       // 次の Run は普段は開いた openRun が前の手直しを閉じるので、ここでは閉じずに開いた形（別のマシン・前の版の dg）を startRun で作る
@@ -889,35 +887,10 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         })
       ).data.run!;
       await pushCommitAt(f.cloneA, "t1", "2026-11-06T03:30:00Z");
-      // 区切り 4：PR の ready（review への前進）。draft のまま待っていた t4 を続けて直し、push の後に ready になった
-      const fix5 = (
-        await runCommand(ticketClaim, agent, {
-          approved_by: "human",
-          no_worktree: true,
-          ticket: "t4",
-          retry_reasons: ["D"],
-        })
-      ).data.run!;
-      await pushCommitAt(f.cloneA, "t4", "2026-11-06T03:40:00Z");
-      // 区切り 5：最後の push（04:00）が手直しの Run の開始（04:30）より前なら、その Run の push はないので区切りの時刻
-      await pushCommitAt(f.cloneA, "t3", "2026-11-06T04:00:00Z");
-      clock = new Date("2026-11-06T04:30:00Z");
-      const fix4 = (
-        await runCommand(ticketClaim, agent, {
-          approved_by: "human",
-          no_worktree: true,
-          ticket: "t3",
-          retry_reasons: ["E"],
-        })
-      ).data.run!;
-      clock = new Date("2026-11-06T04:40:00Z");
-      const review3 = await openWithoutClosing("t3", "review");
       restore();
       restore = await fakeGh(f.root, {
         "t1|41":
           '{"number":41,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-06T04:00:00Z","createdAt":"2026-11-06T00:20:00Z"}',
-        "t4|44":
-          '{"number":44,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
       });
       // 区切り 3：終わったチケット。t2 は PR 番号だけあり、手直しの Run を開いた後に人が done にした（branch があるので move は閉じない）
       const fix3 = (
@@ -938,12 +911,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       const merged = await runCommand(sync, agent, {});
       expect(merged.data.reconciled).toEqual([
         { id: "t1", from: "review", to: "done", when: ["pr_merged"] },
-        { id: "t4", from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
       ]);
       expect(merged.data.runs_closed).toEqual([
         { id: "t1", run: fix2, opener: "reclaim", result: "success" },
-        { id: "t3", run: fix4, opener: "reclaim", result: "success" },
-        { id: "t4", run: fix5, opener: "reclaim", result: "success" },
         // t2 は PR の番号だけあり PR を gh で引けない done なので、実装の Run は今の時刻で success（PR のある done）
         { id: "t2", run: claimT2, opener: "claim", result: "success" },
         { id: "t2", run: fix3, opener: "reclaim", result: "success" },
@@ -951,23 +921,6 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       expect(merged.warnings).toContainEqual(
         "t1: closed with advance to done as the boundary (time of the last push)",
       );
-      expect(merged.warnings).toContainEqual(
-        "t4: closed with advance to review as the boundary (time of the last push)",
-      );
-      expect(merged.warnings).toContainEqual(
-        `t3: closed with start of the next Run ${review3} as the boundary (time of the boundary, since there was no push before it)`,
-      );
-      expect(agent.store.runs.get(fix4)!.data).toMatchObject({
-        result: "success",
-        finished_at: "2026-11-06T04:40:00Z",
-        retry_reasons: ["E"],
-      });
-      await runCommand(runFinish, agent, { run: review3, result: "success" });
-      expect(agent.store.runs.get(fix5)!.data).toMatchObject({
-        result: "success",
-        finished_at: "2026-11-06T03:40:00Z",
-        retry_reasons: ["D"],
-      });
       expect(merged.warnings).toContainEqual(
         "t2: closed with ticket finished (done) as the boundary (current time, since there was no push)",
       );
@@ -1005,21 +958,17 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     }
   });
 
-  it("照合は、別のマシンで終わったチケットの開いたままの実装の Run を ticket move と同じ結果で閉じ、戻った・別の主体の claim になったチケットの実装の Run を failure で閉じる。自分の claim は閉じない（RN-6）", async () => {
+  // 閉じ方の組み合わせ（PR のない done・todo に戻った・担当の組み合わせ・PR の作成時刻と Run の開始の前後・作成時刻を読めない）は
+  // reconcile-judge.test.ts が git なしで見る。ここは、別のマシンの操作を取り込んだ後のチケットの値・sync を呼んだ主体・
+  // ロックの外で gh から読んだ PR の作成時刻が決定に届き、閉じた Run の記録とコミットの題になる経路を見る
+  it("照合は、別のマシンで終わったチケットの開いたままの実装の Run を ticket move と同じ結果で閉じ、別の主体の claim になったチケットの実装の Run を failure で閉じる。自分の claim は閉じない（RN-6）", async () => {
     const f = await initializedBothFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await reopenInitialized(f, { now: () => clock });
-    for (const title of [
-      "Abandoned elsewhere",
-      "Done elsewhere",
-      "Unclaimed",
-      "Taken",
-      "Mine",
-      "Done with PR elsewhere",
-    ])
+    for (const title of ["Abandoned elsewhere", "Taken", "Mine", "Done with PR elsewhere"])
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
-    for (const t of ["t1", "t2", "t3", "t4", "t5", "t6"])
+    for (const t of ["t1", "t2", "t3", "t4"])
       await runCommand(ticketClaim, agent, { approved_by: "human", no_worktree: true, ticket: t });
     const opened = new Map(
       (await peekRunningRuns(agent.repo)).map((r) => [r.ticket, r.id] as const),
@@ -1030,18 +979,16 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     await runCommand(sync, other, {});
     clock = new Date("2026-11-06T01:00:00Z");
     await runCommand(ticketMove, other, { ticket: "t1", status: "abandoned" });
-    await runCommand(ticketMove, other, { ticket: "t2", status: "done", override: "PR なし" });
-    await runCommand(ticketUnclaim, other, { ticket: "t3" });
-    await runCommand(ticketUnclaim, other, { ticket: "t4" });
+    await runCommand(ticketUnclaim, other, { ticket: "t2" });
     // PR のある done：別のマシンが PR を記録して done にした。実装の Run は PR の作成時刻で success になる
-    await runCommand(ticketUpdate, other, { ticket: "t6", pr: 46 });
-    await runCommand(ticketMove, other, { ticket: "t6", status: "done", override: "PR なし" });
+    await runCommand(ticketUpdate, other, { ticket: "t4", pr: 46 });
+    await runCommand(ticketMove, other, { ticket: "t4", status: "done", override: "PR なし" });
     const hanako = await openContext({
       cwd: f.cloneB,
       actor: { kind: "human", user: "hanako" },
       now: () => clock,
     });
-    await runCommand(ticketClaim, hanako, { no_worktree: true, ticket: "t4" });
+    await runCommand(ticketClaim, hanako, { no_worktree: true, ticket: "t2" });
     await runCommand(sync, other, {});
 
     clock = new Date("2026-11-06T02:00:00Z");
@@ -1054,34 +1001,26 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     } finally {
       restoreGh();
     }
-    expect(synced.data.runs_closed).toHaveLength(5);
+    expect(synced.data.runs_closed).toHaveLength(3);
     expect(synced.data.runs_closed).toEqual(
       expect.arrayContaining([
         { id: "t1", run: opened.get("t1"), opener: "claim", result: "failure" },
-        { id: "t2", run: opened.get("t2"), opener: "claim", result: "success" },
-        { id: "t3", run: opened.get("t3"), opener: "claim", result: "failure" },
-        { id: "t4", run: opened.get("t4"), opener: "claim", result: "failure" },
-        { id: "t6", run: opened.get("t6"), opener: "claim", result: "success" },
+        { id: "t2", run: opened.get("t2"), opener: "claim", result: "failure" },
+        { id: "t4", run: opened.get("t4"), opener: "claim", result: "success" },
       ]),
     );
     expect(synced.warnings).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/^Closed the implementation Run r\S+ of t1 with failure/),
-        expect.stringMatching(/^Closed the implementation Run r\S+ of t2 with success/),
-        expect.stringMatching(/^Closed the implementation Run r\S+ of t3 with failure/),
-        expect.stringMatching(/^Closed the implementation Run r\S+ of t4 with failure/),
-        expect.stringMatching(/^Closed the implementation Run r\S+ of t6 with success/),
+        expect.stringMatching(/^Closed the implementation Run r\S+ of t2 with failure/),
+        expect.stringMatching(/^Closed the implementation Run r\S+ of t4 with success/),
       ]),
     );
-    expect(agent.store.runs.get(opened.get("t6")!)!.data).toMatchObject({
+    expect(agent.store.runs.get(opened.get("t4")!)!.data).toMatchObject({
       result: "success",
       finished_at: "2026-11-06T00:45:00Z",
     });
-    expect(agent.store.runs.get(opened.get("t3")!)!.data).toMatchObject({
-      result: "failure",
-      error: "Went back to todo during reconcile",
-    });
-    expect(agent.store.runs.get(opened.get("t4")!)!.data).toMatchObject({
+    expect(agent.store.runs.get(opened.get("t2")!)!.data).toMatchObject({
       result: "failure",
       error: "Became claimed by another actor during reconcile",
     });
@@ -1089,11 +1028,12 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       `t1 ${opened.get("t1")} failure`,
     );
     // 自分の claim（in_progress）の実装の Run は開いたまま
-    expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket)).toEqual(["t5"]);
-    expect(agent.store.tickets.get("t5")!.data.status).toBe("in_progress");
+    expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket)).toEqual(["t3"]);
+    expect(agent.store.tickets.get("t3")!.data.status).toBe("in_progress");
   });
 
-  it("run start は、同じチケットの開いたままの手直しの Run を、手直しと同じ秒の開始も区切りとして閉じてから始める。手直しでない step では別のセッションの手直しも success。照合も同じ秒の次の Run を区切りに数える（RN-6）", async () => {
+  // 照合が手直しと同じ秒に始まった次の Run を区切りに数えることは、reconcile-judge.test.ts が git なしで見る
+  it("run start は、同じチケットの開いたままの手直しの Run を、手直しと同じ秒の開始も区切りとして閉じてから始める。手直しでない step では別のセッションの手直しも success（RN-6）", async () => {
     const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await reopenInitialized(f, { now: () => clock });
@@ -1141,27 +1081,6 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         finished_at: "2026-11-06T01:40:00Z",
       });
       await runCommand(runFinish, agent, { run: reviewSame, result: "success" });
-
-      // 照合も、手直しと同じ秒に始まった次の Run を区切りに数える（閉じずに開いた形（別のマシン・前の版の dg）を startRun で作る）
-      clock = new Date("2026-11-06T02:00:00Z");
-      const fix2 = (await start("fix", "s-new")).data.id;
-      const review2 = (
-        await startRun(agent.repo, {
-          ticket: "t1",
-          step: "review",
-          agent: "claude-code",
-          now: clock,
-        })
-      ).id;
-      clock = new Date("2026-11-06T02:10:00Z");
-      const synced = await runCommand(sync, agent, {});
-      expect(synced.data.runs_closed).toEqual([
-        { id: "t1", run: fix2, opener: "reclaim", result: "success" },
-      ]);
-      expect(synced.warnings).toContainEqual(
-        `t1: closed with start of the next Run ${review2} as the boundary (time of the boundary, since there was no push before it)`,
-      );
-      expect(agent.store.runs.get(fix2)!.data.finished_at).toBe("2026-11-06T02:00:00Z");
 
       // 手直しの step の run start を重ねると、前の手直しを閉じずに拒む（二重起動の拒否。SY-5）
       clock = new Date("2026-11-06T03:00:00Z");

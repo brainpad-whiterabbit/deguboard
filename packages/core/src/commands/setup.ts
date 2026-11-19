@@ -44,13 +44,7 @@ import {
   withWrite,
   withWriteLock,
 } from "../git/write.js";
-import {
-  isAgentActorId,
-  ownActorIds,
-  sameUser,
-  type ActorKind,
-  type UserSource,
-} from "../model/actor.js";
+import { isAgentActorId, ownActorIds, type ActorKind, type UserSource } from "../model/actor.js";
 import { isFinishedSet, isTerminal } from "../model/common.js";
 import {
   configFields,
@@ -98,16 +92,14 @@ import {
   recordOrphanReviews,
   type RecordedOrphanReviews,
 } from "./orphan-review.js";
-import { decideTicketReconcile } from "./reconcile-judge.js";
 import {
-  closeOpenedRunUnlessClosed,
-  describeClosedRuns,
-  fixRunFinishedAt,
-  RECONCILE_TAKEN_ERROR,
-  RECONCILE_TODO_ERROR,
-  runsClosedByMove,
-  sessionOf,
-} from "./run.js";
+  decideOpenRunReconcile,
+  decideTicketReconcile,
+  type FixRunFacts,
+  type LastPushFact,
+  type RunAction,
+} from "./reconcile-judge.js";
+import { closeOpenedRunUnlessClosed, describeClosedRuns, sessionOf } from "./run.js";
 
 export const init = defineCommand({
   name: "init",
@@ -260,87 +252,8 @@ export interface Reconciled {
 }
 
 /**
- * 開いたままの手直しの Run（もう一度の claim が開いた step。RN-5）を閉じる区切り（RN-6）。手直しにはチケットの操作がないので、
- * 照合が区切りを見たときに、それまでの最後の push の時刻で閉じる。
- *   - 同じチケットの次の Run の開始（実行中・終わったものを問わず、手直しの Run と同じ秒か後に始まったもの。普段は開いた openRun が先に閉じている）
- *   - PR の ready（review への前進）・マージ（done への前進）。照合が今回進めるときに見る
- *   - チケットが終わっている（別のマシンの照合や ticket move で done・abandoned になっていた）
- * 区切りがなければ undefined
- */
-function fixRunBoundary(
-  ctx: CommandContext,
-  ticket: Ticket,
-  run: Doc<Run>,
-  running: readonly Doc<Run>[],
-  advanced: boolean,
-): { at?: string | undefined; why: string } | undefined {
-  const later = [...running, ...ctx.store.runs.values()]
-    .filter((r) => r.id !== run.id && r.data.ticket === ticket.id)
-    .filter((r) => r.data.started_at >= run.data.started_at)
-    .sort((a, b) => a.data.started_at.localeCompare(b.data.started_at))[0];
-  if (later) return { at: later.data.started_at, why: `start of the next Run ${later.id}` };
-  if (advanced) return { why: `advance to ${ticket.status}` };
-  if (isTerminal(ticket.status)) return { why: `ticket finished (${ticket.status})` };
-  return undefined;
-}
-
-/**
- * 手直しの Run を区切りで閉じる（RN-6）。finished_at はこの Run の開始より後で区切りまでの最後の push の時刻（作業ブランチのリモートの先端のコミット）。
- * その push がなければ区切りの時刻、マージの区切りでは PR のマージ時刻（fallback）、それもなければ今
- */
-async function closeFixRun(
-  ctx: CommandContext,
-  doc: Doc<Ticket>,
-  run: Doc<Run>,
-  boundary: { at?: string | undefined; why: string },
-  fallback: string | undefined,
-  out: { runsClosed: ReconciledRun[]; warnings: string[] },
-): Promise<void> {
-  const pushedAt = doc.data.branch ? await lastPushedAt(ctx.repo, doc.data.branch) : undefined;
-  const { finishedAt, pushed } = fixRunFinishedAt({
-    pushedAt,
-    startedAt: run.data.started_at,
-    boundaryAt: boundary.at,
-    fallback,
-  });
-  const basis = pushed
-    ? "time of the last push"
-    : boundary.at !== undefined
-      ? "time of the boundary, since there was no push before it"
-      : fallback !== undefined
-        ? "PR merge time, since there was no push"
-        : "current time, since there was no push";
-  const closed = await closeOpenedRunUnlessClosed(
-    ctx,
-    run,
-    { opener: "reclaim", result: "success", finishedAt },
-    "reconcile",
-    out.warnings,
-  );
-  if (!closed) return;
-  out.runsClosed.push({ id: doc.id, run: closed.run.id, opener: "reclaim", result: "success" });
-  out.warnings.push(
-    `${doc.id}: closed with ${boundary.why} as the boundary (${basis})`,
-    ...closed.warnings,
-  );
-}
-
-/**
- * 実装の Run を照合の事実で閉じる（RN-6）。終わったチケットは ticket move と同じ結果（PR のある done は PR の発見と同じ success）、戻った・取られたチケットは failure。
- * 閉じた取り込みの警告（結果と finished_at）は closeOpenedRunUnlessClosed が返す
- */
-async function closeImplRun(
-  ctx: CommandContext,
-  doc: Doc<Ticket>,
-  run: Doc<Run>,
-  input: { result: RunResult; error?: string | undefined; finishedAt?: string | undefined },
-  out: { runsClosed: ReconciledRun[]; warnings: string[] },
-): Promise<void> {
-  await closeReconciledRun(ctx, doc, run, { opener: "claim", ...input }, out);
-}
-
-/**
  * 決めた結果と finished_at で Run を閉じ、閉じた Run と取り込みの警告を out に足す（照合の列の close_run を行う）。
+ * 閉じたときは、決めた側の添えた文（note。手直しの Run の区切りと finished_at の根拠）を、閉じた知らせの前に足す。
  * 別の文脈が先に閉じていたら、索引を読み直して警告だけ足し、閉じた Run には数えない（closeOpenedRunUnlessClosed）
  */
 async function closeReconciledRun(
@@ -352,6 +265,7 @@ async function closeReconciledRun(
     result: RunResult;
     error?: string | undefined;
     finishedAt?: string | undefined;
+    note?: string | undefined;
   },
   out: { runsClosed: ReconciledRun[]; warnings: string[] },
 ): Promise<void> {
@@ -374,17 +288,19 @@ async function closeReconciledRun(
     opener: input.opener,
     result: input.result,
   });
-  out.warnings.push(...closed.warnings);
+  out.warnings.push(...(input.note !== undefined ? [input.note] : []), ...closed.warnings);
 }
 
 /**
  * 照合に使う gh と git の事実。sync が書き込みのロックの外で集め（collectReconcileFacts）、ロックの中の照合（reconcileAll）が使う（t758）。
  * branches はチケットごとの作業ブランチの事実と、集めたときの入力（factsKey）。prCreated は PR の番号ごとの作成時刻
- * （終わったチケットに開いたままの実装の Run を閉じる finished_at）
+ * （終わったチケットに開いたままの実装の Run を閉じる finished_at）。pushes は開いたままの手直しの Run のあるチケットごとの、
+ * 作業ブランチの最後の push の時刻（手直しの Run を閉じる finished_at）と、読んだときの作業ブランチの名前
  */
 interface CollectedFacts {
   branches: Map<string, { key: string; result: BranchFacts }>;
   prCreated: Map<number, Awaited<ReturnType<typeof fetchPrCreatedAt>>>;
+  pushes: Map<string, { branch: string; at: string | undefined }>;
 }
 
 type BranchTicket = Doc<Ticket> & { data: Ticket & { branch: string } };
@@ -423,27 +339,71 @@ function branchFactsInput(doc: BranchTicket) {
  * 照合はロックの中で最新の状態を読み直し、集めたときと入力の変わったチケットはこの事実で判定しない
  */
 async function collectReconcileFacts(ctx: CommandContext): Promise<CollectedFacts> {
-  const collected: CollectedFacts = { branches: new Map(), prCreated: new Map() };
+  const collected: CollectedFacts = {
+    branches: new Map(),
+    prCreated: new Map(),
+    pushes: new Map(),
+  };
   for (const doc of reconcileTargets(ctx)) {
     if (!ctx.store.workflow) continue;
     const { opts, key } = branchFactsInput(doc);
     const result = await collectBranchFacts(ctx.repo, doc.data.branch, opts);
     collected.branches.set(doc.id, { key, result });
   }
+  const running = await peekRunningRuns(ctx.repo);
   // PR のある done に開いたままの実装の Run（別のマシンの照合が done にした後の残り）を閉じる時刻
-  for (const run of await peekRunningRuns(ctx.repo)) {
+  for (const run of running) {
     const ticket = ctx.store.tickets.get(run.ticket)?.data;
     const pr = ticket?.status === "done" ? ticket.pr : undefined;
     if (pr === undefined || collected.prCreated.has(pr)) continue;
     collected.prCreated.set(pr, await fetchPrCreatedAt(ctx.repo, pr));
   }
+  // 開いたままの手直しの Run を閉じる時刻にする、作業ブランチの最後の push の時刻（RN-6）。区切りがあるかはロックの中で決めるので、
+  // 開いた手直しの Run のあるチケットすべてで読む（追跡ブランチの先端を読むだけで、リモートは待たない。fetch は取り込みで済んでいる）
+  for (const run of running) {
+    if (run.step !== OPENED_STEPS.reclaim || collected.pushes.has(run.ticket)) continue;
+    const branch = ctx.store.tickets.get(run.ticket)?.data.branch;
+    if (branch === undefined) continue;
+    collected.pushes.set(run.ticket, { branch, at: await lastPushedAt(ctx.repo, branch) });
+  }
   return collected;
 }
 
 /**
+ * チケットの今の作業ブランチで集めた最後の push（reconcile-judge.ts の LastPushFact）。作業ブランチのないチケットには push がない。
+ * 集めていない（集めた後に手直しの Run を開いた）か、集めた後に作業ブランチを付け替えたチケットは undefined で、
+ * 決める側が手直しの Run を閉じずに次の sync に回す（ロックの中で git に聞き直さない）
+ */
+function lastPushOf(collected: CollectedFacts, ticket: Ticket): LastPushFact | undefined {
+  if (ticket.branch === undefined) return { at: undefined };
+  const got = collected.pushes.get(ticket.id);
+  return got?.branch === ticket.branch ? { at: got.at } : undefined;
+}
+
+/**
+ * 開いたままの手直しの Run の区切りを決めるのに要る Run の事実（reconcile-judge.ts の FixRunFacts の running と recorded）。
+ * 記録済みの Run（索引）は手直しの Run の次の Run を探すのにだけ使うので、チケットに開いた手直しの Run があるときだけ索引から引く
+ */
+function runFactsOf(
+  ctx: CommandContext,
+  running: readonly Doc<Run>[],
+  ticket: string,
+): Pick<FixRunFacts, "running" | "recorded"> {
+  const fixing = running.some(
+    (r) => r.data.ticket === ticket && r.data.step === OPENED_STEPS.reclaim,
+  );
+  return {
+    running: running.map((r) => r.data),
+    recorded: fixing
+      ? [...ctx.store.runs.values()].filter((r) => r.data.ticket === ticket).map((r) => r.data)
+      : [],
+  };
+}
+
+/**
  * 照合（ST-4〜ST-6）。書き込みのロックの中で、最新の状態に対して collected の事実で判定し直して書く。
- * 対象のチケットごとに行うことは reconcile-judge.ts の decideTicketReconcile が決め、ここはその列を順に行う
- * （手直しの Run の区切りと、対象にならなかった実行中の Run の閉じ方は、まだここで決める）。
+ * 対象のチケットごとに行うことは reconcile-judge.ts の decideTicketReconcile が、その後も開いたままの実行中の Run の閉じ方は
+ * decideOpenRunReconcile が決め、ここは事実を渡して、返った列を順に行う。
  * 状態を進めたチケットと、PR 番号を記録したチケット、閉じた実装・手直しの Run を返す
  */
 async function reconcileAll(
@@ -458,6 +418,11 @@ async function reconcileAll(
   const reviewsRecorded: Reconciled["reviewsRecorded"] = [];
   const merged: MergedWork[] = [];
   const running = (await readRunningRuns(ctx.repo)).runs;
+  /** 列の close_run を行う。別の文脈が先に閉じていた Run は runsClosed に入らない */
+  const close = async (doc: Doc<Ticket>, action: Extract<RunAction, { kind: "close_run" }>) => {
+    const run = running.find((r) => r.id === action.run);
+    if (run) await closeReconciledRun(ctx, doc, run, action, { runsClosed, warnings });
+  };
   for (const doc of reconcileTargets(ctx)) {
     const wf = ctx.store.workflow;
     if (!wf) {
@@ -473,7 +438,7 @@ async function reconcileAll(
       );
       continue;
     }
-    const { pr, prCreatedAt, prMergedAt } = got.result;
+    const { pr, prCreatedAt } = got.result;
     if (pr !== undefined && prCreatedAt !== undefined && !collected.prCreated.has(pr))
       collected.prCreated.set(pr, { createdAt: prCreatedAt });
     // 行うことを決め（reconcile-judge.ts。何も読まない）、列を上から順に行う。決めるのは、このチケットへの書き込みの前の値で 1 回だけ
@@ -483,7 +448,8 @@ async function reconcileAll(
       depsDone: ctx.store.depsDone(doc.data),
       workflow: wf.resolved,
       branch: got.result,
-      running: running.map((r) => r.data),
+      ...runFactsOf(ctx, running, doc.id),
+      lastPush: lastPushOf(collected, doc.data),
       deleteBranch: ctx.config.merge.delete_branch,
     });
     for (const action of actions) {
@@ -491,11 +457,9 @@ async function reconcileAll(
         case "warn":
           warnings.push(action.message);
           break;
-        case "close_run": {
-          const run = running.find((r) => r.id === action.run);
-          if (run) await closeReconciledRun(ctx, doc, run, action, { runsClosed, warnings });
+        case "close_run":
+          await close(doc, action);
           break;
-        }
         case "update_ticket": {
           const patch: Record<string, unknown> = {};
           if (action.pr !== undefined) {
@@ -517,17 +481,6 @@ async function reconcileAll(
         case "remove_merged_work":
           merged.push({ id: doc.id, branch: action.branch, mergedHead: action.mergedHead });
           break;
-        case "settle_fix_run": {
-          // 区切りと finished_at（最後の push の時刻）は、まだここで読んで決める
-          const fixing = running.find((r) => r.id === action.run);
-          if (!fixing) break;
-          const to = action.advancedTo;
-          const after = to !== undefined ? { ...doc.data, status: to } : doc.data;
-          const boundary = fixRunBoundary(ctx, after, fixing, running, to !== undefined);
-          if (boundary)
-            await closeFixRun(ctx, doc, fixing, boundary, prMergedAt, { runsClosed, warnings });
-          break;
-        }
         case "record_reviews": {
           // dg next・dg gate と同じ判定（t700）。今回閉じた Run は開いたものとして見ない
           const recorded = await recordOrphanReviews(
@@ -541,52 +494,23 @@ async function reconcileAll(
       }
     }
   }
-  // このマシンで開いたままの Run のうち、照合の対象にならなかったものを閉じる（RN-6）
+  // このマシンで開いたままの Run のうち、上で閉じなかったもの（対象にならなかったチケットの Run を含む）を、
+  // 対象のチケットへの書き込みの後の値で決めて閉じる（RN-6）。作成時刻と最後の push はロックの外で集めたもの
   for (const run of running) {
     if (runsClosed.some((c) => c.run === run.data.id)) continue;
     const doc = ctx.store.tickets.get(run.data.ticket);
     if (!doc) continue;
-    const out = { runsClosed, warnings };
-    if (isTerminal(doc.data.status)) {
-      // 終わったチケットに開いたままの手直しの Run は、次の区切り（チケットの終了を含む）で success にする
-      if (run.data.step === OPENED_STEPS.reclaim) {
-        const boundary = fixRunBoundary(ctx, doc.data, run, running, false);
-        if (boundary) await closeFixRun(ctx, doc, run, boundary, undefined, out);
-      } else if (run.data.step === OPENED_STEPS.claim) {
-        // 終わったチケットの実装の Run は ticket move と同じ結果で閉じる
-        const ends = runsClosedByMove(doc.data, doc.data.status);
-        if (ends?.openers.includes("claim")) {
-          await closeImplRun(ctx, doc, run, { result: ends.result }, out);
-        } else if (doc.data.status === "done" && doc.data.pr !== undefined) {
-          // PR のある done は、PR を見つけた別のマシンの照合が done にした後の残り。PR の発見と同じく success で、
-          // finished_at は PR の作成時刻（実行中の Run の開始より前なら使わず、取れなければ今の時刻）
-          // 作成時刻はロックの外で集めたもの。集めた後に done になったチケットで集めていなければ、次の sync で閉じる
-          const created = collected.prCreated.get(doc.data.pr);
-          if (!created) {
-            warnings.push(
-              `${doc.id}: the creation time of PR #${doc.data.pr} was not read before the ticket was reconciled, so the implementation Run is closed at the next sync`,
-            );
-            continue;
-          }
-          if (created.createdAt === undefined)
-            warnings.push(
-              `${doc.id}: cannot get the creation time of PR #${doc.data.pr}, so the implementation Run is closed at the current time (${created.reason})`,
-            );
-          const finishedAt =
-            created.createdAt !== undefined && created.createdAt >= run.data.started_at
-              ? created.createdAt
-              : undefined;
-          await closeImplRun(ctx, doc, run, { result: "success", finishedAt }, out);
-        }
-      }
-      continue;
-    }
-    // 戻った（todo）か、ほかの主体の claim になったチケットの実装の Run は failure で閉じる（unclaim と同じ）。自分のユーザの claim は触らない
-    if (run.data.step !== OPENED_STEPS.claim) continue;
-    if (doc.data.status === "todo") {
-      await closeImplRun(ctx, doc, run, { result: "failure", error: RECONCILE_TODO_ERROR }, out);
-    } else if (doc.data.assignee !== undefined && !sameUser(doc.data.assignee, ctx.actor.id)) {
-      await closeImplRun(ctx, doc, run, { result: "failure", error: RECONCILE_TAKEN_ERROR }, out);
+    const actions = decideOpenRunReconcile({
+      run: run.data,
+      ticket: doc.data,
+      actor: ctx.actor.id,
+      ...runFactsOf(ctx, running, doc.id),
+      lastPush: lastPushOf(collected, doc.data),
+      prCreated: doc.data.pr !== undefined ? collected.prCreated.get(doc.data.pr) : undefined,
+    });
+    for (const action of actions) {
+      if (action.kind === "warn") warnings.push(action.message);
+      else await close(doc, action);
     }
   }
   return { changed, prRecorded, linesRecorded, runsClosed, reviewsRecorded, merged };

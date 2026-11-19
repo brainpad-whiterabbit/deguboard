@@ -85,7 +85,7 @@
 
 - `packages/core/src/agents/index.ts`（`detectAgent`・読む許可）・`packages/core/src/agents/adapters/`（製品ごとの Adapter と `transcript.ts` の `bindFile`・`OverlapClaims`）・`packages/core/src/agents/agents.test.ts`
 - `packages/core/src/model/run.ts`（Run の形）・`packages/core/src/commands/run.ts`（`run start`・`run finish`・`run refresh`）・`packages/core/src/run/record.ts`・`packages/core/src/commands/run.test.ts`
-- `packages/core/src/commands/ticket.ts`（`ticket update --pr`）・`packages/core/src/commands/setup.ts`（照合が閉じる Run と `dg lint`）・`packages/core/src/commands/reconcile-judge.ts`（PR による実装の Run の閉じ方の決定）・`packages/core/src/commands/commands-flow-reconcile.test.ts`
+- `packages/core/src/commands/ticket.ts`（`ticket update --pr`）・`packages/core/src/commands/setup.ts`（照合が閉じる Run と `dg lint`）・`packages/core/src/commands/reconcile-judge.ts`（照合が閉じる実装・手直しの Run の結果と finished_at の決定。組み合わせは `reconcile-judge.test.ts`）・`packages/core/src/commands/run-close-judge.ts`（チケットの操作と照合が同じに使う、閉じる Run の結果と手直しの finished_at の決め方）・`packages/core/src/commands/commands-flow-reconcile.test.ts`・`packages/core/src/commands/commands-flow-reclaim.test.ts`
 - `packages/core/src/model/metrics.ts`・`packages/core/src/commands/metrics.ts`（`dg metrics show --help`・`dg metrics lines --help`・`dg metrics sources --help`）・`packages/core/src/git/facts.ts`（PR の行数と変えたファイル）
 
 ## 理由

@@ -13,7 +13,7 @@ import {
   sessionFromEnv,
   type RunSpan,
 } from "../agents/index.js";
-import { toIsoDateTime, type Status } from "../model/common.js";
+import { toIsoDateTime } from "../model/common.js";
 import {
   filterRuns,
   placeRun,
@@ -45,6 +45,7 @@ import {
 import { AbortWrite, withWrite } from "../git/write.js";
 import { lastPushedAt, localTip } from "../git/facts.js";
 import { selfRunWarning } from "./hook-sessions.js";
+import { fixRunFinishedAt } from "./run-close-judge.js";
 import { findingText, isHeavyFinding, latestRoundSince, matchFindings } from "../run/findings.js";
 import {
   amendRunning,
@@ -284,11 +285,14 @@ export const OPEN_AT_SESSION_END_ERROR = "Still open when the session ended";
 /** ticket unclaim が開いたままの実装・手直しの Run を閉じるときのエラー（RN-6） */
 export const UNCLAIMED_ERROR = "Returned to todo by ticket unclaim";
 
-/** 照合が、todo に戻ったチケットの実装の Run を閉じるときのエラー（RN-6） */
-export const RECONCILE_TODO_ERROR = "Went back to todo during reconcile";
-
-/** 照合が、ほかの主体の claim になったチケットの実装の Run を閉じるときのエラー（RN-6） */
-export const RECONCILE_TAKEN_ERROR = "Became claimed by another actor during reconcile";
+// 照合が閉じるときの error と、付随して閉じる Run の結果・finished_at の決め方は、何も読まない run-close-judge.ts に置く
+// （照合の決定 reconcile-judge.ts も使う）。前からの import 先を変えないために、ここからも出す
+export {
+  fixRunFinishedAt,
+  RECONCILE_TAKEN_ERROR,
+  RECONCILE_TODO_ERROR,
+  runsClosedByMove,
+} from "./run-close-judge.js";
 
 /** 記録のパスがサブエージェントの記録（<session>/subagents/ の下）か。印で頼んだサブエージェントの Run の見分けに使う */
 export const isSubagentTranscript = (p: string | undefined): p is string =>
@@ -420,21 +424,6 @@ export async function findOpenedRun(
   return runs.find((r) => r.data.ticket === ticket.id && r.data.step === step);
 }
 
-/**
- * move に付随して閉じる Run の開き手と結果（RN-6）。abandoned は実装と手直しを failure で閉じる。
- * PR の要らない作業（branch なし）の review、と PR のない done は実装を success で閉じる。branch のあるチケットの review は PR の記録・発見が閉じる。
- * 照合も終わったチケットの実装の Run をこの結果で閉じる（ticket move と同じ結果）
- */
-export function runsClosedByMove(
-  ticket: Ticket,
-  to: Status,
-): { openers: readonly StepOpener[]; result: "success" | "failure" } | undefined {
-  if (to === "abandoned") return { openers: ["claim", "reclaim"], result: "failure" };
-  if ((to === "review" && !ticket.branch) || (to === "done" && !ticket.pr))
-    return { openers: ["claim"], result: "success" };
-  return undefined;
-}
-
 /** チケットの操作か照合に付随して閉じた Run（RN-6） */
 export interface ClosedOpenedRun {
   run: Run;
@@ -513,27 +502,6 @@ export async function closeOpenedRunUnlessClosed(
   }
 }
 
-/**
- * 手直しの Run を区切りで閉じるときの finished_at（RN-6）。この Run の開始より後で区切りまでの push があればその時刻、
- * なければ区切りの時刻、fallback（PR のマージ時刻）、今（undefined）の順。pushed はその Run の push の時刻を使ったか
- */
-export function fixRunFinishedAt(input: {
-  pushedAt?: string | undefined;
-  startedAt: string;
-  boundaryAt?: string | undefined;
-  fallback?: string | undefined;
-}): { finishedAt: string | undefined; pushed: boolean } {
-  const { pushedAt, startedAt, boundaryAt, fallback } = input;
-  if (
-    pushedAt !== undefined &&
-    pushedAt >= startedAt &&
-    (boundaryAt === undefined || pushedAt <= boundaryAt)
-  ) {
-    return { finishedAt: pushedAt, pushed: true };
-  }
-  return { finishedAt: boundaryAt ?? fallback, pushed: false };
-}
-
 /** チケットの操作と照合のコミットメッセージに書く、付随して閉じた Run の一覧。開いた操作ごとに呼び名を分ける */
 export function describeClosedRuns(
   closed: ReadonlyArray<{
@@ -600,7 +568,7 @@ export async function closeOpenedRunAlone(
 /**
  * 開いたままの前の手直しの Run を、同じチケットの次の Run の開始（boundaryAt）を区切りとして閉じる（RN-6）。openRun が開く前に呼ぶので、
  * claim・もう一度の claim・起動のフック・run start のどこから開いても同じ規則になる。
- * 区切りの判定は sync の fixRunBoundary と同じで、手直しの Run の開始と同じ秒か後の開始だけを区切りに数える（前景の起動で前にした開始が手直しより前なら閉じない）。
+ * 区切りの判定は sync の照合（reconcile-judge.ts の fixRunActions）と同じで、手直しの Run の開始と同じ秒か後の開始だけを区切りに数える（前景の起動で前にした開始が手直しより前なら閉じない）。
  * 同じ秒を数えるのは、時刻が秒までの記録では前後を決められず、手直しの後に続けて見直しを開くと同じ秒になりうるため。
  * 前の Run の開始より後で区切りまでの最後の push の時刻で閉じ、push がなければ区切りの時刻にする（前景の手直しの起動では、
  * フックが来る時点で今回の push が済んでいることがあり、そのとき前の回の手直しは区切りの時刻で閉じる）。
