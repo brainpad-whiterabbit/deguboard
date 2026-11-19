@@ -1,0 +1,13 @@
+id: p168
+tickets: [t1148, t1149]
+after: {}
+pending_approval: true
+details:
+  t1148:
+    scope: claim したセッションの記録と、別のセッションのもう一度の claim・unclaim の拒否と --take-over。Plan とチケットの claim 前の予約は含まない
+    approach: 記録は deguboard-local に置き、有効かの判定（SessionEnd・30 分）と拒否の判定をファイルを読まない関数にする。記録は push の成功の後に書き、git/sync.ts・git/write.ts の経路は変えない
+    tier: heavy
+  t1149:
+    scope: plan show と next の予約の指定、guide work・guide all と next の commands への組み込み、予約したチケットの claim の拒否と dg next の返し方
+    approach: t1148 の記録と判定の関数を Plan とチケットの予約に広げ、見るだけの呼び出しは予約を作らない
+    tier: heavy
