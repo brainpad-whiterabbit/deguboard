@@ -114,12 +114,14 @@ beforeAll(async () => {
     question: "Did the work move from claim to merge without waiting for people?",
   });
   // 設定画面の Workflow のタブを撮るため、既定と違う値（WIP の上限・リリースの段階）と独自の段階を workflow.yaml に書く。
+  // リリースの段階は既定（packages/core/src/workflow/resolve.ts）と違う決め方にし、行に変更ありの印を出す。
+  // 既定が変わってこの値と同じになると印が出ず、設定画面のテストが待ち続けるので、そのときはここを直す。
   // ほかの画面を変えないよう、Status の表示名と境目は既定のままにする
   await runCommand(workflowSet, ctx, {
     definition: {
       wip: { in_progress: 3 },
       flow: {
-        release: "always_ask",
+        release: "ask_unless_auto",
         "deploy-staging": {
           decide: "always_ask",
           after: "audit",
@@ -498,6 +500,10 @@ describe("VS Code の実機の左パネル", () => {
     // t4 は done。t5 は depends_on で t4 を（待ち終わり）、t6 は after で t4 を（待ち終わり）、
     // t7 は after で t5 を（待ち中）と t4 を（待ち終わり。段 1 を飛ぶので行の間の溝を通る）、t8 は depends_on で t6 を（待ち中）待つ。
     // Plan の順（t8 が t7 の前）のままだと t5→t7 と t6→t8 が交差するので、段 2 は t7・t8 の順に並べ替わる
+    // 実行計画はカンバンに出るので、前のテストがどの画面で終わっても（失敗して設定画面に残っても）自分でカンバンに移る
+    await sidebar.locator("body").evaluate(() => {
+      location.hash = "#/board";
+    });
     const ctx = await openContext({ cwd: fixture.cloneA });
     for (const [i, depends_on] of [[], ["t4"], [], [], ["t6"]].entries()) {
       await runCommand(ticketCreate, ctx, {
