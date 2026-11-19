@@ -1,7 +1,7 @@
 // チケットの流れのうち、起票・claim・照合と、それに付随して閉じる実装の Run
 
 import { existsSync } from "node:fs";
-import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -27,6 +27,7 @@ import {
   ticketUpdate,
 } from "./ticket.js";
 import {
+  initializedBothFixture,
   initializedFixture,
   reopenInitialized,
   agentWithRuns,
@@ -428,85 +429,23 @@ describe("チケットの流れ（照合と claim）", () => {
     }
   });
 
-  it("照合は越える境目の requires を満たすときだけ進め、human_only の境目は越えずに、止めた理由と人の進め方を警告する（ST-4）", async () => {
+  // 止められた遷移の組み合わせ（満たさない requires・human_only・両方・PR を記録したチケットの pr_merged・gh のないとき）と
+  // 警告の文は reconcile-judge.test.ts が git なしで見る。ここは workflow.yaml の境目が照合に届いて、止めた理由が warnings に出る経路を見る
+  it("照合は workflow.yaml の越える境目の requires を満たさないチケットを進めず、止めた理由を警告する。見つけた PR の番号は記録する（ST-4）", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
     await writeWorkflowYaml(ctx, [
       "boundaries:",
       "  - { from: in_progress, to: review, requires: [branch_pushed] }",
-      "  - { from: review, to: done, requires: [pr_merged], decide: human_only }",
     ]);
     await runCommand(ticketCreate, ctx, { title: "Gated" });
     await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-gated" });
     await recordBaseline(ctx.repo);
     // ブランチはローカルだけ（push していない）
     await git(f.cloneA, ["branch", "t1-gated"]);
-    await git(f.cloneA, ["checkout", "-q", "t1-gated"]);
-    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
-    await git(f.cloneA, ["checkout", "-q", "main"]);
-    const pr = (state: string, mergedAt: string | null) =>
-      JSON.stringify({
-        number: 42,
-        state,
-        isDraft: false,
-        createdAt: "2099-01-01T00:00:00Z",
-        mergedAt,
-      });
-    const status = () => ctx.store.tickets.get("t1")?.data.status;
-    const restore = await fakeGh(f.root, { "t1-gated|42": pr("OPEN", null) });
-    try {
-      // 下書きでない PR が開いた（きっかけ）が、in_progress → review の requires（branch_pushed）を満たさないので進めない
-      const unmet = await runCommand(sync, ctx, {});
-      expect(unmet.data.reconciled).toEqual([]);
-      expect(unmet.data.pr_recorded).toEqual([{ id: "t1", pr: 42 }]);
-      expect(status()).toBe("in_progress");
-      expect(unmet.warnings).toContain(
-        't1: the facts (pr_open, !pr_draft) point from in_progress to review, but reconcile does not advance it, because the conditions are not met: branch_pushed (boundaries in_progress → review). It advances at a sync after the conditions are met; a person can go ahead without them with ticket move t1 review --override "reason"',
-      );
-
-      // 満たせば、次の照合で進む
-      await git(f.cloneA, ["push", "-q", "origin", "t1-gated"]);
-      const met = await runCommand(sync, ctx, {});
-      expect(met.data.reconciled).toEqual([
-        { id: "t1", from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
-      ]);
-
-      // PR がマージされて requires（pr_merged）は満たすが、review → done は human_only なので、エージェントの側の照合は進めない
-      await fakeGh(f.root, { "t1-gated|42": pr("MERGED", "2099-01-02T00:00:00Z") });
-      const limited = await runCommand(sync, ctx, {});
-      expect(limited.data.reconciled).toEqual([]);
-      expect(status()).toBe("review");
-      expect(limited.warnings).toContain(
-        "t1: the facts (pr_merged) point from review to done, but reconcile does not advance it, because the Workflow limits the move to a person (human_only) (boundaries review → done). A person moves it with ticket move t1 done",
-      );
-
-      // 人が手で進める（requires は満たしているので強制は要らない）
-      const moved = await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
-      expect(moved.data).toMatchObject({ status: "done", from: "review" });
-    } finally {
-      restore();
-    }
-  });
-
-  it("PR の番号を記録したチケットは、読めた PR がマージ済みでなければブランチのマージだけでは done に進めず、gh がなく PR の事実を読めなければブランチのマージで done に進む（ST-6）", async () => {
-    const f = await initializedFixture();
-    const ctx = await reopenInitialized(f);
-    await runCommand(ticketCreate, ctx, { title: "Held" });
-    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "t1-held" });
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 7 });
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "review" });
-    // 作業ブランチを main にマージする（PR は開いたまま）
-    await git(f.cloneA, ["checkout", "-qb", "t1-held"]);
-    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "実装"]);
-    await git(f.cloneA, ["checkout", "-q", "main"]);
-    await git(f.cloneA, ["merge", "-q", "--ff-only", "t1-held"]);
-    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "main が進む"]);
-    await git(f.cloneA, ["push", "-q", "origin", "main"]);
-    const status = () => ctx.store.tickets.get("t1")?.data.status;
-
     const restore = await fakeGh(f.root, {
-      "t1-held|7": JSON.stringify({
-        number: 7,
+      "t1-gated|42": JSON.stringify({
+        number: 42,
         state: "OPEN",
         isDraft: false,
         createdAt: "2099-01-01T00:00:00Z",
@@ -514,34 +453,18 @@ describe("チケットの流れ（照合と claim）", () => {
       }),
     });
     try {
-      const held = await runCommand(sync, ctx, {});
-      expect(held.data.reconciled).toEqual([]);
-      expect(status()).toBe("review");
-      expect(held.warnings).toContainEqual(
+      // 下書きでない PR が開いた（きっかけ）が、in_progress → review の requires（branch_pushed）を満たさないので進めない
+      const unmet = await runCommand(sync, ctx, {});
+      expect(unmet.data.reconciled).toEqual([]);
+      expect(unmet.data.pr_recorded).toEqual([{ id: "t1", pr: 42 }]);
+      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "in_progress", pr: 42 });
+      expect(unmet.warnings).toContainEqual(
         expect.stringContaining(
-          "t1: the facts (branch_merged) point from review to done, but reconcile does not advance it, because the conditions are not met: pr_merged (boundaries review → done)",
+          "t1: the facts (pr_open, !pr_draft) point from in_progress to review, but reconcile does not advance it, because the conditions are not met: branch_pushed (boundaries in_progress → review)",
         ),
       );
     } finally {
       restore();
-    }
-
-    // --version も失敗する gh を PATH の先頭に置く（gh がないのと同じ扱いになり、PR の事実はどれも不明）
-    const bin = path.join(f.root, "no-gh-bin");
-    await mkdir(bin, { recursive: true });
-    await writeFile(path.join(bin, "gh"), "#!/bin/sh\nexit 127\n", { mode: 0o755 });
-    const savedPath = process.env["PATH"];
-    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
-    resetGhCache();
-    try {
-      const synced = await runCommand(sync, ctx, {});
-      expect(synced.data.reconciled).toEqual([
-        { id: "t1", from: "review", to: "done", when: ["branch_merged"] },
-      ]);
-      expect(status()).toBe("done");
-    } finally {
-      process.env["PATH"] = savedPath;
-      resetGhCache();
     }
   });
 
@@ -731,6 +654,9 @@ describe("チケットの流れ（照合と claim）", () => {
     }
   }, 30_000);
 
+  // どの PR を前の作業とみなすか（開いたままの古い PR・閉じた PR・claim し直した後の新しい PR）は facts-judge.test.ts が、
+  // 外した PR の状態（merged・closed）を出す警告の文は reconcile-judge.test.ts が、gh なしで見る。
+  // ここは gh が返した前の作業の PR を外して警告する経路と、比べる時刻（branch_at、なければ created_at）を渡す経路を見る
   it("照合は claim より前にマージされた同じブランチ名の PR を根拠にせず、claim の後にマージした PR では done にして pr を記録する（t206）", async () => {
     const f = await initializedFixture();
     let clock = new Date("2026-11-02T05:00:00Z");
@@ -822,47 +748,6 @@ describe("チケットの流れ（照合と claim）", () => {
       expect(ctx.store.tickets.get("t1")?.data.branch_at).toBe("2026-11-02T07:10:00Z");
       await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: null });
       expect(ctx.store.tickets.get("t1")?.data.branch_at).toBeUndefined();
-    } finally {
-      process.env["PATH"] = savedPath;
-      resetGhCache();
-    }
-  });
-
-  // どの PR を前の作業とみなすか（開いたままの古い PR・claim し直した後の新しい PR）は facts-judge.test.ts が gh なしで見る。
-  // ここは外した閉じた PR の状態を警告の文に出す経路を見る
-  it("ブランチで探した PR のうち、記録より前に作られてマージされずに閉じたものは前の作業とみなして拾わず、閉じたことを警告する（t747）", async () => {
-    const f = await initializedFixture();
-    let clock = new Date("2026-11-02T05:00:00Z");
-    const ctx = await reopenInitialized(f, { now: () => clock });
-    await runCommand(ticketCreate, ctx, { title: "Closed old PR" });
-    await runCommand(ticketClaim, ctx, {
-      no_worktree: true,
-      ticket: "t1",
-      branch: "t1-closed-old",
-    });
-    await recordBaseline(ctx.repo);
-    await git(f.cloneA, ["branch", "t1-closed-old"]);
-
-    // 前の作業：claim より前に作られ、マージされずに閉じた PR #105
-    const bin = await fakeGhPrs(f.root, {
-      "t1-closed-old":
-        '{"number":105,"state":"CLOSED","isDraft":false,"createdAt":"2026-10-31T10:00:00Z","mergedAt":null}',
-    });
-    const savedPath = process.env["PATH"];
-    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
-    resetGhCache();
-    try {
-      clock = new Date("2026-11-02T06:05:00Z");
-      const synced = await runCommand(sync, ctx, {});
-      // 閉じた古い PR は根拠にせず、pr も記録せず、外した理由を警告する
-      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "in_progress" });
-      expect(ctx.store.tickets.get("t1")?.data.pr).toBeUndefined();
-      const t1Warnings = synced.warnings.filter((w) => w.startsWith("t1:"));
-      expect(t1Warnings).toHaveLength(1);
-      expect(t1Warnings[0]).toContain("PR #105");
-      expect(t1Warnings[0]).toContain("is closed");
-      expect(t1Warnings[0]).toContain("2026-10-31T10:00:00Z");
-      expect(synced.data.pr_recorded).toEqual([]);
     } finally {
       process.env["PATH"] = savedPath;
       resetGhCache();
@@ -1293,7 +1178,7 @@ describe("チケットの流れ（照合と claim）", () => {
     const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await reopenInitialized(f, { now: () => clock });
-    for (const title of ["With --pr", "Found by sync", "Recorded before", "Reopened after PR"])
+    for (const title of ["With --pr", "Found by sync", "Reopened after PR"])
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const runs = {
@@ -1321,29 +1206,16 @@ describe("チケットの流れ（照合と claim）", () => {
           branch: "t3",
         })
       ).data.run!,
-      t4: (
-        await runCommand(ticketClaim, agent, {
-          approved_by: "human",
-          no_worktree: true,
-          ticket: "t4",
-          branch: "t4",
-        })
-      ).data.run!,
     };
-    for (const b of ["t1", "t2", "t3", "t4"]) await git(f.cloneA, ["branch", b]);
-    // t3 は PR 番号を記録済み（この機能より前に記録した形）で、Run は開いたまま
-    await agent.store.update("ticket", "t3", { pr: 43 });
-    await recordBaseline(agent.repo);
-    // t4 の PR は Run の開始（00:00）より前に作られている（PR の後に implement を開き直した形）
+    for (const b of ["t1", "t2", "t3"]) await git(f.cloneA, ["branch", b]);
+    // t3 の PR は Run の開始（00:00）より前に作られている（PR の後に implement を開き直した形）
     const restore = await fakeGh(f.root, {
       "t1|41":
         '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T01:00:00Z"}',
       "t2|42":
         '{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T02:00:00Z"}',
       "t3|43":
-        '{"number":43,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T02:30:00Z"}',
-      "t4|44":
-        '{"number":44,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-05T23:00:00Z"}',
+        '{"number":43,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-05T23:00:00Z"}',
     });
     try {
       clock = new Date("2026-11-06T03:00:00Z");
@@ -1359,11 +1231,7 @@ describe("チケットの流れ（照合と claim）", () => {
         finished_at: "2026-11-06T01:00:00Z",
         error: null,
       });
-      expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket).sort()).toEqual([
-        "t2",
-        "t3",
-        "t4",
-      ]);
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket).sort()).toEqual(["t2", "t3"]);
       await runCommand(commit, agent, {});
       expect(
         (await git(agent.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])).stdout,
@@ -1379,40 +1247,35 @@ describe("チケットの流れ（照合と claim）", () => {
       expect((await git(agent.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
       expect(agent.store.runs.get(runs.t1)!.data).toEqual(closed);
 
-      // 照合：ブランチ名で見つけた PR（t2）と記録済みの番号で引いた PR（t3）の両方で閉じる。
-      // Run の開始より前に作られた PR（t4）では閉じずに警告する
+      // 照合：ブランチ名で見つけた PR（t2）で閉じ、Run の開始より前に作られた PR（t3）では閉じずに警告する。
+      // 閉じ方の組み合わせ（記録済みの番号で引いた PR・作成時刻を読めない PR・閉じた PR）は reconcile-judge.test.ts が見る
       const synced = await runCommand(sync, agent, {});
       expect(synced.data.reconciled).toEqual([
         { id: "t2", from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
       ]);
       expect(synced.data.pr_recorded).toEqual([
         { id: "t2", pr: 42 },
-        { id: "t4", pr: 44 },
+        { id: "t3", pr: 43 },
       ]);
       expect(synced.data.runs_closed).toEqual([
         { id: "t2", run: runs.t2, opener: "claim", result: "success" },
-        { id: "t3", run: runs.t3, opener: "claim", result: "success" },
       ]);
       expect(synced.warnings).toContainEqual(
         expect.stringMatching(
-          /^t4: implementation Run r\S+ started after PR #44 was created \(2026-11-05T23:00:00Z\), so reconcile does not close it/,
+          /^t3: implementation Run r\S+ started after PR #43 was created \(2026-11-05T23:00:00Z\), so reconcile does not close it/,
         ),
       );
       expect(agent.store.runs.get(runs.t2)!.data).toMatchObject({
         result: "success",
         finished_at: "2026-11-06T02:00:00Z",
       });
-      expect(agent.store.runs.get(runs.t3)!.data).toMatchObject({
-        result: "success",
-        finished_at: "2026-11-06T02:30:00Z",
-      });
-      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([runs.t4]);
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([runs.t3]);
       expect((await git(agent.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim()).toBe(
-        `Reconcile t2: in_progress → review (pr_open, !pr_draft). Record PR numbers: t2: #42, t4: #44. Record implementation Runs: t2 ${runs.t2} success, t3 ${runs.t3} success`,
+        `Reconcile t2: in_progress → review (pr_open, !pr_draft). Record PR numbers: t2: #42, t3: #43. Record implementation Runs: t2 ${runs.t2} success`,
       );
-      // 2 回目は閉じるものがない（t4 は開いたまま）
+      // 2 回目は閉じるものがない（t3 は開いたまま）
       expect((await runCommand(sync, agent, {})).data.runs_closed).toEqual([]);
-      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([runs.t4]);
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([runs.t3]);
     } finally {
       restore();
     }
@@ -1570,6 +1433,93 @@ describe("チケットの流れ（照合と claim）", () => {
         finished_at: "2026-11-06T02:00:00Z",
       });
       expect(await peekRunningRuns(agent.repo)).toEqual([]);
+    } finally {
+      race.beforeClose = undefined;
+      restore();
+    }
+  });
+
+  it("照合の結果の push が拒否されたら、コミットをローカルに残して警告し、次の sync が取り込み直して送る。取り込み直しが競合で止まっても、閉じた Run の記録と実行中の記録の消去は二重にも欠けにもならない（RN-6）", async () => {
+    const f = await initializedBothFixture();
+    const clock = new Date("2026-11-06T00:00:00Z");
+    const human = await reopenInitialized(f, { now: () => clock });
+    await runCommand(ticketCreate, human, { title: "Rejected push" });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    const run = (
+      await runCommand(ticketClaim, agent, {
+        approved_by: "human",
+        no_worktree: true,
+        ticket: "t1",
+        branch: "t1",
+      })
+    ).data.run!;
+    await git(f.cloneA, ["branch", "t1"]);
+    // 別のマシン（clone B）は claim までを取り込んでおく
+    const b = await reopenInitialized(f, { cwd: f.cloneB });
+    await runCommand(sync, b, {});
+    const restore = await fakeGh(f.root, {
+      "t1|41":
+        '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T01:00:00Z"}',
+    });
+    /** B が t1 の pr を書き換えて送る（照合が記録する pr: 41 と違う値なら、同じ項目の競合になる） */
+    const pushFromB = async (pr: number) => {
+      await runCommand(ticketUpdate, b, { ticket: "t1", pr });
+      expect((await runCommand(sync, b, {})).data.pushed).toBe(true);
+    };
+    /** 閉じた Run の集計のコミットは 1 つで、実行中の記録のファイルは残っていない */
+    const closedOnce = async () => {
+      const subjects = (await git(agent.repo.dataDir, ["log", "--format=%s"])).stdout.split("\n");
+      expect(subjects.filter((s) => s.includes(`Record implementation Runs: t1 ${run}`))).toEqual([
+        `Record PR numbers: t1: #41. Record implementation Runs: t1 ${run} success`,
+      ]);
+      expect(
+        (await git(agent.repo.dataDir, ["ls-files", "runs"])).stdout.trim().split("\n"),
+      ).toEqual([`runs/${run}.json`]);
+      const local = await readdir(path.join(agent.repo.localDir, "runs"));
+      expect(local.filter((name) => name.includes(run))).toEqual([]);
+      expect(await peekRunningRuns(agent.repo)).toEqual([]);
+    };
+    try {
+      // 照合が取り込みを済ませた後（Run を閉じる直前）に、B が先にリモートへ送る。照合の結果の push は拒否される
+      race.beforeClose = () => pushFromB(77);
+      const rejected = await runCommand(sync, agent, {});
+      expect(race.beforeClose).toBeUndefined();
+      expect(rejected.warnings).toContainEqual(
+        expect.stringContaining("Cannot push the reconcile result: "),
+      );
+      expect(rejected.data.pushed).toBe(false);
+      expect(rejected.data.status).toMatchObject({ ahead: 1, dirty: false });
+      expect(rejected.data.pr_recorded).toEqual([{ id: "t1", pr: 41 }]);
+      expect(rejected.data.runs_closed).toEqual([
+        { id: "t1", run, opener: "claim", result: "success" },
+      ]);
+      const closed = agent.store.runs.get(run)!.data;
+      expect(closed).toMatchObject({ result: "success", finished_at: "2026-11-06T01:00:00Z" });
+      await closedOnce();
+
+      // 次の sync の取り込み直しは、B の pr: 77 と競合して止まる。閉じた Run はローカルのコミットに残り、閉じ直さない
+      const stopped = await runCommand(sync, agent, {});
+      expect(stopped.data.conflicts).toEqual(["tickets/t1.md"]);
+      expect(stopped.data).toMatchObject({ pushed: false, runs_closed: [], pr_recorded: [] });
+      expect(agent.store.runs.get(run)!.data).toEqual(closed);
+      await closedOnce();
+
+      // B が同じ値（pr: 41）にして競合がなくなると、次の sync が取り込み直して送る。Run の記録は 1 つのまま B にも届く
+      await pushFromB(41);
+      const resent = await runCommand(sync, agent, {});
+      expect(resent.data).toMatchObject({
+        conflicts: [],
+        integrated: true,
+        pushed: true,
+        runs_closed: [],
+        pr_recorded: [],
+      });
+      expect(resent.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
+      expect(agent.store.runs.get(run)!.data).toEqual(closed);
+      await closedOnce();
+      await runCommand(sync, b, {});
+      expect(b.store.runs.get(run)?.data).toEqual(closed);
+      expect(b.store.tickets.get("t1")?.data.pr).toBe(41);
     } finally {
       race.beforeClose = undefined;
       restore();
