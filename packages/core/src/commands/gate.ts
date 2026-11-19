@@ -4,7 +4,7 @@
 
 import { NEVER_OVERRIDDEN } from "./pr-approval.js";
 import { z } from "zod";
-import { fetchPrGateFacts, remoteTip } from "../git/facts.js";
+import { baseContainment, fetchPrGateFacts, remoteTip } from "../git/facts.js";
 import { withTipMerge } from "../git/tip-merge.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
 import { gateLevelOf, parseAcceptance, type Ticket } from "../model/ticket.js";
@@ -17,6 +17,8 @@ import {
   concludeGate,
   gateReads,
   judgeBeforeCheck,
+  rereadsBase,
+  type BaseFact,
   type GateConditionId,
   type GateFacts,
   type GateStage,
@@ -66,9 +68,15 @@ async function readReviewFacts(
   return { tip: tip ? await withTipMerge(ctx.repo, tip, runs, { fetch: true }) : null, runs };
 }
 
+/** base の今の先端（fetch して読む）を、作業ブランチの最新のコミットが含むか */
+async function readBaseFact(ctx: CommandContext, latest: string): Promise<BaseFact> {
+  const read = await baseContainment(ctx.repo, latest);
+  return "reason" in read ? { kind: "unreadable", reason: read.reason } : { kind: "read", ...read };
+}
+
 /**
  * 品質ゲートの判定に使う事実を集める。段と for が判定しない条件の材料（見直しの Run・push の時刻とそのための fetch・
- * 受け入れ条件・作業ブランチの最新のコミット）は読まず、空の値で渡す（どれを読むかは gate-judge.ts の gateReads）。
+ * 受け入れ条件・作業ブランチの最新のコミット・base の今の先端とそのための fetch）は読まず、空の値で渡す（どれを読むかは gate-judge.ts の gateReads）。
  * gh・Git が読めなかったことも値で持つ（判定が満たさないとする）。
  * warnings には、フックが結ばなかった見直しを数えたときの警告を足す（t702。dg gate だけが渡す）
  */
@@ -92,6 +100,8 @@ export async function collectGateFacts(
     reads.latest && pr.kind === "read" && ticket.branch
       ? ((await latestCommit(ctx, ticket.branch)) ?? null)
       : null;
+  // base の今の先端は、比べる相手の最新のコミットを読めたときだけ読む（base の fetch はここでだけ必ず行う）
+  const base = reads.base && latest !== null ? await readBaseFact(ctx, latest) : null;
   return {
     ticket: ticket.id,
     level,
@@ -102,6 +112,7 @@ export async function collectGateFacts(
     acceptance,
     review,
     latest,
+    base,
     checkConfigured: ctx.config.actions.test.length > 0,
   };
 }
@@ -109,7 +120,10 @@ export async function collectGateFacts(
 /**
  * チケットの品質ゲートを判定する：事実を集め（collectGateFacts）、検査のほかの条件を決め（judgeBeforeCheck）、
  * 検査を判定すると決まったときだけ回して（judgeCheck。時間がかかるので最後）、結論を出す（concludeGate）。
- * 判定する条件・読めない事実の扱い・waived（人の承認で越える条件。dg pr merge --approved-by だけが渡す）は gate-judge.ts
+ * 判定する条件・読めない事実の扱い・waived（人の承認で越える条件。dg pr merge --approved-by だけが渡す）は gate-judge.ts。
+ * 検査を回したときは、その間に base が進んでいないかを読み直してから結論を出す（rereadsBase。t1152）：検査の前に読んだ事実のまま
+ * 通すと、検査の間に base に入った変更との組み合わせを誰も検査しないままマージしてしまう。
+ * 読み直してから gh がマージするまでの短い間に base が進むことは閉じられない（gh に base の先端を固定する引数がない）
  */
 export async function judgeGate(
   ctx: CommandContext,
@@ -120,7 +134,12 @@ export async function judgeGate(
 ): Promise<GateView> {
   const facts = await collectGateFacts(ctx, ticket, stage, warnings);
   const draft = judgeBeforeCheck(facts, waived);
-  return concludeGate(draft, draft.check === "judge" ? await judgeCheck(ctx, ticket) : undefined);
+  if (draft.check !== "judge") return concludeGate(draft);
+  const check = await judgeCheck(ctx, ticket);
+  const latest = facts.latest;
+  return latest !== null && rereadsBase(draft, check)
+    ? concludeGate(draft, check, { latest, base: await readBaseFact(ctx, latest) })
+    : concludeGate(draft, check);
 }
 
 // 要件 EX-3（品質ゲートの判定）・TK-9（段ごとに判定する条件）
@@ -135,12 +154,13 @@ export const gate = defineCommand({
     "(a review result held with no review Run, while the ticket has no open review Run and no running sub-agent, counts as a review closed when the result was written; when several are held after the same push, only the latest counts) · " +
     `fix_rounds (reviews that raised heavy findings on this branch are at most ${FIX_ROUNDS_LIMIT} times) · mergeable (with --for merge, gh's mergeable is MERGEABLE) · ` +
     "head (with --for merge at high and low, the PR's head commit (sha in the output, which dg pr merge pins with --match-head-commit) is the latest commit of the work branch, the commit that review and check judge) · " +
+    "base (with --for merge at high and low, the latest commit of the work branch contains the current tip of base, which dg fetches before it compares, and again after a check that it ran (not reused), since base can move while the check runs, so that the check has seen what the merge puts on base. When it is unmet, merge base into the work branch, push, and judge again: the check runs on the new tip, and a merge commit that only brings base in keeps the review. Merge base in before dg pr ready, and dg pr merge reuses the check of that tip unless base has moved since. Nothing is checked after the merge) · " +
     "check (config's actions.test passes when run in a worktree with no uncommitted changes, checked out at the latest commit of the work branch (remote tip). When the last commit whose actions.test passed is an ancestor of the latest commit, no merge commit came after it, actions.test is unchanged, and every file changed since then falls under actions.light_paths, the lighter check actions.light_test runs instead (with no such record yet, the diff against base decides the same way). Otherwise actions.test runs. detail gives which one ran and why. When actions.test is empty, it passes without judging and detail says so. When it fails, detail gives the exit code and the tail of the output. A passing result is remembered per commit and per command in deguboard-local and is not rerun for the same commit (it still counts after the worktree is removed, e.g. after a merge. A failing result is not remembered; the next check reruns it). It takes time, so it runs only when all the other conditions are met; not_run: true marks a check skipped because they were not met). " +
     "A condition that gh or Git cannot read is treated as unmet. " +
     "Which conditions are judged depends on the ticket's gate level (gate in the output; a ticket with no gate is high). " +
-    "high judges all of them (--for merge: pr · acceptance · review · fix_rounds · mergeable · head · check; --for ready: pr · review · fix_rounds · check). " +
-    "low leaves out review and fix_rounds (merge: pr · acceptance · mergeable · head · check; ready: pr · check). " +
-    "free judges only pr and, with --for merge, mergeable (merge: pr · mergeable; ready: pr). At free, dg pr merge still pins the PR's head (sha), so a commit pushed after the judgment is not merged. Conditions that are not judged do not appear in conditions, and their inputs (review Runs, the push time and its fetch, the check) are not read. " +
+    "high judges all of them (--for merge: pr · acceptance · review · fix_rounds · mergeable · head · base · check; --for ready: pr · review · fix_rounds · check). " +
+    "low leaves out review and fix_rounds (merge: pr · acceptance · mergeable · head · base · check; ready: pr · check). " +
+    "free judges only pr and, with --for merge, mergeable (merge: pr · mergeable; ready: pr). At free, dg pr merge still pins the PR's head (sha), so a commit pushed after the judgment is not merged. Conditions that are not judged do not appear in conditions, and their inputs (review Runs, the push time and its fetch, the tip of base and its fetch, the check) are not read. " +
     "Set the level with dg ticket create/import/update --gate; only a person can lower it (dg ticket update --gate from an agent is rejected when it lowers the level; fixed in Core). " +
     "--only check judges only check on the HEAD of the work branch's worktree (a commit not pushed yet is fine; uncommitted changes refuse it), whatever the level. Run it before the push (before the review and after a fix). It chooses the check the same way, except that where actions.test would run it runs config's actions.pre_review_test instead when that is set (and differs from actions.test, and actions.test has not already passed on this commit). With --only, --for is not judged (the view only echoes it). The result is remembered per commit and command, so dg pr ready and dg pr merge after the push reuse it for the same commit when it is the check they run; a passing actions.pre_review_test does not count as actions.test, so they run actions.test. " +
     "dg pr ready and dg pr merge make the same judgment before they call gh. Proceeding outside the conditions of the level is left to a person: for a merge, a person approves it and dg pr merge --approved-by overrides unmet check, review, fix_rounds, and acceptance (fixed in Core; " +

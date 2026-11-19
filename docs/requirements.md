@@ -278,11 +278,12 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - EX-3 段階に進める既定の手続きは Core が持つ。チケットは `dg next`・`dg gate`・`dg brief`、Iteration の流れは `dg flow next` が返す（EX-8）。段階は保存せず都度求め、`ticket show` の `stage` も同じ。ゲートは他条件が未達で検査を省いたとき `not_run: true` を返す（理由は ADR-011 と [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - EX-4 Workflow が人に限った（`human_only`）Status の動きは、エージェントからは行えない。人の承認が要る動きは、エージェントが承認者を `--approved-by` で渡して行い、承認者は履歴に残る（ST-2）
 - EX-5 `dg next` はデータを書かず、次の 1 手・開く step・呼ぶコマンド・人に聞くことを返す。サブエージェントに渡す手（implement・review・fix）は役の手順の本文と、手直しなら直す指摘を入れた文（brief）を返す。モデル（`model`）は implement・fix の手が返す。low・free の段（TK-9）は見直しを飛ばし、人の判断が要るものは人を待つ手になる。着手順は PL-6 と `ticket list --ready` に従う（EX-3）
-- EX-6 `dg pr ready`・`dg pr merge` は段（TK-9）の条件を満たすときだけ gh を呼び、ほかは `GATE_FAILED` で返す。出す前に直さなかった軽い指摘を本文に足す。merge は判定したコミットに固定し、gh が失敗してもマージ済みなら成功。条件の外のマージは EX-10、ready は人が行う（AG-10。細部は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
+- EX-6 `dg pr ready`・`dg pr merge` は段（TK-9）の条件を満たすときだけ gh を呼び、ほかは `GATE_FAILED` で返す。ready は直さなかった軽い指摘を本文に足す。merge が通すコミットは EX-11。条件の外のマージは EX-10、ready は人が行う（AG-10。細部は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - EX-7 `--auto` は、Workflow の値が `ask_unless_auto` の場面だけを聞かずに進める。操作のコマンドが `--auto` を受け、その場面でだけ通して承認者に agent を記録し、ほかの場面の `--auto` は拒否する。`always_ask`・`human_only`・Core の固定は越えない（細部は `dg guide all`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - EX-8 `dg flow next` は流れの段階と、その手のやり方の節・呼ぶコマンド・関所・承認の要否を返す。割り当て・点検・見直しを終えたかは、`dg checkpoint` が段階の値で判定して Iteration に足した記録と根拠で決め、根拠が変わった記録と再開より前の記録は数えない。`flow` の `skip` の段階は返さず、同じ段階が事実も変わらずに続けば止まる手を返す（規則は `dg flow next --help`、EX-3）
 - EX-9 `dg gate <id> --only check` は、作業ブランチの worktree の HEAD（push の前のコミットも）を検査し、`actions.pre_review_test` があれば `actions.test` の代わりにそれを回す。`dg pr ready`・`dg pr merge` は、同じコミットの結果が自分の回す検査のものであるときだけ、回し直さずに使う（細部は `dg gate --help`）
-- EX-10 品質ゲートを満たさない PR は、人が承認したときだけ、承認者を渡した `dg pr merge` がマージし、越えた条件と承認者を PR に残す。この承認は `--auto` でも設定でも省けない（WF-7）。PR の状態・衝突・判定した先端は承認があっても越えられない（細部は `dg pr merge --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
+- EX-10 品質ゲートを満たさない PR は、人が承認したときだけ、承認者を渡した `dg pr merge` がマージし、越えた条件と承認者を PR に残す。この承認は `--auto` でも設定でも省けない（WF-7）。PR の状態・衝突・判定した先端・base の取り込みは承認があっても越えられない（細部は `dg pr merge --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
+- EX-11 `dg pr merge` は判定したコミットに固定してマージし、gh が失敗してもマージ済みなら成功。段が high・low なら、そのコミットが base の今の先端を含むことも条件にし、マージの後の検査はしない（細部は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 
 ## 7. 非機能要件
 

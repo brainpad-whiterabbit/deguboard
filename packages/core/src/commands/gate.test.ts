@@ -163,6 +163,7 @@ describe("dg gate（品質ゲート。t532）", () => {
       "fix_rounds",
       "mergeable",
       "head",
+      "base",
       "check",
     ]);
     // actions.test が空なら検査は判定せずに通し、そう detail に出す
@@ -295,6 +296,84 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(await runs()).toBe(1);
     // 同じコミットの判定（ready の後の merge など）は覚えた結果を使う
     await judge(ctx, "ready");
+    expect(await runs()).toBe(1);
+  });
+
+  it("merge は base の今の先端を含まない先端を base で落として検査を回さず、取り込んだ先端で ready が回した検査を、base が進むまで回し直さずに使う（t1152）", async () => {
+    const { ctx, f, runs } = await withCheck();
+    await review(ctx, 1, 0);
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
+    // 別の clone が main を進める（この clone は fetch していない。base の今の先端は gate が取り込んで読む）
+    const advanceMain = async (file: string) => {
+      await git(f.cloneB, ["fetch", "-q", "origin"]);
+      await git(f.cloneB, ["checkout", "-q", "--detach", "origin/main"]);
+      await writeFile(path.join(f.cloneB, file), "main\n");
+      await git(f.cloneB, ["add", "--", file]);
+      await git(f.cloneB, ["commit", "-q", "-m", "main を進める"]);
+      await git(f.cloneB, ["push", "-q", "origin", "HEAD:main"]);
+    };
+    const base = (view: GateView) => view.conditions.find((c) => c.id === "base")!;
+    await advanceMain("main-1.txt");
+    const stale = await judge(ctx);
+    expect(failed(stale)).toEqual(["base", "check"]);
+    expect(base(stale).detail).toContain("Merge base into the work branch, push, and judge again");
+    expect(check(stale).not_run).toBe(true);
+    expect(await runs()).toBe(0);
+    // main を取り込んで push し直す。取り込んだだけのマージコミットなので、前の見直しは数えたまま。
+    // ready は base を判定しない（取り込みは ready の前に済ませるが、判定はマージの前だけ）
+    await git(f.cloneA, ["merge", "-q", "--no-edit", "origin/main"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
+    const ready = await judge(ctx, "ready");
+    expect(ready.passed).toBe(true);
+    expect(ready.conditions.map((c) => c.id)).not.toContain("base");
+    expect(await runs()).toBe(1);
+    // 同じ先端の merge は、ready が回した検査の結果を使う
+    const merged = await judge(ctx);
+    expect(merged.passed).toBe(true);
+    expect(base(merged).detail).toContain("contains the current tip of base");
+    expect(check(merged).detail).toContain("reused the remembered result for this commit");
+    expect(await runs()).toBe(1);
+    // main がまた進めば、取り込み直すまで通らない
+    await advanceMain("main-2.txt");
+    expect(failed(await judge(ctx))).toEqual(["base", "check"]);
+    expect(await runs()).toBe(1);
+  });
+
+  it("検査を回している間に base が進めば、検査が通っても base で落とす（検査の前に読んだ事実で通さない。t1152）", async () => {
+    const { ctx, f, runs } = await withCheck();
+    await review(ctx, 1, 0);
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
+    // 検査のコマンドが、回っている間に別の clone から main を進める（並行のチケットのマージを写す）
+    await git(f.cloneB, ["fetch", "-q", "origin"]);
+    await git(f.cloneB, ["checkout", "-q", "--detach", "origin/main"]);
+    const advance = path.join(f.root, "advance-main.sh");
+    await writeFile(
+      advance,
+      [
+        "#!/bin/sh",
+        "set -e",
+        // 検査は作業ブランチの worktree で回るので、git の環境変数を引き継がずに別の clone を操作する
+        `cd '${f.cloneB}'`,
+        "echo main > during-check.txt",
+        "git add -- during-check.txt",
+        "git commit -q -m 'main を進める'",
+        "git push -q origin HEAD:main",
+        `echo run >> '${path.join(f.root, "check-count")}'`,
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    await runCommand(configSet, asHuman(ctx), { key: "actions.test", value: `sh, ${advance}` });
+    const moving = await openContext({ cwd: f.cloneA, actor: ctx.actor });
+    const view = await judge(moving);
+    expect(await runs()).toBe(1);
+    expect(check(view).ok).toBe(true);
+    expect(failed(view)).toEqual(["base"]);
+    expect(view.conditions.find((c) => c.id === "base")!.detail).toContain(
+      "base moved while the check ran",
+    );
+    // 検査の結果はそのコミットの結果として覚えているので、判定し直しても回さず、base は検査の前に落ちる
+    expect(failed(await judge(moving))).toEqual(["base", "check"]);
     expect(await runs()).toBe(1);
   });
 
