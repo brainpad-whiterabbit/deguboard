@@ -3,7 +3,8 @@
 //   - decideSessionClaim：別のセッションが claim して進めているチケットへの、もう一度の claim・unclaim を拒むか（SY-5。
 //     記録が効くかは sessionClaimHolds。記録とフックの時刻を読むのは claim-sessions.ts）。claim の前の予約（PL-7。
 //     効いている予約は holdingReservation、読み書きは reservations.ts）が claim・予約・dg next を止めるかも、同じ関数で決める。
-//     claim が push の前に書く予約は decideClaimReservation、取れなかった claim の予約の戻し方は decideReservationRollback
+//     `--reserve` の予約は decideReservation、claim が push の前に書く予約は decideClaimReservation、取れなかった claim の
+//     予約の戻し方は decideReservationRollback。呼んだセッションの記録（予約と claim の記録）を書けるかは recordableSession
 //   - decideClaim：新しい claim に進むか・もう一度の claim か・拒否か。ticket.ts の ticketClaim が、書き込みの中（取り込みと索引の
 //     読み直しの後）で呼ぶ。push が拒否されて最新の状態からやり直す（git/write.ts の cas）たびに、やり直した後の値で決め直される
 //   - decideReclaim：もう一度の claim を拒むか（ブランチは変えられない）、手直しの始まりとして Run を開くか
@@ -14,6 +15,7 @@
 import { OperationError, UsageError, type DeguboardError } from "../errors.js";
 import { sameUser, type ActorKind } from "../model/actor.js";
 import { BRANCH_VALUE_MAX, type Ticket } from "../model/ticket.js";
+import { SESSION_ID } from "./hook-records.js";
 
 /**
  * 作業ブランチの名前を `<id>-<値>` に組み立てる（ST-3）。ブランチからチケットを ID で探せるように、dg が ID を付ける。
@@ -313,12 +315,72 @@ export function decideSessionClaim(f: SessionClaimFacts): SessionClaimDecision {
   };
 }
 
+/**
+ * 呼んだセッションの記録（claim の記録と予約）を書けるか。書けるのは、セッションがわかる agent の呼び出しで、セッションの ID が
+ * 記録のファイル名に使える形（SESSION_ID）のときだけ。書けないときの reason は、人の呼び出し（person）か、agent でセッションが
+ * わからないか ID が使えない形（unknown_session）か。予約（decideReservation）・claim の予約（decideClaimReservation）・
+ * claim の記録（claim-sessions.ts の recordSessionClaim）が、この同じ条件で書くかを決める
+ */
+export type RecordableSession =
+  | { recordable: true; session: string }
+  | { recordable: false; reason: "person" | "unknown_session" };
+
+export function recordableSession(
+  actorKind: ActorKind,
+  session: string | undefined,
+): RecordableSession {
+  if (actorKind !== "agent") return { recordable: false, reason: "person" };
+  if (session === undefined || !SESSION_ID.test(session))
+    return { recordable: false, reason: "unknown_session" };
+  return { recordable: true, session };
+}
+
+/** decideReservation に要る事実。record は、対象に効いている予約（holdingReservation）の記録 */
+export interface ReservationFacts extends SessionClaimFacts {
+  operation: "reserve";
+}
+
+/**
+ * `plan show --reserve`・`next --reserve` の予約の決定。warnings は通すときに warnings に入れる文（順に）。write は、
+ * 対象の予約を書くセッション（書かないなら省く）。takenOver は、--take-over で越えて予約を書くこと（Plan なら、行う側がその
+ * チケットに残る別のセッションの予約を消す）
+ */
+export type ReservationDecision =
+  | ClaimRejection
+  | { kind: "pass"; warnings: string[]; write?: string; takenOver?: true };
+
+/**
+ * 予約を別のセッションの予約で止めるか（decideSessionClaim と同じ規則）と、通すときに予約を書くかを決める（PL-7）。行う側
+ * （reservations.ts の reserve）は、読む・これで決める・書くを予約のロックの中で行う。書くのは予約を書ける呼び出し
+ * （recordableSession）だけで、人とセッションのわからない呼び出しは予約を作らず、そのことを知らせる
+ */
+export function decideReservation(f: ReservationFacts): ReservationDecision {
+  const decision = decideSessionClaim(f);
+  if (decision.kind === "reject") return decision;
+  const warnings = decision.warning ? [decision.warning] : [];
+  const caller = recordableSession(f.actorKind, f.session);
+  if (!caller.recordable) {
+    warnings.push(
+      `${f.ticket} was not reserved: ${
+        caller.reason === "unknown_session"
+          ? "the session calling dg is unknown (the agent sets no session ID)"
+          : "only an agent's session makes a reservation"
+      }, so other sessions are not stopped from advancing it`,
+    );
+    return { kind: "pass", warnings };
+  }
+  return {
+    kind: "pass",
+    warnings,
+    write: caller.session,
+    ...(decision.takenOver ? { takenOver: true as const } : {}),
+  };
+}
+
 /** decideClaimReservation に要る事実。record は、チケットに効いている予約（holdingReservation）の記録 */
 export interface ClaimReservationFacts extends SessionClaimFacts {
   /** start は todo の新しい claim、claim はもう一度の claim */
   operation: "start" | "claim";
-  /** 呼んだセッションの予約を書けるか（agent の呼び出しで、セッションの ID が記録に使える形） */
-  recordable: boolean;
 }
 
 /** claim を予約で止めるかと、通すときにチケットの予約を呼んだセッションのものとして書くか */
@@ -330,7 +392,7 @@ export type ClaimReservationDecision =
  * claim を別のセッションの予約で止めるか（decideSessionClaim と同じ規則）と、通すときにチケットの予約を呼んだセッションの
  * ものとして書くかを決める（PL-7。t1158）。行う側（reservations.ts の reserveForClaim）は、読む・これで決める・書くを予約の
  * ロックの中で、claim の push の前に行う。予約せずに claim したセッションも push の前に予約を持つので、push の間の別のセッションの
- * `next --reserve` と claim は、この予約で止まる。書くのは、予約を書ける呼び出し（recordable）の：
+ * `next --reserve` と claim は、この予約で止まる。書くのは、予約を書ける呼び出し（recordableSession）の：
  *   - --take-over で越えた claim（予約を呼んだセッションに移す。新しい claim でも、もう一度の claim でも）
  *   - 効いている予約がない新しい claim（start）
  * 書かないのは、呼んだセッションの予約（チケット自身か、それを含む Plan の予約）がすでに効いている claim、--take-over なしの
@@ -340,7 +402,9 @@ export function decideClaimReservation(f: ClaimReservationFacts): ClaimReservati
   const decision = decideSessionClaim(f);
   if (decision.kind === "reject") return decision;
   const held = f.record !== undefined && sessionClaimHolds(f.record, f);
-  const write = f.recordable && (decision.takenOver === true || (f.operation === "start" && !held));
+  const write =
+    recordableSession(f.actorKind, f.session).recordable &&
+    (decision.takenOver === true || (f.operation === "start" && !held));
   return { kind: "pass", ...(decision.warning ? { warning: decision.warning } : {}), write };
 }
 
