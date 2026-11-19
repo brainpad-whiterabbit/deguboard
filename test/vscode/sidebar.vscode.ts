@@ -321,13 +321,19 @@ describe("VS Code の実機の左パネル", () => {
     // ▾ をもう一度押して閉じる（テーマを替えた後はフォーカスが Webview の外にあり、Esc が届かないことがある）
     await formats.click();
     await menu.waitFor({ state: "detached" });
-    // コピーした後は、件数の代わりに何件の何をコピーしたかを少しの間出す（撮る前に押し直す）
+    // コピーした後は、ボタンの下の行に何件の何をコピーしたかを少しの間出す（撮る前に押し直す）。
+    // 知らせは COPY_NOTICE_MS で消えるので、撮り終えた後もまだ出ていれば撮った絵にも写っている。消えていたら撮り直す
+    const copied = bar.getByText("Copied 2 IDs");
     for (const theme of ["dark", "light"] as const) {
       await host.setTheme(theme);
-      await copyIds.click();
-      await bar.getByText("Copied 2 IDs").waitFor();
-      const shot = await host.screenshot("ids-copied", theme);
-      await access(shot.sidebar);
+      for (let attempt = 1; ; attempt++) {
+        await copyIds.click();
+        await copied.waitFor();
+        const shot = await host.screenshot("ids-copied", theme);
+        await access(shot.sidebar);
+        if (await copied.isVisible()) break;
+        if (attempt === 5) throw new Error(`コピーの知らせが写るように撮れなかった（${theme}）`);
+      }
     }
     await clear.click();
     await bar.waitFor({ state: "detached" });

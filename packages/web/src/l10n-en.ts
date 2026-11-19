@@ -69,7 +69,7 @@ export const EN: Readonly<Record<string, string>> = {
   "選択を外す（Esc）": "Clear selection (Esc)",
   選択を外す: "Clear selection",
   "ID をコピー": "Copy IDs",
-  "選んだ {0} 件の ID をコピー（Ctrl/⌘+C）": "Copy the IDs of the {0} selected (Ctrl/⌘+C)",
+  "選んだ {0} 件の ID をコピー（Ctrl/⌘+C）": "Copy the IDs of {0} selected tickets (Ctrl/⌘+C)",
   コピーの形を選ぶ: "Choose what to copy",
   コピーの形: "Copy as",
   コピーできませんでした: "Could not copy",
@@ -814,7 +814,7 @@ export const EN_ONE: Readonly<Record<string, { arg: number; text: string }>> = {
   },
   "選んだ {0} 件の ID をコピー（Ctrl/⌘+C）": {
     arg: 0,
-    text: "Copy the ID of the {0} selected (Ctrl/⌘+C)",
+    text: "Copy the ID of {0} selected ticket (Ctrl/⌘+C)",
   },
   "{0} 件の ID をコピーしました": { arg: 0, text: "Copied {0} ID" },
   "{0} 件の ID とタイトルをコピーしました": { arg: 0, text: "Copied {0} ID and title" },

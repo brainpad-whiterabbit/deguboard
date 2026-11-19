@@ -119,7 +119,7 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
     expect(selected()).toEqual([]);
   });
 
-  it("選ぶと「n 件を選択 ・ 頼む」の帯が出て、「選択を外す」と Esc で外せる", async () => {
+  it("選ぶと「n 件を選択 頼む」の帯が出て、「選択を外す」と Esc で外せる", async () => {
     window.location.hash = "#/backlog";
     mount(backlogClient());
     await screen.findByText("四つ目");
