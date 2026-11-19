@@ -141,7 +141,7 @@ updated_at: 2026-10-31T05:10:00Z
 - PL-4 `plan create` は承認待ち（`pending_approval: true`）で作る。`plan approve` は `approved_by`・`approved_at` を書いて `pending_approval` を外す。`plan close` は `closed_at` を書き、終わっていないチケットが残れば警告する。閉じた Plan は承認も閉じ直しもできない。承認は Workflow の `flow.plan` で判定し（WF-9）、終了は誰でも行える
 - PL-5 Plan の状態は保存せず、`pending_approval` と `closed_at` から求める（pending・approved・closed）。`plan list` と `plan show` は `status` に返し、画面はこれを読む。承認待ちの Plan のチケットは、`dg next` が承認を待つ段を返し、`claim` は警告する
 - PL-6 `plan list` と `plan show` は着手できるかを求めて返す。`waiting` はチケットごとの待ちの相手（終わっていない `after` と `depends_on`）、`ready` は todo で待ちのないもの、`next` は次に進めるもの。画面と手順はこれを読み、求め直さない（求め方は `packages/core/src/commands/plan.ts`）
-- PL-7 `plan show <p> --reserve` と `next <ticket> --reserve` は、進め始めるセッションが Plan（そのチケット）を `deguboard-local/` に予約する。付けない呼び出しは予約しない。予約のないチケットの agent の claim は、push の前にそのチケットを予約する。別のセッションが予約したチケットは、agent の claim を拒み、`dg next` は進める手を返さない（`--take-over` で越える。条件は SY-5 と同じで、細部は `dg next --help`）
+- PL-7 `plan show <p> --reserve` と `next <ticket> --reserve` は、進め始めるセッションが Plan（そのチケット）を `deguboard-local/` に予約する。付けない呼び出しは予約しない。別のセッションが予約したチケットは、agent の claim を拒み、`dg next` は進める手を返さない（`--take-over` で越える。条件は SY-5 と同じで、細部は `dg next --help`）
 
 ### 5.8 Workflow（`workflow.yaml`）
 
