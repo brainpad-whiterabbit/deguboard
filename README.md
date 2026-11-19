@@ -54,7 +54,7 @@ The Board shows the tickets of an Iteration in columns by status, and the band a
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/assign.gif" alt="Assigning tickets to an Iteration and an Epic" width="560">
 
-2. **Plan**: Choose **Ask Agent** → **Plan** on the Board's heading. The agent orders the tickets by their dependencies, and the Plan appears in the band, awaiting your approval. Click its state to open the dependency graph.
+2. **Plan**: Choose **Ask Agent** → **Plan** on the Board's heading. The agent orders the tickets by their dependencies, and the Plan appears in the band, awaiting your approval. Click the Plan's row in the band to open the dependency graph.
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.gif" alt="Planning and approving the order" width="612">
 
