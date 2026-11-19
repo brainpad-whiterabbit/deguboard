@@ -1,0 +1,36 @@
+{
+  "id": "r20261119-023403-5876",
+  "ticket": "t1118",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-19T02:34:03Z",
+  "finished_at": "2026-11-19T02:34:58Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "Ask Agent bullet omits that a multi-line request is pasted through the clipboard",
+    "Checklist bullet omits that the typed line first changes to the folder and stops at the first failing command",
+    "Ask Agent bullet wording can read as if the extension runs dg ask"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 3310,
+    "cache_read": 361901,
+    "cache_write": 28017
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 4,
+    "bash": 5,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "e671c729-9c11-485c-ad52-6e18ca5fc79b",
+  "review": null,
+  "waited_seconds": 0
+}
