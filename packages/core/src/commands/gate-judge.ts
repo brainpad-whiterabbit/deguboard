@@ -7,6 +7,7 @@
 //   2. concludeGate：回した検査の結果を入れて、結論（GateView）を出す
 // dg pr ready・dg pr merge は、その結論から越えた条件と止める条件を gatePassage で出す
 
+import { mergedBaseOnto } from "../git/facts-judge.js";
 import type { BranchTip, PrGateFacts } from "../git/facts.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
 import { gateScopeOf, type GateLevel } from "../model/ticket.js";
@@ -137,10 +138,13 @@ export function gateReads(
  * 見直しが作業ブランチのリモートの先端（tip）を見直したか（t763）。見直した SHA（Run の head）があれば先端の SHA と同じか、
  * なければ（この項目より前の Run・読めなかった Run）見直しの開始が先端のコミットの時刻より後か（push した時刻は Git に残らないので近似）。
  * SHA で比べるのは、見直しの前に作って後で push したコミット・時計のずれ・古いコミットへの force-push を時刻では見分けられないため。
+ * 先端が base を取り込んだだけのマージコミット（tip.merge から mergedBaseOnto が決める）なら、取り込む前の先端の見直しも数える：
+ * 取り込んだのは base に入った変更だけで、見直した変更は変わっていないため（RN-10）。
  * dg gate の review と dg next の段階が同じ関数で判定する
  */
 export function reviewedTip(run: Pick<Run, "head" | "started_at">, tip: BranchTip): boolean {
-  return run.head !== undefined ? run.head === tip.sha : run.started_at >= tip.at;
+  if (run.head === undefined) return run.started_at >= tip.at;
+  return run.head === tip.sha || run.head === mergedBaseOnto(tip.merge);
 }
 
 /**
@@ -186,7 +190,8 @@ function acceptanceCondition(items: GateFacts["acceptance"]): GateCondition {
 function reviewCondition({ tip, runs }: ReviewFacts): GateCondition {
   const unmet = (detail: string): GateCondition => ({ id: "review", ok: false, detail });
   if (tip === null) return unmet("Cannot read the remote tip of the work branch (the last push)");
-  // リモートの先端と比べる（見直した SHA があれば SHA、なければ先端のコミットの時刻。reviewedTip）
+  // リモートの先端と比べる（見直した SHA があれば SHA、なければ先端のコミットの時刻。base を取り込んだだけの先端なら
+  // 取り込む前の先端の見直しも。reviewedTip）
   const latest = runs.filter((r) => reviewedTip(r, tip)).at(-1);
   if (!latest)
     return unmet(
@@ -200,7 +205,16 @@ function reviewCondition({ tip, runs }: ReviewFacts): GateCondition {
     return unmet(`The result of review ${latest.id} is not recorded (dg run review-result)`);
   if (!latest.review.passed)
     return unmet(`Review ${latest.id} did not pass (${latest.review.heavy} heavy findings)`);
-  return { id: "review", ok: true, detail: `Review ${latest.id} of the last push passed` };
+  // 取り込む前の先端の見直しを数えたときは、どのコミットの見直しかを出す
+  const head = latest.head;
+  return {
+    id: "review",
+    ok: true,
+    detail:
+      head !== undefined && head !== tip.sha
+        ? `Review ${latest.id} of ${short(head)} passed, and the last push (remote tip ${short(tip.sha)}) only merged base into it`
+        : `Review ${latest.id} of the last push passed`,
+  };
 }
 
 function fixRoundsCondition(runs: readonly ReviewRun[], branchAt: string | undefined) {

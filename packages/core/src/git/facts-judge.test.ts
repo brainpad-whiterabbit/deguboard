@@ -4,10 +4,13 @@
 import { describe, expect, it } from "vitest";
 import type { Status } from "../model/common.js";
 import {
+  baseMergeParents,
   branchAncestryNeeded,
   isEarlierWorkPr,
   judgeBranchMerged,
+  mergedBaseOnto,
   type BranchMergeFacts,
+  type TipMerge,
 } from "./facts-judge.js";
 
 const BASE = "b".repeat(40);
@@ -123,5 +126,52 @@ describe("前の作業の PR を外す判定", () => {
     expect(isEarlierWorkPr(old, { recorded: true, branchAt: BRANCH_AT })).toBe(false);
     expect(isEarlierWorkPr(old, { recorded: false, branchAt: undefined })).toBe(false);
     expect(isEarlierWorkPr({ state: "MERGED", createdAt: undefined }, byBranch)).toBe(false);
+  });
+});
+
+describe("base を取り込んだだけのマージコミットの判定（RN-10）", () => {
+  const WORK = "1".repeat(40);
+  const MAIN = "2".repeat(40);
+  const THIRD = "3".repeat(40);
+  const TREE = "e".repeat(40);
+  const OTHER_TREE = "f".repeat(40);
+  /** 既定は、作業の先端（WORK）に base のコミット（MAIN）を取り込み、tree が自動マージの結果と同じマージコミット */
+  const merge = (over: Partial<TipMerge> = {}): TipMerge => ({
+    parents: [WORK, MAIN],
+    onBase: [MAIN],
+    tree: TREE,
+    autoTree: TREE,
+    ...over,
+  });
+
+  it("親が 2 つで片方だけが base のコミットなら、base でない親を作業の先端とする。親の順は問わない", () => {
+    expect(baseMergeParents(merge())).toEqual({ work: WORK, base: MAIN });
+    expect(baseMergeParents(merge({ parents: [MAIN, WORK] }))).toEqual({ work: WORK, base: MAIN });
+  });
+
+  it("どちらの親も base のコミットでない・両方が base のコミット・親が 2 つでないなら、その形でない", () => {
+    expect(baseMergeParents(merge({ onBase: [] }))).toBeUndefined();
+    expect(baseMergeParents(merge({ onBase: [WORK, MAIN] }))).toBeUndefined();
+    expect(baseMergeParents(merge({ parents: [WORK, MAIN, THIRD] }))).toBeUndefined();
+    expect(baseMergeParents(merge({ parents: [WORK], onBase: [] }))).toBeUndefined();
+    // base のコミットとして挙がった SHA が親にない
+    expect(baseMergeParents(merge({ onBase: [THIRD] }))).toBeUndefined();
+  });
+
+  it("tree が自動マージの結果と同じなら、取り込む前の作業の先端を返す", () => {
+    expect(mergedBaseOnto(merge())).toBe(WORK);
+    expect(mergedBaseOnto(merge({ parents: [MAIN, WORK] }))).toBe(WORK);
+  });
+
+  it("マージコミットでない・tree が自動マージの結果と違う（競合を手で解いた）・自動マージの結果がない・親の形が違うなら返さない", () => {
+    const cases: Array<TipMerge | undefined> = [
+      undefined,
+      merge({ tree: OTHER_TREE }),
+      merge({ autoTree: null }),
+      merge({ onBase: [] }),
+      merge({ onBase: [WORK, MAIN] }),
+      merge({ parents: [WORK, MAIN, THIRD] }),
+    ];
+    for (const c of cases) expect(mergedBaseOnto(c)).toBeUndefined();
   });
 });

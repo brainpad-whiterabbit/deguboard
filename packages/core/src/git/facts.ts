@@ -8,6 +8,7 @@ import {
   isEarlierWorkPr,
   judgeBranchMerged,
   type BranchMergeInput,
+  type TipMerge,
 } from "./facts-judge.js";
 import type { GitRepo } from "./repo.js";
 import { GitError, runGh, runGit } from "./run.js";
@@ -75,7 +76,7 @@ async function sha(repo: GitRepo, ref: string): Promise<string> {
 }
 
 /** 照合の base。リモートの追跡ブランチがあればそれ、なければローカルのもの */
-async function baseRef(repo: GitRepo): Promise<string | undefined> {
+export async function baseRef(repo: GitRepo): Promise<string | undefined> {
   if (
     repo.codeRemote &&
     (await refExists(repo, `refs/remotes/${repo.codeRemote}/${repo.baseBranch}`))
@@ -483,6 +484,8 @@ export async function lastPushedAt(
 export interface BranchTip {
   sha: string;
   at: string;
+  /** 先端がマージコミットのときの事実（withTipMerge が足す。tip-merge.ts）。マージコミットでない・読んでいないときはない */
+  merge?: TipMerge;
 }
 
 /**

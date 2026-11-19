@@ -3,7 +3,9 @@
 
 import { z } from "zod";
 import { detectAgent } from "../agents/index.js";
+import type { TipMerge } from "../git/facts-judge.js";
 import { remoteTip } from "../git/facts.js";
+import { withTipMerge } from "../git/tip-merge.js";
 import { OPENED_STEPS, REVIEW_STEP, type Run } from "../model/run.js";
 import { BRANCH_VALUE_FORM, gateLevelOf, gateScopeOf, type Ticket } from "../model/ticket.js";
 import type { Config } from "../model/config.js";
@@ -151,6 +153,11 @@ export interface StageFacts {
   pushedAt: string | undefined;
   /** 作業ブランチのリモートの先端の SHA。見直した SHA を持つ見直しの新しさをこれと比べる（t763）。分からなければ undefined */
   pushedSha?: string | undefined;
+  /**
+   * 先端がマージコミットのときの事実。base を取り込んだだけの先端なら、取り込む前の先端の見直しを数える（RN-10。
+   * gate-judge.ts の reviewedTip）。マージコミットでない・読んでいないときは undefined
+   */
+  pushedMerge?: TipMerge | undefined;
 }
 
 const stage = (
@@ -252,7 +259,8 @@ export function stageOf(facts: StageFacts): Stage {
   // 最後の push を読めない（追跡 ref がない・fetch しない ticket show）ときは、最後の見直しを今の見直しとみなす。
   // dg gate は読めない条件を満たさないとするので、ここで ready でも gate が止めることがある。
   // 読めれば dg gate と同じく、先端を見直した見直しのうち最後のものを今の見直しとする（見直した SHA があれば先端の SHA と、
-  // なければ先端のコミットの時刻と比べる。reviewedTip。t763）。最後の見直しだけを比べると、push していないコミットを後で
+  // なければ先端のコミットの時刻と比べる。base を取り込んだだけの先端なら取り込む前の先端の見直しも数える。reviewedTip。t763）。
+  // 最後の見直しだけを比べると、push していないコミットを後で
   // 見直したとき、先端を見直して通った前の見直しを見落として gate と食い違う
   const pushedAt = facts.pushedAt;
   const pushedSha = facts.pushedSha;
@@ -263,7 +271,11 @@ export function stageOf(facts: StageFacts): Stage {
           .filter((r) =>
             pushedSha === undefined
               ? r.started_at >= pushedAt
-              : reviewedTip(r, { sha: pushedSha, at: pushedAt }),
+              : reviewedTip(r, {
+                  sha: pushedSha,
+                  at: pushedAt,
+                  ...(facts.pushedMerge ? { merge: facts.pushedMerge } : {}),
+                }),
           )
           .at(-1);
   if (!current)
@@ -315,6 +327,15 @@ export async function stageFactsOf(
   // フックが記録しなかった見直し（持ち主のない保留）も、見直しの Run として数える（dg gate と同じ関数。orphan-review.ts）。
   // コミットの時刻を読むので、上で作業ブランチを取り込んだ後に読む
   const runs = [...recorded, ...(await orphanReviewRuns(ctx, ticket, running))];
+  // 先端が base を取り込んだだけのマージコミットかを決める事実（dg gate と同じ関数。tip-merge.ts）
+  const merged = tip
+    ? await withTipMerge(
+        ctx.repo,
+        tip,
+        runs.filter((r) => r.step === REVIEW_STEP),
+        { fetch: opts.fetch ?? false },
+      )
+    : undefined;
   return {
     ticket,
     waiting: [...new Set([...planWaits, ...ctx.store.pendingDeps(ticket)])],
@@ -324,6 +345,7 @@ export async function stageFactsOf(
     fixStep: OPENED_STEPS.reclaim,
     pushedAt: tip?.at,
     pushedSha: tip?.sha,
+    pushedMerge: merged?.merge,
   };
 }
 
