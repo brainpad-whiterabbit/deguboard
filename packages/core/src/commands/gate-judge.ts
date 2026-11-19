@@ -278,8 +278,9 @@ function mergeableCondition(pr: PrFact, waitedMs = 0): GateCondition {
       detail: "Cannot read the PR, so conflicts cannot be checked",
     };
   const { mergeable } = pr.pr;
+  // 待ったことを書くのは UNKNOWN のままのときだけ。待つ間に CONFLICTING などに決まったなら「まだ」は誤り
   const waited =
-    waitedMs > 0
+    waitedMs > 0 && mergeable === "UNKNOWN"
       ? `; it was still ${mergeable} after waiting ${waitedMs / 1000} s and reading again`
       : "";
   return {

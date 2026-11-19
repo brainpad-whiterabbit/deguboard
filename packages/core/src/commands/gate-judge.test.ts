@@ -320,6 +320,13 @@ describe("PR の条件（pr・mergeable）と結果の pr・sha", () => {
     expect(failed(view)).toEqual(["mergeable", "check"]);
     expect(detail(view, "mergeable")).toContain("still UNKNOWN after waiting 10 s");
   });
+
+  it("待つ間に CONFLICTING に決まったときは、待った時間を添えない（「まだ」とは書かない）", () => {
+    const view = judge({ pr: openPr({ mergeable: "CONFLICTING" }), mergeableWaitedMs: 10_000 });
+    expect(failed(view)).toEqual(["mergeable", "check"]);
+    expect(detail(view, "mergeable")).toContain("mergeable is CONFLICTING");
+    expect(detail(view, "mergeable")).not.toContain("after waiting");
+  });
 });
 
 describe("mergeable が UNKNOWN の間の読み直し（mergeableRereadDelay）", () => {
