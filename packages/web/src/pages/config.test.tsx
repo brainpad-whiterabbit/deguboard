@@ -593,7 +593,7 @@ describe("設定画面", () => {
     const held: (() => void)[] = [];
     client.handlers["config.show"] = (input) => {
       const data = structuredClone(show(input) as ConfigShowView);
-      data.team.metrics = { read_transcripts: false };
+      data.team.metrics = { ...data.team.metrics, read_transcripts: false };
       return new Promise((resolve) => held.push(() => resolve(data)));
     };
     fireEvent.click(box());

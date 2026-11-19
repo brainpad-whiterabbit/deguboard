@@ -108,6 +108,7 @@ export function orphanReviewsOf(
     // 会話記録を取らずに作った記録の印。書いた記録（recordOrphanReviews）にもそのまま入る
     capture: "none",
     waited_seconds: null,
+    check_seconds: null,
     waiting_since: null,
     settling_since: null,
   }));

@@ -670,6 +670,7 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       review: null,
       ...(input.head ? { head: input.head } : {}),
       waited_seconds: null,
+      check_seconds: null,
       waiting_since: null,
       settling_since: null,
     };
@@ -719,6 +720,11 @@ export interface FinishRunInput {
    * フックの待ちの印（waiting_since）はフックの処理の時刻で、閉じるときに消えるので、数には使わない
    */
   waits?: readonly WaitInterval[] | null | undefined;
+  /**
+   * 会話記録から数えた、検査とテストのコマンドを前景で回していた区間（Adapter・collectRunUsage）。待ちと同じく
+   * started_at〜finished_at で切って check_seconds に足す。渡さないか null なら check_seconds は null（RN-2）
+   */
+  checks?: readonly WaitInterval[] | null | undefined;
   /**
    * 終了時刻（ISO）。渡さなければ now。チケットの操作に付随して閉じるとき、PR の作成時刻など実際に終わった時刻にする（RN-6）。
    * 開始より前なら開始の時刻に揃える
@@ -779,6 +785,7 @@ async function closeRunLocked(
     finished_at: finishedAt,
     // 待ちは書く範囲（開始〜終了）で切る。同じ記録を先に使った Run の待ちと、終了より後の待ちを入れない
     waited_seconds: waitedSeconds(input.waits ?? null, local.data.started_at, finishedAt),
+    check_seconds: waitedSeconds(input.checks ?? null, local.data.started_at, finishedAt),
     result: decided.result,
     error: decided.error ?? null,
     retries: input.retries ?? local.data.retries,

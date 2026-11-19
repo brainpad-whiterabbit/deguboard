@@ -159,7 +159,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 ### 5.9 Run（`runs/`）
 
-- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・時刻・結果（RN-6）・使用量・ツールの回数・待った秒数・やり直しの理由・セッション ID と、見直しの Run なら見直しの結果を持つ（保留から書いた記録だけ `capture: none`。RN-9）。会話記録のパスは Adapter の置き場所の下だけ受け付ける（RN-3）。項目は `packages/core/src/model/run.ts`、値の決め方は `dg run start --help`
+- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・時刻・結果（RN-6）・使用量・ツールの回数・待ち・検査とテストの秒数・やり直しの理由・セッション ID と、見直しの Run は見直しの結果を持つ（保留からの記録だけ `capture: none`。RN-9）。会話記録のパスは Adapter の置き場所の下だけ受ける（RN-3）。項目は `packages/core/src/model/run.ts`、値の決め方は `dg run start --help`
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-029](adr/ADR-029-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけで、チケットには書き足さない。実行中の記録・会話記録のパス・見直しの指摘の一覧・保留の見直しの結果とやり直しの理由・フックの入力の有無は、このマシンの `deguboard-local/` に置く（`packages/core/src/run/record.ts`）。会話記録のパスは終了から 30 日残し `dg run prune-transcripts` が消す
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直す値、結果のない閉じた見直しの Run（チケットの最新の Run のとき）に 1 回だけ書く見直しの結果（記録がなく `failure` だった Run は `success` に直す）、前景の見直し役の戻りにフックが引き取る記録（`capture: none` を外して数え直す）だけ。細部は `dg run review-result --help` と `dg hook --help`
@@ -181,6 +181,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないときは、push する操作は止まって次の手を示し、ほかの操作は警告して続く。push する操作が自分で取り込んだ config でこの値が変わったときは push せずに止まり、画面の自動の取り込みが先に取り込んだときは止まらずに新しいリモートを使う（エラーと戻し方は `dg guide overview`）
 - `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push する。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく扱い、別のカンバンのブランチを指したときは取り込まずに止まる（エラーと戻し方は `dg guide overview`）
+- `metrics.check_commands`：検査とテストに数えるコマンド（MT-1）に足すコマンド。`actions.test`・`actions.light_test`・`dg gate --only check` は足さなくても数える（見分け方は `packages/core/src/agents/check-commands.test.ts`）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。`dg next` が implement・fix の手の `model` に返す（EX-5）。`models.<agent>.<tier>` があれば、呼んだ agent ではそれを先に使う（引く順は `dg next --help`）
 - `retro.perspectives`：振り返りの観点（MT-7）。観点ごとに名前・問い・承認した指標の定義（数え方の文と出どころのコマンド）を持つ入れ子で、チームだけが持つ。`config set` と設定画面では書かず、`dg retro` のコマンドが検査して書く。設定画面は読むだけで出す（UI-14。細部は `dg retro --help`、理由は [ADR-035](adr/ADR-035-retro-perspectives.md)）
 
@@ -259,9 +260,9 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 ### 6.6 作業の実績
 
-- MT-1 Run の使用量・ツールの回数（失敗した呼び出しの数を含む）・親の依頼を待った秒数は Adapter が会話記録から取り込み、エージェントの自己申告の数字は書かない。待ちを数えられない Run の待った秒数は null（RN-2）。Run の時刻は待ちを含む経過のまま残し、作業時間は表示と集計のたびに経過時間から待ちを引いて出す（待ちの数え方は `packages/core/src/agents/agents.test.ts`）
+- MT-1 Run の使用量・ツールの回数（失敗した呼び出しの数を含む）・親の依頼を待った秒数・検査とテストを前景で回した秒数は Adapter が会話記録から取り込み、自己申告の数字は書かない。数えられない Run の秒数は null（RN-2）。Run の時刻は待ちを含む経過のまま残し、作業時間は表示と集計のたびに経過時間から待ちを引いて出す（数え方は `packages/core/src/agents/agents.test.ts`）
 - MT-2 `metrics.read_transcripts` が true なら、Run を閉じる操作が Adapter で会話記録から使用量・ツールの回数・待った秒数を補う。Run の記録のパスかセッションの記録がこのマシンになければ、推測に落とさず null で残して警告する。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない（探し方は `packages/core/src/agents/agents.test.ts`）
-- MT-3 `metrics show` は Run を絞り込んで集計する（軸は `dg metrics show --help`）。null は足さず欠けた数を出す。時間は経過時間・作業時間・待った時間を出す。絞り込みに合う done のチケットのうちエージェントが claim し、実装の Run が 1 件もないものは、ID を示す。`capture: none` の見直しの記録は見直しの回にだけ数え、使用量・時間とその欠けた数には入れない。集計値は保存しない
+- MT-3 `metrics show` は Run を絞り込んで集計する（軸は `dg metrics show --help`）。null は足さず欠けた数を出す。時間は経過・作業・待ちと、検査とテストの時間と作業時間に対する割合を出す。絞り込みに合う done のチケットのうちエージェントが claim し、実装の Run が 1 件もないものは ID を示す。`capture: none` の見直しの記録は見直しの回にだけ数え、使用量・時間とその欠けた数には入れない。集計値は保存しない
 - MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけで、会話の中身・ツールの結果・コマンドの文字列・ファイルのパスは写さない（Git に入るのは RN-1 のセッション ID まで）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
 - MT-5 `run refresh` は閉じた Run のモデル名と使用量と待った秒数を、finish と同じ方法と MT-2 の許可で会話記録から取り直し（待ちは同じ記録なら何度数えても同じ値）、取れた値だけを書き換えて、取れなかった値は残して警告する。実行中の Run は拒み、RN-3 の期間を過ぎた Run は読まずに今の値を残して警告する（細部は `dg run refresh --help`）
 - MT-6 `metrics show` の集計は、Run のチケットの変更行数（TK-11）と、output と input+cache に分けた 1 行あたりのトークンを含む。行数のないチケットは計算から外し、件数を出す。照合はマージを見たときに行数を記録し、`metrics lines` は行数のない done のチケットに後から記録する（細部は `dg metrics show --help`・`dg metrics lines --help`）

@@ -43,6 +43,7 @@ function run(step: string, at: number, over: Partial<Run> = {}): Run {
     session: null,
     review: null,
     waited_seconds: null,
+    check_seconds: null,
     waiting_since: null,
     settling_since: null,
     ...over,

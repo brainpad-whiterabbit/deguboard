@@ -23,6 +23,7 @@
 
 - エージェント・モデル・日時・トークン数・結果・エラー・やり直しの理由・step（項目は RN-1）と、ツールの呼び出しの種類ごとの回数と最初に書くまでの読む・探すの回数
 - 親の依頼を待った秒数（`waited_seconds`。[下の節](#親の依頼を待った時間は会話記録から数え作業時間から除く)）
+- 検査とテストを前景で回していた秒数（`check_seconds`）。コマンドの文字列は見分けに使うだけで写さない。数えるのは品質ゲートの検査と、config（`metrics.check_commands`）で足したコマンド。数えられない Run は 0 で補わない
 - 失敗したツールの呼び出しの数（`tools.errors`）。会話記録の結果の失敗の印だけで数え、結果の文は読まない。印を読めない Run と前の Run は 0 で補わず、`metrics show` が件数を出す
 - 集計は Run から Step までの単位で表示のたびに求め、保存しない（MT-3）
 - Epic・Iteration へは、Run の持つチケットの今の所属でたどる
@@ -70,7 +71,7 @@
 
 ### 会話記録を Run に結び付ける
 
-- Run を閉じる操作が Run の `agent` の Adapter で会話記録から使用量を取る。`run refresh` は後から同じ探し方で取り直し、取れた値だけを書き換える（MT-5）。待った秒数も閉じるときと同じ数え方で数え直し、会話記録の場所が残る期間（RN-3）の Run に、待ちを数える前に閉じた Run も含めて入れる。ツールの回数は取り直さない（RN-4）
+- Run を閉じる操作が Run の `agent` の Adapter で会話記録から使用量を取る。`run refresh` は後から同じ探し方で取り直し、取れた値だけを書き換える（MT-5）。待った秒数も閉じるときと同じ数え方で数え直し、会話記録の場所が残る期間（RN-3）の Run に、待ちを数える前に閉じた Run も含めて入れる。ツールの回数と検査とテストの秒数は取り直さない（RN-4）
 - Run はセッション ID を持ち、会話記録のパスはマシンごとのローカル（`deguboard-local/`）に置いて Git に入れない。数える範囲は記録の場所で決め、場所がなければ Run の ID を最初に含む記録から推測する。1 つの応答は 1 つの Run にだけ数える。セッションと記録の場所の取り方は [ADR-025](ADR-025-runs-by-hooks.md)
 
 ### 写すのは数だけ
@@ -81,9 +82,9 @@
 
 ### 細部の正本
 
-エージェント名の判定・ツールの種類の分け方・数える範囲と重なりの分け方・待ちの区間の数え方・モデル名の選び方・閉じる時刻・閉じた Run への操作・抜けの指摘の条件は、次のコードとテストとヘルプが正本で、「なぜ」はそのコメントとテスト名にある。
+エージェント名の判定・ツールの種類の分け方・数える範囲と重なりの分け方・待ちの区間の数え方・検査とテストに数えるコマンドの見分け方・モデル名の選び方・閉じる時刻・閉じた Run への操作・抜けの指摘の条件は、次のコードとテストとヘルプが正本で、「なぜ」はそのコメントとテスト名にある。
 
-- `packages/core/src/agents/index.ts`（`detectAgent`・読む許可）・`packages/core/src/agents/adapters/`（製品ごとの Adapter と `transcript.ts` の `bindFile`・`OverlapClaims`）・`packages/core/src/agents/agents.test.ts`
+- `packages/core/src/agents/index.ts`（`detectAgent`・読む許可）・`packages/core/src/agents/adapters/`（製品ごとの Adapter と `transcript.ts` の `bindFile`・`OverlapClaims`）・`packages/core/src/agents/agents.test.ts`・`packages/core/src/agents/check-commands.ts`（`check-commands.test.ts`）
 - `packages/core/src/model/run.ts`（Run の形）・`packages/core/src/commands/run.ts`（`run start`・`run finish`・`run refresh`）・`packages/core/src/run/record.ts`・`packages/core/src/commands/run.test.ts`
 - `packages/core/src/commands/ticket.ts`（`ticket update --pr`）・`packages/core/src/commands/setup.ts`（照合が閉じる Run と `dg lint`）・`packages/core/src/commands/reconcile-judge.ts`（照合が閉じる実装・手直しの Run の結果と finished_at の決定。組み合わせは `reconcile-judge.test.ts`）・`packages/core/src/commands/run-close-judge.ts`（チケットの操作と照合が同じに使う、閉じる Run の結果と手直しの finished_at の決め方）・`packages/core/src/commands/commands-flow-reconcile.test.ts`・`packages/core/src/commands/commands-flow-reclaim.test.ts`
 - `packages/core/src/model/metrics.ts`・`packages/core/src/commands/metrics.ts`（`dg metrics show --help`・`dg metrics lines --help`・`dg metrics sources --help`）・`packages/core/src/git/facts.ts`（PR の行数と変えたファイル）
@@ -94,7 +95,7 @@
 - 単価はモデルや契約で変わり、更新し続ける必要がある。トークン数を残せば費用はいつでも計算できる
 - 集計結果はどのみち共有リポジトリに入るので、「読むかどうか」もチームで決めるのが筋。個人の逃げ道は環境変数で足りる
 - 数だけなら、チケットをまたいで比べられ、秘密情報が Git に入らない
-- ツールの回数を持つのは、手引き（`dg guide`）を変えたとき、調べる量が減ったかを Run で比べるため。失敗した呼び出しの数は、成功した Run の中の遠回りを数えるため
+- ツールの回数を持つのは、手引き（`dg guide`）を変えたとき、調べる量が減ったかを Run で比べるため。失敗した呼び出しの数は、成功した Run の中の遠回りを数えるため。検査とテストの秒数は、テストを回す時間がボトルネックかを会話記録を手で集計せずに比べるため
 - 待ちを含む経過時間では、親が人に質問している間が作業に見える（調べた手直しの Run は、経過 4h09m56s のうち作業が約 5m31s だった）。待ちを除かないと、step ごとの時間が作業の量でなく待ちの長さで決まる
 - フックの待ちの印はフックの処理の時刻で付け外しされ、閉じるときに消えるので、待ちが残らず、時刻と順序に左右される。会話記録の行の時刻から数えれば、同じ記録からは何度数え直しても同じ値になる（閉じた後に記録へ行が足されると、終わりをまたぐ待ちが埋まって値が増えることはある）。そのため `run refresh` で数え直せ、進行中の Iteration の振り返りに待ちを数える前の Run の作業時間も使える
 - 経過時間を書き換えずに待ちを別に持てば、待ちを数える前の Run と経過時間で比べられ、待ちの数え方を直しても時刻は変わらない。待ちを数えられない Run を 0 にすると、待たなかった Run と見分けられない

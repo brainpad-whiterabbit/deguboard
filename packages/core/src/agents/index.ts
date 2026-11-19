@@ -3,6 +3,7 @@
 
 import type { Config } from "../model/config.js";
 import { claudeCodeAdapter } from "./adapters/claude-code.js";
+import { checkCommandsOf } from "./check-commands.js";
 import { codexAdapter } from "./adapters/codex.js";
 import { copilotAdapter } from "./adapters/copilot.js";
 import type {
@@ -23,6 +24,11 @@ const ADAPTERS: readonly AgentAdapter[] = [claudeCodeAdapter, codexAdapter, copi
 /** Adapter のある agent の名前 */
 export function agentNames(): string[] {
   return ADAPTERS.map((a) => a.name);
+}
+
+/** 検査とテストを回していた秒数（Run の check_seconds）を数える Adapter の agent の名前。ヘルプと設定の説明が使う */
+export function checkAgentNames(): string[] {
+  return ADAPTERS.filter((a) => a.countsChecks).map((a) => a.name);
 }
 
 /**
@@ -134,16 +140,18 @@ function refusedOnThisMachine(env: UsageQuery["env"]): boolean {
 
 /**
  * finish の前に、Run の agent の Adapter で使用量を取り込む。取れない値は null のまま警告を返し、例外にしない（RN-2）。
- * 読む許可は config の metrics.read_transcripts（チームの方針）と DEGUBOARD_NO_TRANSCRIPTS（個人の拒否）の両方で確かめる
+ * 読む許可は config の metrics.read_transcripts（チームの方針）と DEGUBOARD_NO_TRANSCRIPTS（個人の拒否）の両方で確かめる。
+ * 検査とテストに数えるコマンドは config から決めて Adapter に渡す（check-commands.ts）
  */
 export async function collectRunUsage(
-  config: Pick<Config, "metrics">,
+  config: Pick<Config, "metrics" | "actions">,
   query: UsageQuery,
 ): Promise<CollectedUsage> {
   const skipped = (reason: string): CollectedUsage => ({
     usage: { input: null, output: null, cache_read: null, cache_write: null },
     model: null,
     tools: null,
+    checks: null,
     warnings: [`${reason}. Usage is left as null`],
   });
   const adapter = findAdapter(query.run.agent);
@@ -159,7 +167,7 @@ export async function collectRunUsage(
     return skipped("DEGUBOARD_NO_TRANSCRIPTS is set, so the conversation record is not read");
   }
   try {
-    return await adapter.readTranscriptUsage(query);
+    return await adapter.readTranscriptUsage({ ...query, checkCommands: checkCommandsOf(config) });
   } catch (e) {
     return skipped(`Cannot read the ${adapter.name} conversation record (${errorCode(e)})`);
   }
@@ -177,7 +185,7 @@ function errorCode(e: unknown): string {
  * 警告を出さない（Adapter と許可は collectRunUsage が同じ理由を警告する。待ちを数えない Adapter は欠けでなく仕様）
  */
 export async function collectRunWaits(
-  config: Pick<Config, "metrics">,
+  config: { metrics: Pick<Config["metrics"], "read_transcripts"> },
   query: UsageQuery,
 ): Promise<CollectedWaits> {
   const adapter = findAdapter(query.run.agent);

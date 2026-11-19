@@ -84,6 +84,7 @@ export const none = (warning: string): CollectedUsage => ({
   usage: { input: null, output: null, cache_read: null, cache_write: null },
   model: null,
   tools: null,
+  checks: null,
   warnings: [warning],
 });
 

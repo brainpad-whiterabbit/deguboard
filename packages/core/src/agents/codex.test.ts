@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { defaultConfig } from "../model/config.js";
 import type { Run } from "../model/run.js";
 import { codexAdapter } from "./adapters/codex.js";
 import { agentNames, collectRunUsage, type UsageQuery } from "./index.js";
@@ -33,6 +34,7 @@ const run = (): Run => ({
   session: null,
   review: null,
   waited_seconds: null,
+  check_seconds: null,
   waiting_since: null,
   settling_since: null,
 });
@@ -119,8 +121,9 @@ describe("Codex の Adapter", () => {
     expect(got).toEqual({
       usage: { input: 800, output: 100, cache_read: 1200, cache_write: 10 },
       model: "gpt-test",
-      // ツールの回数は数えない
+      // ツールの回数も、検査とテストの区間も数えない
       tools: null,
+      checks: null,
       warnings: [],
     });
   });
@@ -410,7 +413,10 @@ describe("Codex の Adapter", () => {
       tokenCount(1, [4, 0, 4, 0]),
     ]);
     expect(agentNames()).toEqual(expect.arrayContaining(["claude-code", "codex"]));
-    const got = await collectRunUsage({ metrics: { read_transcripts: true } }, query());
+    const got = await collectRunUsage(
+      { ...defaultConfig(), metrics: { read_transcripts: true, check_commands: [] } },
+      query(),
+    );
     expect(got.usage).toEqual({ input: 4, output: 4, cache_read: 0, cache_write: 0 });
   });
 });

@@ -402,6 +402,7 @@ describe("スキーマ", () => {
       "commit.mode",
       "push.mode",
       "metrics.read_transcripts",
+      "metrics.check_commands",
       "notify.approvals",
       "actions.test",
       "actions.light_test",

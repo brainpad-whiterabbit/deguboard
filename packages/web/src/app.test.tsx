@@ -1645,6 +1645,7 @@ describe("画面", () => {
           session: null,
           review: null,
           waited_seconds: null,
+          check_seconds: null,
           waiting_since: null,
           settling_since: null,
           running: true,

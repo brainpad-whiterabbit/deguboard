@@ -563,6 +563,7 @@ export const EN: Readonly<Record<string, string>> = {
   "段階 standard のモデル（Codex）": "Model for tier standard (Codex)",
   "段階 heavy のモデル（Codex）": "Model for tier heavy (Codex)",
   会話記録から使用量を読む: "Read usage from transcripts",
+  検査とテストに数えるコマンドに足すもの: "More commands counted as checks and tests",
   承認待ちが増えたら通知する: "Notify when approvals are waiting",
   コードのリモート: "Code remote",
   データのリモート: "Data remote",

@@ -269,6 +269,6 @@ export const codexAdapter: AgentAdapter = {
       missing.length > 0
         ? [`Cannot get ${missing.join(", ")} from the Codex conversation record. Left as null`]
         : [];
-    return { usage, model: mainModel(best), tools: null, warnings };
+    return { usage, model: mainModel(best), tools: null, checks: null, warnings };
   },
 };

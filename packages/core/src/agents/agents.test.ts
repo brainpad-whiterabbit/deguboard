@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:f
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { defaultConfig } from "../model/config.js";
 import { waitedSeconds, type Run } from "../model/run.js";
 import { claudeCodeAdapter, inSession, projectDirName } from "./adapters/claude-code.js";
 import { bindFile, sightings } from "./adapters/transcript.js";
@@ -48,6 +49,7 @@ const run = (over: Partial<Run> = {}): Run => ({
   session: null,
   review: null,
   waited_seconds: null,
+  check_seconds: null,
   waiting_since: null,
   settling_since: null,
   ...over,
@@ -86,6 +88,21 @@ function toolUse(id: string, minutes: number, calls: Array<[string, string]>) {
   })) as unknown as typeof line.message.content;
   return line;
 }
+
+/** Bash の tool_use を持つ偽の assistant の行。calls は [tool_use の id, コマンド]。input は Bash の入力に足す項目 */
+function bash(id: string, minutes: number, calls: Array<[string, string]>, input: object = {}) {
+  const line = assistant(id, minutes, [1, 1, 1, 1]);
+  line.message.content = calls.map(([callId, command]) => ({
+    type: "tool_use",
+    id: callId,
+    name: "Bash",
+    input: { command, ...input },
+  })) as unknown as typeof line.message.content;
+  return line;
+}
+
+/** STARTED から minutes 分後の時刻（エポックからのミリ秒） */
+const ms = (minutes: number) => Date.parse(at(minutes));
 
 /** ツールの結果を持つ偽の user の行。results は [tool_use の id, 失敗の印（省けば印のない結果）] */
 function toolResult(minutes: number, results: Array<[string, boolean?]>) {
@@ -164,8 +181,47 @@ describe("Claude Code の Adapter", () => {
         search_before_write: 0,
         errors: 0,
       },
+      // 数えるコマンドを渡さなければ、検査とテストの区間は数えない
+      checks: null,
       warnings: [],
     });
+  });
+
+  it("数えるコマンドの前景の Bash を、呼び出しの行から結果の行までの区間にする。背後で回したコマンド・結果のない呼び出し・ほかのコマンドは入れず、コマンドの文字列は返さない", async () => {
+    const { projectDir, query } = await setup();
+    await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+      bash("m0", -5, [["u0", "mise run check"]]), // 期間の前の呼び出し
+      toolResult(-4, [["u0"]]),
+      mention(0),
+      bash("m1", 1, [
+        ["u1", "cd /home/secret && mise run check 2>&1 | tail -5"],
+        ["u2", "git status"],
+      ]),
+      bash("m1", 2, [["u1", "mise run check"]]), // 同じ tool_use の別の行（最初の行の時刻を残す）
+      toolResult(4, [["u1", true], ["u2"]]), // 落ちた検査も回していた時間
+      toolResult(5, [["u1"]]), // 同じ結果の別の行（最初の行の時刻を残す）
+      bash("m2", 6, [["u3", "mise run check"]], { run_in_background: true }),
+      toolResult(6, [["u3"]]),
+      toolUse("m3", 7, [["u4", "Read"]]), // Bash でない呼び出し
+      toolResult(8, [["u4"]]),
+      bash("m4", 9, [["u5", "mise run check"]]), // 結果のない呼び出し（中断）
+      // 期間の終わりの呼び出しの結果は、finished_at の後に書かれても結ぶ（Run の範囲で切るのは閉じる側）
+      bash("m5", 29, [["u6", "mise run dg -- --json gate t1 --only check"]]),
+      toolResult(31, [["u6"]]),
+      bash("m6", 40, [["u7", "mise run check"]]), // 期間の後
+      toolResult(41, [["u7"]]),
+    ]);
+    const got = await claudeCodeAdapter.readTranscriptUsage(
+      query({ checkCommands: [["mise", "run", "check"]] }),
+    );
+    expect(got.checks).toEqual([
+      { from: ms(1), to: ms(4) },
+      { from: ms(29), to: ms(31) },
+    ]);
+    expect(got.tools).toMatchObject({ bash: 5, read: 1 });
+    expect(waitedSeconds(got.checks, STARTED, FINISHED)).toBe(4 * 60);
+    expect(JSON.stringify(got)).not.toContain("secret");
+    expect(JSON.stringify(got)).not.toContain("mise");
   });
 
   it("失敗の印（is_error）のあるツールの結果を tool_use_id で重ねずに数え、断られた・hook に拒まれた呼び出しも印だけで数える。結果の文は返さない", async () => {
@@ -1031,8 +1087,6 @@ describe("Claude Code の Adapter", () => {
 });
 
 describe("待った秒数（waitedSeconds。RN-1）", () => {
-  const ms = (minutes: number) => Date.parse(at(minutes));
-
   it("区間を started_at から finished_at の範囲で切って足し、秒に丸める", () => {
     const intervals = [
       { from: ms(-10), to: ms(2) }, // 開始の前から（同じ記録を先に使った Run の待ち）：2 分だけ
@@ -1085,7 +1139,10 @@ describe("待ちの取り込み（RN-1）", () => {
 });
 
 describe("使用量の取り込み（MT-2）", () => {
-  const config = (read: boolean) => ({ metrics: { read_transcripts: read } });
+  const config = (read: boolean, checks: string[] = []) => ({
+    ...defaultConfig(),
+    metrics: { read_transcripts: read, check_commands: checks },
+  });
   const nulls = { input: null, output: null, cache_read: null, cache_write: null };
 
   it("read_transcripts が false か DEGUBOARD_NO_TRANSCRIPTS=1 なら（設定が true でも）会話記録を読まず、null にして警告する", async () => {
@@ -1130,6 +1187,22 @@ describe("使用量の取り込み（MT-2）", () => {
     expect(got.usage).toEqual(nulls);
     expect(got.warnings).toEqual([expect.stringContaining("someone")]);
     expect(agentNames()).toContain(claudeCodeAdapter.name);
+  });
+
+  it("検査とテストに数えるコマンドを config から決めて Adapter に渡し、区間を返す。読まなかったときと数えない Adapter は null", async () => {
+    const { projectDir, query } = await setup();
+    await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+      mention(0),
+      bash("m1", 1, [["u1", "mise run test:related"]]),
+      toolResult(3, [["u1"]]),
+    ]);
+    const got = await collectRunUsage(config(true, ["mise run test:related"]), query());
+    expect(got.checks).toEqual([{ from: ms(1), to: ms(3) }]);
+    // 既定（actions.test が空で、足したコマンドもない）では、同じコマンドを数えない。0 個の区間は「回さなかった」
+    expect((await collectRunUsage(config(true), query())).checks).toEqual([]);
+    expect((await collectRunUsage(config(false), query())).checks).toBeNull();
+    const other = await collectRunUsage(config(true), query({ run: run({ agent: "codex" }) }));
+    expect(other.checks).toBeNull();
   });
 });
 

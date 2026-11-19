@@ -114,6 +114,11 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     {
       ja: "run finish・run refresh が Adapter で会話記録を読んで使用量を補うか。DEGUBOARD_NO_TRANSCRIPTS のマシンでは true でも読まない",
     },
+  // metrics.check_commands
+  "Commands counted, besides the defaults, as checks and tests when a Run is closed: the seconds they ran in the foreground are recorded in the Run's check_seconds (dg metrics show adds them up). The defaults are always counted: actions.test, actions.light_test, and dg gate --only check. One command per entry, as its words separated by spaces (e.g. mise run test). A Bash command counts when one of its parts (split at && || ; | and newlines), after leading VAR=value assignments, starts with the words of an entry, so mise run test does not count mise run test:related. Counted only for Runs of claude-code, from the conversation record (metrics.read_transcripts); the command strings are not recorded":
+    {
+      ja: "Run を閉じるときに、既定のほかに検査とテストに数えるコマンド。前景で回していた秒数を Run の check_seconds に残す（dg metrics show が足す）。既定の actions.test・actions.light_test・dg gate --only check はいつも数える。1 項目に 1 つのコマンドを、空白で区切った語で書く（例：mise run test）。Bash のコマンドの部分（&& || ; | と改行で分ける）のどれかが、先頭の VAR=value の代入を除いて、項目の語で始まれば数える。そのため mise run test は mise run test:related を数えない。数えるのは claude-code の Run だけで、会話記録から数える（metrics.read_transcripts）。コマンドの文字列は記録しない",
+    },
   // notify.approvals
   "Whether the VS Code extension shows a notification when Plans awaiting approval or tickets in review increase (the count is always shown)":
     {
@@ -233,6 +238,10 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "When commits are pushed": { ja: "コミットをいつ push するか" },
   // metrics.read_transcripts
   "Read conversation transcripts to fill in usage": { ja: "会話記録を読んで使用量を補う" },
+  // metrics.check_commands
+  "More commands counted as checks and tests in a Run's check_seconds": {
+    ja: "Run の check_seconds で、検査とテストに数えるコマンドに足すもの",
+  },
   // notify.approvals
   "Notify in VS Code when Plans awaiting approval or tickets in review increase": {
     ja: "承認待ちの Plan や review のチケットが増えたら VS Code で通知する",
@@ -305,6 +314,8 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "Uses git.remote": { ja: "git.remote を使う" },
   // worktree.setup
   "Runs nothing": { ja: "何も回さない" },
+  // metrics.check_commands
+  "Only the defaults are counted": { ja: "既定のコマンドだけを数える" },
   // actions.test
   "The gate's check does not judge": {
     ja: "品質ゲートの検査を判定しない",

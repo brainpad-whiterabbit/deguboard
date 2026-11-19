@@ -2,6 +2,7 @@
 // 特定の AI 製品に依存する処理は adapters/ に閉じ、Core の汎用部分はこの形と agents/index.ts の一覧だけを見る
 
 import type { Run, RunTools, RunUsage, WaitInterval } from "../model/run.js";
+import type { CheckCommands } from "./check-commands.js";
 
 /** 環境変数。テストが HOME などを差し替えられるように、process.env を直接読まずに受け取る */
 export type AgentEnv = Readonly<Record<string, string | undefined>>;
@@ -25,6 +26,11 @@ export interface UsageQuery {
    * なければ Run の session、それもなければ推測で探す
    */
   transcript?: string | undefined;
+  /**
+   * 検査とテストに数えるコマンド（config から collectRunUsage が決めて渡す。check-commands.ts）。
+   * なければ Adapter は検査とテストの区間を数えない（checks は null）
+   */
+  checkCommands?: CheckCommands | undefined;
 }
 
 /** Run の期間。時刻は ISO 8601 */
@@ -37,13 +43,18 @@ export interface RunSpan {
   transcript?: string | undefined;
 }
 
-/** Adapter が取り込んだ値。取れなかったキーは null（RN-2）。数とモデル名だけで、会話の中身・パスは返さない（MT-4。警告にもパスを書かない） */
+/** Adapter が取り込んだ値。取れなかったキーは null（RN-2）。数・時刻とモデル名だけで、会話の中身・コマンド・パスは返さない（MT-4。警告にもパスを書かない） */
 export interface CollectedUsage {
   usage: Pick<RunUsage, "input" | "output" | "cache_read" | "cache_write">;
   /** 会話記録から分かったモデル名。分からなければ null */
   model: string | null;
   /** 使用量と同じ範囲で数えたツールの回数。数えられない Adapter・記録は null */
   tools: RunTools | null;
+  /**
+   * 使用量と同じ範囲で数えた、検査とテストのコマンド（query.checkCommands）を前景で回していた区間。Run の範囲で切るのは閉じる側
+   * （run/record.ts）。数えられない Adapter・記録は null（0 個の区間は「回さなかった」の意味にとっておく）。返すのは時刻だけ
+   */
+  checks: WaitInterval[] | null;
   warnings: string[];
 }
 
@@ -174,6 +185,11 @@ export interface AgentAdapter {
   name: string;
   /** 会話記録から使用量とツールの回数を読む。読む許可（metrics.read_transcripts・DEGUBOARD_NO_TRANSCRIPTS）は呼び出し側が確かめる */
   readTranscriptUsage(query: UsageQuery): Promise<CollectedUsage>;
+  /**
+   * readTranscriptUsage が検査とテストの区間（checks）を数えるか。会話記録からコマンドの文字列と呼び出し・結果の時刻を読める
+   * 製品の Adapter だけ true にする（ヘルプと設定の説明が、数える agent の名前をここから引く）
+   */
+  countsChecks?: boolean;
   /**
    * 会話記録から、親の依頼を待った区間を読む。入力の出どころを記録の項目で見分けられない製品の Adapter は持たない
    * （その Run の waited_seconds は null）。読む許可は呼び出し側が確かめる
