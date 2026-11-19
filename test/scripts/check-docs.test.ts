@@ -10,7 +10,7 @@
 // 英語の形「the "<節>" section of `dg guide <topic>`」の参照も同じ照らし方で落ちる（t563）。
 // 要件の 1 項が上限の 250 字を超えたときと、コードとテストが置き換え済みの ADR を指したときも落ちる（t580）。
 // packages のテスト以外の文字列に要件 ID があると落ち、コメントとテストのファイルの ID は落とさないことも確かめる（t902）。
-// 文書が「既定」「default」と Workflow の権限の値を同じ文に書くと落ち、ADR の「採らなかった案」は落とさないことも確かめる（t1147）。
+// 文書が「既定」「default」と Workflow の権限の値を同じ文に書くと落ち、ADR の「採らなかった案」は落とさないことも確かめる。見出しの行に既定の語を置いた表の値の行も落ちる（t1147）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
@@ -1224,6 +1224,33 @@ describe.concurrent("check-docs の Workflow の既定値の書き写し（t1147
       .filter((l) => l.includes(FOUND));
     expect(found).toHaveLength(1);
     expect(found[0]).toContain("割り当ての既定を `always_ask` にする");
+  });
+
+  it("見出しの行に既定の語を置いた表は、値を書いた各行で落ちる", async ({ dir, expect }) => {
+    // 足す表は空行の次の行に見出しの行が来て、その 2 行あとから値の行になる
+    const firstRow = (await lineCount(dir, "docs/usage.md")) + 3;
+    await append(
+      dir,
+      "docs/usage.md",
+      "| Key | Default |\n| --- | --- |\n| `flow.release` | `always_ask` |\n| `flow.merge` | `ask_unless_auto` |",
+    );
+    const { code, stderr } = await run(dir);
+    expect(code).toBe(1);
+    expect(stderr).toContain(`docs/usage.md:${firstRow}: ${FOUND}`);
+    expect(stderr).toContain(`docs/usage.md:${firstRow + 1}: ${FOUND}`);
+  });
+
+  it("見出しの行に既定の語のない表と、空行で切れた次の表の値は落とさない", async ({
+    dir,
+    expect,
+  }) => {
+    await append(
+      dir,
+      "docs/usage.md",
+      "| Key | Default |\n| --- | --- |\n| `flow.release` | see `dg workflow show` |\n\n| Value | Meaning |\n| --- | --- |\n| `always_ask` | Ask a person every time |",
+    );
+    const { stderr } = await run(dir);
+    expect(stderr).not.toContain(FOUND);
   });
 
   it("既定の語のない値の説明と、既定の語と別の文の値は落とさない", async ({ dir, expect }) => {

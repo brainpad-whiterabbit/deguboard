@@ -744,6 +744,7 @@ function guideBlocks(text) {
 /**
  * 「既定」「default」と Workflow の権限の値を同じ文に書いた箇所を、行番号と文で返す。
  * 段落は空行・見出しで切り、箇条書きの 1 項目と表の 1 行はそれぞれ 1 つにする。文は「。」と「. 」で切る（括弧の中の補足も同じ文に数える）。
+ * 表は、見出しの行に既定の語があれば、値を書いた各行も返す（列の名前だけが既定を言う表）。
  * skipRejected が真なら「採らなかった案」の見出しの節を飛ばす（ADR）
  */
 function workflowDefaultRestatements(text, skipRejected) {
@@ -751,6 +752,7 @@ function workflowDefaultRestatements(text, skipRejected) {
   let para = [];
   let paraLine = 0;
   let skipping = false;
+  let tableHeader = null;
   const endPara = () => {
     if (para.length > 0 && !skipping) {
       for (const sentence of normalize(para.join(" ")).split(/(?<=。)|(?<=\.)\s+/)) {
@@ -768,14 +770,26 @@ function workflowDefaultRestatements(text, skipRejected) {
       if (skipRejected) skipping = h[2] === "採らなかった案";
       continue;
     }
+    const isRow = /^\s*\|/.test(line);
+    // 表の見出しの行（表の 1 行目）は表の終わりまで持ち回す。見出しに「Default」「既定」を置き、各行に値だけを並べた表も書き写しに数える
+    if (!isRow) tableHeader = null;
+    else if (tableHeader === null) tableHeader = line;
+    else if (
+      !skipping &&
+      defaultWordRe.test(tableHeader) &&
+      workflowValueRe.test(line) &&
+      !defaultWordRe.test(line)
+    ) {
+      found.push({ line: i + 1, text: line.trim() });
+    }
     if (line.trim() === "") {
       endPara();
       continue;
     }
-    if (/^\s*\|/.test(line) || /^\s*([-*]|\d+\.)\s/.test(line)) endPara();
+    if (isRow || /^\s*([-*]|\d+\.)\s/.test(line)) endPara();
     if (para.length === 0) paraLine = i + 1;
     para.push(line.trim());
-    if (/^\s*\|/.test(line)) endPara();
+    if (isRow) endPara();
   }
   endPara();
   return found;
