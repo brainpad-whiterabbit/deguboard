@@ -7,6 +7,7 @@ import { StoreProvider } from "../store.js";
 import {
   type MockClient,
   boardFixture,
+  escapeMenu,
   fixture,
   markedText,
   mockClient,
@@ -47,17 +48,6 @@ const items = () =>
   within(menu())
     .getAllByRole("menuitem")
     .map((b) => markedText(b));
-/**
- * 開いている一覧を Esc で閉じる。先頭の項目にフォーカスが移るのを待ってから、その項目で押す。
- * フォーカスは一覧を描いた後の effect（ask-menu.tsx の PopupMenu）が置くので、項目が出た時点（items() を待った直後）には
- * まだ body に残っていることがある（負荷が高いと、描画と effect が別のタスクに分かれる）。そのときの document.activeElement に
- * Esc を送ると一覧に届かず開いたまま残り、次に吹き出しを押すと閉じてしまう
- */
-const escapeMenu = async () => {
-  const first = within(menu()).getAllByRole("menuitem")[0]!;
-  await waitFor(() => expect(document.activeElement).toBe(first));
-  fireEvent.keyDown(first, { key: "Escape" });
-};
 const composer = () => screen.getByRole("region", { name: "エージェントに頼む" });
 /** ask-menu で引いた組（鍵）。対象と場所が同じなら同じ鍵になり、core は同じ候補を返す */
 const askedSets = (client: MockClient) =>
