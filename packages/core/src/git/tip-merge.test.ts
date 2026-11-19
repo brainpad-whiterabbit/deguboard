@@ -1,12 +1,23 @@
 // 作業ブランチの先端がマージコミットのときの事実の読み取り（RN-10）を、本物の git で確かめる。
 // 読んだ事実からの判定の組み合わせは facts-judge.test.ts と commands/gate-judge.test.ts が git なしで確かめる
-import { readdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readdir, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, openRepo } from "../../test/helpers/git-fixture.js";
-import { mergedBaseOnto } from "./facts-judge.js";
+import { autoMergeRoute, mergedBaseOnto } from "./facts-judge.js";
 import type { GitRepo } from "./repo.js";
-import { autoMergeTree, readTipMerge, withTipMerge } from "./tip-merge.js";
+import {
+  autoMergeTree,
+  mergeTreeWriteTree,
+  readTipMerge,
+  withTipMerge,
+  worktreeMergeTree,
+} from "./tip-merge.js";
+
+/** テストを動かす git が merge-tree --write-tree を使えるか（2.38 以上か） */
+const mergeTreeAvailable =
+  autoMergeRoute((await git(os.tmpdir(), ["--version"])).stdout) === "merge-tree";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -70,7 +81,7 @@ async function worktrees(repo: GitRepo) {
 }
 
 describe("先端のマージコミットの事実（readTipMerge。RN-10）", () => {
-  it("base を競合なく取り込んだだけのマージコミットは、tree が一時の worktree で作った自動マージの結果と同じで、worktree は残らない", async () => {
+  it("base を競合なく取り込んだだけのマージコミットは、tree が自動マージの結果と同じで、worktree は残らない", async () => {
     const { a, repo, reviewed, main } = await diverged({ file: "main.txt", text: "main\n" });
     await git(a, ["merge", "-q", "--no-edit", "origin/main"]);
     const tip = await head(a);
@@ -135,6 +146,77 @@ describe("先端のマージコミットの事実（readTipMerge。RN-10）", ()
     expect((await withTipMerge(repo, tip, [{ head: reviewed }])).merge?.autoTree).toBe(
       await head(a, "HEAD^{tree}"),
     );
+  });
+});
+
+describe("自動マージの tree を作る 2 つの経路", () => {
+  /**
+   * 管理ディレクトリ（.git/worktrees）を書き込めなくし、一時の worktree を作れなくする（データの worktree の登録は読める）。
+   * この形で tree を作れれば、その経路は worktree を作らない
+   */
+  async function blockWorktrees(repo: GitRepo) {
+    const admin = path.join(repo.commonDir, "worktrees");
+    await mkdir(admin, { recursive: true });
+    await chmod(admin, 0o555);
+    return () => chmod(admin, 0o755);
+  }
+
+  it.runIf(mergeTreeAvailable)(
+    "git 2.38 以上では、一時の worktree を作れない repo でも merge-tree で自動マージの tree を作り、マージコミットの tree と同じになる",
+    async () => {
+      const { a, repo, reviewed, main } = await diverged({ file: "main.txt", text: "main\n" });
+      await git(a, ["merge", "-q", "--no-edit", "origin/main"]);
+      const tree = await head(a, "HEAD^{tree}");
+      const unblock = await blockWorktrees(repo);
+      try {
+        // 一時の worktree の経路は作れずに null になる（ふさいだことの確かめ）
+        expect(await worktreeMergeTree(repo, reviewed, main)).toBeNull();
+        // autoMergeTree はこの git では merge-tree を選ぶので、worktree なしで tree を作る
+        expect(await autoMergeTree(repo, reviewed, main)).toBe(tree);
+        expect(await mergeTreeWriteTree(repo, reviewed, main)).toBe(tree);
+        const merge = await readTipMerge(repo, await head(a), [reviewed]);
+        expect(merge?.autoTree).toBe(tree);
+        expect(mergedBaseOnto(merge)).toBe(reviewed);
+      } finally {
+        await unblock();
+      }
+    },
+  );
+
+  it.runIf(mergeTreeAvailable)(
+    "merge-tree は一時の worktree の経路と同じ tree を作り、どちらの経路も競合したときは null で、worktree を残さない",
+    async () => {
+      const clean = await diverged({ file: "main.txt", text: "main\n" });
+      const before = await worktrees(clean.repo);
+      const viaWorktree = await worktreeMergeTree(clean.repo, clean.reviewed, clean.main);
+      expect(viaWorktree).not.toBeNull();
+      expect(await mergeTreeWriteTree(clean.repo, clean.reviewed, clean.main)).toBe(viaWorktree);
+      expect(await worktrees(clean.repo)).toEqual(before);
+
+      const conflicted = await diverged({ file: "shared.txt", text: "共有\nmain\n" });
+      const beforeConflict = await worktrees(conflicted.repo);
+      expect(
+        await mergeTreeWriteTree(conflicted.repo, conflicted.reviewed, conflicted.main),
+      ).toBeNull();
+      expect(await autoMergeTree(conflicted.repo, conflicted.reviewed, conflicted.main)).toBeNull();
+      expect(await worktrees(conflicted.repo)).toEqual(beforeConflict);
+    },
+  );
+
+  it("2.38 より前の git で使う一時の worktree の経路は、競合なく取り込めば tree を作り、競合すれば null で、worktree を残さない", async () => {
+    const clean = await diverged({ file: "main.txt", text: "main\n" });
+    await git(clean.a, ["merge", "-q", "--no-edit", "origin/main"]);
+    const before = await worktrees(clean.repo);
+    expect(await worktreeMergeTree(clean.repo, clean.reviewed, clean.main)).toBe(
+      await head(clean.a, "HEAD^{tree}"),
+    );
+    expect(await worktrees(clean.repo)).toEqual(before);
+    const conflicted = await diverged({ file: "shared.txt", text: "共有\nmain\n" });
+    const beforeConflict = await worktrees(conflicted.repo);
+    expect(
+      await worktreeMergeTree(conflicted.repo, conflicted.reviewed, conflicted.main),
+    ).toBeNull();
+    expect(await worktrees(conflicted.repo)).toEqual(beforeConflict);
   });
 });
 
