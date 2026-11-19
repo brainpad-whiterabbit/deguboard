@@ -9,7 +9,7 @@ import {
   type Fixture,
 } from "../../test/helpers/git-fixture.js";
 import { OperationError } from "../errors.js";
-import { collectBranchFacts } from "./facts.js";
+import { collectBranchFacts, resetGhCache } from "./facts.js";
 import { withLock } from "./lock.js";
 import { checkOutside, dirtyFiles } from "./outside.js";
 import { markRebase, rebaseInProgress, rebaseLeftByDg } from "./rebase.js";
@@ -718,17 +718,22 @@ describe("事実の収集", () => {
   it("gh がない環境では PR の事実がすべて不明になる", async () => {
     const f = await fixture();
     const a = await openRepo(f.cloneA);
-    const { resetGhCache } = await import("./facts.js");
-    resetGhCache();
+    // --version も失敗する偽の gh を PATH の先頭に置き、本物の gh の有無とログインに頼らずに gh がない形を作る
+    // （git は後ろの PATH から拾う）
+    const bin = path.join(f.root, "no-gh-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(path.join(bin, "gh"), "#!/bin/sh\nexit 127\n", { mode: 0o755 });
     const savedPath = process.env["PATH"];
-    process.env["PATH"] = path.join(f.root, "empty-bin") + path.delimiter + "/usr/bin:/bin";
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
     try {
       const { facts, pr } = await collectBranchFacts(a.repo, "none", { needPr: true });
       expect(facts.pr_open).toBeUndefined();
       expect(facts.pr_merged).toBeUndefined();
       expect(pr).toBeUndefined();
     } finally {
-      process.env["PATH"] = savedPath;
+      if (savedPath === undefined) delete process.env["PATH"];
+      else process.env["PATH"] = savedPath;
       resetGhCache();
     }
   });
