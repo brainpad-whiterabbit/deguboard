@@ -181,6 +181,37 @@ export async function hookReachedSession(localDir: string, session: string): Pro
   );
 }
 
+/** セッションの終わり（SessionEnd）にあたる出来事の種類（HookEvent の kind） */
+const SESSION_END = "session_end";
+
+/** 記録のファイルが持つ届いた時刻。なければ・読めなければ undefined */
+async function receivedAtOf(file: string): Promise<string | undefined> {
+  const text = await readFile(file, "utf8").catch(() => undefined);
+  if (text === undefined) return undefined;
+  try {
+    const at = (JSON.parse(text) as { received_at?: unknown }).received_at;
+    return typeof at === "string" ? at : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * セッションに最後にフックが届いた時刻と、SessionEnd が届いた時刻（t1148）。claim したセッションが生きているかを
+ * claim-judge.ts の sessionClaimHolds が決めるための事実で、ここは読むだけ。記録がなければ undefined
+ */
+export async function hookTimesOf(
+  localDir: string,
+  session: string,
+): Promise<{ lastHookAt: string | undefined; endedAt: string | undefined }> {
+  if (!SESSION_ID.test(session)) return { lastHookAt: undefined, endedAt: undefined };
+  const [lastHookAt, endedAt] = await Promise.all([
+    receivedAtOf(fileOf(localDir, session)),
+    receivedAtOf(fileOf(localDir, session, `${KIND_PREFIX}${SESSION_END}.json`)),
+  ]);
+  return { lastHookAt, endedAt };
+}
+
 /**
  * フックを持つエージェントの中から呼ばれ、そのセッションにフックが届いているか（t713）。
  * エージェントを判定できない・フックを持たない・セッション ID を読めないときは、届くとは言えないので false

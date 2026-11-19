@@ -1,5 +1,7 @@
 // ticket claim の拒否と、もう一度の claim（reclaim）かどうかの決定（ST-3・ST-9・RN-5、ADR-031）。チケットの今の値と主体を
-// 受け取って決めるだけで、git・ファイルを読まない（import は型と定数と純粋な関数だけ）。決めるのは 2 つ：
+// 受け取って決めるだけで、git・ファイルを読まない（import は型と定数と純粋な関数だけ）。決めるのは 3 つ：
+//   - decideSessionClaim：別のセッションが claim して進めているチケットへの、もう一度の claim・unclaim を拒むか（SY-5。
+//     記録が効くかは sessionClaimHolds。記録とフックの時刻を読むのは claim-sessions.ts）
 //   - decideClaim：新しい claim に進むか・もう一度の claim か・拒否か。ticket.ts の ticketClaim が、書き込みの中（取り込みと索引の
 //     読み直しの後）で呼ぶ。push が拒否されて最新の状態からやり直す（git/write.ts の cas）たびに、やり直した後の値で決め直される
 //   - decideReclaim：もう一度の claim を拒むか（ブランチは変えられない）、手直しの始まりとして Run を開くか
@@ -143,6 +145,113 @@ export function claimRejectionError(
   return rejection.code === "INVALID_INPUT"
     ? new UsageError(message)
     : new OperationError(rejection.code, message);
+}
+
+/**
+ * claim したセッションの記録（deguboard-local/claim-sessions/<チケット>.json。t1148）。同じユーザのセッションは主体の ID が
+ * どれも `<ユーザ>/agent` で、Git のデータでは見分けられないので、このマシンにだけ置く。読み書きは claim-sessions.ts
+ */
+export interface SessionClaim {
+  /** claim を呼んだセッション（run.ts の sessionOf。サブエージェントの claim では起動した親） */
+  session: string;
+  /** 記録した時刻 */
+  claimed_at: string;
+}
+
+/** 記録したセッションが生きているかを決める事実 */
+export interface SessionSigns {
+  /** 記録したセッションに最後にフックが届いた時刻（届いていなければ undefined） */
+  lastHookAt: string | undefined;
+  /** 記録したセッションに SessionEnd が届いた時刻（届いていなければ undefined） */
+  endedAt: string | undefined;
+  now: Date;
+  /** 最後の知らせからこの時間が過ぎた記録は無視する（run.ts の CRASHED_SUBAGENT_IDLE_MS。dg next が落ちたセッションの Run を見分ける時間） */
+  idleMs: number;
+}
+
+const msOf = (iso: string | undefined): number | undefined => {
+  const ms = iso === undefined ? Number.NaN : Date.parse(iso);
+  return Number.isNaN(ms) ? undefined : ms;
+};
+
+/**
+ * 記録が今も効くか（記録したセッションが生きているとみなすか）。最後の知らせは、記録した時刻と最後に届いたフックの新しいほう
+ * （フックが届かないセッションの記録も、記録から idleMs の間は効く）。無視するのは：
+ *   - 最後の知らせの後（同じ時刻を含む）に SessionEnd が届いた。終わりの後にフックが届いていれば、同じ ID で再開したセッションなので効く
+ *   - 最後の知らせから idleMs が過ぎた（落ちたセッション。SessionEnd は届かない）
+ * 読めない時刻の記録は無視する
+ */
+export function sessionClaimHolds(record: SessionClaim, signs: SessionSigns): boolean {
+  const claimed = msOf(record.claimed_at);
+  if (claimed === undefined) return false;
+  const last = Math.max(claimed, msOf(signs.lastHookAt) ?? claimed);
+  const ended = msOf(signs.endedAt);
+  if (ended !== undefined && ended >= last) return false;
+  return signs.now.getTime() - last < signs.idleMs;
+}
+
+/** decideSessionClaim に要る事実 */
+export interface SessionClaimFacts extends SessionSigns {
+  ticket: string;
+  /** 止める操作：もう一度の claim か unclaim */
+  operation: "claim" | "unclaim";
+  /** このチケットの記録（なければ undefined） */
+  record: SessionClaim | undefined;
+  /** 呼んだ主体が人か AI か */
+  actorKind: ActorKind;
+  /** 呼んだセッション（sessionOf。わからなければ undefined） */
+  session: string | undefined;
+  /** --take-over */
+  takeOver: boolean;
+}
+
+/** もう一度の claim・unclaim を、別のセッションの記録で止めるかの決定。warning は、通すときに warnings に入れる文 */
+type SessionClaimDecision = { kind: "pass"; warning?: string } | ClaimRejection;
+
+/**
+ * 別のセッションが claim して進めているチケットへの、もう一度の claim・unclaim を拒むかを決める（SY-5。t1148）。上から順に：
+ *   - 記録がない・記録が効かない（sessionClaimHolds）・記録したセッション自身の呼び出しは通す
+ *   - 人の操作は止めない（人は見て決められる）。進めているセッションがあることだけ知らせる
+ *   - セッションがわからない呼び出し（フックもセッション ID もない製品）は、別のセッションと言えないので止めずに知らせる
+ *   - --take-over は越えて、引き継いだことを知らせる
+ *   - ほかは拒み、記録したセッションと越え方を示す
+ * 記録を書く・移す・消すのは行う側（claim-sessions.ts と ticket.ts）
+ */
+export function decideSessionClaim(f: SessionClaimFacts): SessionClaimDecision {
+  const { record, ticket } = f;
+  if (!record || record.session === f.session || !sessionClaimHolds(record, f))
+    return { kind: "pass" };
+  const did = f.operation === "claim" ? "claim" : "unclaim";
+  const holder = `session ${record.session} (it claimed ${ticket} at ${record.claimed_at}; ${
+    f.lastHookAt === undefined
+      ? "no dg hook has reached it"
+      : `its last dg hook arrived at ${f.lastHookAt}`
+  })`;
+  if (f.actorKind !== "agent")
+    return {
+      kind: "pass",
+      warning: `${ticket} is being worked on by an agent in ${holder}. A person's ${did} is not stopped, so it was done as asked; tell that session if it should stop`,
+    };
+  if (f.session === undefined)
+    return {
+      kind: "pass",
+      warning: `${ticket} is being worked on by ${holder}. The session calling dg is unknown (the agent sets no session ID), so this ${did} could not be checked against it and was done as asked`,
+    };
+  if (f.takeOver)
+    return {
+      kind: "pass",
+      warning: `Took ${ticket} over from ${holder} with --take-over`,
+    };
+  const minutes = Math.round(f.idleMs / 60_000);
+  return {
+    kind: "reject",
+    code: "REJECTED",
+    message: `${ticket} is being worked on by another session of yours: ${holder}. This session (${f.session}) cannot ${
+      f.operation === "claim" ? "claim it again" : "unclaim it"
+    } while that session is alive. Leave the ticket to that session. If that session has stopped, or a person told you to take the work over, add --take-over${
+      f.operation === "claim" ? " (the record moves to this session)" : ""
+    }. The record is ignored once SessionEnd reaches that session or no dg hook has reached it for ${minutes} minutes`,
+  };
 }
 
 /** decideReclaim に要る事実 */

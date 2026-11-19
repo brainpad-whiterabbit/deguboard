@@ -36,6 +36,7 @@ import {
   prepareWorktreeForClaim,
   runSetupInWorktree,
 } from "./claim-setup.js";
+import { dropSessionClaim, guardSessionClaim, recordSessionClaim } from "./claim-sessions.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { parseDraftSource } from "./draft-source.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
@@ -1096,7 +1097,8 @@ async function openClaimRun(
  * openRun が次の Run の開始を区切りとして閉じてから開く（RN-6）。前の Run が別のセッションで開いたものなら、
  * そのセッションが落ちた残りとみなして interrupted で閉じる（RN-6）。この claim のセッションは sessionOf で決め、
  * サブエージェントの claim でも起動した親のセッションになる。
- * 拒むか（ブランチは変えられない）・Run を開くかは、何も読まない claim-judge.ts の decideReclaim が決める
+ * 拒むか（ブランチは変えられない）・Run を開くかは、何も読まない claim-judge.ts の decideReclaim が決める。
+ * 別のセッションが claim して進めているチケットなら拒み（SY-5。claim-sessions.ts）、通ったら呼んだセッションを記録する
  */
 async function reclaim(
   ctx: CommandContext,
@@ -1107,6 +1109,7 @@ async function reclaim(
     agent?: string | undefined;
     no_run?: boolean | undefined;
     retry_reasons?: string[] | undefined;
+    take_over?: boolean | undefined;
   } & TranscriptInput,
   warnings: string[],
 ): Promise<RunId | null> {
@@ -1118,7 +1121,10 @@ async function reclaim(
     noRun: input.no_run === true,
   });
   if (decision.kind === "reject") throw claimRejectionError(decision, false);
-  warnings.push(decision.notice);
+  const sessionWarnings: string[] = [];
+  await guardSessionClaim(ctx, doc.id, "claim", input, sessionWarnings);
+  warnings.push(decision.notice, ...sessionWarnings);
+  await recordSessionClaim(ctx, doc.id, { session: input.session, fresh: false }, warnings);
   if (!decision.opensRun) return null;
   // フックが届くセッションでは手直しもサブエージェントに頼む。開き方は変えずに知らせる（t713）
   const self = await selfRunWarning(ctx.repo.localDir, ctx.env ?? process.env, doc.id);
@@ -1148,7 +1154,8 @@ export const ticketClaim = defineCommand({
     "After the push, it creates the work branch's worktree at worktree.root/<branch name> (change with --worktree-path) from that start commit, and puts its path in worktree. If a worktree for that branch already exists, it uses that; if only the local branch exists, it checks it out. If it cannot be created, the failure goes into the warnings and claim still succeeds. In a worktree it created (not an existing one), it runs config's worktree.setup commands; a failure goes into the warnings and claim still succeeds. That setup can take several minutes, such as pnpm install (limit 10 minutes), and claim does not return until it finishes. It creates no worktree with --no-worktree or --without-branch. " +
     "For an agent, it then opens an implementation Run (step implement) and prints its ID as run (on the last line of stdout in human output). The Run opens before the setup commands run. If it cannot be opened, only a warning is given and claim still succeeds. " +
     "In a session that dg hooks have reached, an agent's claim without --no-run (other than --without-branch, and including claiming again) still opens the Run, and warns to ask a sub-agent to implement or fix with the marker instead. " +
-    "If you claim again a ticket that you (the same user, human or AI) already claimed and that has a PR (in_progress or review), it is treated as the start of a fix (the review fix loop, or after a person's review). The ticket is not changed; for an agent it opens a fix Run (step fix).For either an implementation Run or a fix Run, when it opens, any still-open earlier fix Run on the same ticket is first closed with success at the time of the last push after that Run started (or at this claim's time if there is none), using this claim as the boundary. If the earlier fix Run's session differs from this claim's session (--session, else DEGUBOARD_SESSION from the environment, else the session ID the calling agent sets in its environment; for a sub-agent's claim, the parent session that started it), it is treated as left over from a crashed session and closed as interrupted. If either session is unknown, it is closed with success. Claims by other actors are rejected",
+    "If you claim again a ticket that you (the same user, human or AI) already claimed and that has a PR (in_progress or review), it is treated as the start of a fix (the review fix loop, or after a person's review). The ticket is not changed; for an agent it opens a fix Run (step fix).For either an implementation Run or a fix Run, when it opens, any still-open earlier fix Run on the same ticket is first closed with success at the time of the last push after that Run started (or at this claim's time if there is none), using this claim as the boundary. If the earlier fix Run's session differs from this claim's session (--session, else DEGUBOARD_SESSION from the environment, else the session ID the calling agent sets in its environment; for a sub-agent's claim, the parent session that started it), it is treated as left over from a crashed session and closed as interrupted. If either session is unknown, it is closed with success. Claims by other actors are rejected. " +
+    "An agent's claim (a new one, or claiming again) records, in deguboard-local/claim-sessions/ on this machine and not in Git, that the calling session (decided as above) is working on the ticket. While that session is alive, an agent in another session of the same user cannot claim the ticket again or unclaim it (REJECTED; the message names the recorded session); --take-over passes it. The record is ignored once SessionEnd reaches the recorded session or 30 minutes pass since the last dg hook reached it (since the claim, if no hook has reached it). A person's claim and a claim whose session is unknown make no record and are not stopped (a warning is given when a live session holds the ticket)",
   input: z.object({
     ticket: ticketRef,
     branch: z
@@ -1192,6 +1199,12 @@ export const ticketClaim = defineCommand({
       .optional()
       .describe(
         "Use only when claiming again (a fix made by a person or by the parent). One-line summary of the finding to fix, which goes into the fix Run's retry_reasons (see run finish --help for how to write it). A fix sub-agent asked with the marker does not claim; it writes with run retry-reason",
+      ),
+    take_over: z
+      .boolean()
+      .optional()
+      .describe(
+        "Claim again a ticket that another live session of yours is working on, and move the record to the calling session. Use when that session has stopped or a person told you to take the work over",
       ),
     ...transcriptFields,
     ...permissionFields,
@@ -1323,6 +1336,14 @@ export const ticketClaim = defineCommand({
       return ok<ClaimView>({ ...withBody(result.doc), run, worktree: null }, undefined, warnings);
     }
     warnings.push(...iterationWarnings, ...planWarnings);
+    // claim が push で取れた後に、呼んだセッションがこのチケットを進めていると記録する（SY-5。取れなかった claim で記録を残さない）。
+    // 新しい claim は新しい作業の周期なので、前の作業の記録は止める理由にせず、書き換えるか消す
+    await recordSessionClaim(
+      ctx,
+      result.value.id,
+      { session: input.session, fresh: true },
+      warnings,
+    );
     // worktree を作るのは claim が push で取れた後（取れなかった claim でブランチを残さない）
     const branch = result.value.data.branch;
     const made =
@@ -1377,19 +1398,28 @@ export const ticketUnclaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "Remove the claim and return to todo. Also removes branch, branch_at, branch_base, and pr (the PR record of the earlier work). Only your own claim (same user, human or AI) or a claim with no record; others' claims need force, and the Workflow's governance.reassign also judges removing them (always_ask by default: an agent passes --approved-by after a person approved it). It is a move back, so the Workflow's exceptions.back judges it as for ticket move (anyone by default; see dg ticket move --help). Implementation and fix Runs running on this machine are closed with failure (to keep a reason, close them first with run finish --result failure --error)",
+    "Remove the claim and return to todo. Also removes branch, branch_at, branch_base, and pr (the PR record of the earlier work). Only your own claim (same user, human or AI) or a claim with no record; others' claims need force, and the Workflow's governance.reassign also judges removing them (always_ask by default: an agent passes --approved-by after a person approved it). It is a move back, so the Workflow's exceptions.back judges it as for ticket move (anyone by default; see dg ticket move --help). Implementation and fix Runs running on this machine are closed with failure (to keep a reason, close them first with run finish --result failure --error). An agent cannot unclaim a ticket that another live session of the same user claimed on this machine (REJECTED; --take-over passes it; see dg ticket claim --help). The record of the session that claimed the ticket is removed",
   input: z.object({
     ticket: ticketRef,
     force: z.boolean().optional().describe("Also remove other people's claims"),
+    take_over: z
+      .boolean()
+      .optional()
+      .describe(
+        "Unclaim a ticket that another live session of yours is working on. Use when that session has stopped or a person told you to take the work over",
+      ),
     ...permissionFields,
   }),
   write: true,
   needs: "store",
   async run(ctx, input) {
     const warnings: string[] = [];
+    // 書き込みのやり直しごとに作り直し、最後の 1 回の分だけ返す
+    let sessionWarnings: string[] = [];
     const result = await withWrite(
       ctx,
       async () => {
+        sessionWarnings = [];
         const doc = ctx.store.require("ticket", input.ticket);
         if (doc.data.status !== "in_progress") {
           throw new OperationError(
@@ -1412,6 +1442,8 @@ export const ticketUnclaim = defineCommand({
             input,
             `removing the claim of ${owner} on ${doc.id}`,
           );
+        // 別のセッションが claim して進めているチケットは、agent には外させない（SY-5。claim-sessions.ts）
+        await guardSessionClaim(ctx, doc.id, "unclaim", input, sessionWarnings);
         // unclaim は前の Status へ戻す動き（exceptions.back）
         const granted = requirePermission(
           ctx,
@@ -1451,6 +1483,8 @@ export const ticketUnclaim = defineCommand({
       },
     );
     await dropClosed(ctx, result.value.closed);
+    await dropSessionClaim(ctx, result.value.doc.id);
+    warnings.push(...sessionWarnings);
     return ok(withBody(result.value.doc), result.write, warnings);
   },
 });
