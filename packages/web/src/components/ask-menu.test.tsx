@@ -10,6 +10,7 @@ import { StoreProvider } from "../store.js";
 import {
   type MockClient,
   boardFixture,
+  escapeMenu,
   fixture,
   iteration,
   iterationDetail,
@@ -89,7 +90,7 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
       fireEvent.click(bubble(place));
       await waitFor(() => expect(items()[0]).toMatch(/おすすめ$/));
       const first = items()[0];
-      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+      await escapeMenu();
       return first;
     };
     // 行（todo で着手できる t3）。右クリックの文脈は「詳細を開く」「ID をコピー」の場所によらない名前と ID だけ
@@ -225,7 +226,10 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
     link.focus();
     fireEvent.keyDown(link, { key: "F10", shiftKey: true });
     await waitFor(() => expect(items()[0]).toBe("進めるおすすめ"));
-    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    // 先頭の項目にフォーカスが移ってから押す（移す effect は描画より後になることがある。test-helpers.ts の escapeMenu の説明）
+    const first = within(menu()).getAllByRole("menuitem")[0]!;
+    await waitFor(() => expect(document.activeElement).toBe(first));
+    fireEvent.keyDown(first, { key: "ArrowDown" });
     expect(document.activeElement?.textContent).toBe("計画を立てる");
     fireEvent.keyDown(document.activeElement!, { key: "ArrowUp" });
     fireEvent.keyDown(document.activeElement!, { key: "ArrowUp" });
@@ -275,7 +279,7 @@ describe("左パネルのバックログと履歴から頼む（UI-15）", () =>
     });
     fireEvent.click(bubble("行 t4"));
     await waitFor(() => expect(items()[0]).toBe("計画を立てるおすすめ"));
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     // 区画の見出しの右クリックの文脈：Iteration の区画はその ID、「Iteration なし」は ID がないので載せない
     const headOf = (name: string) => bubble(`区画の見出し ${name}`).closest("summary")!;
     expect(contextOf(headOf("s1"))).toEqual({
@@ -292,10 +296,10 @@ describe("左パネルのバックログと履歴から頼む（UI-15）", () =>
     // 区画の見出し（「Iteration なし」は中のチケットをまとめて。in_progress と todo が混ざるので点検する）
     fireEvent.click(bubble("区画の見出し s1"));
     await waitFor(() => expect(items()[0]).toBe("計画を立てるおすすめ"));
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     fireEvent.click(bubble("区画の見出し Iteration なし"));
     await waitFor(() => expect(items()[0]).toBe("点検するおすすめ"));
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     // Epic の札は頼む入口にしない（吹き出しも、右クリックの文脈も、Shift+F10 もない）
     const chip = screen.getByRole("button", { name: /^e1/ });
     expect(chip.hasAttribute("data-vscode-context")).toBe(false);
@@ -331,7 +335,7 @@ describe("左パネルのバックログと履歴から頼む（UI-15）", () =>
     expect(fold.open).toBe(before);
     fireEvent.click(bubble("Iteration s1"));
     await waitFor(() => expect(items()[0]).toBe("振り返るおすすめ"));
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
 
     window.location.hash = "#/history?view=ticket";
     await screen.findByText("終えた");
@@ -513,12 +517,12 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     fireEvent.click(bubble("行 t3"));
     await waitFor(() => expect(items()).toContain("s1 から外す"));
     expect(items()[0]).toBe("進めるおすすめ");
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     // 終わったチケットには出さない
     fireEvent.click(bubble("行 t1"));
     await waitFor(() => expect(items().length).toBeGreaterThan(0));
     expect(items()).not.toContain("s1 から外す");
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     await pick("行 t3", "s1 から外す");
     await waitFor(() => expect(pressed()).toBe("s1 から外す"));
     await waitFor(() =>
