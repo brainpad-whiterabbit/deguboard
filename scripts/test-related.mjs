@@ -1,12 +1,12 @@
 // mise run test:related の本体。origin/main との分岐点からの差分（コミット済み・ステージ・未ステージ）と未追跡のファイルを
-// 変えたファイルとし、scripts/lib/related-tests.mjs の選び方で選んだテストだけを vitest で回す（t1127）。
-// 選ぶテストがなければ vitest を起動せずに成功する。名前で対になるテストがないソースのファイルは 1 行で知らせる。
+// 変えたファイルとし、scripts/lib/related-tests.mjs の planRelatedRun で選んだテストだけを vitest で回す（t1127）。
+// 回す・知らせる・何もしないの決め方は planRelatedRun にあり、このファイルは git を読んで結果を写すだけにする（t1132）。
 // 引数はそのまま vitest run に渡す
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { RELATED_ENV, isSourceFile, isTestFile, selectRelatedTests } from "./lib/related-tests.mjs";
+import { RELATED_ENV, planRelatedRun } from "./lib/related-tests.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -34,29 +34,22 @@ try {
   process.exit(1);
 }
 const untracked = gitPaths(["ls-files", "-z", "--others", "--exclude-standard"]);
+// 今あるファイルだけを渡す。消したファイル（差分にあって今ないもの）は planRelatedRun が外す
 const files = [...gitPaths(["ls-files", "-z"]), ...untracked].filter((file) =>
   existsSync(path.join(root, file)),
 );
-// 消したファイルは回せないので外す
-const changed = [...gitPaths(["diff", "-z", "--name-only", base]), ...untracked].filter((file) =>
-  existsSync(path.join(root, file)),
+const plan = planRelatedRun(
+  [...gitPaths(["diff", "-z", "--name-only", base]), ...untracked],
+  files,
 );
-const selected = selectRelatedTests(changed, files.filter(isTestFile), files.filter(isSourceFile));
 
-if (selected.unpaired.length > 0) {
-  console.error(
-    `test:related: no name-paired test for ${selected.unpaired.join(", ")} (the full tests in dg gate <id> --only check cover them)`,
-  );
-}
-if (selected.tests.length === 0) {
-  console.error("test:related: no related tests to run");
-  process.exit(0);
-}
+for (const message of plan.messages) console.error(message);
+if (plan.tests.length === 0) process.exit(0);
 
 const vitest = path.join(root, "node_modules", "vitest", "vitest.mjs");
 const result = spawnSync(
   process.execPath,
-  [vitest, "run", ...selected.tests, ...process.argv.slice(2)],
+  [vitest, "run", ...plan.tests, ...process.argv.slice(2)],
   { cwd: root, stdio: "inherit", env: { ...process.env, [RELATED_ENV]: "1" } },
 );
 process.exit(result.status ?? 1);

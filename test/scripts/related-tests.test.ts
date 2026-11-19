@@ -2,7 +2,11 @@
 // 選び方の理由はそのファイルの冒頭のコメント
 
 import { describe, expect, it } from "vitest";
-import { isTestFile, selectRelatedTests } from "../../scripts/lib/related-tests.mjs";
+import {
+  isTestFile,
+  planRelatedRun,
+  selectRelatedTests,
+} from "../../scripts/lib/related-tests.mjs";
 
 const tests = [
   "packages/core/src/commands/hook.test.ts",
@@ -135,5 +139,61 @@ describe("test:related が回すテストの選び方", () => {
     expect(isTestFile("test/e2e/routes.test.ts")).toBe(true);
     expect(isTestFile("test/layout/panel.layout.ts")).toBe(false);
     expect(isTestFile("packages/core/dist/a.test.ts")).toBe(false);
+  });
+});
+
+describe("test:related の回す・知らせる・何もしない（planRelatedRun）", () => {
+  const files = [...tests, ...sources];
+  const unpairedLine = (names: string) =>
+    `test:related: no name-paired test for ${names} (the full tests in dg gate <id> --only check cover them)`;
+  const nothingLine = "test:related: no related tests to run";
+
+  it.each([
+    {
+      name: "対になるテストがあるソースだけを変えたら、知らせずに回す",
+      changed: ["packages/core/src/commands/hook.ts"],
+      expected: { tests: ["packages/core/src/commands/hook.test.ts"], messages: [] },
+    },
+    {
+      name: "対になるテストがないソースもあれば、知らせてから回す",
+      changed: ["packages/core/src/commands/hook.ts", "packages/core/src/commands/hook-argv.ts"],
+      expected: {
+        tests: ["packages/core/src/commands/hook.test.ts"],
+        messages: [unpairedLine("packages/core/src/commands/hook-argv.ts")],
+      },
+    },
+    {
+      name: "対になるテストがないソースだけなら、知らせて何もしない",
+      changed: ["vitest.workers.ts"],
+      expected: { tests: [], messages: [unpairedLine("vitest.workers.ts"), nothingLine] },
+    },
+    {
+      name: "文書だけを変えたら、回すものがないとだけ知らせて何もしない",
+      changed: ["docs/development.md"],
+      expected: { tests: [], messages: [nothingLine] },
+    },
+    {
+      name: "変えたファイルがなければ、回すものがないとだけ知らせて何もしない",
+      changed: [],
+      expected: { tests: [], messages: [nothingLine] },
+    },
+    {
+      name: "消したテストとソースは外し、知らせにも出さない",
+      changed: ["packages/core/src/commands/gone.test.ts", "packages/core/src/commands/gone.ts"],
+      expected: { tests: [], messages: [nothingLine] },
+    },
+    {
+      name: "消したファイルと今あるファイルを一緒に変えたら、今あるほうだけで選ぶ",
+      changed: ["packages/core/src/commands/gone.ts", "packages/core/src/commands/flow.ts"],
+      expected: {
+        tests: [
+          "packages/core/src/commands/flow-permission.test.ts",
+          "packages/core/src/commands/flow.test.ts",
+        ],
+        messages: [],
+      },
+    },
+  ])("$name", ({ changed, expected }) => {
+    expect(planRelatedRun(changed, files)).toEqual(expected);
   });
 });

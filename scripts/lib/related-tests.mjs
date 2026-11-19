@@ -60,6 +60,29 @@ export function selectRelatedTests(changed, tests, sources) {
   return { tests: [...selected].sort(), unpaired };
 }
 
+/**
+ * test:related が「回す・知らせる・何もしない」のどれにするかを決める。changed は分岐点からの差分と未追跡のファイル
+ * （消したファイルを含む）、files は今あるファイル（追跡しているものと未追跡のもの）の一覧。消したファイルは回せないので、
+ * files にない changed を外してから選ぶ。messages は標準エラーに 1 行ずつ出す知らせで、tests が空なら vitest を起動せずに
+ * 成功で終わる。振る舞いは test/scripts/related-tests.test.ts が確かめる（t1132）
+ */
+export function planRelatedRun(changed, files) {
+  const present = new Set(files);
+  const selected = selectRelatedTests(
+    changed.filter((file) => present.has(file)),
+    files.filter(isTestFile),
+    files.filter(isSourceFile),
+  );
+  const messages = [];
+  if (selected.unpaired.length > 0) {
+    messages.push(
+      `test:related: no name-paired test for ${selected.unpaired.join(", ")} (the full tests in dg gate <id> --only check cover them)`,
+    );
+  }
+  if (selected.tests.length === 0) messages.push("test:related: no related tests to run");
+  return { tests: selected.tests, messages };
+}
+
 /** test が prefix で始まる同じディレクトリの <名前>-*.test.ts(x) で、同じ名前のソースを持たないか */
 function isSplitTest(test, prefix, sourceStems) {
   const match = /^(.+)\.test\.tsx?$/.exec(test);
