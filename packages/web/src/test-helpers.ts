@@ -439,3 +439,15 @@ export function mockClient(data = fixture()): MockClient {
     },
   };
 }
+
+/**
+ * 要素の文字に、文字を持たない印（role="img"。おすすめの青い点など）を読み上げの名前（aria-label）で入れたもの。
+ * 印がどこにあるかを文字の並びで確かめる（「おすすめ点検する」は点が頭、「進めるおすすめ」は点が後ろ）
+ */
+export function markedText(el: Element | null | undefined): string | undefined {
+  if (!el) return undefined;
+  const copy = el.cloneNode(true) as Element;
+  for (const mark of copy.querySelectorAll("[role=img][aria-label]"))
+    mark.replaceWith(mark.getAttribute("aria-label")!);
+  return copy.textContent ?? "";
+}

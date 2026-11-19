@@ -656,7 +656,7 @@ function AskMenuList({
             onClick={() => onPick(c)}
           >
             <span>{trCore(c.label)}</span>
-            {c.recommended ? <span className="ask-menu-rec">{tr("おすすめ")}</span> : null}
+            {c.recommended ? <RecDot /> : null}
           </button>
         ))
       )}
@@ -665,15 +665,25 @@ function AskMenuList({
 }
 
 /**
- * 吹き出し・ボタンから開くメニューの枠（頼むことの一覧と、選択の帯のコピーの形）。body に出し（行や見出しの overflow に切られないように）、
- * anchor の右端に合わせて下に開く。下に入らなければ上に開く。ready になったら先頭の項目にフォーカスを置き、↑↓・Home・End で動き、
- * Esc で閉じて呼んだ場所に戻る。外を押す・スクロールで閉じる
+ * おすすめの印（青い点。styles.css の .ask-rec）。入力欄の候補の札（ask-composer.tsx）と頼むことの一覧で同じ印にする。
+ * 点だけでは意味が伝わらないので、「おすすめ」の文字をツールチップ（title）と読み上げ（role="img" の名前）に持つ
  */
-function PopupMenu({
+export function RecDot() {
+  return <span className="ask-rec" role="img" aria-label={tr("おすすめ")} title={tr("おすすめ")} />;
+}
+
+/**
+ * 吹き出し・ボタンから開くメニューの枠（頼むことの一覧と、選択の帯のコピーの形と、入力欄の「ほか N」の一覧）。body に出し（行や見出しの overflow に切られないように）、
+ * anchor の右端に合わせて下に開く。下に入らなければ上に開く。ready になったら先頭の項目にフォーカスを置き、↑↓・Home・End で動き、
+ * Esc で閉じて呼んだ場所に戻る（Esc はここで止め、上の要素には渡さない）。外を押す・スクロールで閉じる。
+ * container を渡すと body の代わりにその中に出す（位置は fixed なので見た目は変わらない。入力欄は外を押すと閉じるので、一覧を中に置く）
+ */
+export function PopupMenu({
   anchor,
   ariaLabel,
   label,
   ready,
+  container,
   onClose,
   children,
 }: {
@@ -681,6 +691,7 @@ function PopupMenu({
   ariaLabel: string;
   label: string;
   ready: boolean;
+  container?: Element | null | undefined;
   onClose(refocus: boolean): void;
   children: ReactNode;
 }) {
@@ -759,7 +770,7 @@ function PopupMenu({
       <div className="ask-menu-label">{label}</div>
       {children}
     </div>,
-    document.body,
+    container ?? document.body,
   );
 }
 

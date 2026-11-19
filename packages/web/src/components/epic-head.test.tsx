@@ -4,7 +4,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../app.js";
 import { HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
-import { type MockClient, boardFixture, fixture, mockClient, ticket } from "../test-helpers.js";
+import {
+  type MockClient,
+  boardFixture,
+  fixture,
+  markedText,
+  mockClient,
+  ticket,
+} from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
 import { ASK_HINT_KEY } from "./ask-menu.js";
 
@@ -39,7 +46,7 @@ const menu = () => screen.getByRole("menu");
 const items = () =>
   within(menu())
     .getAllByRole("menuitem")
-    .map((b) => b.textContent);
+    .map((b) => markedText(b));
 /**
  * 開いている一覧を Esc で閉じる。先頭の項目にフォーカスが移るのを待ってから、その項目で押す。
  * フォーカスは一覧を描いた後の effect（ask-menu.tsx の PopupMenu）が置くので、項目が出た時点（items() を待った直後）には

@@ -11,6 +11,7 @@ import {
   fixture,
   iteration,
   iterationDetail,
+  markedText,
   mockClient,
   ticket,
 } from "../test-helpers.js";
@@ -60,7 +61,7 @@ const menu = () => screen.getByRole("menu");
 const items = () =>
   within(menu())
     .getAllByRole("menuitem")
-    .map((b) => b.textContent);
+    .map((b) => markedText(b));
 const askInputs = (client: MockClient) =>
   client.calls.filter((c) => c.name === "ask").map((c) => c.input as Record<string, unknown>);
 
