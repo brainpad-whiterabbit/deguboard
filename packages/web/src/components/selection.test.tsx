@@ -27,13 +27,14 @@ function mount(
   client: MockClient,
   surface: Host["surface"] = "sidebar",
   state: Record<string, unknown> = {},
+  copy: Host["copy"] = async () => {},
 ) {
   const open = vi.fn<(route: Route) => void>();
   const host: Host = {
     surface,
     open,
     show: () => {},
-    copy: async () => {},
+    copy,
     state: createUiState(memoryBackend({ [ASK_HINT_KEY]: true, ...state })),
   };
   render(
@@ -493,4 +494,139 @@ describe("なぞりの終わり方（UI-15）", () => {
       }
     },
   );
+});
+
+describe("選んだ行の ID をコピーする（UI-15）", () => {
+  /** バックログで行を Ctrl+クリックで選んでおく。コピーは copy に届く */
+  async function selectRows(titles: readonly string[], copy: Host["copy"]) {
+    window.location.hash = "#/backlog";
+    mount(backlogClient(), "sidebar", {}, copy);
+    await screen.findByText("四つ目");
+    for (const title of titles) fireEvent.click(linkOf(title), { ctrlKey: true });
+  }
+
+  it("帯の「頼む」の右の「ID をコピー」で、選んだ ID を見えている順に空白で区切ってコピーし、選択は外さず、何件の何をコピーしたかを少しの間出す", async () => {
+    const copy = vi.fn<Host["copy"]>(async () => {});
+    // 選んだ順（五つ目 → 画面）ではなく、見えている順（画面 → 五つ目）でコピーする
+    await selectRows(["五つ目", "画面"], copy);
+    const buttons = within(bar()!)
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label") ?? b.textContent);
+    expect(buttons).toEqual(["頼む", "ID をコピー", "コピーの形を選ぶ", "選択を外す"]);
+    const copyIds = within(bar()!).getByRole("button", { name: "ID をコピー" });
+    expect(copyIds.title).toBe("選んだ 2 件の ID をコピー（Ctrl/⌘+C）");
+    fireEvent.click(copyIds);
+    expect(copy).toHaveBeenCalledWith("t3 t5");
+    const status = within(bar()!).getByRole("status");
+    await waitFor(() => expect(status.textContent).toBe("2 件の ID をコピーしました"));
+    expect(bar()!.textContent).toContain("2 件を選択");
+    expect(selected()).toEqual(["t3", "t5"]);
+    // 少しの間で消える
+    await waitFor(() => expect(status.textContent).toBe(""), { timeout: 3000 });
+  });
+
+  it("コピーに失敗したら、帯にそのことを出す", async () => {
+    const copy = vi.fn<Host["copy"]>(async () => {
+      throw new Error("clipboard");
+    });
+    await selectRows(["画面"], copy);
+    fireEvent.click(within(bar()!).getByRole("button", { name: "ID をコピー" }));
+    expect(await within(bar()!).findByText("コピーできませんでした")).toBeTruthy();
+    expect(selected()).toEqual(["t3"]);
+  });
+
+  it("▾ のメニューで ID・ID とタイトル・Markdown のリストを選べ、項目には先頭の 1 件の見本を出す", async () => {
+    const copy = vi.fn<Host["copy"]>(async () => {});
+    await selectRows(["四つ目", "画面"], copy);
+    const formats = within(bar()!).getByRole("button", { name: "コピーの形を選ぶ" });
+    fireEvent.click(formats);
+    expect(formats.getAttribute("aria-expanded")).toBe("true");
+    const list = screen.getByRole("menu", { name: "コピーの形" });
+    expect(
+      within(list)
+        .getAllByRole("menuitem")
+        .map((b) => b.textContent),
+    ).toEqual(["IDt3 …", "ID とタイトルt3 画面 …", "Markdown のリスト- t3 画面 …"]);
+    // 先頭の項目にフォーカスを置く
+    expect(document.activeElement?.textContent).toBe("IDt3 …");
+    // Esc でメニューだけを閉じ、▾ に戻る。選択は残る
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(formats);
+    expect(selected()).toEqual(["t3", "t4"]);
+    expect(copy).not.toHaveBeenCalled();
+    fireEvent.click(formats);
+    fireEvent.click(
+      within(screen.getByRole("menu", { name: "コピーの形" })).getByRole("menuitem", {
+        name: /^ID とタイトル/,
+      }),
+    );
+    expect(copy).toHaveBeenLastCalledWith("t3 画面\nt4 四つ目");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(await within(bar()!).findByText("2 件の ID とタイトルをコピーしました")).toBeTruthy();
+
+    fireEvent.click(formats);
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Markdown のリスト/ }));
+    expect(copy).toHaveBeenLastCalledWith("- t3 画面\n- t4 四つ目");
+    expect(
+      await within(bar()!).findByText("2 件を Markdown のリストでコピーしました"),
+    ).toBeTruthy();
+
+    fireEvent.click(formats);
+    fireEvent.click(screen.getAllByRole("menuitem")[0]!);
+    expect(copy).toHaveBeenLastCalledWith("t3 t4");
+    // コピーしても選択は外さない
+    expect(selected()).toEqual(["t3", "t4"]);
+  });
+
+  it("選んだ後に並び順を変えても、コピーは今見えている順で出す", async () => {
+    const copy = vi.fn<Host["copy"]>(async () => {});
+    await selectRows(["画面", "四つ目"], copy);
+    fireEvent.click(screen.getByRole("button", { name: "表示" }));
+    const group = screen.getByRole("group", { name: "並び順" });
+    fireEvent.click(within(group).getByRole("menuitemradio", { name: "番号" }));
+    // 選んでいる基準をもう一度押すと向きが入れ替わる（番号 ↓：五つ目 → 四つ目 → 画面 → API）
+    fireEvent.click(within(group).getByRole("menuitemradio", { name: "番号 ↑" }));
+    expect(selected()).toEqual(["t4", "t3"]);
+    fireEvent.click(within(bar()!).getByRole("button", { name: "ID をコピー" }));
+    expect(copy).toHaveBeenLastCalledWith("t4 t3");
+  });
+
+  it("文字を選んでいないときの Ctrl/⌘+C は選んだ ID を空白区切りでコピーし、文字を選んでいるとき・入力欄では横取りしない", async () => {
+    const copy = vi.fn<Host["copy"]>(async () => {});
+    await selectRows(["画面", "五つ目"], copy);
+    const ctrlC = fireEvent.keyDown(linkOf("画面"), { key: "c", ctrlKey: true });
+    expect(ctrlC, "既定のコピーを止める").toBe(false);
+    expect(copy).toHaveBeenLastCalledWith("t3 t5");
+    fireEvent.keyDown(document.body, { key: "C", metaKey: true });
+    expect(copy).toHaveBeenCalledTimes(2);
+
+    // 文字を選んでいるときはブラウザのコピーに任せる
+    const range = document.createRange();
+    range.selectNodeContents(screen.getByText("四つ目"));
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    expect(fireEvent.keyDown(document.body, { key: "c", ctrlKey: true })).toBe(true);
+    window.getSelection()!.removeAllRanges();
+    // 入力欄（検索）の Ctrl+C も横取りしない
+    const search = screen.getByRole("searchbox", { name: "検索" });
+    expect(fireEvent.keyDown(search, { key: "c", ctrlKey: true })).toBe(true);
+    // Shift・Alt つきと、修飾キーなしの c は受けない
+    fireEvent.keyDown(document.body, { key: "c", ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(document.body, { key: "c", ctrlKey: true, altKey: true });
+    fireEvent.keyDown(document.body, { key: "c" });
+    expect(copy).toHaveBeenCalledTimes(2);
+    // 選んでいないときは受けない
+    fireEvent.click(within(bar()!).getByRole("button", { name: "選択を外す" }));
+    expect(fireEvent.keyDown(document.body, { key: "c", ctrlKey: true })).toBe(true);
+    expect(copy).toHaveBeenCalledTimes(2);
+  });
+
+  it("「選択を外す」は × のアイコンで、名前はツールチップと aria-label に出す", async () => {
+    await selectRows(["画面"], async () => {});
+    const clear = within(bar()!).getByRole("button", { name: "選択を外す" });
+    expect(clear.title).toBe("選択を外す（Esc）");
+    expect(clear.textContent).toBe("");
+    expect(clear.querySelector("svg")).toBeTruthy();
+  });
 });

@@ -5,7 +5,7 @@
 // ふつうのクリックは今までどおり詳細を開き、選択を外す（次の Shift+クリックの起点になる）。Esc でも外す。
 // 選択は画面の見た目の状態として SelectionProvider が持つ（データには書かない。画面を替えたら外す）。
 // 行は useAskSpot の select で選べるようになり（ask-menu.tsx）、選んだ行の吹き出しは選んだ全件を対象にする。
-// 選んでいる間は画面の下に「n 件を選択 ・ 頼む」の帯（SelectionBar）を出し、「頼む」で選んだ全件の頼むことの一覧を出す。
+// 選んでいる間は画面の下に「n 件を選択 頼む ID をコピー」の帯（SelectionBar）を出し、「頼む」で選んだ全件の頼むことの一覧を出す。
 // 範囲は画面に出ている行（data-select-id）の並びで決め、選んだ ID もその並びで持つ
 
 import {
@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AskSection } from "./ask-menu.js";
+import { inShownOrder } from "./copy-ids.js";
 
 /** 選べる行に付ける属性の名前（範囲を画面の並びで決めるため） */
 export const SELECT_ATTR = "data-select-id";
@@ -163,11 +164,9 @@ function edgeStep(y: number, top: number, bottom: number): number {
   return 0;
 }
 
-/** ids を画面の並びに揃える（画面にないものは後ろに残す） */
-function inShownOrder(ids: ReadonlySet<string>): string[] {
-  const shown = shownIds().filter((id) => ids.has(id));
-  const rest = [...ids].filter((id) => !shown.includes(id));
-  return [...new Set([...shown, ...rest])];
+/** ids を今の画面の並びに揃える（画面にないものは後ろに残す）。選んだ後に並び順を変えたときも、コピーは今の並びで出す（SelectionBar） */
+export function inViewOrder(ids: Iterable<string>): string[] {
+  return inShownOrder([...ids], shownIds());
 }
 
 /** Ctrl/⌘+クリックと Shift+クリックの選び方。ほかの修飾キー（Alt）は選ばない */
@@ -227,7 +226,7 @@ export function SelectionProvider({ scope, children }: { scope: string; children
         // VS Code の一覧と同じく、起点からの範囲で選び直す
         next = new Set(range);
       }
-      const ids = inShownOrder(next);
+      const ids = inViewOrder(next);
       return {
         ids,
         // 範囲の起点は動かさない（続けて Shift+クリックすると、同じ起点から選び直す VS Code の動きに近づける）
@@ -277,7 +276,7 @@ export function SelectionProvider({ scope, children }: { scope: string; children
       const next = new Set(
         sw.adding ? [...sw.base, ...range] : sw.base.filter((id) => !range.includes(id)),
       );
-      const ids = inShownOrder(next);
+      const ids = inViewOrder(next);
       return {
         ids,
         anchor: s.anchor,
