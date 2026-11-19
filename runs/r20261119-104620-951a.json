@@ -1,0 +1,37 @@
+{
+  "id": "r20261119-104620-951a",
+  "ticket": "t1149",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-19T10:46:20Z",
+  "finished_at": "2026-11-19T10:54:45Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "予約の読む・決める・書くが排他でなく、同時の予約で claim 済みのセッションが自分のチケットを進められなくなる",
+    "EX-5 の「読み取りだけ」が予約を書く PL-7 と食い違って見える",
+    "承認待ちの Plan も予約され、承認を待つ間に別のセッションの claim を止める"
+  ],
+  "usage": {
+    "input": 32,
+    "output": 21326,
+    "cache_read": 1336769,
+    "cache_write": 110826
+  },
+  "tools": {
+    "read": 9,
+    "search": 0,
+    "write": 18,
+    "bash": 12,
+    "other": 1,
+    "read_before_write": 7,
+    "search_before_write": 0,
+    "errors": 2
+  },
+  "session": "c3536bd5-2e8d-4bba-9010-df0649451df7",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 278
+}
