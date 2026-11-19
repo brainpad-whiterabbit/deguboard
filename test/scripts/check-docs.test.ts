@@ -10,7 +10,7 @@
 // 英語の形「the "<節>" section of `dg guide <topic>`」の参照も同じ照らし方で落ちる（t563）。
 // 要件の 1 項が上限の 250 字を超えたときと、コードとテストが置き換え済みの ADR を指したときも落ちる（t580）。
 // packages のテスト以外の文字列に要件 ID があると落ち、コメントとテストのファイルの ID は落とさないことも確かめる（t902）。
-// 文書が「既定」「default」と Workflow の権限の値を同じ文に書くと落ち、ADR の「採らなかった案」は落とさないことも確かめる。見出しの行に既定の語を置いた表の値の行も落ちる（t1147）。
+// 文書が「既定」「default」と Workflow の権限の値を同じ文に書くと落ち、ADR の「採らなかった案」は落とさないことも確かめる。見出しの行に既定の語を置いた表の値の行も落ちる（t1147）。packages のテスト以外の文字列（ヘルプ・エラー・警告）も、コメントの外で同じ文に書くと落ちる（t1156）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
@@ -1258,6 +1258,44 @@ describe.concurrent("check-docs の Workflow の既定値の書き写し（t1147
       dir,
       "docs/usage.md",
       "With `always_ask`, the agent asks you first. By default, the agent asks you. To keep it to a person, set `human_only`.",
+    );
+    const { stderr } = await run(dir);
+    expect(stderr).not.toContain(FOUND);
+  });
+
+  it("packages のテスト以外の文字列（ヘルプの文）に既定の語と値を同じ文に書くと、ファイルと行を出して落ちる（t1156）", async ({
+    dir,
+    expect,
+  }) => {
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.ts"),
+      [
+        "// 確かめ",
+        'export const a = "Closing is judged by flow.release (always_ask by default; see dg workflow show --help).";',
+        "export const b = `Merging asks a person. The default is ask_unless_auto.`;",
+      ].join("\n"),
+    );
+    const { code, stderr } = await run(dir);
+    expect(code).toBe(1);
+    expect(stderr).toContain(`packages/cli/src/zz-probe.ts:2: 文字列が ${FOUND}`);
+    expect(stderr).toContain(`packages/cli/src/zz-probe.ts:3: 文字列が ${FOUND}`);
+  });
+
+  it("コメントとテストのファイル、値と既定の語が別の文の文字列は、コードでも落とさない（t1156）", async ({
+    dir,
+    expect,
+  }) => {
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.ts"),
+      [
+        "// flow.release は既定で always_ask",
+        'export const a = "flow.release judges it (dg workflow show gives its value). --auto goes ahead only when the value is ask_unless_auto. Squash by default.";',
+        'export const b = "open to anyone; the method is squash by default";',
+      ].join("\n"),
+    );
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.test.ts"),
+      'it("always_ask by default", () => {});\n',
     );
     const { stderr } = await run(dir);
     expect(stderr).not.toContain(FOUND);

@@ -1355,7 +1355,7 @@ function teamWriteOptions(input: PermissionInput & { key: string }): { immediate
 }
 
 const TEAM_CONFIG_NOTE =
-  "Changing the team's config.yaml is judged by the Workflow's governance.config (always_ask by default; see dg workflow show --help for the values): an agent passes --approved-by after a person approved the change, and the approver is recorded in the commit message (--auto goes ahead without asking only when the value is ask_unless_auto). Personal settings (--local) are not judged";
+  "Changing the team's config.yaml is judged by the Workflow's governance.config (dg workflow show gives its value; see dg workflow show --help for the values): an agent passes --approved-by after a person approved the change, and the approver is recorded in the commit message (--auto goes ahead without asking only when the value is ask_unless_auto). Personal settings (--local) are not judged";
 
 export const configSet = defineCommand({
   name: "config.set",
