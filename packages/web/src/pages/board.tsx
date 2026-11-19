@@ -12,8 +12,8 @@
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
 // 待ちと承認待ちの行（実行中の Run がないもの）はタイトルを説明文の色で薄く出す。
-// In Progress と Review の行（ほかの状態は実行中の Run があるとき）の右端の下の段には、チケットの Run を 1 回 1 つの丸で並べ（row-end.tsx の RunPips）、
-// 最後の Run が返事待ちか失敗・中断の行は地の色を変える。
+// In Progress・Review・Done の行（ほかの状態は実行中の Run があるとき）の右端の下の段には、チケットの Run を 1 回 1 つの丸で並べ（row-end.tsx の RunPips）、
+// 最後の Run が返事待ちか失敗・中断の行は地の色を変える。実行中の Run のない Done の行は、最後の丸の横に Run の回数を出し、地の色は変えない（showsRunCount）。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 左パネルでは、見出しの進みの帯の行が上へ抜けたら、上の端に 1 行の帯（BoardBand。番号・名前・小さな進みの帯・n/m）を出し、
 // 状態の節の見出しをその下に貼り付ける（components/sticky-band.tsx と styles.css の .sticky-band）。帯と貼り付きは左パネルの形（data-surface が sidebar）だけ。
@@ -46,6 +46,7 @@ import {
   type PlanMark,
   runTone,
   showRunPips,
+  showsRunCount,
   stepLabelOf,
 } from "../components/row-end.js";
 import { useChangeFlash } from "../components/change-flash.js";
@@ -1042,7 +1043,8 @@ function Column({
                   !running &&
                   isWaitingReadiness(kanbanReadiness(t, mark))
                 }
-                tone={runs ? runTone(runs) : null}
+                // Done の行（回数で締めくくる並び）は、終わったあとに最後の Run の結果で目を引かないよう地の色を付けない
+                tone={runs && !showsRunCount(t, runs) ? runTone(runs) : null}
                 flash={flashing.has(t.id)}
                 variant="kanban"
                 ask={ASK_SECTIONS.boardTicket}
