@@ -3609,13 +3609,36 @@ button.ask-suggestion:hover {
   background: var(--vscode-input-background);
 }
 button.ask-suggestion[aria-pressed="true"] {
+  font-weight: 600;
   color: var(--vscode-textLink-foreground);
   background: var(--vscode-list-activeSelectionBackground);
   border-color: var(--vscode-focusBorder);
 }
-.ask-star {
-  margin-right: 0.2em;
-  color: var(--vscode-focusBorder);
+/* 残りの候補を開く「ほか N ▾」。候補の札と見分けるため点線の枠にし、開いている間は実線にする */
+button.ask-suggestion.ask-more {
+  color: var(--vscode-textLink-foreground);
+  border-style: dashed;
+}
+button.ask-suggestion.ask-more[aria-expanded="true"] {
+  border-style: solid;
+  border-color: var(--vscode-focusBorder);
+}
+/* おすすめの印（components/ask-menu.tsx の RecDot）。6px の点で、まわりの 3px もツールチップの当たりにする（塗りは中だけ） */
+.ask-rec {
+  display: inline-block;
+  flex: none;
+  /* 全体の border-box のままだと、まわりの 3px が 6px を食って点が消える */
+  box-sizing: content-box;
+  width: 6px;
+  height: 6px;
+  padding: 3px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--vscode-focusBorder);
+  background-clip: content-box;
+}
+.ask-suggestion .ask-rec {
+  margin: 0 0.1em 0 -0.3em;
 }
 /* アイコンのボタン（閉じる・全文・形式・空にする）。使えないときも形が見えるよう、薄くするだけで消さない */
 button.ask-icon {
@@ -3891,18 +3914,13 @@ button.ask-copy svg {
   background: var(--vscode-menu-selectionBackground, var(--vscode-button-background));
   color: var(--vscode-menu-selectionForeground, var(--vscode-button-foreground));
 }
-.ask-menu-rec {
-  margin-left: auto;
-  padding: 0 4px;
-  font-size: 10px;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  background: var(--vscode-list-activeSelectionBackground);
+/* 一覧のおすすめの点は右端に置く。選んでいる行の塗りはフォーカスの色に近いので、点は文字の色にする */
+.ask-menu-item .ask-rec {
+  margin: 0 -3px 0 auto;
 }
-.ask-menu-item:hover .ask-menu-rec,
-.ask-menu-item:focus-visible .ask-menu-rec {
-  background: transparent;
-  border-color: currentColor;
+.ask-menu-item:hover .ask-rec,
+.ask-menu-item:focus-visible .ask-rec {
+  background-color: currentColor;
 }
 /* 初めて左パネルを開いたときの案内。× で消したら出さない */
 .ask-hint {

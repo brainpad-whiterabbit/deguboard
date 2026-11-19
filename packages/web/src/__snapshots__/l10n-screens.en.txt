@@ -1407,7 +1407,8 @@ Todo
 Iteration heading s1
 [title] /dgplan: Decides the order to advance tickets, records it as a Plan, and gets human approval.
 Plan
-Recommended
+[title] Recommended
+[aria-label] Recommended
 [title] /dgall: Advances an Iteration or tickets stage by stage, from assignment through release (or cleanup).
 Run to completion
 [title] /dgrelease: Checks that all tickets in an Iteration are done, follows the release steps, and closes the Iteration.
@@ -1576,29 +1577,12 @@ s1
 [aria-label] Close
 [aria-label] Request
 [title] /dgplan: Decides the order to advance tickets, records it as a Plan, and gets human approval.
+[title] Recommended
 [aria-label] Recommended
-★
 Plan
-[title] /dgall: Advances an Iteration or tickets stage by stage, from assignment through release (or cleanup).
-Run to completion
-[title] /dgrelease: Checks that all tickets in an Iteration are done, follows the release steps, and closes the Iteration.
-Release
-[title] /dgimport: Splits the discussed content, plan, or design into tickets and creates them after approval.
-Create tickets in s1
-[title] /dgassign: Assigns tickets to an Iteration (sprint) and an Epic.
-Add or remove tickets
-[title] /dgchange: Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.
-Change name and goal
-[title] /dgdiscuss: Settles the open points of tickets, an Epic, or an Iteration with a human through choices, and reflects the result after approval of before → after.
-Discuss
-[title] /dgchange: Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.
-Close
-[title] /dgcheck: Checks tickets, Epics, Iterations, and Plans, then fixes them after showing the proposed changes and getting approval.
-Check
-[title] /dgexplain: Explains what tickets, an Epic, or an Iteration are about with a summary, text diagrams, an example, and plain words, without changing any data or files.
-Explain
-[title] No Skill
-Free-form
+[title] Choose another request
+10 more
+▾
 [title] Decides the order to advance tickets, records it as a Plan, and gets human approval.
 /dgplan
 Make a Plan to proceed with s1, and wait for approval.

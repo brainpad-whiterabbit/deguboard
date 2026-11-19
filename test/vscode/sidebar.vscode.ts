@@ -383,6 +383,44 @@ describe("VS Code の実機の左パネル", () => {
     await composer.waitFor({ state: "detached" });
   });
 
+  it("行の吹き出しの一覧のおすすめの青い点と、小窓の候補の行（おすすめ・選んでいる候補・「ほか N ▾」）と開いた一覧をライトとダークで撮る（t1161）", async () => {
+    await sidebar.locator('nav a[href="#/board"]').click();
+    const row = sidebar.locator(".ticket-row", { hasText: TITLES[2] });
+    await row.hover();
+    await sidebar.getByRole("button", { name: "Ask Agent (Row t3)" }).click();
+    const menu = sidebar.getByRole("menu");
+    await menu.locator(".ask-rec").waitFor();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("ask-menu-rec", theme);
+      await access(shot.sidebar);
+    }
+    // おすすめでない候補（2 番目）を選んで開くと、行はおすすめ・その候補・「ほか N ▾」になる
+    await menu.getByRole("menuitem").nth(1).click();
+    const composer = sidebar.getByRole("region", { name: "Ask Agent" });
+    await composer.locator(".ask-heading").getByText(TITLES[2]).waitFor();
+    const done = composer.locator("button.ask-copy.ask-done");
+    await done.waitFor();
+    await done.waitFor({ state: "detached" });
+    const suggestions = composer.locator(".ask-suggestions > button");
+    expect(await suggestions.count()).toBe(3);
+    await composer.locator(".ask-more").click();
+    await composer.getByRole("menu").waitFor();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("ask-more", theme);
+      await access(shot.sidebar);
+    }
+    // Esc は一覧だけを閉じ、小窓は残る。テーマの切り替えで窓の大きさが変わると一覧は閉じるので、開き直してから押す
+    if (!(await composer.getByRole("menu").isVisible()))
+      await composer.locator(".ask-more").click();
+    await composer.getByRole("menuitem").first().press("Escape");
+    await composer.getByRole("menu").waitFor({ state: "detached" });
+    await composer.waitFor();
+    await composer.getByRole("button", { name: "Close" }).click();
+    await composer.waitFor({ state: "detached" });
+  });
+
   it("設定画面に並列の上限（work.parallel）の数の欄が出て、ライトとダークで撮る", async () => {
     // 画面の中の歯車は文言に頼らず、ハッシュで設定画面に移る
     await sidebar.locator("body").evaluate(() => {

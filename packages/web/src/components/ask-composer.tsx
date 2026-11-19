@@ -1,7 +1,9 @@
 // エージェントに頼む入力欄（UI-15・ADR-027）。左パネルとエディタのパネルの下に出し、欄に書いたものがそのまま貼る文になる
 // （VS Code の QuickPick と InputBox では指示が 1 行しか書けないので、画面の中に欄を作る）。
 // 頼むことの候補・おすすめ・依頼文は core の ask コマンド（読み取りだけ）が決め、ここでは組み立て直さない。定型の文の言語は画面の表示言語を ask に渡して決める。データには書き込まない。
-// 一番上が見出しの行（「頼む」・対象の札・閉じる ×）、その下が頼むことの候補（★ がおすすめ）、欄の頭が頼むことの 1 文（依頼文には入らない）で、
+// 一番上が見出しの行（「頼む」・対象の札・閉じる ×）、その下が頼むことの候補の行、欄の頭が頼むことの 1 文（依頼文には入らない）で、
+// 候補の行はおすすめ（青い点。RecDot）・選んでいる候補（おすすめと違うとき）・残りを開く「ほか N ▾」の 3 つまでにする（候補が 8 つほどあると
+// 全部並べれば 2 段に折り返して小窓の上を取り、選んでいる候補も見分けにくい。小窓は行の吹き出しの一覧で選んでから開くことが多いので、残りは 1 手奥に置く）。
 // 頭に Skill の札（枠線だけ。札とボタンのツールチップが Skill の 1 文）、本体が指示、下が全文・形式・空にするのアイコンのボタンとコピー。
 // 塗りの色はコピーと送るのボタンだけに使う。コピーと送るの成功はボタンの中で数秒 ✓ に変えて知らせ（文は読み上げにだけ渡す）、小窓の高さを変えない。失敗は文で出す。
 // 開いているターミナルがあれば（Webview だけ）、送り先を選んで「送る」でその入力に入れられる。Enter は押さず、ターミナルは起動しない。なければコピーだけ。
@@ -16,9 +18,10 @@ import { candidateTitle } from "../ask-candidate.js";
 import { ASK_NOTE_KEY, useHost, useUiState } from "../host.js";
 import { canSend, resolveSendTarget, sentMessage, switchedMessage } from "../send-target.js";
 import { useStore } from "../store.js";
-import type { AskAction, AskFormat, AskView } from "../types.js";
+import type { AskAction, AskCandidate, AskFormat, AskView } from "../types.js";
 import { language, tr, trCore, msg, type Language } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
+import { PopupMenu, RecDot } from "./ask-menu.js";
 
 /** 指示を打つ間、依頼文の取り直しを待つ時間（ミリ秒）。打つたびに ask を呼ばない */
 export const ASK_NOTE_SETTLE_MS = 150;
@@ -105,6 +108,8 @@ export function AskComposer({
   const [chosenFormat, setFormat] = useUiState<AskFormat | null>(ASK_FORMAT_KEY, null);
   const [note, setNote] = useUiState<string>(ASK_NOTE_KEY, "");
   const [full, setFull] = useState(false);
+  // 「ほか N ▾」の一覧を開いているときの、そのボタン（一覧はその下か上に開く）
+  const [moreAt, setMoreAt] = useState<HTMLElement | null>(null);
   // 対象だけで引いた結果（候補と札）。頼むことを選び直しても変わらない
   const [base, setBase] = useState<AskView | null>(null);
   // 頼むこと・指示・形式まで渡して引いた結果（全文）
@@ -196,6 +201,10 @@ export function AskComposer({
   const format = chosenFormat ?? base?.format ?? null;
   const candidate = base?.candidates.find((c) => c.action === chosen) ?? null;
   const shown = view && view.action === chosen ? view : null;
+  // 行に出す候補はおすすめ（core が先頭に置く）と、それと違えば選んでいる候補。残りは「ほか N ▾」の一覧に元の順で出す
+  const candidates = base?.candidates ?? [];
+  const onRow = candidates.filter((c, n) => n === 0 || c.action === chosen);
+  const rest = candidates.filter((c) => !onRow.includes(c));
 
   // 選んで開いたときは、開くと同時にコピーする（指示を足さないことが多い）。開いた 1 回だけで、復元（copyOnOpen が false）では勝手にコピーしない。選び直したときのコピーは下の選択の処理にある
   const copiedOnOpen = useRef(false);
@@ -290,6 +299,15 @@ export function AskComposer({
     // 頼むことの候補は対象で変わるので、おすすめに戻す
     setPicked(null);
     setResult(null);
+    setMoreAt(null);
+  }
+
+  /** 頼むことを選び直す（行の候補か「ほか N」の一覧から）。選んだら、その依頼文をコピーする */
+  function pick(c: AskCandidate) {
+    setPicked(c.action);
+    setResult(null);
+    noteRef.current?.focus();
+    void copy(c.action);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLElement>) {
@@ -347,30 +365,64 @@ export function AskComposer({
         </button>
       </div>
       <div className="ask-suggestions" role="group" aria-label={tr("頼むこと")}>
-        {(base?.candidates ?? []).map((c) => (
+        {onRow.map((c) => (
           <button
             key={c.action}
             type="button"
             className="ask-suggestion"
             aria-pressed={c.action === chosen}
             title={candidateTitle(c, tr("Skill を使わない"))}
-            onClick={() => {
-              setPicked(c.action);
-              setResult(null);
-              noteRef.current?.focus();
-              // 選び直したら、その依頼文をコピーする
-              void copy(c.action);
-            }}
+            onClick={() => pick(c)}
           >
-            {c.recommended ? (
-              <span className="ask-star" aria-label={tr("おすすめ")}>
-                ★
-              </span>
-            ) : null}
+            {c.recommended ? <RecDot /> : null}
             {trCore(c.label)}
           </button>
         ))}
+        {rest.length > 0 ? (
+          <button
+            type="button"
+            className="ask-suggestion ask-more"
+            aria-haspopup="menu"
+            aria-expanded={moreAt !== null}
+            title={tr("ほかの頼むことを選ぶ")}
+            onClick={(e) => setMoreAt(moreAt ? null : e.currentTarget)}
+          >
+            {tr("ほか {0}", rest.length)}
+            <span aria-hidden="true"> ▾</span>
+          </button>
+        ) : null}
       </div>
+      {/* 一覧は小窓の中に出す（外を押すと小窓が閉じるため）。Esc は一覧だけを閉じ、「ほか N」のボタンに戻る（PopupMenu が止める） */}
+      {moreAt && rest.length > 0 ? (
+        <PopupMenu
+          anchor={moreAt}
+          ariaLabel={tr("ほかの頼むこと")}
+          label={tr("ほかの頼むこと")}
+          ready
+          container={moreAt.closest(".ask-composer")}
+          onClose={(refocus) => {
+            if (refocus) moreAt.focus();
+            setMoreAt(null);
+          }}
+        >
+          {rest.map((c) => (
+            <button
+              key={c.action}
+              type="button"
+              role="menuitem"
+              className="ask-menu-item"
+              title={candidateTitle(c, tr("Skill を使わない"))}
+              onClick={() => {
+                setMoreAt(null);
+                pick(c);
+              }}
+            >
+              <span>{trCore(c.label)}</span>
+              {c.recommended ? <RecDot /> : null}
+            </button>
+          ))}
+        </PopupMenu>
+      ) : null}
       <div className="ask-box">
         {skillPill || candidate?.meaning ? (
           <p className="ask-meaning">

@@ -13,6 +13,7 @@ import {
   fixture,
   iteration,
   iterationDetail,
+  markedText,
   mockClient,
   plan,
   ticket,
@@ -58,12 +59,14 @@ const menu = () => screen.getByRole("menu");
 const items = () =>
   within(menu())
     .getAllByRole("menuitem")
-    .map((b) => b.textContent);
+    .map((b) => markedText(b));
 const composer = () => screen.getByRole("region", { name: "エージェントに頼む" });
 const pressed = () =>
-  within(within(composer()).getByRole("group", { name: "頼むこと" }))
-    .getAllByRole("button")
-    .find((b) => b.getAttribute("aria-pressed") === "true")?.textContent;
+  markedText(
+    within(within(composer()).getByRole("group", { name: "頼むこと" }))
+      .getAllByRole("button")
+      .find((b) => b.getAttribute("aria-pressed") === "true"),
+  );
 /** 吹き出しを押し、候補が届くのを待ってから名前の項目を選ぶ（候補は非同期に届くので、待たずに引くと読み込み中で落ちる） */
 async function pick(place: string, name: string | RegExp, recommended?: string) {
   fireEvent.click(bubble(place));
@@ -176,7 +179,7 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
       "自由に",
     ]);
     // 先頭の項目にフォーカスを置く
-    expect(document.activeElement?.textContent).toBe("進めるおすすめ");
+    expect(markedText(document.activeElement)).toBe("進めるおすすめ");
     // 一覧を開いている間は吹き出しを出し続ける
     expect(screen.getByText("画面").closest("[data-ask-spot]")!.getAttribute("data-ask-spot")).toBe(
       "active",
@@ -434,7 +437,7 @@ describe("入力欄を頼むことを選んで開く", () => {
       t.id === "t3" ? { ...t, status: "review" } : t,
     );
     act(() => send!({ kind: "event", name: "reload" }));
-    await waitFor(() => expect(pressed()).toBe("★確かめて片付ける"));
+    await waitFor(() => expect(pressed()).toBe("おすすめ確かめて片付ける"));
   });
 });
 
