@@ -1,6 +1,7 @@
 // 吹き出しの一覧（UI-15）。dg serve の画面を Chromium で開き、
 // カンバンとバックログの行・区画の見出し、Iteration の詳細の行の吹き出しを押すと頼むことの一覧が画面の中に出て、
-// 選ぶと入力欄が開くことと、入力欄の頼むことの札が（入らなければ折り返して）幅に収まり、閉じるボタンが残ること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-027）を確かめる。
+// おすすめが青い点（aria-label と title が「おすすめ」）で出て、選ぶと入力欄が開くことと、入力欄の頼むことの札がおすすめ・選んだ候補・「ほか N」の 3 つまでで幅に収まり、
+// 「ほか N」の一覧も幅の中に出て、閉じるボタンが残ること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-027）を確かめる。
 // 行の左端の帯（styles.css の [data-select-id]::before）は、押すと 1 件を選ぶ・外すになり、足しても行の配置は変わらず、hover で薄く、hover のない画面では常に薄く出ることを確かめる。
 // 帯の幅は 12px（STRIP_PX と同じ）で、内側の端（11px）は選び、外側の端（13px）は詳細を開くことも確かめる。
 // 帯を押したままなぞると通った行をまとめて選ぶ（マウスとペン。タッチは選ばずスクロール）、帯の外から始めたなぞりは選ばず、一覧の端では画面の外の行まで続けて選べることも確かめる。
@@ -18,7 +19,7 @@ import { SETUP_OVERRIDE } from "./setup-override.js";
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 /** 左パネルの幅 */
 const WIDTH = 300;
-/** 札が確実に折り返す狭い幅 */
+/** 入力欄の札と「ほか N」の一覧が幅に収まるかを見る狭い幅 */
 const NARROW_WIDTH = 200;
 /** エディタのパネルの幅（Iteration の詳細は段分けの一覧で出す） */
 const PANEL_WIDTH = 800;
@@ -128,8 +129,15 @@ describe("吹き出しの一覧（UI-15）", () => {
       1,
     );
 
-    expect((await openMenu(page, row))[0]).toContain("おすすめ");
-    await page.locator(".ask-menu [role=menuitem]").first().click();
+    await openMenu(page, row);
+    // おすすめは先頭の項目の青い点（ask-menu.tsx の RecDot）。意味は読み上げの名前と title に持つ
+    const first = page.locator(".ask-menu [role=menuitem]").first();
+    const dot = page.locator(".ask-menu .ask-rec");
+    expect(await dot.count(), "おすすめの点の数").toBe(1);
+    expect(await first.locator(".ask-rec").count(), "おすすめは先頭の項目").toBe(1);
+    expect(await dot.getAttribute("aria-label")).toBe("おすすめ");
+    expect(await dot.getAttribute("title")).toBe("おすすめ");
+    await first.click();
     await page.locator(".ask-composer").waitFor();
     await page.keyboard.press("Escape");
 
@@ -192,7 +200,7 @@ describe("吹き出しの一覧（UI-15）", () => {
   });
 
   it.each([WIDTH, NARROW_WIDTH])(
-    "幅 %ipx の左パネルの入力欄は頼むことの札を（入らなければ折り返して）幅の中に収め、すべての札を選べて、閉じるボタンも残る",
+    "幅 %ipx の左パネルの入力欄は、頼むことの札をおすすめ・選んだ候補・「ほか N」の 3 つまでにして幅の中に収め、「ほか N」の一覧も幅の中に出て選べ、閉じるボタンも残る",
     async (width) => {
       const page = await browser.newPage({ viewport: { width, height: 800 } });
       await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
@@ -200,30 +208,46 @@ describe("吹き出しの一覧（UI-15）", () => {
         has: page.locator('a[href="#/tickets/t2"]'),
       });
       await row.waitFor();
-      await openMenu(page, row, width);
-      await page.locator(".ask-menu [role=menuitem]").first().click();
+      const items = await openMenu(page, row, width);
+      // 候補が 3 つ以上あるとき（in_progress の t2 は、再開する・様子を聞く・変える・検討する・説明する・自由に）、
+      // おすすめでない 2 番目を選んで開くと、札はおすすめ・選んだ候補・「ほか N」の 3 つになる（ask-composer.tsx の onRow と rest）
+      expect(items.length, "頼むことの候補の数").toBeGreaterThanOrEqual(3);
+      await page.locator(".ask-menu [role=menuitem]").nth(1).click();
       const composer = page.locator(".ask-composer");
       await composer.waitFor();
-      const chips = composer.locator("button.ask-suggestion");
-      await expect.poll(() => chips.count()).toBeGreaterThan(1);
-      const count = await chips.count();
-      // 折り返すのは札が 1 行に入らないときだけなので、折り返したことは札が確実に入らない 200px で確かめる。
-      // 300px で 1 行に収まるかは札の顔ぶれと名前で決まる（in_progress の t2 の札は、再開する・様子を聞く・変える・検討する・説明する・自由に）。
-      // 収まるときに折り返さないのは正しい画面なので、300px では幅に収まることだけを見る
-      if (width === NARROW_WIDTH) {
-        const rows = new Set(
-          await chips.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().y))),
-        );
-        expect(rows.size, "札の行の数").toBeGreaterThanOrEqual(2);
-      }
-      for (let i = 0; i < count; i++) {
+      const chips = composer.locator(".ask-suggestions > button");
+      await expect.poll(() => chips.count()).toBe(3);
+      const rec = chips.nth(0);
+      const recDot = rec.locator(".ask-rec");
+      expect(await recDot.count(), "先頭の札はおすすめの青い点を持つ").toBe(1);
+      expect(await recDot.getAttribute("aria-label")).toBe("おすすめ");
+      expect(await recDot.getAttribute("title")).toBe("おすすめ");
+      expect(await rec.getAttribute("aria-pressed"), "おすすめは選んでいない").toBe("false");
+      expect(await chips.nth(1).getAttribute("aria-pressed"), "選んだ候補").toBe("true");
+      expect(await chips.nth(1).textContent()).toBe(items[1]);
+      const more = chips.nth(2);
+      expect(await more.getAttribute("class"), "最後の札は「ほか N」").toContain("ask-more");
+      expect(await more.textContent()).toContain(String(items.length - 2));
+      for (let i = 0; i < 3; i++) {
         const box = (await chips.nth(i).boundingBox())!;
         expect(box.x, `札 ${i} の左端`).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width, `札 ${i} の右端`).toBeLessThanOrEqual(width);
-        // 幅の外に隠れず、押せる
-        await chips.nth(i).click();
-        expect(await chips.nth(i).getAttribute("aria-pressed"), `札 ${i} を選ぶ`).toBe("true");
       }
+      // 「ほか N」の一覧は小窓の中に出て幅に収まり、残りの候補を選ぶと札の 2 番目がその候補に替わる（札は 3 つのまま）
+      await more.click();
+      const list = composer.locator(".ask-menu");
+      await list.waitFor();
+      const rest = list.locator("[role=menuitem]");
+      expect(await rest.count(), "「ほか N」の一覧の候補の数").toBe(items.length - 2);
+      const listBox = (await list.boundingBox())!;
+      expect(listBox.x, "一覧の左端").toBeGreaterThanOrEqual(0);
+      expect(listBox.x + listBox.width, "一覧の右端").toBeLessThanOrEqual(width);
+      const last = (await rest.last().textContent())!;
+      await rest.last().click();
+      await list.waitFor({ state: "detached" });
+      await expect.poll(() => chips.nth(1).textContent()).toBe(last);
+      expect(await chips.count(), "選び直しても札は 3 つ").toBe(3);
+      expect(await chips.nth(1).getAttribute("aria-pressed")).toBe("true");
       // 閉じるボタンの右端は小数の丸めで幅を 0.5px 超えることがある（幅 200px で 200.27px を実測）。
       // 札と違って溢れは見た目に出ない差なので、0.5px までの超えは許す
       const close = (await composer.getByRole("button", { name: "閉じる" }).boundingBox())!;
