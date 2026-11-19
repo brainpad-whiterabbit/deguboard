@@ -20,13 +20,22 @@ export function isSourceFile(file) {
   return /\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/.test(file) && !/\.d\.[mc]?ts$/.test(file);
 }
 
+/** 拡張子を除いたパス（a/b/foo.ts → a/b/foo） */
+function stem(file) {
+  return file.replace(/\.[^./]+$/, "");
+}
+
 /**
- * 変えたファイル（changed）から回すテストを選ぶ。tests はリポジトリにあるテストファイルの一覧（ルートからの / 区切りのパス）。
- * 変えたテストファイルと、変えたソースのファイルと名前で対になるテスト（同じディレクトリの <名前>.test.ts(x) と、
- * test/ の下の <名前>.test.ts）を返す。対になるテストがないソースのファイルは unpaired に返す
+ * 変えたファイル（changed）から回すテストを選ぶ。tests はリポジトリにあるテストファイルの一覧、sources はソースのファイルの
+ * 一覧（どちらもルートからの / 区切りのパス）。変えたテストファイルと、変えたソースのファイルと名前で対になるテスト
+ * （同じディレクトリの <名前>.test.ts(x)、同じディレクトリの <名前>-*.test.ts(x) のうち同じ名前のソースを持たないもの、
+ * test/ の下の <名前>.test.ts）を返す。対になるテストがないソースのファイルは unpaired に返す。
+ * <名前>-*.test.ts(x) を選ぶのは、flow-permission.test.ts のように 1 つのソースのテストを分けたファイルがあるため。
+ * hook-settings.test.ts のように hook-settings.ts を持つものは、そのソースの対なので hook.ts では選ばない
  */
-export function selectRelatedTests(changed, tests) {
+export function selectRelatedTests(changed, tests, sources) {
   const testSet = new Set(tests);
+  const sourceStems = new Set(sources.filter(isSourceFile).map(stem));
   const selected = new Set();
   const unpaired = [];
   for (const file of changed) {
@@ -42,10 +51,19 @@ export function selectRelatedTests(changed, tests) {
       (test) =>
         test === `${dir}${name}.test.ts` ||
         test === `${dir}${name}.test.tsx` ||
-        (test.startsWith("test/") && test.endsWith(`/${name}.test.ts`)),
+        (test.startsWith("test/") && test.endsWith(`/${name}.test.ts`)) ||
+        isSplitTest(test, `${dir}${name}-`, sourceStems),
     );
     if (paired.length === 0) unpaired.push(file);
     for (const test of paired) selected.add(test);
   }
   return { tests: [...selected].sort(), unpaired };
+}
+
+/** test が prefix で始まる同じディレクトリの <名前>-*.test.ts(x) で、同じ名前のソースを持たないか */
+function isSplitTest(test, prefix, sourceStems) {
+  const match = /^(.+)\.test\.tsx?$/.exec(test);
+  if (!match || !test.startsWith(prefix)) return false;
+  const testStem = match[1];
+  return !testStem.slice(prefix.length).includes("/") && !sourceStems.has(testStem);
 }

@@ -37,7 +37,7 @@ description = "vitest でテストする"
 run = "pnpm run test"
 
 [tasks."test:related"]
-description = "作業の途中に、変えたファイルに関わるテストだけを vitest で回す。変えたファイルは origin/main との分岐点からの差分（コミット済み・ステージ・未ステージ・未追跡）で、関わるテストは変えたテストファイルと、変えたソースと名前で対になるテスト（同じディレクトリの <名前>.test.ts(x) と test/ の下の <名前>.test.ts）。import はたどらない。選ばれないテストは、チケットの作業では push の前の dg gate <id> --only check、チケットの外の作業ではコミットの前の mise run check の全体のテストが見る。対になるテストがないソースのファイルはその旨を 1 行出す。関わるテストがなければ何も回さずに成功する。全体のテストの lock には入らず待たずに回る（選び方は scripts/lib/related-tests.mjs、ワーカー数の決まりは vitest.workers.ts のコメント）。全体は mise run test"
+description = "作業の途中に、変えたファイルに関わるテストだけを vitest で回す。変えたファイルは origin/main との分岐点からの差分（コミット済み・ステージ・未ステージ・未追跡）で、関わるテストは変えたテストファイルと、変えたソースと名前で対になるテスト（同じディレクトリの <名前>.test.ts(x)、同じディレクトリの <名前>-*.test.ts(x) のうち同じ名前のソースを持たないもの、test/ の下の <名前>.test.ts）。import はたどらない。選ばれないテストは、チケットの作業では push の前の dg gate <id> --only check、チケットの外の作業ではコミットの前の mise run check の全体のテストが見る。対になるテストがないソースのファイルはその旨を 1 行出す。関わるテストがなければ何も回さずに成功する。全体のテストの lock には入らず待たずに回る（選び方は scripts/lib/related-tests.mjs、ワーカー数の決まりは vitest.workers.ts のコメント）。全体は mise run test"
 run = "pnpm run test:related"
 
 [tasks."test:layout"]

@@ -14,6 +14,29 @@ const tests = [
   "test/scripts/gif.test.ts",
   "test/scripts/check-docs.test.ts",
   "test/lint/vitest-max-workers.test.ts",
+  "packages/core/src/commands/iteration-next.test.ts",
+  "packages/core/src/commands/flow.test.ts",
+  "packages/core/src/commands/flow-permission.test.ts",
+  "packages/web/src/l10n.test.ts",
+  "packages/web/src/l10n-screens.test.tsx",
+];
+
+const sources = [
+  "packages/core/src/commands/hook.ts",
+  "packages/core/src/commands/hook-settings.ts",
+  "packages/core/src/commands/hook-argv.ts",
+  "packages/core/src/commands/orphan-review.ts",
+  "packages/core/src/commands/orphan-review-judge.ts",
+  "packages/core/src/commands/iteration.ts",
+  "packages/core/src/commands/flow.ts",
+  "packages/core/src/commands/flow-records.ts",
+  "packages/web/src/l10n.ts",
+  "packages/web/src/l10n-core.ts",
+  "packages/web/src/components/Board.tsx",
+  "scripts/lib/gif.mjs",
+  "scripts/lib/gif.d.mts",
+  "scripts/check-docs.mjs",
+  "vitest.workers.ts",
 ];
 
 describe("test:related が回すテストの選び方", () => {
@@ -28,6 +51,7 @@ describe("test:related が回すテストの選び方", () => {
           "packages/core/src/commands/orphan-review.test.ts",
         ],
         tests,
+        sources,
       ),
     ).toEqual({
       tests: [
@@ -40,8 +64,32 @@ describe("test:related が回すテストの選び方", () => {
   });
 
   it("名前の一部が重なるだけのテストや、import で関わるほかのパッケージのテストは選ばない", () => {
-    const selected = selectRelatedTests(["packages/core/src/commands/hook.ts"], tests);
+    // hook-settings.test.ts は hook-settings.ts を持つので、hook.ts を変えても選ばない
+    const selected = selectRelatedTests(["packages/core/src/commands/hook.ts"], tests, sources);
     expect(selected.tests).toEqual(["packages/core/src/commands/hook.test.ts"]);
+  });
+
+  it("同じ名前のソースを持たない <名前>-*.test.ts(x) は、分けたテストとして対にする", () => {
+    expect(
+      selectRelatedTests(
+        [
+          "packages/core/src/commands/iteration.ts",
+          "packages/core/src/commands/flow.ts",
+          "packages/web/src/l10n.ts",
+        ],
+        tests,
+        sources,
+      ),
+    ).toEqual({
+      tests: [
+        "packages/core/src/commands/flow-permission.test.ts",
+        "packages/core/src/commands/flow.test.ts",
+        "packages/core/src/commands/iteration-next.test.ts",
+        "packages/web/src/l10n-screens.test.tsx",
+        "packages/web/src/l10n.test.ts",
+      ],
+      unpaired: [],
+    });
   });
 
   it("tsx のテストと、test/ の下の同じ名前のテストも対にする", () => {
@@ -49,6 +97,7 @@ describe("test:related が回すテストの選び方", () => {
       selectRelatedTests(
         ["packages/web/src/components/Board.tsx", "scripts/lib/gif.mjs", "scripts/check-docs.mjs"],
         tests,
+        sources,
       ).tests,
     ).toEqual([
       "packages/web/src/components/Board.test.tsx",
@@ -68,6 +117,7 @@ describe("test:related が回すテストの選び方", () => {
           "scripts/lib/gif.d.mts",
         ],
         tests,
+        sources,
       ),
     ).toEqual({
       tests: [],
@@ -76,7 +126,7 @@ describe("test:related が回すテストの選び方", () => {
   });
 
   it("変えたファイルがなければ何も選ばない", () => {
-    expect(selectRelatedTests([], tests)).toEqual({ tests: [], unpaired: [] });
+    expect(selectRelatedTests([], tests, sources)).toEqual({ tests: [], unpaired: [] });
   });
 
   it("vitest.config.ts の include に当たるファイルだけをテストファイルとみなす", () => {

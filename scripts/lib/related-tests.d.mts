@@ -6,4 +6,5 @@ export function isSourceFile(file: string): boolean;
 export function selectRelatedTests(
   changed: readonly string[],
   tests: readonly string[],
+  sources: readonly string[],
 ): { tests: string[]; unpaired: string[] };
