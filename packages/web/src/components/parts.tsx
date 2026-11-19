@@ -3,7 +3,7 @@
 import { type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import { BACKLOG_TICKET_SECTION, useAskSpot, type AskSection } from "./ask-menu.js";
 import { useEpicHighlightClass } from "./epic-chip.js";
-import { shortSpan } from "./date-time.js";
+import { shortSpan, useMinuteNow } from "./date-time.js";
 import { RowLabels, useRowLabels } from "./row-labels.js";
 import { useRowUpdated } from "./row-sort.js";
 import { useHost } from "../host.js";
@@ -446,11 +446,12 @@ export function TicketRow({
  * 欄は触れられない（押すと下の行のリンクが受ける）ので、正確な日時は dateTime にだけ持たせる
  */
 function RowUpdated({ iso }: { iso: string }) {
+  const now = useMinuteNow();
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return null;
   return (
     <time className="row-updated" dateTime={iso}>
-      {tr("{0}前", shortSpan(Date.now() - ms))}
+      {tr("{0}前", shortSpan(now - ms))}
     </time>
   );
 }

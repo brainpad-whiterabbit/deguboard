@@ -3,7 +3,7 @@
 // カンバンの行（KanbanRowEnd）とバックログの行（BacklogRowEnd）で同じ判定と同じ部品で出す。
 // カンバンの行は、下の段にチケットの Run を 1 回 1 つの丸で並べる（RunPips。run.recent の要約を読むだけで、dg は呼ばない）
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { AssigneeMark } from "./assignee-mark.js";
 import { RowPriority } from "./parts.js";
 import { openPlanByTicket, planColor, waitsOf } from "./plan-graph.js";
@@ -16,7 +16,7 @@ import {
   type RunResultKey,
 } from "./run-parts.js";
 import { formatTime } from "./timeline.js";
-import { shortSpan } from "./date-time.js";
+import { shortSpan, useMinuteNow } from "./date-time.js";
 import {
   isOwnAssignee,
   type PlanRow,
@@ -211,16 +211,6 @@ export function runPipDetails(
   const error = runErrorText(run);
   if (error) lines.push(error);
   return lines;
-}
-
-/** 経過の文字を 1 分ごとに描き直すための今の時刻（dg は呼ばず、描き直すだけ） */
-function useMinuteNow(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
-  return now;
 }
 
 /**
