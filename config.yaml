@@ -16,7 +16,6 @@ merge:
   method: squash
   delete_branch: true
 actions:
-  shell: false
   test:
     - mise
     - run
@@ -35,6 +34,11 @@ actions:
     - packages/vscode/images/**
     - packages/vscode/media/icon.png
     - packages/vscode/media/deguboard.svg
+  pre_review_test:
+    - mise
+    - run
+    - check:pre-review
+  shell: false
 worktree:
   root: ../<repo>.worktrees
   setup:
