@@ -3,7 +3,7 @@ tickets: [t1166, t1167, t1168, t1169, t1170, t1171, t1172, t1173, t1175, t1174]
 after:
   t1174:
     - t1167
-pending_approval: true
+pending_approval: false
 details:
   t1166:
     scope: test:vscode の設定画面のテストの準備を今の既定と違う値にし、依存グラフのテストを前のテストに頼らなくする
@@ -45,3 +45,5 @@ details:
     scope: base の fetch・ref の名前・読む段の条件の重複をまとめる。振る舞いは変えない
     approach: facts.ts に fetch と ref の名前の関数を置き、next.ts は gateReads から読む段を得る
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-19T17:56:55Z
