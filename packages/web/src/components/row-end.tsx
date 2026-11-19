@@ -16,6 +16,7 @@ import {
   type RunResultKey,
 } from "./run-parts.js";
 import { formatTime } from "./timeline.js";
+import { shortSpan } from "./date-time.js";
 import {
   isOwnAssignee,
   type PlanRow,
@@ -165,14 +166,6 @@ export function runTone(runs: TicketRunsView): "waiting" | "failed" | null {
   const key = runPipKey(last);
   if (key === "waiting") return "waiting";
   return key === "failure" || key === "interrupted" ? "failed" : null;
-}
-
-/** 経過の短い書き方：1 時間未満は分、1 日未満は時間、それより長ければ日（切り捨て） */
-export function shortSpan(ms: number): string {
-  const minutes = Math.max(0, Math.floor(ms / 60_000));
-  if (minutes < 60) return tr("{0}分", minutes);
-  const hours = Math.floor(minutes / 60);
-  return hours < 24 ? tr("{0}時間", hours) : tr("{0}日", Math.floor(hours / 24));
 }
 
 const msOf = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : Number.NaN);

@@ -3427,6 +3427,129 @@ describe("画面", () => {
     expect(screen.getByRole("button", { name: "表示" }).classList.contains("active")).toBe(false);
   });
 
+  it("「表示」の並び順で、カンバンは状態の節の中だけを選んだ基準と向きで並べ、札（× で戻す）と更新日の相対の時刻を出す。並び順はタブごとに残る", async () => {
+    const host = hostOf("sidebar");
+    const client = boardClient();
+    client.data.tickets.push(
+      ticket({
+        id: "t4",
+        title: "設計",
+        priority: "high",
+        iteration: "s0",
+        updated_at: "2026-11-01T00:00:00Z",
+      }),
+      ticket({
+        id: "t5",
+        title: "文書",
+        priority: "low",
+        iteration: "s0",
+        updated_at: "2026-11-04T10:00:00Z",
+      }),
+    );
+    mount(client, host);
+    await screen.findByText("文書");
+    const titlesOf = (status: string) =>
+      [...document.querySelectorAll(`details[data-status="${status}"] .row-title`)].map(
+        (e) => e.textContent,
+      );
+    const sections = () =>
+      [...document.querySelectorAll("details[data-status]")].map((d) =>
+        d.getAttribute("data-status"),
+      );
+    const before = sections();
+    // 既定は優先度（high → low）、同じなら番号の順
+    expect(titlesOf("todo")).toEqual(["設計", "画面", "文書"]);
+    expect(document.querySelector(".sort-chip")).toBeNull();
+
+    const view = screen.getByRole("button", { name: "表示" });
+    fireEvent.click(view);
+    // カンバンは節が Status なので、Status の基準はない
+    expect(screen.getAllByRole("menuitemradio").map((e) => e.getAttribute("aria-label"))).toEqual([
+      "優先度 ↓",
+      "番号",
+      "更新日",
+    ]);
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "更新日" }));
+    expect(titlesOf("todo")).toEqual(["文書", "設計", "画面"]);
+    expect(sections()).toEqual(before);
+    expect(host.state.get("board.sort")).toEqual({ key: "updated", dir: "desc" });
+    expect(document.querySelector(".sort-chip")!.textContent).toBe("並び 更新日 ↓×");
+    expect(
+      screen.getByRole("button", { name: "表示（既定と違う）" }).classList.contains("active"),
+    ).toBe(true);
+    // 更新日で並べている間は、行の 2 段目に相対の更新時刻を出す（今は 2026-11-04 12:00 UTC）
+    const row = kanbanRowOf("文書").closest<HTMLElement>(".row-item")!;
+    expect(row.classList.contains("has-updated")).toBe(true);
+    expect(row.querySelector(".row-sub .row-updated")!.textContent).toBe("2時間前");
+    // ラベルのある行は時刻の右にラベルを並べる
+    expect(
+      kanbanRowOf("画面")
+        .closest(".row-item")!
+        .querySelector(".row-sub .row-updated + .row-labels"),
+    ).toBeTruthy();
+
+    // 選んでいる基準をもう一度押すと向きが入れ替わる
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "更新日 ↓" }));
+    expect(titlesOf("todo")).toEqual(["画面", "設計", "文書"]);
+    expect(document.querySelector(".sort-chip")!.textContent).toBe("並び 更新日 ↑×");
+
+    // 「既定に戻す」で既定に戻り、時刻と札は消える
+    fireEvent.click(screen.getByRole("menuitem", { name: "既定に戻す" }));
+    expect(titlesOf("todo")).toEqual(["設計", "画面", "文書"]);
+    expect(document.querySelector(".row-updated")).toBeNull();
+    expect(document.querySelector(".sort-chip")).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "既定に戻す" })).toBeNull();
+
+    // 番号 ↑ にして札の × で戻す
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "番号" }));
+    expect(titlesOf("todo")).toEqual(["画面", "設計", "文書"]);
+    fireEvent.click(screen.getByRole("button", { name: "並び 番号 ↑ を既定に戻す" }));
+    expect(titlesOf("todo")).toEqual(["設計", "画面", "文書"]);
+
+    // バックログの並び順はカンバンと別に残る
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "番号" }));
+    act(() => {
+      window.location.hash = "#/backlog";
+    });
+    await screen.findByLabelText("検索");
+    expect(document.querySelector(".sort-chip")).toBeNull();
+    expect(host.state.get("board.sort")).toEqual({ key: "number", dir: "asc" });
+  });
+
+  it("「表示」の並び順で、バックログは Iteration の区画の中だけを並べ、Status（review → in_progress → todo）でも並べられる。区画の順は変えない", async () => {
+    const host = hostOf("sidebar");
+    window.location.hash = "#/backlog";
+    const client = boardClient();
+    client.data.iterations.push(iteration({ id: "s1", name: "次", status: "planned" }));
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "設計", status: "review", priority: "low", iteration: "s0" }),
+      ticket({ id: "t5", title: "文書", iteration: "s1" }),
+      ticket({ id: "t6", title: "試験", status: "review", iteration: "s1" }),
+    );
+    mount(client, host);
+    await screen.findByText("文書");
+    const sectionTitles = () =>
+      [...document.querySelectorAll(".backlog-section")].map((s) =>
+        [...s.querySelectorAll(".row-title")].map((e) => e.textContent),
+      );
+    expect(sectionTitles()).toEqual([["API", "画面", "設計"], ["文書", "試験"], []]);
+
+    fireEvent.click(screen.getByRole("button", { name: "表示" }));
+    expect(screen.getAllByRole("menuitemradio").map((e) => e.getAttribute("aria-label"))).toEqual([
+      "優先度 ↓",
+      "番号",
+      "更新日",
+      "Status",
+    ]);
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Status" }));
+    expect(sectionTitles()).toEqual([["設計", "API", "画面"], ["試験", "文書"], []]);
+    expect(host.state.get("backlog.sort")).toEqual({ key: "status", dir: "desc" });
+    // 札はよく使う絞り込みの行に出す
+    expect(document.querySelector(".quick-filters .sort-chip")!.textContent).toBe("並び Status ↓×");
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Status ↓" }));
+    expect(sectionTitles()).toEqual([["画面", "API", "設計"], ["文書", "試験"], []]);
+  });
+
   it("カンバンの Epic の札は、選んでいる範囲のチケットがある開いた Epic だけ。「なし」の件数は範囲の Epic のないチケット", async () => {
     const client = boardClient();
     client.data.iterations = [

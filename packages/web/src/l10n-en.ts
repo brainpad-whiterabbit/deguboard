@@ -426,11 +426,19 @@ export const EN: Readonly<Record<string, string>> = {
   "履歴が浅い clone なので、これより前の経過は欠けている":
     "This is a shallow clone, so earlier history is missing",
   "経過はない（まだコミットされていない）": "No timeline yet (not committed)",
+  // components/row-sort.ts
+  番号: "Number",
+  更新日: "Updated",
   // components/view-menu.tsx
   ラベルを出す: "Show labels",
   "表示（既定と違う）": "View (changed)",
   表示: "View",
   表示を切り替える: "Change the view",
+  並び順: "Sort by",
+  向きを入れ替える: "Reverse the order",
+  "{0} で並べる": "Sort by {0}",
+  "並び {0} {1}": "Sort {0} {1}",
+  "{0} を既定に戻す": "Reset {0} to default",
   // components/worktree-row.tsx
   "worktree のパスをコピー": "Copy worktree path",
   // host.tsx

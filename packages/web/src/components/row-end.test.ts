@@ -9,11 +9,11 @@ import {
   runPipDetails,
   runPipKey,
   runTone,
-  shortSpan,
   showRunPips,
   stepLabelOf,
   waitLabel,
 } from "./row-end.js";
+import { shortSpan } from "./date-time.js";
 import { formatTime } from "./timeline.js";
 
 describe("左パネルのカンバンの行の Plan の番号と待ち", () => {

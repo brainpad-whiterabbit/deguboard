@@ -1,10 +1,21 @@
 // 左パネルの「表示」ボタンとメニュー（UI-2・UI-3）。バックログは検索欄の漏斗の隣、カンバンは見出しの漏斗の隣に置き、
-// 行の見た目（今はラベルを出すか）を切り替える。値は人ごとの見た目なので host.state に残し（useUiState）、2 つのタブで同じ値を使う。
-// 既定と違う間はボタンを色付きにする（styles.css の .view-toggle.active）。メニューの項目は ViewMenuCheck を足して増やす
+// 行の見た目（ラベルを出すか）と並び順（components/row-sort.ts）を切り替える。値は人ごとの見た目なので host.state に残す（useUiState）。
+// ラベルを出すかは 2 つのタブで同じ値、並び順はタブごとの値。
+// 既定と違う間はボタンを色付きにする（styles.css の .view-toggle.active）。メニューの項目は ViewMenuCheck を足して増やす。
+// メニューは上の端の帯には入れない（並びが既定と違うことは帯の札 RowSortChip で知らせ、× で戻せる）
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useUiState } from "../host.js";
 import { tr } from "../l10n.js";
+import {
+  DEFAULT_ROW_SORT,
+  pickRowSort,
+  ROW_SORT_LABELS,
+  rowSortArrow,
+  rowSortChanged,
+  type RowSort,
+  type RowSortKey,
+} from "./row-sort.js";
 
 /** 行の見た目の選び方。項目を足すときは DEFAULT_ROW_VIEW と rowViewOf も直す */
 export interface RowView {
@@ -38,20 +49,100 @@ export function useRowView(): [RowView, (patch: Partial<RowView>) => void] {
   return [view, (patch) => setStored({ ...view, ...patch })];
 }
 
-/** 行の見た目のメニュー（バックログとカンバンで同じ）。項目を足すときはここに ViewMenuCheck などを並べる */
+/** メニューの並び順の欄に渡すもの。keys はそのタブで選べる基準（components/row-sort.ts） */
+export interface RowSortMenu {
+  sort: RowSort;
+  keys: readonly RowSortKey[];
+  onChange: (sort: RowSort) => void;
+}
+
+/**
+ * 行の見た目のメニュー（バックログとカンバンで同じ）。項目を足すときはここに ViewMenuCheck などを並べる。
+ * sort を渡すと、その下に並び順の基準を並べる（選んでいる基準は ✓ と向きの矢印。もう一度押すと向きを入れ替える。pickRowSort）。
+ * 見た目か並びが既定と違う間は、最後に「既定に戻す」を出す（ラベルの表示と並び順をどちらも既定にする）
+ */
 export function RowViewMenu({
   view,
   onChange,
+  sort,
 }: {
   view: RowView;
   onChange: (patch: Partial<RowView>) => void;
+  sort?: RowSortMenu | undefined;
 }) {
+  const sorted = !!sort && rowSortChanged(sort.sort);
+  const changed = rowViewChanged(view) || sorted;
   return (
-    <ViewMenu changed={rowViewChanged(view)}>
+    <ViewMenu changed={changed}>
       <ViewMenuCheck checked={view.labels} onToggle={() => onChange({ labels: !view.labels })}>
         {tr("ラベルを出す")}
       </ViewMenuCheck>
+      {sort ? (
+        <div className="view-menu-group" role="group" aria-label={tr("並び順")}>
+          <div className="view-menu-head" aria-hidden="true">
+            {tr("並び順")}
+          </div>
+          {sort.keys.map((key) => {
+            const on = sort.sort.key === key;
+            const name = tr(ROW_SORT_LABELS[key]);
+            return (
+              <button
+                key={key}
+                type="button"
+                role="menuitemradio"
+                aria-checked={on}
+                aria-label={on ? `${name} ${rowSortArrow(sort.sort.dir)}` : name}
+                title={on ? tr("向きを入れ替える") : tr("{0} で並べる", name)}
+                className="view-menu-item"
+                onClick={() => sort.onChange(pickRowSort(sort.sort, key))}
+              >
+                <span className="view-menu-check" aria-hidden="true">
+                  {on ? "✓" : ""}
+                </span>
+                {name}
+                {on ? (
+                  <span className="view-menu-dir" aria-hidden="true">
+                    {rowSortArrow(sort.sort.dir)}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      {changed ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="view-menu-item view-menu-reset"
+          onClick={(e) => {
+            // 戻すとこの項目は消えるので、フォーカスをメニューの最初の項目へ移す（メニューの外へ落とさない）
+            e.currentTarget
+              .closest('[role="menu"]')
+              ?.querySelector<HTMLElement>('[role^="menuitem"]')
+              ?.focus();
+            if (rowViewChanged(view)) onChange(DEFAULT_ROW_VIEW);
+            if (sorted) sort?.onChange(DEFAULT_ROW_SORT);
+          }}
+        >
+          <span className="view-menu-check" aria-hidden="true" />
+          {tr("既定に戻す")}
+        </button>
+      ) : null}
     </ViewMenu>
+  );
+}
+
+/** 並びが既定と違う間に出す札（「並び 更新日 ↓」）。× で既定に戻す。バックログの絞り込みの行・カンバンの見出しの下と、上の端の帯で使う */
+export function RowSortChip({ sort, onReset }: { sort: RowSort; onReset: () => void }) {
+  const text = tr("並び {0} {1}", tr(ROW_SORT_LABELS[sort.key]), rowSortArrow(sort.dir));
+  return (
+    <span className="filter-chip sort-chip" title={text}>
+      <span className="filter-chip-text">{text}</span>
+      <button type="button" aria-label={tr("{0} を既定に戻す", text)} onClick={onReset}>
+        ×
+      </button>
+    </span>
   );
 }
 

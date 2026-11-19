@@ -1561,7 +1561,8 @@ textarea.body {
 }
 .sub-row > .row.ticket-row > code,
 .sub-row.backlog > .row.ticket-row > :first-child,
-.sub-row.has-labels > .row.ticket-row > .row-title {
+.sub-row.has-labels > .row.ticket-row > .row-title,
+.sub-row.has-updated > .row.ticket-row > .row-title {
   grid-row: 1;
 }
 /* 1 行のタイトル（サイドバーの外）は番号と同じ 1 段目の高さに揃える */
@@ -1572,7 +1573,8 @@ textarea.body {
  * 行のラベルの欄（components/row-labels.tsx）。タイトルの列の 2 段目に札を横に並べ、入らない分は札の文字を省く（折り返して 3 段目を作らない）。
  * 欄の隙間は押しても行のリンクが受けるよう、欄は触れられず札だけが受ける
  */
-.row-labels {
+.row-labels,
+.row-sub {
   grid-row: 2;
   grid-column: 2;
   align-self: start;
@@ -1585,8 +1587,28 @@ textarea.body {
   overflow: hidden;
   pointer-events: none;
 }
-.sub-row.backlog > .row-labels {
+.sub-row.backlog > .row-labels,
+.sub-row.backlog > .row-sub {
   grid-column: 3;
+}
+/*
+ * 更新日で並べている間の 2 段目（components/parts.tsx の TicketRow）。先頭に相対の更新時刻（.row-updated）を置き、ラベルの欄をその右に並べる。
+ * 時刻は縮めず、入らない分はラベルの札が省かれる
+ */
+.row-sub {
+  align-items: center;
+  gap: 6px;
+}
+.row-sub > .row-labels {
+  flex: 0 1 auto;
+  padding-bottom: 0;
+}
+.row-updated {
+  flex: none;
+  font-size: 10.5px;
+  line-height: 16px;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
 }
 /*
  * ラベルの札。色は名前から決めた 6 色（.label-color-*）のどれかで、地と枠をその色で薄く塗り、文字はその色と前景色を混ぜて明暗どちらのテーマでも読めるようにする。
@@ -2467,6 +2489,28 @@ button.row-label[aria-pressed="true"] {
 .view-menu-check {
   width: 1em;
   text-align: center;
+}
+/* 並び順の欄（RowViewMenu の sort）。上の項目と線で分け、小さな見出しを置く。選んでいる基準は名前の右に向きの矢印を出す */
+.view-menu-group {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--vscode-menu-separatorBackground, var(--dg-border));
+}
+.view-menu-head {
+  padding: 2px 8px 2px calc(4px + 1em + 6px);
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+.view-menu-dir {
+  margin-left: auto;
+  padding-left: 12px;
+}
+.view-menu-reset {
+  margin-top: 4px;
+  border-top: 1px solid var(--vscode-menu-separatorBackground, var(--dg-border));
+  border-radius: 0 0 3px 3px;
 }
 .sidebar-head .period,
 .sidebar-section .period {

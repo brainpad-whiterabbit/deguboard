@@ -273,6 +273,19 @@ describe("左パネルのカンバンで見出しが上に抜けたら残す 1 �
     await vi.waitFor(() => expect(filters()).toBeNull());
   });
 
+  it("並びが既定と違う間は帯の 2 行目に並びの札を出し、× で既定に戻す。帯に「表示」のメニューは入れない", async () => {
+    mount(mockClient(boardFixture()));
+    await screen.findByText("API");
+    fireEvent.click(screen.getByRole("button", { name: "表示" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "更新日" }));
+    scrollTo("above");
+    const filters = () => document.querySelector<HTMLElement>(".sticky-band .board-band-filters");
+    expect(filters()!.textContent).toBe("並び 更新日 ↓×");
+    expect(document.querySelector(".sticky-band .view-menu")).toBeNull();
+    fireEvent.click(within(filters()!).getByRole("button", { name: "並び 更新日 ↓ を既定に戻す" }));
+    expect(filters()).toBeNull();
+  });
+
   it("状態の節の見出しは、貼り付いても頼む場所のままで、押せば節を開閉する", async () => {
     mount(mockClient(boardFixture()));
     await screen.findByText("ログイン");
@@ -325,6 +338,17 @@ describe("左パネルのバックログで検索の行の下に重ねる効い�
     scrollTo("above", STICKY_SEARCH_PX);
     expect(filters()!.textContent).toBe("1 / 2 件");
     scrollTo("visible", STICKY_SEARCH_PX);
+    expect(filters()).toBeNull();
+  });
+
+  it("絞っていなくても並びが既定と違う間に抜けたら、並びの札の行を出し、× で既定に戻すと消える。帯に「表示」のメニューは入れない", async () => {
+    await mountBacklog();
+    fireEvent.click(screen.getByRole("button", { name: "表示" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Status" }));
+    scrollTo("above", STICKY_SEARCH_PX);
+    expect(filters()!.textContent).toBe("並び Status ↓×");
+    expect(document.querySelector(".sticky-band .view-menu")).toBeNull();
+    fireEvent.click(within(filters()!).getByRole("button", { name: "並び Status ↓ を既定に戻す" }));
     expect(filters()).toBeNull();
   });
 
