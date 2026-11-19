@@ -1,7 +1,7 @@
 id: s43
 name: s43
 goal: 人が行を流し読みするときの手がかりになるよう、ラベルの軸と語彙を作り、起票しながら育て、点検でまとめられるようにする（e41：t1181〜t1189）。あわせて、使われていない Epic のラベルをなくす（t1180）。s42 の振り返りの Try を進め（t1190〜t1193）、落ちたままの test:layout を直す（t1179）。8,000 字の目安に近い ADR を分けて整理する（t1176）。
-status: planned
+status: active
 checkpoints:
   - name: check
     at: 2026-11-19T19:42:22Z
@@ -9,3 +9,4 @@ checkpoints:
     approved_by: maji/agent
     basis:
       facts: 5cb60fd14b27d826
+started_at: 2026-11-19T19:42:48Z
