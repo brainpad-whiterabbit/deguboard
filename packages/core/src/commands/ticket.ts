@@ -30,6 +30,7 @@ import type { Store } from "../storage/store.js";
 import { cyclePath, findPlanCycleCreatedBy } from "../storage/wait-cycle.js";
 import type { Facts } from "../workflow/conditions.js";
 import { operationPolicy, requiresForTicket, type Operation } from "../workflow/resolve.js";
+import { claimRejectionError, decideClaim, decideReclaim, workBranchName } from "./claim-judge.js";
 import {
   prepareIterationForClaim,
   prepareWorktreeForClaim,
@@ -1007,32 +1008,6 @@ export const ticketDelete = defineCommand({
 });
 
 /**
- * 作業ブランチの名前を `<id>-<値>` に組み立てる（ST-3）。ブランチからチケットを ID で探せるように、dg が ID を付ける。
- * 自分の ID と `-` で始まる値（と ID だけの値）はそのまま使い、別のチケットの ID で始まる値は取り違えるので拒む。
- * 値は英小文字・数字・ハイフンだけ（`/` を含む `feat/x` のような名前も拒む）
- */
-function workBranchName(ticketId: string, value: string): string {
-  if (value.length > BRANCH_VALUE_MAX) {
-    throw new UsageError(
-      `The branch value is ${value.length} characters long. Give short English words, up to ${BRANCH_VALUE_MAX} characters`,
-    );
-  }
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(value)) {
-    throw new UsageError(
-      `The branch value "${value}" has characters that cannot be used. Give short English words in lowercase letters, digits, and hyphens (dg records the branch as ${ticketId}-<value>)`,
-    );
-  }
-  if (value === ticketId || value.startsWith(`${ticketId}-`)) return value;
-  const otherId = /^t\d+(?=-|$)/.exec(value)?.[0];
-  if (otherId) {
-    throw new UsageError(
-      `The branch value "${value}" starts with another ticket's ID (${otherId}). Leave the ID out: dg puts ${ticketId}- in front of the value`,
-    );
-  }
-  return `${ticketId}-${value}`;
-}
-
-/**
  * 作業ブランチの既定の名前。title が ASCII だけなら `<id>-<title の slug>`、ほかの文字を含むなら `<id>` だけ。
  * 日本語の title から ASCII の断片（`dg`・`id` など）を拾うと、ブランチ名が中身を誤って伝えるので、英語の title のときだけ slug を作る
  */
@@ -1045,16 +1020,6 @@ function defaultBranchName(ticket: Ticket): string {
     .slice(0, 40)
     .replace(/^-+|-+$/g, "");
   return slug ? `${ticket.id}-${slug}` : ticket.id;
-}
-
-/** もう一度の claim になる条件：自分（同じユーザの人と AI）が claim 済みで PR のある in_progress・review のチケット（ST-9） */
-function isReclaim(ctx: CommandContext, ticket: Ticket): boolean {
-  return (
-    (ticket.status === "in_progress" || ticket.status === "review") &&
-    ticket.assignee !== undefined &&
-    sameUser(ticket.assignee, ctx.actor.id) &&
-    ticket.pr !== undefined
-  );
 }
 
 /**
@@ -1130,7 +1095,8 @@ async function openClaimRun(
  * agent なら手直しの Run（fix）を開く（RN-5）。開いたままの前の手直しの Run は、
  * openRun が次の Run の開始を区切りとして閉じてから開く（RN-6）。前の Run が別のセッションで開いたものなら、
  * そのセッションが落ちた残りとみなして interrupted で閉じる（RN-6）。この claim のセッションは sessionOf で決め、
- * サブエージェントの claim でも起動した親のセッションになる
+ * サブエージェントの claim でも起動した親のセッションになる。
+ * 拒むか（ブランチは変えられない）・Run を開くかは、何も読まない claim-judge.ts の decideReclaim が決める
  */
 async function reclaim(
   ctx: CommandContext,
@@ -1144,21 +1110,16 @@ async function reclaim(
   } & TranscriptInput,
   warnings: string[],
 ): Promise<RunId | null> {
-  // --branch は最初の claim と同じ値（`fix-login`）でも通るように、組み立てた後の名前で比べる（ST-3）。
-  // 記録済みの名前そのもの（`<id>-` を付ける前の版が記録した `feature/x` など）は、組み立てずに通す
-  const sameBranch =
-    input.branch === undefined ||
-    input.branch === doc.data.branch ||
-    workBranchName(doc.id, input.branch) === doc.data.branch;
-  if (input.without_branch || !sameBranch) {
-    throw new UsageError(
-      `${doc.id} is already claimed (branch ${doc.data.branch ?? "none"}, PR #${doc.data.pr}). Claiming again cannot change the branch`,
-    );
-  }
-  warnings.push(
-    `${doc.id} is already claimed by you (${doc.data.assignee}) and has PR #${doc.data.pr}, so this is treated as the start of a fix and the ticket is not changed`,
-  );
-  if (ctx.actor.kind !== "agent" || input.no_run) return null;
+  const decision = decideReclaim({
+    ticket: doc.data,
+    branch: input.branch,
+    withoutBranch: input.without_branch === true,
+    actorKind: ctx.actor.kind,
+    noRun: input.no_run === true,
+  });
+  if (decision.kind === "reject") throw claimRejectionError(decision, false);
+  warnings.push(decision.notice);
+  if (!decision.opensRun) return null;
   // フックが届くセッションでは手直しもサブエージェントに頼む。開き方は変えずに知らせる（t713）
   const self = await selfRunWarning(ctx.repo.localDir, ctx.env ?? process.env, doc.id);
   if (self) warnings.push(self);
@@ -1280,43 +1241,19 @@ export const ticketClaim = defineCommand({
         iterationWarnings = [];
         planWarnings = [];
         const doc = ctx.store.require("ticket", input.ticket);
-        if (isReclaim(ctx, doc.data)) throw new ReclaimRequested(doc);
-        // 仮番号は dg sync で振り直されることがある。claim するとブランチ名に仮番号が残り、振り直しで branch だけが書き換わる（DT-5）
-        if (doc.data.provisional) {
-          throw new OperationError(
-            "REJECTED",
-            `${doc.id} has a provisional number that is not pushed yet, and the number may change. Run dg sync when the remote is reachable to fix the number, then claim the ticket by its fixed ID`,
-          );
-        }
-        if (doc.data.status !== "todo") {
-          const owner = doc.data.assignee;
-          const own = owner !== undefined && sameUser(owner, ctx.actor.id);
-          if (owner && !own) {
-            throw new OperationError("CLAIM_LOST", `${doc.id} is already claimed by ${owner}`);
-          }
-          // 自分の claim でも PR がなければ手直しにはならない（実装の途中。続けるなら run start、やめるなら unclaim）
-          if (own && (doc.data.status === "in_progress" || doc.data.status === "review")) {
-            // フックが届くセッションでは、親が run start で続けず、印の brief をサブエージェントに渡して続けさせる（t717）。
-            // PR の要らない作業（branch なし）は親が自分で進めるので、フックが届いても run start の案内のままにする
-            const delegated = doc.data.branch
-              ? await hooksReachSession(ctx.repo.localDir, ctx.env ?? process.env)
-              : false;
-            throw new OperationError(
-              "CLAIM_LOST",
-              delegated
-                ? `${doc.id} is claimed by you (${owner}) and has no PR yet. To keep implementing, ask a sub-agent with the brief from dg next (it has the mark, and the hook opens and closes the Run), not run start. To stop, use ticket unclaim`
-                : `${doc.id} is claimed by you (${owner}) and has no PR yet. To keep implementing, use run start. To stop, use ticket unclaim`,
-            );
-          }
-          throw new OperationError(
-            "TRANSITION_REJECTED",
-            `${doc.id} is ${doc.data.status}, so it cannot be claimed`,
-          );
-        }
-        if (retryReasonsGiven) {
-          throw new UsageError(
-            `retry_reason can be used only when claiming again a ticket that you have claimed and that has a PR (${doc.id} is todo)`,
-          );
+        // 拒否ともう一度の claim かは、何も読まない claim-judge.ts の decideClaim が、ここで読んだ今の値で決める。
+        // push が拒否されてやり直すたびにこの関数が呼び直されるので、判定もやり直した後の値で決め直される
+        const decision = decideClaim({
+          ticket: doc.data,
+          actor: ctx.actor.id,
+          retryReasons: retryReasonsGiven !== undefined,
+        });
+        if (decision.kind === "reclaim") throw new ReclaimRequested(doc);
+        if (decision.kind === "reject") {
+          const hooksReach =
+            decision.messageWithHooks !== undefined &&
+            (await hooksReachSession(ctx.repo.localDir, ctx.env ?? process.env));
+          throw claimRejectionError(decision, hooksReach);
         }
         const policy = operationPolicy(ctx.store.requireWorkflow().resolved, {
           command: "ticket.claim",
@@ -1331,8 +1268,8 @@ export const ticketClaim = defineCommand({
           planWarnings = [
             `${doc.id} is in Plan ${pending.id}, which is awaiting approval. Ask a person to approve it before starting, as dg next says (wait_human)`,
           ];
-        const previous = doc.data.assignee;
-        if (previous && !sameUser(previous, ctx.actor.id)) {
+        const previous = decision.reassignedFrom;
+        if (previous !== undefined) {
           // ほかのユーザに割り当てた todo を取るのは担当の付け替え（governance.reassign）。境目の判定と同じ入力で確かめる
           requireOperation(
             ctx,

@@ -40,12 +40,13 @@ vi.mock("../run/record.js", async (importOriginal) => {
 afterEach(runCleanups);
 
 describe("チケットの流れ（もう一度の claim と手直し）", () => {
-  it("自分が claim 済みで PR のあるチケットのもう一度の claim は、チケットを変えずに opens_on: reclaim の step（fix）の Run を --retry-reason 付きで開き、前の手直しの Run は最後の push の時刻で閉じる。ほかの主体と PR のない自分の claim は拒否する（RN-5・ST-9）", async () => {
+  // 拒否ともう一度の claim かの組み合わせ（status・担当・PR・--retry-reason・--branch）は claim-judge.test.ts、前の手直しの Run の
+  // 閉じ方の組み合わせ（push の時刻・セッション・step・同じ秒の開始）は run-close-judge.test.ts が git なしで見る。ここは経路の代表
+  it("自分が claim 済みで PR のあるチケットのもう一度の claim は、チケットを変えずに opens_on: reclaim の step（fix）の Run を --retry-reason 付きで開き、前の手直しの Run は最後の push の時刻で閉じる。ほかの主体の claim と、ブランチを変えるもう一度の claim は拒否する（RN-5・ST-9）", async () => {
     const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await reopenInitialized(f, { now: () => clock });
-    for (const title of ["Reviewed", "No PR", "Todo"])
-      await runCommand(ticketCreate, human, { title });
+    await runCommand(ticketCreate, human, { title: "Reviewed" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const implement = (
       await runCommand(ticketClaim, agent, {
@@ -55,13 +56,6 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         branch: "t1",
       })
     ).data.run!;
-    await runCommand(ticketClaim, agent, {
-      approved_by: "human",
-      no_worktree: true,
-      ticket: "t2",
-      branch: "t2",
-      no_run: true,
-    });
     await git(f.cloneA, ["branch", "t1"]);
     const restore = await fakeGh(f.root, {
       "t1|41":
@@ -106,7 +100,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         session: "s-fix",
       });
 
-      // 人の claim は Run を開かず、ほかのユーザは CLAIM_LOST。自分でも PR のないチケットは手直しにならない。todo の claim に理由は渡せない
+      // 人の claim は Run を開かず、ほかのユーザは CLAIM_LOST。ブランチを変えるもう一度の claim は使い方の誤り
       // （human の索引は別の文脈の変更を知らないので読み直す。CLI では毎回読む）
       await human.store.rescan();
       const humanAgain = await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t1" });
@@ -122,35 +116,18 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         message: "t1 is already claimed by eiki/agent",
       });
       await expect(
-        runCommand(ticketClaim, agent, { approved_by: "human", no_worktree: true, ticket: "t2" }),
-      ).rejects.toMatchObject({
-        code: "CLAIM_LOST",
-        message: expect.stringContaining("has no PR yet"),
-      });
-      await expect(
-        runCommand(ticketClaim, agent, {
-          approved_by: "human",
-          no_worktree: true,
-          ticket: "t3",
-          retry_reasons: ["x"],
-        }),
-      ).rejects.toBeInstanceOf(UsageError);
-      await expect(
         runCommand(ticketClaim, agent, {
           approved_by: "human",
           no_worktree: true,
           ticket: "t1",
           branch: "t1-other",
         }),
-      ).rejects.toBeInstanceOf(UsageError);
-      await expect(
-        runCommand(ticketClaim, agent, {
-          approved_by: "human",
-          no_worktree: true,
-          ticket: "t1",
-          without_branch: true,
-        }),
-      ).rejects.toBeInstanceOf(UsageError);
+      ).rejects.toSatisfy(
+        (e) =>
+          e instanceof UsageError && e.message.includes("Claiming again cannot change the branch"),
+      );
+      // 拒否された claim は Run を開かず、前の手直しの Run も閉じない
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([fix1]);
       // 同じブランチ名なら通り、fix の Run が開いたままなので重ねては開かず閉じてから開く
       await pushCommitAt(f.cloneA, "t1", "2026-11-06T01:30:00Z");
       clock = new Date("2026-11-06T02:00:00Z");
@@ -178,147 +155,17 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         retries: 2,
         retry_reasons: ["指摘 B", "指摘 C"],
       });
-      // 前の Run の開始（02:00）より後の push がなければ、最後の push（01:30）ではなくこの claim の時刻で閉じる
-      clock = new Date("2026-11-06T02:30:00Z");
-      const third = await runCommand(ticketClaim, agent, {
-        approved_by: "human",
-        no_worktree: true,
-        ticket: "t1",
-      });
-      expect(third.warnings).toContainEqual(
-        `t1: closing the earlier fix Run ${fix2} with the start of the next fix Run as the boundary, at the start time, since there was no push`,
-      );
-      expect(agent.store.runs.get(fix2)!.data).toMatchObject({
-        result: "success",
-        finished_at: "2026-11-06T02:30:00Z",
-      });
-      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([third.data.run]);
-      // 閉じた集計は commit.mode（既定は batch）に従ってコミットに入る（fix1 の集計は 3 回目の claim の書き込みが先にまとめてコミットした）
+      // 閉じた集計は commit.mode（既定は batch）に従ってコミットに入る
       await runCommand(commit, agent, {});
       expect(
         (await git(agent.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])).stdout,
-      ).toContain(`runs/${fix2}.json`);
-      expect(agent.store.runs.has(fix1)).toBe(true);
+      ).toContain(`runs/${fix1}.json`);
     } finally {
       restore();
     }
   });
 
-  it("もう一度の claim の --branch は、最初の claim と同じ値（<id>- を付ける前の値）でも、記録済みの名前でも通り、別の名前になる値は拒む（ST-3・ST-9）", async () => {
-    const f = await initializedFixture();
-    const human = await reopenInitialized(f);
-    await runCommand(ticketCreate, human, { title: "Login" });
-    const claimed = await runCommand(ticketClaim, human, {
-      no_worktree: true,
-      ticket: "t1",
-      branch: "fix-login",
-    });
-    expect(claimed.data.branch).toBe("t1-fix-login");
-    await git(f.cloneA, ["branch", "t1-fix-login"]);
-    const restore = await fakeGh(f.root, {
-      "t1-fix-login|41":
-        '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
-    });
-    try {
-      await runCommand(ticketUpdate, human, { ticket: "t1", pr: 41 });
-      for (const branch of ["fix-login", "t1-fix-login"]) {
-        const again = await runCommand(ticketClaim, human, {
-          no_worktree: true,
-          ticket: "t1",
-          branch,
-        });
-        expect(again.data.branch).toBe("t1-fix-login");
-        expect(again.warnings).toContainEqual(
-          expect.stringContaining("treated as the start of a fix and the ticket is not changed"),
-        );
-      }
-      await expect(
-        runCommand(ticketClaim, human, { no_worktree: true, ticket: "t1", branch: "login" }),
-      ).rejects.toThrow("Claiming again cannot change the branch");
-      // 名前に使えない値は、組み立ての規則の誤りとして拒む
-      await expect(
-        runCommand(ticketClaim, human, { no_worktree: true, ticket: "t1", branch: "Fix Login" }),
-      ).rejects.toBeInstanceOf(UsageError);
-    } finally {
-      restore();
-    }
-  });
-
-  it("もう一度の claim は、別のセッションで開いたままの前の手直しの Run を落ちたセッションの残りとみなして interrupted で閉じ、同じセッションの前の手直しは今までどおり区切りとして success で閉じる（RN-6）", async () => {
-    const f = await initializedFixture();
-    let clock = new Date("2026-11-06T00:00:00Z");
-    const human = await reopenInitialized(f, { now: () => clock });
-    await runCommand(ticketCreate, human, { title: "Crashed fix" });
-    const agent = await agentWithRuns(f.cloneA, () => clock);
-    await runCommand(ticketClaim, agent, {
-      approved_by: "human",
-      no_worktree: true,
-      ticket: "t1",
-      branch: "t1",
-    });
-    const restore = await fakeGh(f.root, {
-      "41": '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
-    });
-    try {
-      clock = new Date("2026-11-06T00:30:00Z");
-      await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
-      clock = new Date("2026-11-06T01:00:00Z");
-      const fix1 = (
-        await runCommand(ticketClaim, agent, {
-          approved_by: "human",
-          no_worktree: true,
-          ticket: "t1",
-          session: "s-old",
-        })
-      ).data.run!;
-      // s-old が落ちて fix1 が開いたまま残り、別のセッションが手直しを始める
-      clock = new Date("2026-11-06T02:00:00Z");
-      const again = await runCommand(ticketClaim, agent, {
-        approved_by: "human",
-        no_worktree: true,
-        ticket: "t1",
-        session: "s-new",
-      });
-      const fix2 = again.data.run!;
-      expect(fix2).not.toBe(fix1);
-      expect(again.warnings).toContainEqual(
-        `t1: the earlier fix Run ${fix1} was still open in another session (s-old), so it is treated as left over from a crashed session and closed as interrupted`,
-      );
-      expect(agent.store.runs.get(fix1)!.data).toMatchObject({
-        step: "fix",
-        result: "interrupted",
-        error: STALE_SESSION_ERROR,
-        finished_at: "2026-11-06T02:00:00Z",
-      });
-      // 同じセッションの前の手直しは、今までどおりこの claim を区切りとして success
-      clock = new Date("2026-11-06T03:00:00Z");
-      const third = await runCommand(ticketClaim, agent, {
-        approved_by: "human",
-        no_worktree: true,
-        ticket: "t1",
-        session: "s-new",
-      });
-      expect(third.warnings).toContainEqual(
-        `t1: closing the earlier fix Run ${fix2} with the start of the next fix Run as the boundary, at the start time, since there was no push`,
-      );
-      expect(agent.store.runs.get(fix2)!.data).toMatchObject({ result: "success", error: null });
-      // --session を省けば、フックが環境に入れた DEGUBOARD_SESSION と比べる
-      agent.env = { ...agent.env, DEGUBOARD_SESSION: "s-env" };
-      clock = new Date("2026-11-06T04:00:00Z");
-      const fourth = await runCommand(ticketClaim, agent, {
-        approved_by: "human",
-        no_worktree: true,
-        ticket: "t1",
-      });
-      expect(agent.store.runs.get(third.data.run!)!.data.result).toBe("interrupted");
-      expect((await peekRunningRuns(agent.repo)).map((r) => [r.id, r.session])).toEqual([
-        [fourth.data.run, "s-env"],
-      ]);
-    } finally {
-      restore();
-    }
-  });
-
+  // セッションを読む経路の代表（環境のセッション ID。--session を渡す経路は上の件が Run に入ることを見る）
   it("サブエージェントのもう一度の claim は、DEGUBOARD_SESSION がなくても Claude Code が環境に付けるセッション ID で手直しの Run を開き、別のセッションの前の手直しを interrupted で閉じる（RN-6）", async () => {
     const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
@@ -529,6 +376,153 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         step: "implement",
       });
     } finally {
+      restore();
+    }
+  });
+
+  it("claim の push が拒否されて最新の状態からやり直すと、拒否はやり直した後の状態で決め直され、そこで止まった claim は前の手直しの Run を閉じない。次に取れた claim が 1 回だけ閉じる（ST-3・RN-6）", async () => {
+    const f = await initializedFixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await reopenInitialized(f, { now: () => clock });
+    await runCommand(ticketCreate, human, { title: "Raced claim" });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    const restore = await fakeGh(f.root, {
+      "41": '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
+    });
+    try {
+      // このマシン（clone A）で claim して PR を記録し、手直しの Run を開いたままにする
+      await runCommand(ticketClaim, agent, {
+        approved_by: "human",
+        no_worktree: true,
+        ticket: "t1",
+        branch: "t1",
+        no_run: true,
+      });
+      await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+      clock = new Date("2026-11-06T01:00:00Z");
+      const fix = (
+        await runCommand(ticketClaim, agent, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t1",
+          session: "s-old",
+        })
+      ).data.run!;
+      await runCommand(sync, agent, {});
+      // 同じユーザの別のマシン（clone B）が unclaim する。clone A の手直しの Run は閉じられずに残る
+      const b = await openContext({
+        cwd: f.cloneB,
+        initialize: {},
+        actor: { kind: "agent", user: "eiki" },
+        now: () => clock,
+      });
+      await runCommand(sync, b, {});
+      await runCommand(ticketUnclaim, b, { ticket: "t1" });
+      await runCommand(sync, b, {});
+      const taro = await openContext({
+        cwd: f.cloneB,
+        actor: { kind: "agent", user: "taro" },
+        now: () => clock,
+      });
+
+      // 1 回目：todo と見て claim を書き、push の直前に別のユーザ（taro）が先に claim する。push は拒否され、
+      // やり直した後の状態（taro の claim）で決め直して CLAIM_LOST になる
+      let raced = 0;
+      agent.hooks = {
+        beforePush: async () => {
+          agent.hooks = undefined;
+          raced += 1;
+          await runCommand(ticketClaim, taro, {
+            approved_by: "human",
+            no_worktree: true,
+            ticket: "t1",
+            branch: "t1-taro",
+            no_run: true,
+          });
+        },
+      };
+      clock = new Date("2026-11-06T02:00:00Z");
+      await expect(
+        runCommand(ticketClaim, agent, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t1",
+          branch: "t1-again",
+          session: "s-new",
+        }),
+      ).rejects.toMatchObject({
+        code: "CLAIM_LOST",
+        message: "t1 is already claimed by taro/agent",
+      });
+      // 1 回目の判定は通って push まで進んでいた（拒否は、やり直した後の判定）
+      expect(raced).toBe(1);
+      expect(agent.store.tickets.get("t1")!.data).toMatchObject({
+        status: "in_progress",
+        assignee: "taro/agent",
+        branch: "t1-taro",
+      });
+      expect((await git(agent.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+      // 途中で止まった claim は Run を開かず、前の手直しの Run も閉じていない
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([fix]);
+      expect(agent.store.runs.has(fix)).toBe(false);
+
+      // taro が unclaim した後の 2 回目：push の直前に別の変更（別のチケットの claim）が入って 1 度拒否され、
+      // やり直した後の状態（todo のまま）で決め直して取れる。前の手直しの Run は、取れた後に 1 回だけ閉じる
+      await runCommand(ticketUnclaim, taro, { ticket: "t1" });
+      await runCommand(sync, taro, {});
+      await runCommand(ticketCreate, taro, { title: "Unrelated" });
+      await runCommand(sync, taro, {});
+      agent.hooks = {
+        beforePush: async () => {
+          agent.hooks = undefined;
+          raced += 1;
+          await runCommand(ticketClaim, taro, {
+            approved_by: "human",
+            no_worktree: true,
+            ticket: "t2",
+            branch: "t2",
+            no_run: true,
+          });
+        },
+      };
+      clock = new Date("2026-11-06T03:00:00Z");
+      const claimed = await runCommand(ticketClaim, agent, {
+        approved_by: "human",
+        no_worktree: true,
+        ticket: "t1",
+        branch: "t1-again",
+        session: "s-new",
+      });
+      expect(raced).toBe(2);
+      expect(claimed.write).toMatchObject({ pushed: true, attempts: 2 });
+      expect(claimed.data).toMatchObject({
+        status: "in_progress",
+        assignee: "eiki/agent",
+        branch: "t1-again",
+      });
+      // 実装の Run を開くので、別のセッションの前の手直しも success。閉じた知らせは 1 つ
+      expect(claimed.warnings.filter((w) => w.includes(fix))).toEqual([
+        `t1: closing the earlier fix Run ${fix} with the start of the next implement Run as the boundary, at the start time, since there was no push`,
+        `Closed the fix Run ${fix} of t1 with success (finished_at 2026-11-06T03:00:00Z)`,
+        `Run ${fix}: metrics.read_transcripts is false, so the conversation record is not read. Usage is left as null`,
+      ]);
+      expect(agent.store.runs.get(fix)!.data).toMatchObject({
+        step: "fix",
+        result: "success",
+        finished_at: "2026-11-06T03:00:00Z",
+      });
+      const running = await peekRunningRuns(agent.repo);
+      expect(running.map((r) => [r.id, r.step])).toEqual([[claimed.data.run, "implement"]]);
+      // 閉じた Run の記録は 1 つのコミットにだけ入る
+      await runCommand(commit, agent, {});
+      const commits = (
+        await git(agent.repo.dataDir, ["log", "--format=%H", "--", `runs/${fix}.json`])
+      ).stdout
+        .trim()
+        .split("\n");
+      expect(commits).toHaveLength(1);
+    } finally {
+      agent.hooks = undefined;
       restore();
     }
   });
@@ -1032,65 +1026,23 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     expect(agent.store.tickets.get("t3")!.data.status).toBe("in_progress");
   });
 
-  // 照合が手直しと同じ秒に始まった次の Run を区切りに数えることは、reconcile-judge.test.ts が git なしで見る
-  it("run start は、同じチケットの開いたままの手直しの Run を、手直しと同じ秒の開始も区切りとして閉じてから始める。手直しでない step では別のセッションの手直しも success（RN-6）", async () => {
+  // 手直しと同じ秒に始まった次の Run を区切りに数えること・手直しでない step は別のセッションの手直しも success で閉じることは、
+  // run-close-judge.test.ts（Run を開く操作）と reconcile-judge.test.ts（照合）が git なしで見る。
+  // run start が前の手直しを閉じてから開く経路は、下の見直しの修正ループの件が見る
+  it("手直しの step の run start を重ねると、開いたままの手直しの Run を閉じずに拒む（二重起動の拒否。SY-5）", async () => {
     const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await reopenInitialized(f, { now: () => clock });
-    await runCommand(ticketCreate, human, { title: "Run start closes fix" });
+    await runCommand(ticketCreate, human, { title: "Run start twice" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
-    await runCommand(ticketClaim, agent, {
-      approved_by: "human",
-      no_worktree: true,
-      ticket: "t1",
-      branch: "t1",
-      no_run: true,
-    });
-    await git(f.cloneA, ["branch", "t1"]);
-    const restore = await fakeGh(f.root, {
-      "t1|41":
-        '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
-    });
     const start = (step: string, session: string) =>
       runCommand(runStart, agent, { ticket: "t1", step, agent: "claude-code", session });
-    try {
-      clock = new Date("2026-11-06T00:30:00Z");
-      await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
-      // 別のセッションで開いた手直しの Run も、見直しの run start は success で閉じる。開始が手直しと同じ秒でも区切り
-      clock = new Date("2026-11-06T01:00:00Z");
-      const fix1 = (await start("fix", "s-old")).data.id;
-      const review1 = await start("review", "s-new");
-      expect(review1.warnings).toContainEqual(
-        `t1: closing the earlier fix Run ${fix1} with the start of the next review Run as the boundary, at the start time, since there was no push`,
-      );
-      expect(agent.store.runs.get(fix1)!.data).toMatchObject({
-        result: "success",
-        error: null,
-        finished_at: "2026-11-06T01:00:00Z",
-      });
-      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([review1.data.id]);
-      await runCommand(runFinish, agent, { run: review1.data.id, result: "success" });
-      // 同じセッションの手直しも、見直しの run start は success で閉じる
-      clock = new Date("2026-11-06T01:30:00Z");
-      const fixSame = (await start("fix", "s-new")).data.id;
-      clock = new Date("2026-11-06T01:40:00Z");
-      const reviewSame = (await start("review", "s-new")).data.id;
-      expect(agent.store.runs.get(fixSame)!.data).toMatchObject({
-        result: "success",
-        error: null,
-        finished_at: "2026-11-06T01:40:00Z",
-      });
-      await runCommand(runFinish, agent, { run: reviewSame, result: "success" });
-
-      // 手直しの step の run start を重ねると、前の手直しを閉じずに拒む（二重起動の拒否。SY-5）
-      clock = new Date("2026-11-06T03:00:00Z");
-      const fix3 = (await start("fix", "s-new")).data.id;
-      clock = new Date("2026-11-06T03:10:00Z");
-      await expect(start("fix", "s-new")).rejects.toThrow(`Run ${fix3} of t1 fix is running`);
-      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toContain(fix3);
-    } finally {
-      restore();
-    }
+    clock = new Date("2026-11-06T03:00:00Z");
+    const fix = (await start("fix", "s-new")).data.id;
+    clock = new Date("2026-11-06T03:10:00Z");
+    await expect(start("fix", "s-new")).rejects.toThrow(`Run ${fix} of t1 fix is running`);
+    expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([fix]);
+    expect(agent.store.runs.has(fix)).toBe(false);
   });
 
   it("見直しの修正ループの手直しは、draft の PR を記録した in_progress のチケットのもう一度の claim（--retry-reason）が fix の Run を開き、次の見直しの run start と照合の PR の ready が区切りとして push の時刻で閉じる（RN-5・RN-6）", async () => {
