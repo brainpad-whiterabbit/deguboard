@@ -74,7 +74,7 @@ function runCode(args, timeoutMs, stdio) {
     const killGroup = () => {
       try {
         if (windows) child.kill();
-        else process.kill(-child.pid, "SIGKILL");
+        else if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
       } catch {
         // 既に終わっているか、起こせなかった
       }
@@ -90,6 +90,7 @@ function runCode(args, timeoutMs, stdio) {
       process.exit(130);
     };
     for (const signal of signals) process.once(signal, onSignal);
+    /** @param {number | null} status */
     const done = (status) => {
       if (settled) return;
       settled = true;

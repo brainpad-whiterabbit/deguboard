@@ -22,7 +22,11 @@ const packages =
 
 const OUTPUT_EXTENSIONS = [".d.ts.map", ".js.map", ".d.ts", ".js"];
 
-/** dist/ の中の相対パスが、今のソースから作る出力かを返す */
+/**
+ * dist/ の中の相対パスが、今のソースから作る出力かを返す
+ * @param {string} pkg
+ * @param {string} rel
+ */
 function hasSource(pkg, rel) {
   const src = path.join(pkg, "src");
   if (rel === BUILD_INFO_FILE) return true;
@@ -37,7 +41,13 @@ function hasSource(pkg, rel) {
   return existsSync(path.join(src, `${base}.ts`)) || existsSync(path.join(src, `${base}.tsx`));
 }
 
-/** dir の下を消して回り、dir が空になったかを返す */
+/**
+ * dir の下を消して回り、dir が空になったかを返す
+ * @param {string} pkg
+ * @param {string} dist
+ * @param {string} dir
+ * @returns {Promise<boolean>}
+ */
 async function prune(pkg, dist, dir) {
   let empty = true;
   for (const entry of await readdir(dir, { withFileTypes: true })) {
