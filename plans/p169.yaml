@@ -1,0 +1,35 @@
+id: p169
+tickets: [t1145, t1148, t1150, t1147, t1149, t1151]
+after:
+  t1147:
+    - t1145
+  t1149:
+    - t1148
+  t1151:
+    - t1150
+pending_approval: true
+details:
+  t1145:
+    scope: guide と Skill の雛形から Workflow の値で決まる内容を外し、既定値に頼るテストをなくす。usage・README・ADR は変えない（t1147）
+    approach: 承認の要否を返す dg の入口が今あるか（dg workflow show の moves など）を先に確かめ、guide-overview に共通の規則を 1 か所置いて各 guide の場合分けを消す
+    tier: heavy
+  t1147:
+    scope: usage・README・ADR から Workflow の既定値の書き写しを外し、check:docs で書き写しを検出する。guide と既定値そのものは変えない
+    approach: 文書は dg workflow show と resolve.ts を指す形に書き換え、ADR は既定を決める原則と理由に直し、check-docs.mjs に既定値の書き写しの検出を足す
+    tier: standard
+  t1148:
+    scope: claim したセッションの記録と、別のセッションのもう一度の claim・unclaim の拒否と --take-over。Plan とチケットの claim 前の予約は含まない
+    approach: 記録は deguboard-local に置き、有効かの判定（SessionEnd・30 分）と拒否の判定をファイルを読まない関数にする。記録は push の成功の後に書き、git/sync.ts・git/write.ts の経路は変えない
+    tier: heavy
+  t1149:
+    scope: plan show と next の予約の指定、guide work・guide all と next の commands への組み込み、予約したチケットの claim の拒否と dg next の返し方
+    approach: t1148 の記録と判定の関数を Plan とチケットの予約に広げ、見るだけの呼び出しは予約を作らない
+    tier: heavy
+  t1150:
+    scope: CLAUDE.md の Release の本文の規約、development.md のリリースの節とタグと公開のチケット、vsix-sha256.mjs の英語の文とそのテスト。guide-release.md と公開済みの本文は変えない
+    approach: 規約は CLAUDE.md にだけ書き、development.md は CLAUDE.md を指す。スクリプトの出力の文を英語にしてテストで確かめる
+    tier: standard
+  t1151:
+    scope: v1.0.0〜v1.2.0 の Release の本文を gh release edit で書き直す（PR の要らない作業）
+    approach: t1150 の規約に沿って 3 つの本文の書き直しの案を作り、人に見せて承認を得てから gh release edit で書き換える
+    tier: standard
