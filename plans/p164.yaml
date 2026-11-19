@@ -1,0 +1,13 @@
+id: p164
+tickets: [t1139, t1138]
+after: {}
+pending_approval: true
+details:
+  t1139:
+    scope: 品質ゲートの全体の検査にかかる時間を減らす。ゲートが見る範囲（何を検査すればマージしてよいか）は下げない
+    approach: mise run check の内訳（format・lint・typecheck・テスト・check:docs）の時間を測ってから、重い部分を減らす案を選び、前後の時間を PR に載せる
+    tier: heavy
+  t1138:
+    scope: ソースのファイルを足す・移す・名前を変える PR が、ADR の細部の正本・development.md のパッケージの表・usage の節を直したかを、マージの前に確かめる仕組みを入れる
+    approach: 見直しの規則（guide-notes）か check:docs の検査のどちらで確かめるかを決め、s41 の 4 件の形に当てて働くことを示す
+    tier: standard
