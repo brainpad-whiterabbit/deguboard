@@ -12,7 +12,7 @@ after:
     - t1160
   t1164:
     - t1161
-pending_approval: true
+pending_approval: false
 details:
   t1152:
     scope: high と low の dg gate --for merge に、先端が base の今の先端を含む条件を足す。マージ後の検査はしない
@@ -46,3 +46,5 @@ details:
     scope: テキスト出力の表のセルでオブジェクトの配列を読める形で出す
     approach: output.ts の cell の配列の整形を formatValue と同じ扱いにし、テキスト出力のテストを足す
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-19T13:15:20Z
