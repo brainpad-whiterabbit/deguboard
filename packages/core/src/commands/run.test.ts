@@ -112,6 +112,12 @@ const exists = (p: string) =>
 const start = async (ctx: CommandContext, ticket: string, step = "implement") =>
   (await runCommand(runStart, ctx, { ticket, step, agent: "claude-code" })).data as Run;
 
+/**
+ * Run の開始の順を決めるために文脈の今を進めるテストの基準の時刻。Date.now() を呼ぶたびに読むと、進めた秒と時計の秒が
+ * 重なって開始の秒（Run の ID）の並びが揺れうるので、テストが決めた固定の時刻から進める（t1135）
+ */
+const T0 = Date.parse("2026-11-01T00:00:00Z");
+
 describe("run", () => {
   it("start は deguboard-local/runs/ にだけ記録を置き、finish が runs/ に 1 ファイルをコミットする（RN-3）", async () => {
     const ctx = await prepared(true);
@@ -273,7 +279,7 @@ describe("run", () => {
     // Run の ID は開始の秒までなので、開始の順が決まるように文脈の今を進める
     let seconds = 0;
     const startLater = (ticket: string, step: string) => {
-      const at = Date.now() + (seconds += 5) * 1000;
+      const at = T0 + (seconds += 5) * 1000;
       ctx.now = () => new Date(at);
       return start(ctx, ticket, step);
     };
@@ -384,7 +390,7 @@ describe("run", () => {
     const ctx = await prepared();
     let seconds = 0;
     const startLater = (ticket: string, step: string) => {
-      const at = Date.now() + (seconds += 5) * 1000;
+      const at = T0 + (seconds += 5) * 1000;
       ctx.now = () => new Date(at);
       return start(ctx, ticket, step);
     };
@@ -881,9 +887,9 @@ describe("run", () => {
 });
 
 describe("run review-result（見直しの結果。RN-9）", () => {
-  /** 文脈の今を seconds 秒だけ先にする */
+  /** 文脈の今を固定の時刻 T0 から seconds 秒だけ先にする。Run を始める前に laterBy(ctx, 0) で基準に合わせる */
   const laterBy = (ctx: CommandContext, seconds: number) => {
-    ctx.now = () => new Date(Date.now() + seconds * 1000);
+    ctx.now = () => new Date(T0 + seconds * 1000);
   };
 
   const record = (
@@ -930,6 +936,7 @@ describe("run review-result（見直しの結果。RN-9）", () => {
 
   it("実行中のものがなければ閉じた最新の見直しの Run に 1 回だけ書き、結果の記録がなくて failure なら success に直す", async () => {
     const ctx = await prepared();
+    laterBy(ctx, 0);
     const older = await start(ctx, "t1", "review");
     await runCommand(runFinish, ctx, { run: older.id, result: "success" });
     // ID は開始の秒で並ぶので、次の Run は後の秒に始める
@@ -992,6 +999,7 @@ describe("run review-result（見直しの結果。RN-9）", () => {
 
   it("閉じた見直しの Run の後に別の Run（手直しなど）が始まっていれば、前の回の見直しなので書かずに保留にする", async () => {
     const ctx = await prepared();
+    laterBy(ctx, 0);
     const review = await start(ctx, "t1", "review");
     await runCommand(runFinish, ctx, {
       run: review.id,

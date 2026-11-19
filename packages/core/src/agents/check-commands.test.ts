@@ -56,6 +56,8 @@ describe("検査とテストに数えるコマンド（MT-1）", () => {
     ["node で呼ぶ dg gate --only check", "node packages/cli/bin/dg.js gate 12 --only=check"],
     ["絶対パスの dg", "/usr/local/bin/dg --json gate t12 --only check 2>&1 | tail -3"],
     ["--only が gate より前にある", "dg --only check gate t12"],
+    ["--only の値が複数（review,check）", "mise run dg -- gate t12 --only review,check"],
+    ["--only= の値が複数で check が先", "dg gate t12 --only=check,review"],
     ["pnpm run で呼ぶ dg gate --only check", "pnpm run dg gate t12 --only check"],
     [
       "呼び出しの形にオプションが付く dg gate --only check",
@@ -82,6 +84,10 @@ describe("検査とテストに数えるコマンド（MT-1）", () => {
     ["エスケープした空白で 1 語になったもの", "mise\\ run\\ check"],
     ["--only のない dg gate", "mise run dg -- --json gate t12"],
     ["--only の値が check でない", "dg gate t12 --only review"],
+    [
+      "--only の値が複数でも check がない（語の途中まで同じ checks）",
+      "dg gate t12 --only review,checks",
+    ],
     ["gate でない dg のコマンド", "dg ticket show t12 --only check"],
     ["dg でないコマンドの gate --only check", "other gate t12 --only check"],
     ["語の末尾だけが dg", "mydg gate t12 --only check"],
