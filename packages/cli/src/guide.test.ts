@@ -935,6 +935,20 @@ describe("dg guide", () => {
     expect(lineWith(await readGuide("all"), "not put back to todo")).toContain("did not return");
   });
 
+  it("work と all は、進めるときの plan show と next に予約の指定（--reserve）を付け、別のセッションが進めているときの扱いを案内する（t1149）", async () => {
+    const work = await readGuide("work");
+    expect(section(work, "## Flow")).toContain("`dg --json --actor agent next <id> --reserve`");
+    expect(lineWith(work, "- `wait_session`:")).toContain("Leave the ticket to that session");
+    const following = section(work, "## Following the Plan");
+    expect(following).toContain("`dg --json --actor agent plan show <p> --reserve`");
+    expect(following).toContain("`--take-over` only when");
+    const all = await readGuide("all");
+    expect(lineWith(all, "- `work` follows")).toContain("`--reserve` on `plan show` and `next`");
+    // 見るだけの手順（status・plan・done）は予約の指定を付けない
+    for (const topic of ["status", "plan", "done"] as const)
+      expect(await readGuide(topic), topic).not.toContain("--reserve");
+  });
+
   it("plan・work・parallel・all・run・review は plan の Run を案内しない", async () => {
     expect(await readGuide("plan")).not.toContain("run start <id> plan");
     for (const topic of ["plan", "work", "parallel", "all", "run", "review"])

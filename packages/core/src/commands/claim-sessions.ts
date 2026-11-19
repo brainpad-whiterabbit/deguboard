@@ -19,15 +19,19 @@ const CLAIM_SESSIONS_DIR = "claim-sessions";
 /** 残す日数。記録を書くたびに、これより古い記録を消す（効くのは最後の知らせから 30 分なので、残っていても判定には使われない） */
 const KEEP_DAYS = 30;
 
-const dirOf = (localDir: string) => path.join(localDir, CLAIM_SESSIONS_DIR);
-const fileOf = (localDir: string, ticket: string) => path.join(dirOf(localDir), `${ticket}.json`);
+const fileOf = (localDir: string, dir: string, id: string) =>
+  path.join(localDir, dir, `${id}.json`);
 
-/** チケットの記録。なければ・読めなければ undefined */
-export async function readSessionClaim(
+/**
+ * セッションの記録を 1 件読む。なければ・読めなければ undefined。dir は deguboard-local の下の置き場で、claim の記録
+ * （claim-sessions/）と予約（reservations.ts の reservations/）が同じ形で使う
+ */
+export async function readSessionRecord(
   localDir: string,
-  ticket: string,
+  dir: string,
+  id: string,
 ): Promise<SessionClaim | undefined> {
-  const text = await readFile(fileOf(localDir, ticket), "utf8").catch(() => undefined);
+  const text = await readFile(fileOf(localDir, dir, id), "utf8").catch(() => undefined);
   if (text === undefined) return undefined;
   try {
     const d = JSON.parse(text) as Partial<SessionClaim>;
@@ -39,36 +43,48 @@ export async function readSessionClaim(
   }
 }
 
-/** チケットの記録を消す（なくてもよい） */
-async function removeSessionClaim(localDir: string, ticket: string): Promise<void> {
-  await rm(fileOf(localDir, ticket), { force: true });
+/** チケットの claim の記録。なければ・読めなければ undefined */
+export const readSessionClaim = (localDir: string, ticket: string) =>
+  readSessionRecord(localDir, CLAIM_SESSIONS_DIR, ticket);
+
+/** 記録を消す（なくてもよい） */
+export async function removeSessionRecord(
+  localDir: string,
+  dir: string,
+  id: string,
+): Promise<void> {
+  await rm(fileOf(localDir, dir, id), { force: true });
 }
 
 /** KEEP_DAYS より前に書いた記録を消す。消せないものは残す（次の機会に消す） */
-async function pruneSessionClaims(localDir: string, now: Date): Promise<void> {
-  const dir = dirOf(localDir);
+async function pruneSessionRecords(localDir: string, dir: string, now: Date): Promise<void> {
   const before = now.getTime() - KEEP_DAYS * 24 * 60 * 60 * 1000;
-  const names = await readdir(dir).catch(() => [] as string[]);
+  const names = await readdir(path.join(localDir, dir)).catch(() => [] as string[]);
   await Promise.all(
     names.map(async (name) => {
-      const file = path.join(dir, name);
+      const file = path.join(localDir, dir, name);
       const s = await stat(file).catch(() => undefined);
       if (s && s.mtimeMs < before) await rm(file, { force: true }).catch(() => undefined);
     }),
   );
 }
 
-/** チケットの記録を書く。一時ファイルに書いてから置き換え、読む側が途中の内容を見ないようにする */
-async function writeSessionClaim(
+/**
+ * 記録を書き、古い記録を消す。一時ファイルに書いてから置き換え、読む側が途中の内容を見ないようにする
+ */
+export async function writeSessionRecord(
   localDir: string,
-  ticket: string,
+  dir: string,
+  id: string,
   record: SessionClaim,
+  now: Date,
 ): Promise<void> {
-  await mkdir(dirOf(localDir), { recursive: true });
-  const file = fileOf(localDir, ticket);
+  await mkdir(path.join(localDir, dir), { recursive: true });
+  const file = fileOf(localDir, dir, id);
   const tmp = `${file}.${process.pid}.tmp`;
   await writeFile(tmp, `${JSON.stringify(record)}\n`, "utf8");
   await rename(tmp, file);
+  await pruneSessionRecords(localDir, dir, now);
 }
 
 /**
@@ -116,10 +132,15 @@ export async function recordSessionClaim(
   const session = ctx.actor.kind === "agent" ? sessionOf(ctx, input.session) : undefined;
   try {
     if (session !== undefined && SESSION_ID.test(session)) {
-      await writeSessionClaim(localDir, ticket, { session, claimed_at: nowIso(ctx) });
-      await pruneSessionClaims(localDir, ctx.now());
+      await writeSessionRecord(
+        localDir,
+        CLAIM_SESSIONS_DIR,
+        ticket,
+        { session, claimed_at: nowIso(ctx) },
+        ctx.now(),
+      );
     } else if (input.fresh) {
-      await removeSessionClaim(localDir, ticket);
+      await removeSessionRecord(localDir, CLAIM_SESSIONS_DIR, ticket);
     }
   } catch (e) {
     warnings.push(
@@ -130,5 +151,5 @@ export async function recordSessionClaim(
 
 /** unclaim の後に記録を消す（claim がなくなったので、進めているセッションもない）。消せなくても失敗させない */
 export async function dropSessionClaim(ctx: CommandContext, ticket: string): Promise<void> {
-  await removeSessionClaim(ctx.repo.localDir, ticket).catch(() => undefined);
+  await removeSessionRecord(ctx.repo.localDir, CLAIM_SESSIONS_DIR, ticket).catch(() => undefined);
 }

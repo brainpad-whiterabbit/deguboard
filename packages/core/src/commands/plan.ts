@@ -13,6 +13,13 @@ import { cyclePath, findCrossingCycle, findCycle, type WaitEdge } from "../stora
 import { defineCommand, ok } from "./define.js";
 import { nowIso, openPlanOf, planRef, sortedDocs, ticketRef } from "./helpers.js";
 import { hasRecord, permissionFields, recordNote, recordOf } from "./permission.js";
+import { claimRejectionError } from "./claim-judge.js";
+import {
+  dropReservation,
+  requireReserveWithTakeOver,
+  reserve,
+  reserveFields,
+} from "./reservations.js";
 
 /** 1 つの値（CLI の `--after t3=t1,t2`）でも配列（HTTP）でも受ける */
 const refList = z.union([z.string(), z.number(), z.array(z.union([z.string(), z.number()]))]);
@@ -266,13 +273,24 @@ export const planShow = defineCommand({
   positionals: ["plan"],
   group: "plan",
   summary:
-    "Show a Plan and its tickets in Plan order. Status (status: pending, approved, closed), progress, what each ticket waits on (items[].waiting), whether it can be started (items[].ready), and next are not written in the Plan; they are derived from ticket states",
-  input: z.object({ plan: planRef }),
+    "Show a Plan and its tickets in Plan order. Status (status: pending, approved, closed), progress, what each ticket waits on (items[].waiting), whether it can be started (items[].ready), and next are not written in the Plan; they are derived from ticket states. " +
+    "With --reserve, the calling session reserves the Plan before advancing it, which reserves its tickets too: an agent in another session of the same user cannot claim them, and dg next returns wait_session to it. If another live session has reserved the Plan, the call is rejected (REJECTED) and --take-over passes it. A closed Plan is not reserved. Without --reserve it writes nothing",
+  input: z.object({ plan: planRef, ...reserveFields }),
   write: false,
   needs: "store",
   async run(ctx, input) {
+    requireReserveWithTakeOver(input);
     const doc = ctx.store.require("plan", input.plan);
     const warnings: string[] = [];
+    // 進め始めるセッションが Plan を予約する（PL-7。reservations.ts）。別のセッションが予約していれば、見せる前に拒む
+    if (input.reserve) {
+      if (doc.data.closed_at !== undefined)
+        warnings.push(`${doc.id} is closed, so it was not reserved`);
+      else {
+        const rejected = await reserve(ctx, { plan: doc.data }, input, warnings);
+        if (rejected) throw claimRejectionError(rejected, false);
+      }
+    }
     const found: Doc<Ticket>[] = [];
     for (const id of doc.data.tickets) {
       const t = ctx.store.tickets.get(id);
@@ -364,6 +382,8 @@ export const planClose = defineCommand({
       },
       { message: (doc) => `Close ${doc.id}` },
     );
+    // 閉じた Plan は進めないので、予約も消す
+    await dropReservation(ctx, result.value.id);
     return ok(result.value.data, result.write, warnings);
   },
 });

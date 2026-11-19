@@ -1,7 +1,8 @@
 // ticket claim の拒否と、もう一度の claim（reclaim）かどうかの決定（ST-3・ST-9・RN-5、ADR-031）。チケットの今の値と主体を
 // 受け取って決めるだけで、git・ファイルを読まない（import は型と定数と純粋な関数だけ）。決めるのは 3 つ：
 //   - decideSessionClaim：別のセッションが claim して進めているチケットへの、もう一度の claim・unclaim を拒むか（SY-5。
-//     記録が効くかは sessionClaimHolds。記録とフックの時刻を読むのは claim-sessions.ts）
+//     記録が効くかは sessionClaimHolds。記録とフックの時刻を読むのは claim-sessions.ts）。claim の前の予約（PL-7。
+//     効いている予約は holdingReservation、読み書きは reservations.ts）が claim・予約・dg next を止めるかも、同じ関数で決める
 //   - decideClaim：新しい claim に進むか・もう一度の claim か・拒否か。ticket.ts の ticketClaim が、書き込みの中（取り込みと索引の
 //     読み直しの後）で呼ぶ。push が拒否されて最新の状態からやり直す（git/write.ts の cas）たびに、やり直した後の値で決め直される
 //   - decideReclaim：もう一度の claim を拒むか（ブランチは変えられない）、手直しの始まりとして Run を開くか
@@ -190,13 +191,41 @@ export function sessionClaimHolds(record: SessionClaim, signs: SessionSigns): bo
   return signs.now.getTime() - last < signs.idleMs;
 }
 
+/**
+ * 別のセッションの記録で止める操作。claim の記録が止めるのは claim（もう一度の claim）と unclaim。予約（t1149）が止めるのは
+ * claim・start（todo の新しい claim）・reserve（`plan show`・`next` の --reserve）・next（--reserve のない `dg next`）
+ */
+export type SessionOperation = "claim" | "unclaim" | "start" | "reserve" | "next";
+
+/** 予約の候補：予約の対象（チケットか Plan の ID）と記録、記録したセッションのフックの時刻 */
+export interface ReservationCandidate extends Pick<SessionSigns, "lastHookAt" | "endedAt"> {
+  target: string;
+  record: SessionClaim;
+}
+
+/**
+ * チケットに今効いている予約（t1149）。候補は優先の順（チケット自身の予約、それを含む開いた Plan の予約）に渡し、効く
+ * （sessionClaimHolds。claim の記録と同じ条件）最初のものを返す。チケット自身の予約を先に見るのは、Plan を予約したセッションから
+ * --take-over でチケットを引き継いだ予約を、Plan の予約の更新で取り返させないため
+ */
+export function holdingReservation(
+  candidates: readonly ReservationCandidate[],
+  clock: Pick<SessionSigns, "now" | "idleMs">,
+): ReservationCandidate | undefined {
+  return candidates.find((c) =>
+    sessionClaimHolds(c.record, { ...clock, lastHookAt: c.lastHookAt, endedAt: c.endedAt }),
+  );
+}
+
 /** decideSessionClaim に要る事実 */
 export interface SessionClaimFacts extends SessionSigns {
+  /** 操作の対象。チケットの ID（Plan を予約する呼び出しでは Plan の ID） */
   ticket: string;
-  /** 止める操作：もう一度の claim か unclaim */
-  operation: "claim" | "unclaim";
-  /** このチケットの記録（なければ undefined） */
+  operation: SessionOperation;
+  /** 対象の記録（なければ undefined）。claim の記録か、効いている予約（holdingReservation）の記録 */
   record: SessionClaim | undefined;
+  /** record が予約のとき、予約の対象（チケットか Plan の ID）。claim の記録なら省く */
+  reserved?: string;
   /** 呼んだ主体が人か AI か */
   actorKind: ActorKind;
   /** 呼んだセッション（sessionOf。わからなければ undefined） */
@@ -205,24 +234,48 @@ export interface SessionClaimFacts extends SessionSigns {
   takeOver: boolean;
 }
 
-/** もう一度の claim・unclaim を、別のセッションの記録で止めるかの決定。warning は、通すときに warnings に入れる文 */
-type SessionClaimDecision = { kind: "pass"; warning?: string } | ClaimRejection;
+/**
+ * 操作を、別のセッションの記録で止めるかの決定。warning は、通すときに warnings に入れる文。
+ * takenOver は --take-over で越えたこと（行う側が記録を呼んだセッションに移す）
+ */
+export type SessionClaimDecision =
+  | { kind: "pass"; warning?: string; takenOver?: true }
+  | ClaimRejection;
+
+/** 操作ごとの文の言い回し：did は通したときの呼び方、cannot は拒むときの動詞、moves は --take-over で移るもの */
+const OPERATION_WORDS: Record<SessionOperation, { did: string; cannot: string; moves: string }> = {
+  claim: { did: "claim", cannot: "claim it again", moves: " (the record moves to this session)" },
+  unclaim: { did: "unclaim", cannot: "unclaim it", moves: "" },
+  start: { did: "claim", cannot: "claim it", moves: " (the reservation moves to this session)" },
+  reserve: {
+    did: "call",
+    cannot: "reserve it",
+    moves: " (the reservation moves to this session)",
+  },
+  next: {
+    did: "call",
+    cannot: "advance it",
+    moves: " to the call, together with --reserve (the reservation moves to this session)",
+  },
+};
 
 /**
- * 別のセッションが claim して進めているチケットへの、もう一度の claim・unclaim を拒むかを決める（SY-5。t1148）。上から順に：
+ * 別のセッションが進めているチケット（か Plan）への操作を拒むかを決める（SY-5）。claim の記録（t1148）も、claim の前の予約
+ * （t1149。reserved がその対象）も同じ規則で決める。上から順に：
  *   - 記録がない・記録が効かない（sessionClaimHolds）・記録したセッション自身の呼び出しは通す
  *   - 人の操作は止めない（人は見て決められる）。進めているセッションがあることだけ知らせる
  *   - セッションがわからない呼び出し（フックもセッション ID もない製品）は、別のセッションと言えないので止めずに知らせる
  *   - --take-over は越えて、引き継いだことを知らせる
  *   - ほかは拒み、記録したセッションと越え方を示す
- * 記録を書く・移す・消すのは行う側（claim-sessions.ts と ticket.ts）
+ * 記録を書く・移す・消すのは行う側（claim-sessions.ts・reservations.ts と ticket.ts）
  */
 export function decideSessionClaim(f: SessionClaimFacts): SessionClaimDecision {
   const { record, ticket } = f;
   if (!record || record.session === f.session || !sessionClaimHolds(record, f))
     return { kind: "pass" };
-  const did = f.operation === "claim" ? "claim" : "unclaim";
-  const holder = `session ${record.session} (it claimed ${ticket} at ${record.claimed_at}; ${
+  const { did, cannot, moves } = OPERATION_WORDS[f.operation];
+  const held = f.reserved === undefined ? `claimed ${ticket}` : `reserved ${f.reserved}`;
+  const holder = `session ${record.session} (it ${held} at ${record.claimed_at}; ${
     f.lastHookAt === undefined
       ? "no dg hook has reached it"
       : `its last dg hook arrived at ${f.lastHookAt}`
@@ -241,16 +294,13 @@ export function decideSessionClaim(f: SessionClaimFacts): SessionClaimDecision {
     return {
       kind: "pass",
       warning: `Took ${ticket} over from ${holder} with --take-over`,
+      takenOver: true,
     };
   const minutes = Math.round(f.idleMs / 60_000);
   return {
     kind: "reject",
     code: "REJECTED",
-    message: `${ticket} is being worked on by another session of yours: ${holder}. This session (${f.session}) cannot ${
-      f.operation === "claim" ? "claim it again" : "unclaim it"
-    } while that session is alive. Leave the ticket to that session. If that session has stopped, or a person told you to take the work over, add --take-over${
-      f.operation === "claim" ? " (the record moves to this session)" : ""
-    }. The record is ignored once SessionEnd reaches that session or no dg hook has reached it for ${minutes} minutes`,
+    message: `${ticket} is being worked on by another session of yours: ${holder}. This session (${f.session}) cannot ${cannot} while that session is alive. Leave the ticket to that session. If that session has stopped, or a person told you to take the work over, add --take-over${moves}. The record is ignored once SessionEnd reaches that session or no dg hook has reached it for ${minutes} minutes`,
   };
 }
 

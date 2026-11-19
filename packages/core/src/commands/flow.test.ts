@@ -666,6 +666,7 @@ describe("dg flow next", () => {
     expect(plan3).toMatchObject({
       stage: { name: "plan", rule: 3, plan: "p1" },
       commands: [
+        // 承認のために見せる段階は、見るだけなので予約の指定（--reserve）を付けない
         "dg --json --actor agent plan show p1",
         "dg --json --actor agent plan approve p1 --auto",
       ],
@@ -685,7 +686,10 @@ describe("dg flow next", () => {
     const work = await flow(ctx, {});
     expect(work).toMatchObject({
       stage: { name: "work", rule: 4, plan: "p1", tickets: ["t1"] },
-      commands: ["dg --json --actor agent plan show p1", "dg --json --actor agent next t1"],
+      commands: [
+        "dg --json --actor agent plan show p1 --reserve",
+        "dg --json --actor agent next t1 --reserve",
+      ],
       approval: {
         required: true,
         what: "Merging each PR (when approved, dg pr merge <id> --approved-by human)",
@@ -1138,22 +1142,22 @@ describe("dg flow next", () => {
     const askPerson = (t: string) =>
       `Ask a person to run dg ticket update ${t} --gate free before the next of ${t}, and wait for it (only a person can lower the quality gate level; an agent's call is rejected)`;
     expect(work.commands).toEqual([
-      "dg --json --actor agent plan show p1",
+      "dg --json --actor agent plan show p1 --reserve",
       askPerson("t1"),
-      "dg --json --actor agent next t1",
-      "dg --json --actor agent next t2",
+      "dg --json --actor agent next t1 --reserve",
+      "dg --json --actor agent next t2 --reserve",
       askPerson("t3"),
-      "dg --json --actor agent next t3",
+      "dg --json --actor agent next t3 --reserve",
     ]);
     // 段を上げるのはエージェントが打てる。high は段のないチケットと同じ段なので入れない
     const high = await flow(ctx, { gate: "high" });
     expect(high.commands).toEqual([
-      "dg --json --actor agent plan show p1",
-      "dg --json --actor agent next t1",
+      "dg --json --actor agent plan show p1 --reserve",
+      "dg --json --actor agent next t1 --reserve",
       "dg --json --actor agent ticket update t2 --gate high",
-      "dg --json --actor agent next t2",
+      "dg --json --actor agent next t2 --reserve",
       "dg --json --actor agent ticket update t3 --gate high",
-      "dg --json --actor agent next t3",
+      "dg --json --actor agent next t3 --reserve",
     ]);
     // --gate がなければ今と同じ
     const plain = await flow(ctx, {});
@@ -1180,10 +1184,10 @@ describe("dg flow next", () => {
       "The In Progress column (in_progress) is at its WIP limit (1 of 1, wip in workflow.yaml), so starting another ticket goes over it",
     );
     expect(work.commands).toEqual([
-      "WIP limit (in_progress): rather than starting new work, first advance a ticket in a column further along (in_progress: t1) with dg --json --actor agent next <id>. Starting is not refused",
-      "dg --json --actor agent plan show p1",
-      "dg --json --actor agent next t1",
-      "dg --json --actor agent next t2",
+      "WIP limit (in_progress): rather than starting new work, first advance a ticket in a column further along (in_progress: t1) with dg --json --actor agent next <id> --reserve. Starting is not refused",
+      "dg --json --actor agent plan show p1 --reserve",
+      "dg --json --actor agent next t1 --reserve",
+      "dg --json --actor agent next t2 --reserve",
     ]);
   });
 
@@ -1203,9 +1207,9 @@ describe("dg flow next", () => {
     expect(work.stage.name).toBe("work");
     expect(work.warnings.some((w) => w.includes("WIP limit"))).toBe(false);
     expect(work.commands).toEqual([
-      "dg --json --actor agent plan show p1",
-      "dg --json --actor agent next t1",
-      "dg --json --actor agent next t2",
+      "dg --json --actor agent plan show p1 --reserve",
+      "dg --json --actor agent next t1 --reserve",
+      "dg --json --actor agent next t2 --reserve",
     ]);
   });
 
