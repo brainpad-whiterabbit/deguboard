@@ -44,4 +44,4 @@ governance:
   config: always_ask
   reassign: always_ask
   epic: always_ask
-  create: anyone
+  create: always_ask
