@@ -179,8 +179,8 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
       "説明する",
       "自由に",
     ]);
-    // 先頭の項目にフォーカスを置く
-    expect(markedText(document.activeElement)).toBe("進めるおすすめ");
+    // 先頭の項目にフォーカスを置く（フォーカスを置く effect は描画より後になりうるので待つ）
+    await waitFor(() => expect(markedText(document.activeElement)).toBe("進めるおすすめ"));
     // 一覧を開いている間は吹き出しを出し続ける
     expect(screen.getByText("画面").closest("[data-ask-spot]")!.getAttribute("data-ask-spot")).toBe(
       "active",
