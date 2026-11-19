@@ -26,11 +26,13 @@ The order of stages and the current stage are decided by `dg flow next`. Whether
 | ------- | -------------------------------------------- | -------------------------------------------------- |
 | Assign  | Rows to put in                               | `flow.assign`                                      |
 | Check   | Rows to fix                                  | `flow.check`                                       |
-| Check   | Deletion, abandoned, closing                 | Confirmed one at a time (`dg guide check`)         |
+| Check   | Deletion, abandoned, closing                 | `governance`, `exceptions`, `flow`                 |
 | Plan    | Plan                                         | `flow.plan`                                        |
 | Work    | Merge of each PR (`dg guide work`)           | `decide` of review → done                          |
 | Audit   | Table of findings                            | `flow.audit`                                       |
 | Release | Merge of the release PR, publishing, closing | `flow.release`                                     |
+
+In the Check stage, deletion, abandoned, and closing are confirmed one at a time, even if the row was approved (`dg guide check`).
 
 Closing a Plan whose tickets are all finished is part of the Work stage. It needs no approval, so the flow closes it and goes on (the steps are in "Closing a Plan" of `dg guide done`).
 

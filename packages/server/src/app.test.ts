@@ -5,6 +5,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { commands, findCommand, openContext, runCommand, init } from "@deguboard/core";
+import { openForInit } from "../../core/test/helpers/commands-context.js";
 import {
   createFixture,
   createLocalOnlyRepo,
@@ -122,7 +123,8 @@ describe("HTTP サーバー", () => {
 
   it("POST /api/commands/<name> がコマンドを実行し、CLI の --json と同じ形を返す", async () => {
     const f = await fixture();
-    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    // claim と abandoned が通るのは Workflow の値によるので、土台の Workflow を置いて init する
+    await runCommand(init, await openForInit({ cwd: f.cloneA }), {});
     const s = await serve(f.cloneA);
     const created = await post(s, "ticket.create", { title: "画面から", labels: ["ui"] });
     expect(created.status).toBe(200);
@@ -134,7 +136,7 @@ describe("HTTP サーバー", () => {
     });
     const claimed = await post(s, "ticket.claim", { ticket: "1" });
     expect(claimed.body.data).toMatchObject({ status: "in_progress", assignee: "ui" });
-    // 画面の操作は常に人として扱われる（既定では遷移に制約がないので abandoned にもできる）
+    // 画面の操作は常に人として扱われる（土台の Workflow の exceptions.abandon は人を止めないので abandoned にもできる）
     const abandoned = await post(s, "ticket.move", { ticket: "t1", status: "abandoned" });
     expect(abandoned.body.data.status).toBe("abandoned");
   });

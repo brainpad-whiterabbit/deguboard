@@ -313,6 +313,8 @@ describe("dg", () => {
   it("claim の --without-branch は branch を記録せず、--branch と一緒なら使い方の誤り。update の --branch none で外す", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
+    // 人の claim は todo → in_progress の境目の requires を通る（土台の Workflow では依存のないチケットは通る）
+    await setTestWorkflow(f);
     await dg(f.cloneA, ["ticket", "create", "A"]);
     await dg(f.cloneA, ["ticket", "create", "B"]);
     const both = await dg(f.cloneA, [
@@ -473,7 +475,8 @@ describe("dg", () => {
   it("拒否された遷移は終了コード 1 と error.code、入力の誤りと未知のコマンドは 2", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
-    // 既定の Workflow：done へ進むには pr_merged が要る
+    // 土台の Workflow（review → done が pr_merged を求める）：done へ進むには pr_merged が要る
+    await setTestWorkflow(f);
     await dg(f.cloneA, ["ticket", "create", "A"]);
     const rejected = await dg(f.cloneA, ["--json", "ticket", "move", "1", "done"]);
     expect(rejected.code).toBe(1);

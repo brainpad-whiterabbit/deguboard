@@ -1116,7 +1116,7 @@ describe("チケットの流れ（照合と claim）", () => {
     expect(detached.data.branch).toBeUndefined();
     expect((await runCommand(sync, ctx, {})).warnings).toEqual([]);
 
-    // 既定の Workflow の review → done の pr_merged は、ブランチなしで着手したチケットには当たらず、手で done にできる。
+    // 土台の Workflow の review → done の pr_merged は、ブランチなしで着手したチケットには当たらず、手で done にできる。
     // ブランチを付けている間は当たる
     await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "t1-gone" });
     await expect(
@@ -1767,7 +1767,7 @@ describe("チケットの流れ（照合と claim）", () => {
     const f = await initializedFixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await reopenInitialized(f, { now: () => clock });
-    // agent が abandoned と PR なしの done に動かせる Workflow（既定は人に限り、done に pr_merged と人の承認を求める）
+    // agent が abandoned と PR なしの done に動かせる Workflow（土台の Workflow は done に pr_merged を求め、エージェントの abandoned と done に人の承認を求める）
     await writeOpenWorkflow(human);
     /** 閉じた Run の知らせだけを取り出す（読み取りの警告は除く） */
     const closedWarnings = (warnings: string[]) =>

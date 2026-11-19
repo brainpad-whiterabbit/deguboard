@@ -24,11 +24,13 @@ The order of stages and the current stage are decided by \`dg flow next\`. Wheth
 | ------- | -------------------------------------------- | -------------------------------------------------- |
 | Assign  | Rows to put in                               | \`flow.assign\`                                      |
 | Check   | Rows to fix                                  | \`flow.check\`                                       |
-| Check   | Deletion, abandoned, closing                 | Confirmed one at a time (\`dg guide check\`)         |
+| Check   | Deletion, abandoned, closing                 | \`governance\`, \`exceptions\`, \`flow\`                 |
 | Plan    | Plan                                         | \`flow.plan\`                                        |
 | Work    | Merge of each PR (\`dg guide work\`)           | \`decide\` of review → done                          |
 | Audit   | Table of findings                            | \`flow.audit\`                                       |
 | Release | Merge of the release PR, publishing, closing | \`flow.release\`                                     |
+
+In the Check stage, deletion, abandoned, and closing are confirmed one at a time, even if the row was approved (\`dg guide check\`).
 
 Closing a Plan whose tickets are all finished is part of the Work stage. It needs no approval, so the flow closes it and goes on (the steps are in "Closing a Plan" of \`dg guide done\`).
 
@@ -818,7 +820,7 @@ The board's Workflow (\`workflow.yaml\`) decides who may change a ticket's Statu
   1. **A command that dg gave is run as given.** \`commands\` and \`checkpoint\` of \`dg next\` and \`dg flow next\` are already in the form that fits the board's values. An entry that carries \`--approved-by human\` is run only after a human approved or instructed it; an entry that carries \`--auto\`, or neither, is run without asking; an entry that is a sentence asking a human to run a command is passed on to the human. \`approval\` of \`dg flow next\` tells whether to ask and about what (\`dg guide all\`)
   2. **A human's instruction or approval is passed with \`--approved-by human\`** (\`human\` is the user who approved; dg records the approver). A human's instruction to do exactly that operation ("abandon t12", "merge it", "file these") is the approval, so pass it without asking again. dg also accepts it where the board asks for no approval. Never pass \`--approved-by\` when no human approved or instructed it
   3. **For a command that dg did not give and no human approved, read what applies before you run it**: \`dg --json --actor agent workflow show\`. \`moves\` gives \`agent\` for each Status change, \`definition\` gives the value that judges each operation below, and the values mean:
-     - \`allow\` (the value \`anyone\`): run it without asking, with neither \`--approved-by\` nor \`--auto\`
+     - \`allow\` (the values \`anyone\` and \`agent_only\`): run it without asking, with neither \`--approved-by\` nor \`--auto\`
      - \`approval\` (the values \`always_ask\` and \`ask_unless_auto\`): ask a human, and only when approved, run it with \`--approved-by human\`
      - \`reject\` (the value \`human_only\`): you cannot run it, even with \`--approved-by\`. Give the human the exact command to run (without \`--actor agent\` and \`--approved-by\`)
   4. **A refusal says what to do.** A command that needs approval and is called without it, or that is limited to humans, returns \`TRANSITION_REJECTED\`, and \`error.message\` names the value that judged it and the way to go on (ask a human and run it again with \`--approved-by human\`, run it again with \`--auto\`, or ask a human to run it). Follow it, and do not retry in another way

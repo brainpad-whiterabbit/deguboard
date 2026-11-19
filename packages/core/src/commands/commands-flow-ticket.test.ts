@@ -64,7 +64,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       (e: unknown) => e as { code: string; message: string; detail?: string },
     );
 
-  it("既定の Workflow：claim と前へ進む move は境目の requires と decide で、abandoned・戻す・done の取り消しは exceptions の値で判定される", async () => {
+  it("土台の Workflow：claim と前へ進む move は境目の requires と decide で、abandoned・戻す・done の取り消しは exceptions の値で判定される", async () => {
     const { human, agent, subject } = await humanAndAgent();
     await runCommand(ticketCreate, human, { title: "A" });
     await runCommand(ticketCreate, human, { title: "B", depends_on: ["t1"] });
@@ -201,7 +201,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(await subject()).toBe("Claim t2: claude/agent (approved by claude/agent with --auto)");
   });
 
-  it("既定の Workflow：ブランチなしで着手したチケット（PR の要らない作業）には pr_merged を当てず、エージェントが人の承認を記録して done にできる（ST-10）", async () => {
+  it("土台の Workflow：ブランチなしで着手したチケット（PR の要らない作業）には pr_merged を当てず、エージェントが人の承認を記録して done にできる（ST-10）", async () => {
     const { human, agent, subject } = await humanAndAgent();
     await runCommand(ticketCreate, human, { title: "A" });
     await runCommand(ticketCreate, human, { title: "B" });
@@ -227,7 +227,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     });
     expect(done.data.status).toBe("done");
     expect(await subject()).toBe("Move t1 from review to done (approved by claude)");
-    // 境目を飛ばす in_progress → done も同じ。人は --override なしで進める（人の claim は既定の ask_unless_auto でも聞かずに通る）
+    // 境目を飛ばす in_progress → done も同じ。人は --override なしで進める（人の claim は土台の Workflow の ask_unless_auto でも聞かずに通る）
     await runCommand(ticketClaim, human, { ticket: "t2", without_branch: true });
     expect(await subject()).toBe("Claim t2: eiki");
     expect(
@@ -453,7 +453,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(shown).not.toHaveProperty("workflow");
     expect(shown).toMatchObject({ estimate: 3 });
     expect(human.store.config).not.toHaveProperty("default_workflow");
-    // どちらも Workflow を選ばない：カンバンの workflow.yaml（既定。todo → done は pr_merged が要る）に従う
+    // どちらも Workflow を選ばない：カンバンの workflow.yaml（土台の Workflow。todo → done は pr_merged が要る）に従う
     await expect(
       runCommand(ticketMove, human, { ticket: "t1", status: "done" }),
     ).rejects.toMatchObject({ code: "TRANSITION_REJECTED" });
@@ -1198,7 +1198,7 @@ describe("Epic と Iteration", () => {
     await expect(runCommand(epicClose, ctx, { epic: "e1" })).rejects.toMatchObject({
       code: "REJECTED",
     });
-    // 閉じる・再開するのは既定ではエージェントに人の承認が要る（Workflow の governance.epic。値ごとの判定は governance.test.ts）
+    // 閉じる・再開するのは土台の Workflow ではエージェントに人の承認が要る（Workflow の governance.epic。値ごとの判定は governance.test.ts）
     const closed = await runCommand(epicClose, ctx, { epic: "e1", force: true });
     expect(closed.data.status).toBe("closed");
     expect(closed.data.closed_at).toBeDefined();
@@ -1234,7 +1234,7 @@ describe("Epic と Iteration", () => {
       done: 1,
       by_status: { todo: 1, in_progress: 0, review: 0, done: 1, abandoned: 0 },
     });
-    // 閉じるのは既定でエージェントに人の承認が要る（flow.release。判定は flow-permission.test.ts）
+    // 閉じるのは土台の Workflow でエージェントに人の承認が要る（flow.release。判定は flow-permission.test.ts）
     const closed = await runCommand(iterationClose, ctx, { iteration: "s1" });
     expect(closed.data).toMatchObject({ status: "closed", completed: 1, carried_over: 1 });
     expect(ctx.store.tickets.get("t2")?.data.iteration).toBeUndefined();
