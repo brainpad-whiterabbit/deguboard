@@ -625,7 +625,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
           "merge_base",
           null,
           [
-            `In the worktree of the work branch (worktree of ${dg(`ticket show ${id}`)}), with no uncommitted changes and at the pushed tip, run git merge --no-ff ${ref} (dg next has just fetched it; write the merge commit's message by the repository's convention)`,
+            `In the worktree of the work branch (worktree of ${dg(`ticket show ${id}`)}), with no uncommitted changes and at the pushed tip, run git merge --no-ff ${ref} -m "<message by the repository's convention>" (dg next has just fetched it; give the message with -m, because a merge with no terminal takes git's default message)`,
             `If the merge stops on a conflict, run git merge --abort and do not resolve it here: ask a sub-agent to fix it (${marker(fixStep)}, and tell it to merge ${ref} into the work branch, resolve the conflict, and push). A merge resolved by hand does not keep the review`,
             "When the merge is made with no conflict, push the work branch (git push)",
           ],

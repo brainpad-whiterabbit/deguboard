@@ -37,9 +37,9 @@ For `wait_merge`, `wait_human`, `wait_deps`, and `wait_session` with no Plan, th
 
 The parent does the `merge_base` step itself, in the worktree of the work branch (`worktree` of `ticket show`). It opens no Run. The whole check of `dg pr ready` then runs on a commit the merge can use ("Base" in the "Quality gate" section of `dg guide review`).
 
-1. Confirm that the worktree has no uncommitted changes and is at the pushed tip, and merge base as `commands` gives it (`git merge --no-ff <base>`; `dg next` has just fetched base). Write the merge commit's message by the repository's convention
+1. Confirm that the worktree has no uncommitted changes and is at the pushed tip, and merge base as `commands` gives it (`git merge --no-ff <base> -m "<message>"`; `dg next` has just fetched base). Give the merge commit's message with `-m`, written by the repository's convention: with no terminal, git does not ask and uses its default message
 2. When the merge is made with no conflict, push the work branch and call `next` again. A merge commit that only brings base in keeps the review, so the step is then `ready`
-3. When the merge stops on a conflict, run `git merge --abort`, and do not resolve it yourself: a merge resolved by hand does not keep the review, so it goes to a fix. Ask a subagent with the mark of the fix step in `commands` and the text of `brief <id> --role fix`, adding that it is to merge base into the work branch, resolve the conflict, and push ("Who implements and fixes" below says who fixes). When it returns, call `next` again: at high it returns `review` for the new tip, and at low `ready`
+3. When the merge stops on a conflict, run `git merge --abort`, and do not resolve it yourself: a merge resolved by hand does not keep the review, so it goes to a fix. Ask a subagent with the mark of the fix step in `commands` and the text of `brief <id> --role fix`, adding that it is to merge base into the work branch, resolve the conflict, and push ("Who implements and fixes" below says who fixes). When it returns, call `next` again: at high it returns `review` for the new tip, and at low `ready`. When the fix failed or did not return, or `next` returns `merge_base` again after it, do not merge again: follow "Fix failed or did not return" in the "How to finish" section of `dg guide review` (report to a human)
 
 ## Merging after approval
 
