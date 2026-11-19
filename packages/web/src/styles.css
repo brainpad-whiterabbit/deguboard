@@ -3504,8 +3504,10 @@ button.row-label[aria-pressed="true"] {
   margin-left: 0;
 }
 
-/* エージェントに頼む入力欄（UI-15）。ページの下に出し、上の 1 行が頼むことの候補、欄の頭が Skill と対象の札、下が全文・形式・コピー */
+/* エージェントに頼む入力欄（UI-15）。ページの下に出し、一番上が見出しの行（頼む・対象の札・×）、その下が頼むことの候補、
+   欄の頭が Skill の札と 1 文、下が全文・形式・空にするのアイコンのボタンとコピー。塗りの色はコピーと送るのボタンだけに使う */
 .ask-composer {
+  position: relative;
   flex: none;
   display: grid;
   gap: 0.4rem;
@@ -3516,14 +3518,78 @@ button.row-label[aria-pressed="true"] {
   border-top: 1px solid var(--dg-border);
   box-shadow: 0 -6px 18px rgb(0 0 0 / 10%);
 }
-.ask-head {
+.ask-heading {
   display: flex;
-  align-items: flex-start;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.4rem;
   min-width: 0;
 }
-.ask-suggestions {
+.ask-heading-label {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+}
+.ask-heading-label svg,
+button.ask-icon svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* 対象の札（ID と題）。1 つなら題を幅いっぱいまで出して省き、複数なら札ごとに題を縮めて折り返す */
+.ask-targets {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.5rem;
+}
+.ask-target {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 0.9em;
+}
+.ask-target code {
+  flex: none;
+  padding: 0 0.3em;
+  font-size: 0.95em;
+  border-radius: 3px;
+  background: var(--vscode-badge-background);
+}
+.ask-target-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--vscode-descriptionForeground);
+}
+.ask-target:not(:only-child) .ask-target-title {
+  max-width: 10em;
+}
+.ask-target button {
+  flex: none;
+  padding: 0 0.15em;
+  font-size: 0.95em;
+  line-height: 1;
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  border: 0;
+}
+.ask-target button:hover {
+  color: var(--vscode-foreground);
+  background: transparent;
+}
+.ask-suggestions {
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
@@ -3551,25 +3617,26 @@ button.ask-suggestion[aria-pressed="true"] {
   margin-right: 0.2em;
   color: var(--vscode-focusBorder);
 }
-button.ask-close,
-button.ask-ghost {
-  padding: 0.05em 0.45em;
+/* アイコンのボタン（閉じる・全文・形式・空にする）。使えないときも形が見えるよう、薄くするだけで消さない */
+button.ask-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   color: var(--vscode-descriptionForeground);
   background: transparent;
   border-color: transparent;
+  border-radius: 4px;
 }
-button.ask-close {
-  font-size: 1.1em;
-  line-height: 1;
-}
-button.ask-close:hover,
-button.ask-ghost:hover,
-button.ask-ghost[aria-expanded="true"] {
+button.ask-icon:hover,
+button.ask-icon[aria-expanded="true"] {
   color: var(--vscode-foreground);
   background: var(--vscode-list-hoverBackground);
 }
-button.ask-ghost {
-  font-size: 0.85em;
+button.ask-icon:disabled {
+  background: transparent;
 }
 .ask-box {
   display: grid;
@@ -3582,52 +3649,22 @@ button.ask-ghost {
 .ask-box:focus-within {
   border-color: var(--vscode-focusBorder);
 }
-.ask-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  align-items: center;
-}
-.ask-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2em;
-  padding: 0 0.35em;
-  font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
-  font-size: 0.9em;
-  line-height: 1.5;
-  border-radius: 3px;
-}
-.ask-pill-skill {
-  color: var(--vscode-button-foreground);
-  background: var(--vscode-button-background);
-}
-.ask-pill-target {
-  color: var(--vscode-foreground);
-  background: var(--vscode-badge-background);
-}
-.ask-pill small {
-  font-family: var(--vscode-font-family);
-  color: var(--vscode-descriptionForeground);
-}
-.ask-pill button {
-  padding: 0 0 0 0.15em;
-  font-size: 0.95em;
-  line-height: 1;
-  color: inherit;
-  background: transparent;
-  border: 0;
-  opacity: 0.65;
-}
-.ask-pill button:hover {
-  opacity: 1;
-  background: transparent;
-}
-/* 札の下の 1 文（UI-15）。依頼文には入らない見た目だけの説明 */
+/* 欄の頭の 1 文（UI-15）。依頼文には入らない見た目だけの説明で、頭に Skill の札を置く */
 .ask-meaning {
   margin: 0;
   font-size: 0.9em;
   color: var(--vscode-descriptionForeground);
+}
+/* Skill の札は押せないので塗らず、枠線だけにする */
+.ask-skill {
+  margin-right: 0.45em;
+  padding: 0 0.3em;
+  font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
+  font-size: 0.95em;
+  line-height: 1.4;
+  color: var(--vscode-textLink-foreground);
+  border: 1px solid currentColor;
+  border-radius: 3px;
 }
 .ask-box textarea {
   width: 100%;
@@ -3645,9 +3682,16 @@ button.ask-ghost {
   align-items: center;
   gap: 0.15rem;
 }
+/* ⌘↵・Ctrl+↵ のキーの印 */
 .ask-keys {
-  margin-right: 0.3em;
+  margin-right: 0.4em;
+  padding: 0 0.3em;
+  font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
   font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+  border: 1px solid var(--dg-border);
+  border-bottom-width: 2px;
+  border-radius: 3px;
 }
 .ask-send-row {
   display: flex;
@@ -3660,17 +3704,27 @@ select.ask-terminal {
   min-width: 0;
   padding: 0.15em 0.3em;
 }
-button.ask-send {
-  padding: 0.2em 0.8em;
-  border-radius: 4px;
-}
+/* コピーと送るは ✓ の間も幅が変わりにくいよう、幅の下限を取って中を寄せる */
+button.ask-send,
 button.ask-copy {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.3em;
   padding: 0.2em 0.7em;
   font-size: 0.9em;
   border-radius: 4px;
+}
+button.ask-send {
+  min-width: 5em;
+}
+button.ask-copy {
+  min-width: 6.5em;
+}
+button.ask-done,
+button.ask-done:hover {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-testing-iconPassed);
 }
 button.ask-copy svg {
   fill: none;
@@ -3704,6 +3758,15 @@ button.ask-copy svg {
 }
 .ask-result:empty {
   display: none;
+}
+/* コピーと送るの成功の文。読み上げにだけ渡し、場所を取らない（見た目はボタンの ✓） */
+.ask-result-quiet {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* 行・見出しからエージェントに頼む（UI-15。components/ask-menu.tsx）。吹き出しはふだん隠して右端の印を見せ、マウスを載せたとき・

@@ -41,13 +41,17 @@ export const EN: Readonly<Record<string, string>> = {
   "選んだターミナルの入力に依頼文を入れる（Enter は押さない）":
     "Put the request into the selected terminal's input (Enter is not pressed)",
   送る: "Send",
+  送った: "Sent",
   全文: "Full text",
-  "Skill の呼び出しか、Skill を使わない文章だけか。既定は dg の Skill がリポジトリか ~/.claude/skills にあれば Skill、なければ文章":
-    "Invoke a Skill, or plain text without a Skill. Defaults to Skill if the dg Skills are in the repository or ~/.claude/skills, otherwise text",
+  全文を見る: "Show full text",
+  "{0}（押すと切り替える）。Skill の呼び出しか、Skill を使わない文章だけか。既定は dg の Skill がリポジトリか ~/.claude/skills にあれば Skill、なければ文章":
+    "{0} (click to switch). Invoke a Skill, or plain text without a Skill. Defaults to Skill if the dg Skills are in the repository or ~/.claude/skills, otherwise text",
   "形式：文章": "Format: Text",
   "形式：Skill": "Format: Skill",
-  クリア: "Clear",
-  "指示の欄を空にする（下書きも消す）": "Empty the instructions (the draft is cleared too)",
+  空にする: "Clear",
+  "空にする（指示の欄と下書きを消す）": "Clear (empties the instructions and the draft)",
+  このキーでもコピーできる: "These keys copy too",
+  コピー: "Copy",
   "{0}コピー": "{0}Copy",
   "{0}なので、人が打つコマンドをコピーする": "{0}, so copy the commands for a person to run",
   "{0} は Workflow が人に限った操作（governance）":

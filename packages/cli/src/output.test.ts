@@ -68,3 +68,46 @@ describe("printHuman の dg workflow show", () => {
     ]);
   });
 });
+
+describe("printHuman の表のセル", () => {
+  it("オブジェクトの配列を JSON で出し、[object Object] を出さない", () => {
+    const streams = capture();
+    printHuman(streams, "x.list", {
+      data: [{ id: "a1", items: [{ n: 1 }, { n: 2 }] }],
+      warnings: [],
+    });
+    expect(streams.text()).not.toContain("[object Object]");
+    expect(
+      streams
+        .text()
+        .split("\n")[1]
+        ?.trim()
+        .split(/\s{2,}/),
+    ).toEqual(["a1", '[{"n":1},{"n":2}]']);
+  });
+
+  it("show の中の表でも、行の中のオブジェクトの配列を JSON で出す", () => {
+    const streams = capture();
+    printHuman(streams, "x.show", {
+      data: { id: "a1", rows: [{ key: "k", values: [{ at: "x" }] }] },
+      warnings: [],
+    });
+    expect(streams.text()).not.toContain("[object Object]");
+    expect(streams.text()).toContain('[{"at":"x"}]');
+  });
+
+  it("値だけの配列は従来どおり「,」で並べる", () => {
+    const streams = capture();
+    printHuman(streams, "x.list", {
+      data: [{ id: "a1", labels: ["p", "q"] }],
+      warnings: [],
+    });
+    expect(
+      streams
+        .text()
+        .split("\n")[1]
+        ?.trim()
+        .split(/\s{2,}/),
+    ).toEqual(["a1", "p,q"]);
+  });
+});

@@ -4,7 +4,7 @@
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
 // - 未 push のコミットがある間はタイトル行の同期のボタンが点付きになり、押して同期すると元に戻ること（UI-6）
-// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・更新日で並べたメニューと行・選んだ行の帯と ID のコピーの形のメニューとコピーした後の帯・Epic の札に触れて光らせた行・選んでいる Epic の見出し・Run の丸と回数を出した Done の行・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・更新日で並べたメニューと行・選んだ行の帯と ID のコピーの形のメニューとコピーした後の帯・頼む小窓とコピーした後のボタン・Epic の札に触れて光らせた行・選んでいる Epic の見出し・Run の丸と回数を出した Done の行・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
 // - 導入のチェックリストの「アンインストール」の節で、消すものを確かめてから一時リポジトリを外せること（閉じた節・開いた節・確認・外した後の知らせを撮る。
 //   ボードを消すので、ボードの要る検査の後に置く。HOME は一時ディレクトリなので、手元の個人の設定には触れない）
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
@@ -339,6 +339,48 @@ describe("VS Code の実機の左パネル", () => {
     }
     await clear.click();
     await bar.waitFor({ state: "detached" });
+  });
+
+  it("行の吹き出しから頼む小窓を開き、見出しの行・Skill の札・下の段のボタンと、コピーした後のボタンの ✓ をライトとダークで撮る。✓ で小窓の高さは変わらない（t1160）", async () => {
+    await sidebar.locator('nav a[href="#/board"]').click();
+    const row = sidebar.locator(".ticket-row", { hasText: TITLES[2] });
+    await row.hover();
+    await sidebar.getByRole("button", { name: "Ask Agent (Row t3)" }).click();
+    await sidebar.getByRole("menuitem").first().click();
+    const composer = sidebar.getByRole("region", { name: "Ask Agent" });
+    await composer.locator(".ask-heading").getByText(TITLES[2]).waitFor();
+    // 選んで開くと同時にコピーするので、ボタンの ✓ が出て戻ってから撮る
+    const copy = composer.getByRole("button", { name: "Copy" });
+    const done = composer.locator("button.ask-copy.ask-done");
+    await done.waitFor();
+    await done.waitFor({ state: "detached" });
+    // 一時リポジトリには dg の Skill がなく既定は文章の形なので、Skill の形に切り替えて Skill の札を出す（撮った後に戻す）
+    const format = composer.getByRole("button", { name: "Format: Text" });
+    await format.click();
+    await composer.locator(".ask-meaning .ask-skill").waitFor();
+    const height = (await composer.boundingBox())!.height;
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("ask-composer", theme);
+      await access(shot.sidebar);
+    }
+    // ✓ は ASK_DONE_MS で戻るので、撮り終えた後もまだ出ていれば撮った絵にも写っている。戻っていたら撮り直す
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      for (let attempt = 1; ; attempt++) {
+        await copy.click();
+        await done.waitFor();
+        expect((await composer.boundingBox())!.height).toBe(height);
+        const shot = await host.screenshot("ask-copied", theme);
+        await access(shot.sidebar);
+        if (await done.isVisible()) break;
+        if (attempt === 5) throw new Error(`コピーの ✓ が写るように撮れなかった（${theme}）`);
+      }
+    }
+    await composer.getByRole("button", { name: "Format: Skill" }).click();
+    await composer.getByRole("button", { name: "Format: Text" }).waitFor();
+    await composer.getByRole("button", { name: "Close" }).click();
+    await composer.waitFor({ state: "detached" });
   });
 
   it("設定画面に並列の上限（work.parallel）の数の欄が出て、ライトとダークで撮る", async () => {
