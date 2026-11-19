@@ -8,11 +8,15 @@
 // CPU 数に収まる割合にする（足して 100% 以下であることは test/lint/vitest-max-workers.test.ts が確かめる）。
 // テストの時間のほとんどは git の子プロセスの起動で、CPU を使い切るまではワーカー数に応じて縮む。8 CPU（4 コア）で
 // 全体のテスト（162 ファイル）を 1 回ずつ測ると、1 本だけのときは 4 本で 153 秒・6 本で 122 秒・8 本で 116 秒、
-// 2 本の test:related を重ねたときは 4 本で 170 秒・6 本で 149 秒で、どれも落ちなかった（2026-11-19、t1139）。
+// 2 ワーカーの vitest（test:related 1 本に当たる）を重ねたときは 4 本で 170 秒・6 本で 149 秒で、どれも落ちなかった
+// （2026-11-19、t1139）。
 // 8 本は 6 本とほぼ変わらず、重なる test:related の分が残らないので採らない。
 // 並列のエージェントは worktree ごとに test:related を回すので、何本も重なる（全体のテストも test:related も CPU 数の
 // 半分だった 2026-11-17 に 3 本が重なり、8 CPU で負荷平均が 16、全体のテストが 432 秒かかった）。test:related は
-// lock に入れず待たずに回したいので、4 分の 1 にする。test:related かどうかは、scripts/test-related.mjs が vitest に渡す
+// lock に入れず待たずに回したいので、4 分の 1 にする。test:related が 2 本以上重なるとワーカーの合計は CPU 数を超えるが
+// （2 本以上を重ねた計測はしていない）、テストの上限の時間（vitest.config.ts の testTimeout、20 秒）に余裕があり、
+// 1 本を重ねた計測では落ちなかったので、全体のテストは 4 分の 3 にする。時間に頼るテストが落ち始めたら半分に戻す。
+// test:related かどうかは、scripts/test-related.mjs が vitest に渡す
 // 環境変数 DEGUBOARD_TEST_RELATED で見る（isRelatedRun）。
 //
 // 手元で 1 本だけ速く回したいときや、もっと絞りたいときは DEGUBOARD_TEST_MAX_WORKERS に数か "50%" のような割合を渡す。
