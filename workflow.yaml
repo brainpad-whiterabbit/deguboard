@@ -14,7 +14,7 @@ boundaries:
     to: in_progress
     requires:
       - deps_done
-    decide: anyone
+    decide: ask_unless_auto
   - from: in_progress
     to: review
     requires: []
