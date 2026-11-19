@@ -363,6 +363,7 @@ export const EN: Readonly<Record<string, string>> = {
   // components/row-labels.tsx
   "ラベル {0} の絞り込みを外す": "Remove filter label {0}",
   "ラベル {0} で絞る": "Filter by label {0}",
+  "ほかのラベル {0}": "More labels: {0}",
   // components/run-parts.tsx
   実行中: "Running",
   成功: "Success",
@@ -485,7 +486,7 @@ export const EN: Readonly<Record<string, string>> = {
   "担当・ラベルで絞り込む": "Filter by assignee or label",
   "{0} 日目": "Day {0}",
   一覧の一番上へ戻る: "Back to the top of the list",
-  "Iteration・Epic・担当を切り替える": "Switch Iteration, Epic, or assignee",
+  "Iteration・Epic・担当・ラベルを切り替える": "Switch Iteration, Epic, assignee, or label",
   "すべて（planned と active の Iteration）": "All (planned and active Iterations)",
   "すべて{0}{1}": "All{0}{1}",
   "\n開始 {0}": "\nStarted {0}",

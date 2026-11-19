@@ -81,7 +81,14 @@ export function RowLabels({
         );
       })}
       {rest.length > 0 ? (
-        <span className="row-label more" title={labels.join(", ")}>
+        // title はマウスで触れたときだけ出るので、隠れた名前を支援技術にも読めるように aria-label にも持たせる。
+        // 素の span の aria-label は読まれないので role="img" を付ける
+        <span
+          className="row-label more"
+          role="img"
+          title={labels.join(", ")}
+          aria-label={tr("ほかのラベル {0}", rest.join(", "))}
+        >
           +{rest.length}
         </span>
       ) : null}

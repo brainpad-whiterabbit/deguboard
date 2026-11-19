@@ -17,7 +17,7 @@
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 左パネルでは、見出しの進みの帯の行が上へ抜けたら、上の端に 1 行の帯（BoardBand。番号・名前・小さな進みの帯・n/m）を出し、
 // 状態の節の見出しをその下に貼り付ける（components/sticky-band.tsx と styles.css の .sticky-band）。帯と貼り付きは左パネルの形（data-surface が sidebar）だけ。
-// 帯の右端の ▾ は、Iteration・Epic の札の列・担当の漏斗・状態ごとの件数を一覧の上に重ねて開き（BoardBandDrop）、上へ戻らずに切り替えられる。
+// 帯の右端の ▾ は、Iteration・Epic の札の列・担当・ラベルの漏斗・状態ごとの件数を一覧の上に重ねて開き（BoardBandDrop）、上へ戻らずに切り替えられる。
 // Epic・担当・ラベルで絞っている間は、帯の 2 行目に絞り込みの札（× で外す）を出す。
 // 左パネルの行・状態の節の見出し・Iteration の見出しと帯・選んでいる Epic の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
@@ -596,8 +596,8 @@ function BoardBand({
           ref={toggle}
           type="button"
           className={`board-band-toggle${open ? " open" : ""}`}
-          aria-label={tr("Iteration・Epic・担当を切り替える")}
-          title={tr("Iteration・Epic・担当を切り替える")}
+          aria-label={tr("Iteration・Epic・担当・ラベルを切り替える")}
+          title={tr("Iteration・Epic・担当・ラベルを切り替える")}
           aria-expanded={open}
           aria-controls={open ? "board-band-drop" : undefined}
           onClick={onToggle}

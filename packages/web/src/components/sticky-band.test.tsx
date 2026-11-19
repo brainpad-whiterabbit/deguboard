@@ -83,7 +83,7 @@ function mount(client: MockClient) {
 
 const band = () => document.querySelector<HTMLElement>(".sticky-band-bar");
 const toggleOf = () =>
-  within(band()!).getByRole("button", { name: "Iteration・Epic・担当を切り替える" });
+  within(band()!).getByRole("button", { name: "Iteration・Epic・担当・ラベルを切り替える" });
 
 describe("左パネルのカンバンで見出しが上に抜けたら残す 1 行の帯（UI-2）", () => {
   it("見出しの進みの帯の行を一覧（.page）の中で帯の高さを除いて見張り、上へ抜けたら番号・名前・小さな進みの帯・n/m の帯を出し、見えたら消す。下に外れている間は出さない", async () => {
@@ -151,7 +151,7 @@ describe("左パネルのカンバンで見出しが上に抜けたら残す 1 �
     expect(await screen.findByRole("menu")).toBeTruthy();
   });
 
-  it("▾ は帯の右端にあり、押すと Iteration・Epic の札の列・担当の漏斗・状態ごとの件数を帯の下に重ねて開き、aria-expanded が開閉を示す。目標と期間は重ねない", async () => {
+  it("▾ は帯の右端にあり、押すと Iteration・Epic の札の列・担当・ラベルの漏斗・状態ごとの件数を帯の下に重ねて開き、aria-expanded が開閉を示す。目標と期間は重ねない", async () => {
     const client = mockClient(boardFixture());
     client.data.tickets[1] = { ...client.data.tickets[1]!, assignee: "eiki/agent" };
     mount(client);

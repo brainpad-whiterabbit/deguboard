@@ -66,6 +66,7 @@ describe("行のラベルの札", () => {
     const more = document.querySelector(".row-label.more")!;
     expect(more.textContent).toBe("+2");
     expect(more.getAttribute("title")).toBe("cli, flow, docs, agent, ux");
+    expect(more.getAttribute("aria-label")).toBe("ほかのラベル agent, ux");
   });
 
   it("押すとそのラベルを渡し、絞っているラベルは押した見た目とツールチップで外せることを示す", () => {
