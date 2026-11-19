@@ -9,8 +9,9 @@ import {
   runCleanups,
   writeWorkflowYaml,
 } from "../../test/helpers/commands-context.js";
+import { overTestWorkflow, TEST_WORKFLOW } from "../../test/helpers/workflow.js";
 import { GOVERNANCE_OPERATIONS } from "../model/workflow.js";
-import { CORE_FIXED, commandsRejectedForAgent, resolveWorkflow } from "../workflow/resolve.js";
+import { CORE_FIXED, commandsRejectedForAgent } from "../workflow/resolve.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
 import { epicClose, epicCreate, epicReopen } from "./epic.js";
@@ -52,7 +53,8 @@ const rejected = (p: Promise<unknown>) =>
   );
 
 describe("カンバンの管理の操作は governance の値で判定される", () => {
-  it("delete：既定（human_only）はエージェントがチケットを消せず、値を替えると承認で・聞かずに消せる", async () => {
+  // 「土台の値」は、雛形のカンバンに置いた helpers/workflow.ts の値（Core の既定に頼らない）
+  it("delete：human_only（土台の値）はエージェントがチケットを消せず、値を替えると承認で・聞かずに消せる", async () => {
     const { human, agent, governance, subject } = await humanAndAgent();
     for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, human, { title });
     // human_only は承認者を渡しても通らない
@@ -76,7 +78,7 @@ describe("カンバンの管理の操作は governance の値で判定される"
     expect((await runCommand(ticketDelete, agent, { ticket: "t3" })).data.id).toBe("t3");
   });
 
-  it("config：チームの設定の set・unset は既定（always_ask）で承認が要り、承認者が履歴に残る。個人の設定は判定しない", async () => {
+  it("config：チームの設定の set・unset は always_ask（土台の値）で承認が要り、承認者が履歴に残る。個人の設定は判定しない", async () => {
     const { human, agent, governance, subject } = await humanAndAgent();
     const set = { key: "work.parallel", value: "2" };
     expect(await rejected(runCommand(configSet, agent, set))).toMatchObject({
@@ -112,9 +114,9 @@ describe("カンバンの管理の操作は governance の値で判定される"
     expect((await runCommand(configSet, agent, { ...set, value: "4" })).data.work.parallel).toBe(4);
   });
 
-  it("reassign：ほかのユーザの担当の付け替えと claim を外すのは既定（always_ask）で承認が要り、自分の担当と担当なしは聞かずに替えられる", async () => {
+  it("reassign：ほかのユーザの担当の付け替えと claim を外すのは always_ask（土台の値）で承認が要り、自分の担当と担当なしは聞かずに替えられる", async () => {
     const { human, agent, governance: write, subject } = await humanAndAgent();
-    // 着手の境目を誰でも（既定と同じ anyone）と書いておき、claim を governance.reassign だけが判定するようにする
+    // 着手の境目を誰でも（anyone）と書いておき、claim を governance.reassign だけが判定するようにする
     const governance = (values: Record<string, string>) =>
       write(values, [
         "boundaries:",
@@ -186,7 +188,7 @@ describe("カンバンの管理の操作は governance の値で判定される"
     expect(claimed.warnings).toContain("Changed the assignee from eiki to claude/agent");
   });
 
-  it("epic：Epic を閉じる・再開するのは既定（always_ask）でエージェントに承認を求め、値を替えると拒否・聞かずにできる", async () => {
+  it("epic：Epic を閉じる・再開するのは always_ask（土台の値）でエージェントに承認を求め、値を替えると拒否・聞かずにできる", async () => {
     const { human, agent, governance, subject } = await humanAndAgent();
     await runCommand(epicCreate, human, { title: "E", summary: "目的" });
     expect(await rejected(runCommand(epicClose, agent, { epic: "e1" }))).toMatchObject({
@@ -217,7 +219,7 @@ describe("カンバンの管理の操作は governance の値で判定される"
     expect((await runCommand(epicReopen, agent, { epic: "e1" })).data.status).toBe("open");
   });
 
-  it("create：起票（create・import）は既定（always_ask）でエージェントに承認が要り、人は聞かずにでき、値を替えるとエージェントに拒否・承認、人に --override を求める", async () => {
+  it("create：起票（create・import）は always_ask（土台の値）でエージェントに承認が要り、人は聞かずにでき、値を替えるとエージェントに拒否・承認、人に --override を求める", async () => {
     const { human, agent, governance, subject } = await humanAndAgent();
     const asks = (command: string) => ({
       code: "TRANSITION_REJECTED",
@@ -319,14 +321,22 @@ describe("カンバンの管理の操作は governance の値で判定される"
   });
 
   it("名前だけで操作が決まるコマンドのうち、エージェントに拒むものは flow と governance の値から決まる（ask が人のコマンドに回す）", () => {
-    expect(commandsRejectedForAgent(resolveWorkflow({}))).toEqual(["ticket.delete"]);
+    // 土台の Workflow で human_only なのは governance.delete だけ
+    expect(commandsRejectedForAgent(TEST_WORKFLOW)).toEqual(["ticket.delete"]);
     expect(
-      commandsRejectedForAgent(
-        resolveWorkflow({
-          flow: { release: "always_ask", plan: "human_only" },
-          governance: { delete: "anyone", epic: "human_only", create: "human_only" },
-        }),
-      ),
+      commandsRejectedForAgent({
+        ...TEST_WORKFLOW,
+        flow: {
+          ...TEST_WORKFLOW.flow,
+          stages: { ...TEST_WORKFLOW.flow.stages, release: "always_ask", plan: "human_only" },
+        },
+        governance: {
+          ...TEST_WORKFLOW.governance,
+          delete: "anyone",
+          epic: "human_only",
+          create: "human_only",
+        },
+      }),
     ).toEqual(["plan.approve", "ticket.create", "ticket.import", "epic.close", "epic.reopen"]);
   });
 });
@@ -366,7 +376,8 @@ describe("Core に固定の操作は workflow.yaml で緩められない", () =>
     const { human, agent, governance, subject } = await humanAndAgent();
     await governance(loosest);
     const before = (await runCommand(workflowShow, human, {})).data.definition;
-    const definition = { exceptions: { abandon: "anyone" } };
+    // 土台の値に重ねた定義：governance（loosest から土台の値へ）と exceptions.abandon が変わる
+    const definition = overTestWorkflow({ exceptions: { abandon: "anyone" } });
     const err = await rejected(runCommand(workflowSet, agent, { definition }));
     expect(err).toMatchObject({
       code: "TRANSITION_REJECTED",

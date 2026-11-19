@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, openRepo, type Fixture } from "../../test/helpers/git-fixture.js";
 import { reconcileStatus } from "../workflow/reconcile.js";
-import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
+import { TEST_WORKFLOW } from "../../test/helpers/workflow.js";
 import { collectBranchFacts, fetchPrGateFacts, resetGhCache } from "./facts.js";
 import type { GitRepo } from "./repo.js";
 
@@ -209,8 +209,8 @@ describe("branch_merged の事実の読み取り", () => {
   });
 });
 
-describe("既定の Workflow の照合", () => {
-  const wf = DEFAULT_WORKFLOW;
+describe("Workflow の照合（土台の Workflow の値）", () => {
+  const wf = TEST_WORKFLOW;
 
   it("push 済みで PR が open、main より 1 コミット先のブランチは review に進み、done には進まない（t42）", async () => {
     const f = await fixture();

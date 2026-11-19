@@ -15,6 +15,7 @@ import {
   runCommand,
   ticketCreate,
 } from "@deguboard/core";
+import { openForInit } from "../../core/test/helpers/commands-context.js";
 import { cliEnv } from "../../core/test/helpers/env.js";
 import { createFixtureFrom, type Fixture } from "../../core/test/helpers/git-fixture.js";
 import { toTools } from "./mcp.js";
@@ -28,7 +29,7 @@ afterEach(async () => {
 /** init 済みの雛形から写す（init はテストファイルで 1 度だけ） */
 async function initializedFixture(): Promise<Fixture> {
   const f = await createFixtureFrom("mcp-init", async (l) => {
-    await runCommand(init, await openContext({ cwd: l.cloneA, initialize: {} }), {});
+    await runCommand(init, await openForInit({ cwd: l.cloneA }), {});
   });
   cleanups.push(f.cleanup);
   return f;

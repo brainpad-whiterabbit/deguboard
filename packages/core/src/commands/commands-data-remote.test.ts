@@ -4,7 +4,7 @@ import { mkdir, rm, rmdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { addDataRemote, git, type Fixture } from "../../test/helpers/git-fixture.js";
-import { fixture, runCleanups } from "../../test/helpers/commands-context.js";
+import { fixture, openForInit, runCleanups } from "../../test/helpers/commands-context.js";
 import { fastHook } from "../fast-hook.js";
 import { checkOutside } from "../git/outside.js";
 import { DATA_REMOTE_NAME, dataRemoteRef } from "../git/repo.js";
@@ -55,7 +55,8 @@ describe("データを別のリポジトリに置く（git.data_remote）", () =
   it("init・起票・claim・sync はデータをデータのリモートに送り、作業ブランチの起点と照合はコードのリモートを使う", async () => {
     const f = await fixture();
     const dataDir = await addDataRemote(f, [f.cloneA]);
-    const first = await openContext({ cwd: f.cloneA, initialize: { dataRemote: "data" }, actor });
+    // 照合が境目の値に従うので、Core の既定ではなく土台の Workflow で始める
+    const first = await openForInit({ cwd: f.cloneA, initialize: { dataRemote: "data" }, actor });
     const made = await runCommand(init, first, {
       data_remote: "data",
     });

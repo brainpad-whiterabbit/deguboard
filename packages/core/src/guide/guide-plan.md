@@ -46,13 +46,13 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
 
 ## About approval
 
-The Workflow's `flow.plan` judges `plan approve` (`ask_unless_auto` by default; the values are in the "Operations that may be limited to humans" section of `dg guide overview`). With the default, the agent approves only after a human approved the Plan, with `--approved-by human`; without it the call is refused (`TRANSITION_REJECTED`). In a flow that a human started with `--auto`, the agent approves without asking with `plan approve <p> --auto`, and `approved_by` is the agent. When the board's value is `always_ask`, ask with `--auto` too; when it is `human_only`, ask a human to run `dg plan approve <p>`.
+The Workflow's `flow.plan` judges `plan approve`, which follows the approval rule of the "Operations that may be limited to humans" section of `dg guide overview`. After a human approved the Plan, the agent approves it with `plan approve <p> --approved-by human`. In a flow that a human started with `--auto`, `commands` of `dg flow next` gives `plan approve <p> --auto` where the board lets the agent approve without asking, and `approved_by` is then the agent.
 
 ## Principles of progress
 
 - Claim only the tickets you start now: the one ticket when advancing serially, or one for each free slot when advancing in parallel (`dg guide parallel`). Do not claim the whole Plan first (others, or other agents, could not start)
-- The Workflow's todo → in_progress boundary judges the claim (`ask_unless_auto` by default). A human's approval of the Plan is the approval to start its tickets, so claim them with `--approved-by human`; in a flow that a human started with `--auto`, claim with `--auto` instead (the "Before and after claim" section of `dg guide work`)
-- Do not start a ticket whose dependency is neither done nor abandoned. If the Workflow's todo → in_progress boundary has `requires: [deps_done]` (the default), claim is refused (`TRANSITION_REJECTED`). If it does not, wait until the ticket appears in `--ready`, or advance the dependency first
+- A human's approval of the Plan is the approval to start its tickets, so where the claim asks for approval, claim them with `--approved-by human` without asking again (the claim comes from `commands` of `dg next`; the "Before and after claim" section of `dg guide work`)
+- Do not start a ticket whose dependency is neither done nor abandoned. Where the Workflow's todo → in_progress boundary requires `deps_done`, claim is refused (`TRANSITION_REJECTED`). Where it does not, wait until the ticket appears in `--ready`, or advance the dependency first
 - A Plan's `after` is not checked at claim. Wait until `items[].waiting` in `plan show` (the waits on `after` and `depends_on` that are not finished) is empty
 
 {{choices}}

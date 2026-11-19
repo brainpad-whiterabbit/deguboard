@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import type { BranchFacts } from "../git/facts.js";
 import type { Facts } from "../workflow/conditions.js";
-import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
+import { overTestWorkflow, TEST_WORKFLOW } from "../../test/helpers/workflow.js";
 import { validateWorkflow } from "../workflow/validate.js";
 import {
   decideOpenRunReconcile,
@@ -90,7 +90,7 @@ const decide = (
   decideTicketReconcile({
     unchecked: [],
     depsDone: true,
-    workflow: DEFAULT_WORKFLOW,
+    workflow: TEST_WORKFLOW,
     branch: noPr(),
     running: [],
     recorded: [],
@@ -101,7 +101,7 @@ const decide = (
   });
 
 const withBoundaries = (boundaries: unknown[]) =>
-  validateWorkflow({ boundaries }, "workflow.yaml").workflow!;
+  validateWorkflow(overTestWorkflow({ boundaries }), "workflow.yaml").workflow!;
 
 const closeAt = (finishedAt: string | undefined): ReconcileAction => ({
   kind: "close_run",

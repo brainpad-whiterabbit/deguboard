@@ -21,18 +21,18 @@ Puts tickets into Iterations (a period of planning. `sprint` is an alias) and Ep
 - Update: `dg --json --actor agent iteration update <s3> --goal "<goal>"`. `--name` also changes only what is specified. A closed Iteration can also be updated
 - Add: `dg --json --actor agent iteration add <s3> <t12> <t13> --approved-by human`, after a human selected or instructed the tickets. A ticket that was in another Iteration moves
 - Remove: `dg --json --actor agent iteration remove <s3> <t12> --approved-by human`
-- The Workflow's `flow.assign` judges putting tickets into and out of an Iteration or Epic (`iteration add` and `remove`, `epic add` and `remove`, and `ticket update --iteration` and `--epic`; `always_ask` by default; the values are in the "Operations that may be limited to humans" section of `dg guide overview`). With the default, pass `--approved-by human` only after a human approved or instructed it, also in a flow started with `--auto`. When the board's value is `ask_unless_auto`, in a flow that a human started with `--auto`, pass `--auto` instead and do not ask. When it is `anyone`, pass neither; when it is `human_only`, give the human the exact command to run
+- The Workflow's `flow.assign` judges putting tickets into and out of an Iteration or Epic (`iteration add` and `remove`, `epic add` and `remove`, and `ticket update --iteration` and `--epic`), and they follow the approval rule of the "Operations that may be limited to humans" section of `dg guide overview`: pass `--approved-by human` only after a human approved or instructed it, and in a flow, run the commands as `commands` of `dg flow next` gives them
 - Start: `dg --json --actor agent iteration start <s3>` (planned → active). Only one Iteration can be active. If another one is active, both starting and reopening are refused. Ask a human whether to close the previous one
 - Close: `iteration close <s3>`. Tickets carried over are removed from the Iteration
 - Reopen: `iteration reopen <s3>`. Returns to active. Carried-over tickets do not return, so add them again with `iteration add`
-- The Workflow's `flow.release` judges closing and reopening an Iteration: with the default (`always_ask`), run it only on a human's instruction, with `dg --json --actor agent iteration close <s3> --approved-by human` (or `iteration reopen`); when the board's value is `human_only`, the agent's call is refused, so give the human the exact command to run (`dg iteration close <s3>` or `dg iteration reopen <s3>`) (see the "Operations that may be limited to humans" section of `dg guide overview`)
+- The Workflow's `flow.release` judges closing and reopening an Iteration, which follow the approval rule of `dg guide overview`: on a human's instruction, run `dg --json --actor agent iteration close <s3> --approved-by human` (or `iteration reopen`)
 
 ## Epic
 
 - List and progress: `dg --json --actor agent epic list` (`progress.done / progress.total`)
 - Add: `dg --json --actor agent epic add <e3> <t12> <t13> --approved-by human`. A closed Epic cannot take tickets. `flow.assign` judges it, as for an Iteration above
 - Remove: `dg --json --actor agent epic remove <e3> <t12> --approved-by human`
-- Close and reopen: `dg --json --actor agent epic close <e3>` / `epic reopen <e3>`. If anything other than done or abandoned remains, it is refused, and `--force` closes it anyway. The Workflow's `governance.epic` judges both: with the default (`always_ask`), run it only on a human's instruction, with `--approved-by human`; when the board's value is `human_only`, the agent's call is refused, so give the human the exact command to run (see the "Operations that may be limited to humans" section of `dg guide overview`)
+- Close and reopen: `dg --json --actor agent epic close <e3>` / `epic reopen <e3>`. If anything other than done or abandoned remains, it is refused, and `--force` closes it anyway. The Workflow's `governance.epic` judges both, by the same approval rule: on a human's instruction, add `--approved-by human`
 
 ## Assignee
 

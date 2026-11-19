@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { asHuman } from "../../test/helpers/commands-context.js";
+import { asHuman, openForInit } from "../../test/helpers/commands-context.js";
 import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { openContext } from "./context.js";
@@ -67,7 +67,7 @@ const pr = (
 /** 雛形の準備（テストファイルで 1 度だけ走る）：init（software-development）・t1 を t1 で claim して 1 コミット push */
 async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
+  await runCommand(init, await openForInit({ cwd: f.cloneA, actor }), {});
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, {
     title: "A",

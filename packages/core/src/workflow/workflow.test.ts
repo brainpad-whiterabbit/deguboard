@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { overTestWorkflow, TEST_WORKFLOW } from "../../test/helpers/workflow.js";
 import {
   ACTORS,
   BOUNDARIES,
@@ -125,13 +126,13 @@ describe("操作に当てる方針（operationPolicy）", () => {
   });
 
   it("隣へ進む動きは、その境目の requires と decide で決まる", () => {
-    expect(move(DEFAULT_WORKFLOW, "todo", "in_progress")).toEqual({
+    expect(move(TEST_WORKFLOW, "todo", "in_progress")).toEqual({
       source: "boundaries",
       name: "boundaries todo → in_progress",
       decisions: ["ask_unless_auto"],
       requires: ["deps_done"],
     });
-    expect(move(DEFAULT_WORKFLOW, "review", "done")).toMatchObject({
+    expect(move(TEST_WORKFLOW, "review", "done")).toMatchObject({
       decisions: ["ask_unless_auto"],
       requires: ["pr_merged"],
     });
@@ -572,10 +573,10 @@ describe("定義の検証（WF-3）", () => {
 });
 
 describe("照合", () => {
-  // 既定の Workflow（dg init が置く workflow.yaml と同じ）
-  const sd = DEFAULT_WORKFLOW;
+  // 土台の Workflow（helpers/workflow.ts。Core の既定を変えても落ちないようにテストが書いた値）
+  const sd = TEST_WORKFLOW;
   const withBoundaries = (boundaries: unknown[]) =>
-    validateWorkflow({ boundaries }, "workflow.yaml").workflow!;
+    validateWorkflow(overTestWorkflow({ boundaries }), "workflow.yaml").workflow!;
 
   it("きっかけは Core の固定：ブランチができた → in_progress、下書きでない PR が開いた → review、PR かブランチがマージされた → done", () => {
     expect(RECONCILE_TRIGGERS).toEqual([
@@ -592,7 +593,7 @@ describe("照合", () => {
     });
   });
 
-  it("PR を使わない進め方（PR のないチケット）は、既定のまま、ブランチのマージで review からも in_progress からも done に進む", () => {
+  it("PR を使わない進め方（PR のないチケット）は、PR を使う進め方と同じ Workflow のまま、ブランチのマージで review からも in_progress からも done に進む", () => {
     // gh がなく PR の事実が不明のときも、gh が「PR はない」と答えたとき（PR の事実がどれも偽）も同じ
     for (const prFacts of [{}, { pr_open: false, pr_draft: false, pr_merged: false }]) {
       for (const from of ["review", "in_progress"] as const) {

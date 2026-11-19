@@ -2,6 +2,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { openForInit } from "../../test/helpers/commands-context.js";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
 import { openContext, openContextFor } from "../commands/context.js";
 import { runCommand, type CommandContext } from "../commands/define.js";
@@ -26,7 +27,7 @@ const actor = { kind: "agent" as const, user: "eiki" };
 async function prepared(cwd?: string) {
   const f = await createFixture();
   cleanups.push(f.cleanup);
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
+  await runCommand(init, await openForInit({ cwd: f.cloneA, actor }), {});
   const ctx = await openContext({ cwd: cwd ?? f.cloneA, actor });
   await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
   return { f, ctx };

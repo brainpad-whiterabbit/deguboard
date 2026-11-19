@@ -629,20 +629,60 @@ describe("dg guide", () => {
     expect(retro).toContain("is not stored in the data");
   });
 
-  it("エージェントの claim は、既定（todo → in_progress が ask_unless_auto）で --approved-by human か --auto を付けると work・run・parallel・plan・all・overview が案内する（ST-2・t1051・t1146）", async () => {
+  it("guide は Workflow の値で決まる内容（操作ごとの既定値と、値ごとの場合分け）を書かず、承認の要否は overview の共通の規則 1 か所に任せる（t1145）", async () => {
+    // 値の名前を挙げてよいのは、値の意味を 1 回だけ書く overview と、Workflow を人に説明する config だけ。
+    // ask_unless_auto は --auto の意味そのものなので、--auto を説明する all にも出る
+    const values = ["always_ask", "human_only", "anyone", "agent_only"];
+    for (const topic of GUIDE_TOPICS) {
+      const guide = await readGuide(topic);
+      const meta = JSON.stringify(await readGuideMeta(topic));
+      if (topic !== "overview" && topic !== "config") {
+        for (const value of values) {
+          expect(guide, `${topic}: ${value}`).not.toContain(`\`${value}\``);
+          expect(meta, `${topic}: ${value}`).not.toContain(value);
+        }
+        if (topic !== "all") expect(guide + meta, topic).not.toContain("ask_unless_auto");
+        // Workflow の項目（boundary・flow・governance・exceptions）の既定を書いた行を残さない
+        for (const line of (guide + "\n" + meta).split("\n"))
+          if (/Workflow|boundary|`flow\.|`governance|`exceptions/.test(line))
+            expect(line, topic).not.toMatch(/by default|the defaults?\b|default values/);
+      }
+    }
+    const overview = await readGuide("overview");
+    expect(overview).not.toContain("With the default values");
+    // 共通の規則は overview の 1 か所：dg が返したコマンドはそのまま、人の指示は --approved-by human、
+    // 返されていない操作は workflow show で先に読み、拒否の応答に従う
+    const rule = section(overview, "## Operations that may be limited to humans");
+    for (const word of [
+      "**The approval rule**",
+      "A command that dg gave is run as given",
+      "`commands` and `checkpoint` of `dg next` and `dg flow next`",
+      "passed with `--approved-by human`",
+      "`dg --json --actor agent workflow show`",
+      "`moves` gives `agent`",
+      "A refusal says what to do",
+      "`TRANSITION_REJECTED`",
+    ])
+      expect(rule, word).toContain(word);
+    expect(overview.split("**The approval rule**").length).toBe(2);
+    // ほかの guide は規則を書き写さず、overview を指す
+    for (const topic of ["work", "plan", "assign", "import", "change", "release", "check", "audit"])
+      expect(await readGuide(topic), topic).toContain("the approval rule of");
+    expect(await readGuide("retro")).toContain("the approval rule of `dg guide overview`");
+  });
+
+  it("エージェントの claim は、dg next の commands が返す形（--approved-by human・--auto・どちらもなし）のまま行うと work・run・parallel・plan・all が案内する（ST-2・t1051・t1146）", async () => {
     const work = await readGuide("work");
     const before = section(work, "## Before and after claim");
     for (const word of [
       "**Approval to start**",
-      "`ask_unless_auto` by default",
-      "pass `--approved-by human` on the claim",
-      "pass `--auto` instead",
-      "a claim with neither is refused",
+      "run the claim as `commands` of `next` gives it",
+      "a human's approval of the Plan that includes it",
+      "ask a human before you claim",
     ])
       expect(before, word).toContain(word);
-    expect(section(work, "## Work that needs no PR")).toContain(
-      "ticket claim <id> --without-branch --approved-by human",
-    );
+    const noBranch = section(work, "## Work that needs no PR");
+    expect(noBranch).toContain("pass `--approved-by human` when a human instructed or approved");
     for (const topic of ["run", "parallel"])
       expect(await readGuide(topic), topic).toContain("`--approved-by human` or `--auto`");
     expect(section(await readGuide("plan"), "## Principles of progress")).toContain(
@@ -651,9 +691,6 @@ describe("dg guide", () => {
     const all = await readGuide("all");
     expect(section(all, "## Between stages")).toContain("claim with `--approved-by human`");
     expect(all).toContain("`ticket claim <id> … --auto`");
-    expect(await readGuide("overview")).toContain(
-      "needs a human's approval (or `--auto`) to start a ticket (`ticket claim`",
-    );
   });
 
   it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する。claim の warnings は「claim の前後」に任せ、Iteration の選び方は書き写さず、今の設定を埋める", async () => {
@@ -724,8 +761,6 @@ describe("dg guide", () => {
       "approval.auto_ok",
       "pr merge <id> --auto",
       "plan approve <p> --auto",
-      "`always_ask`",
-      "`human_only`",
       "dg guide review",
       "fixed in Core",
     ])

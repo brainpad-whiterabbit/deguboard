@@ -11,7 +11,8 @@ import { composeGuide } from "../guide/guide.js";
 import { findGuideSection, guideSections } from "../guide/sections.js";
 import { configSchema } from "../model/config.js";
 import type { Decision } from "../model/workflow.js";
-import { DEFAULT_WORKFLOW, type CustomStage } from "../workflow/resolve.js";
+import { TEST_WORKFLOW } from "../../test/helpers/workflow.js";
+import type { CustomStage } from "../workflow/resolve.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { checkpoint, type CheckpointResult } from "./checkpoint.js";
 import {
@@ -373,15 +374,15 @@ describe("flowStageOf の独自の段階（after の位置で返す）", () => {
   });
 });
 
-/** 既定の Workflow の値（flow と、マージを判定する review → done の境目の decide） */
+/** 土台の Workflow の値（flow と、マージを判定する review → done の境目の decide。既定を変えても落ちないようにテストが書いた値） */
 const DEFAULT_DECISIONS: FlowDecisions = {
-  flow: DEFAULT_WORKFLOW.flow.stages,
-  merge: DEFAULT_WORKFLOW.boundaries.find((b) => b.to === "done")!.decide,
+  flow: TEST_WORKFLOW.flow.stages,
+  merge: TEST_WORKFLOW.boundaries.find((b) => b.to === "done")!.decide,
 };
 const STAGES = ["assign", "check", "plan", "work", "audit", "release"] as const;
 
 describe("approvalOf（承認の要否は Workflow の値から決まる）", () => {
-  it("--auto がなければ既定のどの段階も承認を求め、止まるときは求めない", () => {
+  it("--auto がなければ、値が always_ask か ask_unless_auto の段階はどれも承認を求め、止まるときは求めない", () => {
     for (const stage of STAGES)
       expect(approvalOf(stage, { auto: false, ...DEFAULT_DECISIONS }), stage).toMatchObject({
         required: true,
@@ -398,7 +399,7 @@ describe("approvalOf（承認の要否は Workflow の値から決まる）", ()
     });
   });
 
-  it("既定の値では --auto が ask_unless_auto の点検の直す行・Plan・マージを聞かずに進め、always_ask の割り当て・見直し・リリースは聞く", () => {
+  it("--auto は ask_unless_auto の点検の直す行・Plan・マージを聞かずに進め、always_ask の割り当て・見直し・リリースは聞く", () => {
     const auto = (stage: Parameters<typeof approvalOf>[0]) =>
       approvalOf(stage, { auto: true, ...DEFAULT_DECISIONS });
     expect(auto("assign")).toMatchObject({

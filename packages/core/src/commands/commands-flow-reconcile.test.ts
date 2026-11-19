@@ -12,7 +12,7 @@ import type { RunId } from "../model/run.js";
 import { resetGhCache } from "../git/facts.js";
 import { recordBaseline } from "../git/outside.js";
 import { closeRun, peekRunningRuns, startRun } from "../run/record.js";
-import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
+import { TEST_WORKFLOW } from "../../test/helpers/workflow.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { runFinish } from "./run.js";
@@ -110,10 +110,10 @@ describe("チケットの流れ（照合と claim）", () => {
     expect((await runCommand(ticketShow, broken, { ticket: "t1" })).data.worktree).toBeNull();
   });
 
-  it("起票 → claim → review → マージの照合で done になる（PR を使わない進め方：dg init が置いた既定の workflow.yaml のまま、ブランチのマージで進む）", async () => {
+  it("起票 → claim → review → マージの照合で done になる（PR を使わない進め方：PR を使う進め方と同じ workflow.yaml（土台の Workflow）のまま、ブランチのマージで進む）", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f);
-    expect(ctx.store.workflow).toMatchObject({ exists: true, resolved: DEFAULT_WORKFLOW });
+    expect(ctx.store.workflow).toMatchObject({ exists: true, resolved: TEST_WORKFLOW });
     const created = await runCommand(ticketCreate, ctx, {
       title: "Login validation",
       summary: "入力の検査",
@@ -1252,12 +1252,12 @@ describe("チケットの流れ（照合と claim）", () => {
     expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket).sort()).toEqual(["t1", "t2"]);
 
     // claim が開く step は Core が決める implement で、workflow.yaml に前の形の steps（opens_on）を書いても変わらない
-    await writeFile(
-      path.join(human.repo.dataDir, "workflow.yaml"),
-      "steps:\n  - { id: build, opens_on: claim }\n  - { id: review }\n",
-    );
-    await recordBaseline(human.repo);
-    await human.store.rescan();
+    // ほかの値は土台の Workflow のまま（着手の承認は --approved-by で通る値）
+    await writeWorkflowYaml(human, [
+      "steps:",
+      "  - { id: build, opens_on: claim }",
+      "  - { id: review }",
+    ]);
     await runCommand(ticketCreate, human, { title: "F" });
     const later = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
     later.env = { CLAUDECODE: "1" };

@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { commands, setBundleLayout } from "@deguboard/core";
 import { createFixture, git, type Fixture } from "../../core/test/helpers/git-fixture.js";
+import { TEST_WORKFLOW_FILE } from "../../core/test/helpers/workflow.js";
 import { selfCommand, selfMergeDriver } from "./hooks.js";
 import { run } from "./program.js";
 
@@ -42,6 +43,16 @@ async function dg(cwd: string, argv: string[], env: NodeJS.ProcessEnv = {}): Pro
     streams: { out: (t) => out.push(t), err: (t) => err.push(t) },
   });
   return { code, out: out.join("\n"), err: err.join("\n"), json: () => JSON.parse(out.join("\n")) };
+}
+
+/**
+ * dg init の後に、テストが頼る Workflow の値（core の test/helpers/workflow.ts）を dg workflow set で書く。
+ * Workflow の値で結果が決まる件（承認の要否・拒否）が、dg init の置く Core の既定に頼らないようにする
+ */
+async function setTestWorkflow(f: Fixture): Promise<void> {
+  const file = path.join(f.root, "test-workflow.json");
+  await writeFile(file, JSON.stringify(TEST_WORKFLOW_FILE));
+  expect((await dg(f.cloneA, ["workflow", "set", "--file", file])).code).toBe(0);
 }
 
 describe("dg", () => {
@@ -130,6 +141,7 @@ describe("dg", () => {
       warnings: [],
       write: { pushed: true },
     });
+    await setTestWorkflow(f);
 
     const created = await dg(f.cloneA, [
       "--json",
@@ -336,6 +348,7 @@ describe("dg", () => {
   it("agent の claim は開いた Run の ID を人向けの出力の最後の行と --json の data.run に出し、--no-run では開かない（RN-5）", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
+    await setTestWorkflow(f);
     await dg(f.cloneA, ["ticket", "create", "A"]);
     await dg(f.cloneA, ["ticket", "create", "B"]);
     const opened = await dg(f.cloneA, [
@@ -586,9 +599,10 @@ describe("dg", () => {
     expect(before.json().error?.code).toBe("NOT_INITIALIZED");
   });
 
-  it("--actor agent では人の承認が要る動き（既定の exceptions.abandon は always_ask）が承認なしでは拒否され、環境変数 DEGUBOARD_ACTOR も効く", async () => {
+  it("--actor agent では人の承認が要る動き（exceptions.abandon が always_ask）が承認なしでは拒否され、環境変数 DEGUBOARD_ACTOR も効く", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
+    await setTestWorkflow(f);
     await dg(f.cloneA, ["ticket", "create", "A"]);
     const viaOption = await dg(f.cloneA, [
       "--json",
