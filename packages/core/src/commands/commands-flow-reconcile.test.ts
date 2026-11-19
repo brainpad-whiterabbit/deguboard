@@ -11,7 +11,7 @@ import { OperationError, UsageError } from "../errors.js";
 import type { RunId } from "../model/run.js";
 import { resetGhCache } from "../git/facts.js";
 import { recordBaseline } from "../git/outside.js";
-import { closeRun, peekRunningRuns } from "../run/record.js";
+import { closeRun, peekRunningRuns, startRun } from "../run/record.js";
 import { DEFAULT_WORKFLOW } from "../workflow/resolve.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -544,6 +544,106 @@ describe("チケットの流れ（照合と claim）", () => {
       ).stdout.trim();
       expect(files.split("\n")).toEqual([expect.stringContaining("t1")]);
       expect(synced.data.status).toMatchObject({ ahead: 0, dirty: true });
+    } finally {
+      await writeFile(release, "");
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  }, 30_000);
+
+  // 対象のチケットの列がもう決めた Run を後ろの決定が飛ばすこと（reconcile-judge.ts の settledRuns）の経路。
+  // どの Run が決めた Run かの組み合わせは reconcile-judge.test.ts が git なしで見る
+  it("事実を集めた後に開いた手直しの Run は、チケットが今回 done に進んでも閉じずに 1 回だけ知らせ、次の sync で閉じる（RN-6）", async () => {
+    const f = await initializedFixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await reopenInitialized(f, { now: () => clock });
+    for (const title of ["Merged", "Done elsewhere"])
+      await runCommand(ticketCreate, human, { title });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    for (const t of ["t1", "t2"]) {
+      await runCommand(ticketClaim, agent, {
+        approved_by: "human",
+        no_worktree: true,
+        ticket: t,
+        branch: t,
+      });
+      await git(f.cloneA, ["branch", t]);
+    }
+    await agent.store.update("ticket", "t2", { pr: 42 });
+    await recordBaseline(agent.repo);
+    const restore = await fakeGh(f.root, {
+      "t1|41":
+        '{"number":41,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
+    });
+    try {
+      clock = new Date("2026-11-06T00:30:00Z");
+      await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+      await runCommand(sync, agent, {});
+      expect(agent.store.tickets.get("t1")!.data.status).toBe("review");
+    } finally {
+      restore();
+    }
+    // t2 は PR のある done に実装の Run が開いたまま残る形。sync は実行中の Run を読んだ後に、その PR の作成時刻を gh で読む
+    await human.store.rescan();
+    await runCommand(ticketMove, human, { ticket: "t2", status: "done", override: "PR なし" });
+    await agent.store.rescan();
+
+    // 偽の gh：t1 の PR #41 はマージ済み。t2 の PR #42 は started を置いてから release が置かれるまで（上限 15 秒）答えない
+    const started = path.join(f.root, "gh-started");
+    const release = path.join(f.root, "gh-release");
+    const bin = path.join(f.root, "fake-bin");
+    await writeFile(
+      path.join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+        'case "$3" in',
+        '  t1|41) echo \'{"number":41,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-06T04:00:00Z","createdAt":"2026-11-06T00:20:00Z"}\';;',
+        `  42) : > '${started}'; i=0; while [ ! -f '${release}' ] && [ $i -lt 300 ]; do sleep 0.05; i=$((i+1)); done; echo "no pull requests found" >&2; exit 1;;`,
+        '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
+        "esac",
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    try {
+      clock = new Date("2026-11-06T05:00:00Z");
+      const syncing = runCommand(sync, agent, {});
+      for (let i = 0; i < 300 && !(await pathExists(started)); i++) await sleep(50);
+      expect(await pathExists(started)).toBe(true);
+      // 最後の push を読むチケットを決めた後（実行中の Run を読んだ後）に、別の文脈がもう一度の claim で手直しの Run を開く
+      const other = await agentWithRuns(f.cloneA, () => clock);
+      const fix = (
+        await runCommand(ticketClaim, other, {
+          approved_by: "human",
+          no_worktree: true,
+          ticket: "t1",
+          retry_reasons: ["A"],
+        })
+      ).data.run!;
+      await writeFile(release, "");
+
+      const synced = await syncing;
+      expect(synced.data.reconciled).toEqual([
+        { id: "t1", from: "review", to: "done", when: ["pr_merged"] },
+      ]);
+      // 対象のチケットの決定が知らせた Run を、終わったチケットの Run としてもう一度決めない（同じ警告を 2 つ出さない）
+      expect(synced.warnings.filter((w) => w.includes(fix))).toEqual([
+        `t1: the last push of its work branch was not read for its current state, so the fix Run ${fix} is closed at the next sync`,
+      ]);
+      expect(synced.data.runs_closed.map((r) => r.run)).not.toContain(fix);
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toContain(fix);
+
+      // 次の sync は最後の push を読んでいるので、終わったチケットを区切りに閉じる
+      clock = new Date("2026-11-06T06:00:00Z");
+      const next = await runCommand(sync, agent, {});
+      expect(next.data.runs_closed).toEqual([
+        { id: "t1", run: fix, opener: "reclaim", result: "success" },
+      ]);
+      expect(await peekRunningRuns(agent.repo)).toEqual([]);
     } finally {
       await writeFile(release, "");
       process.env["PATH"] = savedPath;
@@ -1439,47 +1539,84 @@ describe("チケットの流れ（照合と claim）", () => {
     }
   });
 
-  it("照合の結果の push が拒否されたら、コミットをローカルに残して警告し、次の sync が取り込み直して送る。取り込み直しが競合で止まっても、閉じた Run の記録と実行中の記録の消去は二重にも欠けにもならない（RN-6）", async () => {
+  // 1 回の照合が閉じる 3 通りの Run を通す：PR の発見による実装の Run（t1）、次の Run の開始を区切りにした手直しの Run（t2）、
+  // 対象にならなかったチケット（別のマシンが todo に戻した t3）の実装の Run
+  it("照合の結果の push が拒否されたら、コミットをローカルに残して警告し、次の sync が取り込み直して送る。取り込み直しが競合で止まっても、閉じた Run（PR の発見・手直し・対象外のチケット）の記録と実行中の記録の消去は二重にも欠けにもならない（RN-6）", async () => {
     const f = await initializedBothFixture();
-    const clock = new Date("2026-11-06T00:00:00Z");
+    // t2 の実装は前の日に済ませる（手直しの Run と同じ秒に始まった Run は区切りに数えるので、実装の Run の開始を手直しより前にする）。
+    // その後の時計は止めておく：照合が t1 に書く updated_at が claim のときと同じ値になり、B との競合が pr だけになる
+    let clock = new Date("2026-11-05T23:00:00Z");
     const human = await reopenInitialized(f, { now: () => clock });
-    await runCommand(ticketCreate, human, { title: "Rejected push" });
+    for (const title of ["Rejected push", "Fix Run", "Back to todo"])
+      await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
-    const run = (
-      await runCommand(ticketClaim, agent, {
-        approved_by: "human",
-        no_worktree: true,
-        ticket: "t1",
-        branch: "t1",
-      })
-    ).data.run!;
-    await git(f.cloneA, ["branch", "t1"]);
-    // 別のマシン（clone B）は claim までを取り込んでおく
-    const b = await reopenInitialized(f, { cwd: f.cloneB });
-    await runCommand(sync, b, {});
-    const restore = await fakeGh(f.root, {
-      "t1|41":
-        '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T01:00:00Z"}',
-    });
+    const claim = async (input: { ticket: string; branch?: string; without_branch?: boolean }) =>
+      (await runCommand(ticketClaim, agent, { approved_by: "human", no_worktree: true, ...input }))
+        .data.run!;
+    await claim({ ticket: "t2", branch: "t2" });
+    // gh はまだ置かないので、実装の Run は今の時刻で閉じる
+    await runCommand(ticketUpdate, agent, { ticket: "t2", pr: 42 });
+    clock = new Date("2026-11-06T00:00:00Z");
+    const run = await claim({ ticket: "t1", branch: "t1" });
+    const back = await claim({ ticket: "t3", without_branch: true });
+    for (const branch of ["t1", "t2"]) await git(f.cloneA, ["branch", branch]);
     /** B が t1 の pr を書き換えて送る（照合が記録する pr: 41 と違う値なら、同じ項目の競合になる） */
     const pushFromB = async (pr: number) => {
       await runCommand(ticketUpdate, b, { ticket: "t1", pr });
       expect((await runCommand(sync, b, {})).data.pushed).toBe(true);
     };
-    /** 閉じた Run の集計のコミットは 1 つで、実行中の記録のファイルは残っていない */
-    const closedOnce = async () => {
-      const subjects = (await git(agent.repo.dataDir, ["log", "--format=%s"])).stdout.split("\n");
-      expect(subjects.filter((s) => s.includes(`Record implementation Runs: t1 ${run}`))).toEqual([
-        `Record PR numbers: t1: #41. Record implementation Runs: t1 ${run} success`,
-      ]);
-      expect(
-        (await git(agent.repo.dataDir, ["ls-files", "runs"])).stdout.trim().split("\n"),
-      ).toEqual([`runs/${run}.json`]);
-      const local = await readdir(path.join(agent.repo.localDir, "runs"));
-      expect(local.filter((name) => name.includes(run))).toEqual([]);
-      expect(await peekRunningRuns(agent.repo)).toEqual([]);
-    };
+    let b: CommandContext;
+    let restore = () => {};
     try {
+      // t2 はもう一度の claim で手直しの Run を開く。その後に見直しの Run が、手直しを閉じずに始まって終わった形
+      // （別のマシン・前の版の dg）を startRun で作る。照合は、記録済みの見直しの Run の開始を区切りに手直しを閉じる
+      const fix = await claim({ ticket: "t2" });
+      const review = (
+        await startRun(agent.repo, {
+          ticket: "t2",
+          step: "review",
+          agent: "claude-code",
+          now: clock,
+        })
+      ).id;
+      await runCommand(runFinish, agent, { run: review, result: "success" });
+      // ここまでの書き込みは、照合を通さずに先に送っておく（下の sync が送るのを照合の結果だけにして、その push の拒否を見る）
+      await runCommand(commit, agent, {});
+      await git(agent.repo.dataDir, [
+        "push",
+        agent.repo.dataRemote!,
+        `HEAD:${agent.repo.dataBranch}`,
+      ]);
+      // 別のマシン（clone B）は claim までを取り込み、t3 を todo に戻して送る。A の t3 の実装の Run は開いたまま残る
+      b = await reopenInitialized(f, { cwd: f.cloneB });
+      await runCommand(sync, b, {});
+      await runCommand(ticketUnclaim, b, { ticket: "t3" });
+      await runCommand(sync, b, {});
+      // gh はここから置く（B の上の sync が t1 の PR を先に見つけて記録しないように）
+      restore = await fakeGh(f.root, {
+        "t1|41":
+          '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T01:00:00Z"}',
+        "t2|42":
+          '{"number":42,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T01:00:00Z"}',
+      });
+      const closedRuns = [run, fix, back];
+      /** 閉じた Run の集計のコミットは 1 つで、どの Run の記録もそのコミットにだけあり、実行中の記録のファイルは残っていない */
+      const closedOnce = async () => {
+        const log = async (...args: string[]) =>
+          (await git(agent.repo.dataDir, ["log", ...args])).stdout.trim().split("\n");
+        expect((await log("--format=%s")).filter((s) => s.includes(` ${run} `))).toEqual([
+          `Record PR numbers: t1: #41. Record implementation Runs: t1 ${run} success, t3 ${back} failure. Record fix Runs: t2 ${fix} success`,
+        ]);
+        const commits = await Promise.all(
+          closedRuns.map((id) => log("--format=%H", "--", `runs/${id}.json`)),
+        );
+        expect(commits.map((c) => c.length)).toEqual([1, 1, 1]);
+        expect(new Set(commits.flat()).size).toBe(1);
+        const local = await readdir(path.join(agent.repo.localDir, "runs"));
+        expect(local.filter((name) => closedRuns.some((id) => name.includes(id)))).toEqual([]);
+        expect(await peekRunningRuns(agent.repo)).toEqual([]);
+      };
+
       // 照合が取り込みを済ませた後（Run を閉じる直前）に、B が先にリモートへ送る。照合の結果の push は拒否される
       race.beforeClose = () => pushFromB(77);
       const rejected = await runCommand(sync, agent, {});
@@ -1487,21 +1624,33 @@ describe("チケットの流れ（照合と claim）", () => {
       expect(rejected.warnings).toContainEqual(
         expect.stringContaining("Cannot push the reconcile result: "),
       );
+      expect(rejected.warnings).toContainEqual(
+        `t2: closed with start of the next Run ${review} as the boundary (time of the boundary, since there was no push before it)`,
+      );
       expect(rejected.data.pushed).toBe(false);
       expect(rejected.data.status).toMatchObject({ ahead: 1, dirty: false });
       expect(rejected.data.pr_recorded).toEqual([{ id: "t1", pr: 41 }]);
       expect(rejected.data.runs_closed).toEqual([
         { id: "t1", run, opener: "claim", result: "success" },
+        { id: "t2", run: fix, opener: "reclaim", result: "success" },
+        { id: "t3", run: back, opener: "claim", result: "failure" },
       ]);
-      const closed = agent.store.runs.get(run)!.data;
-      expect(closed).toMatchObject({ result: "success", finished_at: "2026-11-06T01:00:00Z" });
+      const closed = closedRuns.map((id) => agent.store.runs.get(id)!.data);
+      expect(closed).toMatchObject([
+        { result: "success", finished_at: "2026-11-06T01:00:00Z" },
+        // 手直しの Run の開始と同じ秒に始まった見直しの Run が区切り。push はないので区切りの時刻
+        { result: "success", finished_at: agent.store.runs.get(review)!.data.started_at },
+        { result: "failure", error: "Went back to todo during reconcile" },
+      ]);
+      const recorded = (ctx: CommandContext) =>
+        closedRuns.map((id) => ctx.store.runs.get(id)?.data);
       await closedOnce();
 
       // 次の sync の取り込み直しは、B の pr: 77 と競合して止まる。閉じた Run はローカルのコミットに残り、閉じ直さない
       const stopped = await runCommand(sync, agent, {});
       expect(stopped.data.conflicts).toEqual(["tickets/t1.md"]);
       expect(stopped.data).toMatchObject({ pushed: false, runs_closed: [], pr_recorded: [] });
-      expect(agent.store.runs.get(run)!.data).toEqual(closed);
+      expect(recorded(agent)).toEqual(closed);
       await closedOnce();
 
       // B が同じ値（pr: 41）にして競合がなくなると、次の sync が取り込み直して送る。Run の記録は 1 つのまま B にも届く
@@ -1515,10 +1664,10 @@ describe("チケットの流れ（照合と claim）", () => {
         pr_recorded: [],
       });
       expect(resent.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
-      expect(agent.store.runs.get(run)!.data).toEqual(closed);
+      expect(recorded(agent)).toEqual(closed);
       await closedOnce();
       await runCommand(sync, b, {});
-      expect(b.store.runs.get(run)?.data).toEqual(closed);
+      expect(recorded(b)).toEqual(closed);
       expect(b.store.tickets.get("t1")?.data.pr).toBe(41);
     } finally {
       race.beforeClose = undefined;
