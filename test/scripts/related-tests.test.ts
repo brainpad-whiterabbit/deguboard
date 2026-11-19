@@ -129,6 +129,33 @@ describe("test:related が回すテストの選び方", () => {
     });
   });
 
+  it("同じ接頭辞の下位のディレクトリにあるテストは、分けたテストとして選ばない", () => {
+    // flow-x/ の下のテストは flow- で始まるが、flow.ts と同じディレクトリではない
+    expect(
+      selectRelatedTests(
+        ["packages/core/src/commands/flow.ts"],
+        [...tests, "packages/core/src/commands/flow-x/a.test.ts"],
+        sources,
+      ).tests,
+    ).toEqual([
+      "packages/core/src/commands/flow-permission.test.ts",
+      "packages/core/src/commands/flow.test.ts",
+    ]);
+  });
+
+  it(".cjs・.mts・.cts もソースとして対になるテストを探し、なければ unpaired に返す", () => {
+    expect(
+      selectRelatedTests(
+        ["scripts/lib/a.cjs", "scripts/lib/b.mts", "scripts/lib/c.cts"],
+        [...tests, "test/scripts/a.test.ts", "test/scripts/b.test.ts"],
+        [...sources, "scripts/lib/a.cjs", "scripts/lib/b.mts", "scripts/lib/c.cts"],
+      ),
+    ).toEqual({
+      tests: ["test/scripts/a.test.ts", "test/scripts/b.test.ts"],
+      unpaired: ["scripts/lib/c.cts"],
+    });
+  });
+
   it("変えたファイルがなければ何も選ばない", () => {
     expect(selectRelatedTests([], tests, sources)).toEqual({ tests: [], unpaired: [] });
   });
