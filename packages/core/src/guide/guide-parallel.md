@@ -2,7 +2,7 @@
 
 ## Advancing in parallel
 
-When `ready` of `dg --json --actor agent plan show <p>` has two or more tickets and subagents can be started, advance them in parallel. This is the default. Otherwise, advance the Plan by `dg guide work`. `dg` only shows the order, and the slots below are filled from `ready`. Starting and waiting for them is done by these steps. The session that advances (the parent) only advances, gets approvals, and reads and writes `dg`.
+When `ready` of `dg --json --actor agent plan show <p>` has two or more tickets and subagents can be started, advance them in parallel. This is the default. Otherwise, advance the Plan by `dg guide work`. `dg` only shows the order, and the slots below are filled from `ready`. Starting and waiting for them is done by these steps. The session that advances (the parent) only advances, gets approvals, and reads and writes `dg`. The one exception is the `merge_base` step: the parent also merges base into the work branch and pushes, by the "Merging base in before ready" section of `dg guide work`.
 
 - **Limit**: up to {{work.parallel}} at the same time (`work.parallel` in config). If a human gives a number, follow it. If checks fail under load, reduce it
 - **Before starting**: look at the open Plan and the PRs, and check that no two tickets change the same file. Do not run tickets that change the same file side by side. Propose to a human that they run in order with `after`

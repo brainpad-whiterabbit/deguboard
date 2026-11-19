@@ -9,7 +9,15 @@ import type { Run, RunReview } from "../model/run.js";
 import { BRANCH_VALUE_MAX } from "../model/ticket.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
-import { heldStepOf, next, nextOf, stageOf, type NextStep, type StageFacts } from "./next.js";
+import {
+  heldStepOf,
+  mergesBaseBeforeReady,
+  next,
+  nextOf,
+  stageOf,
+  type NextStep,
+  type StageFacts,
+} from "./next.js";
 import { planApprove, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
 import { runStart } from "./run.js";
@@ -566,6 +574,71 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       expect(stale).toMatchObject({ kind: "ready", running_run: null });
     }
     expect(nextOf(ctx, facts()).kind).toBe("review");
+  });
+
+  it("ready の番で先端が base の今の先端を含まなければ、high も low も ready の前に base を取り込む手（merge_base）を返す。含む・読めない・free・ほかの段階は今までどおり（t1155）", async () => {
+    const ctx = await prepared();
+    const behind = { ref: "origin/main", contained: false };
+    // high は見直しが通った後、low は見直しを判定しないので実装の後（PR がある draft）
+    const turns = [
+      { gate: undefined, runs: [review(6, passed)] },
+      { gate: "high", runs: [review(6, passed)] },
+      { gate: "low", runs: [] },
+    ] as const;
+    for (const { gate, runs } of turns) {
+      const of = (over: Parameters<typeof facts>[0] = {}) =>
+        facts({ runs: [...runs], ...over, ticket: { gate, ...over.ticket } });
+      const stale = of({ base: behind });
+      expect(mergesBaseBeforeReady(stale), String(gate)).toBe(true);
+      const step = nextOf(ctx, stale);
+      // 取り込みは親が行い、Run を開かない。サブエージェントに頼む文もモデルもない
+      expect(step, String(gate)).toMatchObject({
+        kind: "merge_base",
+        step: null,
+        running_run: null,
+        model: null,
+        ask_human: null,
+        stage: { name: "reviewed", review_passed: true },
+      });
+      expect(step.commands).toEqual([
+        expect.stringContaining("git merge --no-ff origin/main"),
+        expect.stringContaining("git merge --abort"),
+        expect.stringContaining("push the work branch"),
+      ]);
+      // 競合は手で解かず、印を付けて手直しに回す
+      expect(step.commands[1]).toContain("deguboard: ticket=t1 step=fix");
+      expect(step.commands.join(" ")).not.toContain("pr ready");
+      // 含む・読んでいない（読めない）ときは ready
+      for (const base of [{ ref: "origin/main", contained: true }, undefined]) {
+        expect(mergesBaseBeforeReady(of({ base })), String(gate)).toBe(false);
+        expect(nextOf(ctx, of({ base })).kind, String(gate)).toBe("ready");
+      }
+      // 出した PR（status review）は、含まなくても wait_merge（マージの前の dg gate の base が止める）
+      expect(nextOf(ctx, of({ base: behind, ticket: { status: "review" } })).kind).toBe(
+        "wait_merge",
+      );
+      // 競合の手直しを頼んだ後（push のない手直しの Run が実行中）と、開いたままの見直しの Run は、終わりを待つ
+      for (const open of [
+        run("fix", 7, { finished_at: null, result: null }),
+        ...(gate === "low" ? [review(7, null, { finished_at: null, result: null })] : []),
+      ]) {
+        const waiting = nextOf(ctx, of({ base: behind, runs: [...runs, open] }));
+        expect(waiting, String(gate)).toMatchObject({ kind: "merge_base", running_run: open.id });
+        expect(waiting.commands).toEqual([expect.stringContaining("Wait for the running Run")]);
+      }
+    }
+    // free は base を判定しないので取り込まない
+    const free = facts({ ticket: { gate: "free" }, base: behind });
+    expect(mergesBaseBeforeReady(free)).toBe(false);
+    expect(nextOf(ctx, free).kind).toBe("ready");
+    // high で見直しが通っていない段階（見直しの前・重い指摘・見直しの後の push）は、含まなくても見直しと手直しが先
+    expect(nextOf(ctx, facts({ base: behind })).kind).toBe("review");
+    expect(nextOf(ctx, facts({ base: behind, runs: [review(6, heavy)] })).kind).toBe("fix");
+    expect(nextOf(ctx, facts({ base: behind, runs: [review(1, passed)] })).kind).toBe("review");
+    // PR がまだない low は実装が先
+    expect(nextOf(ctx, facts({ base: behind, ticket: { gate: "low", pr: undefined } })).kind).toBe(
+      "implement",
+    );
   });
 
   it("段のないまま ready にした low のチケットを high に上げると、見直しがないので review の手を返す", async () => {
