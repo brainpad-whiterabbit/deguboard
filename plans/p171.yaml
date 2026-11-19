@@ -12,7 +12,7 @@ after:
     - t1154
   t1161:
     - t1160
-pending_approval: true
+pending_approval: false
 details:
   t1153:
     scope: base を取り込んだだけのマージコミットで前の見直しを数える判定と、一時の worktree での自動マージ結果の作成。rebase は対象外
@@ -42,3 +42,5 @@ details:
     scope: ask の小窓の候補を 3 つまでにし、ほか N の一覧とおすすめの青い点を足す。狭い幅の折り返しは含めない
     approach: 検討資料の A-3 に沿って ask-composer.tsx と ask-menu.tsx を直し、キーボード操作のテストとスクリーンショットを付ける
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-19T12:55:37Z
