@@ -423,7 +423,8 @@ describe("Store", () => {
     const store = await Store.open(root);
     expect(store.issues).toEqual([]);
     expect(checkReferences(store)).toEqual([]);
-    for (const id of ["e1", "e2"]) expect(store.epics.get(id)?.data).not.toHaveProperty("labels");
+    for (const id of ["e1", "e2"] as const)
+      expect(store.epics.get(id)?.data).not.toHaveProperty("labels");
     expect(store.epics.get("e1")?.data["owner"]).toBe("maji");
     expect(store.tickets.get("t1")?.data.labels).toEqual(["frontend"]);
     // 読むだけではファイルを変えない
