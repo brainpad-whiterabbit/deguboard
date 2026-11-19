@@ -185,10 +185,9 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
     expect(screen.queryByRole("menu")).toBeNull();
     await waitFor(() => expect(pressed()).toBe("分ける"));
     expect(within(composer()).getByRole("button", { name: "t3 を外す" })).toBeTruthy();
-    // 入力欄の対象になった行は選んだ印のまま
-    expect(screen.getByText("画面").closest("[data-ask-spot]")!.getAttribute("data-ask-spot")).toBe(
-      "active",
-    );
+    // 入力欄の対象になった行は選んだ印のまま（入力欄の見出しの行の札にも題が出るので、行のほうを引く）
+    const row = screen.getAllByText("画面").find((e) => !e.closest(".ask-composer"))!;
+    expect(row.closest("[data-ask-spot]")!.getAttribute("data-ask-spot")).toBe("active");
   });
 
   it("吹き出しと Shift+F10 の一覧で頼むことを選ぶと、開くと同時にその依頼文をコピーして「コピーしました」を出す（t340）", async () => {

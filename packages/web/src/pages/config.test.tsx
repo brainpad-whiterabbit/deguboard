@@ -1160,14 +1160,14 @@ describe("設定画面", () => {
     await waitFor(() => expect(screen.getAllByRole("menuitem")).toHaveLength(1));
     fireEvent.click(screen.getByRole("menuitem", { name: /設定を説明・変更する/ }));
     const composer = await screen.findByRole("region", { name: "エージェントに頼む" });
-    // 項目のキーを札に出し、依頼文は core の ask が返したまま
-    await waitFor(() =>
-      expect([...composer.querySelectorAll(".ask-pill")].map((p) => p.textContent)).toEqual([
-        "/dgconfig",
+    // 項目のキーを見出しの行の札に、Skill を 1 文の頭の札に出し、依頼文は core の ask が返したまま
+    await waitFor(() => {
+      expect([...composer.querySelectorAll(".ask-target")].map((p) => p.textContent)).toEqual([
         "commit.mode",
-      ]),
-    );
-    fireEvent.click(within(composer).getByRole("button", { name: "全文" }));
+      ]);
+      expect(composer.querySelector(".ask-skill")?.textContent).toBe("/dgconfig");
+    });
+    fireEvent.click(within(composer).getByRole("button", { name: "全文を見る" }));
     await waitFor(() =>
       expect(within(composer).getByLabelText("全文", { selector: "pre" }).textContent).toBe(
         "/dgconfig commit.mode",
@@ -1508,7 +1508,7 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
     await waitFor(() => expect(screen.getAllByRole("menuitem")).toHaveLength(1));
     fireEvent.click(screen.getByRole("menuitem", { name: /振り返る/ }));
     const composer = await screen.findByRole("region", { name: "エージェントに頼む" });
-    fireEvent.click(within(composer).getByRole("button", { name: "全文" }));
+    fireEvent.click(within(composer).getByRole("button", { name: "全文を見る" }));
     await waitFor(() =>
       expect(within(composer).getByLabelText("全文", { selector: "pre" }).textContent).toBe(
         "/dgretro\n観点 review だけで振り返って",
