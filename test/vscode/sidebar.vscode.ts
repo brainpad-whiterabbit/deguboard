@@ -4,7 +4,7 @@
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
 // - 未 push のコミットがある間はタイトル行の同期のボタンが点付きになり、押して同期すると元に戻ること（UI-6）
-// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
 // - 導入のチェックリストの「アンインストール」の節で、消すものを確かめてから一時リポジトリを外せること（閉じた節・開いた節・確認・外した後の知らせを撮る。
 //   ボードを消すので、ボードの要る検査の後に置く。HOME は一時ディレクトリなので、手元の個人の設定には触れない）
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
@@ -75,18 +75,26 @@ beforeAll(async () => {
   await runCommand(iterationStart, ctx, { iteration: "s1" });
   await runCommand(epicCreate, ctx, { title: "実機の Epic" });
   // t1・t2 は s1 のカンバン、t3 はカンバンの作業中。バックログ（Iteration なし）にも行が出るよう 2 件目は入れない。
-  // t1 だけ Epic e1 に入れ、札に触れて光らせる行と薄くする行を撮る
+  // t1 だけ Epic e1 に入れ、札に触れて光らせる行と薄くする行を撮る。
+  // 行のラベル（UI-2・UI-3）を撮るため、t1 は 4 つ（3 つと「+1」）のラベルと PR（ラベルは PR の右）、t2・t3 は 1 つのラベルを持つ
   await runCommand(ticketCreate, ctx, {
     title: TITLES[0],
     acceptance: ["行が出る"],
     iteration: "s1",
     epic: "e1",
+    labels: ["web", "docs", "ui", "cli"],
   });
-  await runCommand(ticketCreate, ctx, { title: TITLES[1], acceptance: ["行が出る"] });
+  await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 12 });
+  await runCommand(ticketCreate, ctx, {
+    title: TITLES[1],
+    acceptance: ["行が出る"],
+    labels: ["release"],
+  });
   await runCommand(ticketCreate, ctx, {
     title: TITLES[2],
     acceptance: ["行が出る"],
     iteration: "s1",
+    labels: ["gate"],
   });
   await runCommand(ticketClaim, ctx, { ticket: "t3", without_branch: true });
   // 設定画面の振り返りの節を撮るため、review に推薦の指標を 2 つ記録し、cost の問いを書き換え（変更あり）、既定にない観点 flow を足す（変更あり・指標なし）
@@ -155,6 +163,32 @@ describe("VS Code の実機の左パネル", () => {
       await access(shot.sidebar);
     }
     console.log(`スクリーンショット: ${SCREENSHOT_DIR}`);
+  });
+
+  it("「表示」のメニューを開いたところと、行のラベルで絞ったところをライトとダークで撮る", async () => {
+    const toggle = sidebar.locator(".board-head .view-toggle");
+    await toggle.click();
+    await sidebar.locator(".view-menu-list").waitFor();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("view-menu", theme);
+      await access(shot.sidebar);
+    }
+    await host.page.keyboard.press("Escape");
+    await sidebar.locator(".view-menu-list").waitFor({ state: "detached" });
+
+    // 行のラベルを押すとそのラベルで絞り、見出しの下に × の札を出す。札の × で外す
+    await sidebar.locator(".row-labels .row-label", { hasText: "docs" }).click();
+    const chip = sidebar.locator(".filter-chips .filter-chip", { hasText: "docs" });
+    await chip.waitFor();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("label-filter", theme);
+      await access(shot.sidebar);
+    }
+    await chip.locator("button").click();
+    await chip.waitFor({ state: "detached" });
+    await sidebar.locator(".ticket-row", { hasText: TITLES[2] }).waitFor();
   });
 
   it("カンバンの Epic の札に触れるとその Epic の行を光らせ、ほかを薄くするところをライトとダークで撮る", async () => {

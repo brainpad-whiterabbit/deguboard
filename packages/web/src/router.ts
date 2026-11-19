@@ -8,6 +8,7 @@ export interface BoardQuery {
   iteration?: string | undefined;
   epic?: string | undefined;
   assignee?: string | undefined;
+  label?: string | undefined;
 }
 
 /** 履歴の見方。省けば Iteration */
@@ -46,6 +47,7 @@ const BOARD_KEYS = [
   "iteration",
   "epic",
   "assignee",
+  "label",
 ] as const satisfies readonly (keyof BoardQuery)[];
 
 export function parseRoute(hash: string): Route {

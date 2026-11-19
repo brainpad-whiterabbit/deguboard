@@ -11,6 +11,8 @@
 // Epic の欄は open の Epic があるときだけ、番号の札（components/epic-chip.tsx）と「なし」の札を並べる（2 行を超える分は「ほか N」）。題と進みは札のツールチップで読む
 // 行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
 // 行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
+// 行のタイトルの下にラベルの札を出し（components/row-labels.tsx）、押すとそのラベルで絞る（もう一度押すと外す）。
+// 漏斗の隣の「表示」ボタン（components/view-menu.tsx）でラベルを出すかを切り替える（値は host.state に残し、カンバンと同じ値）。
 // 左パネルでスクロールすると、検索の行（検索欄と漏斗）を上の端に貼り付け、Iteration の区画の見出しをその下に貼り付ける（次の区画の見出しに押し出されて入れ替わる）。
 // 絞り込みか検索が効いている間は、よく使う絞り込みの行が検索の行の下へ抜けたら、効いている条件の札（Epic を含む。× で外す）と「n / m 件」の行を
 // 検索の行の下に重ねる（BacklogBand。components/sticky-band.tsx と styles.css の .backlog-search）。左パネルで検索欄に打ち込むと一覧を一番上へ戻す。
@@ -25,6 +27,8 @@ import { IterationGoal, shortPeriod } from "../components/iteration-parts.js";
 import { DetailLink, TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
+import { RowLabelsContext } from "../components/row-labels.js";
+import { RowViewMenu, useRowView } from "../components/view-menu.js";
 import { useSelection } from "../components/selection.js";
 import {
   scrollPageToTop,
@@ -245,6 +249,13 @@ export function BacklogPage() {
   const sidebar = useHost().surface === "sidebar";
   const scrolled = useScrolledPast<HTMLDivElement>(STICKY_SEARCH_PX);
   const count = filtering ? <FilteredCount rows={rows} total={total} /> : null;
+  const [view, setView] = useRowView();
+  const rowLabels = view.labels
+    ? {
+        selected: filter.label,
+        onSelect: (label: string) => set({ label: filter.label === label ? "" : label }),
+      }
+    : null;
 
   const filters: ReactNode = (
     <>
@@ -335,6 +346,7 @@ export function BacklogPage() {
             setFiltersOpen(!filtersOpen);
           }}
         />
+        <RowViewMenu view={view} onChange={setView} />
       </div>
       {sidebar ? (
         <StickyBand shown={filtering && scrolled.past}>
@@ -378,13 +390,15 @@ export function BacklogPage() {
         ) : null}
         <div className="backlog-main">
           <EpicHighlight.Provider value={epicHighlight.highlight}>
-            {store.iterations.some((i) => i.status !== "closed") ? (
-              sectionsOf(rows, store.iterations, tickets).map((s) => (
-                <Section key={s.iteration?.id ?? "none"} section={s} rowEnd={rowEnd} />
-              ))
-            ) : (
-              <TicketTable tickets={rows} assigneeInEnd rowMenu end={rowEnd} />
-            )}
+            <RowLabelsContext.Provider value={rowLabels}>
+              {store.iterations.some((i) => i.status !== "closed") ? (
+                sectionsOf(rows, store.iterations, tickets).map((s) => (
+                  <Section key={s.iteration?.id ?? "none"} section={s} rowEnd={rowEnd} />
+                ))
+              ) : (
+                <TicketTable tickets={rows} assigneeInEnd rowMenu end={rowEnd} />
+              )}
+            </RowLabelsContext.Provider>
           </EpicHighlight.Provider>
         </div>
       </div>

@@ -2649,6 +2649,43 @@ describe("画面", () => {
     expect(screen.getByText("別の人の")).toBeTruthy();
   });
 
+  it("サイドバーのバックログの行はタイトルの下にラベルを出し（PR があれば PR の右）、押すとそのラベルで絞って × の札を出し、もう一度押すと外れる。「表示」ボタンは漏斗の隣", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "設定", labels: ["web", "cli", "docs", "ux"], pr: 31 }),
+    );
+    const open = vi.fn();
+    mount(client, hostOf("sidebar", open));
+    await screen.findByText("設定");
+    const search = document.querySelector(".backlog-search")!;
+    expect(search.querySelector(".filter-toggle + .view-menu .view-toggle")).toBeTruthy();
+    const row = screen.getByText("設定").closest<HTMLElement>("li")!;
+    expect(row.className).toBe("sub-row backlog has-pr has-labels");
+    // PR の欄の次にラベルの欄を置き、3 つまで出して残りは「+1」にまとめる
+    expect(row.querySelector(".row-pr + .row-labels")).toBeTruthy();
+    const labels = row.querySelector(".row-labels")!;
+    expect([...labels.children].map((c) => c.textContent)).toEqual(["web", "cli", "docs", "+1"]);
+    expect(labels.querySelector(".more")!.getAttribute("title")).toBe("web, cli, docs, ux");
+
+    const count = () => document.querySelector(".quick-filters .count")?.textContent ?? null;
+    fireEvent.click(within(row).getByRole("button", { name: "cli" }));
+    expect(count()).toBe("1 / 3 件");
+    expect(screen.queryByText("画面")).toBeNull();
+    expect(open).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-selected]")).toBeNull();
+    expect(
+      document.querySelector(".quick-filters .filter-chip .filter-chip-text")!.textContent,
+    ).toBe("ラベル cli");
+    const pressed = within(screen.getByText("設定").closest("li")!).getByRole("button", {
+      name: "cli",
+    });
+    expect(pressed.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(pressed);
+    expect(count()).toBeNull();
+    expect(screen.getByText("画面")).toBeTruthy();
+  });
+
   it("サイドバーのバックログは、Epic の条件を × の札にせず、選んだ Epic が閉じて Epic の欄から消えても、選んでいる Epic の見出しの × で外せる", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
@@ -3313,11 +3350,81 @@ describe("画面", () => {
     expect(document.querySelector(".epic-head")).toBeTruthy();
   });
 
-  it("担当がいなければ、カンバンの見出しに漏斗を出さない", async () => {
-    mount(boardClient(), hostOf("sidebar"));
+  it("担当もラベルもなければ、カンバンの見出しに漏斗を出さない（「表示」ボタンは出す）", async () => {
+    const client = boardClient();
+    for (const t of client.data.tickets) t.labels = [];
+    mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     expect(screen.queryByRole("button", { name: "絞り込み" })).toBeNull();
+    expect(screen.getByRole("button", { name: "表示" })).toBeTruthy();
     expect(document.querySelector(".epic-chips")).toBeTruthy();
+  });
+
+  it("サイドバーのカンバンの行はタイトルの下にラベルを出し、押すとそのラベルで絞り（ハッシュに持ち、× の札を出す）、もう一度押すと外れる。押しても行は選ばず詳細も開かない", async () => {
+    const open = vi.fn();
+    mount(boardClient(), hostOf("sidebar", open));
+    await screen.findByText("画面");
+    const rowOf = (title: string) => kanbanRowOf(title).closest<HTMLElement>(".row-item")!;
+    expect(rowOf("画面").classList.contains("has-labels")).toBe(true);
+    const chip = within(rowOf("画面")).getByRole("button", { name: "web" });
+    // ラベルの札は行のリンクの外に置き、Tab では止めない
+    expect(chip.closest("a")).toBeNull();
+    expect(chip.tabIndex).toBe(-1);
+    // ラベルのない行は 2 段にしない
+    expect(rowOf("API").classList.contains("sub-row")).toBe(false);
+
+    fireEvent.click(chip);
+    await waitFor(() => expect(screen.queryByText("API")).toBeNull());
+    expect(window.location.hash).toContain("label=web");
+    expect(open).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-selected]")).toBeNull();
+    expect(screen.getByRole("button", { name: "絞り込み（絞っている）" })).toBeTruthy();
+    expect(document.querySelector(".filter-chips .filter-chip-text")!.textContent).toBe(
+      "ラベル web",
+    );
+
+    // もう一度押すと外れる
+    fireEvent.click(within(rowOf("画面")).getByRole("button", { name: "web" }));
+    await screen.findByText("API");
+    expect(window.location.hash).not.toContain("label");
+
+    // 漏斗の欄のラベルで絞り、札の × で外す
+    fireEvent.click(screen.getByRole("button", { name: "絞り込み" }));
+    fireEvent.change(screen.getByLabelText("ラベル"), { target: { value: "web" } });
+    await waitFor(() => expect(screen.queryByText("API")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "ラベル web の絞り込みを外す" }));
+    await screen.findByText("API");
+    expect(document.querySelector(".filter-chips")).toBeNull();
+  });
+
+  it("「表示」の「ラベルを出す」を切ると、カンバンとバックログの行にラベルを出さず、「表示」ボタンを色付きにする。値は host.state に残り、2 つのタブで同じ", async () => {
+    const host = hostOf("sidebar");
+    mount(boardClient(), host);
+    await screen.findByText("画面");
+    expect(document.querySelectorAll(".row-labels").length).toBe(1);
+    const view = screen.getByRole("button", { name: "表示" });
+    expect(view.classList.contains("active")).toBe(false);
+    fireEvent.click(view);
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "ラベルを出す" }));
+    expect(document.querySelector(".row-labels")).toBeNull();
+    expect(document.querySelector(".sub-row")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "表示（既定と違う）" }).classList.contains("active"),
+    ).toBe(true);
+    expect(host.state.get("rows.view")).toEqual({ labels: false });
+
+    act(() => {
+      window.location.hash = "#/backlog";
+    });
+    await screen.findByLabelText("検索");
+    expect(screen.getByText("画面")).toBeTruthy();
+    expect(document.querySelector(".row-labels")).toBeNull();
+    const backlogView = screen.getByRole("button", { name: "表示（既定と違う）" });
+    fireEvent.click(backlogView);
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "ラベルを出す" }));
+    expect(document.querySelectorAll(".row-labels").length).toBe(1);
+    expect(host.state.get("rows.view")).toEqual({ labels: true });
+    expect(screen.getByRole("button", { name: "表示" }).classList.contains("active")).toBe(false);
   });
 
   it("カンバンの Epic の札は、選んでいる範囲のチケットがある開いた Epic だけ。「なし」の件数は範囲の Epic のないチケット", async () => {

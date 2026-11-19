@@ -25,8 +25,10 @@ s2
 0
 /
 1
-[title] Filter by assignee
+[title] Filter by assignee or label
 [aria-label] Filter
+[title] Change the view
+[aria-label] View
 Epic
 [aria-label] Filter by Epic
 [title] e1 最初の版 · 0/1 done
@@ -104,6 +106,8 @@ implement · Running
 2026-11-01 00:00 · 84h 0m
 Fixed findings 1
 implement · 3d
+[title] Filter by label api
+api
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Row t2)
 [aria-label] Code Review
@@ -145,6 +149,8 @@ Backlog
 [placeholder] Search by ID, title, or label
 [title] Filter by status, priority, label, or assignee
 [aria-label] Filter
+[title] Change the view
+[aria-label] View
 [aria-label] Filter
 [title] Filter by me or my agent as assignee
 Mine
@@ -179,6 +185,8 @@ API
 high
 [title] Plan p1
 p1
+[title] Filter by label api
+api
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Row t2)
 [aria-label] Code Review
@@ -1431,8 +1439,10 @@ s2
 0
 /
 1
-[title] Filter by assignee
+[title] Filter by assignee or label
 [aria-label] Filter
+[title] Change the view
+[aria-label] View
 Epic
 [aria-label] Filter by Epic
 [title] e1 最初の版 · 0/1 done
@@ -1510,6 +1520,8 @@ implement · Running
 2026-11-01 00:00 · 84h 0m
 Fixed findings 1
 implement · 3d
+[title] Filter by label api
+api
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Row t2)
 [aria-label] Code Review
@@ -1750,8 +1762,10 @@ s2
 0
 /
 1
-[title] Filter by assignee
+[title] Filter by assignee or label
 [aria-label] Filter
+[title] Change the view
+[aria-label] View
 Epic
 [aria-label] Filter by Epic
 [title] e1 最初の版 · 0/1 done
@@ -1829,6 +1843,8 @@ implement · Running
 2026-11-01 00:00 · 84h 0m
 Fixed findings 1
 implement · 3d
+[title] Filter by label api
+api
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Row t2)
 [aria-label] Code Review

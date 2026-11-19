@@ -83,7 +83,7 @@ function mount(client: MockClient) {
 
 const band = () => document.querySelector<HTMLElement>(".sticky-band-bar");
 const toggleOf = () =>
-  within(band()!).getByRole("button", { name: "Iteration・Epic・担当を切り替える" });
+  within(band()!).getByRole("button", { name: "Iteration・Epic・担当・ラベルを切り替える" });
 
 describe("左パネルのカンバンで見出しが上に抜けたら残す 1 行の帯（UI-2）", () => {
   it("見出しの進みの帯の行を一覧（.page）の中で帯の高さを除いて見張り、上へ抜けたら番号・名前・小さな進みの帯・n/m の帯を出し、見えたら消す。下に外れている間は出さない", async () => {
@@ -151,7 +151,7 @@ describe("左パネルのカンバンで見出しが上に抜けたら残す 1 �
     expect(await screen.findByRole("menu")).toBeTruthy();
   });
 
-  it("▾ は帯の右端にあり、押すと Iteration・Epic の札の列・担当の漏斗・状態ごとの件数を帯の下に重ねて開き、aria-expanded が開閉を示す。目標と期間は重ねない", async () => {
+  it("▾ は帯の右端にあり、押すと Iteration・Epic の札の列・担当・ラベルの漏斗・状態ごとの件数を帯の下に重ねて開き、aria-expanded が開閉を示す。目標と期間は重ねない", async () => {
     const client = mockClient(boardFixture());
     client.data.tickets[1] = { ...client.data.tickets[1]!, assignee: "eiki/agent" };
     mount(client);
@@ -179,7 +179,7 @@ describe("左パネルのカンバンで見出しが上に抜けたら残す 1 �
     expect(document.getElementById("board-band-drop")).toBeNull();
   });
 
-  it("重ねた札で Iteration を切り替えると閉じて一番上へ戻す。Epic・担当を切り替えると閉じるだけで、一覧の位置は保つ", async () => {
+  it("重ねた札で Iteration を切り替えると閉じて一番上へ戻す。Epic・担当・ラベルを切り替えると閉じるだけで、一覧の位置は保つ", async () => {
     const client = mockClient(boardFixture());
     client.data.iterations.push(iteration({ id: "s1", name: "次", status: "planned" }));
     client.data.tickets[1] = { ...client.data.tickets[1]!, assignee: "eiki/agent" };
@@ -200,10 +200,17 @@ describe("左パネルのカンバンで見出しが上に抜けたら残す 1 �
 
     const drop = open();
     fireEvent.click(within(drop).getByRole("button", { name: "絞り込み" }));
-    fireEvent.change(within(drop).getByRole("combobox"), { target: { value: "eiki/agent" } });
+    fireEvent.change(within(drop).getByLabelText("担当"), { target: { value: "eiki/agent" } });
     expect(document.getElementById("board-band-drop")).toBeNull();
     expect(page.scrollTop).toBe(400);
     expect(window.location.hash).toContain("assignee=eiki");
+
+    const again = open();
+    fireEvent.click(within(again).getByRole("button", { name: /^絞り込み/ }));
+    fireEvent.change(within(again).getByLabelText("ラベル"), { target: { value: "web" } });
+    expect(document.getElementById("board-band-drop")).toBeNull();
+    expect(page.scrollTop).toBe(400);
+    expect(window.location.hash).toContain("label=web");
 
     fireEvent.click(within(open()).getByRole("button", { name: /^s1/ }));
     expect(document.getElementById("board-band-drop")).toBeNull();

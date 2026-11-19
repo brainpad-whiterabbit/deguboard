@@ -5,7 +5,9 @@
 // Epic の札の列は、選んでいる範囲のチケットがある開いた Epic と「なし」（件数は範囲の Epic のないチケット）。絞っている Epic は残す。
 // 開いた Epic がなければ列を出さない。開いた Iteration がなければ Epic の列・進みの帯・一覧を出さず、バックログへ案内する（NoOpenIteration）。絞り込みの値はハッシュに持つ。
 // VS Code の左パネルに出し、見出しは Iteration の札・Epic の札・選んでいるものの名前（active は何日目か）・目標（3 行まで）と進みの帯・状態ごとの件数に詰め、詳細は出さない。
-// 担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、絞っている間は見出しの下に値の札（× で外す）を出す（上の端の帯では Epic の札も出す）。状態の節はペイン風の見出しにする。
+// 担当とラベルの絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、絞っている間は見出しの下に値の札（× で外す）を出す（上の端の帯では Epic の札も出す）。状態の節はペイン風の見出しにする。
+// 漏斗の隣の「表示」ボタン（components/view-menu.tsx）で行にラベルを出すかを切り替える（値は host.state に残し、バックログと同じ値）。
+// 行のタイトルの下のラベルの札（components/row-labels.tsx）を押すと、そのラベルで絞る（もう一度押すと外す）。
 // Epic で絞っている間は、Iteration の見出しの下に選んでいる Epic の見出し（components/epic-head.tsx。× で外す）を出す。
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
@@ -15,8 +17,8 @@
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 左パネルでは、見出しの進みの帯の行が上へ抜けたら、上の端に 1 行の帯（BoardBand。番号・名前・小さな進みの帯・n/m）を出し、
 // 状態の節の見出しをその下に貼り付ける（components/sticky-band.tsx と styles.css の .sticky-band）。帯と貼り付きは左パネルの形（data-surface が sidebar）だけ。
-// 帯の右端の ▾ は、Iteration・Epic の札の列・担当の漏斗・状態ごとの件数を一覧の上に重ねて開き（BoardBandDrop）、上へ戻らずに切り替えられる。
-// Epic・担当で絞っている間は、帯の 2 行目に絞り込みの札（× で外す）を出す。
+// 帯の右端の ▾ は、Iteration・Epic の札の列・担当・ラベルの漏斗・状態ごとの件数を一覧の上に重ねて開き（BoardBandDrop）、上へ戻らずに切り替えられる。
+// Epic・担当・ラベルで絞っている間は、帯の 2 行目に絞り込みの札（× で外す）を出す。
 // 左パネルの行・状態の節の見出し・Iteration の見出しと帯・選んでいる Epic の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // 表示だけで書き込まない。チケットを進める・片付ける・やめる・done を取り消すと、Iteration の作成・閉じるは、吹き出しから
@@ -29,6 +31,8 @@ import { formatShortTime } from "../components/date-time.js";
 import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic-chip.js";
 import { EpicFilterHead } from "../components/epic-head.js";
 import { FilterToggle } from "../components/filter-toggle.js";
+import { RowLabelsContext } from "../components/row-labels.js";
+import { RowViewMenu, useRowView } from "../components/view-menu.js";
 import { PlanBand } from "../components/plan-band.js";
 import { scrollPageToTop, StickyBand, useScrolledPast } from "../components/sticky-band.js";
 import { activeDay, IterationGoal, shortPeriod } from "../components/iteration-parts.js";
@@ -142,8 +146,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
 
   const select = (iteration: string) => {
     setLastIteration(iteration);
-    // 担当者は Iteration ごとに顔ぶれが変わるので外す。Epic は残す
-    navigate({ page: "board", iteration, epic: query.epic });
+    // 担当者は Iteration ごとに顔ぶれが変わるので外す。Epic とラベルは残す
+    navigate({ page: "board", iteration, epic: query.epic, label: query.label });
   };
   const setFilter = (patch: Partial<BoardQuery>) =>
     navigate({
@@ -151,8 +155,10 @@ export function BoardPage({ query }: { query: BoardQuery }) {
       iteration: query.iteration,
       epic: query.epic,
       assignee: query.assignee,
+      label: query.label,
       ...patch,
     });
+  const [view, setView] = useRowView();
 
   const scoped = useMemo(
     () => ticketsInSelection(store.tickets, open, selection),
@@ -171,14 +177,25 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   }, [store.epics, scoped, query.epic]);
   const noEpic = useMemo(() => scoped.filter((t) => !t.epic).length, [scoped]);
   const claims = useMemo(() => claimOptions(scoped), [scoped]);
+  const labels = useMemo(() => labelOptions(scoped, query.label), [scoped, query.label]);
   const tickets = useMemo(
     () =>
       hideClosedFinished(scoped, store.iterations, store.epics, query.epic)
         .filter((t) => matchesEpic(t, query.epic ?? ""))
         .filter((t) => matchesClaim(t, query.assignee ?? ""))
+        .filter((t) => !query.label || t.labels.includes(query.label))
         .sort(byPriorityThenNumber),
-    [scoped, store.iterations, store.epics, query.epic, query.assignee],
+    [scoped, store.iterations, store.epics, query.epic, query.assignee, query.label],
   );
+  // 漏斗の欄は担当かラベルの候補があるときだけ出す
+  const hasFilterFields = claims.length > 0 || labels.length > 0;
+  const rowLabels = view.labels
+    ? {
+        selected: query.label ?? "",
+        onSelect: (label: string) =>
+          setFilter({ label: query.label === label ? undefined : label }),
+      }
+    : null;
   const chipTickets = useMemo(
     () => hideClosedFinished(store.tickets, store.iterations, store.epics),
     [store.tickets, store.iterations, store.epics],
@@ -255,6 +272,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                     : undefined
                 }
                 assignee={query.assignee}
+                label={query.label}
                 onClear={setFilter}
               />
             }
@@ -273,12 +291,13 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                     }}
                   />
                 }
-                // Epic・担当は閉じるだけで、読んでいた位置を保つ
+                // Epic・担当・ラベルは閉じるだけで、読んでいた位置を保つ
                 epics={epicRowOf(closeDrop)}
                 claims={claims}
-                assignee={query.assignee}
-                onAssignee={(assignee) => {
-                  setFilter({ assignee });
+                labels={labels}
+                query={query}
+                onFilter={(patch) => {
+                  setFilter(patch);
                   closeDrop();
                 }}
                 progress={progress}
@@ -299,26 +318,28 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         onSelect={select}
         epics={epicRowOf()}
         epicHead={epicHead}
-        // 漏斗は担当の絞り込みだけ。担当がいなければ出さない
+        // 漏斗は担当とラベルの絞り込み。どちらの候補もなければ出さない
         filter={
-          claims.length > 0
+          hasFilterFields
             ? {
                 open: filtersOpen,
-                active: !!query.assignee,
+                active: !!query.assignee || !!query.label,
                 onToggle: () => setFiltersOpen(!filtersOpen),
               }
             : undefined
         }
+        viewMenu={<RowViewMenu view={view} onChange={setView} />}
       />
-      {filtersOpen && claims.length > 0 ? (
-        <AssigneeFilter
+      {filtersOpen && hasFilterFields ? (
+        <BoardFilterFields
           id="board-filters"
           claims={claims}
-          assignee={query.assignee}
-          onChange={(assignee) => setFilter({ assignee })}
+          labels={labels}
+          query={query}
+          onChange={setFilter}
         />
       ) : null}
-      <FilterChips assignee={query.assignee} onClear={setFilter} />
+      <FilterChips assignee={query.assignee} label={query.label} onClear={setFilter} />
       {open.length === 0 ? (
         <NoOpenIteration />
       ) : (
@@ -326,27 +347,29 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           <PlanBand scope={scoped} />
           <div className="board">
             <EpicHighlight.Provider value={epicHighlight.highlight}>
-              {BOARD_STATUSES.map((status) => (
-                <Column
-                  key={status}
-                  status={status}
-                  tickets={tickets.filter((t) => t.status === status)}
-                  planMarks={planMarks}
-                  flashing={flash.flashing}
-                  // 完了は既定で畳む（開いた状態は useUiState が保つ）
-                  defaultOpen={status !== "done"}
-                />
-              ))}
-              {/* 中止は切り替えではなく、あるときだけ最後の節に畳んで置く */}
-              {abandoned.length > 0 ? (
-                <Column
-                  status="abandoned"
-                  tickets={abandoned}
-                  planMarks={planMarks}
-                  flashing={flash.flashing}
-                  defaultOpen={false}
-                />
-              ) : null}
+              <RowLabelsContext.Provider value={rowLabels}>
+                {BOARD_STATUSES.map((status) => (
+                  <Column
+                    key={status}
+                    status={status}
+                    tickets={tickets.filter((t) => t.status === status)}
+                    planMarks={planMarks}
+                    flashing={flash.flashing}
+                    // 完了は既定で畳む（開いた状態は useUiState が保つ）
+                    defaultOpen={status !== "done"}
+                  />
+                ))}
+                {/* 中止は切り替えではなく、あるときだけ最後の節に畳んで置く */}
+                {abandoned.length > 0 ? (
+                  <Column
+                    status="abandoned"
+                    tickets={abandoned}
+                    planMarks={planMarks}
+                    flashing={flash.flashing}
+                    defaultOpen={false}
+                  />
+                ) : null}
+              </RowLabelsContext.Provider>
             </EpicHighlight.Provider>
           </div>
         </>
@@ -398,7 +421,7 @@ export function hideClosedFinished<T extends Ticket>(
  * 全文はツールチップ。目標の中の ID は詳細へのリンク。目標がない・「すべて」なら出さない）、
  * Epic で絞っている間はその下に選んでいる Epic の見出し（epicHead）、
  * 最後の段に状態ごとの色の帯と「n/m done」、その下に 1 件以上の状態の件数（帯と同じ並び・色・数え方。件数はここだけ）。
- * 右端の漏斗は担当の絞り込みを開く（filter。担当がいるときだけ渡す）。絞っている間は漏斗を色付きにする。
+ * 右端の漏斗は担当とラベルの絞り込みを開く（filter。候補があるときだけ渡す）。絞っている間は漏斗を色付きにする。その右に「表示」ボタン（viewMenu）を置く。
  * 詳細は出さないが、選んでいる Iteration の名前は Iteration 詳細へのリンクにする（「すべて」の名前はリンクにしない）
  */
 function BoardHead({
@@ -411,6 +434,7 @@ function BoardHead({
   epics,
   epicHead,
   filter,
+  viewMenu,
 }: {
   open: Iteration[];
   /** 進みの帯の行に付ける目印（useScrolledPast の ref）。この行が上へ抜けたら上の端に 1 行の帯を出す。左パネルでなければ undefined */
@@ -425,6 +449,8 @@ function BoardHead({
   /** 選んでいる Epic の見出し（EpicFilterHead）。Epic で絞っていなければ undefined */
   epicHead: ReactNode;
   filter: { open: boolean; active: boolean; onToggle: () => void } | undefined;
+  /** 「表示」ボタン（RowViewMenu） */
+  viewMenu: ReactNode;
 }) {
   const it = selection.kind === "iteration" ? selection.iteration : undefined;
   const name = it
@@ -457,11 +483,12 @@ function BoardHead({
           <FilterToggle
             open={filter.open}
             active={filter.active}
-            title={tr("担当で絞り込む")}
+            title={tr("担当・ラベルで絞り込む")}
             controls="board-filters"
             onToggle={filter.onToggle}
           />
         ) : null}
+        {viewMenu}
       </div>
       {epics}
       <div className="head-title" {...(it ? { ...spot.props, tabIndex: 0 } : {})}>
@@ -569,8 +596,8 @@ function BoardBand({
           ref={toggle}
           type="button"
           className={`board-band-toggle${open ? " open" : ""}`}
-          aria-label={tr("Iteration・Epic・担当を切り替える")}
-          title={tr("Iteration・Epic・担当を切り替える")}
+          aria-label={tr("Iteration・Epic・担当・ラベルを切り替える")}
+          title={tr("Iteration・Epic・担当・ラベルを切り替える")}
           aria-expanded={open}
           aria-controls={open ? "board-band-drop" : undefined}
           onClick={onToggle}
@@ -597,50 +624,55 @@ function BoardBand({
 }
 
 /**
- * 帯の ▾ で一覧の上に重ねる札の列（UI-2）。見出しと同じ Iteration の札の列と担当の漏斗、Epic の札の列、状態ごとの件数で、目標と期間は重ねない。
- * 漏斗は重ねた札の中に担当の欄を開く（見出しの漏斗の開閉とは別にし、見出しの高さを変えて一覧を動かさない）。
- * 札・担当を切り替えたら閉じるのは呼ぶ側（iterations・epics・onAssignee）
+ * 帯の ▾ で一覧の上に重ねる札の列（UI-2）。見出しと同じ Iteration の札の列と担当・ラベルの漏斗、Epic の札の列、状態ごとの件数で、目標と期間は重ねない。
+ * 漏斗は重ねた札の中に担当・ラベルの欄を開く（見出しの漏斗の開閉とは別にし、見出しの高さを変えて一覧を動かさない）。
+ * 札・担当・ラベルを切り替えたら閉じるのは呼ぶ側（iterations・epics・onFilter）
  */
 function BoardBandDrop({
   iterations,
   epics,
   claims,
-  assignee,
-  onAssignee,
+  labels,
+  query,
+  onFilter,
   progress,
 }: {
   /** Iteration の札の列（IterationChips） */
   iterations: ReactNode;
   /** Epic の札の列（EpicChipRow）。開いた Epic がなければ undefined */
   epics: ReactNode;
-  /** 担当の候補（claimOptions）。空なら漏斗を出さない */
+  /** 担当の候補（claimOptions） */
   claims: readonly string[];
-  assignee: string | undefined;
-  onAssignee: (assignee: string | undefined) => void;
+  /** ラベルの候補（labelOptions）。担当もラベルも空なら漏斗を出さない */
+  labels: readonly string[];
+  query: BoardQuery;
+  onFilter: (patch: Partial<BoardQuery>) => void;
   progress: Progress;
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
+  const hasFields = claims.length > 0 || labels.length > 0;
   return (
     <>
       <div className="head-line">
         {iterations}
-        {claims.length > 0 ? (
+        {hasFields ? (
           <FilterToggle
             open={filterOpen}
-            active={!!assignee}
-            title={tr("担当で絞り込む")}
-            controls="board-band-assignee"
+            active={!!query.assignee || !!query.label}
+            title={tr("担当・ラベルで絞り込む")}
+            controls="board-band-filters"
             onToggle={() => setFilterOpen(!filterOpen)}
           />
         ) : null}
       </div>
       {epics}
-      {filterOpen && claims.length > 0 ? (
-        <AssigneeFilter
-          id="board-band-assignee"
+      {filterOpen && hasFields ? (
+        <BoardFilterFields
+          id="board-band-filters"
           claims={claims}
-          assignee={assignee}
-          onChange={onAssignee}
+          labels={labels}
+          query={query}
+          onChange={onFilter}
         />
       ) : null}
       <StatusCounts progress={progress} />
@@ -648,33 +680,70 @@ function BoardBandDrop({
   );
 }
 
-/** 担当の絞り込みの欄（漏斗で開く小さな 1 行）。見出しの下と、帯の ▾ で重ねた札の中で使う */
-function AssigneeFilter({
+/**
+ * 範囲のチケットのラベルの候補（名前の順）。絞っているラベル（selected）は、範囲のチケットになくても残す（Iteration を移っても選んだ値を選び直せる）
+ */
+export function labelOptions(
+  tickets: readonly Pick<Ticket, "labels">[],
+  selected: string | undefined,
+): string[] {
+  const names = new Set(tickets.flatMap((t) => t.labels));
+  if (selected) names.add(selected);
+  return [...names].sort();
+}
+
+/** 担当とラベルの絞り込みの欄（漏斗で開く小さな 1 行）。候補のある欄だけ出す。見出しの下と、帯の ▾ で重ねた札の中で使う */
+function BoardFilterFields({
   id,
   claims,
-  assignee,
+  labels,
+  query,
   onChange,
 }: {
   id: string;
   claims: readonly string[];
-  assignee: string | undefined;
-  onChange: (assignee: string | undefined) => void;
+  labels: readonly string[];
+  query: BoardQuery;
+  onChange: (patch: Partial<BoardQuery>) => void;
 }) {
   return (
     <div className="board-filters compact" id={id}>
-      <label>
-        {trNode(
-          "担当{0}",
-          <select value={assignee ?? ""} onChange={(e) => onChange(e.target.value || undefined)}>
-            <option value="">{tr("すべて")}</option>
-            {claims.map((c) => (
-              <option key={c} value={c} title={c}>
-                {c === NO_CLAIM ? tr("なし") : actorLabel(c)}
-              </option>
-            ))}
-          </select>,
-        )}
-      </label>
+      {claims.length > 0 ? (
+        <label>
+          {trNode(
+            "担当{0}",
+            <select
+              value={query.assignee ?? ""}
+              onChange={(e) => onChange({ assignee: e.target.value || undefined })}
+            >
+              <option value="">{tr("すべて")}</option>
+              {claims.map((c) => (
+                <option key={c} value={c} title={c}>
+                  {c === NO_CLAIM ? tr("なし") : actorLabel(c)}
+                </option>
+              ))}
+            </select>,
+          )}
+        </label>
+      ) : null}
+      {labels.length > 0 ? (
+        <label>
+          {trNode(
+            "ラベル{0}",
+            <select
+              value={query.label ?? ""}
+              onChange={(e) => onChange({ label: e.target.value || undefined })}
+            >
+              <option value="">{tr("すべて")}</option>
+              {labels.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>,
+          )}
+        </label>
+      ) : null}
     </div>
   );
 }
@@ -820,23 +889,25 @@ function epicFilterLabel(
 }
 
 /**
- * 左パネルのカンバンで絞っている値の札（例「e4 Webview ×」「担当 eiki/agent ×」）。× で外す。絞っていなければ何も出さない。
- * 見出しの下では担当だけを出し（Epic の絞り込みは、選んでいる Epic の見出し EpicFilterHead が × を持つ）、
+ * 左パネルのカンバンで絞っている値の札（例「e4 Webview ×」「担当 eiki/agent ×」「ラベル web ×」）。× で外す。絞っていなければ何も出さない。
+ * 見出しの下では担当とラベルだけを出し（Epic の絞り込みは、選んでいる Epic の見出し EpicFilterHead が × を持つ）、
  * 上の端の帯の 2 行目では Epic（epic）も出す（見出しが流れても、絞っていることに気づけて上へ戻らずに外せる）
  */
 function FilterChips({
   className,
   epic,
   assignee,
+  label,
   onClear,
 }: {
   className?: string;
   /** 絞っている Epic の札の名前（epicFilterLabel）。札を出さないなら undefined */
   epic?: ReturnType<typeof epicFilterLabel> | undefined;
   assignee: string | undefined;
+  label: string | undefined;
   onClear: (patch: Partial<BoardQuery>) => void;
 }) {
-  if (!assignee && !epic) return null;
+  if (!assignee && !epic && !label) return null;
   const who = assignee === NO_CLAIM ? tr("なし") : assignee ? actorLabel(assignee) : "";
   return (
     <div className={`filter-chips${className ? ` ${className}` : ""}`}>
@@ -859,6 +930,18 @@ function FilterChips({
             type="button"
             aria-label={tr("担当 {0} の絞り込みを外す", who)}
             onClick={() => onClear({ assignee: undefined })}
+          >
+            ×
+          </button>
+        </span>
+      ) : null}
+      {label ? (
+        <span className="filter-chip" title={tr("ラベル {0}", label)}>
+          <span className="filter-chip-text">{tr("ラベル {0}", label)}</span>
+          <button
+            type="button"
+            aria-label={tr("ラベル {0} の絞り込みを外す", label)}
+            onClick={() => onClear({ label: undefined })}
           >
             ×
           </button>

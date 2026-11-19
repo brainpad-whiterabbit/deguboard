@@ -1063,7 +1063,9 @@ describe.each(SCHEMES)("左パネルのカンバンの上の端に残す帯（%s
             main.scrollTop,
         };
       });
-      const toggle = page.getByRole("button", { name: "Iteration・Epic・担当を切り替える" });
+      const toggle = page.getByRole("button", {
+        name: "Iteration・Epic・担当・ラベルを切り替える",
+      });
       // 押しても、帯の部品へ寄せるスクロール（scroll-padding-top）で一覧が上へ戻って帯が消えない
       await toggle.click();
       await page.locator("#board-band-drop").waitFor();
@@ -1106,8 +1108,24 @@ describe.each(SCHEMES)("左パネルのカンバンの上の端に残す帯（%s
       expect(dropped.pageScroll, "画面が横に溢れない").toBeLessThanOrEqual(dropped.pageClient);
       expect(await toggle.getAttribute("aria-expanded")).toBe("true");
 
-      // 帯の外（一覧の下のほう）を押すと閉じる
-      await page.mouse.click(150, 340);
+      // 帯の外（一覧の下のほう）を押すと閉じる。行のラベルの段で行の高さが変わっても行のリンクを押して詳細へ移らないよう、
+      // 一覧の下のほうでリンク・ボタン・見出しのない点を探して押す
+      const outside = await page.evaluate(() => {
+        for (let y = 340; y > 200; y -= 2) {
+          for (const x of [150, 6, 294]) {
+            const el = document.elementFromPoint(x, y);
+            if (
+              el?.closest(".page") &&
+              !el.closest("a, button, summary, input, .sticky-band-stack")
+            ) {
+              return { x, y };
+            }
+          }
+        }
+        return null;
+      });
+      expect(outside, "帯の外でリンクのない点").not.toBeNull();
+      await page.mouse.click(outside!.x, outside!.y);
       await page.waitForFunction(() => !document.querySelector("#board-band-drop"));
       expect(await toggle.getAttribute("aria-expanded")).toBe("false");
 

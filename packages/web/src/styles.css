@@ -91,6 +91,13 @@ body {
   --dg-info: var(--vscode-focusBorder);
   --dg-warning: var(--vscode-editorWarning-foreground, var(--vscode-inputValidation-warningBorder));
   --dg-error: var(--vscode-errorForeground);
+  /* 行のラベルの 6 色（components/row-labels.tsx の labelColorIndex が名前から選ぶ）。テーマの図表の色を使い、明暗はテーマに任せる */
+  --dg-label-0: var(--vscode-charts-blue, #3794ff);
+  --dg-label-1: var(--vscode-charts-green, #388a34);
+  --dg-label-2: var(--vscode-charts-purple, #8250df);
+  --dg-label-3: var(--vscode-charts-orange, #d18616);
+  --dg-label-4: var(--vscode-charts-red, #e51400);
+  --dg-label-5: var(--vscode-charts-yellow, #bf8803);
 }
 a {
   color: var(--vscode-textLink-foreground);
@@ -1522,41 +1529,118 @@ textarea.body {
   grid-template-columns: auto auto minmax(0, 1fr) auto;
 }
 /*
- * PR のある行（UI-2。prRowClass）：番号のすぐ下の 2 段目に PR の印と #番号のリンクを出す。
+ * 2 段の行（UI-2・UI-3。subRowClass）：PR のある行は番号のすぐ下の 2 段目に PR の印と #番号のリンクを出し（.has-pr）、
+ * ラベルを出す行はタイトルの下の 2 段目にラベルの札を出す（.has-labels。PR があればその右に並ぶ）。
  * 包み（.row-item・li）が行の列と 2 段を持ち、行のリンク（.ticket-row）は 2 段にまたがって subgrid でその列と段を使う。
  * 番号と行の頭の丸印は 1 段目、タイトルと右端は 2 段にまたがるので、タイトルの 2 行目や右端の 2 段目（待ち）の横に PR が並び、
- * 行は 2 行の高さに収まる（右端の下に 3 段目を足さない）。PR の欄（.row-pr）は番号の列の 2 段目だけに置き、行のリンクの上に重ねる。
- * PR のリンクは行のリンクの外に置く（リンクの中にリンクを入れない）。2 段目の PR の欄の外は行のリンクが受けるので、押すと行を選べる。
- * 包みの列は .ticket-row の列と同じ。PR のない行には付かないので今の行のままになる
+ * 行は 2 行の高さに収まる（右端の下に 3 段目を足さない）。ラベルのある行はタイトルを 1 段目だけに置き、2 段目をラベルに譲る。
+ * PR の欄（.row-pr）とラベルの欄（.row-labels）は 2 段目だけに置き、行のリンクの上に重ねる。
+ * どちらも行のリンクの外に置く（リンクの中にリンクやボタンを入れない）。2 段目の欄の外は行のリンクが受けるので、押すと行を選べる。
+ * 包みの列は .ticket-row の列と同じ。PR もラベルもない行には付かないので今の行のままになる
  */
-.rows li.pr-row,
-.row-item.pr-row {
+.rows li.sub-row,
+.row-item.sub-row {
   display: grid;
   column-gap: 6px;
   row-gap: 0;
 }
-.pr-row.kanban {
+.sub-row.kanban {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
-.pr-row.backlog {
+.sub-row.backlog {
   grid-template-columns: auto auto minmax(0, 1fr) auto;
 }
-.pr-row > .row.ticket-row {
+.sub-row > .row.ticket-row {
   grid-column: 1 / -1;
   grid-row: 1 / span 2;
   grid-template-columns: subgrid;
   grid-template-rows: subgrid;
 }
-.pr-row > .row.ticket-row > * {
+.sub-row > .row.ticket-row > * {
   grid-row: 1 / span 2;
 }
-.pr-row > .row.ticket-row > code,
-.pr-row.backlog > .row.ticket-row > :first-child {
+.sub-row > .row.ticket-row > code,
+.sub-row.backlog > .row.ticket-row > :first-child,
+.sub-row.has-labels > .row.ticket-row > .row-title {
   grid-row: 1;
 }
 /* 1 行のタイトル（サイドバーの外）は番号と同じ 1 段目の高さに揃える */
-.pr-row > .row.ticket-row > .row-title {
+.sub-row > .row.ticket-row > .row-title {
   align-self: start;
+}
+/*
+ * 行のラベルの欄（components/row-labels.tsx）。タイトルの列の 2 段目に札を横に並べ、入らない分は札の文字を省く（折り返して 3 段目を作らない）。
+ * 欄の隙間は押しても行のリンクが受けるよう、欄は触れられず札だけが受ける
+ */
+.row-labels {
+  grid-row: 2;
+  grid-column: 2;
+  align-self: start;
+  justify-self: start;
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+  padding-bottom: 3px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sub-row.backlog > .row-labels {
+  grid-column: 3;
+}
+/*
+ * ラベルの札。色は名前から決めた 6 色（.label-color-*）のどれかで、地と枠をその色で薄く塗り、文字はその色と前景色を混ぜて明暗どちらのテーマでも読めるようにする。
+ * 絞っているラベル（aria-pressed）は地を濃くする。「+N」は色を付けない
+ */
+.row-label {
+  --dg-label: var(--vscode-descriptionForeground);
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 10em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  line-height: 14px;
+  color: color-mix(in srgb, var(--dg-label) 55%, var(--vscode-foreground));
+  background: color-mix(in srgb, var(--dg-label) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dg-label) 45%, transparent);
+  pointer-events: auto;
+}
+button.row-label {
+  cursor: pointer;
+}
+button.row-label:hover {
+  background: color-mix(in srgb, var(--dg-label) 24%, transparent);
+}
+button.row-label[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--dg-label) 34%, transparent);
+  border-color: var(--dg-label);
+}
+.row-label.more {
+  flex: none;
+  color: var(--vscode-descriptionForeground);
+  cursor: default;
+}
+.label-color-0 {
+  --dg-label: var(--dg-label-0);
+}
+.label-color-1 {
+  --dg-label: var(--dg-label-1);
+}
+.label-color-2 {
+  --dg-label: var(--dg-label-2);
+}
+.label-color-3 {
+  --dg-label: var(--dg-label-3);
+}
+.label-color-4 {
+  --dg-label: var(--dg-label-4);
+}
+.label-color-5 {
+  --dg-label: var(--dg-label-5);
 }
 .row-pr {
   grid-row: 2;
@@ -1567,7 +1651,7 @@ textarea.body {
   line-height: 16px;
   color: var(--vscode-descriptionForeground);
 }
-.pr-row.backlog > .row-pr {
+.sub-row.backlog > .row-pr {
   grid-column: 2;
 }
 /* PR の文字が番号より広ければ番号の列を広げる（タイトルの 2 行目に重ねない） */
@@ -1582,14 +1666,14 @@ textarea.body {
  * 番号は列の左端から 7px 内側に出る。PR のリンクも同じだけ内側に寄せて番号と左端を揃える（backlog の番号は丸印の次の 2 列目で、ずれない）。
  * 帯を持つ行（[data-select-id]）は .row の左の余白が 12px なので、番号は 13px 内側に出る。その行のリンクは 13px に寄せる（下の規則）
  */
-.pr-row.kanban > .row-pr > .row-pr-link {
+.sub-row.kanban > .row-pr > .row-pr-link {
   margin-left: 7px;
 }
-.pr-row.kanban[data-select-id] > .row-pr > .row-pr-link {
+.sub-row.kanban[data-select-id] > .row-pr > .row-pr-link {
   margin-left: 13px;
 }
-/* PR のある行は包みの背景で行全体（PR の欄を含む）を塗る。行のリンクに付く :hover は PR の欄の下に隠れる */
-.pr-row:hover {
+/* 2 段の行は包みの背景で行全体（PR・ラベルの欄を含む）を塗る。行のリンクに付く :hover は 2 段目の欄の下に隠れる */
+.sub-row:hover {
   background: var(--vscode-list-hoverBackground);
 }
 /*
@@ -2317,6 +2401,73 @@ textarea.body {
 .filter-toggle.active path {
   fill-opacity: 1;
 }
+/*
+ * 「表示」ボタンとメニュー（components/view-menu.tsx）。ボタンは漏斗と同じ形で、漏斗の右に並ぶ（漏斗がなければ自分で右端に寄る）。
+ * 既定と違う見た目を選んでいる間は色付きにする。メニューはボタンの下に右端を揃えて重ねる
+ */
+.view-menu {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  margin-left: auto;
+}
+.filter-toggle + .view-menu {
+  margin-left: 0;
+}
+.view-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 3px;
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  border-color: transparent;
+  border-radius: 3px;
+}
+.view-toggle:hover,
+.view-toggle.open {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+.view-toggle.active {
+  color: var(--vscode-textLink-foreground);
+}
+.view-menu-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  right: 0;
+  z-index: 20;
+  min-width: 10em;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-menu-border, var(--dg-border));
+  border-radius: 4px;
+  box-shadow: 0 4px 12px var(--vscode-widget-shadow, rgb(0 0 0 / 0.25));
+}
+.view-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 4px;
+  text-align: left;
+  white-space: nowrap;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+}
+.view-menu-item:hover,
+.view-menu-item:focus-visible {
+  color: var(--vscode-menu-selectionForeground, var(--vscode-foreground));
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground));
+  outline: none;
+}
+.view-menu-check {
+  width: 1em;
+  text-align: center;
+}
 .sidebar-head .period,
 .sidebar-section .period {
   flex: none;
@@ -2647,7 +2798,7 @@ textarea.body {
  * 付記（2 段目）は subgrid でその列を使う。付記はタイトルの列に出し、番号の列の 2 段目は空ける。
  * PR のリンク（.row-pr。UI-2）は番号と同じ 1 段目の番号の列に置いて列の幅に入れ（PR の文字が番号より広ければ列が広がり、タイトルと付記に重ならない）、
  * 行の 2 行目の高さまで下にずらして番号のすぐ下に出す。タイトルが 2 行（サイドバー）なら 2 行目の横、1 行なら付記の横に並ぶ。
- * ずらしは relative で段の高さに入らないので、PR のある行もない行と同じ行数になる（カンバンの .pr-row はタイトルを 2 段にまたがらせるので、
+ * ずらしは relative で段の高さに入らないので、PR のある行もない行と同じ行数になる（カンバンの .sub-row はタイトルを 2 段にまたがらせるので、
  * 1 行のタイトルで行が高くなる。履歴は付記の段があるので、その段に重ねる）。
  * 付記の段は付記が空でも 1 行の高さを取り、2 段目に PR を重ねる場所を残す。付記の段は行の幅いっぱいなので、行の要素は子で埋まる（ask-menu.tsx の onClickCapture の前提）
  */

@@ -204,8 +204,8 @@ export interface AskSpot {
   open(from: HTMLElement): void;
 }
 
-/** 選択のクリックとして扱わない場所（吹き出し・頼むことの一覧・行の中のボタンや入力・行の番号の下の PR のリンク） */
-const NOT_SELECT_CLICK = "button, input, select, textarea, .ask-menu, .row-pr";
+/** 選択のクリックとして扱わない場所（吹き出し・頼むことの一覧・行の中のボタンや入力・行の番号の下の PR のリンク・タイトルの下のラベル） */
+const NOT_SELECT_CLICK = "button, input, select, textarea, .ask-menu, .row-pr, .row-labels";
 /** 左端の帯の幅（px。styles.css の [data-select-id]::before の width と、[data-select-id] > .row の padding-left と同じ 12px）。なぞりは帯から始めたときだけ */
 const STRIP_PX = 12;
 
