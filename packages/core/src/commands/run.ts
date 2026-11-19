@@ -277,18 +277,6 @@ export const OPEN_AT_SESSION_END_ERROR = "Still open when the session ended";
 /** ticket unclaim が開いたままの実装・手直しの Run を閉じるときのエラー（RN-6） */
 export const UNCLAIMED_ERROR = "Returned to todo by ticket unclaim";
 
-// 照合が閉じるときと別のセッションの残りを閉じるときの error、付随して閉じる Run の結果・finished_at の決め方、
-// 別のセッションで開いた Run かの判定は、何も読まない run-close-judge.ts に置く（照合の決定 reconcile-judge.ts も使う）。
-// 前からの import 先を変えないために、ここからも出す
-export {
-  fixRunFinishedAt,
-  openedInOtherSession,
-  RECONCILE_TAKEN_ERROR,
-  RECONCILE_TODO_ERROR,
-  runsClosedByMove,
-  STALE_SESSION_ERROR,
-} from "./run-close-judge.js";
-
 /** 記録のパスがサブエージェントの記録（<session>/subagents/ の下）か。印で頼んだサブエージェントの Run の見分けに使う */
 export const isSubagentTranscript = (p: string | undefined): p is string =>
   p !== undefined && path.basename(path.dirname(p)) === "subagents";

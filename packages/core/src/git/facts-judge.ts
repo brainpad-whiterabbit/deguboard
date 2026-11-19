@@ -67,7 +67,7 @@ export function judgeBranchMerged(facts: BranchMergeFacts): boolean | undefined 
 }
 
 /** 前の作業の PR かを決める PR の値（gh pr view の結果のうち） */
-export interface PrOrigin {
+interface PrOrigin {
   /** gh の state（OPEN・MERGED・CLOSED） */
   state: string;
   /** PR の作成時刻（ISO）。読めなければ undefined */

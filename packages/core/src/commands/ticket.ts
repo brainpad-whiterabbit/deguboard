@@ -10,7 +10,7 @@ import { STATUSES, isTerminal, statusSchema, type Status } from "../model/common
 import { parseId, type TicketId } from "../model/id.js";
 import { FINDING_CAUSES, OPENED_STEPS, type RunId, type StepOpener } from "../model/run.js";
 import {
-  BRANCH_VALUE_MAX,
+  BRANCH_VALUE_FORM,
   GATE_LEVELS,
   PRIORITIES,
   gateLevelOf,
@@ -59,13 +59,13 @@ import {
   describeClosedRuns,
   findOpenedRun,
   openRun,
-  runsClosedByMove,
   token,
   transcriptFields,
   UNCLAIMED_ERROR,
   type ClosedOpenedRun,
   type TranscriptInput,
 } from "./run.js";
+import { runsClosedByMove } from "./run-close-judge.js";
 
 /**
  * チケットの操作に付随して、操作が開いた Run（claim は実装、reclaim は手直し）を閉じる（RN-6）。書き込みの中で呼び、
@@ -518,7 +518,7 @@ export const ticketShow = defineCommand({
 });
 
 /** `--branch` の説明に足す、名前の形と値に使える文字の案内（claim と update で同じ文） */
-const BRANCH_NAME_HELP = `The name is recorded as <id>-<value> (t12-fix-login): give short English words as the value, in lowercase letters, digits, and hyphens, up to ${BRANCH_VALUE_MAX} characters. A value that already starts with this ticket's ID and a hyphen, or that is only this ticket's ID (t12), is used as is. A value that starts with another ticket's ID is rejected`;
+const BRANCH_NAME_HELP = `The name is recorded as <id>-<value> (t12-fix-login): give short English words as the value, ${BRANCH_VALUE_FORM}. A value that already starts with this ticket's ID and a hyphen, or that is only this ticket's ID (t12), is used as is. A value that starts with another ticket's ID is rejected`;
 
 export const ticketUpdate = defineCommand({
   name: "ticket.update",

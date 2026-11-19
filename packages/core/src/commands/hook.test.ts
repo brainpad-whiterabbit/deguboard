@@ -39,9 +39,9 @@ import {
   runRetryReason,
   runReviewResult,
   runStart,
-  STALE_SESSION_ERROR,
   type RunView,
 } from "./run.js";
+import { STALE_SESSION_ERROR } from "./run-close-judge.js";
 import { brief } from "./brief.js";
 import { hookKindsOf, pruneHookSessions, takeHookWarnings } from "./hook-sessions.js";
 import { next, type NextStep } from "./next.js";

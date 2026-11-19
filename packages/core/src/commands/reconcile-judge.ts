@@ -30,7 +30,7 @@ import {
 } from "./run-close-judge.js";
 
 /** 決定が読む Run の項目（実行中の Run と、索引にある記録済みの Run） */
-export type RunningFact = Pick<Run, "id" | "ticket" | "step" | "started_at">;
+export type ReconcileRunFact = Pick<Run, "id" | "ticket" | "step" | "started_at">;
 
 /**
  * 作業ブランチに最後に push したコミットの時刻（git/facts.ts の lastPushedAt。push がない・読めない・作業ブランチのない
@@ -43,9 +43,9 @@ export interface LastPushFact {
 /** 開いたままの手直しの Run の区切りと finished_at を決めるのに要る事実（対象のチケットと、その後も開いたままの Run で同じ） */
 export interface FixRunFacts {
   /** このマシンで実行中の Run（ほかのチケットのものと、この照合が閉じたものを含んでよい） */
-  running: readonly RunningFact[];
+  running: readonly ReconcileRunFact[];
   /** チケットの記録済みの Run（索引にあるもの）。手直しの Run の次の Run を探す。チケットに開いたままの手直しの Run がなければ空でよい */
-  recorded: readonly RunningFact[];
+  recorded: readonly ReconcileRunFact[];
   /**
    * チケットの今の作業ブランチで、ロックの外で読んだ最後の push。読んでいない（集めた後に手直しの Run を開いた・作業ブランチを
    * 付け替えた）ときは undefined で、手直しの Run は閉じずに次の sync に回す
@@ -69,12 +69,12 @@ export interface TicketReconcileFacts extends FixRunFacts {
 }
 
 /** ロックの外で読んだ PR の作成時刻（git/facts.ts の fetchPrCreatedAt。読めなければ理由） */
-export type PrCreatedFact = { createdAt: string } | { createdAt?: undefined; reason: string };
+type PrCreatedFact = { createdAt: string } | { createdAt?: undefined; reason: string };
 
 /** 対象のチケットを照合した後も開いたままの実行中の Run 1 件を、どう閉じるか決めるのに要る事実 */
 export interface OpenRunFacts extends FixRunFacts {
   /** このマシンで実行中の Run のうち、この照合がまだ閉じていないもの */
-  run: RunningFact;
+  run: ReconcileRunFact;
   /** その Run のチケットの今の値（対象のチケットへの書き込みの後） */
   ticket: Pick<Ticket, "id" | "status" | "pr" | "branch" | "assignee">;
   /** sync を呼んだ主体の ID。同じユーザ（人とその AI）の claim の Run は閉じない */
@@ -84,7 +84,7 @@ export interface OpenRunFacts extends FixRunFacts {
 }
 
 /** 照合がチケットを進めるときの前後の Status と、当てはまったきっかけの条件 */
-export interface ReconcileAdvance {
+interface ReconcileAdvance {
   from: Status;
   to: Status;
   when: string[];
@@ -134,7 +134,7 @@ function fixRunActions(
     ticket: string;
     /** チケットの今の Status（今回進めるなら進めた先） */
     status: Status;
-    run: RunningFact;
+    run: ReconcileRunFact;
     advancedTo?: Status | undefined;
     mergedAt?: string | undefined;
   },

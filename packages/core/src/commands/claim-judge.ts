@@ -50,7 +50,7 @@ export interface ClaimRejection {
 }
 
 /** ticket claim を呼んだときに行うこと */
-export type ClaimDecision =
+type ClaimDecision =
   /** 新しい claim に進む。reassignedFrom は、ほかのユーザに割り当てた todo を取るときの前の担当（担当の付け替え。governance.reassign） */
   | { kind: "claim"; reassignedFrom?: string }
   /** もう一度の claim（手直しの始まり）。チケットは変えない */
@@ -159,7 +159,7 @@ export interface ReclaimFacts {
 }
 
 /** もう一度の claim で行うこと */
-export type ReclaimDecision =
+type ReclaimDecision =
   | ClaimRejection
   /** 手直しの始まりとみなす。notice は warnings に入れる文、opensRun は手直しの Run（fix）を開くか */
   | { kind: "fix"; notice: string; opensRun: boolean };

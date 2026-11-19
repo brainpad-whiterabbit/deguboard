@@ -19,7 +19,7 @@ export const FIX_ROUNDS_LIMIT = 2;
 export const GATE_STAGES = ["ready", "merge"] as const;
 export type GateStage = (typeof GATE_STAGES)[number];
 
-export const GATE_CONDITIONS = [
+const GATE_CONDITIONS = [
   "pr",
   "acceptance",
   "review",
@@ -30,7 +30,7 @@ export const GATE_CONDITIONS = [
 ] as const;
 export type GateConditionId = (typeof GATE_CONDITIONS)[number];
 
-export interface GateCondition {
+interface GateCondition {
   id: GateConditionId;
   ok: boolean;
   /** 判定の材料か、満たさない理由（1 文） */
@@ -99,7 +99,7 @@ export interface GateFacts {
 }
 
 /** 検査のほかの条件を決めた結果（1 段目） */
-export interface GateDraft {
+interface GateDraft {
   ticket: string;
   for: GateStage;
   gate: GateLevel;
@@ -338,7 +338,7 @@ export function waivedBy(stage: GateStage, approved: boolean): ReadonlySet<GateC
  * dg pr ready・dg pr merge がゲートの結果から進むか止めるか。進むときは越えた条件（overridden）、
  * 止めるときは満たさない条件と理由の行（failed）と、承認があっても越えられない条件（blocking）
  */
-export type GatePassage =
+type GatePassage =
   | {
       proceed: true;
       pr: number;

@@ -21,8 +21,8 @@ import type { ReviewRound } from "../run/record.js";
 /** 判定が読む保留の回の項目 */
 export type HeldRound = Pick<ReviewRound, "run" | "at" | "review" | "session" | "head">;
 
-/** 判定が読む実行中の Run の項目 */
-export type RunningFact = Pick<
+/** 判定が読む実行中の Run の項目（保留を引き取りうる Run か見る） */
+export type AdopterRunFact = Pick<
   Run,
   "id" | "ticket" | "step" | "finished_at" | "waiting_since" | "settling_since"
 >;
@@ -30,7 +30,7 @@ export type RunningFact = Pick<
 /** 持ち主のない保留を数えるのに要る事実。集めるのは orphan-review.ts の orphanReviewRuns */
 export interface OrphanReviewFacts {
   /** 実行中の Run（ほかのチケットのものを含んでよい） */
-  running: readonly RunningFact[];
+  running: readonly AdopterRunFact[];
   /** running のうち、動いているサブエージェントの印（bindTranscript の live）がある Run の ID */
   live: ReadonlySet<RunId>;
   /** チケットの見直しの回（Run に結び付いた回を含んでよい） */
@@ -51,7 +51,7 @@ const orphanId = (at: string) => `held review result written at ${at}` as RunId;
  */
 function mayBeAdopted(
   ticket: TicketId,
-  running: readonly RunningFact[],
+  running: readonly AdopterRunFact[],
   live: ReadonlySet<RunId>,
 ): boolean {
   const open = running.filter((r) => r.ticket === ticket && r.finished_at === null);

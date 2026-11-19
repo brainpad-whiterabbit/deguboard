@@ -9,7 +9,8 @@ import { closeRun, peekRunningRuns, startRun } from "../run/record.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
 import { iterationAdd, iterationClose, iterationCreate } from "./iteration.js";
-import { runFinish, runStart, STALE_SESSION_ERROR } from "./run.js";
+import { runFinish, runStart } from "./run.js";
+import { STALE_SESSION_ERROR } from "./run-close-judge.js";
 import { commit, lint, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketMove, ticketUnclaim, ticketUpdate } from "./ticket.js";
 import {
