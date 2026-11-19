@@ -1,0 +1,44 @@
+id: p171
+tickets: [t1153, t1154, t1152, t1155, t1156, t1160, t1161]
+after:
+  t1154:
+    - t1153
+  t1152:
+    - t1153
+    - t1154
+  t1155:
+    - t1152
+    - t1153
+    - t1154
+  t1161:
+    - t1160
+pending_approval: true
+details:
+  t1153:
+    scope: base を取り込んだだけのマージコミットで前の見直しを数える判定と、一時の worktree での自動マージ結果の作成。rebase は対象外
+    approach: gate-judge の reviewedTip に純粋な判定関数を足し、git の事実（親・tree）を集める部分と分け、gate と next の両方から使う
+    tier: heavy
+  t1154:
+    scope: 見直しの前の検査を決める config の項目と、dg gate --only check の検査の選び方、guide と CLAUDE.md の手順
+    approach: config に actions.pre_review_test を足し、gate-check の検査の選択を純粋な関数にして未設定時は actions.test にする
+    tier: heavy
+  t1152:
+    scope: high と low の dg gate --for merge に、先端が base の今の先端を含む条件を足す。マージ後の検査はしない
+    approach: gate-judge に条件を足して次の手を返し、ready で通った全体の検査を同じ先端なら merge で使い回す
+    tier: heavy
+  t1155:
+    scope: 見直しの後に先端が base を含まないとき dg next が取り込みの手を返す。競合時は中止して手直し
+    approach: next の段階の判定関数に取り込みの段を足し、guide-work.md に取り込みのやり方を書く
+    tier: heavy
+  t1156:
+    scope: dg のヘルプ・エラー・警告の文から Workflow の既定値の書き写しを外し、検査をコマンド定義の文字列にも広げる
+    approach: 該当の文字列を dg workflow show を指す文に直し、check:docs の既定値の検査に定義の文字列を加える
+    tier: standard
+  t1160:
+    scope: ask の小窓の見出しの行・Skill の札・下の段のボタン・コピーの知らせの見た目。候補・依頼文・送るの動きは変えない
+    approach: 検討資料の案 A に沿って ask-composer.tsx と styles.css を直し、テストとスクリーンショットを付ける
+    tier: standard
+  t1161:
+    scope: ask の小窓の候補を 3 つまでにし、ほか N の一覧とおすすめの青い点を足す。狭い幅の折り返しは含めない
+    approach: 検討資料の A-3 に沿って ask-composer.tsx と ask-menu.tsx を直し、キーボード操作のテストとスクリーンショットを付ける
+    tier: standard
