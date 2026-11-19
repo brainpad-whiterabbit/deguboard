@@ -274,8 +274,8 @@ It does not install a Skill that is not already there by itself. Where some dg S
 
 The extension itself starts only `git`, `gh`, and `dg --version`, and only in trusted folders. Other commands and text go into a terminal, and only when you press a button:
 
-- The buttons of the Setup checklist type their commands into the deguboard terminal and press Enter: `git init`, `dg init`, the `dg skill install` and `dg hooks install` that the checklist shows, or `dg uninstall` (`dg uninstall --personal`). `dg` is called by the launcher's absolute path, not from your PATH. The extension opens this terminal only when you press one of these buttons.
-- Sending a request from **Ask Agent** on a row or heading puts the request text (made by `dg ask`) into an open terminal that you choose, without pressing Enter. It does not open a terminal or start an agent.
+- The buttons of the Setup checklist type their commands into the deguboard terminal and press Enter: `git init`, `dg init`, the `dg skill install` and `dg hooks install` that the checklist shows, or `dg uninstall` (`dg uninstall --personal`). The line first changes to the folder (`cd`), joins the commands with `&&`, and stops at the first one that fails. `dg` is called by the launcher's absolute path, not from your PATH. The extension opens this terminal only when you press one of these buttons.
+- Sending a request from **Ask Agent** on a row or heading puts the request text (the same text as `dg ask`) into an open terminal that you choose, without pressing Enter. A multi-line request is pasted through the clipboard, which is restored afterwards. It does not open a terminal or start an agent.
 
 The Skills only tell the agent to read `dg guide`. The hooks only call `dg hook <event>`, which records Runs and refuses to mark a PR ready, merge it, or write to the data outside `dg`. See the Skills with `dg skill install --dry-run` and the hooks with `dg hooks install --dry-run`. Remove the dg Skills with `dg skill uninstall` (your own Skills and `.claude/.gitignore` stay). To remove all of deguboard, see [Uninstall](#uninstall).
 
