@@ -154,9 +154,21 @@ describe("作業の段階（stageOf。EX-3）", () => {
     const reviewed = "b".repeat(40);
     const main = "c".repeat(40);
     const tree = "e".repeat(40);
-    const merge = { parents: [reviewed, main], onBase: [main], tree, autoTree: tree };
+    const merge = { parents: [reviewed, main], onBase: [main], earlier: [], tree, autoTree: tree };
     const runs = [review(1, passed, { head: reviewed })];
     expect(stageOf(facts({ pushedSha: tip, pushedMerge: merge, runs }))).toMatchObject({
+      name: "reviewed",
+      review_passed: true,
+    });
+    // base を 2 回取り込んだ先端（先端 → mid → 見直した SHA）も、連なりの先の見直しを数える
+    const mid = "d".repeat(40);
+    const oldMain = "9".repeat(40);
+    const twice = {
+      ...merge,
+      parents: [mid, main],
+      earlier: [{ sha: mid, parents: [reviewed, oldMain], onBase: [oldMain] }],
+    };
+    expect(stageOf(facts({ pushedSha: tip, pushedMerge: twice, runs }))).toMatchObject({
       name: "reviewed",
       review_passed: true,
     });

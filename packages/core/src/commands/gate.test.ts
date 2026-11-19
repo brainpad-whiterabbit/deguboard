@@ -194,7 +194,7 @@ describe("dg gate（品質ゲート。t532）", () => {
     );
   });
 
-  it("見直しの後に base を取り込んだだけのマージコミットを push しても、review と dg next の段階は前の見直しを数え、一時の worktree を残さない。その後にコミットを積むと数えない（RN-10）", async () => {
+  it("見直しの後に base を取り込んだだけのマージコミットを push しても（2 回取り込んでも）、review と dg next の段階は前の見直しを数え、一時の worktree を残さない。その後にコミットを積むと数えない（RN-10）", async () => {
     const { ctx, f } = await prepared();
     await review(ctx, 1, 0);
     // 別の clone が main を進め、作業ブランチに取り込んで push する
@@ -221,6 +221,25 @@ describe("dg gate（品質ゲート。t532）", () => {
       review_passed: true,
     });
     expect(await worktrees()).toBe(before);
+    // main がまた進んで取り込み直しても（マージコミットの親がまたマージコミット）、連なりを辿って前の見直しを数える（t1162）
+    await writeFile(path.join(f.cloneB, "main2.txt"), "main 2\n");
+    await git(f.cloneB, ["add", "--", "main2.txt"]);
+    await git(f.cloneB, ["commit", "-q", "-m", "main をまた進める"]);
+    await git(f.cloneB, ["push", "-q", "origin", "HEAD:main"]);
+    await git(f.cloneA, ["fetch", "-q", "origin", "+refs/heads/main:refs/remotes/origin/main"]);
+    await git(f.cloneA, ["merge", "-q", "--no-edit", "origin/main"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
+    const beforeAgain = await worktrees();
+    const again = await judge(ctx, "ready");
+    expect(failed(again)).toEqual([]);
+    expect(again.conditions.find((c) => c.id === "review")!.detail).toContain(
+      "only merged base into it",
+    );
+    expect(stageOf(await stageFactsOf(ctx, ticket, { fetch: true }))).toMatchObject({
+      name: "reviewed",
+      review_passed: true,
+    });
+    expect(await worktrees()).toBe(beforeAgain);
     // 取り込みの後にコミットを積むと、先端はマージコミットでないので見直し直す
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "取り込みの後"]);
     await git(f.cloneA, ["push", "-q", "origin", "t1"]);

@@ -4,11 +4,13 @@
 import { describe, expect, it } from "vitest";
 import type { Status } from "../model/common.js";
 import {
+  baseMergeChain,
   baseMergeParents,
   branchAncestryNeeded,
   isEarlierWorkPr,
   judgeBranchMerged,
   mergedBaseOnto,
+  nextInBaseMergeChain,
   type BranchMergeFacts,
   type TipMerge,
 } from "./facts-judge.js";
@@ -139,6 +141,7 @@ describe("base を取り込んだだけのマージコミットの判定（RN-10
   const merge = (over: Partial<TipMerge> = {}): TipMerge => ({
     parents: [WORK, MAIN],
     onBase: [MAIN],
+    earlier: [],
     tree: TREE,
     autoTree: TREE,
     ...over,
@@ -173,5 +176,77 @@ describe("base を取り込んだだけのマージコミットの判定（RN-10
       merge({ parents: [WORK, MAIN, THIRD] }),
     ];
     for (const c of cases) expect(mergedBaseOnto(c)).toBeUndefined();
+  });
+
+  describe("base を 2 回以上取り込んだ連なり", () => {
+    const MID = "4".repeat(40);
+    const MID2 = "5".repeat(40);
+    const OLD_MAIN = "6".repeat(40);
+    const OLDER_MAIN = "7".repeat(40);
+    /** WORK に OLD_MAIN を取り込んだマージコミット（MID） */
+    const mid = { sha: MID, parents: [WORK, OLD_MAIN], onBase: [OLD_MAIN] };
+    /** 先端は MID に MAIN を取り込んだマージコミットで、その先が WORK（取り込みは 2 回） */
+    const twice = (over: Partial<TipMerge> = {}): TipMerge =>
+      merge({ parents: [MID, MAIN], earlier: [mid], ...over });
+    /** 取り込みが 3 回：先端 → MID2 → MID → WORK */
+    const thrice = (over: Partial<TipMerge> = {}): TipMerge =>
+      merge({
+        parents: [MID2, MAIN],
+        earlier: [
+          { sha: MID2, parents: [OLD_MAIN, MID], onBase: [OLD_MAIN] },
+          { sha: MID, parents: [WORK, OLDER_MAIN], onBase: [OLDER_MAIN] },
+        ],
+        ...over,
+      });
+
+    it("連なりの先は最後のマージコミットの base でない親で、マージする base は先端の base の親（途中の base の親ではない）。親の順は問わない", () => {
+      expect(baseMergeChain(merge())).toEqual({ work: WORK, base: MAIN });
+      expect(baseMergeChain(twice())).toEqual({ work: WORK, base: MAIN });
+      expect(baseMergeChain(thrice())).toEqual({ work: WORK, base: MAIN });
+      expect(mergedBaseOnto(twice())).toBe(WORK);
+      expect(mergedBaseOnto(thrice())).toBe(WORK);
+    });
+
+    it("途中のマージコミットが base を取り込んだ形でない・前のマージコミットの base でない親でない・先端がその形でないなら、連なりでない", () => {
+      const broken: TipMerge[] = [
+        // 途中が別のブランチのマージ（どちらの親も base のコミットでない）
+        twice({ earlier: [{ ...mid, onBase: [] }] }),
+        // 途中の親が両方 base のコミット
+        twice({ earlier: [{ ...mid, onBase: [WORK, OLD_MAIN] }] }),
+        // 途中の親が 3 つ
+        twice({ earlier: [{ ...mid, parents: [WORK, OLD_MAIN, THIRD] }] }),
+        // 途中のコミットが、先端の base でない親でない（つながっていない）
+        twice({ earlier: [{ ...mid, sha: THIRD }] }),
+        // 3 回の 2 つ目がつながっていない
+        thrice({ earlier: [thrice().earlier[0]!, { ...mid, sha: THIRD }] }),
+        // 先端が base を取り込んだ形でない
+        twice({ onBase: [] }),
+      ];
+      for (const c of broken) {
+        expect(baseMergeChain(c)).toBeUndefined();
+        expect(mergedBaseOnto(c)).toBeUndefined();
+        expect(nextInBaseMergeChain(c, [WORK])).toBeUndefined();
+      }
+    });
+
+    it("連なりでも、先端の tree が自動マージの結果と違う（途中か先端で競合を手で解いた・変更を混ぜた）・結果がないなら返さない", () => {
+      expect(mergedBaseOnto(twice({ tree: OTHER_TREE }))).toBeUndefined();
+      expect(mergedBaseOnto(twice({ autoTree: null }))).toBeUndefined();
+      expect(mergedBaseOnto(thrice({ autoTree: OTHER_TREE }))).toBeUndefined();
+    });
+
+    it("連なりの先が見直した SHA に着くまで、次に読むコミット（base でない親）を返す。着いたら返さない", () => {
+      // 先端だけを読んだところ：base でない親（MID）は見直していないので、次に読む
+      const tipOnly = merge({ parents: [MID, MAIN] });
+      expect(nextInBaseMergeChain(tipOnly, [WORK])).toBe(MID);
+      // MID を読むと、その先（WORK）が見直した SHA なので止まる
+      expect(nextInBaseMergeChain(twice(), [WORK])).toBeUndefined();
+      // 途中のマージコミット（MID）を見直していれば、先端だけで止まる
+      expect(nextInBaseMergeChain(tipOnly, [THIRD, MID])).toBeUndefined();
+      // 見直した SHA に着いていなければ、さらに先を返す（読む側は、それがマージコミットでなければ止める）
+      expect(nextInBaseMergeChain(twice(), [THIRD])).toBe(WORK);
+      expect(nextInBaseMergeChain(thrice({ earlier: [thrice().earlier[0]!] }), [WORK])).toBe(MID);
+      expect(nextInBaseMergeChain(merge(), [])).toBe(WORK);
+    });
   });
 });
