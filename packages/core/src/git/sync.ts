@@ -16,6 +16,7 @@ import { DG_COMMIT_TRAILER, inspectOutsideLocked, recordBaseline } from "./outsi
 import { abortRebase, markRebase, unmarkRebase } from "./rebase.js";
 import { dataRemoteRef, type GitRepo } from "./repo.js";
 import { type ExecResult, GitError, runGit } from "./run.js";
+import { nextSyncCountStep, type SyncCountAttempt, type SyncCountFacts } from "./sync-judge.js";
 import { LOCAL_DATA_BRANCH } from "./worktree.js";
 
 export interface SyncStatus {
@@ -508,7 +509,8 @@ export async function dropRebasedTip(repo: GitRepo, original: string): Promise<b
 
 /**
  * 同期状態。known.dirty は、呼び出し側が同じ書き込みのロックの中で読み、その後に作業ツリーを変えていない「未コミットの変更があるか」
- * （渡されれば status を聞き直さない。t1046）
+ * （渡されれば status を聞き直さない。t1046）。書き込みのロックの外でも呼ばれる（画面の定期の状態・dg status）ので、
+ * 読んでいる間に同時の書き込みが追跡 ref を作っても、古い失敗を投げずに今の状態を返す（sync-judge.ts）
  */
 export async function syncStatus(
   repo: GitRepo,
@@ -516,16 +518,30 @@ export async function syncStatus(
 ): Promise<SyncStatus> {
   const dirty = known.dirty ?? (await isDirty(repo));
   if (!repo.dataRemote) return { ahead: 0, behind: 0, dirty, remote: null };
-  // 追跡 ref があるかを先に聞かず、数えられなかったときだけ聞く（ほとんどの呼び出しでは ref がある。t1046）
-  const counted = await aheadBehind(repo);
-  if (counted instanceof GitError) {
-    const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
-      allowFailure: true,
-    });
-    // 追跡 ref があるのに数えられないのは別の失敗なので、数えたときの失敗をそのまま投げる
-    if (has.code === 0) throw counted;
-    const ahead = Number((await git(repo, ["rev-list", "--count", "HEAD"])).stdout.trim());
-    return { ahead, behind: 0, dirty, remote: repo.dataRemote };
+  // 追跡 ref があるかを先に聞かず、数えられなかったときだけ聞く（ほとんどの呼び出しでは ref がある。t1046）。
+  // 読んだことから次に何をするか（聞く・数え直す・ref がない扱い・投げる）は nextSyncCountStep が決める
+  const count = async (): Promise<SyncCountAttempt<GitError>> => {
+    const counted = await aheadBehind(repo);
+    return counted instanceof GitError
+      ? { ok: false, error: counted }
+      : { ok: true, counts: counted };
+  };
+  const facts: SyncCountFacts<GitError> = { first: await count() };
+  for (;;) {
+    const step = nextSyncCountStep(facts);
+    if (step.kind === "counted") return { ...step.counts, dirty, remote: repo.dataRemote };
+    if (step.kind === "failed") throw step.error;
+    if (step.kind === "no_ref") {
+      const ahead = Number((await git(repo, ["rev-list", "--count", "HEAD"])).stdout.trim());
+      return { ahead, behind: 0, dirty, remote: repo.dataRemote };
+    }
+    if (step.kind === "ask_ref") {
+      const has = await git(repo, ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)], {
+        allowFailure: true,
+      });
+      facts.refExists = has.code === 0;
+    } else {
+      facts.second = await count();
+    }
   }
-  return { ...counted, dirty, remote: repo.dataRemote };
 }

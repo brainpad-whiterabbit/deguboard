@@ -134,6 +134,57 @@ describe("同期", () => {
     expect((error as GitError).args).toContain("rev-list");
   });
 
+  // syncStatus は書き込みのロックの外でも走るので、数えてから追跡 ref があるかを聞くまでの間に、同時の書き込みの fetch・push が
+  // 追跡 ref を作ることがある（t1119）。順序を確率に任せず、1 回目の数えの直後に追跡 ref を作る git を PATH の先頭に置いて作る。
+  // 判定の組み合わせは sync-judge.test.ts が見る
+  it("数えた後に追跡 ref が現れたら、syncStatus は 1 回目の失敗を投げずに数え直した今の状態を返す", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    await writeFile(path.join(a.repo.dataDir, "x.yaml"), "a: 1\n");
+    await git(a.repo.dataDir, ["add", "-A"]);
+    await git(a.repo.dataDir, ["commit", "-qm", "a"]);
+    const bin = path.join(f.root, "racing-bin");
+    const raced = path.join(f.root, "raced");
+    const saved = process.env["PATH"];
+    await mkdir(bin);
+    // 1 回目の rev-list --left-right は追跡 ref がなくて失敗する。その終了コードを返す前に、追跡 ref を 1 つ前のコミットに作る
+    await writeFile(
+      path.join(bin, "git"),
+      [
+        "#!/bin/sh",
+        `PATH='${saved ?? ""}'`,
+        "export PATH",
+        'case "$*" in',
+        '  *"rev-list --left-right"*)',
+        `    if [ ! -e '${raced}' ]; then`,
+        `      : > '${raced}'`,
+        '      git "$@"',
+        "      code=$?",
+        "      git update-ref refs/remotes/origin/deguboard HEAD~1",
+        "      exit $code",
+        "    fi",
+        "    ;;",
+        "esac",
+        'exec git "$@"',
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    process.env["PATH"] = bin + path.delimiter + (saved ?? "");
+    cleanups.push(async () => {
+      process.env["PATH"] = saved;
+    });
+    // ref がない扱いなら ahead は 2（手元のコミットのすべて）。数え直したので、現れた追跡 ref と比べた 1
+    expect(await syncStatus(a.repo)).toEqual({
+      ahead: 1,
+      behind: 0,
+      dirty: false,
+      remote: "origin",
+    });
+    // 1 回目の数えが実際に失敗の経路を通った（差し替えた git が呼ばれた）
+    expect((await readFile(raced, "utf8")).length).toBe(0);
+  });
+
   it("同じ行を両方が変えたとき rebase を中止し、ローカルのコミットを残して競合を報告する", async () => {
     const f = await fixture();
     const a = await openRepo(f.cloneA);
@@ -441,6 +492,9 @@ describe("rebase の途中と時間切れ", () => {
     expect(await rebaseInProgress(a.repo)).toBe(true);
     expect(await rebaseLeftByDg(a.repo)).toBe(true);
     expect(await checkOutside(a.repo)).toEqual({ kind: "rebasing", byDg: true });
+    // 取り込み直しの途中で止まったままでも、読みの syncStatus は例外を投げずに今の状態を返す（t1119）。
+    // 途中の HEAD は取り込んだリモートの先端にあるので、未 push も未取り込みもないと数える
+    expect(await syncStatus(a.repo)).toMatchObject({ ahead: 0, behind: 0, remote: "origin" });
 
     // 画面の自動の取り込み（fastForwardIfClean）は、リモートがさらに進んでも途中の rebase に手を出さない。
     // 途中の HEAD はリモートの先端にあって未 push のコミットがないように見えるので、数だけで決めると fast-forward してしまう
@@ -584,14 +638,21 @@ describe("読みの git と index.lock", () => {
 
   it("読みの status を繰り返しながら書き込みを続けても、書き込みが index.lock で落ちない", async () => {
     const { a, file } = await withTrackedFile();
-    // 読みは書き込みのロックの外で走る。毎回ファイルの時刻を変えて、任意のロックを取る git なら index を書き直す状態にしておく
+    // 読みは書き込みのロックの外で走る。毎回ファイルの時刻を変えて、任意のロックを取る git なら index を書き直す状態にしておく。
+    // 最初の書き込みが追跡 ref を作るので、読みは ref がない・途中で現れた・あるのどの順序にも当たりうる。どれでも
+    // 例外を投げないのが約束（t1119）なので、読みの例外は捨てずに集め、1 件でもあれば失敗にする
     let stop = false;
     let reads = 0;
+    const readErrors: unknown[] = [];
     const readers = Array.from({ length: 2 }, async () => {
       while (!stop) {
         reads += 1;
-        await touch(file, Date.parse("2001-01-01T00:00:00Z") + reads * 1000);
-        await syncStatus(a.repo);
+        try {
+          await touch(file, Date.parse("2001-01-01T00:00:00Z") + reads * 1000);
+          await syncStatus(a.repo);
+        } catch (e) {
+          readErrors.push(e);
+        }
       }
     });
     const writes = 8;
@@ -608,6 +669,7 @@ describe("読みの git と index.lock", () => {
       stop = true;
       await Promise.all(readers);
     }
+    expect(readErrors).toEqual([]);
     expect(reads).toBeGreaterThan(0);
     const subjects = (await git(a.repo.dataDir, ["log", "--format=%s"])).stdout.split("\n");
     expect(subjects.filter((s) => s.endsWith(" を作成"))).toHaveLength(writes);
