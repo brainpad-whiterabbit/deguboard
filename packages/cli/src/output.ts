@@ -185,7 +185,12 @@ function cell(key: string, row: Row): string {
     return (v as { field: string; from: string | null; to: string | null }[])
       .map((c) => `${c.field}: ${c.from ?? "-"} → ${c.to ?? "-"}`)
       .join(", ");
-  if (Array.isArray(v)) return v.map(String).join(",");
+  // オブジェクトを含む配列は formatValue と同じく JSON にする（String では [object Object] になる）。
+  // 値だけの配列は表の幅を抑えるため「,」で詰めて並べる
+  if (Array.isArray(v))
+    return v.every((x) => typeof x !== "object" || x === null)
+      ? v.map(String).join(",")
+      : JSON.stringify(v);
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }
