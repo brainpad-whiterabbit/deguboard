@@ -1,6 +1,6 @@
 // 作業ブランチの先端がマージコミットのときの事実の読み取り（RN-10）を、本物の git で確かめる。
 // 読んだ事実からの判定の組み合わせは facts-judge.test.ts と commands/gate-judge.test.ts が git なしで確かめる
-import { chmod, mkdir, readdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -151,14 +151,27 @@ describe("先端のマージコミットの事実（readTipMerge。RN-10）", ()
 
 describe("自動マージの tree を作る 2 つの経路", () => {
   /**
-   * 管理ディレクトリ（.git/worktrees）を書き込めなくし、一時の worktree を作れなくする（データの worktree の登録は読める）。
-   * この形で tree を作れれば、その経路は worktree を作らない
+   * 管理ディレクトリ（.git/worktrees）を脇へ移して同じ名前の普通のファイルを置き、一時の worktree を作れなくする。
+   * この形で tree を作れれば、その経路は worktree を作らない。
+   * なぜ権限（chmod）でふさがない：root は書き込めないディレクトリにも mkdir できるので、root で回すとふさがらない。
+   * ファイルの下には誰も mkdir できない（ENOTDIR）。
+   * 事実はデータの worktree（dataDir）で読むので、その .git が移した先の管理ディレクトリを指すように書き換えておく
    */
   async function blockWorktrees(repo: GitRepo) {
     const admin = path.join(repo.commonDir, "worktrees");
-    await mkdir(admin, { recursive: true });
-    await chmod(admin, 0o555);
-    return () => chmod(admin, 0o755);
+    const aside = `${admin}.blocked`;
+    const dotGit = path.join(repo.dataDir, ".git");
+    const link = await readFile(dotGit, "utf8");
+    const moved = link.replace(`${admin}${path.sep}`, `${aside}${path.sep}`);
+    expect(moved).not.toBe(link);
+    await rename(admin, aside);
+    await writeFile(admin, "");
+    await writeFile(dotGit, moved);
+    return async () => {
+      await rm(admin, { force: true });
+      await rename(aside, admin);
+      await writeFile(dotGit, link);
+    };
   }
 
   it.runIf(mergeTreeAvailable)(

@@ -8,10 +8,14 @@
 
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { claimRejectionError, decideSessionClaim, type SessionClaim } from "./claim-judge.js";
+import {
+  claimRejectionError,
+  decideSessionClaim,
+  recordableSession,
+  type SessionClaim,
+} from "./claim-judge.js";
 import type { CommandContext } from "./define.js";
 import { nowIso } from "./helpers.js";
-import { SESSION_ID } from "./hook-records.js";
 import { hookTimesOf } from "./hook-sessions.js";
 import { CRASHED_SUBAGENT_IDLE_MS, sessionOf } from "./run.js";
 
@@ -118,7 +122,7 @@ export async function guardSessionClaim(
 
 /**
  * 通った claim（新しい claim ともう一度の claim）の後に、呼んだセッションがこのチケットを進めていると記録する。
- * 記録するのはセッションがわかる agent の claim だけ。人の claim とセッションがわからない claim は記録を作らず、新しい claim なら
+ * 記録するのはセッションがわかる agent の claim だけ（claim-judge.ts の recordableSession）。人の claim とセッションがわからない claim は記録を作らず、新しい claim なら
  * 前の作業の記録を消す（fresh。残すと、前の作業のセッションが次の作業のもう一度の claim を止める）。もう一度の claim では記録を変えない。
  * claim は済んでいるので、書けなくても失敗させずに警告する
  */
@@ -129,14 +133,14 @@ export async function recordSessionClaim(
   warnings: string[],
 ): Promise<void> {
   const localDir = ctx.repo.localDir;
-  const session = ctx.actor.kind === "agent" ? sessionOf(ctx, input.session) : undefined;
+  const caller = recordableSession(ctx.actor.kind, sessionOf(ctx, input.session));
   try {
-    if (session !== undefined && SESSION_ID.test(session)) {
+    if (caller.recordable) {
       await writeSessionRecord(
         localDir,
         CLAIM_SESSIONS_DIR,
         ticket,
-        { session, claimed_at: nowIso(ctx) },
+        { session: caller.session, claimed_at: nowIso(ctx) },
         ctx.now(),
       );
     } else if (input.fresh) {
