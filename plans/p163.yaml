@@ -5,7 +5,7 @@ after:
     - t1132
   t1134:
     - t1135
-pending_approval: true
+pending_approval: false
 details:
   t1129:
     scope: usage と how-it-works の計測の説明を、会話記録から数える値の一覧に合わせる。英日を揃える
@@ -35,3 +35,5 @@ details:
     scope: scripts の .mjs を型検査に入れるか、入れない理由を tsconfig に書く
     approach: checkJs で入れて typecheck が通るかを試し、通らない理由が大きければコメントで対象外にする
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-19T03:28:13Z
