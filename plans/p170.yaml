@@ -1,0 +1,46 @@
+id: p170
+tickets: [t1153, t1154, t1152, t1155, t1156, t1157, t1158, t1159]
+after:
+  t1154:
+    - t1153
+  t1152:
+    - t1153
+    - t1154
+  t1155:
+    - t1152
+    - t1153
+    - t1154
+pending_approval: true
+details:
+  t1153:
+    scope: base を取り込んだだけのマージコミットで前の見直しを数える判定と、一時の worktree での自動マージ結果の作成。rebase は対象外
+    approach: gate-judge の reviewedTip に純粋な判定関数を足し、git の事実（親・tree）を集める部分と分け、gate と next の両方から使う
+    tier: heavy
+  t1154:
+    scope: 見直しの前の検査を決める config の項目と、dg gate --only check の検査の選び方、guide と CLAUDE.md の手順
+    approach: config に actions.pre_review_test を足し、gate-check の検査の選択を純粋な関数にして未設定時は actions.test にする
+    tier: heavy
+  t1152:
+    scope: high と low の dg gate --for merge に、先端が base の今の先端を含む条件を足す。マージ後の検査はしない
+    approach: gate-judge に条件を足して次の手を返し、ready で通った全体の検査を同じ先端なら merge で使い回す
+    tier: heavy
+  t1155:
+    scope: 見直しの後に先端が base を含まないとき dg next が取り込みの手を返す。競合時は中止して手直し
+    approach: next の段階の判定関数に取り込みの段を足し、guide-work.md に取り込みのやり方を書く
+    tier: heavy
+  t1156:
+    scope: dg のヘルプ・エラー・警告の文から Workflow の既定値の書き写しを外し、検査をコマンド定義の文字列にも広げる
+    approach: 該当の文字列を dg workflow show を指す文に直し、check:docs の既定値の検査に定義の文字列を加える
+    tier: standard
+  t1157:
+    scope: epic-head.test.tsx の負荷で落ちる原因の特定と待ち方の修正
+    approach: 描画と非同期の順序をコードで追い、findBy などの負荷に左右されない待ち方に直す
+    tier: heavy
+  t1158:
+    scope: 予約せずに agent が claim したときの、予約との隙間を閉じる
+    approach: claim の push の前にロックの中で予約の判定と書き込みを行い、判定は純粋な関数に置く
+    tier: heavy
+  t1159:
+    scope: dg workflow show のテキスト出力の sections の表示を直す
+    approach: テキストの整形で rows を鍵ごとの値・既定値・modified に展開し、テストを足す
+    tier: standard
