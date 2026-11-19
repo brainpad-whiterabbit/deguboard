@@ -57,7 +57,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 事実の集め方・前進させない形の判定・使い回したブランチ名の拒否・ユーザ名の決め方・ロックの奪い方は、次のコードとテストが正本で、「なぜ」はそのコメントとテスト名にある。
 
-- `packages/core/src/git/facts.ts`（`collectBranchFacts`・`findMergedLeftover`）・`packages/core/src/git/facts-judge.ts`（branch_merged と前の作業の PR の判定。組み合わせは `facts-judge.test.ts`）・`packages/core/src/workflow/reconcile.ts`・`packages/core/src/commands/setup.ts`（照合）・`packages/core/src/commands/ticket.ts`（`requireBranchAvailable`・claim・unclaim）
+- `packages/core/src/git/facts.ts`（`collectBranchFacts`・`findMergedLeftover`）・`packages/core/src/git/facts-judge.ts`（branch_merged と前の作業の PR の判定。組み合わせは `facts-judge.test.ts`）・`packages/core/src/workflow/reconcile.ts`・`packages/core/src/commands/setup.ts`（照合。事実を集めて、決めた列を行う）・`packages/core/src/commands/reconcile-judge.ts`（照合が対象のチケットごとに行うことの決定。組み合わせは `reconcile-judge.test.ts`）・`packages/core/src/commands/ticket.ts`（`requireBranchAvailable`・claim・unclaim）
 - `packages/core/src/model/actor.ts`・`packages/core/src/git/repo.ts`（ユーザ名）・`packages/core/src/git/lock.ts`
 - `packages/core/src/model/plan.ts`・`packages/core/src/commands/plan.ts`・`packages/core/src/model/config.ts`（`models.*`）・`packages/core/src/commands/next.ts`（`modelOf`。モデル名を引く順）
 - `packages/core/src/commands/commands-flow-reconcile.test.ts`・`commands-flow-ticket.test.ts`・`commands-plan.test.ts`

@@ -80,7 +80,6 @@ import { checkReferences } from "../storage/integrity.js";
 import type { Issue } from "../storage/issue.js";
 import { CONFIG_FILE, WORKFLOW_FILE } from "../storage/paths.js";
 import { cyclePath, findCrossingCycle } from "../storage/wait-cycle.js";
-import { reconcileStatus, regressionWarnings } from "../workflow/reconcile.js";
 import { defaultWorkflowFile } from "../workflow/resolve.js";
 import { removeMergedWork, type MergedWork, type RemovedWork } from "./branch-cleanup.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
@@ -99,10 +98,10 @@ import {
   recordOrphanReviews,
   type RecordedOrphanReviews,
 } from "./orphan-review.js";
+import { decideTicketReconcile } from "./reconcile-judge.js";
 import {
   closeOpenedRunUnlessClosed,
   describeClosedRuns,
-  findOpenedRun,
   fixRunFinishedAt,
   RECONCILE_TAKEN_ERROR,
   RECONCILE_TODO_ERROR,
@@ -337,15 +336,44 @@ async function closeImplRun(
   input: { result: RunResult; error?: string | undefined; finishedAt?: string | undefined },
   out: { runsClosed: ReconciledRun[]; warnings: string[] },
 ): Promise<void> {
+  await closeReconciledRun(ctx, doc, run, { opener: "claim", ...input }, out);
+}
+
+/**
+ * 決めた結果と finished_at で Run を閉じ、閉じた Run と取り込みの警告を out に足す（照合の列の close_run を行う）。
+ * 別の文脈が先に閉じていたら、索引を読み直して警告だけ足し、閉じた Run には数えない（closeOpenedRunUnlessClosed）
+ */
+async function closeReconciledRun(
+  ctx: CommandContext,
+  doc: Doc<Ticket>,
+  run: Doc<Run>,
+  input: {
+    opener: StepOpener;
+    result: RunResult;
+    error?: string | undefined;
+    finishedAt?: string | undefined;
+  },
+  out: { runsClosed: ReconciledRun[]; warnings: string[] },
+): Promise<void> {
   const closed = await closeOpenedRunUnlessClosed(
     ctx,
     run,
-    { opener: "claim", ...input },
+    {
+      opener: input.opener,
+      result: input.result,
+      error: input.error,
+      finishedAt: input.finishedAt,
+    },
     "reconcile",
     out.warnings,
   );
   if (!closed) return;
-  out.runsClosed.push({ id: doc.id, run: closed.run.id, opener: "claim", result: input.result });
+  out.runsClosed.push({
+    id: doc.id,
+    run: closed.run.id,
+    opener: input.opener,
+    result: input.result,
+  });
   out.warnings.push(...closed.warnings);
 }
 
@@ -414,6 +442,8 @@ async function collectReconcileFacts(ctx: CommandContext): Promise<CollectedFact
 
 /**
  * 照合（ST-4〜ST-6）。書き込みのロックの中で、最新の状態に対して collected の事実で判定し直して書く。
+ * 対象のチケットごとに行うことは reconcile-judge.ts の decideTicketReconcile が決め、ここはその列を順に行う
+ * （手直しの Run の区切りと、対象にならなかった実行中の Run の閉じ方は、まだここで決める）。
  * 状態を進めたチケットと、PR 番号を記録したチケット、閉じた実装・手直しの Run を返す
  */
 async function reconcileAll(
@@ -443,112 +473,71 @@ async function reconcileAll(
       );
       continue;
     }
-    const { pr, prCreatedAt, prMergedAt, prMergedHead, prLines, prMissing, ignoredPr } = got.result;
-    const facts = { ...got.result.facts, deps_done: ctx.store.depsDone(doc.data) };
+    const { pr, prCreatedAt, prMergedAt } = got.result;
     if (pr !== undefined && prCreatedAt !== undefined && !collected.prCreated.has(pr))
       collected.prCreated.set(pr, { createdAt: prCreatedAt });
-    // 作業ブランチの PR があれば実装は終わっている。実行中の実装の Run を PR の作成時刻で閉じる（RN-6）。
-    // 実装は PR を作るまでなので、PR がマージされずに閉じていても success にする。
-    // 記録済みの番号で引いた PR でも閉じる（番号を記録したときに閉じられなかった Run の拾い直し）
-    if (pr !== undefined) {
-      const implementing = await findOpenedRun(ctx, doc.data, "claim", running);
-      if (implementing && prCreatedAt !== undefined && prCreatedAt < implementing.data.started_at) {
-        // PR より後に開き直した Run は PR では終わらない。閉じずに知らせる（PR の後の作業はもう一度の claim で手直しの Run にする）
-        warnings.push(
-          `${doc.id}: implementation Run ${implementing.id} started after PR #${pr} was created (${prCreatedAt}), so reconcile does not close it. When it is finished, close it with run finish (work after the PR becomes a fix Run, by claiming again)`,
-        );
-      } else if (implementing) {
-        const closed = await closeOpenedRunUnlessClosed(
-          ctx,
-          implementing,
-          { opener: "claim", result: "success", finishedAt: prCreatedAt },
-          "reconcile",
-          warnings,
-        );
-        if (closed) {
-          runsClosed.push({ id: doc.id, run: closed.run.id, opener: "claim", result: "success" });
-          warnings.push(...closed.warnings);
-        }
-      }
-    }
-    if (ignoredPr) {
-      warnings.push(
-        `${doc.id}: PR #${ignoredPr.number}, found by branch name, is ${ignoredPr.state.toLowerCase()} and was created (${ignoredPr.createdAt}) before the branch was recorded. It is taken as a PR of earlier work with the same name, so reconcile does not use it. If this PR belongs to this ticket, record it with ticket update ${doc.id} --pr ${ignoredPr.number}, then run sync again to reconcile it. If it belongs to earlier work, do nothing`,
-      );
-    }
-    const outcome = reconcileStatus(wf.resolved, doc.data.status, facts, {
-      pr: doc.data.pr ?? pr,
+    // 行うことを決め（reconcile-judge.ts。何も読まない）、列を上から順に行う。決めるのは、このチケットへの書き込みの前の値で 1 回だけ
+    const actions = decideTicketReconcile({
+      ticket: doc.data,
+      unchecked: uncheckedAcceptance(doc),
+      depsDone: ctx.store.depsDone(doc.data),
+      workflow: wf.resolved,
+      branch: got.result,
+      running: running.map((r) => r.data),
+      deleteBranch: ctx.config.merge.delete_branch,
     });
-    // きっかけは当てはまったが境目の方針が止めたチケットは、書き換えずに、止めた理由と人の進め方を知らせる（ST-4）
-    if (outcome.kind === "blocked") {
-      const unmet = outcome.unmet.length > 0;
-      const why = [
-        ...(unmet ? [`the conditions are not met: ${outcome.unmet.join(", ")}`] : []),
-        ...(outcome.humanOnly ? ["the Workflow limits the move to a person (human_only)"] : []),
-      ].join(", and ");
-      const move = `ticket move ${doc.id} ${outcome.to}`;
-      warnings.push(
-        `${doc.id}: the facts (${outcome.trigger.when.join(", ")}) point from ${doc.data.status} to ${outcome.to}, but reconcile does not advance it, because ${why} (${outcome.policy}). ` +
-          (outcome.humanOnly
-            ? `A person moves it with ${move}${unmet ? ' --override "reason"' : ""}`
-            : `It advances at a sync after the conditions are met; a person can go ahead without them with ${move} --override "reason"`),
-      );
-    }
-    // done に進むなら、消えたブランチは正常（マージ後に消した）なので警告しない
-    if (!(outcome.kind === "advance" && outcome.to === "done")) {
-      for (const w of regressionWarnings(doc.data.status, facts, { prMissing }))
-        warnings.push(`${doc.id}: ${w}`);
-    }
-    // ブランチ名で見つけた PR の番号は、状態が進まなくても記録する（記録済みなら触れない）
-    const patch: Record<string, unknown> = {};
-    if (pr !== undefined && doc.data.pr === undefined) {
-      patch["pr"] = pr;
-      prRecorded.push({ id: doc.id, pr });
-    }
-    // マージされた PR の行数は、状態が done に進まなくても記録する（記録済みなら触れない。MT-6）。
-    // 同じ gh pr view の応答から採るので、gh を呼ぶ回数は増えない
-    if (prLines !== undefined && doc.data.lines === undefined) {
-      patch["lines"] = prLines;
-      linesRecorded.push({ id: doc.id, ...prLines });
-    }
-    if (outcome.kind === "advance") {
-      patch["status"] = outcome.to;
-      changed.push({
-        id: doc.id,
-        from: doc.data.status,
-        to: outcome.to,
-        when: [...outcome.trigger.when],
-      });
-      // done にしたチケットの残りの worktree とブランチは、ロックを放した後に消す（設定が true のときだけ。t849）
-      if (outcome.to === "done" && ctx.config.merge.delete_branch)
-        merged.push({ id: doc.id, branch: doc.data.branch, mergedHead: prMergedHead });
-    }
-    if (Object.keys(patch).length > 0) {
-      await ctx.store.update("ticket", doc.id, { ...patch, updated_at: nowIso(ctx) });
-    }
-    // 開いたままの手直しの Run は、次の Run の開始・PR の ready・マージの区切りで閉じる（RN-6）
-    const fixing = await findOpenedRun(ctx, doc.data, "reclaim", running);
-    if (fixing) {
-      const after = outcome.kind === "advance" ? { ...doc.data, status: outcome.to } : doc.data;
-      const boundary = fixRunBoundary(ctx, after, fixing, running, outcome.kind === "advance");
-      if (boundary)
-        await closeFixRun(ctx, doc, fixing, boundary, prMergedAt, { runsClosed, warnings });
-    }
-    // フックが記録しなかった見直し（持ち主のない保留）を、見直しの記録として書く（RN-9。dg next・dg gate と同じ判定。t700）。
-    // 今回閉じた Run は開いたものとして見ない
-    const recorded = await recordOrphanReviews(
-      ctx,
-      doc.data,
-      running.filter((r) => !runsClosed.some((c) => c.run === r.id)).map((r) => r.data),
-    );
-    if (recorded.linked.length > 0) reviewsRecorded.push({ ticket: doc, recorded });
-    if (outcome.kind === "advance") {
-      // 遷移は止めず、受け入れ条件の確認が残っていることだけ知らせる（TK-5）
-      const left = uncheckedAcceptance(doc);
-      if (outcome.to === "done" && left.length > 0) {
-        warnings.push(
-          `${doc.id}: acceptance criteria items ${left.join(", ")} were left unchecked when the ticket became done`,
-        );
+    for (const action of actions) {
+      switch (action.kind) {
+        case "warn":
+          warnings.push(action.message);
+          break;
+        case "close_run": {
+          const run = running.find((r) => r.id === action.run);
+          if (run) await closeReconciledRun(ctx, doc, run, action, { runsClosed, warnings });
+          break;
+        }
+        case "update_ticket": {
+          const patch: Record<string, unknown> = {};
+          if (action.pr !== undefined) {
+            patch["pr"] = action.pr;
+            prRecorded.push({ id: doc.id, pr: action.pr });
+          }
+          // 行数は PR の番号と同じ gh pr view の応答から採るので、gh を呼ぶ回数は増えない
+          if (action.lines !== undefined) {
+            patch["lines"] = action.lines;
+            linesRecorded.push({ id: doc.id, ...action.lines });
+          }
+          if (action.advance !== undefined) {
+            patch["status"] = action.advance.to;
+            changed.push({ id: doc.id, ...action.advance });
+          }
+          await ctx.store.update("ticket", doc.id, { ...patch, updated_at: nowIso(ctx) });
+          break;
+        }
+        case "remove_merged_work":
+          merged.push({ id: doc.id, branch: action.branch, mergedHead: action.mergedHead });
+          break;
+        case "settle_fix_run": {
+          // 区切りと finished_at（最後の push の時刻）は、まだここで読んで決める
+          const fixing = running.find((r) => r.id === action.run);
+          if (!fixing) break;
+          const to = action.advancedTo;
+          const after = to !== undefined ? { ...doc.data, status: to } : doc.data;
+          const boundary = fixRunBoundary(ctx, after, fixing, running, to !== undefined);
+          if (boundary)
+            await closeFixRun(ctx, doc, fixing, boundary, prMergedAt, { runsClosed, warnings });
+          break;
+        }
+        case "record_reviews": {
+          // dg next・dg gate と同じ判定（t700）。今回閉じた Run は開いたものとして見ない
+          const recorded = await recordOrphanReviews(
+            ctx,
+            doc.data,
+            running.filter((r) => !runsClosed.some((c) => c.run === r.id)).map((r) => r.data),
+          );
+          if (recorded.linked.length > 0) reviewsRecorded.push({ ticket: doc, recorded });
+          break;
+        }
       }
     }
   }
