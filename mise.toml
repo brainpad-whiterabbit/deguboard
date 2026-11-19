@@ -73,7 +73,7 @@ depends = ["build"]
 run = "pnpm run gifs"
 
 [tasks."release:version"]
-description = "全パッケージの版を揃える。例: mise run release:version -- 0.10.0"
+description = "全パッケージ（packages/*）の版を揃える。pnpm version で書き換え、版を持たないルートの package.json は --filter で外す（作業ツリーが clean でなくても書き換える）。例: mise run release:version -- 0.10.0"
 run = "pnpm run release:version"
 
 [tasks.audit]
