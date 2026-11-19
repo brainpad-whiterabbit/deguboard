@@ -12,7 +12,7 @@
 
 - **入口**：VS Code 拡張・`dg serve`・CLI と MCP・`dg hook` は、Core の同じコマンドを写すだけで、ロジックを持ちません。フックの出来事の判定（Run を開く・閉じる、ツールの呼び出しを拒む）も Core にあり、フックの速い経路も同じ関数を呼びます。画面からの操作も、エージェントの `dg` も、同じ結果になります
 - **Core**：ドメインのモデル・保存・カンバンの Workflow・Git の同期と照合・Run の記録・guide の本文を持ちます。エージェントの製品ごとの違い（フックの入力・会話記録の読み方）は `agents` に閉じ込めます。どのパッケージがどれに依存してよいかの規則は [ADR-033](adr/ADR-033-architecture.md) にあります
-- **データ**：チケット・Epic・Iteration・Plan・Run は、1 件 1 ファイルで、データのリモート（`git.data_remote`。空なら `git.remote`）の orphan ブランチ（既定は `deguboard`。`git.data_branch`）に置き、push すればチームと共有されます。置き場所は変えられます（[データを別のリポジトリに置く](usage.ja.md#データを別のリポジトリに置く)・[1 つのリポジトリに複数のカンバンを置く](usage.ja.md#1-つのリポジトリに複数のカンバンを置く)）。サーバーやデータベースはありません。実行中の Run の記録とロックは、このマシンの `deguboard-local/` に置き、Git には入れません
+- **データ**：チケット・Epic・Iteration・Plan・Run は、1 件 1 ファイルで、データのリモート（`git.data_remote`。空なら `git.remote`）の orphan ブランチ（既定は `deguboard`。`git.data_branch`）に置き、push すればチームと共有されます。置き場所は変えられます（[データを別のリポジトリに置く](usage.ja.md#データを別のリポジトリに置く)・[1 つのリポジトリに複数のカンバンを置く](usage.ja.md#1-つのリポジトリに複数のカンバンを置く)）。サーバーやデータベースはありません。実行中の Run の記録・チケットを claim したセッションの記録・Plan とチケットの予約・ロックは、このマシンの `deguboard-local/` に置き、Git には入れません
 - **照合**：`dg sync` が作業ブランチと PR の事実を見て、チケットを進めます（PR が ready になったら review、マージされたら done）
 - **エージェント**：Skill か `dg guide <topic>` で手順を読み、`dg next` が返す次の一手を `dg` で進めます。Run はエージェントでなく、harness のフックが `dg hook` を通して記録します（[Run の記録の範囲](#run-の記録の範囲)と [ADR-025](adr/ADR-025-runs-by-hooks.md)）
 
@@ -99,6 +99,7 @@ sequenceDiagram
 - フックが届かないエージェントでは、印で頼んだサブエージェントの Run は記録されません。親が自分で進める作業は claim が Run を開きます。届いているかは `dg hooks check` で確かめます（[他のエージェントで使う](usage.ja.md#他のエージェントで使う)）
 - 持ち主のない見直しの結果（開いている見直しの Run がなく、フックも取らなかったもの。フックが届かない環境など）は、結果を書いた時刻に閉じた見直しの Run として数えます。`dg next` と `dg gate` が数え、`dg sync` と `dg pr ready` がそれを Git に書いて Run に結び付けます（[ADR-025](adr/ADR-025-runs-by-hooks.md)）
 - 次の区切り（同じチケットの次の Run の開始・PR の ready かマージ・チケットの終わり）が来ても開いたままの手直しの Run は、最後の push で成功として閉じます。閉じるのは次の開始か `dg sync` です（細部は `dg sync --help`）
+- 段が `high`・`low` のチケットの ready の前に、リモートの作業ブランチが今の base を含まないときは、`dg next` が base を作業ブランチに取り込んで push する手を返し、Run は開きません。競合したときは手直しの Run に任せます（細部は `dg next --help`）
 - 使用量・ツールの回数・親の依頼を待った秒数・検査とテストを回した秒数は、`metrics.read_transcripts` が true でなければ空のままです。既定は false です。後ろの 3 つは Claude Code でだけ数えます（[トークンを数える](usage.ja.md#トークンを数える)）
 - 落ちたセッションの残りなど端のケースは、`dg hook --help` と [ADR-025](adr/ADR-025-runs-by-hooks.md) にあります
 
