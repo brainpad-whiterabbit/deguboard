@@ -20,6 +20,7 @@
 //   - 検査とテストを回していた区間（checks）：数える行の Bash の tool_use のうち、コマンド（input.command）が数えるコマンド
 //     （query.checkCommands。見分けは check-commands.ts の isCheckCommand）で、背後で回す印（input.run_in_background が true）の
 //     ないものを、tool_use の行の時刻から、その結果（tool_use_id の合う tool_result）の行の時刻までの区間にする。
+//     tool_use の行から結果までなので、許可の確認（人の承認）を待った時間も区間に含む（待ちの区間と違って作業時間からも引かない）。
 //     結果の見つからない呼び出し（中断された、記録が切れた）は区間にしない。コマンドの文字列は見分けに使うだけで返さない（MT-4）。
 //     query.checkCommands がなければ数えない（null）
 //   - 失敗した呼び出しの数（tools.errors）：数えた tool_use の結果（user の行の message.content の tool_result）のうち、失敗の印

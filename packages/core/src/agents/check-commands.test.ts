@@ -56,6 +56,12 @@ describe("検査とテストに数えるコマンド（MT-1）", () => {
     ["node で呼ぶ dg gate --only check", "node packages/cli/bin/dg.js gate 12 --only=check"],
     ["絶対パスの dg", "/usr/local/bin/dg --json gate t12 --only check 2>&1 | tail -3"],
     ["--only が gate より前にある", "dg --only check gate t12"],
+    ["pnpm run で呼ぶ dg gate --only check", "pnpm run dg gate t12 --only check"],
+    [
+      "呼び出しの形にオプションが付く dg gate --only check",
+      "node --enable-source-maps packages/cli/bin/dg.js gate t12 --only check",
+    ],
+    ["先頭に代入が付く dg gate --only check", "CI=1 mise run dg -- gate t12 --only check"],
   ])("数える：%s", (_name, command) => {
     expect(isCheckCommand(command, counted)).toBe(true);
   });
@@ -80,6 +86,10 @@ describe("検査とテストに数えるコマンド（MT-1）", () => {
     ["dg でないコマンドの gate --only check", "other gate t12 --only check"],
     ["語の末尾だけが dg", "mydg gate t12 --only check"],
     ["dg gate と --only check が別の部分にある", "dg gate t12 && echo --only check"],
+    ["dg gate の前に echo が付く", "echo dg gate t1 --only check"],
+    ["dg gate の前に別のコマンドが付く", "timeout 600 dg gate t1 --only check"],
+    ["呼び出しの形の前に別のコマンドが付く", "timeout 600 mise run dg -- gate t1 --only check"],
+    ["ほかのタスクの引数にある dg gate", "mise run build -- dg gate t1 --only check"],
     ["空のコマンド", ""],
   ])("数えない：%s", (_name, command) => {
     expect(isCheckCommand(command, counted)).toBe(false);

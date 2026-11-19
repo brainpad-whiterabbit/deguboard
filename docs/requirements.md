@@ -261,7 +261,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 ### 6.6 作業の実績
 
 - MT-1 Run の使用量・ツールの回数（失敗した呼び出しの数を含む）・親の依頼を待った秒数・検査とテストを前景で回した秒数は Adapter が会話記録から取り込み、自己申告の数字は書かない。数えられない Run の秒数は null（RN-2）。Run の時刻は待ちを含む経過のまま残し、作業時間は表示と集計のたびに経過時間から待ちを引いて出す（数え方は `packages/core/src/agents/agents.test.ts`）
-- MT-2 `metrics.read_transcripts` が true なら、Run を閉じる操作が Adapter で会話記録から使用量・ツールの回数・待った秒数を補う。Run の記録のパスかセッションの記録がこのマシンになければ、推測に落とさず null で残して警告する。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない（探し方は `packages/core/src/agents/agents.test.ts`）
+- MT-2 `metrics.read_transcripts` が true なら、Run を閉じる操作が Adapter で会話記録から MT-1 の値を補う。Run の記録のパスかセッションの記録がこのマシンになければ、推測に落とさず null で残して警告する。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない（探し方は `packages/core/src/agents/agents.test.ts`）
 - MT-3 `metrics show` は Run を絞り込んで集計する（軸は `dg metrics show --help`）。null は足さず欠けた数を出す。時間は経過・作業・待ちと、検査とテストの時間と作業時間に対する割合を出す。絞り込みに合う done のチケットのうちエージェントが claim し、実装の Run が 1 件もないものは ID を示す。`capture: none` の見直しの記録は見直しの回にだけ数え、使用量・時間とその欠けた数には入れない。集計値は保存しない
 - MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけで、会話の中身・ツールの結果・コマンドの文字列・ファイルのパスは写さない（Git に入るのは RN-1 のセッション ID まで）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
 - MT-5 `run refresh` は閉じた Run のモデル名と使用量と待った秒数を、finish と同じ方法と MT-2 の許可で会話記録から取り直し（待ちは同じ記録なら何度数えても同じ値）、取れた値だけを書き換えて、取れなかった値は残して警告する。実行中の Run は拒み、RN-3 の期間を過ぎた Run は読まずに今の値を残して警告する（細部は `dg run refresh --help`）

@@ -74,10 +74,24 @@ function withoutAssignments(words: readonly string[]): readonly string[] {
 /** dg を呼ぶ語か（dg、パスの末尾が dg か dg.js）。mise run dg -- と pnpm run dg と node …/dg.js のどれも、この語を含む */
 const isDgWord = (word: string): boolean => /(^|\/)dg(\.js)?$/.test(word);
 
-/** dg gate の --only check か。dg の語の後に gate があり、--only の値（, 区切り）に check がある */
+/** dg の語の前に置ける呼び出しの形の先頭の語（mise run dg --、pnpm run dg、node …/dg.js） */
+const DG_LAUNCHERS: ReadonlySet<string> = new Set(["mise", "pnpm", "node"]);
+
+/**
+ * dg の語の前の語が呼び出しの形か。何もないか、先頭が呼び出しの語で、残りが run かオプション（- で始まる語）だけ。
+ * `echo dg gate …` や `timeout 600 dg gate …` のように別のコマンドが前に付いた部分は、語の並びのコマンドと同じく数えない
+ */
+function isDgLauncher(before: readonly string[]): boolean {
+  if (before.length === 0) return true;
+  return (
+    DG_LAUNCHERS.has(before[0]!) && before.slice(1).every((w) => w === "run" || w.startsWith("-"))
+  );
+}
+
+/** dg gate の --only check か。部分が dg の語か呼び出しの形で始まり、dg の語の後に gate があり、--only の値（, 区切り）に check がある */
 function isGateCheck(words: readonly string[]): boolean {
   const dg = words.findIndex(isDgWord);
-  if (dg < 0) return false;
+  if (dg < 0 || !isDgLauncher(words.slice(0, dg))) return false;
   const rest = words.slice(dg + 1);
   if (!rest.includes("gate")) return false;
   return rest.some((w, i) => {
@@ -89,7 +103,8 @@ function isGateCheck(words: readonly string[]): boolean {
 /**
  * コマンドの文字列を検査とテストに数えるか。部分（commandParts）のどれかが、先頭の代入を除いて、数えるコマンドの語の並びで始まるか、
  * dg gate --only check なら数える。語で比べるので、`mise run test` は `mise run test:related` に当たらない。
- * 後ろに引数やリダイレクトが続いても数え、前に別のコマンド（timeout など）が付いた部分は数えない
+ * 後ろに引数やリダイレクトが続いても数え、前に別のコマンド（timeout など）が付いた部分は数えない（dg gate も同じ。
+ * dg の語の前に置けるのは isDgLauncher の呼び出しの形だけ）
  */
 export function isCheckCommand(command: string, counted: CheckCommands): boolean {
   return commandParts(command).some((part) => {
