@@ -1,0 +1,48 @@
+id: p172
+tickets: [t1152, t1160, t1162, t1155, t1163, t1161, t1164, t1165]
+after:
+  t1162:
+    - t1152
+  t1155:
+    - t1152
+    - t1162
+  t1163:
+    - t1162
+  t1161:
+    - t1160
+  t1164:
+    - t1161
+pending_approval: true
+details:
+  t1152:
+    scope: high と low の dg gate --for merge に、先端が base の今の先端を含む条件を足す。マージ後の検査はしない
+    approach: gate-judge に条件を足して次の手を返し、ready で通った全体の検査を同じ先端なら merge で使い回す
+    tier: heavy
+  t1162:
+    scope: base だけを取り込んだマージコミットの連なりを辿り、見直した SHA に今の base を 1 回だけ自動マージして比べる
+    approach: 連なりを辿る判定と比べる判定を facts-judge の純粋な関数に置き、tip-merge は親と tree を集めて自動マージを 1 回だけ作る
+    tier: heavy
+  t1155:
+    scope: 見直しの後に先端が base を含まないとき dg next が取り込みの手を返す。競合時は中止して手直し
+    approach: next の段階の判定関数に取り込みの段を足し、guide-work.md に取り込みのやり方を書く
+    tier: heavy
+  t1163:
+    scope: git 2.38 以上では merge-tree --write-tree で自動マージの tree を作り、それより前は今の一時の worktree を使う
+    approach: git の版から経路を選ぶ純粋な関数を置き、autoMergeTree の中で経路を分ける。結果は覚えない
+    tier: standard
+  t1160:
+    scope: ask の小窓の見出しの行・Skill の札・下の段のボタン・コピーの知らせの見た目。候補・依頼文・送るの動きは変えない
+    approach: 検討資料の案 A に沿って ask-composer.tsx と styles.css を直し、テストとスクリーンショットを付ける
+    tier: standard
+  t1161:
+    scope: ask の小窓の候補を 3 つまでにし、ほか N の一覧とおすすめの青い点を足す。狭い幅の折り返しは含めない
+    approach: 検討資料の A-3 に沿って ask-composer.tsx と ask-menu.tsx を直し、キーボード操作のテストとスクリーンショットを付ける
+    tier: standard
+  t1164:
+    scope: ask-menu.test.tsx と selection.test.tsx の Esc を、フォーカスの移動を待ってから送るようにする
+    approach: epic-head.test.tsx の escapeMenu を test-helpers.ts に移し、3 つのファイルで使う
+    tier: standard
+  t1165:
+    scope: テキスト出力の表のセルでオブジェクトの配列を読める形で出す
+    approach: output.ts の cell の配列の整形を formatValue と同じ扱いにし、テキスト出力のテストを足す
+    tier: standard
