@@ -8,8 +8,10 @@ import {
   runPipCaption,
   runPipDetails,
   runPipKey,
+  runCountCaption,
   runTone,
   showRunPips,
+  showsRunCount,
   stepLabelOf,
   waitLabel,
 } from "./row-end.js";
@@ -140,16 +142,35 @@ describe("カンバンの行の Run の並び", () => {
     expect(stepLabelOf(undefined, "fix")).toBe("fix");
   });
 
-  it("並びは In Progress と Review の行で Run があるときに出し、ほかの状態は実行中の Run があるときだけ出す", () => {
+  it("並びは In Progress・Review・Done の行で Run があるときに出し、ほかの状態は実行中の Run があるときだけ出す", () => {
     expect(showRunPips({ status: "in_progress" }, views(closed))).toBe(true);
     expect(showRunPips({ status: "review" }, views(closed))).toBe(true);
+    expect(showRunPips({ status: "done" }, views(closed))).toBe(true);
+    expect(showRunPips({ status: "done" }, views(running))).toBe(true);
     expect(showRunPips({ status: "in_progress" }, views())).toBe(false);
+    expect(showRunPips({ status: "done" }, views())).toBe(false);
     expect(showRunPips({ status: "in_progress" }, undefined)).toBe(false);
     expect(showRunPips({ status: "todo" }, views(closed))).toBe(false);
     expect(showRunPips({ status: "todo" }, views(running))).toBe(true);
-    expect(showRunPips({ status: "done" }, views(closed))).toBe(false);
+    expect(showRunPips({ status: "abandoned" }, views(closed))).toBe(false);
+    expect(showRunPips({ status: "abandoned" }, views(running))).toBe(true);
     // 新しい 3 件が閉じていても、その外に実行中の Run があれば（running）出す
     expect(showRunPips({ status: "todo" }, { ...views(closed), running: true })).toBe(true);
+  });
+
+  it("並びを回数で締めくくるのは、実行中の Run のない Done の行だけ", () => {
+    expect(showsRunCount({ status: "done" }, views(closed))).toBe(true);
+    expect(showsRunCount({ status: "done" }, views(runSummary({ result: "failure" })))).toBe(true);
+    // 実行中の Run があれば（新しい 3 件の外でも）ほかの行と同じ出し方
+    expect(showsRunCount({ status: "done" }, views(running, closed))).toBe(false);
+    expect(showsRunCount({ status: "done" }, { ...views(closed), running: true })).toBe(false);
+    for (const status of ["todo", "in_progress", "review", "abandoned"] as const)
+      expect(showsRunCount({ status }, views(closed))).toBe(false);
+  });
+
+  it("回数で締めくくる並びの最後の丸の横の文字は、新しい 3 件でなく全部の Run の回数", () => {
+    expect(runCountCaption({ total: 1 })).toBe("1 回");
+    expect(runCountCaption({ ...views(closed, closed, closed), total: 7 })).toBe("7 回");
   });
 
   it("丸の種類は結果に、重い指摘のあった見直しと返事待ちの実行中の Run を足す。書き終わりを待つ Run は実行中のまま", () => {

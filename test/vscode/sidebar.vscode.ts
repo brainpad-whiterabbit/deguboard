@@ -4,7 +4,7 @@
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
 // - 未 push のコミットがある間はタイトル行の同期のボタンが点付きになり、押して同期すると元に戻ること（UI-6）
-// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・更新日で並べたメニューと行・選んだ行の帯と ID のコピーの形のメニューとコピーした後の帯・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・更新日で並べたメニューと行・選んだ行の帯と ID のコピーの形のメニューとコピーした後の帯・Epic の札に触れて光らせた行・選んでいる Epic の見出し・Run の丸と回数を出した Done の行・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
 // - 導入のチェックリストの「アンインストール」の節で、消すものを確かめてから一時リポジトリを外せること（閉じた節・開いた節・確認・外した後の知らせを撮る。
 //   ボードを消すので、ボードの要る検査の後に置く。HOME は一時ディレクトリなので、手元の個人の設定には触れない）
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
@@ -27,6 +27,8 @@ import {
   retroMetric,
   retroPerspective,
   runCommand,
+  runFinish,
+  runStart,
   syncStatus,
   ticketClaim,
   ticketCreate,
@@ -483,6 +485,53 @@ describe("VS Code の実機の左パネル", () => {
     await sidebar.locator("body").evaluate(() => {
       location.hash = "#/board";
     });
+  });
+
+  it("カンバンの Done の節を開き、Run の丸の並びと Run の回数を出した Done の行をライトとダークで撮る（UI-2）", async () => {
+    // 5 回の Run（新しい 3 件のうち最後は失敗）を閉じてから done にする。Done の行は「+n」と地の色を出さず、最後の丸の横に「5 runs」を出す
+    const ctx = await openContext({ cwd: fixture.cloneA });
+    const ticket = await runCommand(ticketCreate, ctx, {
+      title: "Done row with five runs",
+      acceptance: ["丸と回数が出る"],
+      iteration: "s1",
+    });
+    const id = ticket.data.id;
+    const steps = [
+      ["implement", "success"],
+      ["review", "success"],
+      ["fix", "success"],
+      ["review", "success"],
+      ["merge", "failure"],
+    ] as const;
+    for (const [step, result] of steps) {
+      const run = await runCommand(runStart, ctx, { ticket: id, step, agent: "claude-code" });
+      await runCommand(runFinish, ctx, { run: run.data.id, result });
+    }
+    await runCommand(ticketMove, ctx, { ticket: id, status: "done", override: DONE_OVERRIDE });
+    const done = sidebar.locator("details.column.status-done");
+    await done.waitFor({ timeout: 60_000 });
+    // Done の節は既定で畳む。見出しを押すとポインタとフォーカスが残り、頼むボタンが出て行を隠すので、押さずに開く（onToggle が開いたことを覚える）
+    const setOpen = (open: boolean) =>
+      done.evaluate((el, open) => {
+        (el as HTMLDetailsElement).open = open;
+      }, open);
+    await setOpen(true);
+    const row = done.locator(".ticket-row", { hasText: "Done row with five runs" });
+    await row.locator(".run-pips-caption", { hasText: "5 runs" }).waitFor({ timeout: 60_000 });
+    expect(await row.locator(".run-pip").count()).toBe(3);
+    expect(await row.locator(".run-pips-more").count()).toBe(0);
+    // done に動いた行の点滅（.changed）が終わってから撮る
+    await expect
+      .poll(() => row.evaluate((el) => !!el.closest(".changed") || !!el.querySelector(".changed")))
+      .toBe(false);
+    await row.scrollIntoViewIfNeeded();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("board-done-runs", theme);
+      await access(shot.sidebar);
+    }
+    // 後のテストの画面を変えないよう、Done の節を畳み直す
+    await setOpen(false);
   });
 
   it("未 push のコミットがある間はタイトル行の同期のボタンが点付きになって件数をツールチップに出し、押して同期すると元のアイコンに戻る（UI-6。ライトとダークで撮る）", async () => {

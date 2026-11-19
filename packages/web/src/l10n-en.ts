@@ -368,6 +368,7 @@ export const EN: Readonly<Record<string, string>> = {
   "直した指摘 {0}": "Fixed findings {0}",
   "指摘 重い {0} / 軽い {1}": "Findings heavy {0} / light {1}",
   "Run {0} 回。最後は {1}": "{0} runs. Latest: {1}",
+  "{0} 回": "{0} runs",
   "開いた Plan に入っていない": "Not in an open Plan",
   "{0} は人の承認を待っている": "{0} is awaiting human approval",
   着手可: "Ready",
