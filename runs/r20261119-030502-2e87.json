@@ -1,0 +1,36 @@
+{
+  "id": "r20261119-030502-2e87",
+  "ticket": "t1127",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-19T03:05:02Z",
+  "finished_at": "2026-11-19T03:10:07Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "名前で対になるテストに、自分のソースを持たない分割したテスト（foo-*.test.ts）を選ばず、受け入れ条件 2 を満たさない",
+    "origin/main がないとき分岐点の取得の失敗がスタックごと出て、何が足りないか分かりにくい",
+    "git が非 ASCII のパスを引用符とエスケープで出すため、そのパスが黙って選ばれない"
+  ],
+  "usage": {
+    "input": 46,
+    "output": 12421,
+    "cache_read": 1187621,
+    "cache_write": 45756
+  },
+  "tools": {
+    "read": 8,
+    "search": 0,
+    "write": 12,
+    "bash": 14,
+    "other": 1,
+    "read_before_write": 5,
+    "search_before_write": 0,
+    "errors": 2
+  },
+  "session": "e671c729-9c11-485c-ad52-6e18ca5fc79b",
+  "review": null,
+  "waited_seconds": 0
+}
