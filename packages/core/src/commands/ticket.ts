@@ -37,7 +37,12 @@ import {
   runSetupInWorktree,
 } from "./claim-setup.js";
 import { dropSessionClaim, guardSessionClaim, recordSessionClaim } from "./claim-sessions.js";
-import { dropReservation, guardReservedClaim, moveReservation } from "./reservations.js";
+import {
+  dropReservation,
+  reserveForClaim,
+  rollbackClaimReservation,
+  type ClaimReservation,
+} from "./reservations.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { parseDraftSource } from "./draft-source.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
@@ -1124,14 +1129,14 @@ async function reclaim(
   if (decision.kind === "reject") throw claimRejectionError(decision, false);
   const sessionWarnings: string[] = [];
   await guardSessionClaim(ctx, doc.id, "claim", input, sessionWarnings);
-  // 別のセッションが予約したチケット（予約した Plan のチケットを含む）も同じに拒む（reservations.ts）。
+  // 別のセッションが予約したチケット（予約した Plan のチケットを含む）も同じに拒む（reservations.ts）。--take-over で越えたら、
+  // 予約も呼んだセッションに移る。この後に claim を止めるものはないので、移した予約は戻さない。
   // claim の記録の知らせが出ていれば、同じセッションのことを二度知らせない
   const reservedWarnings: string[] = [];
-  const tookOver = await guardReservedClaim(ctx, doc.data.id, "claim", input, reservedWarnings);
+  await reserveForClaim(ctx, doc.data.id, "claim", input, reservedWarnings);
   if (sessionWarnings.length === 0) sessionWarnings.push(...reservedWarnings);
   warnings.push(decision.notice, ...sessionWarnings);
   await recordSessionClaim(ctx, doc.id, { session: input.session, fresh: false }, warnings);
-  if (tookOver) await moveReservation(ctx, doc.data.id, input, warnings);
   if (!decision.opensRun) return null;
   // フックが届くセッションでは手直しもサブエージェントに頼む。開き方は変えずに知らせる（t713）
   const self = await selfRunWarning(ctx.repo.localDir, ctx.env ?? process.env, doc.id);
@@ -1163,7 +1168,7 @@ export const ticketClaim = defineCommand({
     "In a session that dg hooks have reached, an agent's claim without --no-run (other than --without-branch, and including claiming again) still opens the Run, and warns to ask a sub-agent to implement or fix with the marker instead. " +
     "If you claim again a ticket that you (the same user, human or AI) already claimed and that has a PR (in_progress or review), it is treated as the start of a fix (the review fix loop, or after a person's review). The ticket is not changed; for an agent it opens a fix Run (step fix).For either an implementation Run or a fix Run, when it opens, any still-open earlier fix Run on the same ticket is first closed with success at the time of the last push after that Run started (or at this claim's time if there is none), using this claim as the boundary. If the earlier fix Run's session differs from this claim's session (--session, else DEGUBOARD_SESSION from the environment, else the session ID the calling agent sets in its environment; for a sub-agent's claim, the parent session that started it), it is treated as left over from a crashed session and closed as interrupted. If either session is unknown, it is closed with success. Claims by other actors are rejected. " +
     "An agent's claim (a new one, or claiming again) records, in deguboard-local/claim-sessions/ on this machine and not in Git, that the calling session (decided as above) is working on the ticket. While that session is alive, an agent in another session of the same user cannot claim the ticket again or unclaim it (REJECTED; the message names the recorded session); --take-over passes it. The record is ignored once SessionEnd reaches the recorded session or 30 minutes pass since the last dg hook reached it (since the claim, if no hook has reached it). A person's claim and a claim whose session is unknown make no record and are not stopped (a warning is given when a live session holds the ticket). " +
-    "A ticket that another live session of the same user reserved before claiming it (dg next <ticket> --reserve, or dg plan show <p> --reserve for the open Plan that includes it; kept in deguboard-local/reservations/) is judged the same way: an agent's claim, new or again, is rejected (REJECTED), and --take-over passes it and moves the reservation of the ticket to the calling session",
+    "A ticket that another live session of the same user reserved before claiming it (dg next <ticket> --reserve, or dg plan show <p> --reserve for the open Plan that includes it; kept in deguboard-local/reservations/) is judged the same way: an agent's claim, new or again, is rejected (REJECTED), and --take-over passes it and moves the reservation of the ticket to the calling session. An agent's new claim of a ticket that no live session has reserved reserves the ticket for the calling session before the push, so that another session cannot reserve or claim it while the claim is being pushed; if the claim fails, the reservation is put back as it was",
   input: z.object({
     ticket: ticketRef,
     branch: z
@@ -1256,14 +1261,14 @@ export const ticketClaim = defineCommand({
     let iterationWarnings: string[] = [];
     let planWarnings: string[] = [];
     let reservedWarnings: string[] = [];
-    let tookOver = false;
+    // push の前に書いたチケットの予約。claim が取れなかったら戻す（下の catch）
+    let reserved: ClaimReservation | undefined;
     let granted: Granted = { approver: null, override: null, auto: false };
     const result = await withWrite(
       ctx,
       async () => {
         iterationWarnings = [];
         planWarnings = [];
-        reservedWarnings = [];
         const doc = ctx.store.require("ticket", input.ticket);
         // 拒否ともう一度の claim かは、何も読まない claim-judge.ts の decideClaim が、ここで読んだ今の値で決める。
         // push が拒否されてやり直すたびにこの関数が呼び直されるので、判定もやり直した後の値で決め直される
@@ -1279,8 +1284,14 @@ export const ticketClaim = defineCommand({
             (await hooksReachSession(ctx.repo.localDir, ctx.env ?? process.env));
           throw claimRejectionError(decision, hooksReach);
         }
-        // 別のセッションが予約したチケット（予約した Plan のチケットを含む）は、agent には claim させない（PL-7。reservations.ts）
-        tookOver = await guardReservedClaim(ctx, doc.data.id, "start", input, reservedWarnings);
+        // 別のセッションが予約したチケット（予約した Plan のチケットを含む）は、agent には claim させない（PL-7。reservations.ts）。
+        // 通る agent の claim は、ここ（push の前）でチケットを呼んだセッションに予約し、push の間に別のセッションが予約・claim
+        // できないようにする。やり直しの回は自分の予約が効いていて書かないので、最初に書いた予約（戻す先）と知らせを残す
+        const attemptWarnings: string[] = [];
+        const written = await reserveForClaim(ctx, doc.data.id, "start", input, attemptWarnings);
+        if (written)
+          reserved = { ...written, previous: reserved ? reserved.previous : written.previous };
+        if (attemptWarnings.length > 0) reservedWarnings = attemptWarnings;
         const policy = operationPolicy(ctx.store.requireWorkflow().resolved, {
           command: "ticket.claim",
           move: { from: "todo", to: "in_progress" },
@@ -1337,7 +1348,13 @@ export const ticketClaim = defineCommand({
         immediate: true,
         cas: true,
       },
-    ).catch((e: unknown) => (e instanceof ReclaimRequested ? e : Promise.reject(e)));
+    ).catch(async (e: unknown) => {
+      // 取れなかった claim（拒否・push の失敗・取り込み直しの途中のエラー）は、push の前に書いた予約を戻す。
+      // やり直しの回でもう一度の claim とわかったときも戻し、予約の扱いは reclaim に任せる
+      if (reserved) await rollbackClaimReservation(ctx, reserved);
+      if (e instanceof ReclaimRequested) return e;
+      throw e;
+    });
     if (result instanceof ReclaimRequested) {
       warnings.push(...result.warnings);
       const run = await reclaim(
@@ -1357,8 +1374,6 @@ export const ticketClaim = defineCommand({
       { session: input.session, fresh: true },
       warnings,
     );
-    // --take-over で別のセッションの予約を越えた claim は、予約も呼んだセッションに移す
-    if (tookOver) await moveReservation(ctx, result.value.data.id, input, warnings);
     // worktree を作るのは claim が push で取れた後（取れなかった claim でブランチを残さない）
     const branch = result.value.data.branch;
     const made =
