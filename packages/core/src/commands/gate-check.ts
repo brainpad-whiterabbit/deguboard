@@ -46,6 +46,8 @@ interface CheckRecord {
 export interface CheckOutcome {
   ok: boolean;
   detail: string;
+  /** 検査のコマンドをこの判定で回した（覚えた結果を使っていない）。回すと時間がかかるので、その間に動きうる事実を読み直す側が見る（t1152） */
+  ran?: true;
 }
 
 const short = (sha: string) => sha.slice(0, 8);
@@ -382,7 +384,7 @@ export async function judgeCheck(
     } catch (error) {
       // コマンドが見つからない・時間内に終わらない。どちらも回し直せば変わりうるので覚えない
       const reason = error instanceof Error ? error.message : String(error);
-      return { ok: false, detail: `Cannot run the check (${shown}): ${reason}` };
+      return { ok: false, detail: `Cannot run the check (${shown}): ${reason}`, ran: true };
     }
     if (result.code === 0) {
       record.results.push({
@@ -399,13 +401,16 @@ export async function judgeCheck(
       await writeFileAtomic(file, `${JSON.stringify(record, null, 2)}\n`);
     }
   }
+  const ran = found ? {} : { ran: true as const };
   return result.code === 0
     ? {
         ok: true,
         detail: `The check (${shown}) passed on the latest commit ${short(sha)}${why}${found ? " (reused the remembered result for this commit)" : ""}`,
+        ...ran,
       }
     : {
         ok: false,
         detail: `The check (${shown}) failed on the latest commit ${short(sha)} (exit ${result.code})${why}. End of output:\n${result.tail}`,
+        ...ran,
       };
 }

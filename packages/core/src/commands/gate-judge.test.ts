@@ -12,6 +12,7 @@ import {
   gateReads,
   heavyReviewRounds,
   judgeBeforeCheck,
+  rereadsBase,
   reviewedTip,
   waivedBy,
   type GateConditionId,
@@ -539,6 +540,58 @@ describe("base の今の先端を含むか（base。t1152）", () => {
   it("PR を読めなくても、最新のコミットを読めていれば判定する。最新のコミットを読めなければ判定しない", () => {
     expect(ids(judge({ ...stale, pr: { kind: "missing", selector: "t1" } }))).toContain("base");
     expect(ids(judge({ ...stale, latest: null }))).not.toContain("base");
+  });
+
+  describe("検査の後の読み直し（検査の間に base が進む）", () => {
+    const RAN: CheckOutcome = { ...PASSED, ran: true };
+    const moved = {
+      latest: TIP.sha,
+      base: { kind: "read", sha: OTHER, contained: false },
+    } as const;
+
+    it("読み直すのは、この判定で検査を回し、1 段目が base を満たすとしたときだけ", () => {
+      const draft = (over: Partial<GateFacts> = {}) => judgeBeforeCheck(facts(over));
+      expect(rereadsBase(draft(), RAN)).toBe(true);
+      expect(rereadsBase(draft(), { ...FAILED, ran: true })).toBe(true);
+      // 覚えた結果を使った（回していない）
+      expect(rereadsBase(draft(), PASSED)).toBe(false);
+      // base を判定しない（ready・free・最新のコミットを読めない）
+      expect(rereadsBase(draft({ for: "ready" }), RAN)).toBe(false);
+      expect(rereadsBase(draft({ level: "free" }), RAN)).toBe(false);
+      expect(rereadsBase(draft({ latest: null, base: null }), RAN)).toBe(false);
+      // 1 段目がもう満たさないとした
+      expect(rereadsBase(draft(stale), RAN)).toBe(false);
+    });
+
+    it("検査の間に base が進んでいれば、検査が通っていても base で落とし、base が進んだことを detail に出す", () => {
+      const view = concludeGate(judgeBeforeCheck(facts()), RAN, moved);
+      expect(failed(view)).toEqual(["base"]);
+      expect(view.passed).toBe(false);
+      expect(detail(view, "base")).toContain(
+        "does not contain the current tip of base (bbbbbbbb; base moved while the check ran)",
+      );
+      expect(detail(view, "base")).toContain(
+        "Merge base into the work branch, push, and judge again",
+      );
+      // 条件の順は変えない
+      expect(ids(view)).toEqual(ids(judge()));
+    });
+
+    it("読み直しても base が進んでいなければ通し、読み直せなければ満たさない", () => {
+      const same = { latest: TIP.sha, base: { kind: "read", sha: BASE, contained: true } } as const;
+      expect(concludeGate(judgeBeforeCheck(facts()), RAN, same)).toEqual(judge());
+      const unread = concludeGate(judgeBeforeCheck(facts()), RAN, {
+        latest: TIP.sha,
+        base: { kind: "unreadable", reason: "git fetch origin main failed" },
+      });
+      expect(failed(unread)).toEqual(["base"]);
+    });
+
+    it("承認があっても、検査の間に進んだ base は越えない", () => {
+      const approved = waivedBy("merge", true);
+      const view = concludeGate(judgeBeforeCheck(facts(), approved), RAN, moved);
+      expect(gatePassage(view, approved)).toMatchObject({ proceed: false, blocking: ["base"] });
+    });
   });
 });
 

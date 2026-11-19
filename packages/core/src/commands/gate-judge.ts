@@ -111,7 +111,7 @@ export interface GateFacts {
 }
 
 /** 検査のほかの条件を決めた結果（1 段目） */
-interface GateDraft {
+export interface GateDraft {
   ticket: string;
   for: GateStage;
   gate: GateLevel;
@@ -285,7 +285,7 @@ function headCondition(pr: PrGateFacts, latest: string): GateCondition {
  * base に入る形で通っている。含まないときの次の手は base を取り込んで push し直すことで、取り込んだ先端で検査を回し直す
  * （取り込んだだけのマージコミットなら、前の見直しは数えたまま。reviewedTip）。マージした後の検査はしない
  */
-function baseCondition(base: BaseFact | null, latest: string): GateCondition {
+function baseCondition(base: BaseFact | null, latest: string, afterCheck = false): GateCondition {
   if (base === null || base.kind === "unreadable")
     return {
       id: "base",
@@ -297,8 +297,17 @@ function baseCondition(base: BaseFact | null, latest: string): GateCondition {
     ok: base.contained,
     detail: base.contained
       ? `The latest commit of the work branch (${short(latest)}) contains the current tip of base (${short(base.sha)})`
-      : `The latest commit of the work branch (${short(latest)}) does not contain the current tip of base (${short(base.sha)}), so the check has not seen what the merge would put on base. Merge base into the work branch, push, and judge again (the check runs on the new tip; a merge commit that only brings base in keeps the review)`,
+      : `The latest commit of the work branch (${short(latest)}) does not contain the current tip of base (${short(base.sha)}${afterCheck ? "; base moved while the check ran" : ""}), so the check has not seen what the merge would put on base. Merge base into the work branch, push, and judge again (the check runs on the new tip; a merge commit that only brings base in keeps the review)`,
   };
+}
+
+/**
+ * 検査の後に base の今の先端を読み直すか。検査（actions.test）を回すと分単位の時間がかかり、その間に別の PR が base に入ると、
+ * 1 段目が検査の前に読んだ base の事実は古くなる（並行のチケット・--auto）。この判定で検査を回し、1 段目が base を満たすとしたときだけ
+ * 読み直す（覚えた結果を使ったときは時間が空いていないので読み直さず、fetch を増やさない）
+ */
+export function rereadsBase(draft: GateDraft, check: CheckOutcome): boolean {
+  return check.ran === true && draft.conditions.some((c) => c.id === "base" && c.ok);
 }
 
 /**
@@ -353,10 +362,19 @@ export function judgeBeforeCheck(
 
 /**
  * 1 段目の結果に検査の結果を入れて結論を出す（2 段目）。check は、1 段目が judge を返したときに回した検査の結果
- * （ほかのときは渡さない）
+ * （ほかのときは渡さない）。baseAfterCheck は、検査の後に読み直した base の事実と比べた最新のコミット（rereadsBase が真のときだけ渡す）で、
+ * 1 段目の base の条件をこれで決め直す：検査の間に base が進んでいれば満たさない（通った検査の結果は、そのコミットの結果として残す）
  */
-export function concludeGate(draft: GateDraft, check?: CheckOutcome): GateView {
-  const conditions = [...draft.conditions];
+export function concludeGate(
+  draft: GateDraft,
+  check?: CheckOutcome,
+  baseAfterCheck?: { latest: string; base: BaseFact },
+): GateView {
+  const conditions = draft.conditions.map((c) =>
+    c.id === "base" && baseAfterCheck
+      ? baseCondition(baseAfterCheck.base, baseAfterCheck.latest, true)
+      : c,
+  );
   if (draft.check === "judge") {
     if (!check) throw new Error("The check was to be judged, but no result was given");
     conditions.push({ id: "check", ok: check.ok, detail: check.detail });

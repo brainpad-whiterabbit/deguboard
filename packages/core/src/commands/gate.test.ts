@@ -339,6 +339,44 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(await runs()).toBe(1);
   });
 
+  it("検査を回している間に base が進めば、検査が通っても base で落とす（検査の前に読んだ事実で通さない。t1152）", async () => {
+    const { ctx, f, runs } = await withCheck();
+    await review(ctx, 1, 0);
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
+    // 検査のコマンドが、回っている間に別の clone から main を進める（並行のチケットのマージを写す）
+    await git(f.cloneB, ["fetch", "-q", "origin"]);
+    await git(f.cloneB, ["checkout", "-q", "--detach", "origin/main"]);
+    const advance = path.join(f.root, "advance-main.sh");
+    await writeFile(
+      advance,
+      [
+        "#!/bin/sh",
+        "set -e",
+        // 検査は作業ブランチの worktree で回るので、git の環境変数を引き継がずに別の clone を操作する
+        `cd '${f.cloneB}'`,
+        "echo main > during-check.txt",
+        "git add -- during-check.txt",
+        "git commit -q -m 'main を進める'",
+        "git push -q origin HEAD:main",
+        `echo run >> '${path.join(f.root, "check-count")}'`,
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    await runCommand(configSet, asHuman(ctx), { key: "actions.test", value: `sh, ${advance}` });
+    const moving = await openContext({ cwd: f.cloneA, actor: ctx.actor });
+    const view = await judge(moving);
+    expect(await runs()).toBe(1);
+    expect(check(view).ok).toBe(true);
+    expect(failed(view)).toEqual(["base"]);
+    expect(view.conditions.find((c) => c.id === "base")!.detail).toContain(
+      "base moved while the check ran",
+    );
+    // 検査の結果はそのコミットの結果として覚えているので、判定し直しても回さず、base は検査の前に落ちる
+    expect(failed(await judge(moving))).toEqual(["base", "check"]);
+    expect(await runs()).toBe(1);
+  });
+
   it("通らなければ終了コードと出力の末尾を detail に出して結果を覚えず、ほかの条件を満たさなければ回さない", async () => {
     const { f, ctx, runs, setCode } = await withCheck();
     // 見直しがない（review を満たさない）うちは回さない
