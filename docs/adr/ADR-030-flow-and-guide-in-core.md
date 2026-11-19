@@ -20,7 +20,7 @@ Iteration の流れ（段階・次の 1 手・止まる判定・承認の要否�
 ### 流れの段階と承認の要否はコードが持つ
 
 - Iteration（かチケットの束）の流れの段階、次の 1 手、止まる判定、承認の要否は Core のコマンド（`dg flow next`）が返す。`dg guide all` は段階の順と判定の規則を書かず、返った手の行い方だけを書く
-- 承認の要否は、Workflow の権限の値（[ADR-003](ADR-003-status-and-workflow.md)）をエージェントに当てて決める。段階ごとの値は `flow`（assign・check・plan・audit・release・retro）に、作業の段階のマージは review → done の境目の `decide` に書く。既定の値は `core/workflow/resolve.ts` が正本
+- 承認の要否は、Workflow の権限の値（[ADR-003](ADR-003-status-and-workflow.md)）をエージェントに当てて決める。段階ごとの値は `flow`（assign・check・plan・audit・release・retro）に、作業の段階のマージは review → done の境目の `decide` に書く。既定を決める原則は [ADR-003 の「既定の値は、操作の重さで決める」](ADR-003-status-and-workflow.md#既定の値は操作の重さで決める)、値は `core/workflow/resolve.ts` が正本で、`dg workflow show` が出す
 - `flow` の値のうち、コマンドで止められる操作（割り当て・Plan の承認・Iteration を閉じる・再開する）は dg がそのコマンドで判定する。止められない場面は、手順が関所を呼んで同じ値で判定する（次の節）。操作と値の対応は `dg workflow show --help` と `core/workflow/resolve.ts` が正本
 - assign が判定するのは、すでにあるチケットの出し入れだけ。起票のときの指定と `claim` が自分で入れる Iteration は、ほかの値に従うので assign の外に置く（同じ操作を 2 つの値で判定しない）
 - 動かすのは引き続きエージェントで、dg はエージェントを起動も監視もしない（[ADR-028](ADR-028-agents-and-state.md)・EX-1）

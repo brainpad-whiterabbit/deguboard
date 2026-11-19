@@ -36,8 +36,8 @@ CLI・HTTP・Webview は同じ結果を写す（CL-6）。段階・次の 1 手�
 ### 人の判断の穴は残す
 
 - マージの承認と自動マージの判断・理由は [ADR-026](ADR-026-guard-pr-and-data.md) に従う
-- 人に聞く場面は Workflow の権限の値が決め、Core は人を待つ手を返す。やめる（abandoned・done の取り消し）は既定で人の承認を求める（値は [ADR-003](ADR-003-status-and-workflow.md)）
-- `--auto` が聞かずに進めるのは、値が `ask_unless_auto` の場面だけに限る（既定では Plan の承認を含み、`approved_by` は agent。[ADR-030](ADR-030-flow-and-guide-in-core.md)）
+- 人に聞く場面は Workflow の権限の値が決め、Core は人を待つ手を返す。やめる（abandoned・done の取り消し）は既定で人の承認を求める（既定を決める原則は [ADR-003](ADR-003-status-and-workflow.md)、値の正本は `core/workflow/resolve.ts`）
+- `--auto` が聞かずに進めるのは、値が `ask_unless_auto` の場面だけに限り、聞かずに進めた跡の `approved_by` は agent にする（[ADR-030](ADR-030-flow-and-guide-in-core.md)）
 
 ### 修正ループと自動マージの進め方は Core が持ち、並列の進め方は guide が持つ
 

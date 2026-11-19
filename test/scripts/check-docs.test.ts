@@ -10,6 +10,7 @@
 // 英語の形「the "<節>" section of `dg guide <topic>`」の参照も同じ照らし方で落ちる（t563）。
 // 要件の 1 項が上限の 250 字を超えたときと、コードとテストが置き換え済みの ADR を指したときも落ちる（t580）。
 // packages のテスト以外の文字列に要件 ID があると落ち、コメントとテストのファイルの ID は落とさないことも確かめる（t902）。
+// 文書が「既定」「default」と Workflow の権限の値を同じ文に書くと落ち、ADR の「採らなかった案」は落とさないことも確かめる（t1147）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
@@ -1166,5 +1167,72 @@ describe.concurrent("check-docs の置き換え済みの ADR への参照（t580
     await writeFile(adr, `${await readFile(adr, "utf8")}\n前の判断は ${OLD_ADR} にある。\n`);
     const { stderr } = await run(dir);
     expect(stderr).not.toContain("置き換え済みの ADR");
+  });
+});
+
+describe.concurrent("check-docs の Workflow の既定値の書き写し（t1147）", () => {
+  const FOUND = "Workflow の既定値を書き写している";
+
+  async function append(dir: string, rel: string, text: string): Promise<void> {
+    await writeFile(join(dir, rel), `${await readFile(join(dir, rel), "utf8")}\n${text}\n`);
+  }
+
+  async function lineCount(dir: string, rel: string): Promise<number> {
+    return (await readFile(join(dir, rel), "utf8")).split("\n").length;
+  }
+
+  it("写したままなら書き写しの指摘は出ない", async ({ dir, expect }) => {
+    const { stderr } = await run(dir);
+    expect(stderr).not.toContain(FOUND);
+  });
+
+  it("英語の default と日本語の既定を権限の値と同じ文に書くと、ファイルと行を出して落ちる", async ({
+    dir,
+    expect,
+  }) => {
+    // 足す段落は空行の次の行に来る（append が前に改行を 1 つ足し、写した文書は改行で終わる）
+    const usageLine = (await lineCount(dir, "docs/usage.md")) + 1;
+    await append(dir, "docs/usage.md", "Merging is `ask_unless_auto` (the default).");
+    const readmeLine = (await lineCount(dir, "README.ja.md")) + 1;
+    await append(dir, "README.ja.md", "- Iteration を閉じる既定は `always_ask`");
+    const guide = "packages/core/src/guide/guide-overview.md";
+    const guideLine = (await lineCount(dir, guide)) + 1;
+    await append(dir, guide, "| `flow.release` | `always_ask` | Default |");
+    const { code, stderr } = await run(dir);
+    expect(code).toBe(1);
+    expect(stderr).toContain(`docs/usage.md:${usageLine}: ${FOUND}`);
+    expect(stderr).toContain(`README.ja.md:${readmeLine}: ${FOUND}`);
+    expect(stderr).toContain(`${guide}:${guideLine}: ${FOUND}`);
+  });
+
+  it("ADR の「採らなかった案」の外は落ち、その節の中は落とさない", async ({ dir, expect }) => {
+    await rewrite(
+      dir,
+      ADR,
+      /^## 採らなかった案$/m,
+      "- 割り当ての既定を `always_ask` にする\n\n## 採らなかった案",
+    );
+    await append(
+      dir,
+      ADR,
+      "- **割り当ての既定を `anyone` にする**：人が決める範囲を聞かずに決める",
+    );
+    const { code, stderr } = await run(dir);
+    expect(code).toBe(1);
+    const found = findingsOf(stderr)
+      .split("\n")
+      .filter((l) => l.includes(FOUND));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("割り当ての既定を `always_ask` にする");
+  });
+
+  it("既定の語のない値の説明と、既定の語と別の文の値は落とさない", async ({ dir, expect }) => {
+    await append(
+      dir,
+      "docs/usage.md",
+      "With `always_ask`, the agent asks you first. By default, the agent asks you. To keep it to a person, set `human_only`.",
+    );
+    const { stderr } = await run(dir);
+    expect(stderr).not.toContain(FOUND);
   });
 });

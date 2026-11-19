@@ -1,4 +1,4 @@
-// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・packages・scripts・test の ADR 番号が先頭のコメントの外にあること（ファイルと行を出す）と、先頭のコメントの異なる番号が 2 つ以上ないこと・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・英語版と日本語版（README.md と README.ja.md、docs/usage.md と docs/usage.ja.md、docs/how-it-works.md と docs/how-it-works.ja.md）の節の構成のずれ・コードとテストの要件 ID・packages のテスト以外の文字列（コメントの外）にある要件 ID（ファイルと行を出す）・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
+// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・packages・scripts・test の ADR 番号が先頭のコメントの外にあること（ファイルと行を出す）と、先頭のコメントの異なる番号が 2 つ以上ないこと・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・英語版と日本語版（README.md と README.ja.md、docs/usage.md と docs/usage.ja.md、docs/how-it-works.md と docs/how-it-works.ja.md）の節の構成のずれ・コードとテストの要件 ID・packages のテスト以外の文字列（コメントの外）にある要件 ID（ファイルと行を出す）・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複・文書の中の Workflow の既定値の書き写し（「既定」「default」と権限の値を同じ文に書くこと。ADR の「採らなかった案」を除く）。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行（CSS などは先頭の /* の塊）で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
 // 要件の 1 項は字下げのない箇条書きの項目（「- XX-N」の項と ID のない項）とその下の字下げした行を、行のまま（記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える（節の前文は数えない）。置き換え済みかは各 ADR のステータスの「置き換え（ADR-0xx）」から読み、packages・scripts・test のコードの ADR-0xx の参照すべて（コメント・テスト名・文字列）を照らし、置き換えの先を置き換え済みでなくなるまでたどって今の判断を出す。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、判断と理由を書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
@@ -471,6 +471,26 @@ for (const [text, places] of sameParagraphs) {
   errors.push(`${where}: 同じ段落がある（「${text.slice(0, 30)}…」）`);
 }
 
+// Workflow の既定値の書き写し：文書が「既定」「default」と権限の値（`ask_unless_auto` など、バッククォートで囲んだもの）を同じ文に書いていたら、場所を出して落とす。
+// 既定の値の正本は packages/core/src/workflow/resolve.ts で、利用者には dg workflow show が出す。文書に写すと、既定を変えるたびに文書が追いつかずに古い値が残るため（t1147）。
+// 文は「。」「. 」と箇条書きの 1 項目・表の 1 行で切る。値の意味の説明（既定の語のない文）と、値の変え方の例（既定の語と別の文）は指摘しない。
+// 見るのは .md の文書すべて（guide を含む）。ADR の「採らなかった案」の節は、退けた値を書く記録なので除く。コードブロックの中は除く
+const WORKFLOW_VALUES = ["anyone", "ask_unless_auto", "always_ask", "human_only", "agent_only"];
+const workflowValueRe = new RegExp(`\`(?:${WORKFLOW_VALUES.join("|")})\``);
+const defaultWordRe = /既定|\bdefaults?\b/i;
+let workflowDefaultDocCount = 0;
+for (const rel of tracked.filter((f) => f.endsWith(".md") && !f.split("/").includes("dist"))) {
+  workflowDefaultDocCount++;
+  for (const { line, text } of workflowDefaultRestatements(
+    await readFile(path.join(root, rel), "utf8"),
+    rel.startsWith("docs/adr/"),
+  )) {
+    errors.push(
+      `${rel}:${line}: Workflow の既定値を書き写している（「${text.slice(0, 40)}…」）。値は dg workflow show と packages/core/src/workflow/resolve.ts に任せる`,
+    );
+  }
+}
+
 // dg guide の節の参照：日本語の「`dg guide <topic>` の「<節>」」と、英語の「the "<節>" section of `dg guide <topic>`」（"<節>" の後ろの「(…)」の補足を許す）を、文書（.md）と packages の .ts・.tsx の文字列とコメントから集め、guide-<topic>.md の見出し（末尾の補足「（…）」か半角の「 (…)」を除いた名前を含む）と、節の中の太字の項目・一覧の先頭のコードと照らす。日本語は「と「…」」で続く節も見る。バッククォートの有無によらない。
 // guide-<topic>.md の中の英語の「the "<節>" section」（of の後ろにトピックがない）は同じトピックの節を指す。
 // 見る名前は「」と "" の中だけ（後ろの「の `implement` のモデル」などは見ない）。.md のコードブロックの中は除く。.ts の中の \`（テンプレート文字列のエスケープ）も読む
@@ -538,7 +558,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(
-  `check:docs: ADR ${adrFiles.length} 件（最後に使った番号 ADR-${lastUsed} 以内、${ADR_WARN_CHARS} 字超の警告 ${warnings.length} 件）、ADR 番号の参照 ${adrRefFileCount} 件が実在、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、日本語版の見出し（${pairHeadingCounts.join("・")}）が英語版と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、packages のコード ${requirementPlacementFiles.length} 件の文字列に要件 ID なし、要件 ${requirementItemCount} 項が ${REQUIREMENT_ITEM_MAX_CHARS} 字以内、コードとテストの ADR の参照 ${adrRefCount} 件に置き換え済みなし、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし`,
+  `check:docs: ADR ${adrFiles.length} 件（最後に使った番号 ADR-${lastUsed} 以内、${ADR_WARN_CHARS} 字超の警告 ${warnings.length} 件）、ADR 番号の参照 ${adrRefFileCount} 件が実在、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、日本語版の見出し（${pairHeadingCounts.join("・")}）が英語版と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、packages のコード ${requirementPlacementFiles.length} 件の文字列に要件 ID なし、要件 ${requirementItemCount} 項が ${REQUIREMENT_ITEM_MAX_CHARS} 字以内、コードとテストの ADR の参照 ${adrRefCount} 件に置き換え済みなし、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし、文書 ${workflowDefaultDocCount} 件に Workflow の既定値の書き写しなし`,
 );
 
 /** ファイルの先頭のコメント（shebang を除く）。// の行と、先頭の /* … *\/ の塊（CSS の先頭コメント）を行ごとに返す。それ以外の行で止める */
@@ -719,6 +739,46 @@ function guideBlocks(text) {
     sections: sections.map((s) => ({ heading: s.heading, body: normalize(s.lines.join(" ")) })),
     paragraphs,
   };
+}
+
+/**
+ * 「既定」「default」と Workflow の権限の値を同じ文に書いた箇所を、行番号と文で返す。
+ * 段落は空行・見出しで切り、箇条書きの 1 項目と表の 1 行はそれぞれ 1 つにする。文は「。」と「. 」で切る（括弧の中の補足も同じ文に数える）。
+ * skipRejected が真なら「採らなかった案」の見出しの節を飛ばす（ADR）
+ */
+function workflowDefaultRestatements(text, skipRejected) {
+  const found = [];
+  let para = [];
+  let paraLine = 0;
+  let skipping = false;
+  const endPara = () => {
+    if (para.length > 0 && !skipping) {
+      for (const sentence of normalize(para.join(" ")).split(/(?<=。)|(?<=\.)\s+/)) {
+        if (workflowValueRe.test(sentence) && defaultWordRe.test(sentence)) {
+          found.push({ line: paraLine, text: sentence.trim() });
+        }
+      }
+    }
+    para = [];
+  };
+  for (const [i, line] of linesOutsideFences(text).entries()) {
+    const h = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
+    if (h) {
+      endPara();
+      if (skipRejected) skipping = h[2] === "採らなかった案";
+      continue;
+    }
+    if (line.trim() === "") {
+      endPara();
+      continue;
+    }
+    if (/^\s*\|/.test(line) || /^\s*([-*]|\d+\.)\s/.test(line)) endPara();
+    if (para.length === 0) paraLine = i + 1;
+    para.push(line.trim());
+    if (/^\s*\|/.test(line)) endPara();
+  }
+  endPara();
+  return found;
 }
 
 /** 空白をつめて比べる形にする */
