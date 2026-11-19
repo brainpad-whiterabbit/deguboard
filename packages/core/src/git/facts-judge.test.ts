@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { Status } from "../model/common.js";
 import {
+  autoMergeRoute,
   baseMergeChain,
   baseMergeParents,
   branchAncestryNeeded,
@@ -248,5 +249,27 @@ describe("base を取り込んだだけのマージコミットの判定（RN-10
       expect(nextInBaseMergeChain(thrice({ earlier: [thrice().earlier[0]!] }), [WORK])).toBe(MID);
       expect(nextInBaseMergeChain(merge(), [])).toBe(WORK);
     });
+  });
+});
+
+describe("自動マージの tree を作る経路の選び方", () => {
+  it("git 2.38 以上は merge-tree、それより前は一時の worktree を選ぶ。末尾の付記（Apple Git など）は見ない", () => {
+    const cases: Array<[string, "merge-tree" | "worktree"]> = [
+      ["git version 2.30.0", "worktree"],
+      ["git version 2.37.9", "worktree"],
+      ["git version 1.99.0", "worktree"],
+      ["git version 2.38.0", "merge-tree"],
+      ["git version 2.39.3 (Apple Git-146)", "merge-tree"],
+      ["git version 2.47.3", "merge-tree"],
+      ["git version 2.100.1", "merge-tree"],
+      ["git version 3.0.0", "merge-tree"],
+      ["git version 2.45.1.windows.1", "merge-tree"],
+    ];
+    for (const [out, route] of cases) expect([out, autoMergeRoute(out)]).toEqual([out, route]);
+  });
+
+  it("版を読めない出力は、動かす条件の git でも動く一時の worktree を選ぶ", () => {
+    expect(autoMergeRoute("")).toBe("worktree");
+    expect(autoMergeRoute("git version unknown")).toBe("worktree");
   });
 });

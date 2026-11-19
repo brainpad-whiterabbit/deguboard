@@ -155,6 +155,26 @@ export function mergedBaseOnto(merge: TipMerge | undefined): string | undefined 
   return baseMergeChain(merge)?.work;
 }
 
+/** 自動マージの tree を作る経路。merge-tree は `git merge-tree --write-tree`、worktree は一時の worktree でのマージ */
+export type AutoMergeRoute = "merge-tree" | "worktree";
+
+/** `git merge-tree --write-tree` が使える最初の git の版 */
+const MERGE_TREE_WRITE_TREE = [2, 38] as const;
+
+/**
+ * `git --version` の出力から、自動マージの tree を作る経路を選ぶ（tip-merge.ts の autoMergeTree）。git 2.38 以上は
+ * 作業ツリーのいらない merge-tree、それより前と版を読めない出力は、動かす条件の git 2.30 でも動く worktree
+ */
+export function autoMergeRoute(versionOutput: string): AutoMergeRoute {
+  const m = /(\d+)\.(\d+)/.exec(versionOutput);
+  if (!m) return "worktree";
+  const [major, minor] = [Number(m[1]), Number(m[2])];
+  const [needMajor, needMinor] = MERGE_TREE_WRITE_TREE;
+  return major > needMajor || (major === needMajor && minor >= needMinor)
+    ? "merge-tree"
+    : "worktree";
+}
+
 /** 前の作業の PR かを決める PR の値（gh pr view の結果のうち） */
 interface PrOrigin {
   /** gh の state（OPEN・MERGED・CLOSED） */
