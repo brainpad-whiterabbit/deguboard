@@ -3,6 +3,9 @@ git:
   base_branch: main
 metrics:
   read_transcripts: true
+  check_commands:
+    - mise run test:related
+    - mise run test
 lint:
   require_iteration: true
 models:
