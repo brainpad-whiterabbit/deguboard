@@ -9,7 +9,6 @@ import {
   runPipDetails,
   runPipKey,
   runTone,
-  shortSpan,
   showRunPips,
   stepLabelOf,
   waitLabel,
@@ -177,14 +176,6 @@ describe("カンバンの行の Run の並び", () => {
     expect(runTone(views(runSummary({ result: "interrupted" })))).toBe("failed");
     expect(runTone(views(running, runSummary({ result: "failure" })))).toBeNull();
     expect(runTone(views(closed))).toBeNull();
-  });
-
-  it("経過は 1 時間未満は分、1 日未満は時間、それより長ければ日で書く", () => {
-    expect(shortSpan(59_000)).toBe("0分");
-    expect(shortSpan(12 * 60_000)).toBe("12分");
-    expect(shortSpan(3 * 3600_000 + 59 * 60_000)).toBe("3時間");
-    expect(shortSpan(50 * 3600_000)).toBe("2日");
-    expect(shortSpan(-1000)).toBe("0分");
   });
 
   it("最後の丸の横の文字は「手 · 経過」「返事待ち · n分」「中断 · n時間前」の形", () => {

@@ -286,6 +286,14 @@ describe("2 段の行の包みの class", () => {
     expect(subRowClass(of(12, ["web"]), "list", true)).toBeUndefined();
     expect(subRowClass(of(12, ["web"]), undefined, true)).toBeUndefined();
   });
+
+  it("更新日で並べている間（showUpdated）は、PR もラベルもない行も 2 段にする", () => {
+    expect(subRowClass({ labels: [] }, "kanban", true, true)).toBe("sub-row kanban has-updated");
+    expect(subRowClass({ pr: 12, labels: ["web"] }, "backlog", true, true)).toBe(
+      "sub-row backlog has-pr has-labels has-updated",
+    );
+    expect(subRowClass({ labels: [] }, "list", true, true)).toBeUndefined();
+  });
 });
 
 describe("カンバンの行の頭", () => {

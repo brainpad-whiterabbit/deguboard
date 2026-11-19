@@ -221,7 +221,8 @@ export function movableStatuses(
   });
 }
 
-const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
+/** 優先度の並びの順位（high が 0）。行の並べ替え（components/row-sort.ts）も使う */
+export const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
 
 function ticketNumber(id: string): number {
   return Number(id.slice(1));

@@ -5,7 +5,18 @@ import {
   formatPeriod,
   formatShortDay,
   formatShortTime,
+  shortSpan,
 } from "./date-time.js";
+
+describe("経過（shortSpan）", () => {
+  it("経過は 1 時間未満は分、1 日未満は時間、それより長ければ日で書く", () => {
+    expect(shortSpan(59_000)).toBe("0分");
+    expect(shortSpan(12 * 60_000)).toBe("12分");
+    expect(shortSpan(3 * 3600_000 + 59 * 60_000)).toBe("3時間");
+    expect(shortSpan(50 * 3600_000)).toBe("2日");
+    expect(shortSpan(-1000)).toBe("0分");
+  });
+});
 
 describe("月日（formatMonthDay）と暦の日数の差（calendarDayDiff）", () => {
   // テストの時差は UTC に固定されている

@@ -4,7 +4,7 @@
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
 // - 未 push のコミットがある間はタイトル行の同期のボタンが点付きになり、押して同期すると元に戻ること（UI-6）
-// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・更新日で並べたメニューと行・Epic の札に触れて光らせた行・選んでいる Epic の見出し・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
 // - 導入のチェックリストの「アンインストール」の節で、消すものを確かめてから一時リポジトリを外せること（閉じた節・開いた節・確認・外した後の知らせを撮る。
 //   ボードを消すので、ボードの要る検査の後に置く。HOME は一時ディレクトリなので、手元の個人の設定には触れない）
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
@@ -189,6 +189,37 @@ describe("VS Code の実機の左パネル", () => {
     await chip.locator("button").click();
     await chip.waitFor({ state: "detached" });
     await sidebar.locator(".ticket-row", { hasText: TITLES[2] }).waitFor();
+  });
+
+  it("「表示」の並び順で更新日を選んだメニューと、並びの札と行の相対の更新時刻をライトとダークで撮り、札の × で既定に戻す", async () => {
+    await sidebar.locator(".board-head .view-toggle").click();
+    await sidebar.locator(".view-menu-list").waitFor();
+    // 実機の画面は英語なので、更新日は英語の名前（l10n-en.ts の 更新日）で引く。押す前の既定（優先度）も
+    // 選ばれた印を持つので、押した項目そのものが選ばれるまで待つ
+    const updated = sidebar.locator('.view-menu-group [role="menuitemradio"]', {
+      hasText: "Updated",
+    });
+    await updated.click();
+    await expect.poll(() => updated.getAttribute("aria-checked")).toBe("true");
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("sort-menu", theme);
+      await access(shot.sidebar);
+    }
+    await host.page.keyboard.press("Escape");
+    await sidebar.locator(".view-menu-list").waitFor({ state: "detached" });
+
+    const chip = sidebar.locator(".filter-chips .sort-chip");
+    await chip.waitFor();
+    await sidebar.locator(".row-sub .row-updated").first().waitFor();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("sort-updated", theme);
+      await access(shot.sidebar);
+    }
+    await chip.locator("button").click();
+    await chip.waitFor({ state: "detached" });
+    expect(await sidebar.locator(".row-updated").count()).toBe(0);
   });
 
   it("カンバンの Epic の札に触れるとその Epic の行を光らせ、ほかを薄くするところをライトとダークで撮る", async () => {

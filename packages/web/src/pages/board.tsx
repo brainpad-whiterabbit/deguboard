@@ -6,7 +6,9 @@
 // 開いた Epic がなければ列を出さない。開いた Iteration がなければ Epic の列・進みの帯・一覧を出さず、バックログへ案内する（NoOpenIteration）。絞り込みの値はハッシュに持つ。
 // VS Code の左パネルに出し、見出しは Iteration の札・Epic の札・選んでいるものの名前（active は何日目か）・目標（3 行まで）と進みの帯・状態ごとの件数に詰め、詳細は出さない。
 // 担当とラベルの絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、絞っている間は見出しの下に値の札（× で外す）を出す（上の端の帯では Epic の札も出す）。状態の節はペイン風の見出しにする。
-// 漏斗の隣の「表示」ボタン（components/view-menu.tsx）で行にラベルを出すかを切り替える（値は host.state に残し、バックログと同じ値）。
+// 漏斗の隣の「表示」ボタン（components/view-menu.tsx）で行にラベルを出すか（値は host.state に残し、バックログと同じ値）と、
+// 状態の節の中の並び順（カンバンだけの値。components/row-sort.ts）を切り替える。並びが既定と違う間は見出しの下と帯の 2 行目に並びの札（× で既定に戻す）を出し、
+// 更新日で並べている間は行の 2 段目に相対の更新時刻を出す。「表示」のメニューは帯には入れない。
 // 行のタイトルの下のラベルの札（components/row-labels.tsx）を押すと、そのラベルで絞る（もう一度押すと外す）。
 // Epic で絞っている間は、Iteration の見出しの下に選んでいる Epic の見出し（components/epic-head.tsx。× で外す）を出す。
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
@@ -18,7 +20,7 @@
 // 左パネルでは、見出しの進みの帯の行が上へ抜けたら、上の端に 1 行の帯（BoardBand。番号・名前・小さな進みの帯・n/m）を出し、
 // 状態の節の見出しをその下に貼り付ける（components/sticky-band.tsx と styles.css の .sticky-band）。帯と貼り付きは左パネルの形（data-surface が sidebar）だけ。
 // 帯の右端の ▾ は、Iteration・Epic の札の列・担当・ラベルの漏斗・状態ごとの件数を一覧の上に重ねて開き（BoardBandDrop）、上へ戻らずに切り替えられる。
-// Epic・担当・ラベルで絞っている間は、帯の 2 行目に絞り込みの札（× で外す）を出す。
+// Epic・担当・ラベルで絞っているか並びが既定と違う間は、帯の 2 行目に絞り込みと並びの札（× で外す）を出す。
 // 左パネルの行・状態の節の見出し・Iteration の見出しと帯・選んでいる Epic の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // 表示だけで書き込まない。チケットを進める・片付ける・やめる・done を取り消すと、Iteration の作成・閉じるは、吹き出しから
@@ -32,7 +34,15 @@ import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic
 import { EpicFilterHead } from "../components/epic-head.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { RowLabelsContext } from "../components/row-labels.js";
-import { RowViewMenu, useRowView } from "../components/view-menu.js";
+import { RowSortChip, RowViewMenu, useRowView } from "../components/view-menu.js";
+import {
+  BOARD_SORT_KEYS,
+  DEFAULT_ROW_SORT,
+  RowUpdatedContext,
+  rowSortChanged,
+  sortRows,
+  useRowSort,
+} from "../components/row-sort.js";
 import { PlanBand } from "../components/plan-band.js";
 import { scrollPageToTop, StickyBand, useScrolledPast } from "../components/sticky-band.js";
 import { activeDay, IterationGoal, shortPeriod } from "../components/iteration-parts.js";
@@ -55,7 +65,6 @@ import { useStore } from "../store.js";
 import {
   BOARD_STATUSES,
   byNumber,
-  byPriorityThenNumber,
   claimOptions,
   matchesClaim,
   actorLabel,
@@ -159,6 +168,11 @@ export function BoardPage({ query }: { query: BoardQuery }) {
       ...patch,
     });
   const [view, setView] = useRowView();
+  // 並び順（「表示」のメニュー）。並べた一覧を状態ごとに分けるので、節の中だけが並び替わる
+  const [sort, setSort] = useRowSort("board");
+  const sortChip = rowSortChanged(sort) ? (
+    <RowSortChip sort={sort} onReset={() => setSort(DEFAULT_ROW_SORT)} />
+  ) : null;
 
   const scoped = useMemo(
     () => ticketsInSelection(store.tickets, open, selection),
@@ -180,12 +194,14 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   const labels = useMemo(() => labelOptions(scoped, query.label), [scoped, query.label]);
   const tickets = useMemo(
     () =>
-      hideClosedFinished(scoped, store.iterations, store.epics, query.epic)
-        .filter((t) => matchesEpic(t, query.epic ?? ""))
-        .filter((t) => matchesClaim(t, query.assignee ?? ""))
-        .filter((t) => !query.label || t.labels.includes(query.label))
-        .sort(byPriorityThenNumber),
-    [scoped, store.iterations, store.epics, query.epic, query.assignee, query.label],
+      sortRows(
+        hideClosedFinished(scoped, store.iterations, store.epics, query.epic)
+          .filter((t) => matchesEpic(t, query.epic ?? ""))
+          .filter((t) => matchesClaim(t, query.assignee ?? ""))
+          .filter((t) => !query.label || t.labels.includes(query.label)),
+        sort,
+      ),
+    [scoped, store.iterations, store.epics, query.epic, query.assignee, query.label, sort],
   );
   // 漏斗の欄は担当かラベルの候補があるときだけ出す
   const hasFilterFields = claims.length > 0 || labels.length > 0;
@@ -273,6 +289,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                 }
                 assignee={query.assignee}
                 label={query.label}
+                sortChip={sortChip}
                 onClear={setFilter}
               />
             }
@@ -328,7 +345,13 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               }
             : undefined
         }
-        viewMenu={<RowViewMenu view={view} onChange={setView} />}
+        viewMenu={
+          <RowViewMenu
+            view={view}
+            onChange={setView}
+            sort={{ sort, keys: BOARD_SORT_KEYS, onChange: setSort }}
+          />
+        }
       />
       {filtersOpen && hasFilterFields ? (
         <BoardFilterFields
@@ -339,7 +362,12 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           onChange={setFilter}
         />
       ) : null}
-      <FilterChips assignee={query.assignee} label={query.label} onClear={setFilter} />
+      <FilterChips
+        assignee={query.assignee}
+        label={query.label}
+        sortChip={sortChip}
+        onClear={setFilter}
+      />
       {open.length === 0 ? (
         <NoOpenIteration />
       ) : (
@@ -348,27 +376,29 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           <div className="board">
             <EpicHighlight.Provider value={epicHighlight.highlight}>
               <RowLabelsContext.Provider value={rowLabels}>
-                {BOARD_STATUSES.map((status) => (
-                  <Column
-                    key={status}
-                    status={status}
-                    tickets={tickets.filter((t) => t.status === status)}
-                    planMarks={planMarks}
-                    flashing={flash.flashing}
-                    // 完了は既定で畳む（開いた状態は useUiState が保つ）
-                    defaultOpen={status !== "done"}
-                  />
-                ))}
-                {/* 中止は切り替えではなく、あるときだけ最後の節に畳んで置く */}
-                {abandoned.length > 0 ? (
-                  <Column
-                    status="abandoned"
-                    tickets={abandoned}
-                    planMarks={planMarks}
-                    flashing={flash.flashing}
-                    defaultOpen={false}
-                  />
-                ) : null}
+                <RowUpdatedContext.Provider value={sort.key === "updated"}>
+                  {BOARD_STATUSES.map((status) => (
+                    <Column
+                      key={status}
+                      status={status}
+                      tickets={tickets.filter((t) => t.status === status)}
+                      planMarks={planMarks}
+                      flashing={flash.flashing}
+                      // 完了は既定で畳む（開いた状態は useUiState が保つ）
+                      defaultOpen={status !== "done"}
+                    />
+                  ))}
+                  {/* 中止は切り替えではなく、あるときだけ最後の節に畳んで置く */}
+                  {abandoned.length > 0 ? (
+                    <Column
+                      status="abandoned"
+                      tickets={abandoned}
+                      planMarks={planMarks}
+                      flashing={flash.flashing}
+                      defaultOpen={false}
+                    />
+                  ) : null}
+                </RowUpdatedContext.Provider>
               </RowLabelsContext.Provider>
             </EpicHighlight.Provider>
           </div>
@@ -522,7 +552,7 @@ function BoardHead({
  * 帯は見出しと同じく選んでいる Iteration を頼む場所にする（「すべて」のときは出さない）。
  * 右端の ▾（open・onToggle）は札の列（drop）を帯の下に重ねて開閉し、aria-expanded で開閉を示す。開いている間は一覧をスクロールしても閉じず、
  * 帯の外を押すか Esc で閉じる（Esc は ▾ へフォーカスを戻す。頼む一覧などが先に Esc を使ったら閉じない）。
- * filters は絞っている間だけ帯の 2 行目に出す絞り込みの札（FilterChips。絞っていなければ何も描かない）
+ * filters は絞っているか並びが既定と違う間だけ帯の 2 行目に出す絞り込みと並びの札（FilterChips。どちらもなければ何も描かない）
  */
 function BoardBand({
   selection,
@@ -889,7 +919,8 @@ function epicFilterLabel(
 }
 
 /**
- * 左パネルのカンバンで絞っている値の札（例「e4 Webview ×」「担当 eiki/agent ×」「ラベル web ×」）。× で外す。絞っていなければ何も出さない。
+ * 左パネルのカンバンで絞っている値の札（例「e4 Webview ×」「担当 eiki/agent ×」「ラベル web ×」）と、並びが既定と違う間の並びの札（「並び 更新日 ↓ ×」）。
+ * × で外す（並びは既定に戻す）。絞っておらず並びも既定なら何も出さない。
  * 見出しの下では担当とラベルだけを出し（Epic の絞り込みは、選んでいる Epic の見出し EpicFilterHead が × を持つ）、
  * 上の端の帯の 2 行目では Epic（epic）も出す（見出しが流れても、絞っていることに気づけて上へ戻らずに外せる）
  */
@@ -898,6 +929,7 @@ function FilterChips({
   epic,
   assignee,
   label,
+  sortChip,
   onClear,
 }: {
   className?: string;
@@ -905,9 +937,11 @@ function FilterChips({
   epic?: ReturnType<typeof epicFilterLabel> | undefined;
   assignee: string | undefined;
   label: string | undefined;
+  /** 並びが既定と違う間の並びの札（RowSortChip）。既定なら null */
+  sortChip: ReactNode;
   onClear: (patch: Partial<BoardQuery>) => void;
 }) {
-  if (!assignee && !epic && !label) return null;
+  if (!assignee && !epic && !label && !sortChip) return null;
   const who = assignee === NO_CLAIM ? tr("なし") : assignee ? actorLabel(assignee) : "";
   return (
     <div className={`filter-chips${className ? ` ${className}` : ""}`}>
@@ -947,6 +981,7 @@ function FilterChips({
           </button>
         </span>
       ) : null}
+      {sortChip}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { HostProvider, type Host } from "../host.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
+import { BACKLOG_SORT_KEYS, DEFAULT_ROW_SORT, useRowSort } from "./row-sort.js";
 import {
   DEFAULT_ROW_VIEW,
   ROW_VIEW_KEY,
@@ -83,6 +84,50 @@ describe("「表示」ボタンとメニュー", () => {
     fireEvent.keyDown(item, { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
     expect(document.activeElement).toBe(changed);
+  });
+
+  it("並び順を渡すと、基準を ↑↓ で移れる項目に並べ、選んでいる基準に ✓ と向きを出す。「既定に戻す」はラベルの表示と並び順をどちらも既定にし、フォーカスを最初の項目へ移す", () => {
+    const host = hostOf();
+    host.state.set(ROW_VIEW_KEY, { labels: false });
+    function SortMenu() {
+      const [view, setView] = useRowView();
+      const [sort, setSort] = useRowSort("backlog");
+      return (
+        <RowViewMenu
+          view={view}
+          onChange={setView}
+          sort={{ sort, keys: BACKLOG_SORT_KEYS, onChange: setSort }}
+        />
+      );
+    }
+    render(
+      <HostProvider host={host}>
+        <SortMenu />
+      </HostProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "表示（既定と違う）" }));
+    const group = screen.getByRole("group", { name: "並び順" });
+    const priority = within(group).getByRole("menuitemradio", { name: "優先度 ↓" });
+    expect(priority.getAttribute("aria-checked")).toBe("true");
+    expect(priority.textContent).toBe("✓優先度↓");
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(priority);
+
+    fireEvent.click(within(group).getByRole("menuitemradio", { name: "番号" }));
+    expect(host.state.get("backlog.sort")).toEqual({ key: "number", dir: "asc" });
+    expect(
+      within(group).getByRole("menuitemradio", { name: "番号 ↑" }).getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(priority.getAttribute("aria-checked")).toBe("false");
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "既定に戻す" }));
+    expect(host.state.get(ROW_VIEW_KEY)).toEqual({ labels: true });
+    expect(host.state.get("backlog.sort")).toEqual(DEFAULT_ROW_SORT);
+    expect(screen.queryByRole("menuitem", { name: "既定に戻す" })).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole("menuitemcheckbox", { name: "ラベルを出す" }),
+    );
+    expect(screen.getByRole("button", { name: "表示" }).classList.contains("active")).toBe(false);
   });
 
   it("メニューの外を押すと閉じ、残した値で開き直す", () => {
