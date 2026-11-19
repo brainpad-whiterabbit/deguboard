@@ -1,0 +1,83 @@
+id: p174
+tickets: [t1180, t1181, t1179, t1191, t1192, t1193, t1182, t1183, t1190, t1194, t1185, t1188, t1176, t1184, t1186, t1187, t1189]
+after:
+  t1182:
+    - t1180
+  t1187:
+    - t1183
+  t1190:
+    - t1193
+  t1176:
+    - t1181
+  t1188:
+    - t1179
+pending_approval: true
+details:
+  t1180:
+    scope: Epic の labels をやめた項目にし、epic create/update の --label を外す。チケットのラベルは変えない
+    approach: RETIRED_PROJECT_KEYS と同じやめた項目の仕組みに Epic の labels を足す
+    tier: standard
+  t1181:
+    scope: config.yaml の labels.axes、dg label axis set/remove/list --candidates、軸の候補、設定画面の読みの表示、要件 5.10 と新しい ADR。語彙は含めない
+    approach: retro.perspectives と同じく入れ子の値を専用のコマンドで書き、候補は retro-recommended.ts のように Core のデータで持つ
+    tier: heavy
+  t1179:
+    scope: test/layout の ask-menu と sidebar のテストを、青い点のおすすめと 3 つまでの候補に合わせる
+    approach: t1161 の今の画面に合わせて期待を直し、mise run test:layout を通す
+    tier: standard
+  t1191:
+    scope: check:pre-review に check:docs を入れ、mise.toml と CLAUDE.md の説明を合わせる
+    approach: mise.toml のタスクの depends に check:docs を足し、説明を actions.light_paths で書く
+    tier: standard
+  t1192:
+    scope: mergeable が UNKNOWN の間、gate と pr merge が上限つきで待って読み直す
+    approach: 待ちと読み直しの組み合わせを純粋な関数に置き、gate.ts と pr.ts はそれを呼ぶだけにする
+    tier: standard
+  t1193:
+    scope: guide-notes の review.md の 2 本と plan.md の 800 行の規則を外し、500 行の規則は残す
+    approach: 規則と Basis の行を消し、guide の snapshot を更新する
+    tier: standard
+  t1182:
+    scope: labels.yaml のスキーマとマージドライバの行、dg label list、要件 5.1。書く操作は t1194
+    approach: Plan・Iteration と同じ素の YAML としてマージドライバの対象に足し、ストアの読み込みに labels.yaml を加える
+    tier: heavy
+  t1183:
+    scope: guide check に軸を決めていないボードへの一度だけの勧め、guide config に聞かれたときの勧めを書く
+    approach: guide-retro の定義のない観点への提案と同じ形で、点検の表に 1 行加える手順を書く
+    tier: standard
+  t1190:
+    scope: guide-notes に、画面と Workflow の既定値を変える PR で ready の前に test:layout と test:vscode を回す規則を足す
+    approach: guide-notes の書き方（規則 1〜2 文と Basis の 1 行）に合わせて足す
+    tier: standard
+  t1194:
+    scope: dg label add/update/remove、governance.labels、axis remove が語彙の残る軸を拒むこと、要件 5.8・WF-7、usage の節
+    approach: core のコマンド定義に置き、判定は git を読まない関数でテストし、governance は既存の項目と同じ判定の経路に乗せる
+    tier: heavy
+  t1185:
+    scope: lint にラベルと語彙のずれの指摘を足す。判定は純粋な関数
+    approach: setup.ts の lint の判定に、語彙とチケットから事実を出す純粋な関数を足す
+    tier: standard
+  t1188:
+    scope: 行のラベルの軸ごとの色、手順のラベルの見せ方、属性の欄と絞り込みの語彙の候補、要件 UI-2・UI-3
+    approach: RowLabels に軸の色と手順のラベルの見た目を足し、語彙は core の CommandClient から読む
+    tier: standard
+  t1176:
+    scope: ADR-029・ADR-003・ADR-025 の細部を正本へ移し、ADR-011 と ADR-030 をまとめるかを決める。判断は変えない
+    approach: 判断を変えずに細部をヘルプ・コード・テストへ移し、ADR-011 と ADR-030 の扱いは人に選んでもらう
+    tier: heavy
+  t1184:
+    scope: guide import と guide change に語彙からの選び方と新規の示し方を書く
+    approach: guide-import.md と guide-change.md の手順に、選ぶ順と承認の表の書き方を足す
+    tier: standard
+  t1186:
+    scope: dg label merge でチケットを 1 コミットで書き換え、統合の記録と連鎖の付け替えを行う
+    approach: withWrite の 1 回の書き込みで全チケットを書き換え、updated_at は metrics.ts の前例どおり進めない
+    tier: heavy
+  t1187:
+    scope: 統合済みの名前の書くときの置き換えと絞り込みの読み替え、guide check の統合の勧め
+    approach: 書く値の正規化をコマンド定義の入口で 1 か所にし、filters.ts の入力も同じ関数で読み替える
+    tier: standard
+  t1189:
+    scope: このボードの軸を area・kind・impact にし、今あるラベルを語彙にまとめる。PR の要らないデータの作業
+    approach: dgcheck で軸を勧められたら 3 軸を選び、dg label merge と ticket update で語彙にまとめる
+    tier: light
