@@ -194,13 +194,13 @@ describe("VS Code の実機の左パネル", () => {
   it("「表示」の並び順で更新日を選んだメニューと、並びの札と行の相対の更新時刻をライトとダークで撮り、札の × で既定に戻す", async () => {
     await sidebar.locator(".board-head .view-toggle").click();
     await sidebar.locator(".view-menu-list").waitFor();
-    // 実機の画面は英語なので、名前でなく並び（優先度・番号・更新日）の 3 つ目で選ぶ
-    const updated = sidebar.locator('.view-menu-group [role="menuitemradio"]').nth(2);
+    // 実機の画面は英語なので、更新日は英語の名前（l10n-en.ts の 更新日）で引く。押す前の既定（優先度）も
+    // 選ばれた印を持つので、押した項目そのものが選ばれるまで待つ
+    const updated = sidebar.locator('.view-menu-group [role="menuitemradio"]', {
+      hasText: "Updated",
+    });
     await updated.click();
-    await sidebar
-      .locator('.view-menu-group [role="menuitemradio"][aria-checked="true"]', { hasText: "↓" })
-      .waitFor();
-    expect(await updated.getAttribute("aria-checked")).toBe("true");
+    await expect.poll(() => updated.getAttribute("aria-checked")).toBe("true");
     for (const theme of ["dark", "light"] as const) {
       await host.setTheme(theme);
       const shot = await host.screenshot("sort-menu", theme);
