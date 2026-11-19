@@ -1167,6 +1167,12 @@ describe("設定画面", () => {
       ]);
       expect(composer.querySelector(".ask-skill")?.textContent).toBe("/dgconfig");
     });
+    // 候補は 1 つ（おすすめ）なので、行に残りを開く「ほか N ▾」を出さない
+    expect(
+      within(within(composer).getByRole("group", { name: "頼むこと" }))
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["設定を説明・変更する"]);
     fireEvent.click(within(composer).getByRole("button", { name: "全文を見る" }));
     await waitFor(() =>
       expect(within(composer).getByLabelText("全文", { selector: "pre" }).textContent).toBe(

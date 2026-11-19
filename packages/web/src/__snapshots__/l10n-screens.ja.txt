@@ -1409,7 +1409,8 @@ Todo
 Iteration の見出し s1
 [title] /dgplan: チケットを進める順を決めて Plan に記録し、人の承認を得ます。
 計画を立てる
-おすすめ
+[title] おすすめ
+[aria-label] おすすめ
 [title] /dgall: Iteration かチケットを、割り当てからリリース（か片付け）まで段階ごとに続けて進めます。
 最後まで進める
 [title] /dgrelease: Iteration のチケットがすべて done かを確かめ、リリースの手順で進めて Iteration を閉じます。
@@ -1578,29 +1579,12 @@ s1
 [aria-label] 閉じる
 [aria-label] 頼むこと
 [title] /dgplan: チケットを進める順を決めて Plan に記録し、人の承認を得ます。
+[title] おすすめ
 [aria-label] おすすめ
-★
 計画を立てる
-[title] /dgall: Iteration かチケットを、割り当てからリリース（か片付け）まで段階ごとに続けて進めます。
-最後まで進める
-[title] /dgrelease: Iteration のチケットがすべて done かを確かめ、リリースの手順で進めて Iteration を閉じます。
-リリースする
-[title] /dgimport: 会話で検討した内容や計画・設計書を、承認を得てからチケットに分けて起票します。
-起票して s1 に入れる
-[title] /dgassign: チケットを Iteration（スプリント）と Epic に割り当てます。
-チケットを足す・外す
-[title] /dgchange: 人が頼んだ直す・閉じる・再開・やめる・done の取り消しを、前提を確かめてから dg の 1 回の呼び出しで行います。
-名前・目標を変える
-[title] /dgdiscuss: チケット・Epic・Iteration の論点を人と選択肢で決め、前後の差の承認を得てから反映します。
-検討する
-[title] /dgchange: 人が頼んだ直す・閉じる・再開・やめる・done の取り消しを、前提を確かめてから dg の 1 回の呼び出しで行います。
-閉じる
-[title] /dgcheck: チケット・Epic・Iteration・Plan を点検し、直す案を示して承認を得てから直します。
-点検する
-[title] /dgexplain: チケット・Epic・Iteration の中身を、要約・文字の図・具体例・用語の言い換えで、データもファイルも書き換えずに説明します。
-説明する
-[title] Skill を使わない
-自由に
+[title] ほかの頼むことを選ぶ
+ほか 10
+▾
 [title] チケットを進める順を決めて Plan に記録し、人の承認を得ます。
 /dgplan
 s1 を進める Plan を立て、承認を待ちます。

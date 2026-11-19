@@ -7,7 +7,14 @@ import type { WebviewClient } from "../client/webview.js";
 import { ASK_NOTE_KEY, ASK_OPEN_KEY, HostBridge, HostProvider, type Host } from "../host.js";
 import type { Route } from "../router.js";
 import { StoreProvider } from "../store.js";
-import { fixture, iteration, mockClient, ticket, type MockClient } from "../test-helpers.js";
+import {
+  fixture,
+  iteration,
+  markedText,
+  mockClient,
+  ticket,
+  type MockClient,
+} from "../test-helpers.js";
 import { setLanguage } from "../l10n.js";
 import { createUiState, memoryBackend, type UiState } from "../ui-state.js";
 import { ASK_DONE_MS, ASK_FORMAT_KEY } from "./ask-composer.js";
@@ -182,17 +189,41 @@ function gateAsk(client: MockClient) {
 const composer = () => screen.getByRole("region", { name: "エージェントに頼む" });
 const suggestions = () =>
   within(within(composer()).getByRole("group", { name: "頼むこと" })).getAllByRole("button");
+const noteBox = () => within(composer()).getByRole("textbox", { name: "指示" });
+/** 行の「ほか N ▾」のボタン。表示言語によらず引けるよう、名前でなく class で探す */
+const otherButton = () => {
+  const button = document.querySelector<HTMLElement>(".ask-composer .ask-more");
+  if (!button) throw new Error("「ほか N」のボタンがない");
+  return button;
+};
+const otherMenu = () =>
+  within(document.querySelector<HTMLElement>(".ask-composer")!).getByRole("menu");
+const otherItems = () =>
+  within(otherMenu())
+    .getAllByRole("menuitem")
+    .map((b) => markedText(b));
+/** 「ほか N ▾」の一覧を開いて、名前の候補を選ぶ（選ぶとその依頼文をコピーする） */
+async function pickOther(name: string | RegExp) {
+  fireEvent.click(await waitFor(() => otherButton()));
+  fireEvent.click(within(otherMenu()).getByRole("menuitem", { name }));
+}
 
 describe("エージェントに頼む入力欄（UI-15）", () => {
-  it("タイトル行・コマンドパレットの ask の event で、対象なしの入力欄を開き、流れの順に Skill を持つ頼むことをすべて出す（先頭は起票）", async () => {
+  it("タイトル行・コマンドパレットの ask の event で、対象なしの入力欄を開き、行におすすめ（起票）と「ほか N」を出し、一覧に残りを流れの順に出す", async () => {
     const view = mountWebview(askClient());
     await screen.findByText("見直す");
     expect(screen.queryByRole("region", { name: "エージェントに頼む" })).toBeNull();
     view.ask([]);
     await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
-    const labels = suggestions().map((b) => b.textContent);
-    expect(labels).toEqual([
-      "★起票する",
+    // 行はおすすめ（青い点）と、残りを開く「ほか N ▾」だけ
+    expect(suggestions().map((b) => markedText(b))).toEqual(["おすすめ起票する", "ほか 18 ▾"]);
+    // おすすめ（先頭）を選んだ状態で始まり、欄の頭に Skill の札を出す。対象の札はない
+    expect(suggestions()[0]!.getAttribute("aria-pressed")).toBe("true");
+    expect(within(composer()).getByText("/dgimport")).toBeTruthy();
+    expect(within(composer()).queryByRole("button", { name: /を外す$/ })).toBeNull();
+    expect(document.activeElement).toBe(noteBox());
+    fireEvent.click(otherButton());
+    expect(otherItems()).toEqual([
       "Iteration を作る",
       "Epic を作る",
       "割り当てる",
@@ -212,11 +243,53 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       "設定を説明・変更する",
       "自由に",
     ]);
-    // おすすめ（先頭）を選んだ状態で始まり、欄の頭に Skill の札を出す。対象の札はない
-    expect(suggestions()[0]!.getAttribute("aria-pressed")).toBe("true");
-    expect(within(composer()).getByText("/dgimport")).toBeTruthy();
-    expect(within(composer()).queryByRole("button", { name: /を外す$/ })).toBeNull();
-    expect(document.activeElement).toBe(within(composer()).getByRole("textbox", { name: "指示" }));
+  });
+
+  it("「ほか N ▾」の一覧はキーで選べ、Esc は一覧だけを閉じてボタンに戻り、選ぶとその候補が行に出て依頼文をコピーする", async () => {
+    const view = mountWebview(askClient());
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    await waitFor(() => expect(markedText(suggestions()[0])).toBe("おすすめ確かめて片付ける"));
+    const more = otherButton();
+    const restCount = Number(/\d+/.exec(more.textContent!)![0]);
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+
+    // 開くと先頭の項目にフォーカスを置き、↑↓・End で動く
+    fireEvent.click(more);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    const items = within(otherMenu()).getAllByRole("menuitem");
+    expect(items).toHaveLength(restCount);
+    expect(document.activeElement).toBe(items[0]);
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[1]);
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowUp" });
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(items.at(-1));
+
+    // Esc は一覧だけを閉じ、小窓は開いたまま「ほか N」に戻る
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(within(composer()).queryByRole("menu")).toBeNull();
+    expect(composer()).toBeTruthy();
+    expect(document.activeElement).toBe(otherButton());
+    expect(otherButton().getAttribute("aria-expanded")).toBe("false");
+
+    // 一覧の中を押しても小窓は閉じない。選ぶと行のおすすめの次に出て押された状態になり、その依頼文をコピーする
+    fireEvent.click(otherButton());
+    const target = within(otherMenu()).getByRole("menuitem", { name: "変える" });
+    fireEvent.pointerDown(target);
+    fireEvent.click(target);
+    await waitFor(() => expect(view.copied.at(-1)).toMatch(/^\/dgchange t5/));
+    expect(within(composer()).queryByRole("menu")).toBeNull();
+    expect(suggestions().map((b) => markedText(b))).toEqual([
+      "おすすめ確かめて片付ける",
+      "変える",
+      `ほか ${restCount - 1} ▾`,
+    ]);
+    expect(suggestions()[1]!.getAttribute("aria-pressed")).toBe("true");
+    // 一覧には行に出ている候補を出さない
+    fireEvent.click(otherButton());
+    expect(otherItems()).not.toContain("変える");
+    expect(otherItems()).not.toContain("おすすめ確かめて片付ける");
   });
 
   it.each([
@@ -230,7 +303,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       await screen.findByText("見直す");
       view.ask([]);
       // 候補の名前は core が英語で返し、画面が表示言語に訳す（CORE_LABELS）
-      fireEvent.click(await screen.findByRole("button", { name: label }));
+      await pickOther(label);
       fireEvent.click(screen.getByRole("button", { name: showFull }));
       await waitFor(() => expect(screen.getByLabelText(fullText).textContent).toBe("/dgconfig"));
     },
@@ -242,7 +315,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     await screen.findByText("見直す");
     view.ask(["t5", "s1"]);
     // 種類の混ざった対象は点検するがおすすめ
-    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★点検する"));
+    await waitFor(() => expect(markedText(suggestions()[0])).toBe("おすすめ点検する"));
     const box = within(composer());
     expect(box.getByText("/dgcheck")).toBeTruthy();
     expect(box.getByRole("button", { name: "t5 を外す" })).toBeTruthy();
@@ -252,7 +325,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
 
     fireEvent.click(box.getByRole("button", { name: "s1 を外す" }));
     // review のチケット 1 件になり、おすすめは片付けるに替わる。1 行目からも s1 が消える
-    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★確かめて片付ける"));
+    await waitFor(() => expect(markedText(suggestions()[0])).toBe("おすすめ確かめて片付ける"));
     expect(box.queryByRole("button", { name: "s1 を外す" })).toBeNull();
     await waitFor(() => expect(box.getByLabelText("全文").textContent).toBe("/dgdone t5"));
     expect(box.getByLabelText("全文").textContent).not.toContain("対象:");
@@ -276,7 +349,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
   });
 
   it.each([
-    ["ja", "★点検する"],
+    ["ja", "点検する"],
     ["en", "Check"],
   ] as const)(
     "Skill の札と候補のボタンのツールチップに、Skill の 1 文が出る（表示言語 %s で変わる）",
@@ -302,7 +375,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     const view = mountWebview(client);
     await screen.findByText("見直す");
     view.ask(["t5", "s1"]);
-    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★点検する"));
+    await waitFor(() => expect(markedText(suggestions()[0])).toBe("おすすめ点検する"));
     const box = within(composer());
     const meaning = () => composer().querySelector(".ask-meaning-text")?.textContent;
     expect(meaning()).toBe("t5・s1 を点検し、直す案を表で示します。");
@@ -319,7 +392,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
         "t5 の PR のマージを照合し、残った受け入れ条件を確かめて、Status を done にします。",
       ),
     );
-    fireEvent.click(box.getByRole("button", { name: "自由に" }));
+    await pickOther("自由に");
     await waitFor(() => expect(meaning()).toContain("Skill は使わず"));
   });
 
@@ -402,7 +475,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     const view = mountWebview(client);
     await screen.findByText("見直す");
     view.ask(["t5"]);
-    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★確かめて片付ける"));
+    await waitFor(() => expect(markedText(suggestions()[0])).toBe("おすすめ確かめて片付ける"));
     const box = within(composer());
     fireEvent.click(box.getByRole("button", { name: "コピー" }));
     await waitFor(() => expect(view.copied).toHaveLength(1));
@@ -411,7 +484,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     await waitFor(() => expect(box.getByRole("status").textContent).toContain("コピーしました"));
 
     // 頼むことを選び直すと知らせを消し、⌘↵ でも（待たずに）今の指示まで入れてコピーする
-    fireEvent.click(suggestions().find((b) => b.textContent === "変える")!);
+    await pickOther("変える");
     expect(box.getByRole("status").textContent).toBe("");
     // 選び直しでもコピーする（t340）
     await waitFor(() => expect(view.copied).toHaveLength(2));
@@ -531,7 +604,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     const view = mountWebview(client);
     await screen.findByText("見直す");
     view.ask(["t5"]);
-    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★確かめて片付ける"));
+    await waitFor(() => expect(markedText(suggestions()[0])).toBe("おすすめ確かめて片付ける"));
     const box = within(composer());
     // 形式の隣に、全文・形式と同じアイコンのボタンで出る
     const foot = box.getByRole("button", { name: "形式：Skill" }).parentElement!;
@@ -717,7 +790,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
   it("開いていることと対象は見た目の状態に残り、描き直しても（拡張が data-ask で渡したときも）その入力欄を出す", async () => {
     const state = createUiState(memoryBackend({ [ASK_OPEN_KEY]: { targets: ["t5"] } }));
     mountWebview(askClient(), { state });
-    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★確かめて片付ける"));
+    await waitFor(() => expect(markedText(suggestions()[0])).toBe("おすすめ確かめて片付ける"));
     expect(within(composer()).getByRole("button", { name: "t5 を外す" })).toBeTruthy();
   });
 
@@ -791,16 +864,23 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     view.ask(["t5", "s1"]);
     await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
     const box = within(composer());
-    const picks = suggestions();
     gate.hold();
-    for (const b of picks) fireEvent.click(b);
+    // 行のおすすめと、「ほか N」の一覧の先頭を 2 回（選んだ候補は行に移るので、2 回目は別の候補）選ぶ
+    fireEvent.click(suggestions()[0]!);
+    const picks = [];
+    for (let n = 0; n < 2; n++) {
+      fireEvent.click(otherButton());
+      const first = within(otherMenu()).getAllByRole("menuitem")[0]!;
+      picks.push(first.textContent);
+      fireEvent.click(first);
+    }
+    expect(new Set(picks).size).toBe(2);
     fireEvent.click(box.getByRole("button", { name: "t5 を外す" }));
     fireEvent.click(box.getByRole("button", { name: "形式：Skill" }));
     fireEvent.change(box.getByRole("textbox", { name: "指示" }), { target: { value: "x" } });
     fireEvent.click(box.getByRole("button", { name: "コピー" }));
     // 続けて押したコピーは最後の 1 回だけ書き込む（t340）。ask の応答を止めて押し、新しい方から先に解決する
     // （古い方が後から返っても書き込まないことを、待ち時間でなく解決の順で確かめる）
-    expect(picks.length).toBeGreaterThan(1);
     expect(gate.count()).toBeGreaterThan(1);
     expect(view.copied).toHaveLength(0);
     await gate.release("reverse");
@@ -880,7 +960,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       await waitFor(() => expect(state.get("history.opened")).toEqual([]));
       await waitFor(() => expect(screen.queryByText("済んだ")).toBeNull());
       await view.askCurrent();
-      await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★起票する"));
+      await waitFor(() => expect(markedText(suggestions()[0])).toBe("おすすめ起票する"));
       expect(chips()).toEqual([]);
     });
 
@@ -893,7 +973,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       const view = mountWebview(targetClient());
       await waitFor(() => expect(screen.queryByText("読み込み中…")).toBeNull());
       await view.askCurrent();
-      await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★起票する"));
+      await waitFor(() => expect(markedText(suggestions()[0])).toBe("おすすめ起票する"));
       expect(chips()).toEqual([]);
     });
   });
@@ -966,7 +1046,7 @@ describe("小窓の見出しの行・札・下の段のボタン・コピーの�
     const view = mountWebview(askClient());
     await screen.findByText("見直す");
     view.ask(["t5"]);
-    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★確かめて片付ける"));
+    await waitFor(() => expect(markedText(suggestions()[0])).toBe("おすすめ確かめて片付ける"));
     const meaning = composer().querySelector(".ask-meaning")!;
     expect(meaning.firstElementChild?.className).toBe("ask-skill");
     expect(meaning.firstElementChild?.textContent).toBe("/dgdone");

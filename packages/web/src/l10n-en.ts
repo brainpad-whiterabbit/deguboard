@@ -29,6 +29,8 @@ export const EN: Readonly<Record<string, string>> = {
   頼むこと: "Request",
   "Skill を使わない": "No Skill",
   おすすめ: "Recommended",
+  ほかの頼むことを選ぶ: "Choose another request",
+  ほかの頼むこと: "Other requests",
   "閉じる（Esc）": "Close (Esc)",
   "{0} を外す": "Remove {0}",
   指示: "Instructions",
