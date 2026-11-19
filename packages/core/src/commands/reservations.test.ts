@@ -1,10 +1,12 @@
 // 進め始める Plan とチケットの予約を読み書きする経路の代表（PL-7。t1149）。予約が効くか・拒むかの組み合わせ（SessionEnd・30 分・
 // 主体・セッション・--take-over・操作）は claim-judge.test.ts が git なしで見る。ここは、--reserve を付けた呼び出しだけが予約を
 // deguboard-local に書いて Git には書かないこと、別のセッションの claim が拒まれて dg next が進める手を返さないこと、
-// --take-over・unclaim・plan close が予約を移す・消すことを、コマンドを通して確かめる
+// --take-over・unclaim・plan close が予約を移す・消すことを、コマンドを通して確かめる。予約せずに claim したセッションの予約
+// （push の前に書く・取れなかった claim で戻す。t1158）は、リモート付きの雛形で push の拒否を起こして確かめる
 
 import { afterEach, describe, expect, it } from "vitest";
 import { git } from "../../test/helpers/git-fixture.js";
+import { lockHeld } from "../git/lock.js";
 import { toIsoDateTime } from "../model/common.js";
 import type { CommandContext } from "./define.js";
 import { runCommand } from "./define.js";
@@ -12,9 +14,11 @@ import { recordHookSession } from "./hook-records.js";
 import { next } from "./next.js";
 import { planApprove, planClose, planCreate, planShow } from "./plan.js";
 import { readReservation } from "./reservations.js";
-import { ticketClaim, ticketCreate, ticketUnclaim } from "./ticket.js";
+import { sync } from "./setup.js";
+import { ticketClaim, ticketCreate, ticketUnclaim, ticketUpdate } from "./ticket.js";
 import {
   agentWithRuns,
+  initializedBothFixture,
   initializedLocalFixture,
   reopenInitialized,
   runCleanups,
@@ -231,5 +235,101 @@ describe("進め始める Plan とチケットの予約（PL-7）", () => {
     const waits = both.map((r) => r.data.kind === "wait_session");
     expect(waits.filter(Boolean)).toHaveLength(1);
     expect(await reservedBy("t3")).toBe(waits[0] ? "sess-b" : "sess-a");
+  });
+
+  it("予約せずに claim した agent のセッションも、push の前にロックの中でチケットを予約し、push の間はロックを持たない：push の間の別のセッションの next --reserve は待たされずに wait_session を受け取る。push が拒まれて取り込み直しの途中やその後の判定で止まった claim は、書いた予約を消すか、--take-over で越えた前の予約に戻す（t1158）", async () => {
+    const f = await initializedBothFixture();
+    const start = new Date("2026-11-06T00:00:00Z");
+    let clock = start;
+    const at = (minutes: number) => {
+      clock = new Date(start.getTime() + minutes * 60_000);
+      return toIsoDateTime(clock);
+    };
+    const human = await reopenInitialized(f, { now: () => clock });
+    for (const title of ["Claimed", "Conflicting", "Lost"])
+      await runCommand(ticketCreate, human, { title });
+    const a = await inSession(f.cloneA, "sess-a", () => clock);
+    const b = await inSession(f.cloneA, "sess-b", () => clock);
+    // 別のマシン（clone B）の別のユーザ。push の直前にリモートを進めて、clone A の push を拒ませる
+    const taro = await reopenInitialized(f, {
+      cwd: f.cloneB,
+      actor: { kind: "human", user: "taro" },
+      now: () => clock,
+    });
+    await runCommand(sync, taro, {});
+    const local = a.repo.localDir;
+
+    // 取れる claim：push の直前には、呼んだセッションの予約がもう書かれていて、予約のロックは放されている。
+    // 別のセッションの next --reserve は、ロックを待たずに予約を見て、進める手を受け取らない
+    const claimedAt = at(0);
+    let pushes = 0;
+    a.hooks = {
+      beforePush: async () => {
+        a.hooks = undefined;
+        pushes += 1;
+        expect(await readReservation(local, "t1")).toEqual({
+          session: "sess-a",
+          claimed_at: claimedAt,
+        });
+        expect(await lockHeld(local, "reservations")).toBe(false);
+        const held = await runCommand(next, await fresh(b), { ticket: "t1", reserve: true });
+        expect(held.data.kind).toBe("wait_session");
+        expect(held.data.commands[0]).toContain("session sess-a (it reserved t1");
+      },
+    };
+    const claimed = await runCommand(ticketClaim, await fresh(a), claimOf("t1"));
+    expect(pushes).toBe(1);
+    expect(claimed.write).toMatchObject({ pushed: true, attempts: 1 });
+    expect(await readReservation(local, "t1")).toEqual({
+      session: "sess-a",
+      claimed_at: claimedAt,
+    });
+
+    // 取り込み直した後の判定で止まる claim：sess-b の予約を --take-over で越えて予約を移した後、push の直前に別のユーザが
+    // 先に claim する。push は拒まれ、やり直した後の判定が CLAIM_LOST で止める。予約は sess-b が書いた記録に戻る
+    await runCommand(sync, taro, {});
+    const reservedAt = at(1);
+    await runCommand(next, await fresh(b), { ticket: "t3", reserve: true });
+    const before = await readReservation(local, "t3");
+    expect(before).toEqual({ session: "sess-b", claimed_at: reservedAt });
+    const movedAt = at(2);
+    a.hooks = {
+      beforePush: async () => {
+        a.hooks = undefined;
+        pushes += 1;
+        expect(await readReservation(local, "t3")).toEqual({
+          session: "sess-a",
+          claimed_at: movedAt,
+        });
+        await runCommand(ticketClaim, taro, { no_worktree: true, ticket: "t3", branch: "taro" });
+      },
+    };
+    await expect(
+      runCommand(ticketClaim, await fresh(a), { ...claimOf("t3"), take_over: true }),
+    ).rejects.toMatchObject({ code: "CLAIM_LOST" });
+    expect(pushes).toBe(2);
+    expect(await readReservation(local, "t3")).toEqual(before);
+
+    // 取り込み直しの途中で止まる claim：手元のまとめ待ちの変更（t2 の題）と競合する変更を、push の直前に別のマシンが送る。
+    // push は拒まれ、取り込み直しが競合で止まる。push の前に書いた予約は消える
+    await runCommand(ticketUpdate, await fresh(human), { ticket: "t2", title: "Local title" });
+    const conflictedAt = at(3);
+    a.hooks = {
+      beforePush: async () => {
+        a.hooks = undefined;
+        pushes += 1;
+        expect(await readReservation(local, "t2")).toEqual({
+          session: "sess-a",
+          claimed_at: conflictedAt,
+        });
+        await runCommand(ticketUpdate, taro, { ticket: "t2", title: "Remote title" });
+        await runCommand(sync, taro, {});
+      },
+    };
+    await expect(runCommand(ticketClaim, await fresh(a), claimOf("t2"))).rejects.toMatchObject({
+      code: "SYNC_CONFLICT",
+    });
+    expect(pushes).toBe(3);
+    expect(await readReservation(local, "t2")).toBeUndefined();
   });
 });

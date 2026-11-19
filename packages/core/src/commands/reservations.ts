@@ -4,7 +4,8 @@
 // 別のセッションの agent の claim と `dg next` を止める。見るだけの呼び出し（--reserve なし）は予約を作らない。
 // 記録の形と置き方（このマシンだけ・Git に入れない）は claim の記録と同じで、効くか・拒むかも同じ関数
 // （claim-judge.ts の sessionClaimHolds・decideSessionClaim）が決める。ここは記録とフックの時刻を読み書きするだけ。
-// 予約の読む・決める・書くは deguboard-local/locks/reservations のロックで直列にする
+// 予約の読む・決める・書くは deguboard-local/locks/reservations のロックで直列にする。
+// 予約せずに claim した agent のセッションにも、claim が push の前にチケットの予約を書く（reserveForClaim。t1158）
 
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -13,12 +14,15 @@ import { UsageError } from "../errors.js";
 import { withLock } from "../git/lock.js";
 import {
   claimRejectionError,
+  decideClaimReservation,
+  decideReservationRollback,
   decideSessionClaim,
   holdingReservation,
   type ClaimRejection,
   type ReservationCandidate,
   type SessionClaim,
   type SessionClaimDecision,
+  type SessionClaimFacts,
   type SessionOperation,
 } from "./claim-judge.js";
 import {
@@ -84,12 +88,21 @@ const idOf = (subject: Subject): string => ("plan" in subject ? subject.plan.id 
  * チケットに効きうる予約は優先の順（チケット自身、それを含む開いた Plan）に渡し、チケットの claim の記録が呼んだセッションの
  * ものなら予約では止めない（holdingReservation）。todo のチケットの claim の記録は前の作業の周期のものなので、渡しても数えない（fresh）
  */
-async function judge(
+const judge = async (
   ctx: CommandContext,
   subject: Subject,
   operation: SessionOperation,
   input: CallerInput,
-): Promise<SessionClaimDecision> {
+): Promise<SessionClaimDecision> =>
+  decideSessionClaim(await factsOf(ctx, subject, operation, input));
+
+/** judge が決めるのに使う事実（記録とフックの時刻を読むだけ）。record は対象に効いている予約 */
+async function factsOf<O extends SessionOperation>(
+  ctx: CommandContext,
+  subject: Subject,
+  operation: O,
+  input: CallerInput,
+): Promise<SessionClaimFacts & { operation: O }> {
   const localDir = ctx.repo.localDir;
   const id = idOf(subject);
   const plan = "plan" in subject ? undefined : openPlanOf(ctx.store, subject.ticket);
@@ -105,7 +118,7 @@ async function judge(
   const fresh =
     "ticket" in subject && ctx.store.tickets.get(subject.ticket)?.data.status === "todo";
   const held = holdingReservation(candidates, clock, { claim, session, fresh });
-  return decideSessionClaim({
+  return {
     ticket: id,
     operation,
     record: held?.record,
@@ -116,7 +129,7 @@ async function judge(
     actorKind: ctx.actor.kind,
     session,
     takeOver: input.take_over === true,
-  });
+  };
 }
 
 /**
@@ -132,60 +145,91 @@ async function withReservationLock<T>(ctx: CommandContext, fn: () => Promise<T>)
 export const judgeReservedNext = (ctx: CommandContext, ticket: TicketId) =>
   judge(ctx, { ticket }, "next", {});
 
+/** claim が push の前に書いたチケットの予約（record）と、書く前にあった予約（previous。なければ undefined） */
+export interface ClaimReservation {
+  ticket: TicketId;
+  record: SessionClaim;
+  previous: SessionClaim | undefined;
+}
+
 /**
- * claim（start は todo の新しい claim、claim はもう一度の claim）を、別のセッションの予約で止める。拒否は dg のエラーを投げ、
- * 通すときの知らせは warnings に足す。--take-over で越えたら true を返す（claim が通った後に moveReservation で予約を移す）。
- * ここの読む・決めるは予約のロックの外にある。自分では予約せずに claim したセッションは、この判定より前に書かれた予約とだけ
- * 比べられ、claim の push の間に別のセッションが `next --reserve` で予約すると、どちらも通る。受け入れるのは、claim の push から
- * claim の記録を書くまでの間（t1148）と同じ結果になり、その後は claim の記録が予約より優先されて claim した側が進められるため。
- * ロックを push の間も持つと、取り込みと push（それぞれ上限 60 秒）がロックの待ち時間（10 秒）を超え、別のセッションの
- * `next --reserve`・`plan show --reserve` が失敗する。先に予約してから claim する手順（guide work）は reserve のロックで直列になる
+ * claim（start は todo の新しい claim、claim はもう一度の claim）を、別のセッションの予約で止め、通すときはチケットの予約を
+ * 呼んだセッションのものとして書く（書くかは claim-judge.ts の decideClaimReservation）。拒否は dg のエラーを投げ、通すときの
+ * 知らせは warnings に足す。書いたら、書いた予約を返す（claim が取れなかったときに rollbackClaimReservation で戻す）。
+ * 読む・決める・書くは予約のロックの中で行い、claim の push の前に終える。予約せずに claim したセッションも push の前に予約を
+ * 持つので、push の間の別のセッションの `next --reserve` と claim は、この予約で止まる（t1158）。
+ * ロックは書いたら放し、push の間は持たない。取り込みと push（それぞれ上限 60 秒）の間も持つと、ロックの待ち時間（10 秒）を
+ * 超え、別のセッションの `next --reserve`・`plan show --reserve` が失敗する
  */
-export async function guardReservedClaim(
+export const reserveForClaim = (
   ctx: CommandContext,
   ticket: TicketId,
   operation: "start" | "claim",
   input: CallerInput,
   warnings: string[],
-): Promise<boolean> {
-  const decision = await judge(ctx, { ticket }, operation, input);
-  if (decision.kind === "reject") throw claimRejectionError(decision, false);
-  if (decision.warning) warnings.push(decision.warning);
-  return decision.takenOver === true;
+): Promise<ClaimReservation | undefined> =>
+  withReservationLock(ctx, async () => {
+    const facts = await factsOf(ctx, { ticket }, operation, input);
+    const session = facts.session;
+    const recordable =
+      ctx.actor.kind === "agent" && session !== undefined && SESSION_ID.test(session);
+    const decision = decideClaimReservation({ ...facts, recordable });
+    if (decision.kind === "reject") throw claimRejectionError(decision, false);
+    if (decision.warning) warnings.push(decision.warning);
+    if (!decision.write || session === undefined) return undefined;
+    const previous = await readReservation(ctx.repo.localDir, ticket);
+    const record = await write(ctx, ticket, session, warnings);
+    return record ? { ticket, record, previous } : undefined;
+  });
+
+/**
+ * claim の前に書いた予約を、claim が取れなかったとき（拒否・push の失敗・取り込み直しの途中のエラー）に戻す（戻し方は
+ * claim-judge.ts の decideReservationRollback）。残すと、claim していないセッションの予約が別のセッションを止め続ける。
+ * 読む・決める・戻すは予約のロックの中で行う。claim の失敗を伝えるのが先なので、戻せなくても失敗させない。
+ * dg が push の途中で落ちたときは戻せずに予約が残るが、`next --reserve` で予約したのと同じ状態で、同じセッションはもう一度
+ * claim でき、予約は SessionEnd か 30 分で無視される
+ */
+export async function rollbackClaimReservation(
+  ctx: CommandContext,
+  written: ClaimReservation,
+): Promise<void> {
+  const localDir = ctx.repo.localDir;
+  await withReservationLock(ctx, async () => {
+    const rollback = decideReservationRollback({
+      written: written.record,
+      previous: written.previous,
+      current: await readReservation(localDir, written.ticket),
+    });
+    if (rollback.kind === "remove")
+      await removeSessionRecord(localDir, RESERVATIONS_DIR, written.ticket);
+    if (rollback.kind === "restore")
+      await writeSessionRecord(
+        localDir,
+        RESERVATIONS_DIR,
+        written.ticket,
+        rollback.record,
+        ctx.now(),
+      );
+  }).catch(() => undefined);
 }
 
-/** 対象の予約を、呼んだセッションのものとして書く。書けなくても失敗させずに警告する */
+/** 対象の予約を、呼んだセッションのものとして書き、書いた記録を返す。書けなくても失敗させずに警告する（undefined を返す） */
 async function write(
   ctx: CommandContext,
   target: string,
   session: string,
   warnings: string[],
-): Promise<void> {
+): Promise<SessionClaim | undefined> {
+  const record = { session, claimed_at: nowIso(ctx) };
   try {
-    await writeSessionRecord(
-      ctx.repo.localDir,
-      RESERVATIONS_DIR,
-      target,
-      { session, claimed_at: nowIso(ctx) },
-      ctx.now(),
-    );
+    await writeSessionRecord(ctx.repo.localDir, RESERVATIONS_DIR, target, record, ctx.now());
+    return record;
   } catch (e) {
     warnings.push(
       `Could not record the reservation of ${target} (${e instanceof Error ? e.message : String(e)}), so another session of yours is not stopped from advancing it`,
     );
+    return undefined;
   }
-}
-
-/** --take-over で越えた claim の後に、チケットの予約を呼んだセッションに移す（guardReservedClaim が true を返したときだけ呼ぶ） */
-export async function moveReservation(
-  ctx: CommandContext,
-  ticket: TicketId,
-  input: CallerInput,
-  warnings: string[],
-): Promise<void> {
-  const session = sessionOf(ctx, input.session);
-  if (session !== undefined && SESSION_ID.test(session))
-    await withReservationLock(ctx, () => write(ctx, ticket, session, warnings));
 }
 
 /** 対象の予約を消す（unclaim したチケットと閉じた Plan。なくてもよく、消せなくても失敗させない） */

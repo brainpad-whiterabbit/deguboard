@@ -2,20 +2,24 @@
 // git なしで確かめる。取り込んだ後の値で決める経路（古い索引・push に負けた後のやり直し）と、Run を開いて前の手直しを閉じる経路は
 // commands-flow-reclaim.test.ts の代表の件が見る。境目の方針と担当の付け替えの許可は commands-flow-ticket.test.ts。
 // claim したセッションの記録が効くか・別のセッションの操作を拒むかの組み合わせもここで確かめ、記録を読み書きする経路は claim-sessions.test.ts。
-// claim の前の予約（Plan とチケット）も同じ関数が決めるので、その組み合わせもここで確かめる（読み書きする経路は reservations.test.ts）
+// claim の前の予約（Plan とチケット）も同じ関数が決めるので、その組み合わせもここで確かめる（読み書きする経路は reservations.test.ts）。
+// claim が push の前に予約を書くか・取れなかった claim の予約をどう戻すかの組み合わせも、ここで確かめる
 import { describe, expect, it } from "vitest";
 import { OperationError, UsageError } from "../errors.js";
 import { STATUSES } from "../model/common.js";
 import {
   claimRejectionError,
   decideClaim,
+  decideClaimReservation,
   decideReclaim,
+  decideReservationRollback,
   decideSessionClaim,
   holdingReservation,
   sessionClaimHolds,
   workBranchName,
   type ClaimFacts,
   type ClaimRejection,
+  type ClaimReservationFacts,
   type ReclaimFacts,
   type ReservationCandidate,
   type SessionClaim,
@@ -535,5 +539,127 @@ describe("チケットに効いている予約（チケット自身、それを�
       });
       expect(decision.kind).toBe("reject");
     }
+  });
+});
+
+describe("claim が push の前に書くチケットの予約（PL-7。t1158）", () => {
+  /** 既定：sess-a が p1 を予約して 10 分後に、別のセッション sess-b の AI（予約を書ける）が p1 のチケット t1 を新しく claim する */
+  const claimReservation = (over: Partial<ClaimReservationFacts> = {}) =>
+    decideClaimReservation({
+      ticket: "t1",
+      operation: "start",
+      record: { session: "sess-a", claimed_at: CLAIMED_AT },
+      reserved: "p1",
+      lastHookAt: iso(5),
+      endedAt: undefined,
+      now: after(10),
+      idleMs: IDLE_MS,
+      actorKind: "agent",
+      session: "sess-b",
+      takeOver: false,
+      recordable: true,
+      ...over,
+    });
+  const OPERATIONS = ["start", "claim"] as const;
+  /** 効いている予約がない：予約がない・SessionEnd が届いた・30 分が過ぎた */
+  const NOT_HELD: Partial<ClaimReservationFacts>[] = [
+    { record: undefined },
+    { endedAt: iso(5) },
+    { now: after(35) },
+  ];
+
+  it("生きている別のセッションの予約があると、decideSessionClaim と同じ拒否を返し、予約は書かない", () => {
+    for (const operation of OPERATIONS)
+      for (const recordable of [true, false])
+        expect(claimReservation({ operation, recordable })).toEqual(reserved({ operation }));
+  });
+
+  it("効いている予約がない新しい claim は、予約を書ける呼び出しなら予約を書く。もう一度の claim は書かない", () => {
+    for (const none of NOT_HELD) {
+      const label = JSON.stringify(none);
+      for (const takeOver of [false, true]) {
+        expect(claimReservation({ ...none, takeOver }), label).toEqual({
+          kind: "pass",
+          write: true,
+        });
+        expect(claimReservation({ ...none, takeOver, operation: "claim" }), label).toEqual({
+          kind: "pass",
+          write: false,
+        });
+      }
+    }
+  });
+
+  it("呼んだセッションの予約がすでに効いている claim は、書かない（--take-over を付けても）", () => {
+    for (const operation of OPERATIONS)
+      for (const takeOver of [false, true])
+        expect(claimReservation({ operation, session: "sess-a", takeOver })).toEqual({
+          kind: "pass",
+          write: false,
+        });
+  });
+
+  it("--take-over で越えた claim は、新しい claim でももう一度の claim でも、引き継いだことを知らせて予約を書く", () => {
+    for (const operation of OPERATIONS)
+      expect(claimReservation({ operation, takeOver: true })).toEqual({
+        kind: "pass",
+        warning: `Took t1 over from ${RESERVER} with --take-over`,
+        write: true,
+      });
+  });
+
+  it("予約を書けない呼び出し（人・セッションのわからない AI・記録に使えないセッションの ID）は、予約があってもなくても書かず、知らせは decideSessionClaim のまま返す", () => {
+    const callers: Partial<ClaimReservationFacts>[] = [
+      { actorKind: "human" },
+      { actorKind: "human", session: undefined },
+      { session: undefined },
+      // 記録に使えない形の ID のセッション（別のセッションとは言えるので、--take-over で越える）
+      { takeOver: true },
+    ];
+    for (const caller of callers)
+      for (const operation of OPERATIONS) {
+        const facts = { ...caller, operation, recordable: false };
+        const told = reserved({ ...caller, operation });
+        expect(told).toMatchObject({ kind: "pass", warning: expect.any(String) });
+        expect(claimReservation(facts), JSON.stringify(facts)).toEqual({
+          kind: "pass",
+          warning: (told as { warning: string }).warning,
+          write: false,
+        });
+        for (const none of NOT_HELD)
+          expect(claimReservation({ ...facts, ...none }), JSON.stringify(facts)).toEqual({
+            kind: "pass",
+            write: false,
+          });
+      }
+  });
+});
+
+describe("claim が取れなかったときの、push の前に書いた予約の戻し方（t1158）", () => {
+  const written: SessionClaim = { session: "sess-b", claimed_at: iso(10) };
+  const previous: SessionClaim = { session: "sess-a", claimed_at: CLAIMED_AT };
+
+  it("今の予約が書いたもののままなら、書く前の予約に戻し、なかったなら消す", () => {
+    expect(decideReservationRollback({ written, previous, current: { ...written } })).toEqual({
+      kind: "restore",
+      record: previous,
+    });
+    expect(
+      decideReservationRollback({ written, previous: undefined, current: { ...written } }),
+    ).toEqual({ kind: "remove" });
+  });
+
+  it("今の予約が書いたものと違う（消えた・別のセッションが引き継いだ・同じセッションが書き直した）なら、触らない", () => {
+    const changed: (SessionClaim | undefined)[] = [
+      undefined,
+      { session: "sess-c", claimed_at: written.claimed_at },
+      { session: written.session, claimed_at: iso(12) },
+    ];
+    for (const current of changed)
+      for (const before of [previous, undefined])
+        expect(
+          decideReservationRollback({ written, previous: before, current }),
+          JSON.stringify({ current, before }),
+        ).toEqual({ kind: "keep" });
   });
 });

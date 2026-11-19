@@ -2,7 +2,8 @@
 // 受け取って決めるだけで、git・ファイルを読まない（import は型と定数と純粋な関数だけ）。決めるのは 3 つ：
 //   - decideSessionClaim：別のセッションが claim して進めているチケットへの、もう一度の claim・unclaim を拒むか（SY-5。
 //     記録が効くかは sessionClaimHolds。記録とフックの時刻を読むのは claim-sessions.ts）。claim の前の予約（PL-7。
-//     効いている予約は holdingReservation、読み書きは reservations.ts）が claim・予約・dg next を止めるかも、同じ関数で決める
+//     効いている予約は holdingReservation、読み書きは reservations.ts）が claim・予約・dg next を止めるかも、同じ関数で決める。
+//     claim が push の前に書く予約は decideClaimReservation、取れなかった claim の予約の戻し方は decideReservationRollback
 //   - decideClaim：新しい claim に進むか・もう一度の claim か・拒否か。ticket.ts の ticketClaim が、書き込みの中（取り込みと索引の
 //     読み直しの後）で呼ぶ。push が拒否されて最新の状態からやり直す（git/write.ts の cas）たびに、やり直した後の値で決め直される
 //   - decideReclaim：もう一度の claim を拒むか（ブランチは変えられない）、手直しの始まりとして Run を開くか
@@ -310,6 +311,65 @@ export function decideSessionClaim(f: SessionClaimFacts): SessionClaimDecision {
     code: "REJECTED",
     message: `${ticket} is being worked on by another session of yours: ${holder}. This session (${f.session}) cannot ${cannot} while that session is alive. Leave the ticket to that session. If that session has stopped, or a person told you to take the work over, add --take-over${moves}. The record is ignored once SessionEnd reaches that session or no dg hook has reached it for ${minutes} minutes`,
   };
+}
+
+/** decideClaimReservation に要る事実。record は、チケットに効いている予約（holdingReservation）の記録 */
+export interface ClaimReservationFacts extends SessionClaimFacts {
+  /** start は todo の新しい claim、claim はもう一度の claim */
+  operation: "start" | "claim";
+  /** 呼んだセッションの予約を書けるか（agent の呼び出しで、セッションの ID が記録に使える形） */
+  recordable: boolean;
+}
+
+/** claim を予約で止めるかと、通すときにチケットの予約を呼んだセッションのものとして書くか */
+export type ClaimReservationDecision =
+  | ClaimRejection
+  | { kind: "pass"; warning?: string; write: boolean };
+
+/**
+ * claim を別のセッションの予約で止めるか（decideSessionClaim と同じ規則）と、通すときにチケットの予約を呼んだセッションの
+ * ものとして書くかを決める（PL-7。t1158）。行う側（reservations.ts の reserveForClaim）は、読む・これで決める・書くを予約の
+ * ロックの中で、claim の push の前に行う。予約せずに claim したセッションも push の前に予約を持つので、push の間の別のセッションの
+ * `next --reserve` と claim は、この予約で止まる。書くのは、予約を書ける呼び出し（recordable）の：
+ *   - --take-over で越えた claim（予約を呼んだセッションに移す。新しい claim でも、もう一度の claim でも）
+ *   - 効いている予約がない新しい claim（start）
+ * 書かないのは、呼んだセッションの予約（チケット自身か、それを含む Plan の予約）がすでに効いている claim、--take-over なしの
+ * もう一度の claim（チケットは claim 済みで、claim の記録が別のセッションを止める）、人とセッションのわからない呼び出し
+ */
+export function decideClaimReservation(f: ClaimReservationFacts): ClaimReservationDecision {
+  const decision = decideSessionClaim(f);
+  if (decision.kind === "reject") return decision;
+  const held = f.record !== undefined && sessionClaimHolds(f.record, f);
+  const write = f.recordable && (decision.takenOver === true || (f.operation === "start" && !held));
+  return { kind: "pass", ...(decision.warning ? { warning: decision.warning } : {}), write };
+}
+
+/** claim の前に書いた予約を、claim が取れなかったときにどう戻すか */
+export type ReservationRollback =
+  | { kind: "keep" }
+  | { kind: "remove" }
+  | { kind: "restore"; record: SessionClaim };
+
+/**
+ * claim の前に書いた予約（written）を、claim が取れなかったとき（拒否・push の失敗・取り込み直しの途中のエラー）にどう戻すかを
+ * 決める（t1158）。残すと、claim していないセッションの予約が別のセッションを止め続ける。
+ *   - 今の予約（current）が書いたものと違う（別のセッションが引き継いだ・消えた・書き直された）なら、触らない
+ *   - 書く前の予約（previous。--take-over で越えた別のセッションの予約など）があれば、それに戻す
+ *   - なければ消す
+ */
+export function decideReservationRollback(f: {
+  written: SessionClaim;
+  previous: SessionClaim | undefined;
+  current: SessionClaim | undefined;
+}): ReservationRollback {
+  const { written, previous, current } = f;
+  if (
+    current === undefined ||
+    current.session !== written.session ||
+    current.claimed_at !== written.claimed_at
+  )
+    return { kind: "keep" };
+  return previous === undefined ? { kind: "remove" } : { kind: "restore", record: previous };
 }
 
 /** decideReclaim に要る事実 */
