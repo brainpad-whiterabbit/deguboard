@@ -25,6 +25,8 @@ import {
 /** リモートの先端。時刻はすべてこのファイルの定数で、時計を読まない */
 const TIP = { sha: "a".repeat(40), at: "2026-01-02T00:00:00Z" };
 const OTHER = "b".repeat(40);
+/** base の今の先端 */
+const BASE = "c".repeat(40);
 const BRANCH_AT = "2026-01-01T00:00:00Z";
 /** 先端のコミットの時刻より前・後 */
 const BEFORE_TIP = "2026-01-01T12:00:00Z";
@@ -54,7 +56,7 @@ const withoutHead = (r: ReviewRun): ReviewRun => {
 const heavy = (id: `r${string}`, started_at: string): ReviewRun =>
   run({ id, started_at, finished_at: started_at, review: { heavy: 1, light: 0, passed: false } });
 
-/** ゲートの事実。既定は high の merge で、すべての条件を満たす（PR #7 が開いて衝突せず、先端を見直して通り、受け入れ条件 2 件に印） */
+/** ゲートの事実。既定は high の merge で、すべての条件を満たす（PR #7 が開いて衝突せず、先端を見直して通り、受け入れ条件 2 件に印、先端が base の今の先端を含む） */
 const facts = (over: Partial<GateFacts> = {}): GateFacts => ({
   ticket: "t1",
   level: "high",
@@ -68,6 +70,7 @@ const facts = (over: Partial<GateFacts> = {}): GateFacts => ({
   ],
   review: { tip: TIP, runs: [run()] },
   latest: TIP.sha,
+  base: { kind: "read", sha: BASE, contained: true },
   checkConfigured: true,
   ...over,
 });
@@ -100,11 +103,11 @@ describe("段と for が判定する条件（TK-9）", () => {
   const judged: PerScope = {
     high: {
       ready: ["pr", "review", "fix_rounds", "check"],
-      merge: ["pr", "acceptance", "review", "fix_rounds", "mergeable", "head", "check"],
+      merge: ["pr", "acceptance", "review", "fix_rounds", "mergeable", "head", "base", "check"],
     },
     low: {
       ready: ["pr", "check"],
-      merge: ["pr", "acceptance", "mergeable", "head", "check"],
+      merge: ["pr", "acceptance", "mergeable", "head", "base", "check"],
     },
     free: { ready: ["pr"], merge: ["pr", "mergeable"] },
   };
@@ -124,13 +127,19 @@ describe("段と for が判定する条件（TK-9）", () => {
         });
       });
 
-  it("読む事実は、受け入れ条件が merge の high・low、見直しが high、最新のコミットが merge の high・low", () => {
-    expect(gateReads("high", "merge")).toEqual({ acceptance: true, review: true, latest: true });
-    expect(gateReads("high", "ready")).toEqual({ acceptance: false, review: true, latest: false });
-    expect(gateReads("low", "merge")).toEqual({ acceptance: true, review: false, latest: true });
-    expect(gateReads("low", "ready")).toEqual({ acceptance: false, review: false, latest: false });
-    expect(gateReads("free", "merge")).toEqual({ acceptance: false, review: false, latest: false });
-    expect(gateReads("free", "ready")).toEqual({ acceptance: false, review: false, latest: false });
+  it("読む事実は、受け入れ条件が merge の high・low、見直しが high、最新のコミットと base の今の先端が merge の high・low", () => {
+    const reads = (acceptance: boolean, review: boolean, latest: boolean, base: boolean) => ({
+      acceptance,
+      review,
+      latest,
+      base,
+    });
+    expect(gateReads("high", "merge")).toEqual(reads(true, true, true, true));
+    expect(gateReads("high", "ready")).toEqual(reads(false, true, false, false));
+    expect(gateReads("low", "merge")).toEqual(reads(true, false, true, true));
+    expect(gateReads("low", "ready")).toEqual(reads(false, false, false, false));
+    expect(gateReads("free", "merge")).toEqual(reads(false, false, false, false));
+    expect(gateReads("free", "ready")).toEqual(reads(false, false, false, false));
   });
 });
 
@@ -225,9 +234,25 @@ describe("事実を 1 つずつ崩したときに満たさない条件（段 × 
       unmet: mergeOnly("head", false),
     },
     {
-      // head は比べない。読めないことは、同じ ref を読む見直し（review）と検査（check。judgeCheck）が落とす
+      name: "作業ブランチの先端が base の今の先端を含まない",
+      broken: { base: { kind: "read", sha: BASE, contained: false } },
+      unmet: mergeOnly("base", false),
+    },
+    {
+      name: "base の今の先端を取り込めない・読めない",
+      broken: { base: { kind: "unreadable", reason: "git fetch origin main failed" } },
+      unmet: mergeOnly("base", false),
+    },
+    {
+      // 最新のコミットを読めたのに base の事実がないのは、集める側の漏れ。通さない
+      name: "base の事実がない",
+      broken: { base: null },
+      unmet: mergeOnly("base", false),
+    },
+    {
+      // head と base は比べない。読めないことは、同じ ref を読む見直し（review）と検査（check。judgeCheck）が落とす
       name: "作業ブランチの最新のコミットだけを読めない",
-      broken: { latest: null },
+      broken: { latest: null, base: null },
       unmet: highOnly(),
     },
   ];
@@ -469,6 +494,54 @@ describe("PR の先端（head。t750）", () => {
   });
 });
 
+describe("base の今の先端を含むか（base。t1152）", () => {
+  const stale: Partial<GateFacts> = { base: { kind: "read", sha: BASE, contained: false } };
+
+  it("含めば満たし、含まなければ両方の SHA と、base を取り込んで push し直す次の手を detail に出す", () => {
+    expect(detail(judge(), "base")).toBe(
+      "The latest commit of the work branch (aaaaaaaa) contains the current tip of base (cccccccc)",
+    );
+    const unmet = detail(judge(stale), "base");
+    expect(unmet).toContain(
+      "The latest commit of the work branch (aaaaaaaa) does not contain the current tip of base (cccccccc)",
+    );
+    expect(unmet).toContain("Merge base into the work branch, push, and judge again");
+  });
+
+  it("base を取り込めない・読めないときは、理由を detail に出して満たさない", () => {
+    const unread = judge({ base: { kind: "unreadable", reason: "git fetch origin main failed" } });
+    expect(detail(unread, "base")).toBe(
+      "Cannot read the current tip of base, so it cannot be compared with the work branch (git fetch origin main failed)",
+    );
+    expect(failed(unread)).toEqual(["base", "check"]);
+  });
+
+  it("high と low の merge だけが判定し、ready と free は base が進んでいても判定しない", () => {
+    for (const level of LEVELS)
+      for (const stage of STAGES) {
+        const view = judge({ level, for: stage, ...stale });
+        const judged = stage === "merge" && level !== "free";
+        expect(ids(view).includes("base")).toBe(judged);
+        expect(view.passed).toBe(!judged);
+      }
+  });
+
+  it("actions.test が空でも判定する（検査は規約の検査を手で回して確かめるので、見る先端は同じ）", () => {
+    expect(failed(judge({ ...stale, checkConfigured: false }))).toEqual(["base"]);
+  });
+
+  it("含まない先端では検査を回さない（取り込んだ先端で回し直すので）。見直しは満たしたまま", () => {
+    const draft = judgeBeforeCheck(facts(stale));
+    expect(draft.check).toBe("not_run");
+    expect(draft.conditions.filter((c) => !c.ok).map((c) => c.id)).toEqual(["base"]);
+  });
+
+  it("PR を読めなくても、最新のコミットを読めていれば判定する。最新のコミットを読めなければ判定しない", () => {
+    expect(ids(judge({ ...stale, pr: { kind: "missing", selector: "t1" } }))).toContain("base");
+    expect(ids(judge({ ...stale, latest: null }))).not.toContain("base");
+  });
+});
+
 describe("検査を回すか（1 段目の check）と結論（2 段目）", () => {
   const draftCheck = (over: Partial<GateFacts> = {}, waived?: ReadonlySet<GateConditionId>) =>
     judgeBeforeCheck(facts(over), waived).check;
@@ -662,7 +735,7 @@ describe("dg pr ready・dg pr merge が越える条件と止める条件（gateP
     });
   });
 
-  it("draft・衝突・PR の先端の食い違いは、承認があっても越えられず、越えられない条件を案内する", () => {
+  it("draft・衝突・PR の先端の食い違い・base の今の先端を含まない先端は、承認があっても越えられず、越えられない条件を案内する", () => {
     const blocked: Array<[Partial<GateFacts>, string, string]> = [
       [{ pr: openPr({ isDraft: true }) }, "pr", "pr: PR #7 is still a draft"],
       [
@@ -673,6 +746,12 @@ describe("dg pr ready・dg pr merge が越える条件と止める条件（gateP
       [{ latest: OTHER }, "head", "head: PR #7's head aaaaaaaa is not the latest commit"],
       // PR の先端を読めない（判定したコミットに固定できない）。head の条件が理由を持つので、理由を重ねない
       [{ pr: openPr({ head: undefined }) }, "head", "head: Cannot read the head commit of PR #7"],
+      // base を取り込んで push し直せば満たせるので、人に聞かない（t1152）
+      [
+        { base: { kind: "read", sha: BASE, contained: false } },
+        "base",
+        "base: The latest commit of the work branch (aaaaaaaa) does not contain the current tip of base",
+      ],
     ];
     for (const [broken, id, line] of blocked) {
       const stop = stopped(judge(broken, { waived: approved }), approved);
@@ -680,7 +759,7 @@ describe("dg pr ready・dg pr merge が越える条件と止める条件（gateP
       expect(stop.failed.filter((l) => l.startsWith(`${id}:`))).toHaveLength(1);
       expect(stop.detail).toContain(line);
       expect(stop.detail).toContain(`A person's approval does not override ${id}`);
-      expect(stop.detail).toContain("pr, mergeable, and head are never overridden");
+      expect(stop.detail).toContain("pr, mergeable, head, and base are never overridden");
       expect(stop.detail).not.toContain("ask whether to merge anyway");
     }
   });
@@ -728,7 +807,7 @@ describe("dg pr ready・dg pr merge が越える条件と止める条件（gateP
   });
 
   it("free は見直しがなく受け入れ条件に印がなくても、ready にも merge にも進む（t663）", () => {
-    const free: Partial<GateFacts> = { ...unreviewed, level: "free", latest: null };
+    const free: Partial<GateFacts> = { ...unreviewed, level: "free", latest: null, base: null };
     for (const stage of STAGES)
       expect(gatePassage(judge({ ...free, for: stage }), none)).toMatchObject({
         proceed: true,

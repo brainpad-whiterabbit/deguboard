@@ -97,6 +97,48 @@ export async function baseTip(repo: GitRepo): Promise<string | undefined> {
 }
 
 /**
+ * base の今の先端（sha）と、commit がそれを含むか（品質ゲートの base の条件。EX-11）。リモートがあれば、比べる前に base を取り込む。
+ * 取り込めない・base がない・比べられないときは理由（reason）を返す：手元の古い追跡 ref と比べると、base が進んでいても
+ * 含むと答えてしまうため
+ */
+export async function baseContainment(
+  repo: GitRepo,
+  commit: string,
+): Promise<{ sha: string; contained: boolean } | { reason: string }> {
+  const firstLine = (text: string) => text.trim().split("\n")[0] ?? "";
+  try {
+    if (repo.codeRemote) {
+      const fetched = await runGit(
+        repo.dataDir,
+        [
+          "fetch",
+          repo.codeRemote,
+          `+refs/heads/${repo.baseBranch}:refs/remotes/${repo.codeRemote}/${repo.baseBranch}`,
+        ],
+        { allowFailure: true, timeoutMs: 60_000 },
+      );
+      if (fetched.code !== 0)
+        return {
+          reason: `git fetch ${repo.codeRemote} ${repo.baseBranch} failed: ${firstLine(fetched.stderr)}`,
+        };
+    }
+    const base = await baseRef(repo);
+    if (!base) return { reason: `base branch ${repo.baseBranch} is not found` };
+    const tip = await sha(repo, base);
+    const r = await runGit(repo.dataDir, ["merge-base", "--is-ancestor", tip, commit], {
+      allowFailure: true,
+    });
+    // 0 は含む、1 は含まない。ほか（コミットがない など）は比べられない
+    if (r.code !== 0 && r.code !== 1)
+      return { reason: `git merge-base --is-ancestor failed: ${firstLine(r.stderr)}` };
+    return { sha: tip, contained: r.code === 0 };
+  } catch (error) {
+    if (error instanceof GitError) return { reason: firstLine(error.message) };
+    throw error;
+  }
+}
+
+/**
  * 記録しようとするブランチ名に、前の作業でマージ済みのブランチが残っているか（ST-3）。
  * 残ったブランチの先端は base の真の祖先なので、同じ名前で claim すると照合が branch_merged で done にする。
  * 残っていればその ref を返す。先端が base と同じ（切ったばかり）・base にない作業がある・ref がないときは undefined。
