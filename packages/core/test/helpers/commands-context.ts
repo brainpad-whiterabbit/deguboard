@@ -8,6 +8,9 @@ import { runCommand, type CommandContext } from "../../src/commands/define.js";
 import { init } from "../../src/commands/setup.js";
 import { resetGhCache } from "../../src/git/facts.js";
 import { recordBaseline } from "../../src/git/outside.js";
+import { pathExists } from "../../src/storage/exists.js";
+import { newYamlDocument, stringifyYaml } from "../../src/storage/yaml.js";
+import { linesOverTestWorkflow, TEST_WORKFLOW_FILE } from "./workflow.js";
 import {
   createFixture,
   createFixtureFrom,
@@ -30,7 +33,7 @@ export async function fixture(): Promise<Fixture> {
 }
 
 /**
- * init 済み（既定の Workflow）の雛形から写す。init を毎テストで走らせないため、テストファイルごとに 1 度だけ init する。
+ * init 済み（土台の Workflow。helpers/workflow.ts）の雛形から写す。init を毎テストで走らせないため、テストファイルごとに 1 度だけ init する。
  * 写した先の文脈は reopenInitialized で開く（initialized と同じく、init の後の文脈）
  */
 export async function initializedFixture(): Promise<Fixture> {
@@ -103,9 +106,19 @@ export function asHuman(ctx: CommandContext): CommandContext {
   return { ...ctx, actor: { ...ctx.actor, kind: "human" } };
 }
 
-/** workflow.yaml をデータディレクトリに置いて索引を作り直す（カンバンのどのチケットにも効く） */
-export async function writeWorkflowYaml(ctx: CommandContext, lines: string[]): Promise<void> {
-  await writeFile(path.join(ctx.repo.dataDir, "workflow.yaml"), [...lines, ""].join("\n"));
+/**
+ * workflow.yaml をデータディレクトリに置いて索引を作り直す（カンバンのどのチケットにも効く）。
+ * 書いた行は土台の値（helpers/workflow.ts の TEST_WORKFLOW_FILE）に重ねて置く。書いていない値を Core の既定に落とさず、
+ * 既定を変えてもテストが落ちないようにするため。省いた値が既定になること・読めないファイルを確かめるテストは raw で書いたままを置く
+ */
+export async function writeWorkflowYaml(
+  ctx: CommandContext,
+  lines: string[],
+  opts: { raw?: boolean } = {},
+): Promise<void> {
+  const merged = opts.raw ? undefined : linesOverTestWorkflow(lines);
+  const text = merged ? stringifyYaml(newYamlDocument(merged)) : [...lines, ""].join("\n");
+  await writeFile(path.join(ctx.repo.dataDir, "workflow.yaml"), text);
   // 利用者が直に置いて dg adopt で取り込んだ状態にする（dg の外の変更の検査の基準。SY-8）
   await recordBaseline(ctx.repo);
   await ctx.store.rescan();
@@ -113,7 +126,7 @@ export async function writeWorkflowYaml(ctx: CommandContext, lines: string[]): P
 
 /**
  * PR を使わない進め方の Workflow にする：review → done に条件を付けず、done と例外の動きを誰でも聞かずにできるようにする。
- * 既定は done に pr_merged（ブランチのあるチケット）と人の承認を求め、abandoned と done の取り消しにも人の承認を求めるので、Status を動かすのが準備でしかないテスト
+ * 土台の Workflow は done に pr_merged（ブランチのあるチケット）と人の承認を求め、abandoned と done の取り消しにも人の承認を求めるので、Status を動かすのが準備でしかないテスト
  * （Run・Plan・Iteration・集計など）が、手で動かす前に呼ぶ。別の文脈は呼んだ後に store.rescan() で読む
  */
 export function writeOpenWorkflow(ctx: CommandContext): Promise<void> {
@@ -140,14 +153,26 @@ export async function initialized(
   cwd: string,
   opts: Partial<ContextOptions> = {},
 ): Promise<CommandContext> {
-  const first = await openContext({
-    cwd,
-    initialize: {},
-    actor: { kind: "human", user: "eiki" },
-    ...opts,
-  });
+  const first = await openForInit({ cwd, actor: { kind: "human", user: "eiki" }, ...opts });
   await runCommand(init, first, {});
   return openContext({ cwd, actor: { kind: "human", user: "eiki" }, ...opts });
+}
+
+/**
+ * init に渡す文脈を開き、土台の Workflow（helpers/workflow.ts）を init の前に置く。init はある workflow.yaml を書き換えず、
+ * 自分のコミットに入れるので、カンバンは Core の既定ではなくテストが書いた値で始まる（既定を変えても振る舞いのテストが落ちない）。
+ * 自前の雛形で init するテストは openContext({ initialize: {} }) の代わりにこれを使う。init が置く既定の workflow.yaml を
+ * 確かめるテストだけが openContext を直に呼ぶ。置くのは新しいカンバンを作るとき（worktree が orphan）だけで、
+ * リモートのカンバンを取り込む clone には置かない（取り込んだ workflow.yaml を使う。置くとまとめ待ちの変更になる）
+ */
+export async function openForInit(opts: ContextOptions): Promise<CommandContext> {
+  const ctx = await openContext({ ...opts, initialize: opts.initialize ?? {} });
+  if (
+    ctx.worktree === "orphan" &&
+    !(await pathExists(path.join(ctx.repo.dataDir, "workflow.yaml")))
+  )
+    await ctx.store.writeWorkflow(TEST_WORKFLOW_FILE);
+  return ctx;
 }
 
 /**

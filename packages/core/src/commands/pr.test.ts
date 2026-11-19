@@ -2,8 +2,9 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { asHuman } from "../../test/helpers/commands-context.js";
+import { asHuman, openForInit } from "../../test/helpers/commands-context.js";
 import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
+import { overTestWorkflow } from "../../test/helpers/workflow.js";
 import { OperationError } from "../errors.js";
 import { resetGhCache } from "../git/facts.js";
 import type { Run } from "../model/run.js";
@@ -127,12 +128,14 @@ async function fakeGh(root: string, pr: () => string) {
  */
 async function prepareRepo(f: Layout, free: boolean): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
-  const first = await openContext({ cwd: f.cloneA, initialize: {}, actor });
+  const first = await openForInit({ cwd: f.cloneA, actor });
   await runCommand(init, first, {});
   // workflow.yaml を書き換えるのは、エージェントには人の承認が要る（Core の固定）ので、準備は人の主体で書く
   if (free)
     await runCommand(workflowSet, asHuman(first), {
-      definition: { boundaries: [{ from: "review", to: "done", decide: "anyone" }] },
+      definition: overTestWorkflow({
+        boundaries: [{ from: "review", to: "done", decide: "anyone" }],
+      }),
     });
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, {
@@ -154,7 +157,7 @@ async function prepareRepo(f: Layout, free: boolean): Promise<void> {
 
 /**
  * prepareRepo を済ませた雛形から写し、PR #7（偽の gh。draft）がある文脈。
- * 既定の Workflow の review → done は ask_unless_auto で、エージェントのマージには人の承認か --auto が要る。
+ * 土台の Workflow（helpers/workflow.ts）の review → done は ask_unless_auto で、エージェントのマージには人の承認か --auto が要る。
  * free が true なら review → done の decide を anyone にして、エージェントが何も付けずにマージできるようにする
  * （品質ゲートと gh の呼び方を確かめるテストは true で回す）。
  * 雛形の claim（branch_at）と push は雛形を作った時刻（雛形は free ごとに別にあり、それぞれを最初に使う件の時刻）のままなので、件の中の時刻より前になる
@@ -820,10 +823,12 @@ describe("dg pr ready・dg pr merge の権限（境目の decide。WF-1）", () 
     return { ...p, human };
   }
   const setBoundary = (ctx: CommandContext, from: string, to: string, decide: string) =>
-    runCommand(workflowSet, asHuman(ctx), { definition: { boundaries: [{ from, to, decide }] } });
+    runCommand(workflowSet, asHuman(ctx), {
+      definition: overTestWorkflow({ boundaries: [{ from, to, decide }] }),
+    });
   const mergeCall = (tip: string) => `pr merge 7 --squash --match-head-commit ${tip}`;
 
-  it("既定（review → done は ask_unless_auto）：エージェントのマージは --approved-by がなければ拒否され gh を呼ばず、付ければ通る。人は聞かずに通る", async () => {
+  it("review → done が ask_unless_auto（土台の Workflow の値）：エージェントのマージは --approved-by がなければ拒否され gh を呼ばず、付ければ通る。人は聞かずに通る", async () => {
     const { ctx, human, tip, calls } = await mergeable();
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
     expect(err).toBeInstanceOf(OperationError);

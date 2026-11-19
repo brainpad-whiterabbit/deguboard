@@ -46,7 +46,7 @@ import { brief } from "./brief.js";
 import { hookKindsOf, pruneHookSessions, takeHookWarnings } from "./hook-sessions.js";
 import { next, type NextStep } from "./next.js";
 import { commit, configSet, init, sync } from "./setup.js";
-import { asHuman } from "../../test/helpers/commands-context.js";
+import { asHuman, openForInit } from "../../test/helpers/commands-context.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 import { runGit } from "../git/run.js";
 
@@ -63,7 +63,7 @@ const SESSION = "s-parent";
 /** init・チケット 2 つ・設定・commit まで済ませた雛形の準備（テストファイルで 1 度だけ走る） */
 async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
+  await runCommand(init, await openForInit({ cwd: f.cloneA, actor }), {});
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
   await runCommand(ticketCreate, ctx, { title: "B", approved_by: "human" });

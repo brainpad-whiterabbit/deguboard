@@ -7,6 +7,7 @@ import {
   reopenInitialized,
   runCleanups,
 } from "../../test/helpers/commands-context.js";
+import { overTestWorkflow } from "../../test/helpers/workflow.js";
 import {
   ASK_ACTIONS,
   type AskAction,
@@ -1643,15 +1644,15 @@ describe("ask", () => {
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "done", override: "PR なし" });
     const run = async (input: Record<string, unknown>) => (await runCommand(ask, ctx, input)).data;
 
-    // 既定の Workflow：abandon と reopen は人の承認で進める値（always_ask）で、エージェントが行えるので依頼文を返す
+    // 土台の Workflow：abandon と reopen は人の承認で進める値（always_ask）で、エージェントが行えるので依頼文を返す
     const asked = await run({ targets: ["t1"], action: "abandon" });
     expect(asked).toMatchObject({ kind: "prompt", workflow_denied: [] });
     expect(asked.targets[0]).toMatchObject({ agent_denied: [] });
     expect((await run({ targets: ["t2"], action: "undo_done" })).kind).toBe("prompt");
 
-    // 人に限る値（human_only）に変えると、人が打つコマンドを返す
+    // 人に限る値（human_only）に変えると、人が打つコマンドを返す（ほかの値は土台のまま）
     await runCommand(workflowSet, ctx, {
-      definition: { exceptions: { abandon: "human_only", reopen: "human_only" } },
+      definition: overTestWorkflow({ exceptions: { abandon: "human_only", reopen: "human_only" } }),
     });
     const abandon = await run({ targets: ["t1"], action: "abandon" });
     expect(abandon.targets[0]).toMatchObject({ agent_denied: ["abandoned"] });

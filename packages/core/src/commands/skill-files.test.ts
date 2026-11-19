@@ -2,6 +2,7 @@ import { access, mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { openForInit } from "../../test/helpers/commands-context.js";
 import { createFixture, createLocalOnlyRepo } from "../../test/helpers/git-fixture.js";
 import {
   newerThan,
@@ -519,7 +520,7 @@ describe("dg next と dg brief の古い Skill の警告（t858）", () => {
     const f = await createFixture();
     cleanups.push(f.cleanup);
     const actor = { kind: "agent" as const, user: "eiki" };
-    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
+    await runCommand(init, await openForInit({ cwd: f.cloneA, actor }), {});
     const ctx = await openContext({ cwd: f.cloneA, actor });
     // 本物の ~/.claude/skills を読まない
     ctx.env = { HOME: await tempDir() };

@@ -8,6 +8,7 @@ import {
   workflowSections,
   type WorkflowDefinition,
 } from "@deguboard/core";
+import { overTestWorkflow } from "../../../core/test/helpers/workflow.js";
 import { App } from "../app.js";
 import { createHost, HostProvider } from "../host.js";
 import { setLanguage } from "../l10n.js";
@@ -43,6 +44,12 @@ const WRITTEN: WorkflowDefinition = {
     skip: ["retro"],
   },
 };
+
+/**
+ * WRITTEN を、どの値も書いた土台の定義（core の test/helpers/workflow.ts）に重ねたもの。省いた値が Core の既定に落ちないので、
+ * 値そのものを確かめるテストが使う（既定を変えても落ちない）。省いた値が既定で出ることを確かめるテストは WRITTEN を使う
+ */
+const WRITTEN_OVER_BASE = overTestWorkflow(WRITTEN) as WorkflowDefinition;
 
 function workflowView(def: WorkflowDefinition, over: Partial<WorkflowView> = {}): WorkflowView {
   const resolved = resolveWorkflow(def);
@@ -90,7 +97,7 @@ const jaOf = (text: string) => DEFAULT_VALUES[text]?.ja ?? text;
 
 describe("設定画面の Workflow のタブ（workflow.yaml を読むだけで出す。UI-14）", () => {
   it("3 つ目のタブ「Workflow」に、6 つの項目を節、その下の値を行（名前とキーが左、値が右）で出し、入力欄と保存の操作を置かない", async () => {
-    const c = client();
+    const c = client(workflowView(WRITTEN_OVER_BASE));
     await mount(c);
     await waitFor(() => expect(sectionOf("states")).toBeTruthy());
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
@@ -130,15 +137,16 @@ describe("設定画面の Workflow のタブ（workflow.yaml を読むだけで�
         ),
         s.key,
       ).toEqual(s.rows.map((r) => `workflow.${r.key}`));
+    // 値の後ろに「変更あり」の札が付くかは既定との差で決まるので、ここでは値だけを見る（札は次のテスト）
     expect(cells("exceptions.abandon")).toEqual([
       "やめる（abandoned へ動かす）",
       "exceptions.abandon",
-      "always_ask",
+      expect.stringMatching(/^always_ask/),
     ]);
     expect(cells("governance.delete")).toEqual([
       "チケットの削除",
       "governance.delete",
-      "human_only",
+      expect.stringMatching(/^human_only/),
     ]);
     // リストは値を並べ、空のリストは「空」
     expect(cells("boundaries.todo.in_progress.requires")[2]).toBe("deps_done");
@@ -387,7 +395,7 @@ describe("Workflow のタブの部品", () => {
   });
 
   it("workflowMatches は検索語が空ならすべてを返し、行に当たった節は当たった行だけにする", () => {
-    const sections = workflowSections(resolveWorkflow(WRITTEN));
+    const sections = workflowSections(resolveWorkflow(WRITTEN_OVER_BASE));
     expect(workflowMatches(sections, "  ")).toEqual(sections);
     expect(
       workflowMatches(sections, "human_only").map((s) => [s.key, s.rows.map((r) => r.key)]),

@@ -10,10 +10,10 @@ import { run as runCli } from "../../packages/cli/src/program.js";
 import {
   createLocalClient,
   init,
-  openContext,
   runCommand,
   type CommandClient,
 } from "../../packages/core/src/index.js";
+import { openForInit } from "../../packages/core/test/helpers/commands-context.js";
 import { cliEnv } from "../../packages/core/test/helpers/env.js";
 import { createFixture, git, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
@@ -173,7 +173,7 @@ const STEPS: Step[] = [
     input: { ticket: "t1", status: "review" },
     argv: ["ticket", "move", "t1", "review"],
   },
-  // 既定の Workflow は review → done に pr_merged を求める：満たさない move は 3 経路とも拒否され、人が理由を付けて越える
+  // 土台の Workflow（test/helpers/workflow.ts）は review → done に pr_merged を求める：満たさない move は 3 経路とも拒否され、人が理由を付けて越える
   {
     name: "ticket.move",
     input: { ticket: "t1", status: "done" },
@@ -371,7 +371,8 @@ interface Trace {
 }
 
 async function runRoute(route: Route, f: Fixture): Promise<Trace> {
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+  // 土台の Workflow を置いて init する（経路の手順が Core の既定の値に頼らないように）
+  await runCommand(init, await openForInit({ cwd: f.cloneA }), {});
   const r = await route(f.cloneA);
   const results: unknown[] = [];
   const vars: Vars = { run: "" };

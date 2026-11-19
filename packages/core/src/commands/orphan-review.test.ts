@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { asHuman } from "../../test/helpers/commands-context.js";
+import { asHuman, openForInit } from "../../test/helpers/commands-context.js";
 import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { runGit } from "../git/run.js";
@@ -87,7 +87,7 @@ const later = (minutes: number) => new Date(Date.now() + minutes * 60_000);
  */
 async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
+  await runCommand(init, await openForInit({ cwd: f.cloneA, actor }), {});
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
   // 作業ブランチ（branch_at）を 2 時間前からにする（push より前の保留を作業ブランチの中に置くため）。

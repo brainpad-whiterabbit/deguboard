@@ -10,6 +10,7 @@ import {
   type Fixture,
   type Layout,
 } from "../../test/helpers/git-fixture.js";
+import { TEST_WORKFLOW_FILE } from "../../test/helpers/workflow.js";
 import { recordBaseline } from "../git/outside.js";
 import { pathExists } from "../storage/exists.js";
 import {
@@ -508,6 +509,8 @@ describe("workflow set", () => {
   it("Workflow を置き換えても既存のチケットが読め、どのチケットも新しい制約で遷移する（チケットの workflow は Workflow を選ばない）", async () => {
     const f = await eachFixture();
     const ctx = await openAgent(f);
+    // 置き換える前の Workflow も値を書く（起票と着手がエージェントに承認で通る値。init が置く既定に頼らない）
+    await runCommand(workflowSet, asHuman(ctx), { definition: TEST_WORKFLOW_FILE });
     const a = await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,

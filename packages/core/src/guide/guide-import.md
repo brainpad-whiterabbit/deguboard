@@ -22,7 +22,7 @@ Turns the requirements, research results, and review findings settled in the con
 
 ## Creator and assignee
 
-- The Workflow's `governance.create` judges filing (`ticket create` and `ticket import`; `always_ask` by default): pass `--approved-by human` only after a human approved or instructed the filing (step 1). When the board's value is `anyone`, pass no `--approved-by`
+- The Workflow's `governance.create` judges filing (`ticket create` and `ticket import`), which follows the approval rule of `dg guide overview`: pass `--approved-by human` only after a human approved or instructed the filing (step 1)
 - The creator (`created_by`) is the person who instructed or approved the filing, or the AI that filed without a human's check. When filing on a human's instruction or approval, pass `--created-by human` so the user is the creator. In an automatic step that files without a human's check (only where the board's `governance.create` lets an agent file without asking), do not pass it (it becomes `<user>/agent`)
 - The assignee (`assignee`) is optional. If you will continue advancing it, use `--assignee agent`. If a human will advance it, use `--assignee human`. Claim overwrites it with the claiming actor
 

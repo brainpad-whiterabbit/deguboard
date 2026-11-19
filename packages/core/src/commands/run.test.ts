@@ -40,7 +40,7 @@ import {
 } from "./run.js";
 import { fixRunFinishedAt, STALE_SESSION_ERROR } from "./run-close-judge.js";
 import { commit, configSet, init, validate } from "./setup.js";
-import { asHuman } from "../../test/helpers/commands-context.js";
+import { asHuman, openForInit } from "../../test/helpers/commands-context.js";
 import { workflowValidate } from "./workflow.js";
 import { metricsShow } from "./metrics.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
@@ -82,7 +82,7 @@ afterEach(async () => {
 /** init してチケット t1・t2 を起票した雛形の準備（テストファイルで 1 度だけ走る） */
 async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
-  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
+  await runCommand(init, await openForInit({ cwd: f.cloneA, actor }), {});
   const ctx = await openContext({ cwd: f.cloneA, actor });
   await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
   await runCommand(ticketCreate, ctx, { title: "B", approved_by: "human" });
