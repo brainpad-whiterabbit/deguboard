@@ -30,6 +30,7 @@ AI エージェントに開発を任せるための開発の流れを Git リポ
 - コマンドの中で事実から結果を決める処理は、git・gh・ファイルを読まない関数に置く。判定の組み合わせはその関数のテストで網羅し、git を通す結合テストは経路の代表だけにする（書き方は [development.md の「ビルドとテスト」](docs/development.md#ビルドとテスト)、理由は [ADR-033](docs/adr/ADR-033-architecture.md)）
 - Git 操作のテストは、一時ディレクトリの bare リモート付きリポジトリで行う
 - コメント・ドキュメント・テスト名は日本語で書く。README.md（GitHub・Marketplace の入口）と SECURITY.md（GitHub の Security タブの入口）と docs/usage.md（README から引く使い方）と docs/how-it-works.md（README から引く仕組み）と docs/guide-notes/（dg guide に差し込む補足）は英語で書く（日本語版の README.ja.md と docs/usage.ja.md と docs/how-it-works.ja.md も同じ PR で、英語版と同じ節の構成に合わせ、先頭から英語版と互いに辿れるようにする）。README から指すほかの docs（requirements.md・development.md・ADR 一覧）は日本語のままにする。guide・Skill の雛形・dg の出力（ヘルプ・エラー・警告などエージェントと利用者が読む文字列）・GitHub Release の本文（Release ページの利用者が読む）も英語で書く（[ADR-001](docs/adr/ADR-001-doc-strategy.md)）。例外は dg ask の言語（packages/core/src/commands/ask.ts の ASK_LANGUAGES）と画面の訳（要件 UI-11）
+- GitHub Release の本文は利用者向けに書く。内部の識別子（チケット・Iteration・Epic・Plan の ID、要件番号、ADR 番号）と、利用者に効果のない変更（テスト、検査の結果、内部の作り替え、開発ツール、貢献者向けの文書）は書かない。残すのは、利用者に見える変化、互換性を壊す変更と移行の手順、セキュリティの修正、動かす条件の変化、利用者向け文書の変更、導入の方法と SHA256 の確かめ方。内部の変更でも利用者に効果があれば、その効果として書く
 
 ## チケット
 

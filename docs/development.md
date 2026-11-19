@@ -178,10 +178,12 @@ gh release create v<版> --draft --notes-file <本文> packages/vscode/deguboard
 gh release edit v<版> --draft=false  # 公開すると、ワークフローが Marketplace に出す
 ```
 
+Release の本文（`<本文>`）は、[CLAUDE.md の「コードの規約」](../CLAUDE.md#コードの規約)の GitHub Release の本文の項に沿って書く。
+
 リリースのチケットを 2 つに分けて起票し進める手順（起票の時期は Iteration の確認である `dg guide release` の手順 1「Check that all are done」のあと、分け方と進め方は手順 3）は `dg guide release` に従う。ここには、このリポジトリで受け入れ条件に入れるものだけを書く。
 
 - **版を上げる PR のチケット**（`release:version` の PR）：全パッケージの版が揃い VSIX の版が `packages/vscode/package.json` と一致する、`mise run check`・`mise run audit`・`mise run test:layout`・`mise run test:vscode` が PR の先端で通る。
-- **タグと公開のチケット**（PR を持たない）：マージ後の main の SHA にタグ `v<版>` を push した、VSIX を添付した Release を公開した、Marketplace に版が出た（ワークフローが成功した）。PR のマージのあとでしか確かめられないので、PR のチケットに入れない。
+- **タグと公開のチケット**（PR を持たない）：マージ後の main の SHA にタグ `v<版>` を push した、VSIX を添付した Release を公開した、公開した Release の本文が [CLAUDE.md](../CLAUDE.md) の Release の本文の規約に沿う、Marketplace に版が出た（ワークフローが成功した）。PR のマージのあとでしか確かめられないので、PR のチケットに入れない。
 
 VSIX を添付してから公開する。公開したときだけ `.github/workflows/publish-extension.yml` が走り、その Release に添付した `deguboard-vscode.vsix` を落として、版がタグと合えば Marketplace に出す（`vsce publish --oidc`）。build と検査はしないので、上の検査を通した VSIX を添付する（判断は [ADR-008](adr/ADR-008-tech-stack.md)）。pre-release の Release は出さず、あとで正式な Release に変えても出ない（出すなら、その Release を消して下書きから作り直して公開する）。
 
