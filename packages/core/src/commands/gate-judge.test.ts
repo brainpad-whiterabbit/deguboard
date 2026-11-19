@@ -1,7 +1,8 @@
 // 品質ゲートの判定の組み合わせ（段 × for × 事実）を、git・gh なしで確かめる。
 // 事実を集める経路（gh の呼び方、fetch、記録、検査を回す）は gate.test.ts と pr.test.ts の代表の件が見る
 import { describe, expect, it } from "vitest";
-import type { PrGateFacts } from "../git/facts.js";
+import type { TipMerge } from "../git/facts-judge.js";
+import type { BranchTip, PrGateFacts } from "../git/facts.js";
 import type { GateLevel } from "../model/ticket.js";
 import type { CheckOutcome } from "./gate-check.js";
 import {
@@ -305,7 +306,7 @@ describe("受け入れ条件（acceptance）", () => {
 });
 
 describe("見直し（review）", () => {
-  const review = (runs: ReviewRun[], tip: typeof TIP | null = TIP) =>
+  const review = (runs: ReviewRun[], tip: BranchTip | null = TIP) =>
     judge({ for: "ready", review: { tip, runs } });
 
   it("リモートの先端を読めなければ満たさない", () => {
@@ -348,6 +349,56 @@ describe("見直し（review）", () => {
       "Review r1 did not pass (2 heavy findings)",
     );
     expect(detail(review([run()]), "review")).toBe("Review r1 of the last push passed");
+  });
+
+  describe("base を取り込んだだけの先端（RN-10）", () => {
+    const MAIN = "c".repeat(40);
+    const TREE = "e".repeat(40);
+    /** 先端は、見直した SHA（OTHER）に base のコミット（MAIN）を取り込み、tree が自動マージの結果と同じマージコミット */
+    const merged = (over: Partial<TipMerge> = {}): BranchTip => ({
+      ...TIP,
+      merge: { parents: [OTHER, MAIN], onBase: [MAIN], tree: TREE, autoTree: TREE, ...over },
+    });
+    const before = run({ head: OTHER, started_at: BEFORE_TIP, finished_at: BEFORE_TIP });
+
+    it("取り込む前の先端を見直して通った見直しを数え、どのコミットの見直しかを detail に出す", () => {
+      const view = review([before], merged());
+      expect(failed(view)).toEqual([]);
+      expect(detail(view, "review")).toBe(
+        "Review r1 of bbbbbbbb passed, and the last push (remote tip aaaaaaaa) only merged base into it",
+      );
+      expect(reviewedTip(before, merged())).toBe(true);
+      // 取り込む前の見直しに重い指摘があれば、その見直しが今の見直しなので満たさない
+      const heavyBefore = { ...before, review: { heavy: 1, light: 0, passed: false } };
+      expect(detail(review([heavyBefore], merged()), "review")).toBe(
+        "Review r1 did not pass (1 heavy findings)",
+      );
+    });
+
+    it("競合を手で解いた（tree が違う）・自動マージの結果がない・親が base のコミットでない・別のコミットの見直しは数えない", () => {
+      const unmet = [
+        review([before], merged({ tree: "f".repeat(40) })),
+        review([before], merged({ autoTree: null })),
+        review([before], merged({ onBase: [] })),
+        review([before], merged({ onBase: [OTHER, MAIN] })),
+        // 見直したのは base の側の親（作業の先端ではない）
+        review([{ ...before, head: MAIN }], merged()),
+        // 取り込みの後に別のコミットを積んだ・rebase した先端は、マージコミットの事実を持たない
+        review([before], TIP),
+      ];
+      for (const view of unmet) {
+        expect(failed(view)).toEqual(["review", "check"]);
+        expect(detail(view, "review")).toContain("No review of the last push");
+      }
+    });
+
+    it("SHA を持たない見直しは、取り込みの先端でも時刻で比べる。先端そのものの見直しがあれば後のものを使う", () => {
+      expect(failed(review([withoutHead(before)], merged()))).toEqual(["review", "check"]);
+      const after = heavy("r2", AFTER_TIP);
+      expect(detail(review([before, after], merged()), "review")).toBe(
+        "Review r2 did not pass (1 heavy findings)",
+      );
+    });
   });
 
   it("先端を見直した見直しが複数あれば最後のものを使い、先端を見ていない後の見直しは使わない", () => {

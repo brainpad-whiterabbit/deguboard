@@ -149,6 +149,23 @@ describe("作業の段階（stageOf。EX-3）", () => {
     ).toBe("reviewed");
   });
 
+  it("先端が base を取り込んだだけのマージコミットなら、取り込む前の先端の見直しを今の見直しとする。tree が自動マージの結果と違えば見直し直す（RN-10）", () => {
+    const tip = "a".repeat(40);
+    const reviewed = "b".repeat(40);
+    const main = "c".repeat(40);
+    const tree = "e".repeat(40);
+    const merge = { parents: [reviewed, main], onBase: [main], tree, autoTree: tree };
+    const runs = [review(1, passed, { head: reviewed })];
+    expect(stageOf(facts({ pushedSha: tip, pushedMerge: merge, runs }))).toMatchObject({
+      name: "reviewed",
+      review_passed: true,
+    });
+    // 競合を手で解いた（tree が違う）・マージコミットでない先端（取り込みの後のコミット・rebase）は数えない
+    const resolved = { ...merge, tree: "f".repeat(40) };
+    expect(stageOf(facts({ pushedSha: tip, pushedMerge: resolved, runs })).name).toBe("fixed");
+    expect(stageOf(facts({ pushedSha: tip, runs })).name).toBe("fixed");
+  });
+
   it("重い指摘が出た見直しが上限（2 回）を超えたら waiting_human", () => {
     const runs = [review(1, heavy), review(2, heavy), review(6, heavy)];
     expect(stageOf(facts({ runs }))).toMatchObject({ name: "waiting_human", fixes: 3 });

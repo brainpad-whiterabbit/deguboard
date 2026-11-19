@@ -9,6 +9,7 @@ import { runCommand, type CommandContext } from "./define.js";
 import { chooseCheck, matchesAnyGlob } from "./gate-check.js";
 import { gate } from "./gate.js";
 import type { GateView } from "./gate-judge.js";
+import { stageFactsOf, stageOf } from "./next.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
 import { ticketCheck, ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
@@ -190,6 +191,40 @@ describe("dg gate（品質ゲート。t532）", () => {
     expect(view.conditions.find((c) => c.id === "review")!.detail).toContain(
       "No review of the last push",
     );
+  });
+
+  it("見直しの後に base を取り込んだだけのマージコミットを push しても、review と dg next の段階は前の見直しを数え、一時の worktree を残さない。その後にコミットを積むと数えない（RN-10）", async () => {
+    const { ctx, f } = await prepared();
+    await review(ctx, 1, 0);
+    // 別の clone が main を進め、作業ブランチに取り込んで push する
+    await git(f.cloneB, ["fetch", "-q", "origin"]);
+    await git(f.cloneB, ["checkout", "-q", "--detach", "origin/main"]);
+    await writeFile(path.join(f.cloneB, "main.txt"), "main\n");
+    await git(f.cloneB, ["add", "--", "main.txt"]);
+    await git(f.cloneB, ["commit", "-q", "-m", "main を進める"]);
+    await git(f.cloneB, ["push", "-q", "origin", "HEAD:main"]);
+    await git(f.cloneA, ["fetch", "-q", "origin", "+refs/heads/main:refs/remotes/origin/main"]);
+    await git(f.cloneA, ["merge", "-q", "--no-edit", "origin/main"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
+    const worktrees = async () => (await git(f.cloneA, ["worktree", "list", "--porcelain"])).stdout;
+    const before = await worktrees();
+    const view = await judge(ctx, "ready");
+    expect(failed(view)).toEqual([]);
+    expect(view.conditions.find((c) => c.id === "review")!.detail).toContain(
+      "only merged base into it",
+    );
+    // dg next の段階も同じ事実で前の見直しを数える（PR の番号は記録していないので、段階の事実に足して渡す）
+    const ticket = { ...ctx.store.require("ticket", "t1").data, pr: 7 };
+    expect(stageOf(await stageFactsOf(ctx, ticket, { fetch: true }))).toMatchObject({
+      name: "reviewed",
+      review_passed: true,
+    });
+    expect(await worktrees()).toBe(before);
+    // 取り込みの後にコミットを積むと、先端はマージコミットでないので見直し直す
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "取り込みの後"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
+    expect(failed(await judge(ctx, "ready"))).toEqual(["review"]);
+    expect(stageOf(await stageFactsOf(ctx, ticket, { fetch: true })).name).toBe("fixed");
   });
 
   it("gh が返した PR の事実（draft・衝突）を判定に渡し、gh の出力を読めなければ PR を読めないとして pr と mergeable を満たさない", async () => {
