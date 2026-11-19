@@ -49,7 +49,7 @@ export const reserveFields = {
     .boolean()
     .optional()
     .describe(
-      "With --reserve, take over what another live session of yours reserved: the reservation moves to the calling session. Use when that session has stopped or a person told you to take the work over",
+      "With --reserve, take over what another live session of yours reserved: the reservation moves to the calling session. Tickets that the other session already claimed stay with it through its claim record, also after a Plan's reservation moves; taking one of them over needs dg ticket claim <ticket> --take-over. Use when that session has stopped or a person told you to take the work over",
     ),
 };
 
@@ -82,7 +82,7 @@ const idOf = (subject: Subject): string => ("plan" in subject ? subject.plan.id 
 /**
  * 対象の予約とフックの時刻を読み、対象への操作を止めるかを claim の記録と同じ関数で決める。記録は変えない。
  * チケットに効きうる予約は優先の順（チケット自身、それを含む開いた Plan）に渡し、チケットの claim の記録が呼んだセッションの
- * ものなら予約では止めない（holdingReservation）
+ * ものなら予約では止めない（holdingReservation）。todo のチケットの claim の記録は前の作業の周期のものなので、渡しても数えない（fresh）
  */
 async function judge(
   ctx: CommandContext,
@@ -102,7 +102,9 @@ async function judge(
   const clock = { now: ctx.now(), idleMs: CRASHED_SUBAGENT_IDLE_MS };
   const session = sessionOf(ctx, input.session);
   const claim = "plan" in subject ? undefined : await readSessionClaim(localDir, subject.ticket);
-  const held = holdingReservation(candidates, clock, { claim, session });
+  const fresh =
+    "ticket" in subject && ctx.store.tickets.get(subject.ticket)?.data.status === "todo";
+  const held = holdingReservation(candidates, clock, { claim, session, fresh });
   return decideSessionClaim({
     ticket: id,
     operation,
@@ -132,7 +134,12 @@ export const judgeReservedNext = (ctx: CommandContext, ticket: TicketId) =>
 
 /**
  * claim（start は todo の新しい claim、claim はもう一度の claim）を、別のセッションの予約で止める。拒否は dg のエラーを投げ、
- * 通すときの知らせは warnings に足す。--take-over で越えたら true を返す（claim が通った後に moveReservation で予約を移す）
+ * 通すときの知らせは warnings に足す。--take-over で越えたら true を返す（claim が通った後に moveReservation で予約を移す）。
+ * ここの読む・決めるは予約のロックの外にある。自分では予約せずに claim したセッションは、この判定より前に書かれた予約とだけ
+ * 比べられ、claim の push の間に別のセッションが `next --reserve` で予約すると、どちらも通る。受け入れるのは、claim の push から
+ * claim の記録を書くまでの間（t1148）と同じ結果になり、その後は claim の記録が予約より優先されて claim した側が進められるため。
+ * ロックを push の間も持つと、取り込みと push（それぞれ上限 60 秒）がロックの待ち時間（10 秒）を超え、別のセッションの
+ * `next --reserve`・`plan show --reserve` が失敗する。先に予約してから claim する手順（guide work）は reserve のロックで直列になる
  */
 export async function guardReservedClaim(
   ctx: CommandContext,

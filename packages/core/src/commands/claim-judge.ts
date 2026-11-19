@@ -209,14 +209,17 @@ export interface ReservationCandidate extends Pick<SessionSigns, "lastHookAt" | 
  * --take-over でチケットを引き継いだ予約を、Plan の予約の更新で取り返させないため。
  * own は、チケットの claim の記録と呼んだセッション。claim の記録が呼んだセッションのものなら、予約より claim の記録を優先して
  * 効く予約はないとする（claim して進めているセッションを、後から書かれた別のセッションの予約で止めない。別のセッションの
- * もう一度の claim は claim の記録が拒むので、予約で止めると --take-over までどちらも進められなくなる）
+ * もう一度の claim は claim の記録が拒むので、予約で止めると --take-over までどちらも進められなくなる）。
+ * fresh は、チケットが todo（次の claim は新しい作業の周期）であること。そのときの claim の記録は前の作業の周期の残り
+ * （unclaim せずに todo へ戻したチケットなど）なので数えず、予約が効く（recordSessionClaim の fresh と同じ扱い）
  */
 export function holdingReservation(
   candidates: readonly ReservationCandidate[],
   clock: Pick<SessionSigns, "now" | "idleMs">,
-  own?: { claim: SessionClaim | undefined; session: string | undefined },
+  own?: { claim: SessionClaim | undefined; session: string | undefined; fresh?: boolean },
 ): ReservationCandidate | undefined {
-  if (own?.claim !== undefined && own.claim.session === own.session) return undefined;
+  if (!own?.fresh && own?.claim !== undefined && own.claim.session === own.session)
+    return undefined;
   return candidates.find((c) =>
     sessionClaimHolds(c.record, { ...clock, lastHookAt: c.lastHookAt, endedAt: c.endedAt }),
   );

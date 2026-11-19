@@ -521,4 +521,19 @@ describe("チケットに効いている予約（チケット自身、それを�
         expect(holdingReservation(candidates, CLOCK, own), JSON.stringify(own)).toBe(first);
     }
   });
+
+  it("todo のチケット（新しい claim）では、呼んだセッションの claim の記録が残っていても前の作業の周期のものとして数えず、別のセッションの予約が効いて claim を拒む", () => {
+    const own = { claim: { session: "sess-b", claimed_at: CLAIMED_AT }, session: "sess-b" };
+    for (const held of [candidate("t1", "sess-a"), candidate("p1", "sess-a")]) {
+      expect(holdingReservation([held], CLOCK, { ...own, fresh: true })).toBe(held);
+      // todo でなければ（もう一度の claim など）、同じ記録が予約より優先される
+      expect(holdingReservation([held], CLOCK, { ...own, fresh: false })).toBeUndefined();
+      const decision = reserved({
+        record: held.record,
+        reserved: held.target,
+        lastHookAt: held.lastHookAt,
+      });
+      expect(decision.kind).toBe("reject");
+    }
+  });
 });
