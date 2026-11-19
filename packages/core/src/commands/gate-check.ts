@@ -11,6 +11,7 @@
 
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { baseRefName } from "../git/facts.js";
 import { runGit, runProcess } from "../git/run.js";
 import { findBranchWorktree } from "../git/worktree.js";
 import { ACTIONS_TEST_TIMEOUT_MS, type Config } from "../model/config.js";
@@ -251,9 +252,7 @@ const KIND_LABELS: Record<PlannedCheck["kind"], string> = {
 
 /** base（リモートがあればリモートの base_branch）と sha の分岐点からの差分のファイル。改名は元と先の両方を数える。読めなければ undefined */
 async function changedFiles(ctx: CommandContext, sha: string): Promise<string[] | undefined> {
-  const base = ctx.repo.codeRemote
-    ? `refs/remotes/${ctx.repo.codeRemote}/${ctx.repo.baseBranch}`
-    : `refs/heads/${ctx.repo.baseBranch}`;
+  const base = baseRefName(ctx.repo);
   const out = await runGit(
     ctx.repo.topLevel,
     ["diff", "--name-only", "--no-renames", "-z", `${base}...${sha}`],

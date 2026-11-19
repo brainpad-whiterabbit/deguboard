@@ -75,16 +75,64 @@ async function sha(repo: GitRepo, ref: string): Promise<string> {
   return (await runGit(repo.dataDir, ["rev-parse", ref])).stdout.trim();
 }
 
+const firstLine = (text: string) => text.trim().split("\n")[0] ?? "";
+
+/**
+ * base の ref の名前（あるかは見ない）。リモートがあればリモートの追跡ブランチ、なければ（local を渡せば）ローカルのもの。
+ * base の ref の名前を作る式はここにだけ置く（取り込み・照合・検査の差分・dg next の取り込みの手が同じ名前を使う）
+ */
+export function baseRefName(
+  repo: Pick<GitRepo, "codeRemote" | "baseBranch">,
+  local = false,
+): string {
+  return repo.codeRemote && !local
+    ? `refs/remotes/${repo.codeRemote}/${repo.baseBranch}`
+    : `refs/heads/${repo.baseBranch}`;
+}
+
+/** ref の名前から refs/heads/・refs/remotes/ を外した短い名前（main・origin/main など。git merge や利用者への表示に渡す） */
+export function shortRefName(ref: string): string {
+  return ref.replace(/^refs\/(heads|remotes)\//, "");
+}
+
 /** 照合の base。リモートの追跡ブランチがあればそれ、なければローカルのもの */
 export async function baseRef(repo: GitRepo): Promise<string | undefined> {
-  if (
-    repo.codeRemote &&
-    (await refExists(repo, `refs/remotes/${repo.codeRemote}/${repo.baseBranch}`))
-  )
-    return `refs/remotes/${repo.codeRemote}/${repo.baseBranch}`;
-  if (await refExists(repo, `refs/heads/${repo.baseBranch}`))
-    return `refs/heads/${repo.baseBranch}`;
+  const remote = baseRefName(repo);
+  if (repo.codeRemote && (await refExists(repo, remote))) return remote;
+  const local = baseRefName(repo, true);
+  if (await refExists(repo, local)) return local;
   return undefined;
+}
+
+/** base の取り込みの結果。取り込めた（リモートがなく取り込まないときも）ら undefined、取り込めなければ理由 */
+export type BaseFetch = () => Promise<{ reason: string } | undefined>;
+
+/**
+ * base をリモートから追跡ブランチに取り込む。base の fetch はここにだけ置く。リモートがなければ何もしない。
+ * git が見つからない・時間切れ（GitError）は投げる（呼ぶ側がそれぞれの扱いで受ける）
+ */
+export async function fetchBase(repo: GitRepo): Promise<{ reason: string } | undefined> {
+  if (!repo.codeRemote) return undefined;
+  const fetched = await runGit(
+    repo.dataDir,
+    ["fetch", repo.codeRemote, `+${baseRefName(repo, true)}:${baseRefName(repo)}`],
+    { allowFailure: true, timeoutMs: 60_000 },
+  );
+  return fetched.code === 0
+    ? undefined
+    : {
+        reason: `git fetch ${repo.codeRemote} ${repo.baseBranch} failed: ${firstLine(fetched.stderr)}`,
+      };
+}
+
+/**
+ * 1 回の判定の中で base を 1 回だけ取り込む：最初に呼ばれたときだけ fetchBase し、後の呼び出しには同じ結果を返す。
+ * dg gate と dg next は、先端のマージコミットを読む（tip-merge.ts）ときと base の今の先端を読む（baseContainment）ときに同じものを渡す。
+ * 検査の後の読み直し（t1152）は時間が空くので、新しく作って取り込み直す
+ */
+export function fetchBaseOnce(repo: GitRepo): BaseFetch {
+  let fetched: ReturnType<BaseFetch> | undefined;
+  return () => (fetched ??= fetchBase(repo));
 }
 
 /**
@@ -99,29 +147,16 @@ export async function baseTip(repo: GitRepo): Promise<string | undefined> {
 /**
  * base の今の先端（sha）と、commit がそれを含むか（品質ゲートの base の条件。EX-11）。リモートがあれば、比べる前に base を取り込む。
  * 取り込めない・base がない・比べられないときは理由（reason）を返す：手元の古い追跡 ref と比べると、base が進んでいても
- * 含むと答えてしまうため
+ * 含むと答えてしまうため。fetch は同じ判定の中で取り込みを 1 回にまとめるもの（fetchBaseOnce）。渡さなければここで取り込む
  */
 export async function baseContainment(
   repo: GitRepo,
   commit: string,
+  fetch: BaseFetch = () => fetchBase(repo),
 ): Promise<{ sha: string; contained: boolean } | { reason: string }> {
-  const firstLine = (text: string) => text.trim().split("\n")[0] ?? "";
   try {
-    if (repo.codeRemote) {
-      const fetched = await runGit(
-        repo.dataDir,
-        [
-          "fetch",
-          repo.codeRemote,
-          `+refs/heads/${repo.baseBranch}:refs/remotes/${repo.codeRemote}/${repo.baseBranch}`,
-        ],
-        { allowFailure: true, timeoutMs: 60_000 },
-      );
-      if (fetched.code !== 0)
-        return {
-          reason: `git fetch ${repo.codeRemote} ${repo.baseBranch} failed: ${firstLine(fetched.stderr)}`,
-        };
-    }
+    const failed = await fetch();
+    if (failed) return failed;
     const base = await baseRef(repo);
     if (!base) return { reason: `base branch ${repo.baseBranch} is not found` };
     const tip = await sha(repo, base);
@@ -151,18 +186,9 @@ export async function findMergedLeftover(
   const refs = [`refs/heads/${branch}`];
   if (repo.codeRemote) {
     const remoteRef = `refs/remotes/${repo.codeRemote}/${branch}`;
-    const baseFetch = await runGit(
-      repo.dataDir,
-      [
-        "fetch",
-        repo.codeRemote,
-        `+refs/heads/${repo.baseBranch}:refs/remotes/${repo.codeRemote}/${repo.baseBranch}`,
-      ],
-      { allowFailure: true, timeoutMs: 60_000 },
-    );
     // base に届かなければリモートに届かないとみなし、ブランチの取り込みで待たない
     const fetched =
-      baseFetch.code === 0
+      (await fetchBase(repo)) === undefined
         ? await runGit(
             repo.dataDir,
             ["fetch", repo.codeRemote, `+refs/heads/${branch}:${remoteRef}`],
@@ -184,7 +210,7 @@ export async function findMergedLeftover(
     const r = await runGit(repo.dataDir, ["merge-base", "--is-ancestor", ref, base], {
       allowFailure: true,
     });
-    if (r.code === 0) return ref.replace(/^refs\/(heads|remotes)\//, "");
+    if (r.code === 0) return shortRefName(ref);
   }
   return undefined;
 }

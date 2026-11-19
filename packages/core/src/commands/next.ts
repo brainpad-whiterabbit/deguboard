@@ -4,7 +4,14 @@
 import { z } from "zod";
 import { detectAgent } from "../agents/index.js";
 import type { TipMerge } from "../git/facts-judge.js";
-import { baseContainment, remoteTip } from "../git/facts.js";
+import {
+  baseContainment,
+  baseRefName,
+  fetchBaseOnce,
+  remoteTip,
+  shortRefName,
+  type BaseFetch,
+} from "../git/facts.js";
 import { withTipMerge } from "../git/tip-merge.js";
 import { OPENED_STEPS, REVIEW_STEP, type Run } from "../model/run.js";
 import { BRANCH_VALUE_FORM, gateLevelOf, gateScopeOf, type Ticket } from "../model/ticket.js";
@@ -16,7 +23,7 @@ import { DEFAULT_WORKFLOW, operationPolicy } from "../workflow/resolve.js";
 import { wipAdvanceStepOf, wipOverOf, wipWarningsOf } from "../workflow/wip.js";
 import { briefOf, type BriefRole } from "./brief.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
-import { FIX_ROUNDS_LIMIT, heavyReviewRounds, reviewedTip } from "./gate-judge.js";
+import { FIX_ROUNDS_LIMIT, gateReads, heavyReviewRounds, reviewedTip } from "./gate-judge.js";
 import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";
 import { planReadiness } from "./plan.js";
 import { APPROVAL_OVERRIDES, NEVER_OVERRIDDEN } from "./pr-approval.js";
@@ -307,11 +314,14 @@ export function stageOf(facts: StageFacts): Stage {
     : stage("ready", n, fixes, `The review passed and PR #${ticket.pr} was marked ready`, true);
 }
 
-/** チケットの段階の事実を集める。fetch を渡せば作業ブランチを取り込んでから最後の push を読む */
+/**
+ * チケットの段階の事実を集める。fetch を渡せば作業ブランチを取り込んでから最後の push を読み、先端のマージコミットを
+ * 読むときは base も取り込む（fetchBase。渡せば withBaseFact と取り込みを 1 回にまとめる）
+ */
 export async function stageFactsOf(
   ctx: CommandContext,
   ticket: Ticket,
-  opts: { fetch?: boolean } = {},
+  opts: { fetch?: boolean; fetchBase?: BaseFetch } = {},
 ): Promise<StageFacts> {
   const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
   const recorded = [...[...ctx.store.runs.values()].map((d) => d.data), ...running].filter(
@@ -339,7 +349,7 @@ export async function stageFactsOf(
         ctx.repo,
         tip,
         runs.filter((r) => r.step === REVIEW_STEP),
-        { fetch: opts.fetch ?? false },
+        { fetch: opts.fetch ? (opts.fetchBase ?? fetchBaseOnce(ctx.repo)) : undefined },
       )
     : undefined;
   return {
@@ -364,37 +374,41 @@ function readyTurn(facts: StageFacts, st: Stage): boolean {
 }
 
 /**
- * ready の前に base を取り込むか（純粋関数）。ready の番で、段がマージの前に base を判定し（検査を判定する high・low。
- * gate-judge.ts の gateReads と同じ範囲）、先端が base の今の先端を含まないとき。dg pr ready が回す全体の検査を、
+ * ready の番で、段がマージの前に base を判定するか（検査を判定する high・low。dg gate --for merge が base を読む条件を
+ * gate-judge.ts の gateReads から得る）。free は base を判定しないので読まない
+ */
+function readsBaseBeforeReady(facts: StageFacts, st: Stage): boolean {
+  return readyTurn(facts, st) && gateReads(gateLevelOf(facts.ticket), "merge").base;
+}
+
+/**
+ * ready の前に base を取り込むか（純粋関数）。ready の番で段がマージの前に base を判定し（readsBaseBeforeReady）、
+ * 先端が base の今の先端を含まないとき。dg pr ready が回す全体の検査を、
  * マージで使える先端（base に入る形）で回すために、ready の前に取り込む（t1152 の base の条件）。
- * free は base を判定しないので取り込まない。base を読めないときも取り込みの手にはせず、マージの前の dg gate の base に任せる
+ * base を読めないときも取り込みの手にはせず、マージの前の dg gate の base に任せる
  */
 export function mergesBaseBeforeReady(facts: StageFacts, st: Stage = stageOf(facts)): boolean {
-  return (
-    readyTurn(facts, st) &&
-    gateScopeOf(gateLevelOf(facts.ticket)).check &&
-    facts.base?.contained === false
-  );
+  return readsBaseBeforeReady(facts, st) && facts.base?.contained === false;
 }
 
 /**
  * ready の番で base を判定する段なら、base の今の先端を取り込んで読み、先端が含むかを事実に足す（dg gate と同じ関数。
- * git/facts.ts の baseContainment）。fetch が要るので、ほかの段階と ticket show では読まない
+ * git/facts.ts の baseContainment）。fetch が要るので、ほかの段階と ticket show では読まない。
+ * fetchBase を渡せば、stageFactsOf が先端のマージコミットを読むときにもう取り込んでいればそれを使う（fetchBaseOnce）
  */
-export async function withBaseFact(ctx: CommandContext, facts: StageFacts): Promise<StageFacts> {
-  if (
-    facts.pushedSha === undefined ||
-    !readyTurn(facts, stageOf(facts)) ||
-    !gateScopeOf(gateLevelOf(facts.ticket)).check
-  )
-    return facts;
-  const read = await baseContainment(ctx.repo, facts.pushedSha);
+export async function withBaseFact(
+  ctx: CommandContext,
+  facts: StageFacts,
+  fetchBase?: BaseFetch,
+): Promise<StageFacts> {
+  if (facts.pushedSha === undefined || !readsBaseBeforeReady(facts, stageOf(facts))) return facts;
+  const read = await baseContainment(ctx.repo, facts.pushedSha, fetchBase);
   if ("reason" in read) return facts;
-  const { codeRemote, baseBranch } = ctx.repo;
   return {
     ...facts,
     base: {
-      ref: codeRemote ? `${codeRemote}/${baseBranch}` : baseBranch,
+      // 取り込みの手が git merge に渡す名前（origin/main など）
+      ref: shortRefName(baseRefName(ctx.repo)),
       contained: read.contained,
     },
   };
@@ -714,7 +728,13 @@ export const next = defineCommand({
   async run(ctx, input) {
     requireReserveWithTakeOver(input);
     const ticket = ctx.store.require("ticket", input.ticket).data;
-    const facts = await withBaseFact(ctx, await stageFactsOf(ctx, ticket, { fetch: true }));
+    // base の取り込みは、先端のマージコミットを読むときと ready の前に base を読むときで 1 回にまとめる
+    const fetchBase = fetchBaseOnce(ctx.repo);
+    const facts = await withBaseFact(
+      ctx,
+      await stageFactsOf(ctx, ticket, { fetch: true, fetchBase }),
+      fetchBase,
+    );
     const env = ctx.env ?? process.env;
     const found = nextOf(ctx, facts, {
       hooksReach: await hooksReachSession(ctx.repo.localDir, env),

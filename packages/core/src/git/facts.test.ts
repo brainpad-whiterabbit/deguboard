@@ -5,7 +5,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, openRepo, type Fixture } from "../../test/helpers/git-fixture.js";
 import { reconcileStatus } from "../workflow/reconcile.js";
 import { TEST_WORKFLOW } from "../../test/helpers/workflow.js";
-import { collectBranchFacts, fetchPrGateFacts, resetGhCache } from "./facts.js";
+import {
+  baseRefName,
+  collectBranchFacts,
+  fetchBase,
+  fetchBaseOnce,
+  fetchPrGateFacts,
+  resetGhCache,
+} from "./facts.js";
 import type { GitRepo } from "./repo.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -205,6 +212,46 @@ describe("branch_merged の事実の読み取り", () => {
     await advanceMain(f, a.repo.dataDir, "次の作業");
     expect((await collectBranchFacts(a.repo, "feat/t1-x", opts)).facts).toMatchObject({
       branch_merged: true,
+    });
+  });
+});
+
+// dg gate と dg next は、先端のマージコミットを読むときと base の今の先端を読むときに同じ fetchBaseOnce を渡す（t1174）
+describe("base の取り込み（fetchBase・fetchBaseOnce）", () => {
+  /** 別の作業が main に入って push された形にする（data worktree には取り込まない）。push した SHA を返す */
+  async function pushMain(f: Fixture, message: string): Promise<string> {
+    await git(f.cloneB, ["pull", "-q", "--ff-only", "origin", "main"]);
+    await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", message]);
+    await git(f.cloneB, ["push", "-q", "origin", "main"]);
+    return (await git(f.cloneB, ["rev-parse", "HEAD"])).stdout.trim();
+  }
+
+  it("fetchBaseOnce は最初の呼び出しでだけ取り込み、後の呼び出しは取り込まない。新しく作れば取り込み直す", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    const tracked = async () =>
+      (await git(a.repo.dataDir, ["rev-parse", baseRefName(a.repo)])).stdout.trim();
+    const once = fetchBaseOnce(a.repo);
+    const first = await pushMain(f, "1 つ目");
+    expect(await once()).toBeUndefined();
+    expect(await tracked()).toBe(first);
+    const second = await pushMain(f, "2 つ目");
+    // 同じ判定の中の 2 回目は取り込まないので、追跡 ref は 1 つ目のまま
+    expect(await once()).toBeUndefined();
+    expect(await tracked()).toBe(first);
+    // 検査の後の読み直し（t1152）のように新しく作れば取り込む
+    expect(await fetchBaseOnce(a.repo)()).toBeUndefined();
+    expect(await tracked()).toBe(second);
+  });
+
+  it("取り込めなければ理由を返す。base の ref の名前はリモートがあれば追跡ブランチ、なければローカルのもの", async () => {
+    const f = await fixture();
+    const a = await openRepo(f.cloneA);
+    expect(baseRefName(a.repo)).toBe(`refs/remotes/${a.repo.codeRemote}/${a.repo.baseBranch}`);
+    expect(baseRefName(a.repo, true)).toBe(`refs/heads/${a.repo.baseBranch}`);
+    expect(baseRefName({ ...a.repo, codeRemote: null })).toBe(`refs/heads/${a.repo.baseBranch}`);
+    expect(await fetchBase({ ...a.repo, baseBranch: "no-such-branch" })).toMatchObject({
+      reason: expect.stringContaining(`git fetch ${a.repo.codeRemote} no-such-branch failed:`),
     });
   });
 });
