@@ -25,7 +25,7 @@
     "vsix:install": "node scripts/install-vsix.mjs",
     "playwright:install": "playwright-core install chromium chromium-headless-shell",
     "gifs": "node scripts/record-gifs.mjs",
-    "release:version": "pnpm -r exec npm version --no-git-tag-version --allow-same-version",
+    "release:version": "pnpm -r --filter './packages/*' version --no-git-tag-version --no-git-checks --allow-same-version",
     "audit": "pnpm audit --prod"
   },
   "devDependencies": {
