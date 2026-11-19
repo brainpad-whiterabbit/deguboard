@@ -10,7 +10,6 @@ import { run as runCli } from "../../packages/cli/src/program.js";
 import {
   createLocalClient,
   init,
-  openContext,
   runCommand,
   type CommandClient,
 } from "../../packages/core/src/index.js";
