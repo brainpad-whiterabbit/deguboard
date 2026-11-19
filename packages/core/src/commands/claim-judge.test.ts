@@ -1,6 +1,7 @@
 // ticket claim の拒否ともう一度の claim かどうかの決定の組み合わせ（status・担当・PR・仮番号・--retry-reason・--branch）を、
 // git なしで確かめる。取り込んだ後の値で決める経路（古い索引・push に負けた後のやり直し）と、Run を開いて前の手直しを閉じる経路は
-// commands-flow-reclaim.test.ts の代表の件が見る。境目の方針と担当の付け替えの許可は commands-flow-ticket.test.ts
+// commands-flow-reclaim.test.ts の代表の件が見る。境目の方針と担当の付け替えの許可は commands-flow-ticket.test.ts。
+// claim したセッションの記録が効くか・別のセッションの操作を拒むかの組み合わせもここで確かめ、記録を読み書きする経路は claim-sessions.test.ts
 import { describe, expect, it } from "vitest";
 import { OperationError, UsageError } from "../errors.js";
 import { STATUSES } from "../model/common.js";
@@ -8,10 +9,15 @@ import {
   claimRejectionError,
   decideClaim,
   decideReclaim,
+  decideSessionClaim,
+  sessionClaimHolds,
   workBranchName,
   type ClaimFacts,
   type ClaimRejection,
   type ReclaimFacts,
+  type SessionClaim,
+  type SessionClaimFacts,
+  type SessionSigns,
 } from "./claim-judge.js";
 
 /** 既定：担当のない todo のチケットを、eiki の AI が claim する */
@@ -235,5 +241,150 @@ describe("作業ブランチの名前の組み立て（ST-3）", () => {
     expect(() => workBranchName("t12", "feat/x")).toThrow("has characters that cannot be used");
     expect(() => workBranchName("t12", "-x")).toThrow(UsageError);
     expect(() => workBranchName("t12", "a".repeat(200))).toThrow("characters long");
+  });
+});
+
+const IDLE_MS = 30 * 60_000;
+const CLAIMED_AT = "2026-11-06T00:00:00Z";
+const RECORD: SessionClaim = { session: "sess-a", claimed_at: CLAIMED_AT };
+/** CLAIMED_AT から分だけ後の時刻 */
+const after = (minutes: number) => new Date(Date.parse(CLAIMED_AT) + minutes * 60_000);
+const iso = (minutes: number) => after(minutes).toISOString();
+
+/** 既定：sess-a が記録して 10 分後で、フックは届いていない */
+const holds = (over: Partial<SessionSigns> = {}, record: SessionClaim = RECORD) =>
+  sessionClaimHolds(record, {
+    lastHookAt: undefined,
+    endedAt: undefined,
+    now: after(10),
+    idleMs: IDLE_MS,
+    ...over,
+  });
+
+/** 既定：sess-a が記録して 10 分後（5 分後にフックが届いた）に、別のセッション sess-b の AI がもう一度 claim する */
+const sessionClaim = (over: Partial<SessionClaimFacts> = {}) =>
+  decideSessionClaim({
+    ticket: "t1",
+    operation: "claim",
+    record: RECORD,
+    lastHookAt: iso(5),
+    endedAt: undefined,
+    now: after(10),
+    idleMs: IDLE_MS,
+    actorKind: "agent",
+    session: "sess-b",
+    takeOver: false,
+    ...over,
+  });
+
+const HOLDER = `session sess-a (it claimed t1 at ${CLAIMED_AT}; its last dg hook arrived at ${iso(5)})`;
+
+describe("claim したセッションの記録が効くか（SY-5）", () => {
+  it("最後の知らせ（記録した時刻と最後に届いたフックの新しいほう）から 30 分より前は効き、30 分ちょうどから無視する", () => {
+    expect(holds()).toBe(true);
+    expect(holds({ now: after(29) })).toBe(true);
+    expect(holds({ now: after(30) })).toBe(false);
+    // フックが届いていれば、そこから数える
+    expect(holds({ now: after(50), lastHookAt: iso(25) })).toBe(true);
+    expect(holds({ now: after(55), lastHookAt: iso(25) })).toBe(false);
+    // 記録より前に届いたフックは、記録した時刻より古いので使わない
+    expect(holds({ now: after(29), lastHookAt: iso(-60) })).toBe(true);
+    expect(holds({ now: after(30), lastHookAt: iso(-60) })).toBe(false);
+    // 時計が戻って今が記録より前でも効く
+    expect(holds({ now: after(-5) })).toBe(true);
+  });
+
+  it("最後の知らせの後（同じ時刻を含む）に SessionEnd が届いた記録は無視し、終わりの後にフックが届いていれば（同じ ID の再開）効く", () => {
+    expect(holds({ endedAt: iso(5) })).toBe(false);
+    expect(holds({ lastHookAt: iso(5), endedAt: iso(5) })).toBe(false);
+    expect(holds({ lastHookAt: iso(3), endedAt: iso(5) })).toBe(false);
+    expect(holds({ lastHookAt: iso(8), endedAt: iso(5) })).toBe(true);
+    // 記録より前の終わり（終わったセッションを再開してから claim した）は、記録の時刻が新しいので効く
+    expect(holds({ endedAt: iso(-5) })).toBe(true);
+    // 記録と同じ時刻の終わりは無視する
+    expect(holds({ endedAt: iso(0) })).toBe(false);
+  });
+
+  it("読めない時刻は、記録なら無視し、フックと終わりならないものとして扱う", () => {
+    expect(holds({}, { session: "sess-a", claimed_at: "いつか" })).toBe(false);
+    expect(holds({ lastHookAt: "x", endedAt: "y" })).toBe(true);
+    expect(holds({ now: after(30), lastHookAt: "x" })).toBe(false);
+  });
+});
+
+describe("別のセッションが claim したチケットへの、もう一度の claim・unclaim（SY-5）", () => {
+  it("生きている別のセッションの記録があると、AI のもう一度の claim と unclaim を拒み、記録したセッションと越え方を示す", () => {
+    expect(sessionClaim()).toEqual({
+      kind: "reject",
+      code: "REJECTED",
+      message: `t1 is being worked on by another session of yours: ${HOLDER}. This session (sess-b) cannot claim it again while that session is alive. Leave the ticket to that session. If that session has stopped, or a person told you to take the work over, add --take-over (the record moves to this session). The record is ignored once SessionEnd reaches that session or no dg hook has reached it for 30 minutes`,
+    });
+    expect(sessionClaim({ operation: "unclaim" })).toEqual({
+      kind: "reject",
+      code: "REJECTED",
+      message: `t1 is being worked on by another session of yours: ${HOLDER}. This session (sess-b) cannot unclaim it while that session is alive. Leave the ticket to that session. If that session has stopped, or a person told you to take the work over, add --take-over. The record is ignored once SessionEnd reaches that session or no dg hook has reached it for 30 minutes`,
+    });
+    // フックが届いていないセッションの記録も、記録から 30 分の間は拒む
+    expect(sessionClaim({ lastHookAt: undefined })).toMatchObject({
+      kind: "reject",
+      message: expect.stringContaining(
+        `session sess-a (it claimed t1 at ${CLAIMED_AT}; no dg hook has reached it)`,
+      ),
+    });
+  });
+
+  it("記録がない・記録したセッション自身・無視する記録（SessionEnd・30 分）は、操作・主体・--take-over がどれでも黙って通す", () => {
+    const passing: Partial<SessionClaimFacts>[] = [
+      { record: undefined },
+      { session: "sess-a" },
+      { endedAt: iso(5) },
+      { now: after(35) },
+    ];
+    for (const pass of passing)
+      for (const operation of ["claim", "unclaim"] as const)
+        for (const actorKind of ["agent", "human"] as const)
+          for (const takeOver of [false, true])
+            for (const session of pass.session ? ["sess-a"] : ["sess-b", undefined])
+              expect(
+                sessionClaim({ ...pass, operation, actorKind, takeOver, session }),
+                JSON.stringify({ pass, operation, actorKind, takeOver, session }),
+              ).toEqual({ kind: "pass" });
+  });
+
+  it("人の操作は、生きている別のセッションの記録があっても拒まずに知らせる（セッションと --take-over によらない）", () => {
+    for (const session of ["sess-b", undefined])
+      for (const takeOver of [false, true]) {
+        expect(sessionClaim({ actorKind: "human", session, takeOver })).toEqual({
+          kind: "pass",
+          warning: `t1 is being worked on by an agent in ${HOLDER}. A person's claim is not stopped, so it was done as asked; tell that session if it should stop`,
+        });
+        expect(
+          sessionClaim({ actorKind: "human", session, takeOver, operation: "unclaim" }),
+        ).toEqual({
+          kind: "pass",
+          warning: `t1 is being worked on by an agent in ${HOLDER}. A person's unclaim is not stopped, so it was done as asked; tell that session if it should stop`,
+        });
+      }
+  });
+
+  it("セッションがわからない AI の呼び出しは、--take-over がなくても拒まずに知らせる", () => {
+    for (const takeOver of [false, true]) {
+      expect(sessionClaim({ session: undefined, takeOver })).toEqual({
+        kind: "pass",
+        warning: `t1 is being worked on by ${HOLDER}. The session calling dg is unknown (the agent sets no session ID), so this claim could not be checked against it and was done as asked`,
+      });
+      expect(sessionClaim({ session: undefined, takeOver, operation: "unclaim" })).toEqual({
+        kind: "pass",
+        warning: `t1 is being worked on by ${HOLDER}. The session calling dg is unknown (the agent sets no session ID), so this unclaim could not be checked against it and was done as asked`,
+      });
+    }
+  });
+
+  it("--take-over は、別のセッションの AI のもう一度の claim と unclaim を通し、引き継いだことを知らせる", () => {
+    for (const operation of ["claim", "unclaim"] as const)
+      expect(sessionClaim({ takeOver: true, operation })).toEqual({
+        kind: "pass",
+        warning: `Took t1 over from ${HOLDER} with --take-over`,
+      });
   });
 });
