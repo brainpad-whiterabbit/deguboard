@@ -10,6 +10,7 @@ import { validateWorkflow } from "../workflow/validate.js";
 import {
   decideOpenRunReconcile,
   decideTicketReconcile,
+  settledRuns,
   type OpenRunFacts,
   type ReconcileAction,
   type RunningFact,
@@ -109,7 +110,12 @@ const closeAt = (finishedAt: string | undefined): ReconcileAction => ({
   result: "success",
   finishedAt,
 });
-const warning = (message: string): ReconcileAction => ({ kind: "warn", message });
+/** run は、閉じずに次の sync に回すと決めた Run（その知らせにだけ付く） */
+const warning = (message: string, run?: RunningFact["id"]): ReconcileAction => ({
+  kind: "warn",
+  message,
+  ...(run !== undefined ? { run } : {}),
+});
 const recordPr: ReconcileAction = { kind: "update_ticket", pr: 42 };
 
 describe("PR による実装の Run（RN-6）", () => {
@@ -539,10 +545,35 @@ describe("開いたままの手直しの Run（RN-6）", () => {
       toReview,
       warning(
         `t1: the last push of its work branch was not read for its current state, so the fix Run ${fixing().id} is closed at the next sync`,
+        fixing().id,
       ),
       REVIEWS,
     ]);
     expect(decide({ ...drafted, running: [fixing()], lastPush: undefined })).toEqual([REVIEWS]);
+  });
+
+  it("対象のチケットの列がもう決めた Run は、閉じる Run と、閉じずに次の sync に回すと知らせた Run。ほかの知らせと、何も決めなかった Run は入らない", () => {
+    const merged = { ticket: { status: "review", pr: 42 }, branch: withPr("merged") } as const;
+    // 今回 done に進み、手直しの Run の最後の push を読んでいない：閉じないが、後ろでもう一度決めない
+    expect(
+      settledRuns(decide({ ...merged, running: [fixing()], lastPush: undefined, unchecked: [1] })),
+    ).toEqual([fixing().id]);
+    // PR で閉じる実装の Run と、前進で閉じる手直しの Run
+    expect(settledRuns(decide({ ...ready, running: [implementing(), fixing()] }))).toEqual([
+      implementing().id,
+      fixing().id,
+    ]);
+    // PR より後に始まった実装の Run（閉じないと知らせるだけ）と、区切りのない手直しの Run は、後ろの決定に残す
+    expect(
+      settledRuns(
+        decide({
+          ...merged,
+          branch: withPr("merged", { prCreatedAt: BEFORE_RUN }),
+          running: [implementing()],
+        }),
+      ),
+    ).toEqual([]);
+    expect(settledRuns(decide({ ...drafted, running: [fixing()] }))).toEqual([]);
   });
 });
 
@@ -682,6 +713,7 @@ describe("対象のチケットを照合した後も開いたままの Run（RN-
     expect(decideOpen({ run: fixing(), ticket, lastPush: undefined })).toEqual([
       warning(
         `t1: the last push of its work branch was not read for its current state, so the fix Run ${fixing().id} is closed at the next sync`,
+        fixing().id,
       ),
     ]);
     expect(decideOpen({ run: reviewing(), ticket })).toEqual([]);

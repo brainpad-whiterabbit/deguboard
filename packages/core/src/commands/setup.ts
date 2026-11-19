@@ -95,6 +95,7 @@ import {
 import {
   decideOpenRunReconcile,
   decideTicketReconcile,
+  settledRuns,
   type FixRunFacts,
   type LastPushFact,
   type RunAction,
@@ -418,6 +419,8 @@ async function reconcileAll(
   const reviewsRecorded: Reconciled["reviewsRecorded"] = [];
   const merged: MergedWork[] = [];
   const running = (await readRunningRuns(ctx.repo)).runs;
+  /** 対象のチケットの列がもう決めた Run（reconcile-judge.ts の settledRuns） */
+  const settled = new Set<string>();
   /** 列の close_run を行う。別の文脈が先に閉じていた Run は runsClosed に入らない */
   const close = async (doc: Doc<Ticket>, action: Extract<RunAction, { kind: "close_run" }>) => {
     const run = running.find((r) => r.id === action.run);
@@ -452,6 +455,7 @@ async function reconcileAll(
       lastPush: lastPushOf(collected, doc.data),
       deleteBranch: ctx.config.merge.delete_branch,
     });
+    for (const id of settledRuns(actions)) settled.add(id);
     for (const action of actions) {
       switch (action.kind) {
         case "warn":
@@ -495,9 +499,10 @@ async function reconcileAll(
     }
   }
   // このマシンで開いたままの Run のうち、上で閉じなかったもの（対象にならなかったチケットの Run を含む）を、
-  // 対象のチケットへの書き込みの後の値で決めて閉じる（RN-6）。作成時刻と最後の push はロックの外で集めたもの
+  // 対象のチケットへの書き込みの後の値で決めて閉じる（RN-6）。作成時刻と最後の push はロックの外で集めたもの。
+  // 対象のチケットの列がもう決めた Run（閉じずに次の sync に回したものを含む）は、もう一度決めない
   for (const run of running) {
-    if (runsClosed.some((c) => c.run === run.data.id)) continue;
+    if (settled.has(run.data.id)) continue;
     const doc = ctx.store.tickets.get(run.data.ticket);
     if (!doc) continue;
     const actions = decideOpenRunReconcile({

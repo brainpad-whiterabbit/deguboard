@@ -111,8 +111,11 @@ export type ReconcileAction =
       error?: string;
       note?: string;
     }
-  /** sync の warnings に足す文（チケットの ID で始まる） */
-  | { kind: "warn"; message: string }
+  /**
+   * sync の warnings に足す文（チケットの ID で始まる）。run は、閉じずに次の sync に回すと決めた Run
+   * （行う側は、その Run を同じ照合でもう一度決めない。settledRuns）
+   */
+  | { kind: "warn"; message: string; run?: RunId }
   /** チケットを 1 回の書き込みで書き換える：見つけた PR の番号（ST-6）・マージされた PR の行数（MT-6）・前進（ST-4） */
   | { kind: "update_ticket"; pr?: number; lines?: PrLines; advance?: ReconcileAdvance }
   /** done にしたチケットの残りの worktree とブランチを、ロックを放した後に消す（ST-4。t849） */
@@ -164,10 +167,13 @@ function fixRunActions(
   if (!boundary) return [];
   if (!f.lastPush)
     return [
-      warn(
-        ticket,
-        `the last push of its work branch was not read for its current state, so the fix Run ${run.id} is closed at the next sync`,
-      ),
+      {
+        ...warn(
+          ticket,
+          `the last push of its work branch was not read for its current state, so the fix Run ${run.id} is closed at the next sync`,
+        ),
+        run: run.id,
+      },
     ];
   const { finishedAt, pushed } = fixRunFinishedAt({
     pushedAt: f.lastPush.at,
@@ -314,6 +320,17 @@ export function decideTicketReconcile(f: TicketReconcileFacts): ReconcileAction[
       ),
     );
   return actions;
+}
+
+/**
+ * 対象のチケットの列が、もう決めた Run（閉じる・閉じずに次の sync に回す）。行う側は、その後も開いたままの Run を決めるときに
+ * これらを飛ばす。飛ばさないと、今回 done に進んだチケットで閉じなかった手直しの Run（最後の push を読んでいない）と、
+ * 別の文脈が先に閉じた Run を、終わったチケットの Run としてもう一度決めて、同じ警告が sync の warnings に 2 つ並ぶ
+ */
+export function settledRuns(actions: readonly ReconcileAction[]): RunId[] {
+  return actions.flatMap((a) =>
+    (a.kind === "close_run" || a.kind === "warn") && a.run !== undefined ? [a.run] : [],
+  );
 }
 
 /**
