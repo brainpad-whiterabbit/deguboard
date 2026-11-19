@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { defaultConfig } from "../model/config.js";
 import type { Run } from "../model/run.js";
 import { copilotAdapter } from "./adapters/copilot.js";
 import { agentNames, collectRunUsage, type UsageQuery } from "./index.js";
@@ -34,6 +35,7 @@ const run = (over: Partial<Run> = {}): Run => ({
   session: null,
   review: null,
   waited_seconds: null,
+  check_seconds: null,
   waiting_since: null,
   settling_since: null,
   ...over,
@@ -144,6 +146,8 @@ describe("Copilot の Adapter", () => {
       model: "gpt-test",
       // ツールの回数は数えない
       tools: null,
+      // コマンドを読まないので、検査とテストの区間も数えない（Run の check_seconds は null。RN-2）
+      checks: null,
       warnings: [],
     });
   });
@@ -160,7 +164,7 @@ describe("Copilot の Adapter", () => {
     expect(serialized).not.toContain("SECRET-API-CALL-ID");
     expect(serialized).not.toContain("/home/secret/path");
     expect(serialized).not.toContain("1.5");
-    expect(Object.keys(got)).toEqual(["usage", "model", "tools", "warnings"]);
+    expect(Object.keys(got)).toEqual(["usage", "model", "tools", "checks", "warnings"]);
   });
 
   it("いちばん多くの応答のモデルを選ぶ", async () => {
@@ -307,7 +311,10 @@ describe("Copilot の Adapter", () => {
 });
 
 describe("Copilot の使用量の取り込みの許可（MT-2）", () => {
-  const config = (read: boolean) => ({ metrics: { read_transcripts: read } });
+  const config = (read: boolean) => ({
+    ...defaultConfig(),
+    metrics: { read_transcripts: read, check_commands: [] },
+  });
   const nulls = { input: null, output: null, cache_read: null, cache_write: null };
 
   it("read_transcripts が false なら Copilot の session 記録を読まない", async () => {

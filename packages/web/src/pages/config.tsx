@@ -90,6 +90,7 @@ const NAMES: Record<string, string> = {
   "models.codex.standard": msg("段階 standard のモデル（Codex）"),
   "models.codex.heavy": msg("段階 heavy のモデル（Codex）"),
   "metrics.read_transcripts": msg("会話記録から使用量を読む"),
+  "metrics.check_commands": msg("検査とテストに数えるコマンドに足すもの"),
   "notify.approvals": msg("承認待ちが増えたら通知する"),
   "git.remote": msg("コードのリモート"),
   "git.data_remote": msg("データのリモート"),

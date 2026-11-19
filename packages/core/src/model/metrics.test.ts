@@ -27,6 +27,7 @@ function run(id: string, over: Partial<Run> = {}): Run {
     session: null,
     review: null,
     waited_seconds: null,
+    check_seconds: null,
     waiting_since: null,
     settling_since: null,
     ...over,
@@ -83,6 +84,36 @@ describe("Run の集計", () => {
     expect(runActiveSeconds(run("06", { waited_seconds: 45 }))).toBe(15);
     expect(runActiveSeconds(run("07"))).toBeNull();
     expect(runActiveSeconds(run("08", { waited_seconds: 5, finished_at: null }))).toBeNull();
+  });
+
+  it("検査とテストを回していた秒数を足し、欠けた Run は 0 として足さずに missing に数える。作業時間に対する割合は、両方がある Run だけで出す（t1128）", () => {
+    const m = summarizeRuns([
+      // 作業時間 40 秒のうち 10 秒
+      run("00", { waited_seconds: 20, check_seconds: 10 }),
+      // 回さなかった（0 は欠けでない）。作業時間 60 秒
+      run("01", { waited_seconds: 0, check_seconds: 0 }),
+      // 待ちを数えられなかった Run（親が自分で開いた Run）は、秒数は足すが割合には入れない
+      run("02", { check_seconds: 30 }),
+      // 数えない Adapter の Run は欠けに数える（RN-2）。その作業時間も割合に入れない
+      run("03", { agent: "codex", waited_seconds: 0 }),
+      // 会話記録を取らずに作った見直しの記録は、欠けに数えない
+      run("04", { step: "review", capture: "none" }),
+    ]);
+    expect(m).toMatchObject({ check_seconds: 40, active_seconds: 160, check_ratio: 0.1 });
+    expect(m.missing.check_seconds).toBe(1);
+    // 値のある Run がなければ、どちらも 0 でなく null
+    expect(summarizeRuns([run("05", { waited_seconds: 0 })])).toMatchObject({
+      check_seconds: null,
+      check_ratio: null,
+    });
+    // 両方のある Run がないか、その作業時間が 0 なら、割合は null
+    expect(summarizeRuns([run("06", { check_seconds: 5 })]).check_ratio).toBeNull();
+    const zero = run("07", { waited_seconds: 60, check_seconds: 0 });
+    expect(summarizeRuns([zero]).check_ratio).toBeNull();
+    // 小数第 3 位に丸める（60 秒のうち 20 秒）
+    expect(summarizeRuns([run("08", { waited_seconds: 0, check_seconds: 20 })]).check_ratio).toBe(
+      0.333,
+    );
   });
 
   it("ツールの回数は種類ごとに足し、null の Run は足さずに missing.tools に数える。すべて欠ければ null", () => {

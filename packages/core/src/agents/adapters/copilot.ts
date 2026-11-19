@@ -176,6 +176,6 @@ export const copilotAdapter: AgentAdapter = {
       missing.length > 0
         ? [`Cannot get ${missing.join(", ")} from the Copilot session record. Left as null`]
         : [];
-    return { usage, model: mainModel(best.models), tools: null, warnings };
+    return { usage, model: mainModel(best.models), tools: null, checks: null, warnings };
   },
 };

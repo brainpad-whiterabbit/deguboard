@@ -497,6 +497,7 @@ async function adoptReviewRecord(
           tools: collected.tools ?? doc.data.tools,
           // 引き取った記録も、閉じる Run と同じく待ちを範囲で切って書く
           waited_seconds: waitedSeconds(waits.intervals, startedAt, finishedAt),
+          check_seconds: waitedSeconds(collected.checks, startedAt, finishedAt),
           ...(newer ? { review: newer } : {}),
         })
       ).data;
@@ -791,6 +792,7 @@ async function closeSubagentRun(
     usage: collected.usage,
     tools: collected.tools,
     waits: waits.intervals,
+    checks: collected.checks,
     finishedAt: decided.finishedAt,
     now,
   });

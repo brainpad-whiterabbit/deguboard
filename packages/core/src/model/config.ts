@@ -7,7 +7,7 @@
 // 項目ごとの範囲（scope）もここで決める：local の項目だけが、Git に入らない個人の設定（deguboard-local/config.yaml）で上書きできる
 
 import { z } from "zod";
-import { detectableAgentNames } from "../agents/index.js";
+import { checkAgentNames, detectableAgentNames } from "../agents/index.js";
 import { GUIDE_TOPICS } from "../guide/topics.js";
 import { isSafeBranchName, slugSchema } from "./common.js";
 
@@ -288,6 +288,13 @@ export const configSchema = z.looseObject({
         summary: "Read conversation transcripts to fill in usage",
         description:
           "Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true",
+      }),
+      // 検査とテストに数えるコマンドに足すもの（MT-1。見分け方は agents/check-commands.ts）
+      check_commands: described(z.array(z.string().min(1)).default([]), {
+        summary: "More commands counted as checks and tests in a Run's check_seconds",
+        description: `Commands counted, besides the defaults, as checks and tests when a Run is closed: the seconds they ran in the foreground are recorded in the Run's check_seconds (dg metrics show adds them up). The defaults are always counted: actions.test, actions.light_test, and dg gate --only check. One command per entry, as its words separated by spaces (e.g. mise run test). A Bash command counts when one of its parts (split at && || ; | and newlines), after leading VAR=value assignments, starts with the words of an entry, so mise run test does not count mise run test:related. Counted only for Runs of ${checkAgentNames().join(", ")}, from the conversation record (metrics.read_transcripts); the command strings are not recorded`,
+        example: ["mise run test"],
+        empty: "Only the defaults are counted",
       }),
     })
     .prefault({}),

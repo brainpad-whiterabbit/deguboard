@@ -543,6 +543,22 @@ Off
 Reset to Default
 Details
 Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true
+More commands counted as checks and tests
+metrics.check_commands
+[title] Default: Empty
+Modified
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Setting metrics.check_commands)
+More commands counted as checks and tests in a Run's check_seconds
+Empty
+[aria-label] Items
+[placeholder] e.g. mise run test
+Add
+[title] Reset to default Empty
+Reset to Default
+When empty: Only the defaults are counted
+Details
+Commands counted, besides the defaults, as checks and tests when a Run is closed: the seconds they ran in the foreground are recorded in the Run's check_seconds (dg metrics show adds them up). The defaults are always counted: actions.test, actions.light_test, and dg gate --only check. One command per entry, as its words separated by spaces (e.g. mise run test). A Bash command counts when one of its parts (split at && || ; | and newlines), after leading VAR=value assignments, starts with the words of an entry, so mise run test does not count mise run test:related. Counted only for Runs of claude-code, from the conversation record (metrics.read_transcripts); the command strings are not recorded
 Notifications
 Notify when approvals are waiting
 notify.approvals

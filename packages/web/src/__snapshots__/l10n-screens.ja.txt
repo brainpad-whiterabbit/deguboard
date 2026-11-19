@@ -543,6 +543,22 @@ metrics.read_transcripts
 既定に戻す
 詳しく
 metrics.read_transcripts
+検査とテストに数えるコマンドに足すもの
+metrics.check_commands
+[title] 既定は 空
+変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 metrics.check_commands）
+Run の check_seconds で、検査とテストに数えるコマンドに足すもの
+空
+[aria-label] 項目
+[placeholder] 例 mise run test
+足す
+[title] 既定の 空 に戻す
+既定に戻す
+空のとき: 既定のコマンドだけを数える
+詳しく
+metrics.check_commands
 通知
 承認待ちが増えたら通知する
 notify.approvals

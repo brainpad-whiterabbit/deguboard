@@ -29,6 +29,7 @@ const METRIC_VALUES = [
   "duration_seconds",
   "active_seconds",
   "waited_seconds",
+  "check_seconds",
   "input",
   "output",
   "cache_read",
@@ -55,6 +56,14 @@ export interface RunMetrics {
   active_seconds: number | null;
   /** 親の依頼を待った時間（Run の waited_seconds）の合計。値のある Run がなければ null */
   waited_seconds: number | null;
+  /** 検査とテストのコマンドを前景で回していた時間（Run の check_seconds）の合計。値のある Run がなければ null */
+  check_seconds: number | null;
+  /**
+   * 検査とテストを回していた時間の、作業時間に対する割合（0〜1。小数第 3 位に丸める）。分子と分母は、check_seconds と
+   * 作業時間の両方がある Run だけの合計（片方だけの Run で薄めない。check_seconds ÷ active_seconds とは合わないことがある）。
+   * 両方のある Run がないか、その作業時間の合計が 0 なら null
+   */
+  check_ratio: number | null;
   input: number | null;
   output: number | null;
   cache_read: number | null;
@@ -199,6 +208,7 @@ export function summarizeRuns(
     duration_seconds: null,
     active_seconds: null,
     waited_seconds: null,
+    check_seconds: null,
     input: null,
     output: null,
     cache_read: null,
@@ -208,6 +218,7 @@ export function summarizeRuns(
     duration_seconds: 0,
     active_seconds: 0,
     waited_seconds: 0,
+    check_seconds: 0,
     input: 0,
     output: 0,
     cache_read: 0,
@@ -217,6 +228,8 @@ export function summarizeRuns(
     review_causes: 0,
   };
   let tools: ToolTotals | null = null;
+  /** check_seconds と作業時間の両方がある Run だけの合計（check_ratio の分子と分母） */
+  const ratio = { check: 0, active: 0 };
   const results = { success: 0, failure: 0, interrupted: 0, unfinished: 0 };
   let retries = 0;
   let estimated = 0;
@@ -252,6 +265,7 @@ export function summarizeRuns(
       duration_seconds: runDurationSeconds(run),
       active_seconds: runActiveSeconds(run),
       waited_seconds: run.waited_seconds,
+      check_seconds: run.check_seconds,
       input: run.usage.input,
       output: run.usage.output,
       cache_read: run.usage.cache_read,
@@ -261,6 +275,10 @@ export function summarizeRuns(
       const v = values[key];
       if (v === null) missing[key] += 1;
       else sums[key] = (sums[key] ?? 0) + v;
+    }
+    if (values.check_seconds !== null && values.active_seconds !== null) {
+      ratio.check += values.check_seconds;
+      ratio.active += values.active_seconds;
     }
     if (run.tools === null) missing.tools += 1;
     else {
@@ -279,6 +297,7 @@ export function summarizeRuns(
     results,
     retries,
     ...sums,
+    check_ratio: ratio.active === 0 ? null : Math.round((ratio.check / ratio.active) * 1000) / 1000,
     tools,
     missing,
     estimated_runs: estimated,

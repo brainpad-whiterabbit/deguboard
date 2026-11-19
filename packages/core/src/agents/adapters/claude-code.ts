@@ -16,7 +16,13 @@
 //   - 探す範囲：projects/ の下のすべて（別の worktree・別のディレクトリで始めたセッションも）のうち、started_at より後に書かれたファイル。
 //     どのファイルも Run の ID と譲る相手の ID が最初に出るまでと、finished_at を過ぎるまでしか読まない。数える行を読むのは選んだファイルだけ
 //   - ツールの回数：数える行の message.content の tool_use を、tool_use の id で重ねずに名前で種類に分けて数える（TOOL_KINDS）。
-//     最初に書く（write）までの読む・探すも数える。Bash はコマンドで分けない（コマンドの文字列を解釈しない）
+//     最初に書く（write）までの読む・探すも数える。Bash はコマンドで種類を分けない
+//   - 検査とテストを回していた区間（checks）：数える行の Bash の tool_use のうち、コマンド（input.command）が数えるコマンド
+//     （query.checkCommands。見分けは check-commands.ts の isCheckCommand）で、背後で回す印（input.run_in_background が true）の
+//     ないものを、tool_use の行の時刻から、その結果（tool_use_id の合う tool_result）の行の時刻までの区間にする。
+//     tool_use の行から結果までなので、許可の確認（人の承認）を待った時間も区間に含む（待ちの区間と違って作業時間からも引かない）。
+//     結果の見つからない呼び出し（中断された、記録が切れた）は区間にしない。コマンドの文字列は見分けに使うだけで返さない（MT-4）。
+//     query.checkCommands がなければ数えない（null）
 //   - 失敗した呼び出しの数（tools.errors）：数えた tool_use の結果（user の行の message.content の tool_result）のうち、失敗の印
 //     （is_error が true）のあるものを、tool_use_id で重ねずに数える。落ちたコマンド・当たらなかった Edit のほか、許可を断られた呼び出しと
 //     hook に拒まれた呼び出しにも Claude Code が同じ印を付ける（2026-11-14 に Claude Code 2.1 の記録で確かめた）。読むのは印だけで、
@@ -33,7 +39,7 @@
 //     読めないファイルも null（使用量の取り込みが同じ理由を警告するので、警告を重ねない）。
 //     止まった応答の途中で届いた coordinator の入力は直前の行からの短い空きを待ちに数える（項目では見分けられない）
 //     （2026-11-15 に Claude Code 2.1 の記録で origin.kind の 4 種類を確かめた）
-//   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）。ツールは名前を種類に変えて数だけを返す
+//   - 返すのは数・区間の時刻とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）。ツールは名前を種類に変えて数だけを返す
 //   - 判定（detect）：Claude Code は実行するコマンドの環境に CLAUDECODE=1 と AI_AGENT（claude-code_<版>_<種類> の形）を付ける。
 //     どちらかがあれば Claude Code が呼んだとみなす（2026-11 に Claude Code 2.1 の Bash の環境で確かめた）
 //   - セッション（sessionFromEnv）：Claude Code は Bash の環境に CLAUDE_CODE_SESSION_ID を付ける。サブエージェントの Bash にも
@@ -45,6 +51,7 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import type { ToolKind, WaitInterval } from "../../model/run.js";
+import { isCheckCommand, type CheckCommands } from "../check-commands.js";
 import type { AgentAdapter, AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 import {
   bindFile,
@@ -102,6 +109,8 @@ interface Scan {
   tools: Map<string, ToolKind>;
   /** 結果の見つかった tool_use の id ごとの、失敗の印（is_error）があったか */
   results: Map<string, boolean>;
+  /** 検査とテストに数える前景の Bash の tool_use の id ごとの、呼び出しの時刻と結果の時刻（結果がまだなら to は undefined） */
+  checks: Map<string, { from: number; to: number | undefined }>;
   /** 後に始まった開いている Run に譲った応答があるか */
   ceded: boolean;
   /** 期間が重なるほかの Run の ID が出た時刻と、譲る相手 */
@@ -155,6 +164,53 @@ function addResults(scan: Pick<Scan, "tools" | "results">, message: unknown): vo
   }
 }
 
+/**
+ * 応答（時刻 at）の中の Bash の tool_use のうち、検査とテストに数える前景のコマンドを、id をキーにして呼び出しの時刻で積む。
+ * 同じ id は最初の行の時刻を残す。id のない tool_use は結果と結べないので積まない
+ */
+function addCheckStarts(
+  checks: Scan["checks"],
+  message: Record<string, unknown>,
+  at: number,
+  counted: CheckCommands,
+): void {
+  const content = message["content"];
+  if (!Array.isArray(content)) return;
+  for (const block of content as unknown[]) {
+    if (typeof block !== "object" || block === null) continue;
+    const b = block as Record<string, unknown>;
+    const id = b["id"];
+    if (b["type"] !== "tool_use" || b["name"] !== "Bash" || typeof id !== "string") continue;
+    const input = b["input"];
+    if (checks.has(id) || typeof input !== "object" || input === null) continue;
+    const { command, run_in_background: background } = input as Record<string, unknown>;
+    if (typeof command !== "string" || background === true) continue;
+    if (isCheckCommand(command, counted)) checks.set(id, { from: at, to: undefined });
+  }
+}
+
+/** user の行（時刻 at）の tool_result のうち、積んだ検査とテストの呼び出しの結果に、結果の時刻を書く。同じ結果が複数の行にあれば最初の行 */
+function addCheckEnds(checks: Scan["checks"], message: unknown, at: number): void {
+  if (checks.size === 0 || Number.isNaN(at) || typeof message !== "object" || message === null)
+    return;
+  for (const id of blockIds(
+    (message as Record<string, unknown>)["content"],
+    "tool_result",
+    "tool_use_id",
+  )) {
+    const check = checks.get(id);
+    if (check && check.to === undefined) check.to = at;
+  }
+}
+
+/** 結果の見つかった検査とテストの呼び出しの区間。結果のない呼び出しと、時刻が前後した呼び出しは入れない */
+function checkIntervals(checks: Scan["checks"]): WaitInterval[] {
+  const out: WaitInterval[] = [];
+  for (const { from, to } of checks.values())
+    if (to !== undefined && to > from) out.push({ from, to });
+  return out;
+}
+
 /** 失敗した呼び出しの数。数えた呼び出しがあるのに結果が 1 つも見つからなければ、印を読めないものとして undefined */
 function toolErrors(scan: Pick<Scan, "tools" | "results">): number | undefined {
   if (scan.tools.size > 0 && scan.results.size === 0) return undefined;
@@ -181,6 +237,7 @@ async function scan(
     messages: new Map(),
     tools: new Map(),
     results: new Map(),
+    checks: new Map(),
     ceded: false,
     claims,
   };
@@ -202,6 +259,7 @@ async function scan(
       const entry = parse(line);
       if (entry?.["type"] === "user") {
         addResults(result, entry["message"]);
+        addCheckEnds(result.checks, entry["message"], timeOf(entry));
         return true;
       }
     }
@@ -227,6 +285,7 @@ async function scan(
     const key = String(message["id"] ?? entry["requestId"] ?? entry["uuid"] ?? line);
     // 同じ応答の tool_use は別の行に分かれて書かれるので、使用量より先に行ごとに積む
     addTools(result.tools, message, key);
+    if (query.checkCommands) addCheckStarts(result.checks, message, at, query.checkCommands);
     const usage = message["usage"];
     if (typeof usage !== "object" || usage === null) return true;
     // 同じ応答の行は後の行が最終の値を持つ
@@ -294,6 +353,7 @@ export const claudeCodeAdapter: AgentAdapter = {
     personal: (env) => path.join(homeDir(env), ".claude", "skills"),
   },
   hooks: claudeCodeHooks,
+  countsChecks: true,
   async readTranscriptUsage(query) {
     // 時刻は秒までなので、終わりはその秒の終わりまで含める
     const to = Date.parse(query.finishedAt) + 999;
@@ -448,6 +508,7 @@ function collected(query: UsageQuery, best: Scan): CollectedUsage {
         : sum(best.messages),
     model: mainModel(best.messages),
     tools: tallyTools(best.tools.values(), toolErrors(best)),
+    checks: query.checkCommands ? checkIntervals(best.checks) : null,
     warnings: [],
   };
 }

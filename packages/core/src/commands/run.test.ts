@@ -1434,6 +1434,65 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     });
   });
 
+  it("finish は、数えるコマンド（dg gate --only check と metrics.check_commands）を前景で回していた秒数を check_seconds に残し、コマンドの文字列は残さない。会話記録を読まない Run は null（t1128）", async () => {
+    const { ctx, projectDir } = await withTranscripts(true);
+    await runCommand(configSet, asHuman(ctx), {
+      key: "metrics.check_commands",
+      value: "make secret-test",
+    });
+    ctx.config = ctx.store.config;
+    const t0 = Date.parse("2026-01-01T10:00:00Z");
+    const t = (seconds: number) => new Date(t0 + seconds * 1000);
+    ctx.now = () => t(0);
+    const run = await start(ctx, "t1");
+    const bash = (id: string, seconds: number, command: string, input: object = {}) => ({
+      type: "assistant",
+      timestamp: t(seconds).toISOString(),
+      message: {
+        id: `m-${id}`,
+        model: "m",
+        content: [{ type: "tool_use", id, name: "Bash", input: { command, ...input } }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    });
+    const result = (id: string, seconds: number) => ({
+      type: "user",
+      timestamp: t(seconds).toISOString(),
+      message: { role: "user", content: [{ type: "tool_result", tool_use_id: id }] },
+    });
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(
+      path.join(projectDir, "session.jsonl"),
+      [
+        { type: "user", timestamp: t(0).toISOString(), message: { content: run.id } },
+        bash("u1", 1, "cd /tmp && make secret-test 2>&1 | tail"),
+        result("u1", 11),
+        bash("u2", 12, "dg gate t1 --only check"),
+        result("u2", 42),
+        bash("u3", 43, "git status"), // 数えないコマンド
+        result("u3", 50),
+        bash("u4", 51, "make secret-test", { run_in_background: true }), // 背後で回したコマンド
+        result("u4", 55),
+      ]
+        .map((l) => JSON.stringify(l))
+        .join("\n") + "\n",
+    );
+    ctx.now = () => t(60);
+    const r = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    expect(r.warnings).toEqual([]);
+    // 10 秒（足したコマンド）+ 30 秒（dg gate --only check）
+    expect(r.data).toMatchObject({ check_seconds: 40, tools: { bash: 4 } });
+    const committed = (await git(ctx.repo.dataDir, ["show", "--format=", "HEAD", "--", "runs"]))
+      .stdout;
+    expect(committed).toContain('"check_seconds": 40');
+    expect(committed).not.toContain("secret-test");
+
+    const off = await withTranscripts(false);
+    const unread = await start(off.ctx, "t1");
+    const closed = await runCommand(runFinish, off.ctx, { run: unread.id, result: "success" });
+    expect((closed.data as Run).check_seconds).toBeNull();
+  });
+
   it("start は Adapter のない agent 名でも記録し、使用量とモデル名を取り込めないと警告する。Adapter のある名前では警告しない", async () => {
     const { ctx } = await withTranscripts(true, {});
     const ok1 = await runCommand(runStart, ctx, {
@@ -1571,6 +1630,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
         "session",
         "review",
         "waited_seconds",
+        "check_seconds",
       ].sort(),
     );
     expect(saved["usage"]).toEqual({ input: 7, output: 14, cache_read: 700, cache_write: 70 });

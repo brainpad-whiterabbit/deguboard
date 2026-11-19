@@ -239,6 +239,13 @@ export const runSchema = z.looseObject({
    */
   waited_seconds: z.number().int().nonnegative().nullable().default(null),
   /**
+   * 検査とテストのコマンドを前景で回していた秒数（RN-1）。閉じるときに Adapter が会話記録から数えた、数えるコマンド
+   * （agents/check-commands.ts）の Bash の呼び出しから結果までの区間を、started_at〜finished_at で切って足した値。
+   * 数えられない Run（実行中、コマンドを読まない Adapter の Run、記録を読めなかった Run）は null で、0 で補わない（RN-2）。
+   * この項目より前に書いた Run にはキーがないので、読むときに null にそろえる
+   */
+  check_seconds: z.number().int().nonnegative().nullable().default(null),
+  /**
    * 止まって待っている印（RN-7）。サブエージェントが step を終えた事実のないまま止まった時刻（親への質問など）。
    * 実行中の記録にだけ置き、閉じた Run（Git）には書かない。再開（同じ agent_id の起動）で消す。この項目より前の記録とは null にそろえる
    */
@@ -251,7 +258,7 @@ export const runSchema = z.looseObject({
 });
 export type Run = z.output<typeof runSchema>;
 
-/** 待ちの区間。時刻はエポックからのミリ秒で、from < to */
+/** 待ちの区間と、検査とテストを回していた区間。時刻はエポックからのミリ秒で、from < to */
 export interface WaitInterval {
   from: number;
   to: number;
@@ -259,7 +266,8 @@ export interface WaitInterval {
 
 /**
  * 待ちの区間を Run の範囲（started_at〜finished_at）で切って足した秒数（四捨五入）。区間が数えられていない（null）か、
- * 範囲の時刻が読めなければ null。重なる区間は二重に数えない。範囲で切るので、実行時間を超えない
+ * 範囲の時刻が読めなければ null。重なる区間は二重に数えない。範囲で切るので、実行時間を超えない。
+ * 検査とテストを回していた区間（check_seconds）も同じ切り方で足す（並べて回したコマンドの重なりを二重に数えない）
  */
 export function waitedSeconds(
   intervals: readonly WaitInterval[] | null,

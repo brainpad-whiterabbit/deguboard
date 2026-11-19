@@ -118,6 +118,8 @@ const COLUMNS: Record<string, string[]> = {
     "duration_seconds",
     "active_seconds",
     "waited_seconds",
+    "check_seconds",
+    "check_ratio",
     "input",
     "output",
     "cache_read",
