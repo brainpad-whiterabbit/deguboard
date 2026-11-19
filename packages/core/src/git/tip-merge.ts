@@ -1,11 +1,12 @@
 // 作業ブランチのリモートの先端がマージコミットのときの事実を読む（RN-10）。base を取り込んだだけの更新（2 回以上の取り込みの
 // 連なりも）では、取り込む前の先端の見直しを数える。決めるのは facts-judge.ts の読まない関数（baseMergeChain・
-// nextInBaseMergeChain・mergedBaseOnto）で、ここは親・tree・自動マージの結果を git から集めるだけ
+// nextInBaseMergeChain・mergedBaseOnto・autoMergeRoute）で、ここは親・tree・自動マージの結果を git から集めるだけ
 
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  autoMergeRoute,
   baseMergeChain,
   nextInBaseMergeChain,
   type MergeParents,
@@ -15,19 +16,68 @@ import { baseRef, type BranchTip } from "./facts.js";
 import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
 
+type MergeRepo = Pick<GitRepo, "topLevel" | "localDir">;
+
+/** 自動マージの git の呼び方。利用者の hooks は動かさない（空の hooksPath）。マージは時間がかかるので長めに待つ */
+const mergeOpts = (repo: MergeRepo) =>
+  ({ allowFailure: true, localDir: repo.localDir, timeoutMs: 120_000 }) as const;
+
 /**
  * work に base を自動でマージした結果の tree。競合した・作れなかったときは null。readTipMerge が 1 回の判定に 1 回だけ呼ぶ。
- * 一時の worktree を work に checkout してコミットなしのマージをし、index から tree を書く。作業ツリーなしで tree を作る
- * `git merge-tree --write-tree` は git 2.38 からで、動かす条件の git 2.30 では使えない。worktree は結果によらず消す。
- * 利用者の hooks は動かさず（空の hooksPath）、rerere も切る（前に手で解いた競合を自動の結果に混ぜない）
+ * 経路は呼ぶたびに `git --version` を読んで autoMergeRoute が選ぶ（結果は覚えない）：git 2.38 以上は作業ツリーのいらない
+ * mergeTreeWriteTree、それより前（動かす条件の git 2.30 から）は一時の worktree の worktreeMergeTree。
+ * どちらも rerere を切る（前に手で解いた競合を自動の結果に混ぜない）
  */
 export async function autoMergeTree(
-  repo: Pick<GitRepo, "topLevel" | "localDir">,
+  repo: MergeRepo,
+  work: string,
+  base: string,
+): Promise<string | null> {
+  let version: string;
+  try {
+    version = (await runGit(repo.topLevel, ["--version"], mergeOpts(repo))).stdout;
+  } catch {
+    // git がない・時間切れは、自動マージの結果がないとして数えない側に倒す
+    return null;
+  }
+  return autoMergeRoute(version) === "merge-tree"
+    ? mergeTreeWriteTree(repo, work, base)
+    : worktreeMergeTree(repo, work, base);
+}
+
+/**
+ * `git merge-tree --write-tree`（git 2.38 から）で、作業ツリーも index も使わずに work と base のマージの tree を作る。
+ * 競合（終了コード 1）・失敗は null。出力の 1 行目が tree の OID（競合の情報はその後に続く）
+ */
+export async function mergeTreeWriteTree(
+  repo: MergeRepo,
+  work: string,
+  base: string,
+): Promise<string | null> {
+  try {
+    const merged = await runGit(
+      repo.topLevel,
+      ["-c", "rerere.enabled=false", "merge-tree", "--write-tree", work, base],
+      mergeOpts(repo),
+    );
+    const tree = merged.stdout.split("\n", 1)[0]!.trim();
+    return merged.code === 0 && /^[0-9a-f]{40,64}$/.test(tree) ? tree : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 一時の worktree を work に checkout してコミットなしのマージをし、index から tree を書く（git 2.38 より前の経路）。
+ * worktree は結果によらず消す
+ */
+export async function worktreeMergeTree(
+  repo: MergeRepo,
   work: string,
   base: string,
 ): Promise<string | null> {
   const dir = await mkdtemp(path.join(os.tmpdir(), "dg-merge-"));
-  const opts = { allowFailure: true, localDir: repo.localDir, timeoutMs: 120_000 } as const;
+  const opts = mergeOpts(repo);
   try {
     const added = await runGit(
       repo.topLevel,
