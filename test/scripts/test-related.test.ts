@@ -1,6 +1,7 @@
-// scripts/test-related.mjs（mise run test:related の本体）が、origin/main との分岐点を取れないときに 1 行を出して
+// scripts/test-related.mjs（mise run test:related の本体）が、比べる相手との分岐点を取れないときに 1 行を出して
 // 非 0 で終わることを確かめる（t1132）。スクリプトはそれ自身の場所からリポジトリのルートを決めるので、本物のリポジトリに
-// 触れないよう、origin のない一時のリポジトリにスクリプトと選び方のファイルを写して動かす。回す・知らせる・何もしないの
+// 触れないよう、origin も dg もない一時のリポジトリにスクリプトと選び方のファイルを写して動かす。比べる相手の決め方は
+// related-tests.test.ts が resolveBaseRef で確かめる。回す・知らせる・何もしないの
 // 組み合わせは test/scripts/related-tests.test.ts が planRelatedRun で確かめる
 import { execFile, execFileSync } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
@@ -29,7 +30,7 @@ afterEach(async () => {
 });
 
 describe("mise run test:related の本体（test-related.mjs）", () => {
-  it("origin/main との分岐点が取れなければ、1 行を出して非 0 で終わる", async () => {
+  it("dg がなければ origin/main と比べることを知らせ、分岐点が取れなければ 1 行を出して非 0 で終わる", async () => {
     const result = await new Promise<{ code: number; stdout: string; stderr: string }>((done) => {
       execFile(
         process.execPath,
@@ -44,8 +45,11 @@ describe("mise run test:related の本体（test-related.mjs）", () => {
     expect(result).toEqual({
       code: 1,
       stdout: "",
-      stderr:
-        "test:related: cannot find the merge base with origin/main (fetch origin, or check that the remote is named origin)\n",
+      stderr: [
+        "test:related: cannot read git.remote and git.base_branch from dg config show (run mise run build); comparing with origin/main",
+        "test:related: cannot find the merge base with origin/main (fetch the remote, or check git.remote and git.base_branch with dg config show)",
+        "",
+      ].join("\n"),
     });
   });
 });

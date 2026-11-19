@@ -20,6 +20,25 @@ export function isSourceFile(file) {
   return /\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/.test(file) && !/\.d\.[mc]?ts$/.test(file);
 }
 
+/**
+ * ソースでもテストでもないのにテストが読むファイルと、それを読むテストの対応。名前では対にできないので表に書く。
+ * guide の本文（guide-*.md）は、readGuide を確かめる core の guide.test.ts、dg guide の snapshot を持つ cli の
+ * guide.test.ts、guide の frontmatter から Skill を組み立てる 2 つの skill のテストが読む（t1168。見直しの前の検査が
+ * 古い snapshot を見逃したため）。dg next・dg brief のように guide を間接に読むテストは、全体のテストが見る。
+ * 載せたテストがリポジトリにあることは test/scripts/related-tests.test.ts が確かめる
+ */
+export const DATA_FILE_TESTS = [
+  {
+    pattern: /^packages\/core\/src\/guide\/guide-[^/]+\.md$/,
+    tests: [
+      "packages/cli/src/guide.test.ts",
+      "packages/cli/src/skill.test.ts",
+      "packages/core/src/commands/skill-files.test.ts",
+      "packages/core/src/guide/guide.test.ts",
+    ],
+  },
+];
+
 /** 拡張子を除いたパス（a/b/foo.ts → a/b/foo） */
 function stem(file) {
   return file.replace(/\.[^./]+$/, "");
@@ -29,7 +48,9 @@ function stem(file) {
  * 変えたファイル（changed）から回すテストを選ぶ。tests はリポジトリにあるテストファイルの一覧、sources はソースのファイルの
  * 一覧（どちらもルートからの / 区切りのパス）。変えたテストファイルと、変えたソースのファイルと名前で対になるテスト
  * （同じディレクトリの <名前>.test.ts(x)、同じディレクトリの <名前>-*.test.ts(x) のうち同じ名前のソースを持たないもの、
- * test/ の下の <名前>.test.ts）を返す。対になるテストがないソースのファイルは unpaired に返す。
+ * test/ の下の <名前>.test.ts）と、DATA_FILE_TESTS で変えたファイルを読むテストを返す。対になるテストがないソースの
+ * ファイルは unpaired に、ソースでもテストでもなく DATA_FILE_TESTS でテストを選べないファイル（文書・設定など）は
+ * untested に返す。
  * <名前>-*.test.ts(x) を選ぶのは、flow-permission.test.ts のように 1 つのソースのテストを分けたファイルがあるため。
  * hook-settings.test.ts のように hook-settings.ts を持つものは、そのソースの対なので hook.ts では選ばない
  */
@@ -38,12 +59,22 @@ export function selectRelatedTests(changed, tests, sources) {
   const sourceStems = new Set(sources.filter(isSourceFile).map(stem));
   const selected = new Set();
   const unpaired = [];
+  const untested = [];
   for (const file of changed) {
     if (isTestFile(file)) {
       if (testSet.has(file)) selected.add(file);
       continue;
     }
-    if (!isSourceFile(file)) continue;
+    if (!isSourceFile(file)) {
+      // 型の宣言（.d.ts）は型検査が見るので、テストを選べなくても知らせない
+      if (/\.d\.[mc]?ts$/.test(file)) continue;
+      const readers = DATA_FILE_TESTS.filter((entry) => entry.pattern.test(file)).flatMap((entry) =>
+        entry.tests.filter((test) => testSet.has(test)),
+      );
+      if (readers.length === 0) untested.push(file);
+      for (const test of readers) selected.add(test);
+      continue;
+    }
     const slash = file.lastIndexOf("/");
     const dir = slash === -1 ? "" : file.slice(0, slash + 1);
     const name = file.slice(slash + 1).replace(/\.[^.]+$/, "");
@@ -57,7 +88,7 @@ export function selectRelatedTests(changed, tests, sources) {
     if (paired.length === 0) unpaired.push(file);
     for (const test of paired) selected.add(test);
   }
-  return { tests: [...selected].sort(), unpaired };
+  return { tests: [...selected].sort(), unpaired, untested };
 }
 
 /**
@@ -79,8 +110,43 @@ export function planRelatedRun(changed, files) {
       `test:related: no name-paired test for ${selected.unpaired.join(", ")} (the full tests in mise run check, which dg pr ready runs, cover them)`,
     );
   }
+  if (selected.untested.length > 0) {
+    messages.push(
+      `test:related: no test selected for ${selected.untested.join(", ")} (neither source nor test files; the full tests in mise run check, which dg pr ready runs, cover any test that reads them)`,
+    );
+  }
   if (selected.tests.length === 0) messages.push("test:related: no related tests to run");
   return { tests: selected.tests, messages };
+}
+
+/** dg config show を読めないときに比べる相手 */
+export const FALLBACK_BASE_REF = "origin/main";
+
+/**
+ * 比べる相手（<git.remote>/<git.base_branch>）を `dg --json config show` の出力から決める。config を変えた repo で
+ * origin/main と比べ続けないように config から読む（t1168）。出力が読めないとき（dg を build していないなど）は
+ * FALLBACK_BASE_REF と比べ、そのことを message で知らせる
+ * @param {string | undefined} output
+ * @returns {{ ref: string, message?: string }}
+ */
+export function resolveBaseRef(output) {
+  try {
+    const git = JSON.parse(output ?? "").data?.git;
+    if (isName(git?.remote) && isName(git?.base_branch)) {
+      return { ref: `${git.remote}/${git.base_branch}` };
+    }
+  } catch {
+    // 読めない出力は下の FALLBACK_BASE_REF に落とす
+  }
+  return {
+    ref: FALLBACK_BASE_REF,
+    message: `test:related: cannot read git.remote and git.base_branch from dg config show (run mise run build); comparing with ${FALLBACK_BASE_REF}`,
+  };
+}
+
+/** 空でない文字列か */
+function isName(value) {
+  return typeof value === "string" && value !== "";
 }
 
 /** test が prefix で始まる同じディレクトリの <名前>-*.test.ts(x) で、同じ名前のソースを持たないか */
