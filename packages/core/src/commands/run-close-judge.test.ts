@@ -1,13 +1,18 @@
 // Run を開く操作が、開いたままの前の手直しの Run を閉じるか・その結果・finished_at の決定の組み合わせ（区切り・push の時刻・
-// セッション・step・二重起動）を、git なしで確かめる。事実を集めて閉じる経路（最後の push の読み取り・セッションの決め方・
+// セッション・step・二重起動）と、move に付随して閉じる Run（runsClosedByMove）・区切りの前後（startsAtOrAfterFixRun）を、
+// git なしで確かめる。事実を集めて閉じる経路（最後の push の読み取り・セッションの決め方・
 // 閉じる書き込み・別の文脈が先に閉じた Run）は commands-flow-reclaim.test.ts の代表の件が見る。
 // fixRunFinishedAt そのものの組み合わせは run.test.ts、照合が閉じる手直しの Run は reconcile-judge.test.ts
 import { describe, expect, it } from "vitest";
+import type { Status } from "../model/common.js";
+import type { Ticket } from "../model/ticket.js";
 import {
   closesFixRunBeforeOpening,
   decidePreviousFixRunClose,
   openedInOtherSession,
+  runsClosedByMove,
   STALE_SESSION_ERROR,
+  startsAtOrAfterFixRun,
   type PreviousFixRunFacts,
 } from "./run-close-judge.js";
 
@@ -137,4 +142,43 @@ describe("Run を開く操作が閉じる、前の手直しの Run（RN-6）", (
     expect(closes("review", true, true)).toBe(false);
     expect(closes("implement", true, true)).toBe(false);
   });
+});
+
+describe("move に付随して閉じる Run（RN-6）", () => {
+  const both: Pick<Ticket, "branch" | "pr"> = { branch: "t1-x", pr: 7 };
+  const branchOnly: Pick<Ticket, "branch" | "pr"> = { branch: "t1-x" };
+  const none: Pick<Ticket, "branch" | "pr"> = {};
+  const failure = { openers: ["claim", "reclaim"], result: "failure" };
+  const success = { openers: ["claim"], result: "success" };
+  it.each<[string, Pick<Ticket, "branch" | "pr">, Status, unknown]>([
+    // abandoned は branch と PR の有無によらず、実装と手直しを failure で閉じる
+    ["abandoned（branch と PR あり）", both, "abandoned", failure],
+    ["abandoned（branch と PR なし）", none, "abandoned", failure],
+    // PR の要らない作業（branch なし）の review は実装を success で閉じる
+    ["branch のない review", none, "review", success],
+    // PR のない done は、branch の有無によらず実装を success で閉じる
+    ["PR のない done（branch なし）", none, "done", success],
+    ["PR のない done（branch あり）", branchOnly, "done", success],
+    // それ以外は閉じない。branch のあるチケットの review は PR の記録・発見が閉じる
+    ["branch のある review", branchOnly, "review", undefined],
+    ["PR のある done", both, "done", undefined],
+    ["todo", none, "todo", undefined],
+    ["in_progress", both, "in_progress", undefined],
+  ])("%s", (_name, ticket, to, expected) => {
+    expect(runsClosedByMove(ticket, to)).toEqual(expected);
+  });
+});
+
+describe("開く Run の開始が手直しの Run の区切りになるか（RN-6）", () => {
+  // 時刻は秒までなので、手直しと同じ秒の開始は前後を決められず区切りに数える。前後は 1 秒ずらした境界で見る
+  it.each([
+    ["1 秒前", "2026-11-06T00:59:59Z", false],
+    ["同じ秒", FIX_AT, true],
+    ["1 秒後", "2026-11-06T01:00:01Z", true],
+  ] as const)(
+    "手直しの開始の%sに始まる Run（区切りになるのは %s）",
+    (_name, startedAt, expected) => {
+      expect(startsAtOrAfterFixRun({ started_at: FIX_AT }, startedAt)).toBe(expected);
+    },
+  );
 });
