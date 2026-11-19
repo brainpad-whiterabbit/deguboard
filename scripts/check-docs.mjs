@@ -475,8 +475,20 @@ for (const [text, places] of sameParagraphs) {
 // 既定の値の正本は packages/core/src/workflow/resolve.ts で、利用者には dg workflow show が出す。文書に写すと、既定を変えるたびに文書が追いつかずに古い値が残るため（t1147）。
 // 文は「。」「. 」と箇条書きの 1 項目・表の 1 行で切る。値の意味の説明（既定の語のない文）と、値の変え方の例（既定の語と別の文）は指摘しない。
 // 見るのは .md の文書すべて（guide を含む）。ADR の「採らなかった案」の節は、退けた値を書く記録なので除く。コードブロックの中は除く
-const WORKFLOW_VALUES = ["anyone", "ask_unless_auto", "always_ask", "human_only", "agent_only"];
-const workflowValueRe = new RegExp(`\`(?:${WORKFLOW_VALUES.join("|")})\``);
+// 権限の値は正本の packages/core/src/model/workflow.ts の DECISIONS から読む。.mjs から .ts を import できず、写しは値を足したときに追いつかないため（t1175）。
+// 読めないときは検査が値なしで黙って通らないよう、指摘を出して落とす
+const WORKFLOW_VALUES_SOURCE = "packages/core/src/model/workflow.ts";
+const WORKFLOW_VALUES = workflowDecisions(
+  await readFile(path.join(root, WORKFLOW_VALUES_SOURCE), "utf8").catch(() => ""),
+);
+if (WORKFLOW_VALUES.length === 0) {
+  errors.push(
+    `${WORKFLOW_VALUES_SOURCE}: 権限の値の配列（export const DECISIONS = [...] as const）を読めない。check-docs.mjs の読み方を正本に合わせる`,
+  );
+}
+// 値が読めないときの空の選択肢はどの位置にも当たるので、何にも当たらない (?!) に替える
+const workflowValueAlt = WORKFLOW_VALUES.length > 0 ? WORKFLOW_VALUES.join("|") : "(?!)";
+const workflowValueRe = new RegExp(`\`(?:${workflowValueAlt})\``);
 const defaultWordRe = /既定|\bdefaults?\b/i;
 let workflowDefaultDocCount = 0;
 for (const rel of tracked.filter((f) => f.endsWith(".md") && !f.split("/").includes("dist"))) {
@@ -494,7 +506,7 @@ for (const rel of tracked.filter((f) => f.endsWith(".md") && !f.split("/").inclu
 // 文字列の中の値はバッククォートで囲まないので、語の境で値を探す。文は行ごとに「. 」「; 」で切る（「(always_ask by default; see …)」の括弧の補足は同じ文に数える）。
 // 既定の値の正本の resolve.ts は値と既定を書くのが役目なので除く
 const WORKFLOW_DEFAULTS_SOURCE = "packages/core/src/workflow/resolve.ts";
-const workflowBareValueRe = new RegExp(`(?<![\\w-])(?:${WORKFLOW_VALUES.join("|")})(?![\\w-])`);
+const workflowBareValueRe = new RegExp(`(?<![\\w-])(?:${workflowValueAlt})(?![\\w-])`);
 let workflowDefaultCodeCount = 0;
 for (const rel of requirementPlacementFiles.filter((f) => f !== WORKFLOW_DEFAULTS_SOURCE)) {
   workflowDefaultCodeCount++;
@@ -759,6 +771,14 @@ function guideBlocks(text) {
     sections: sections.map((s) => ({ heading: s.heading, body: normalize(s.lines.join(" ")) })),
     paragraphs,
   };
+}
+
+/**
+ * workflow.ts の本文から、権限の値の配列（export const DECISIONS = [...] as const）の文字列を返す。見つからなければ空の配列
+ */
+function workflowDecisions(text) {
+  const body = /export const DECISIONS = \[([^\]]*)\] as const/.exec(text)?.[1] ?? "";
+  return [...body.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
 }
 
 /**
