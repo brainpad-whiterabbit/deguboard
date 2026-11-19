@@ -5,7 +5,7 @@ after:
     - t1140
   t1142:
     - t1141
-pending_approval: true
+pending_approval: false
 details:
   t1139:
     scope: 品質ゲートの全体の検査にかかる時間を減らす。ゲートが見る範囲（何を検査すればマージしてよいか）は下げない
@@ -23,3 +23,5 @@ details:
     scope: 選択の帯に ID のコピーと形の選択を足し、Ctrl/⌘+C で ID をコピーできるようにする
     approach: コピーする文字を作る関数を分けて 3 つの形をテストし、SelectionBar と host.copy を使い、スクリーンショットを載せる
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-19T06:45:06Z
