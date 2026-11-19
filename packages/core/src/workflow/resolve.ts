@@ -57,9 +57,10 @@ const DEFAULT_LABELS: Record<Status, string> = {
   abandoned: "Abandoned",
 };
 
-// 着手（todo → in_progress）は、エージェントが人の指示か承認（承認済みの Plan を含む）なしに始めないよう ask_unless_auto にする
+// 着手（todo → in_progress）は anyone にする。どのチケットを進めるかは人が割り当て（flow.assign）と Plan の承認（flow.plan）で
+// 決めるので、着手のたびに承認者を求めても判断が増えない。頼まれていない着手は unclaim で戻せる
 const DEFAULT_BOUNDARIES: readonly Boundary[] = [
-  { ...BOUNDARIES[0], requires: ["deps_done"], decide: "ask_unless_auto" },
+  { ...BOUNDARIES[0], requires: ["deps_done"], decide: "anyone" },
   { ...BOUNDARIES[1], requires: [], decide: "anyone" },
   { ...BOUNDARIES[2], requires: ["pr_merged"], decide: "ask_unless_auto" },
 ];
@@ -75,11 +76,11 @@ const DEFAULT_EXCEPTIONS: Record<ExceptionMove, Decision> = {
 const DEFAULT_WIP: Partial<Record<Status, number>> = { in_progress: 5, review: 3 };
 
 const DEFAULT_FLOW_STAGES: Record<FlowDecidedStage, Decision> = {
-  assign: "ask_unless_auto",
+  assign: "always_ask",
   check: "ask_unless_auto",
   plan: "ask_unless_auto",
   audit: "always_ask",
-  release: "human_only",
+  release: "always_ask",
   retro: "always_ask",
 };
 
@@ -88,7 +89,7 @@ const DEFAULT_GOVERNANCE: Record<GovernanceOperation, Decision> = {
   config: "always_ask",
   reassign: "always_ask",
   epic: "always_ask",
-  create: "anyone",
+  create: "always_ask",
 };
 
 /** 書いた値に、書いていない鍵の既定を足す */

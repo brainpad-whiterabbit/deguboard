@@ -24,13 +24,13 @@ The order of stages and the current stage are decided by `dg flow next`. Whether
 
 | Stage   | Where approval is asked                      | Value that decides it (default)                    |
 | ------- | -------------------------------------------- | -------------------------------------------------- |
-| Assign  | Rows to put in                               | `flow.assign` (`ask_unless_auto`)                  |
+| Assign  | Rows to put in                               | `flow.assign` (`always_ask`)                       |
 | Check   | Rows to fix                                  | `flow.check` (`ask_unless_auto`)                   |
 | Check   | Deletion, abandoned, closing                 | Always asked (`governance`, `exceptions`, `flow`)  |
 | Plan    | Plan                                         | `flow.plan` (`ask_unless_auto`)                    |
 | Work    | Merge of each PR (`dg guide work`)           | `decide` of review → done (`ask_unless_auto`)      |
 | Audit   | Table of findings                            | `flow.audit` (`always_ask`)                        |
-| Release | Merge of the release PR, publishing, closing | `flow.release` (`human_only`: the checkpoint and closing are left to a human) |
+| Release | Merge of the release PR, publishing, closing | `flow.release` (`always_ask`)                      |
 
 Closing a Plan whose tickets are all finished is part of the Work stage. It needs no approval, so the flow closes it and goes on (the steps are in "Closing a Plan" of `dg guide done`).
 
@@ -49,7 +49,7 @@ Closing a Plan whose tickets are all finished is part of the Work stage. It need
 ## Between stages
 
 - **No stopping between stages**: except where `approval.required` applies, do not ask, and call the next `flow next`
-- **Starting a ticket follows the todo → in_progress boundary** (`ask_unless_auto` by default): the human who started this flow asked for its tickets to be advanced, so claim with `--approved-by human` and do not ask again. In a flow started with `--auto`, claim with `--auto` instead when the value is `ask_unless_auto`. `commands` of `next` gives the claim for the board's value (the "Before and after claim" section of `dg guide work`)
+- **Starting a ticket follows the todo → in_progress boundary** (`anyone` by default, which asks no one): when the board's value asks for a human's approval, the human who started this flow asked for its tickets to be advanced, so claim with `--approved-by human` and do not ask again. In a flow started with `--auto`, claim with `--auto` instead when the value is `ask_unless_auto`. `commands` of `next` gives the claim for the board's value (the "Before and after claim" section of `dg guide work`)
 - **Merge follows `approval` of the work stage**: when `approval.auto_ok` is true (the flow was started with `--auto`, and the `decide` of the review → done boundary is `ask_unless_auto`, the default), a PR that passes the quality gate is merged without asking, as "Going ahead without asking with `--auto`" below says. When `approval.required` is true, ask a human whether to merge it, and merge it only when approved, by the "Merging after approval" section of `dg guide work` (`dg pr merge <id> --approved-by human`). When declined, do not merge, and leave the PR waiting. After a PR is put out, advance the next step while it waits for its merge. If there is no next step, ask about the merges that wait, and stop if none is approved
 - **Handling failures**: a ticket whose implementation failed goes back to todo, as in `dg guide parallel`, and tickets that do not wait for it advance. A ticket whose review or fix returned failure, or did not return, is not put back to todo, and follows the "How to finish" section of `dg guide review`
 
@@ -57,14 +57,14 @@ Closing a Plan whose tickets are all finished is part of the Work stage. It need
 
 `--auto` means one thing: where the Workflow's value is `ask_unless_auto`, go ahead without asking. It changes nothing anywhere else. dg enforces it: a command run with `--auto` passes only where the value that judges it is `ask_unless_auto`, records the agent as the approver, and is refused anywhere else (the "Operations that may be limited to humans" section of `dg guide overview`).
 
-- What is written in `approval.auto` (`approval.auto_ok` is true): go ahead with the suggested option, and briefly show what was chosen and the material for the decision on the spot. Run the judged commands with `--auto`, as `commands` and `checkpoint` give them (`iteration add … --auto`, `plan approve <p> --auto`, `checkpoint check <target> --auto`), and the claim of each ticket with `--auto` in place of `--approved-by human` (`ticket claim <id> … --auto`, under the default todo → in_progress). Do not pass `--approved-by` (no human approved it)
+- What is written in `approval.auto` (`approval.auto_ok` is true): go ahead with the suggested option, and briefly show what was chosen and the material for the decision on the spot. Run the judged commands with `--auto`, as `commands` and `checkpoint` give them (`iteration add … --auto`, `plan approve <p> --auto`, `checkpoint check <target> --auto`), and the claim of each ticket with `--auto` in place of `--approved-by human` (`ticket claim <id> … --auto`, when the todo → in_progress boundary is `ask_unless_auto`). Do not pass `--approved-by` (no human approved it)
 - Whatever remains in `approval.what` is asked about, with `--auto` too. A value of `always_ask` asks, and a value of `human_only` is left to a human
 - A command that is refused because it asks for a human's approval, and whose error says to run it again with `--auto`, is run again with `--auto` (the value is `ask_unless_auto`): for example `ticket move <id> done --auto` for work that needs no PR, under the default review → done. When the error does not say so, ask a human
 
 Merges and the approvals that `--auto` never skips are handled as follows.
 
 - **A PR is merged without asking** only when `approval.auto_ok` of the work stage is true, and only a PR that meets the "Quality gate" section of `dg guide review` is merged, with `dg --json --actor agent pr merge <id> --auto`. Leave out `--method` and `--delete-branch`, so that config's `merge.method` and `merge.delete_branch` (current settings: `{{merge.method}}` and `{{merge.delete_branch}}`) decide the method and whether the branch is deleted. If the PR does not meet the gate, it is never merged without asking (`--auto` returns `GATE_FAILED`): show the conditions it did not meet and ask whether to merge it anyway, by the "Merging without meeting the gate" section of `dg guide review` (when approved, the agent merges with `--approved-by human`, which overrides every unmet condition except `pr`, `mergeable`, and `head`; a human is not asked to run `gh`)
-- **Asked, and the flow stops, with `--auto` too**: everything whose value is not `ask_unless_auto` on this board (by default: the audit's table of findings; merging and publishing the release PR and closing the Iteration; deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic; the team's settings and another user's assignee); what is fixed in Core (changing the Workflow with `dg workflow set`, lowering a quality gate level, merging a PR that does not meet the quality gate); and what has no value to decide it: changing a Plan's waits (`after`) and scope, operations with `--force`, decisions with no suggested option, and answers that cannot be a choice
+- **Asked, and the flow stops, with `--auto` too**: everything whose value is not `ask_unless_auto` on this board (by default: the rows to put into an Iteration or Epic; the audit's table of findings; passing the release checkpoint, merging and publishing the release PR, and closing the Iteration; filing tickets; deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic; the team's settings and another user's assignee); what is fixed in Core (changing the Workflow with `dg workflow set`, lowering a quality gate level, merging a PR that does not meet the quality gate); and what has no value to decide it: changing a Plan's waits (`after`) and scope, operations with `--force`, decisions with no suggested option, and answers that cannot be a choice
 
 ## Reporting the result
 

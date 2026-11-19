@@ -65,8 +65,8 @@ async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
-  await runCommand(ticketCreate, ctx, { title: "A" });
-  await runCommand(ticketCreate, ctx, { title: "B" });
+  await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
+  await runCommand(ticketCreate, ctx, { title: "B", approved_by: "human" });
   await runCommand(configSet, asHuman(ctx), { key: "commit.mode", value: "each" });
   await runCommand(configSet, asHuman(ctx), { key: "metrics.read_transcripts", value: "true" });
   await runCommand(commit, ctx, {});
@@ -2282,8 +2282,8 @@ describe("フックが届くセッションで親が自分で Run を開く clai
 
   it("フックが届いたセッションで --no-run なしの claim は、Run を開いたうえで警告する。--no-run・--without-branch では警告しない", async () => {
     const { ctx, home, parent } = await prepared();
-    await runCommand(ticketCreate, ctx, { title: "C" });
-    await runCommand(ticketCreate, ctx, { title: "D" });
+    await runCommand(ticketCreate, ctx, { title: "C", approved_by: "human" });
+    await runCommand(ticketCreate, ctx, { title: "D", approved_by: "human" });
     ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
     await reach(ctx, parent);
 
@@ -2336,7 +2336,7 @@ describe("フックが届くセッションで親が自分で Run を開く clai
 
   it("フックが届いていないセッション・別のセッションに届いた記録・エージェントの外では警告しない", async () => {
     const { ctx, home, parent } = await prepared();
-    await runCommand(ticketCreate, ctx, { title: "C" });
+    await runCommand(ticketCreate, ctx, { title: "C", approved_by: "human" });
     await call(ctx, "SessionStart", { session_id: "s-other", transcript_path: parent });
     ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
     const silent = await runCommand(ticketClaim, ctx, {

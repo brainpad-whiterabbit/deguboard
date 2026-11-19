@@ -89,7 +89,7 @@ async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
   const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
-  await runCommand(ticketCreate, ctx, { title: "A" });
+  await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
   // 作業ブランチ（branch_at）を 2 時間前からにする（push より前の保留を作業ブランチの中に置くため）。
   // branch_at と最初の push は雛形を作った時刻 T（このファイルの最初の件の時刻）から決まり、各件の今 N は T より後になる。
   // 件の中の時刻は later(-30) から later(5)（N の 30 分前から 5 分後）。N − T が 90 分より短ければ（ファイル全体で数十秒）

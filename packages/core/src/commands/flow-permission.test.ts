@@ -67,9 +67,9 @@ const notAutoPlace = (what: string, value: string) => ({
 });
 
 describe("流れの段階の操作は flow の値で判定される", () => {
-  it("assign：Iteration・Epic への出し入れは既定（ask_unless_auto）でエージェントに承認が要り、承認者が履歴に残る。人は聞かずにできる", async () => {
+  it("assign：Iteration・Epic への出し入れは既定（always_ask）でエージェントに承認が要り、承認者が履歴に残る。人は聞かずにできる", async () => {
     const { human, agent, subject, iterationOf, epicOf } = await humanAndAgent();
-    const value = "flow.assign: ask_unless_auto";
+    const value = "flow.assign: always_ask";
     expect(
       await rejected(runCommand(iterationAdd, agent, { iteration: "s1", tickets: ["t1"] })),
     ).toMatchObject(asks("dg iteration add", value));
@@ -113,7 +113,7 @@ describe("流れの段階の操作は flow の値で判定される", () => {
 
   it("assign：ticket update の --iteration・--epic も、値が変わるときだけ同じ値で判定する", async () => {
     const { human, agent, subject, iterationOf, epicOf } = await humanAndAgent();
-    const value = "flow.assign: ask_unless_auto";
+    const value = "flow.assign: always_ask";
     expect(
       await rejected(runCommand(ticketUpdate, agent, { ticket: "t1", iteration: "s1" })),
     ).toMatchObject(asks("moving t1 into or out of an Iteration", value));
@@ -194,33 +194,34 @@ describe("流れの段階の操作は flow の値で判定される", () => {
     );
   });
 
-  it("release：iteration close・reopen は既定（human_only）でエージェントを拒否し、値を替えると承認で・聞かずにできる", async () => {
+  it("release：iteration close・reopen は既定（always_ask）でエージェントに承認が要り、値を替えると人だけ・聞かずにできる", async () => {
     const { human, agent, workflow, subject } = await humanAndAgent();
     const statusOf = () => human.store.require("iteration", "s1").data.status;
+    expect(await rejected(runCommand(iterationClose, agent, { iteration: "s1" }))).toMatchObject(
+      asks("dg iteration close", "flow.release: always_ask"),
+    );
+    expect(statusOf()).toBe("planned");
+    await runCommand(iterationClose, agent, { iteration: "s1", approved_by: "human" });
+    expect(await subject()).toBe("Close s1: S1 (approved by claude)");
+    expect(await rejected(runCommand(iterationReopen, agent, { iteration: "s1" }))).toMatchObject(
+      asks("dg iteration reopen", "flow.release: always_ask"),
+    );
+    await runCommand(iterationReopen, agent, { iteration: "s1", approved_by: "human" });
+    expect(await subject()).toBe("Reopen s1: S1 (approved by claude)");
+
+    await workflow("flow: { release: human_only }");
     const value = "flow.release: human_only";
     // human_only は承認者を渡しても通らない
     for (const input of [{ iteration: "s1" }, { iteration: "s1", approved_by: "human" }])
       expect(await rejected(runCommand(iterationClose, agent, input))).toMatchObject(
         limits("dg iteration close", value),
       );
-    expect(statusOf()).toBe("planned");
+    expect(statusOf()).toBe("active");
     await runCommand(iterationClose, human, { iteration: "s1" });
     expect(
       await rejected(runCommand(iterationReopen, agent, { iteration: "s1", approved_by: "human" })),
     ).toMatchObject(limits("dg iteration reopen", value));
     expect(statusOf()).toBe("closed");
-
-    await workflow("flow: { release: always_ask }");
-    expect(await rejected(runCommand(iterationReopen, agent, { iteration: "s1" }))).toMatchObject(
-      asks("dg iteration reopen", "flow.release: always_ask"),
-    );
-    await runCommand(iterationReopen, agent, { iteration: "s1", approved_by: "human" });
-    expect(await subject()).toBe("Reopen s1: S1 (approved by claude)");
-    expect(await rejected(runCommand(iterationClose, agent, { iteration: "s1" }))).toMatchObject(
-      asks("dg iteration close", "flow.release: always_ask"),
-    );
-    await runCommand(iterationClose, agent, { iteration: "s1", approved_by: "human" });
-    expect(await subject()).toBe("Close s1: S1 (approved by claude)");
 
     await workflow("flow: { release: anyone }");
     await runCommand(iterationReopen, agent, { iteration: "s1" });
@@ -230,8 +231,9 @@ describe("流れの段階の操作は flow の値で判定される", () => {
 });
 
 describe("--auto は ask_unless_auto の場面だけを聞かずに進め、承認者にエージェントを記録する", () => {
-  it("flow：既定の assign と plan は --auto で聞かずに進み、承認者（履歴と approved_by）は進めたエージェント", async () => {
-    const { human, agent, subject, iterationOf, epicOf } = await humanAndAgent();
+  it("flow：ask_unless_auto にした assign と既定の plan は --auto で聞かずに進み、承認者（履歴と approved_by）は進めたエージェント", async () => {
+    const { human, agent, workflow, subject, iterationOf, epicOf } = await humanAndAgent();
+    await workflow("flow: { assign: ask_unless_auto }");
     await runCommand(iterationAdd, agent, { iteration: "s1", tickets: ["t1"], auto: true });
     expect(await subject()).toBe("Add t1 to s1 (approved by claude/agent with --auto)");
     await runCommand(epicAdd, agent, { epic: "e1", tickets: ["t1"], auto: true });
@@ -253,19 +255,18 @@ describe("--auto は ask_unless_auto の場面だけを聞かずに進め、承�
     await runCommand(planCreate, human, { tickets: ["t1"] });
     const add = { iteration: "s1", tickets: ["t1"], auto: true };
 
-    // 既定の release は human_only：--auto でも閉じられない
-    expect(
-      await rejected(runCommand(iterationClose, agent, { iteration: "s1", auto: true })),
-    ).toMatchObject({
-      ...notAutoPlace("dg iteration close", "flow.release: human_only"),
-      detail: "Ask a person to run the command (without --actor agent)",
-    });
+    // 既定の release と assign は always_ask：--auto では閉じられず、出し入れもできない
+    const closing = await rejected(
+      runCommand(iterationClose, agent, { iteration: "s1", auto: true }),
+    );
+    expect(closing).toMatchObject(notAutoPlace("dg iteration close", "flow.release: always_ask"));
+    expect(closing!.detail).toContain("--auto never skips this approval");
     expect(human.store.require("iteration", "s1").data.status).toBe("planned");
-
-    await workflow("flow: { assign: always_ask, plan: always_ask }");
     const asked = await rejected(runCommand(iterationAdd, agent, add));
     expect(asked).toMatchObject(notAutoPlace("dg iteration add", "flow.assign: always_ask"));
     expect(asked!.detail).toContain("--auto never skips this approval");
+
+    await workflow("flow: { plan: always_ask }");
     expect(
       await rejected(runCommand(planApprove, agent, { plan: "p1", auto: true })),
     ).toMatchObject(notAutoPlace("dg plan approve", "flow.plan: always_ask"));
@@ -297,11 +298,16 @@ describe("--auto は ask_unless_auto の場面だけを聞かずに進め、承�
     expect(
       await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "review", auto: true })),
     ).toMatchObject(notAutoPlace("moving t1 from done to review", "exceptions.reopen: always_ask"));
-    // 着手の境目（todo → in_progress）も既定で ask_unless_auto：--auto で進み、承認者にエージェントが残る
-    await runCommand(ticketMove, agent, { ticket: "t2", status: "in_progress", auto: true });
-    expect(await subject()).toBe(
-      "Move t2 from todo to in_progress (approved by claude/agent with --auto)",
+    // 着手の境目（todo → in_progress）は既定で anyone：--auto は拒否され、付けなければ聞かずに進む
+    expect(
+      await rejected(
+        runCommand(ticketMove, agent, { ticket: "t2", status: "in_progress", auto: true }),
+      ),
+    ).toMatchObject(
+      notAutoPlace("moving t2 from todo to in_progress", "boundaries todo → in_progress: anyone"),
     );
+    const started = await runCommand(ticketMove, agent, { ticket: "t2", status: "in_progress" });
+    expect(started.data.status).toBe("in_progress");
     // 聞かない境目（in_progress → review は anyone）の --auto は拒否される
     expect(
       await rejected(runCommand(ticketMove, agent, { ticket: "t2", status: "review", auto: true })),
@@ -344,7 +350,7 @@ describe("--auto は ask_unless_auto の場面だけを聞かずに進め、承�
         runCommand(workflowSet, agent, { definition: { flow: { release: "anyone" } }, auto: true }),
       ),
     ).toMatchObject({ code: "TRANSITION_REJECTED" });
-    expect(human.store.workflow?.resolved.flow.stages.release).toBe("human_only");
+    expect(human.store.workflow?.resolved.flow.stages.release).toBe("always_ask");
     expect(
       await rejected(runCommand(ticketUpdate, agent, { ticket: "t1", gate: "low", auto: true })),
     ).toMatchObject(

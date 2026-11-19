@@ -471,7 +471,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       // やり直した後の状態（todo のまま）で決め直して取れる。前の手直しの Run は、取れた後に 1 回だけ閉じる
       await runCommand(ticketUnclaim, taro, { ticket: "t1" });
       await runCommand(sync, taro, {});
-      await runCommand(ticketCreate, taro, { title: "Unrelated" });
+      await runCommand(ticketCreate, taro, { title: "Unrelated", approved_by: "human" });
       await runCommand(sync, taro, {});
       agent.hooks = {
         beforePush: async () => {

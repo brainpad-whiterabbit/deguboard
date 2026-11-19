@@ -523,7 +523,7 @@ describe("dg next と dg brief の古い Skill の警告（t858）", () => {
     const ctx = await openContext({ cwd: f.cloneA, actor });
     // 本物の ~/.claude/skills を読まない
     ctx.env = { HOME: await tempDir() };
-    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
     return ctx;
   }
   const warningsOf = async (ctx: Awaited<ReturnType<typeof prepared>>) => ({
