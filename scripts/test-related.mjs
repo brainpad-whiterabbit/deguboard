@@ -1,4 +1,4 @@
-// mise run test:related の本体。origin/main との分岐点からの差分（コミット済み・ステージ・未ステージ）と未追跡のファイルを
+// mise run test:related の本体。config の <git.remote>/<git.base_branch>（dg config show で読む）との分岐点からの差分（コミット済み・ステージ・未ステージ）と未追跡のファイルを
 // 変えたファイルとし、scripts/lib/related-tests.mjs の planRelatedRun で選んだテストだけを vitest で回す（t1127）。
 // 回す・知らせる・何もしないの決め方は planRelatedRun にあり、このファイルは git を読んで結果を写すだけにする（t1132）。
 // 引数はそのまま vitest run に渡す
@@ -6,7 +6,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { RELATED_ENV, planRelatedRun } from "./lib/related-tests.mjs";
+import { RELATED_ENV, planRelatedRun, resolveBaseRef } from "./lib/related-tests.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -21,16 +21,31 @@ function gitPaths(args) {
     .filter((entry) => entry !== "");
 }
 
+/** ビルド済みの dg の `--json config show` の出力。dg が動かなければ undefined（resolveBaseRef が既定に落とす） */
+function readConfigOutput() {
+  try {
+    return execFileSync(
+      process.execPath,
+      [path.join(root, "packages", "cli", "bin", "dg.js"), "--json", "config", "show"],
+      { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+const baseRef = resolveBaseRef(readConfigOutput());
+if (baseRef.message) console.error(baseRef.message);
 let base;
 try {
-  base = execFileSync("git", ["merge-base", "origin/main", "HEAD"], {
+  base = execFileSync("git", ["merge-base", baseRef.ref, "HEAD"], {
     cwd: root,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
   }).trim();
 } catch {
   console.error(
-    "test:related: cannot find the merge base with origin/main (fetch origin, or check that the remote is named origin)",
+    `test:related: cannot find the merge base with ${baseRef.ref} (fetch the remote, or check git.remote and git.base_branch with dg config show)`,
   );
   process.exit(1);
 }

@@ -1,12 +1,26 @@
 // scripts/lib/related-tests.mjs（mise run test:related が回すテストの選び方）を確かめる（t1127）。
 // 選び方の理由はそのファイルの冒頭のコメント
 
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  DATA_FILE_TESTS,
+  FALLBACK_BASE_REF,
   isTestFile,
   planRelatedRun,
+  resolveBaseRef,
   selectRelatedTests,
 } from "../../scripts/lib/related-tests.mjs";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const guideTests = [
+  "packages/cli/src/guide.test.ts",
+  "packages/cli/src/skill.test.ts",
+  "packages/core/src/commands/skill-files.test.ts",
+  "packages/core/src/guide/guide.test.ts",
+];
 
 const tests = [
   "packages/core/src/commands/hook.test.ts",
@@ -23,6 +37,7 @@ const tests = [
   "packages/core/src/commands/flow-permission.test.ts",
   "packages/web/src/l10n.test.ts",
   "packages/web/src/l10n-screens.test.tsx",
+  ...guideTests,
 ];
 
 const sources = [
@@ -64,6 +79,7 @@ describe("test:related が回すテストの選び方", () => {
         "packages/core/src/commands/orphan-review.test.ts",
       ],
       unpaired: [],
+      untested: [],
     });
   });
 
@@ -93,6 +109,7 @@ describe("test:related が回すテストの選び方", () => {
         "packages/web/src/l10n.test.ts",
       ],
       unpaired: [],
+      untested: [],
     });
   });
 
@@ -110,7 +127,7 @@ describe("test:related が回すテストの選び方", () => {
     ]);
   });
 
-  it("対になるテストがないソースのファイルは unpaired に返し、文書や型の宣言は数えない", () => {
+  it("対になるテストがないソースのファイルは unpaired に、テストを選べない文書や設定は untested に返し、型の宣言は数えない", () => {
     expect(
       selectRelatedTests(
         [
@@ -126,7 +143,48 @@ describe("test:related が回すテストの選び方", () => {
     ).toEqual({
       tests: [],
       unpaired: ["vitest.workers.ts", "packages/core/src/commands/hook-argv.ts"],
+      untested: ["docs/development.md", "mise.toml"],
     });
+  });
+
+  it("guide の .md を変えたら、その .md を読むテストを選ぶ", () => {
+    expect(
+      selectRelatedTests(
+        ["packages/core/src/guide/guide-work.md", "packages/core/src/guide/guide-choices.md"],
+        tests,
+        sources,
+      ),
+    ).toEqual({ tests: guideTests, unpaired: [], untested: [] });
+  });
+
+  it("guide のフォルダの外の .md と、guide- で始まらない .md は guide のテストを選ばない", () => {
+    expect(
+      selectRelatedTests(
+        ["docs/guide-notes/work.md", "packages/core/src/guide/README.md"],
+        tests,
+        sources,
+      ),
+    ).toEqual({
+      tests: [],
+      unpaired: [],
+      untested: ["docs/guide-notes/work.md", "packages/core/src/guide/README.md"],
+    });
+  });
+
+  it("表に載せたテストがリポジトリになければ選ばず、テストを選べないファイルとして返す", () => {
+    expect(
+      selectRelatedTests(
+        ["packages/core/src/guide/guide-work.md"],
+        ["test/scripts/gif.test.ts"],
+        sources,
+      ),
+    ).toEqual({ tests: [], unpaired: [], untested: ["packages/core/src/guide/guide-work.md"] });
+  });
+
+  it("DATA_FILE_TESTS に載せたテストはリポジトリにある（名前を変えたら表も直す）", () => {
+    const listed = DATA_FILE_TESTS.flatMap((entry) => entry.tests);
+    expect(listed.filter((test) => !existsSync(path.join(repoRoot, test)))).toEqual([]);
+    expect(listed.every(isTestFile)).toBe(true);
   });
 
   it("同じ接頭辞の下位のディレクトリにあるテストは、分けたテストとして選ばない", () => {
@@ -153,11 +211,16 @@ describe("test:related が回すテストの選び方", () => {
     ).toEqual({
       tests: ["test/scripts/a.test.ts", "test/scripts/b.test.ts"],
       unpaired: ["scripts/lib/c.cts"],
+      untested: [],
     });
   });
 
   it("変えたファイルがなければ何も選ばない", () => {
-    expect(selectRelatedTests([], tests, sources)).toEqual({ tests: [], unpaired: [] });
+    expect(selectRelatedTests([], tests, sources)).toEqual({
+      tests: [],
+      unpaired: [],
+      untested: [],
+    });
   });
 
   it("vitest.config.ts の include に当たるファイルだけをテストファイルとみなす", () => {
@@ -173,6 +236,8 @@ describe("test:related の回す・知らせる・何もしない（planRelatedR
   const files = [...tests, ...sources];
   const unpairedLine = (names: string) =>
     `test:related: no name-paired test for ${names} (the full tests in mise run check, which dg pr ready runs, cover them)`;
+  const untestedLine = (names: string) =>
+    `test:related: no test selected for ${names} (neither source nor test files; the full tests in mise run check, which dg pr ready runs, cover any test that reads them)`;
   const nothingLine = "test:related: no related tests to run";
 
   it.each([
@@ -195,8 +260,26 @@ describe("test:related の回す・知らせる・何もしない（planRelatedR
       expected: { tests: [], messages: [unpairedLine("vitest.workers.ts"), nothingLine] },
     },
     {
-      name: "文書だけを変えたら、回すものがないとだけ知らせて何もしない",
+      name: "文書だけを変えたら、テストを選べないことと回すものがないことを知らせて何もしない",
       changed: ["docs/development.md"],
+      expected: { tests: [], messages: [untestedLine("docs/development.md"), nothingLine] },
+    },
+    {
+      name: "guide の .md を変えたら、知らせずにその .md を読むテストを回す",
+      changed: ["packages/core/src/guide/guide-work.md"],
+      expected: { tests: guideTests, messages: [] },
+    },
+    {
+      name: "テストを選べるソースと選べない設定を一緒に変えたら、設定のことを知らせてから回す",
+      changed: ["packages/core/src/commands/hook.ts", "mise.toml"],
+      expected: {
+        tests: ["packages/core/src/commands/hook.test.ts"],
+        messages: [untestedLine("mise.toml")],
+      },
+    },
+    {
+      name: "消した文書は知らせにも出さない",
+      changed: ["docs/gone.md"],
       expected: { tests: [], messages: [nothingLine] },
     },
     {
@@ -221,6 +304,48 @@ describe("test:related の回す・知らせる・何もしない（planRelatedR
       },
     },
   ])("$name", ({ changed, expected }) => {
-    expect(planRelatedRun(changed, files)).toEqual(expected);
+    expect(
+      planRelatedRun(changed, [
+        ...files,
+        "docs/development.md",
+        "mise.toml",
+        "packages/core/src/guide/guide-work.md",
+      ]),
+    ).toEqual(expected);
+  });
+});
+
+describe("test:related の比べる相手（resolveBaseRef）", () => {
+  const configOutput = (git: Record<string, unknown>) =>
+    JSON.stringify({ ok: true, data: { git: { data_branch: "deguboard", ...git } } });
+  const fallback = {
+    ref: FALLBACK_BASE_REF,
+    message: `test:related: cannot read git.remote and git.base_branch from dg config show (run mise run build); comparing with ${FALLBACK_BASE_REF}`,
+  };
+
+  it.each([
+    {
+      name: "config の git.remote と git.base_branch から決める",
+      output: configOutput({ remote: "upstream", base_branch: "develop" }),
+      expected: { ref: "upstream/develop" },
+    },
+    {
+      name: "dg が動かなければ既定と比べ、そのことを知らせる",
+      output: undefined,
+      expected: fallback,
+    },
+    { name: "JSON でない出力なら既定と比べる", output: "error", expected: fallback },
+    {
+      name: "git.remote が空なら既定と比べる",
+      output: configOutput({ remote: "", base_branch: "main" }),
+      expected: fallback,
+    },
+    {
+      name: "git.base_branch がなければ既定と比べる",
+      output: configOutput({ remote: "origin" }),
+      expected: fallback,
+    },
+  ])("$name", ({ output, expected }) => {
+    expect(resolveBaseRef(output)).toEqual(expected);
   });
 });
