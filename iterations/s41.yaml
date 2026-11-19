@@ -1,7 +1,7 @@
 id: s41
 name: sprint41
 goal: テストの判定を純粋な関数の層に分け、git を通すテストを経路の代表に絞って全体のテストを速くする（e40：t1100〜t1106）。自動で取り込めずに人の同期が要るとき、同期のボタンで知らせるかを決めて揃える（t1093）。
-status: active
+status: closed
 checkpoints:
   - name: check
     at: 2026-11-18T21:08:35Z
@@ -80,3 +80,6 @@ checkpoints:
     by: Eiki Kitajima/agent
     approved_by: Eiki Kitajima
 started_at: 2026-11-18T21:09:04Z
+closed_at: 2026-11-19T05:45:25Z
+completed: 31
+carried_over: 0
