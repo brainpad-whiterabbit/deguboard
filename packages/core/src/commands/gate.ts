@@ -4,7 +4,13 @@
 
 import { NEVER_OVERRIDDEN } from "./pr-approval.js";
 import { z } from "zod";
-import { baseContainment, fetchPrGateFacts, remoteTip } from "../git/facts.js";
+import {
+  baseContainment,
+  fetchBaseOnce,
+  fetchPrGateFacts,
+  remoteTip,
+  type BaseFetch,
+} from "../git/facts.js";
 import { withTipMerge } from "../git/tip-merge.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
 import { gateLevelOf, parseAcceptance, type Ticket } from "../model/ticket.js";
@@ -47,11 +53,15 @@ async function readPrFact(ctx: CommandContext, ticket: Ticket): Promise<PrFact> 
   return { kind: "read", pr: facts.pr };
 }
 
-/** 見直しの事実（見直しの Run とリモートの先端）を読む。見直しの Run と push の時刻（fetch を含む）はここでだけ読む */
+/**
+ * 見直しの事実（見直しの Run とリモートの先端）を読む。見直しの Run と push の時刻（fetch を含む）はここでだけ読む。
+ * fetchBase は base の取り込み（base の今の先端を読む readBaseFact と 1 回にまとめる）
+ */
 async function readReviewFacts(
   ctx: CommandContext,
   ticket: Ticket,
   warnings: string[],
+  fetchBase: BaseFetch,
 ): Promise<ReviewFacts> {
   const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
   const tip = ticket.branch
@@ -65,12 +75,19 @@ async function readReviewFacts(
   const unlinked = unlinkedReviewWarning(ctx.env ?? process.env, ticket.id, runs, ticket.branch_at);
   if (unlinked) warnings.push(unlinked);
   // 先端が base を取り込んだだけのマージコミットかを決める事実を足す（dg next と同じ関数。tip-merge.ts）
-  return { tip: tip ? await withTipMerge(ctx.repo, tip, runs, { fetch: true }) : null, runs };
+  return { tip: tip ? await withTipMerge(ctx.repo, tip, runs, { fetch: fetchBase }) : null, runs };
 }
 
-/** base の今の先端（fetch して読む）を、作業ブランチの最新のコミットが含むか */
-async function readBaseFact(ctx: CommandContext, latest: string): Promise<BaseFact> {
-  const read = await baseContainment(ctx.repo, latest);
+/**
+ * base の今の先端（fetch して読む）を、作業ブランチの最新のコミットが含むか。fetchBase を渡せば、同じ判定の中で
+ * もう取り込んでいればそれを使う（fetchBaseOnce）。渡さなければ取り込み直す（検査の後の読み直し。t1152）
+ */
+async function readBaseFact(
+  ctx: CommandContext,
+  latest: string,
+  fetchBase?: BaseFetch,
+): Promise<BaseFact> {
+  const read = await baseContainment(ctx.repo, latest, fetchBase);
   return "reason" in read ? { kind: "unreadable", reason: read.reason } : { kind: "read", ...read };
 }
 
@@ -88,20 +105,22 @@ export async function collectGateFacts(
 ): Promise<GateFacts> {
   const level = gateLevelOf(ticket);
   const reads = gateReads(level, stage);
+  // base の取り込みは、先端のマージコミットを読むときと base の今の先端を読むときで 1 回にまとめる
+  const fetchBase = fetchBaseOnce(ctx.repo);
   const pr = await readPrFact(ctx, ticket);
   const acceptance = reads.acceptance
     ? (parseAcceptance(ctx.store.tickets.get(ticket.id)?.body ?? "") ?? [])
     : [];
   const review = reads.review
-    ? await readReviewFacts(ctx, ticket, warnings)
+    ? await readReviewFacts(ctx, ticket, warnings, fetchBase)
     : { tip: null, runs: [] };
   // 作業ブランチの最新のコミットは、見直しの事実の fetch の後に読む（追跡 ref が進んだ後）。PR を読めなければ比べないので読まない
   const latest =
     reads.latest && pr.kind === "read" && ticket.branch
       ? ((await latestCommit(ctx, ticket.branch)) ?? null)
       : null;
-  // base の今の先端は、比べる相手の最新のコミットを読めたときだけ読む（base の fetch はここでだけ必ず行う）
-  const base = reads.base && latest !== null ? await readBaseFact(ctx, latest) : null;
+  // base の今の先端は、比べる相手の最新のコミットを読めたときだけ読む（base の fetch はここで必ず行う。見直しの事実がもう取り込んでいれば、それを使う）
+  const base = reads.base && latest !== null ? await readBaseFact(ctx, latest, fetchBase) : null;
   return {
     ticket: ticket.id,
     level,

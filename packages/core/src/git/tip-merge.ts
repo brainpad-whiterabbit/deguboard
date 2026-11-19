@@ -12,7 +12,7 @@ import {
   type MergeParents,
   type TipMerge,
 } from "./facts-judge.js";
-import { baseRef, type BranchTip } from "./facts.js";
+import { baseRef, type BaseFetch, type BranchTip } from "./facts.js";
 import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
 
@@ -143,18 +143,22 @@ async function readMergeCommit(
  * 先端が base を取り込んだだけの形なら、base でない親を辿って、見直した SHA（reviewed）に着くかマージコミットでなくなるまで
  * マージコミットを読む（どこまで辿るかは nextInBaseMergeChain が決める）。
  * 自動マージの結果（autoTree）は時間がかかるので、連なりの先が見直した SHA にあるときだけ、取り込みの回数によらず 1 回だけ作る
- * （見直した SHA に、先端の base の親をマージする）。fetch を渡せば、親が base のコミットかを比べる前に base を取り込む。
+ * （見直した SHA に、先端の base の親をマージする）。fetch（base の取り込み）を渡せば、親が base のコミットかを比べる前に呼ぶ。
  * autoMerge は自動マージを作る関数の差し替え（テストが呼んだ回数と引数を見る）
  */
 export async function readTipMerge(
   repo: GitRepo,
   sha: string,
   reviewed: readonly string[],
-  opts: { fetch?: boolean; autoMerge?: typeof autoMergeTree } = {},
+  opts: { fetch?: BaseFetch | undefined; autoMerge?: typeof autoMergeTree } = {},
 ): Promise<TipMerge | undefined> {
   let ref: Promise<string | undefined> | undefined;
-  // base の ref は、先端がマージコミットと分かってから（fetch の後に）1 回だけ引く
-  const base = () => (ref ??= fetchedBaseRef(repo, opts));
+  // base の ref は、先端がマージコミットと分かってから（fetch の後に）1 回だけ引く。取り込めなくても手元の ref と比べる
+  const base = () =>
+    (ref ??= (async () => {
+      await opts.fetch?.();
+      return baseRef(repo);
+    })());
   const tip = await readMergeCommit(repo, sha, base);
   if (!tip) return undefined;
   const earlier: Array<MergeParents & { sha: string }> = [];
@@ -173,33 +177,16 @@ export async function readTipMerge(
   return { ...chain, tree: tip.tree, autoTree };
 }
 
-/** 比べる base の ref。fetch を渡せば、その前に base を取り込む */
-async function fetchedBaseRef(
-  repo: GitRepo,
-  opts: { fetch?: boolean },
-): Promise<string | undefined> {
-  if (opts.fetch && repo.codeRemote)
-    await runGit(
-      repo.dataDir,
-      [
-        "fetch",
-        repo.codeRemote,
-        `+refs/heads/${repo.baseBranch}:refs/remotes/${repo.codeRemote}/${repo.baseBranch}`,
-      ],
-      { allowFailure: true, timeoutMs: 60_000 },
-    );
-  return baseRef(repo);
-}
-
 /**
  * リモートの先端に、マージコミットのときの事実を足す（dg gate の review と dg next の段階が同じ読み方をする）。
- * runs は見直しの Run（見直した SHA を head に持つ）。先端を見直した見直しがあれば、取り込みを調べるまでもないので読まない
+ * runs は見直しの Run（見直した SHA を head に持つ）。先端を見直した見直しがあれば、取り込みを調べるまでもないので読まない。
+ * fetch は base の取り込み（同じ判定の base の今の先端の読み取りと 1 回にまとめる fetchBaseOnce。facts.ts）。渡さなければ取り込まない
  */
 export async function withTipMerge(
   repo: GitRepo,
   tip: BranchTip,
   runs: ReadonlyArray<{ head?: string | undefined }>,
-  opts: { fetch?: boolean } = {},
+  opts: { fetch?: BaseFetch | undefined } = {},
 ): Promise<BranchTip> {
   const reviewed = runs.map((r) => r.head).filter((h): h is string => h !== undefined);
   if (reviewed.length === 0 || reviewed.includes(tip.sha)) return tip;
