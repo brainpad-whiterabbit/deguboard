@@ -11,7 +11,7 @@ after:
     - t1181
   t1188:
     - t1179
-pending_approval: true
+pending_approval: false
 details:
   t1180:
     scope: Epic の labels をやめた項目にし、epic create/update の --label を外す。チケットのラベルは変えない
@@ -81,3 +81,5 @@ details:
     scope: このボードの軸を area・kind・impact にし、今あるラベルを語彙にまとめる。PR の要らないデータの作業
     approach: dgcheck で軸を勧められたら 3 軸を選び、dg label merge と ticket update で語彙にまとめる
     tier: light
+approved_by: maji
+approved_at: 2026-11-19T19:41:08Z
