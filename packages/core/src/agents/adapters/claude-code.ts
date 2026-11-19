@@ -46,10 +46,8 @@
 //     親のセッションの ID（フックの session_id、記録の <session>/subagents/ の <session> と同じ）で付く。SessionStart のフックが
 //     入れる DEGUBOARD_SESSION はサブエージェントの Bash に届かないので、こちらで補う（2026-11-08 に Claude Code 2.1.319 で確かめた）
 
-import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import path from "node:path";
-import { createInterface } from "node:readline";
 import type { ToolKind, WaitInterval } from "../../model/run.js";
 import { isCheckCommand, type CheckCommands } from "../check-commands.js";
 import type { AgentAdapter, AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
@@ -60,9 +58,11 @@ import {
   fresh,
   homeDir,
   list,
+  mainModel,
   none,
   OverlapClaims,
   parse,
+  readLines,
   tallyTools,
   TAIL_MS,
   timeOf,
@@ -292,17 +292,11 @@ async function scan(
     result.messages.set(key, { usage: usage as Record<string, unknown>, model: message["model"] });
     return true;
   };
-  const input = createReadStream(file);
-  try {
-    const lines = createInterface({ input, crlfDelay: Infinity });
-    for await (const line of lines) {
-      const more = take(line);
-      // ほかの Run の ID はその行の後の応答から効く
-      claims.see(line);
-      if (!more) break;
-    }
-  } finally {
-    input.destroy();
+  for await (const line of readLines(file)) {
+    const more = take(line);
+    // ほかの Run の ID はその行の後の応答から効く
+    claims.see(line);
+    if (!more) break;
   }
   return result;
 }
@@ -325,15 +319,15 @@ function sum(messages: Scan["messages"]): Counts {
   return totals;
 }
 
-/** いちばん多くの応答を返したモデル。<synthetic>（API を呼ばない応答）は数えない */
-function mainModel(messages: Scan["messages"]): string | null {
+/** モデル名ごとの応答の数。<synthetic>（API を呼ばない応答）は数えない */
+function modelCounts(messages: Scan["messages"]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const { model } of messages.values()) {
     if (typeof model === "string" && model && !model.startsWith("<")) {
       counts.set(model, (counts.get(model) ?? 0) + 1);
     }
   }
-  return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  return counts;
 }
 
 /** Claude Code が呼んだか。CLAUDECODE=1 か、AI_AGENT が claude-code か claude-code_ で始まる */
@@ -451,45 +445,39 @@ async function scanWaits(file: string, to: number): Promise<WaitInterval[] | und
   let last = NaN;
   /** 結果の返っていない tool_use の id */
   const pending = new Set<string>();
-  const input = createReadStream(file);
-  try {
-    const lines = createInterface({ input, crlfDelay: Infinity });
-    for await (const line of lines) {
-      // 終わりを過ぎた行を 1 つ読んだら、その後の空きは Run の範囲に入らない。終わりをまたぐ待ち（PR の作成時刻などで
-      // 閉じる Run。RN-6）は、終わりを過ぎた最初の行が親の依頼なら区間になり、閉じる側が終わりで切る
-      if (last > to) break;
-      // user・assistant のほかの行（api-request・attachment など）は JSON を読まない
-      if (!line.includes('"user"') && !line.includes('"assistant"')) continue;
-      const entry = parse(line);
-      const type = entry?.["type"];
-      if (!entry || (type !== "user" && type !== "assistant")) continue;
-      const at = timeOf(entry);
-      if (Number.isNaN(at)) continue;
-      const message = entry["message"];
-      const content =
-        typeof message === "object" && message !== null
-          ? (message as Record<string, unknown>)["content"]
-          : undefined;
-      if (type === "assistant") {
-        for (const id of blockIds(content, "tool_use", "id")) pending.add(id);
+  for await (const line of readLines(file)) {
+    // 終わりを過ぎた行を 1 つ読んだら、その後の空きは Run の範囲に入らない。終わりをまたぐ待ち（PR の作成時刻などで
+    // 閉じる Run。RN-6）は、終わりを過ぎた最初の行が親の依頼なら区間になり、閉じる側が終わりで切る
+    if (last > to) break;
+    // user・assistant のほかの行（api-request・attachment など）は JSON を読まない
+    if (!line.includes('"user"') && !line.includes('"assistant"')) continue;
+    const entry = parse(line);
+    const type = entry?.["type"];
+    if (!entry || (type !== "user" && type !== "assistant")) continue;
+    const at = timeOf(entry);
+    if (Number.isNaN(at)) continue;
+    const message = entry["message"];
+    const content =
+      typeof message === "object" && message !== null
+        ? (message as Record<string, unknown>)["content"]
+        : undefined;
+    if (type === "assistant") {
+      for (const id of blockIds(content, "tool_use", "id")) pending.add(id);
+    } else {
+      const results = blockIds(content, "tool_result", "tool_use_id");
+      if (results.length > 0) {
+        for (const id of results) pending.delete(id);
       } else {
-        const results = blockIds(content, "tool_result", "tool_use_id");
-        if (results.length > 0) {
-          for (const id of results) pending.delete(id);
-        } else {
-          if (typeof content !== "string" && !Array.isArray(content)) return undefined;
-          const origin = inputOrigin(entry);
-          if (origin === undefined) return undefined;
-          if (origin === "coordinator" && pending.size === 0 && at > last)
-            intervals.push({ from: last, to: at });
-          // 入力で次のターンが始まる。結果の返らなかった呼び出しは、もう待たない
-          pending.clear();
-        }
+        if (typeof content !== "string" && !Array.isArray(content)) return undefined;
+        const origin = inputOrigin(entry);
+        if (origin === undefined) return undefined;
+        if (origin === "coordinator" && pending.size === 0 && at > last)
+          intervals.push({ from: last, to: at });
+        // 入力で次のターンが始まる。結果の返らなかった呼び出しは、もう待たない
+        pending.clear();
       }
-      last = at;
     }
-  } finally {
-    input.destroy();
+    last = at;
   }
   return intervals;
 }
@@ -506,7 +494,7 @@ function collected(query: UsageQuery, best: Scan): CollectedUsage {
       best.messages.size === 0
         ? { input: 0, output: 0, cache_read: 0, cache_write: 0 }
         : sum(best.messages),
-    model: mainModel(best.messages),
+    model: mainModel(modelCounts(best.messages)),
     tools: tallyTools(best.tools.values(), toolErrors(best)),
     checks: query.checkCommands ? checkIntervals(best.checks) : null,
     warnings: [],

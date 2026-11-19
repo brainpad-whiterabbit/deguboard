@@ -18,11 +18,9 @@
 //   （2026-11-07 に Claude Code 2.1.318 で確かめた。SessionStart で入れた環境変数は親の Bash にだけ届き、サブエージェントの Bash には
 //   届かない（2026-11-08 に 2.1.319 で確かめた）。サブエージェントのセッションは Adapter の sessionFromEnv が補う）
 
-import { createReadStream } from "node:fs";
 import path from "node:path";
-import { createInterface } from "node:readline";
 import type { AgentEnv, HookEvent, HookSupport } from "../define.js";
-import { homeDir } from "./transcript.js";
+import { homeDir, readLines } from "./transcript.js";
 
 const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 const obj = (v: unknown): Record<string, unknown> =>
@@ -127,10 +125,8 @@ function parseHook(event: string, input: unknown, env: AgentEnv): HookEvent | un
 
 /** サブエージェントの記録の最初の行の文（頼んだ文）。読めなければ undefined */
 async function firstPrompt(transcript: string): Promise<string | undefined> {
-  const input = createReadStream(transcript);
   try {
-    const lines = createInterface({ input, crlfDelay: Infinity });
-    for await (const line of lines) {
+    for await (const line of readLines(transcript)) {
       try {
         const content = obj(obj(JSON.parse(line))["message"])["content"];
         if (typeof content === "string") return content;
@@ -146,8 +142,6 @@ async function firstPrompt(transcript: string): Promise<string | undefined> {
     return undefined;
   } catch {
     return undefined;
-  } finally {
-    input.destroy();
   }
 }
 
@@ -158,11 +152,9 @@ async function firstPrompt(transcript: string): Promise<string | undefined> {
  * api-request の行がなければ待つものがないので true。読めなければ true
  */
 async function transcriptSettled(transcript: string): Promise<boolean> {
-  const input = createReadStream(transcript);
   let settled = true;
   try {
-    const lines = createInterface({ input, crlfDelay: Infinity });
-    for await (const line of lines) {
+    for await (const line of readLines(transcript)) {
       let d: Record<string, unknown>;
       try {
         d = obj(JSON.parse(line));
@@ -179,8 +171,6 @@ async function transcriptSettled(transcript: string): Promise<boolean> {
     return settled;
   } catch {
     return true;
-  } finally {
-    input.destroy();
   }
 }
 
@@ -221,10 +211,8 @@ function openedRunId(text: string): string | undefined {
 async function selfOpenedRunIds(transcript: string): Promise<string[]> {
   const calls = new Set<string>();
   const ids: string[] = [];
-  const input = createReadStream(transcript);
   try {
-    const lines = createInterface({ input, crlfDelay: Infinity });
-    for await (const line of lines) {
+    for await (const line of readLines(transcript)) {
       let content: unknown;
       try {
         content = obj(obj(JSON.parse(line))["message"])["content"];
@@ -248,8 +236,6 @@ async function selfOpenedRunIds(transcript: string): Promise<string[]> {
     }
   } catch {
     return ids;
-  } finally {
-    input.destroy();
   }
   return ids;
 }

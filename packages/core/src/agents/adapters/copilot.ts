@@ -15,9 +15,7 @@
 //   - 判定（detect）はしない。Copilot CLI が実行するコマンドの環境に付ける変数を公の文書でも配布物でも確かめられなかった
 //     （COPILOT_MODEL などは利用者が付ける設定で、VS Code は Copilot を使っていない端末にも COPILOT_* を付ける）。run start には --agent copilot を渡す
 
-import { createReadStream } from "node:fs";
 import path from "node:path";
-import { createInterface } from "node:readline";
 import type { AgentAdapter, AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 import {
   bindFile,
@@ -25,8 +23,10 @@ import {
   fresh,
   homeDir,
   list,
+  mainModel,
   none,
   parse,
+  readLines,
   TAIL_MS,
   timeOf,
 } from "./transcript.js";
@@ -91,39 +91,33 @@ async function scan(file: string, query: UsageQuery, from: number, to: number): 
     models: new Map(),
     seen: false,
   };
-  const input = createReadStream(file);
-  try {
-    const lines = createInterface({ input, crlfDelay: Infinity });
-    for await (const line of lines) {
-      if (result.firstSeen === undefined) {
-        // Run の ID が出るまでは JSON を読まず、集計も積まない
-        if (!line.includes(query.run.id)) continue;
-        const entry = parse(line);
-        const at = entry ? timeOf(entry) : NaN;
-        result.firstSeen = Number.isNaN(at) ? Infinity : at;
-        continue;
-      }
-      // 使用量の行のほかは JSON を読まない
-      if (!line.includes("session.usage_record")) continue;
+  for await (const line of readLines(file)) {
+    if (result.firstSeen === undefined) {
+      // Run の ID が出るまでは JSON を読まず、集計も積まない
+      if (!line.includes(query.run.id)) continue;
       const entry = parse(line);
-      if (!entry || entry["type"] !== "session.usage_record") continue;
-      const at = timeOf(entry);
-      if (Number.isNaN(at) || at < from || at > to) {
-        if (!Number.isNaN(at) && at > to + TAIL_MS) break;
-        continue;
-      }
-      const usage = (entry["data"] as Record<string, unknown> | undefined)?.["usage"];
-      if (typeof usage !== "object" || usage === null) continue;
-      const u = usage as Record<string, unknown>;
-      add(result.totals, u);
-      result.seen = true;
-      const model = u["model"];
-      if (typeof model === "string" && model) {
-        result.models.set(model, (result.models.get(model) ?? 0) + 1);
-      }
+      const at = entry ? timeOf(entry) : NaN;
+      result.firstSeen = Number.isNaN(at) ? Infinity : at;
+      continue;
     }
-  } finally {
-    input.destroy();
+    // 使用量の行のほかは JSON を読まない
+    if (!line.includes("session.usage_record")) continue;
+    const entry = parse(line);
+    if (!entry || entry["type"] !== "session.usage_record") continue;
+    const at = timeOf(entry);
+    if (Number.isNaN(at) || at < from || at > to) {
+      if (!Number.isNaN(at) && at > to + TAIL_MS) break;
+      continue;
+    }
+    const usage = (entry["data"] as Record<string, unknown> | undefined)?.["usage"];
+    if (typeof usage !== "object" || usage === null) continue;
+    const u = usage as Record<string, unknown>;
+    add(result.totals, u);
+    result.seen = true;
+    const model = u["model"];
+    if (typeof model === "string" && model) {
+      result.models.set(model, (result.models.get(model) ?? 0) + 1);
+    }
   }
   return result;
 }
@@ -140,11 +134,6 @@ function usageOf(totals: Totals): Counts {
     cache_read: totals.cache_read,
     cache_write: totals.cache_write,
   };
-}
-
-/** いちばん多くの応答を返したモデル */
-function mainModel(models: Scan["models"]): string | null {
-  return [...models].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 }
 
 export const copilotAdapter: AgentAdapter = {
