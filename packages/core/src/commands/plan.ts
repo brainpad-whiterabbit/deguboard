@@ -274,7 +274,7 @@ export const planShow = defineCommand({
   group: "plan",
   summary:
     "Show a Plan and its tickets in Plan order. Status (status: pending, approved, closed), progress, what each ticket waits on (items[].waiting), whether it can be started (items[].ready), and next are not written in the Plan; they are derived from ticket states. " +
-    "With --reserve, the calling session reserves the Plan before advancing it, which reserves its tickets too: an agent in another session of the same user cannot claim them, and dg next returns wait_session to it. If another live session has reserved the Plan, the call is rejected (REJECTED) and --take-over passes it. A closed Plan is not reserved. Without --reserve it writes nothing",
+    "With --reserve, the calling session reserves the Plan before advancing it, which reserves its tickets too: an agent in another session of the same user cannot claim them, and dg next returns wait_session to it. If another live session has reserved the Plan, the call is rejected (REJECTED) and --take-over passes it. A closed Plan and a Plan awaiting approval are not reserved (a warning says so). Without --reserve it writes nothing",
   input: z.object({ plan: planRef, ...reserveFields }),
   write: false,
   needs: "store",
@@ -286,6 +286,11 @@ export const planShow = defineCommand({
     if (input.reserve) {
       if (doc.data.closed_at !== undefined)
         warnings.push(`${doc.id} is closed, so it was not reserved`);
+      // 承認待ちの Plan はまだ進められないので予約しない（承認を待つ間に、別のセッションの claim を止めない）
+      else if (doc.data.pending_approval)
+        warnings.push(
+          `${doc.id} is awaiting approval, so it was not reserved. Call again with --reserve once it is approved`,
+        );
       else {
         const rejected = await reserve(ctx, { plan: doc.data }, input, warnings);
         if (rejected) throw claimRejectionError(rejected, false);

@@ -79,7 +79,7 @@ When it returns, compare the result with `acceptance` of `ticket show`, and atta
 Follow the order and contents of the approved Plan (`dg guide plan`).
 
 - Before starting, run `dg --json --actor agent plan show <p> --reserve`, and add `--reserve` each time you read `plan show` again while advancing the Plan. It reserves the Plan and its tickets for this session, so that another session of yours does not claim them. If the call is rejected because another session of yours is advancing the Plan, do not start: tell the human, and take the Plan over with `--take-over` only when that session has stopped or the human told you to
-- If `pending_approval` is true, do not start. Ask a human for approval
+- If `pending_approval` is true, do not start. Ask a human for approval. A Plan awaiting approval is not reserved, so run `plan show <p> --reserve` again once it is approved
 - The tickets that can be started are `ready` of `plan show`, in the Plan's order (todo, with no waits). `next` of `plan show` is the first of them. `waiting` is the party to wait for. `after` is not checked by claim, so keep it yourself (when several tickets advance at the same time, see `dg guide parallel`)
 - The scope (`scope`) and approach (`approach`) appear in `plan` of `next`. Before you widen the scope or change the approach, confirm with a human
 - After a PR is put out, read `plan show` again, and advance what is in `ready`. When all tickets of the Plan are finished, do the "Closing a Plan" section of `dg guide done`

@@ -3,10 +3,14 @@
 // そこで、進め始めるセッションが `plan show <p> --reserve`・`next <ticket> --reserve` で Plan（そのチケット）を予約し、
 // 別のセッションの agent の claim と `dg next` を止める。見るだけの呼び出し（--reserve なし）は予約を作らない。
 // 記録の形と置き方（このマシンだけ・Git に入れない）は claim の記録と同じで、効くか・拒むかも同じ関数
-// （claim-judge.ts の sessionClaimHolds・decideSessionClaim）が決める。ここは記録とフックの時刻を読み書きするだけ
+// （claim-judge.ts の sessionClaimHolds・decideSessionClaim）が決める。ここは記録とフックの時刻を読み書きするだけ。
+// 予約の読む・決める・書くは deguboard-local/locks/reservations のロックで直列にする
 
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import { z } from "zod";
 import { UsageError } from "../errors.js";
+import { withLock } from "../git/lock.js";
 import {
   claimRejectionError,
   decideSessionClaim,
@@ -17,7 +21,12 @@ import {
   type SessionClaimDecision,
   type SessionOperation,
 } from "./claim-judge.js";
-import { readSessionRecord, removeSessionRecord, writeSessionRecord } from "./claim-sessions.js";
+import {
+  readSessionClaim,
+  readSessionRecord,
+  removeSessionRecord,
+  writeSessionRecord,
+} from "./claim-sessions.js";
 import type { CommandContext } from "./define.js";
 import { nowIso, openPlanOf } from "./helpers.js";
 import { SESSION_ID } from "./hook-records.js";
@@ -65,31 +74,37 @@ interface CallerInput {
   take_over?: boolean | undefined;
 }
 
-/** チケットに効きうる予約の対象。優先の順（チケット自身、それを含む開いた Plan。holdingReservation） */
-function targetsOf(ctx: CommandContext, ticket: TicketId): string[] {
-  const plan = openPlanOf(ctx.store, ticket);
-  return plan ? [ticket, plan.id] : [ticket];
-}
+/** 操作の対象：チケットか、Plan そのもの（`plan show <p> --reserve`） */
+type Subject = { ticket: TicketId } | { plan: Plan };
 
-/** 対象の予約とフックの時刻を読み、subject への操作を止めるかを claim の記録と同じ関数で決める。記録は変えない */
+const idOf = (subject: Subject): string => ("plan" in subject ? subject.plan.id : subject.ticket);
+
+/**
+ * 対象の予約とフックの時刻を読み、対象への操作を止めるかを claim の記録と同じ関数で決める。記録は変えない。
+ * チケットに効きうる予約は優先の順（チケット自身、それを含む開いた Plan）に渡し、チケットの claim の記録が呼んだセッションの
+ * ものなら予約では止めない（holdingReservation）
+ */
 async function judge(
   ctx: CommandContext,
-  subject: string,
-  targets: readonly string[],
+  subject: Subject,
   operation: SessionOperation,
   input: CallerInput,
 ): Promise<SessionClaimDecision> {
   const localDir = ctx.repo.localDir;
+  const id = idOf(subject);
+  const plan = "plan" in subject ? undefined : openPlanOf(ctx.store, subject.ticket);
   const candidates: ReservationCandidate[] = [];
-  for (const target of targets) {
+  for (const target of plan ? [id, plan.id] : [id]) {
     const record = await readReservation(localDir, target);
     if (record)
       candidates.push({ target, record, ...(await hookTimesOf(localDir, record.session)) });
   }
   const clock = { now: ctx.now(), idleMs: CRASHED_SUBAGENT_IDLE_MS };
-  const held = holdingReservation(candidates, clock);
+  const session = sessionOf(ctx, input.session);
+  const claim = "plan" in subject ? undefined : await readSessionClaim(localDir, subject.ticket);
+  const held = holdingReservation(candidates, clock, { claim, session });
   return decideSessionClaim({
-    ticket: subject,
+    ticket: id,
     operation,
     record: held?.record,
     ...(held ? { reserved: held.target } : {}),
@@ -97,14 +112,23 @@ async function judge(
     endedAt: held?.endedAt,
     ...clock,
     actorKind: ctx.actor.kind,
-    session: sessionOf(ctx, input.session),
+    session,
     takeOver: input.take_over === true,
   });
 }
 
+/**
+ * 予約を読んで決めてから書くまでを直列にするロック（deguboard-local/locks/reservations）。ないと、同じ対象を同時に予約した
+ * 2 つのセッションがどちらも「予約なし」を読んで通り、両方が進める手を受け取る
+ */
+async function withReservationLock<T>(ctx: CommandContext, fn: () => Promise<T>): Promise<T> {
+  await mkdir(path.join(ctx.repo.localDir, "locks"), { recursive: true });
+  return withLock(ctx.repo.localDir, RESERVATIONS_DIR, fn);
+}
+
 /** --reserve のない `dg next` を、別のセッションの予約で止めるかを決める（止めるなら拒否の決定を返す。記録は変えない） */
 export const judgeReservedNext = (ctx: CommandContext, ticket: TicketId) =>
-  judge(ctx, ticket, targetsOf(ctx, ticket), "next", {});
+  judge(ctx, { ticket }, "next", {});
 
 /**
  * claim（start は todo の新しい claim、claim はもう一度の claim）を、別のセッションの予約で止める。拒否は dg のエラーを投げ、
@@ -117,7 +141,7 @@ export async function guardReservedClaim(
   input: CallerInput,
   warnings: string[],
 ): Promise<boolean> {
-  const decision = await judge(ctx, ticket, targetsOf(ctx, ticket), operation, input);
+  const decision = await judge(ctx, { ticket }, operation, input);
   if (decision.kind === "reject") throw claimRejectionError(decision, false);
   if (decision.warning) warnings.push(decision.warning);
   return decision.takenOver === true;
@@ -154,7 +178,7 @@ export async function moveReservation(
 ): Promise<void> {
   const session = sessionOf(ctx, input.session);
   if (session !== undefined && SESSION_ID.test(session))
-    await write(ctx, ticket, session, warnings);
+    await withReservationLock(ctx, () => write(ctx, ticket, session, warnings));
 }
 
 /** 対象の予約を消す（unclaim したチケットと閉じた Plan。なくてもよく、消せなくても失敗させない） */
@@ -166,17 +190,25 @@ export async function dropReservation(ctx: CommandContext, target: string): Prom
  * `plan show <p> --reserve`・`next <ticket> --reserve`：呼んだセッションが Plan（そのチケット）を予約する。
  * 別のセッションの予約が効いていれば、予約を変えずに拒否の決定を返す（--take-over で越えて予約を移す）。
  * 予約するのはセッションがわかる agent だけ。人とセッションがわからない呼び出しは予約を作らず、そのことを知らせる。
- * Plan を引き継いだら、その Plan のチケットに残る別のセッションの予約も消す（チケットの予約が Plan の予約より先に効くため）
+ * Plan を引き継いだら、その Plan のチケットに残る別のセッションの予約も消す（チケットの予約が Plan の予約より先に効くため）。
+ * 読む・決める・書くはロックの中で行い、同時の予約は片方だけが通る（withReservationLock）
  */
-export async function reserve(
+export const reserve = (
   ctx: CommandContext,
-  target: { ticket: TicketId } | { plan: Plan },
+  target: Subject,
+  input: CallerInput,
+  warnings: string[],
+): Promise<ClaimRejection | undefined> =>
+  withReservationLock(ctx, () => reserveLocked(ctx, target, input, warnings));
+
+async function reserveLocked(
+  ctx: CommandContext,
+  target: Subject,
   input: CallerInput,
   warnings: string[],
 ): Promise<ClaimRejection | undefined> {
-  const id = "plan" in target ? target.plan.id : target.ticket;
-  const targets = "plan" in target ? [id] : targetsOf(ctx, target.ticket);
-  const decision = await judge(ctx, id, targets, "reserve", input);
+  const id = idOf(target);
+  const decision = await judge(ctx, target, "reserve", input);
   if (decision.kind === "reject") return decision;
   if (decision.warning) warnings.push(decision.warning);
   const session = ctx.actor.kind === "agent" ? sessionOf(ctx, input.session) : undefined;

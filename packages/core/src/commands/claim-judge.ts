@@ -206,12 +206,17 @@ export interface ReservationCandidate extends Pick<SessionSigns, "lastHookAt" | 
 /**
  * チケットに今効いている予約（t1149）。候補は優先の順（チケット自身の予約、それを含む開いた Plan の予約）に渡し、効く
  * （sessionClaimHolds。claim の記録と同じ条件）最初のものを返す。チケット自身の予約を先に見るのは、Plan を予約したセッションから
- * --take-over でチケットを引き継いだ予約を、Plan の予約の更新で取り返させないため
+ * --take-over でチケットを引き継いだ予約を、Plan の予約の更新で取り返させないため。
+ * own は、チケットの claim の記録と呼んだセッション。claim の記録が呼んだセッションのものなら、予約より claim の記録を優先して
+ * 効く予約はないとする（claim して進めているセッションを、後から書かれた別のセッションの予約で止めない。別のセッションの
+ * もう一度の claim は claim の記録が拒むので、予約で止めると --take-over までどちらも進められなくなる）
  */
 export function holdingReservation(
   candidates: readonly ReservationCandidate[],
   clock: Pick<SessionSigns, "now" | "idleMs">,
+  own?: { claim: SessionClaim | undefined; session: string | undefined },
 ): ReservationCandidate | undefined {
+  if (own?.claim !== undefined && own.claim.session === own.session) return undefined;
   return candidates.find((c) =>
     sessionClaimHolds(c.record, { ...clock, lastHookAt: c.lastHookAt, endedAt: c.endedAt }),
   );

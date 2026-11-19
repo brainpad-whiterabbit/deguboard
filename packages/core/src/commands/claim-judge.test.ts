@@ -501,4 +501,24 @@ describe("チケットに効いている予約（チケット自身、それを�
     });
     expect(holdingReservation([alive, plan], CLOCK)).toBe(alive);
   });
+
+  it("チケットの claim の記録が呼んだセッションのものなら、別のセッションの予約（チケット・Plan）があっても効く予約はない。記録がない・別のセッションの記録・セッションがわからない呼び出しでは予約が効く", () => {
+    const ticket = candidate("t1", "sess-b");
+    const plan = candidate("p1", "sess-b");
+    const claimBy = (session: string): SessionClaim => ({ session, claimed_at: CLAIMED_AT });
+    for (const candidates of [[ticket], [plan], [ticket, plan]]) {
+      const first = candidates[0];
+      // claim の記録は呼んだセッション自身のもの：記録の古さによらず（呼んでいるので生きている）予約より優先する
+      for (const claim of [claimBy("sess-a"), { session: "sess-a", claimed_at: iso(-600) }])
+        expect(holdingReservation(candidates, CLOCK, { claim, session: "sess-a" })).toBeUndefined();
+      const others: { claim: SessionClaim | undefined; session: string | undefined }[] = [
+        { claim: undefined, session: "sess-a" },
+        { claim: claimBy("sess-c"), session: "sess-a" },
+        { claim: claimBy("sess-a"), session: undefined },
+        { claim: undefined, session: undefined },
+      ];
+      for (const own of others)
+        expect(holdingReservation(candidates, CLOCK, own), JSON.stringify(own)).toBe(first);
+    }
+  });
 });

@@ -179,14 +179,24 @@ describe("進め始める Plan とチケットの予約（PL-7）", () => {
     expect(await reservedBy("p1")).toBe("sess-b");
     expect(await reservedBy("t1")).toBeUndefined();
     expect(await reservedBy("t2")).toBe("sess-b");
-    expect((await runCommand(next, await fresh(a), { ticket: "t1" })).data.kind).toBe(
+    expect((await runCommand(next, await fresh(a), { ticket: "t2" })).data.kind).toBe(
       "wait_session",
     );
+
+    // claim の記録を持つセッション自身は、別のセッションの予約では止まらない（t1 は sess-a が claim 済み）。
+    // 別のセッションがチケットの予約を上書きしても進められ、予約し直すと自分の予約に戻る
+    expect((await runCommand(next, a, { ticket: "t1" })).data.kind).toBe("implement");
+    await runCommand(next, b, { ticket: "t1", reserve: true, take_over: true });
+    expect(await reservedBy("t1")).toBe("sess-b");
+    expect((await runCommand(next, a, { ticket: "t1", reserve: true })).data.kind).toBe(
+      "implement",
+    );
+    expect(await reservedBy("t1")).toBe("sess-a");
 
     // 予約したセッションに SessionEnd が届くと、予約は無視され、別のセッションが進められて予約し直せる
     await recordHookSession(local, "sess-b", at(9), "session_end");
     const backAt = at(10);
-    expect((await runCommand(next, await fresh(a), { ticket: "t1" })).data.kind).toBe("implement");
+    expect((await runCommand(next, await fresh(a), { ticket: "t2" })).data.kind).toBe("implement");
     await runCommand(planShow, a, { plan: "p1", reserve: true });
     expect(await readReservation(local, "p1")).toEqual({ session: "sess-a", claimed_at: backAt });
 
@@ -206,5 +216,20 @@ describe("進め始める Plan とチケットの予約（PL-7）", () => {
     const closed = await runCommand(planShow, await fresh(b), { plan: "p1", reserve: true });
     expect(closed.warnings).toContainEqual("p1 is closed, so it was not reserved");
     expect(await reservedBy("p1")).toBeUndefined();
+
+    // 承認待ちの Plan も予約しない（承認を待つ間に、別のセッションの claim を止めない）
+    await runCommand(planCreate, await fresh(human), { tickets: ["t3"] });
+    const pending = await runCommand(planShow, await fresh(b), { plan: "p2", reserve: true });
+    expect(pending.warnings).toContainEqual(expect.stringContaining("p2 is awaiting approval"));
+    expect(await reservedBy("p2")).toBeUndefined();
+
+    // 同時の予約は、読む・決める・書くをロックの中で行うので片方だけが通り、もう片方は進める手を受け取らない
+    await fresh(a);
+    const both = await Promise.all(
+      [a, b].map((ctx) => runCommand(next, ctx, { ticket: "t3", reserve: true })),
+    );
+    const waits = both.map((r) => r.data.kind === "wait_session");
+    expect(waits.filter(Boolean)).toHaveLength(1);
+    expect(await reservedBy("t3")).toBe(waits[0] ? "sess-b" : "sess-a");
   });
 });
