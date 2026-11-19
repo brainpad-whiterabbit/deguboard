@@ -9,7 +9,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint",
-    "typecheck": "tsc -p tsconfig.json && tsc -p packages/web/tsconfig.json && tsc -p test/tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p packages/web/tsconfig.json && tsc -p test/tsconfig.json && tsc -p scripts/tsconfig.json",
     "test": "vitest run",
     "test:locked": "sh scripts/test-locked.sh vitest run",
     "test:related": "node scripts/test-related.mjs",

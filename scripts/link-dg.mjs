@@ -33,7 +33,7 @@ try {
   previous = readlinkSync(link);
   rmSync(link);
 } catch (error) {
-  if (error.code !== "ENOENT") throw error;
+  if (/** @type {NodeJS.ErrnoException} */ (error).code !== "ENOENT") throw error;
 }
 symlinkSync(target, link);
 

@@ -13,6 +13,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 /**
  * git を引数の配列で呼び、-z の NUL 区切りの出力を項目の配列で返す。-z にするのは、既定の core.quotePath では
  * 非 ASCII のパスが引用符と 8 進のエスケープで出て、existsSync で落ちて黙って選ばれなくなるため
+ * @param {string[]} args
  */
 function gitPaths(args) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8" })
