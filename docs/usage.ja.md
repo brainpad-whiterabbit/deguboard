@@ -172,13 +172,24 @@ dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-api
 
 ## トークンを数える
 
-トークンは、会話記録から使用量を取り込む設定を有効にしたときだけ集計されます（Claude Code・Codex・Copilot CLI）。設定するには次のとおりにします。
+Run のいくつかの値は、Run を閉じるときに deguboard がエージェントの会話記録を読んだときだけ数えます。有効にするまでは空のままです。
+
+| 値                                         | 会話記録から取れるエージェント  |
+| ------------------------------------------ | ------------------------------- |
+| 使用量（トークン）とモデル                 | Claude Code・Codex・Copilot CLI |
+| ツールの回数（失敗した呼び出しの数を含む） | Claude Code                     |
+| 親の依頼を待った秒数                       | Claude Code                     |
+| 検査とテストを前景で回した秒数             | Claude Code                     |
+
+有効にするには次のとおりにします。
 
 ```sh
 dg config set metrics.read_transcripts true
 ```
 
 設定はチームで共有されます。自分のマシンだけ止めるときは `DEGUBOARD_NO_TRANSCRIPTS=1` を設定します。
+
+検査とテストに数えるのは `actions.test`・`actions.light_test`・`dg gate --only check` です。ほかのコマンドも数えるには、`metrics.check_commands` にカンマで区切って並べます（例：`dg config set metrics.check_commands "mise run test"`）。コマンドの見分け方は `metrics.check_commands` の説明（`dg config show`）にあります。値は `dg metrics show` が集計します。
 
 ## 承認待ちの通知
 

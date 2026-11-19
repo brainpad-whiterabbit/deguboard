@@ -172,13 +172,24 @@ The recommended metrics, their definitions, and the arguments are in `dg retro -
 
 ## Count tokens
 
-Tokens are counted only when deguboard reads usage from conversation transcripts (Claude Code, Codex, and Copilot CLI). To turn it on:
+Some values of a Run are counted only when deguboard reads the agent's conversation transcript as the Run closes. Until you turn it on, they stay empty:
+
+| Value                                                  | Agents whose transcripts give it    |
+| ------------------------------------------------------ | ----------------------------------- |
+| Usage (tokens) and the model                           | Claude Code, Codex, and Copilot CLI |
+| Tool counts, including the failed calls                | Claude Code                         |
+| Seconds the Run waited for a request from its parent   | Claude Code                         |
+| Seconds the Run ran checks and tests in the foreground | Claude Code                         |
+
+To turn it on:
 
 ```sh
 dg config set metrics.read_transcripts true
 ```
 
 The setting is shared with your team. To turn it off on your own machine only, set `DEGUBOARD_NO_TRANSCRIPTS=1`.
+
+The checks and tests counted are `actions.test`, `actions.light_test`, and `dg gate --only check`. To count more commands, list them in `metrics.check_commands`, separated by commas (for example `dg config set metrics.check_commands "mise run test"`). How a command is matched is in the description of `metrics.check_commands` (`dg config show`). `dg metrics show` adds the values up.
 
 ## Approval notifications
 
