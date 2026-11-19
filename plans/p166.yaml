@@ -3,7 +3,7 @@ tickets: [t1146, t1145]
 after:
   t1145:
     - t1146
-pending_approval: true
+pending_approval: false
 details:
   t1146:
     scope: 着手の既定値を ask_unless_auto に戻し、resolve.ts・テスト・ADR-003・着手の既定を書く guide・--help・usage・README を合わせる。ほかの既定値は変えない
@@ -13,3 +13,5 @@ details:
     scope: guide・Skill の雛形・usage・README・ADR から Workflow の値で決まる内容を外し、承認の要否を dg の応答で決める形にする。既定値そのものは変えない
     approach: 承認の要否を返す dg の入口が今あるか（dg workflow show の moves など）を先に確かめ、guide-overview に共通の規則を 1 か所置いて各 guide の場合分けを消す
     tier: heavy
+approved_by: Eiki Kitajima
+approved_at: 2026-11-19T08:47:18Z
