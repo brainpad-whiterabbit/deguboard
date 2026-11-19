@@ -15,7 +15,7 @@ import {
   overlayLocalConfig,
   type Config,
 } from "../model/config.js";
-import { epicSchema, type Epic } from "../model/epic.js";
+import { epicSchema, RETIRED_EPIC_KEYS, type Epic } from "../model/epic.js";
 import {
   idFromFileName,
   idNumber,
@@ -101,7 +101,8 @@ const collections = {
     schema: epicSchema,
     idOf: (f) => idFromFileName(f, "epic"),
     pathOf: epicPath,
-    retired: RETIRED_PROJECT_KEYS,
+    // Project と、チケットだけが持つラベルはやめた
+    retired: RETIRED_EPIC_KEYS,
   } satisfies Collection<Epic>,
   iteration: {
     dir: DIRS.iterations,

@@ -412,6 +412,33 @@ describe("Store", () => {
       expect(await written(rel)).not.toContain("project");
   });
 
+  it("labels を持つ前の Epic は検証が通って読め、値に labels を出さず、書くときに labels だけが消える。チケットの labels は残る", async () => {
+    // 前の dg が書いた形。今のスキーマでは読まない形（文字列）の labels も、やめた項目なので誤りにしない
+    const legacy = {
+      "epics/e1.md": `---\nid: e1\ntitle: 前の Epic\nstatus: open\nlabels: [core, cli]\nowner: maji\ncreated_at: ${ts}\nupdated_at: ${ts}\n---\n\n本文\n`,
+      "epics/e2.md": `---\nid: e2\ntitle: 形の違う labels\nstatus: open\nlabels: core\ncreated_at: ${ts}\nupdated_at: ${ts}\n---\n\n本文\n`,
+      "tickets/t1.md": ticketText("t1", "epic: e1\n"),
+    };
+    const root = await fixture(legacy);
+    const store = await Store.open(root);
+    expect(store.issues).toEqual([]);
+    expect(checkReferences(store)).toEqual([]);
+    for (const id of ["e1", "e2"]) expect(store.epics.get(id)?.data).not.toHaveProperty("labels");
+    expect(store.epics.get("e1")?.data["owner"]).toBe("maji");
+    expect(store.tickets.get("t1")?.data.labels).toEqual(["frontend"]);
+    // 読むだけではファイルを変えない
+    for (const [rel, text] of Object.entries(legacy))
+      expect(await readFile(path.join(root, rel), "utf8")).toBe(text);
+    await store.update("epic", "e1", { title: "直した" });
+    await store.update("ticket", "t1", { title: "直した" });
+    expect(await readFile(path.join(root, "epics/e1.md"), "utf8")).toBe(
+      `---\nid: e1\ntitle: 直した\nstatus: open\nowner: maji\ncreated_at: ${ts}\nupdated_at: ${ts}\n---\n\n本文\n`,
+    );
+    expect(await readFile(path.join(root, "tickets/t1.md"), "utf8")).toContain(
+      "labels: [frontend]",
+    );
+  });
+
   it("projects/ が残っていても、Project の Workflow は config の値に出さず、default_project も値に出さない", async () => {
     const root = await fixture({
       "projects/default.yaml": "id: default\nname: Default\nworkflow: software-development\n",

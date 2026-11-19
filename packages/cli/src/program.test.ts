@@ -682,6 +682,25 @@ describe("dg", () => {
     expect((await dg(f.cloneA, ["--json", "iteration", "list"])).json().data).toEqual([]);
   });
 
+  it("Epic はラベルを持たないので、create・update のヘルプに --label がなく、渡すと項目がなくなったことを伝える使い方の誤りで、書かない", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    for (const op of ["create", "update"]) {
+      const help = await dg(f.cloneA, ["epic", op, "--help"]);
+      expect(help.out).not.toContain("--label");
+    }
+    const created = await dg(f.cloneA, ["--json", "epic", "create", "認証", "--label", "core"]);
+    expect(created.code).toBe(2);
+    expect(created.json().error?.message).toContain("Epics no longer have labels");
+    expect((await dg(f.cloneA, ["--json", "epic", "list"])).json().data).toEqual([]);
+    await dg(f.cloneA, ["epic", "create", "認証"]);
+    const updated = await dg(f.cloneA, ["epic", "update", "e1", "--label", "core"]);
+    expect(updated.code).toBe(2);
+    expect(updated.err).toContain("Epics no longer have labels");
+    const shown = (await dg(f.cloneA, ["--json", "epic", "show", "e1"])).json().data;
+    expect(shown).not.toHaveProperty("labels");
+  });
+
   it("Project はやめたので、dg project・--project・default_project はなく、ヘルプにも出ず、渡すと使い方の誤り", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);

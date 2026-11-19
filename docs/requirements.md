@@ -68,7 +68,7 @@ runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開�
 ```
 
 - DT-1 書き込みは一時ファイルへ書いてから rename する。読み込みは Zod のスキーマで検証し、読めないファイルは止めずに `dg validate` と画面で報告する
-- DT-2 スキーマにない項目は読み書きで残す（版の違う `dg` が消さない）。`dg` がやめた項目（Iteration の `start`・`end`、チケット・Epic・Iteration・Plan の `project`、チケットの `workflow`、config の `default_project`・`default_workflow`）は値に出さず、書くときに消す（[ADR-009](adr/ADR-009-epic-and-iteration.md)、5.3）
+- DT-2 スキーマにない項目は読み書きで残す（版の違う `dg` が消さない）。`dg` がやめた項目（Iteration の `start`・`end`、チケット・Epic・Iteration・Plan の `project`、チケットの `workflow`、Epic の `labels`（ラベルはチケットだけが持つ）、config の `default_project`・`default_workflow`）は値に出さず、書くときに消す（[ADR-009](adr/ADR-009-epic-and-iteration.md)、5.3）
 
 ### 5.2 ID と番号
 
