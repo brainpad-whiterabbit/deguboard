@@ -13,13 +13,7 @@
 import type { BranchFacts, PrLines } from "../git/facts.js";
 import { sameUser } from "../model/actor.js";
 import { isTerminal, type Status } from "../model/common.js";
-import {
-  OPENED_STEPS,
-  type Run,
-  type RunId,
-  type RunResult,
-  type StepOpener,
-} from "../model/run.js";
+import { OPENED_STEPS, type Run, type RunId } from "../model/run.js";
 import type { Ticket } from "../model/ticket.js";
 import {
   reconcileStatus,
@@ -29,6 +23,7 @@ import {
 import type { ResolvedWorkflow } from "../workflow/resolve.js";
 import {
   fixRunFinishedAt,
+  type CloseRunAction,
   RECONCILE_TAKEN_ERROR,
   RECONCILE_TODO_ERROR,
   runsClosedByMove,
@@ -98,19 +93,10 @@ export interface ReconcileAdvance {
 /** 照合が行うことの 1 つ。行う側は列を上から順に行う */
 export type ReconcileAction =
   /**
-   * 実行中の Run を閉じる（RN-6）。finishedAt が undefined なら行う側が今の時刻で閉じる。
-   * 別の文脈が先に閉じていたら、行う側は閉じずに警告して次へ進む（closeOpenedRunUnlessClosed）。
-   * note は、閉じたときだけ、閉じた知らせの前に sync の warnings に足す文（手直しの Run の区切りと finished_at の根拠）
+   * 実行中の Run を閉じる（RN-6。形は run-close-judge.ts の CloseRunAction で、Run を開く操作が前の手直しの Run を閉じる決定と同じ）。
+   * 別の文脈が先に閉じていたら、行う側は閉じずに警告して次へ進む（closeOpenedRunUnlessClosed）。note は sync の warnings に足す
    */
-  | {
-      kind: "close_run";
-      run: RunId;
-      opener: StepOpener;
-      result: RunResult;
-      finishedAt: string | undefined;
-      error?: string;
-      note?: string;
-    }
+  | CloseRunAction
   /**
    * sync の warnings に足す文（チケットの ID で始まる）。run は、閉じずに次の sync に回すと決めた Run
    * （行う側は、その Run を同じ照合でもう一度決めない。settledRuns）
@@ -135,7 +121,7 @@ const warn = (id: string, text: string): RunAction => ({
  * 開いたままの手直しの Run（もう一度の claim が開いた step。RN-5）を、区切りがあれば閉じる（RN-6）。手直しにはチケットの操作が
  * ないので、照合が区切りを見たときに、それまでの最後の push の時刻で閉じる。区切りは上から順に：
  *   - 同じチケットの次の Run の開始（実行中・記録済みを問わず、手直しの Run と同じ秒か後に始まったもののうち最も早いもの。
- *     普段は開いた openRun が先に閉じている。同じ秒を数える理由は run.ts の closePreviousFixRun）
+ *     普段は開いた openRun が先に閉じている。同じ秒を数える理由は run-close-judge.ts の startsAtOrAfterFixRun）
  *   - PR の ready（review への前進）・マージ（done への前進）。照合が今回進めるときに見る（advancedTo）
  *   - チケットが終わっている（別のマシンの照合や ticket move で done・abandoned になっていた）
  * finished_at は、この Run の開始より後で区切りまでの最後の push の時刻。その push がなければ区切りの時刻、マージの区切りでは

@@ -45,7 +45,12 @@ import {
 import { AbortWrite, withWrite } from "../git/write.js";
 import { lastPushedAt, localTip } from "../git/facts.js";
 import { selfRunWarning } from "./hook-sessions.js";
-import { fixRunFinishedAt } from "./run-close-judge.js";
+import {
+  closesFixRunBeforeOpening,
+  decidePreviousFixRunClose,
+  openedInOtherSession,
+  startsAtOrAfterFixRun,
+} from "./run-close-judge.js";
 import { findingText, isHeavyFinding, latestRoundSince, matchFindings } from "../run/findings.js";
 import {
   amendRunning,
@@ -183,14 +188,14 @@ export async function openRun(
   const startedAt = input.startedAt ?? ctx.now();
   // 同じチケットの次の Run の開始は、開いたままの手直しの Run の区切り。sync を待たずにその場で閉じてから開く（RN-6）。
   // 閉じられなくても開くのは止めない（後の sync が同じ区切りで閉じる）。
-  // 同じチケットと step の Run が開いたままなら、下の startRun が拒むので閉じない（二重起動の拒否。SY-5）。
-  // ただし手直しを開き直す操作（reopensFix）が開く手直しの step では、前の手直しを閉じて開き直す（RN-6）。
+  // 同じチケットと step の Run が開いたままなら、下の startRun が拒むので閉じない（閉じにいくかは run-close-judge.ts の
+  // closesFixRunBeforeOpening）。
   // 二重起動の判定と前の手直しを閉じる処理は同じロックの中にないので、同じチケットの Run を別のプロセスが同時に開くと、
   // 拒まれた側が前の手直しを閉じることがある
   const duplicate = (await readRunningRuns(ctx.repo)).runs.some(
     (r) => r.data.ticket === ticket.id && r.data.step === step,
   );
-  if (!duplicate || (input.reopensFix === true && step === OPENED_STEPS.reclaim)) {
+  if (closesFixRunBeforeOpening({ step, duplicate, reopensFix: input.reopensFix === true })) {
     await closePreviousFixRunOrWarn(ctx, ticket, { step, session, startedAt }, warnings);
   }
   // 同じ会話記録で期間が重なると、応答は後に始めた Run にだけ数える（同じ応答を二重に数えないため。MT-2）。閉じ忘れに気づけるように知らせる
@@ -260,21 +265,8 @@ export function sessionOf(ctx: CommandContext, session: string | undefined): str
   return session ?? (env["DEGUBOARD_SESSION"] || sessionFromEnv(env));
 }
 
-/**
- * 開いたままの Run が、今の操作とは別のセッションで開いたものか（RN-6）。別のセッションの Run は、そのセッションが落ちて
- * 閉じ損ねた残りとみなす（同じチケットと step を別のセッションで並行して動かすことは想定しない。並行していれば動いている方を閉じる）。
- * どちらかのセッションが分からなければ（セッションを渡さない製品・環境）false
- */
-export function openedInOtherSession(run: Run, session: string | undefined): boolean {
-  return run.session !== null && session !== undefined && run.session !== session;
-}
-
 // dg とフックが Run を閉じるときに書く error。dg の出力なので英語で書き（CL-8）、画面は web の CORE_MESSAGES で表示言語に訳す（UI-11）。
 // 前の版が日本語で書いた Run の error は、書き換えずにそのまま出す
-
-/** 別のセッションで開いたままだった Run を interrupted で閉じるときのエラー（RN-6） */
-export const STALE_SESSION_ERROR =
-  "Left open in another session (closed as left over from a session that ended)";
 
 /** フックが実装の Run を閉じるとき、PR がなかったエラー（RN-7） */
 export const NO_PR_ERROR = "No PR when the sub-agent ended";
@@ -285,13 +277,16 @@ export const OPEN_AT_SESSION_END_ERROR = "Still open when the session ended";
 /** ticket unclaim が開いたままの実装・手直しの Run を閉じるときのエラー（RN-6） */
 export const UNCLAIMED_ERROR = "Returned to todo by ticket unclaim";
 
-// 照合が閉じるときの error と、付随して閉じる Run の結果・finished_at の決め方は、何も読まない run-close-judge.ts に置く
-// （照合の決定 reconcile-judge.ts も使う）。前からの import 先を変えないために、ここからも出す
+// 照合が閉じるときと別のセッションの残りを閉じるときの error、付随して閉じる Run の結果・finished_at の決め方、
+// 別のセッションで開いた Run かの判定は、何も読まない run-close-judge.ts に置く（照合の決定 reconcile-judge.ts も使う）。
+// 前からの import 先を変えないために、ここからも出す
 export {
   fixRunFinishedAt,
+  openedInOtherSession,
   RECONCILE_TAKEN_ERROR,
   RECONCILE_TODO_ERROR,
   runsClosedByMove,
+  STALE_SESSION_ERROR,
 } from "./run-close-judge.js";
 
 /** 記録のパスがサブエージェントの記録（<session>/subagents/ の下）か。印で頼んだサブエージェントの Run の見分けに使う */
@@ -568,12 +563,10 @@ export async function closeOpenedRunAlone(
 /**
  * 開いたままの前の手直しの Run を、同じチケットの次の Run の開始（boundaryAt）を区切りとして閉じる（RN-6）。openRun が開く前に呼ぶので、
  * claim・もう一度の claim・起動のフック・run start のどこから開いても同じ規則になる。
- * 区切りの判定は sync の照合（reconcile-judge.ts の fixRunActions）と同じで、手直しの Run の開始と同じ秒か後の開始だけを区切りに数える（前景の起動で前にした開始が手直しより前なら閉じない）。
- * 同じ秒を数えるのは、時刻が秒までの記録では前後を決められず、手直しの後に続けて見直しを開くと同じ秒になりうるため。
- * 前の Run の開始より後で区切りまでの最後の push の時刻で閉じ、push がなければ区切りの時刻にする（前景の手直しの起動では、
- * フックが来る時点で今回の push が済んでいることがあり、そのとき前の回の手直しは区切りの時刻で閉じる）。
- * 結果は success。ただし手直しの step を開くとき、前の手直しが別のセッションで開いたものなら、そのセッションが落ちた残りとみなして interrupted にする（RN-6）。
- * session は今の操作のセッション（どちらかが分からなければ success）。閉じた・閉じなかったことは warnings に入れる
+ * 閉じるか・結果（success・interrupted）・finished_at は、何も読まない run-close-judge.ts の decidePreviousFixRunClose が決める。
+ * ここは事実（開いたままの手直しの Run・最後の push の時刻・今の操作のセッション）を集めて、決まったとおりに閉じるだけ。
+ * 最後の push は、区切りになると分かってから読む（fetch するので、閉じないときは読まない）。
+ * 閉じた・閉じなかったことは warnings に入れる
  */
 async function closePreviousFixRun(
   ctx: CommandContext,
@@ -582,33 +575,25 @@ async function closePreviousFixRun(
   warnings: string[],
 ): Promise<Run | undefined> {
   const stale = await findOpenedRun(ctx, ticket, "reclaim");
-  if (!stale || input.boundaryAt < stale.data.started_at) return undefined;
+  if (!stale || !startsAtOrAfterFixRun(stale.data, input.boundaryAt)) return undefined;
   const pushedAt = ticket.branch
     ? await lastPushedAt(ctx.repo, ticket.branch, { fetch: true })
     : undefined;
-  const { finishedAt, pushed } = fixRunFinishedAt({
+  const action = decidePreviousFixRunClose({
+    ticket: ticket.id,
+    previous: stale.data,
+    opening: { step: input.step, session: input.session, startedAt: input.boundaryAt },
     pushedAt,
-    startedAt: stale.data.started_at,
-    boundaryAt: input.boundaryAt,
   });
-  const interrupted =
-    input.step === stale.data.step && openedInOtherSession(stale.data, input.session);
+  if (!action) return undefined;
   const closed = await closeOpenedRunAlone(ctx, stale, {
-    opener: "reclaim",
-    ...(interrupted
-      ? { result: "interrupted" as const, error: STALE_SESSION_ERROR }
-      : { result: "success" as const }),
-    finishedAt,
+    opener: action.opener,
+    result: action.result,
+    error: action.error,
+    finishedAt: action.finishedAt,
   });
   // 別の文脈が先に閉じていたら、閉じずに警告だけ出す
-  if (closed.run) {
-    const when = pushed ? "the time of the last push" : "the start time, since there was no push";
-    warnings.push(
-      interrupted
-        ? `${ticket.id}: the earlier fix Run ${stale.id} was still open in another session (${stale.data.session}), so it is treated as left over from a crashed session and closed as interrupted`
-        : `${ticket.id}: closing the earlier fix Run ${stale.id} with the start of the next ${input.step} Run as the boundary, at ${when}`,
-    );
-  }
+  if (closed.run && action.note !== undefined) warnings.push(action.note);
   warnings.push(...closed.warnings);
   return closed.run;
 }
