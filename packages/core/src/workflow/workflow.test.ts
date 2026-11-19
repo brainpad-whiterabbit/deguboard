@@ -128,7 +128,7 @@ describe("操作に当てる方針（operationPolicy）", () => {
     expect(move(DEFAULT_WORKFLOW, "todo", "in_progress")).toEqual({
       source: "boundaries",
       name: "boundaries todo → in_progress",
-      decisions: ["anyone"],
+      decisions: ["ask_unless_auto"],
       requires: ["deps_done"],
     });
     expect(move(DEFAULT_WORKFLOW, "review", "done")).toMatchObject({
@@ -232,8 +232,8 @@ describe("操作に当てる方針（operationPolicy）", () => {
       m.requires.join(","),
     ]);
     expect(rows).toEqual([
-      ["todo → in_progress", "allow", "allow", "deps_done"],
-      ["todo → review", "allow", "allow", "deps_done"],
+      ["todo → in_progress", "allow", "approval", "deps_done"],
+      ["todo → review", "allow", "approval", "deps_done"],
       ["todo → done", "allow", "approval", "deps_done,pr_merged"],
       ["todo → abandoned", "allow", "approval", ""],
       ["in_progress → todo", "allow", "allow", ""],
@@ -270,7 +270,7 @@ describe("省いた項目の既定", () => {
         abandoned: "Abandoned",
       },
       boundaries: [
-        { from: "todo", to: "in_progress", requires: ["deps_done"], decide: "anyone" },
+        { from: "todo", to: "in_progress", requires: ["deps_done"], decide: "ask_unless_auto" },
         { from: "in_progress", to: "review", requires: [], decide: "anyone" },
         { from: "review", to: "done", requires: ["pr_merged"], decide: "ask_unless_auto" },
       ],

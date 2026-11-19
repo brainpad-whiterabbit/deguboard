@@ -629,20 +629,19 @@ describe("dg guide", () => {
     expect(retro).toContain("is not stored in the data");
   });
 
-  it("エージェントの claim は、既定（todo → in_progress が anyone）では承認の引数を付けず、承認を求める値なら --approved-by human か --auto を付けると work・run・parallel・plan・all・overview が案内する（ST-2・t1051）", async () => {
+  it("エージェントの claim は、既定（todo → in_progress が ask_unless_auto）で --approved-by human か --auto を付けると work・run・parallel・plan・all・overview が案内する（ST-2・t1051・t1146）", async () => {
     const work = await readGuide("work");
     const before = section(work, "## Before and after claim");
     for (const word of [
       "**Approval to start**",
-      "`anyone` by default",
-      "pass neither `--approved-by` nor `--auto`",
+      "`ask_unless_auto` by default",
       "pass `--approved-by human` on the claim",
       "pass `--auto` instead",
       "a claim with neither is refused",
     ])
       expect(before, word).toContain(word);
     expect(section(work, "## Work that needs no PR")).toContain(
-      "ticket claim <id> --without-branch` (claim opens a Run)",
+      "ticket claim <id> --without-branch --approved-by human",
     );
     for (const topic of ["run", "parallel"])
       expect(await readGuide(topic), topic).toContain("`--approved-by human` or `--auto`");
@@ -653,7 +652,7 @@ describe("dg guide", () => {
     expect(section(all, "## Between stages")).toContain("claim with `--approved-by human`");
     expect(all).toContain("`ticket claim <id> … --auto`");
     expect(await readGuide("overview")).toContain(
-      "the agent starts a ticket (`ticket claim`) and opens review (`pr ready`) without asking",
+      "needs a human's approval (or `--auto`) to start a ticket (`ticket claim`",
     );
   });
 

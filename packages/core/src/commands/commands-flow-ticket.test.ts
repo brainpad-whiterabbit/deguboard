@@ -68,10 +68,9 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const { human, agent, subject } = await humanAndAgent();
     await runCommand(ticketCreate, human, { title: "A" });
     await runCommand(ticketCreate, human, { title: "B", depends_on: ["t1"] });
-    // todo → in_progress（requires: deps_done、decide: anyone）：依存が終わるまで claim は誰でも拒否される（エージェントは承認があっても）
+    // todo → in_progress（requires: deps_done、decide: ask_unless_auto）：依存が終わるまで claim は誰でも拒否される（エージェントは承認があっても）
     for (const [ctx, extra] of [
       [agent, { approved_by: "human" }],
-      [agent, {}],
       [human, {}],
     ] as const) {
       expect(
@@ -82,10 +81,27 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
           "The conditions for claiming t2 are not met: deps_done (requires of boundaries todo → in_progress)",
       });
     }
-    // エージェントの claim は、人の承認（--approved-by）がなくても通る。承認者は残らない
-    const started = (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1" }))
-      .data;
-    expect(await subject()).toBe("Claim t1: claude/agent");
+    // エージェントの claim は、人の承認（--approved-by）も --auto もなければ承認を求めて拒否される。案内は --auto の道も示す
+    const asked = await rejected(
+      runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1" }),
+    );
+    expect(asked).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for claiming t1 (boundaries todo → in_progress: ask_unless_auto)",
+    });
+    expect(asked!.detail).toContain("--approved-by human");
+    expect(asked!.detail).toContain("run the command again with --auto");
+    expect(human.store.require("ticket", "t1").data.status).toBe("todo");
+    // 承認者を渡せば通り、承認者がコミットの文に残る
+    const started = (
+      await runCommand(ticketClaim, agent, {
+        no_worktree: true,
+        ticket: "t1",
+        approved_by: "human",
+      })
+    ).data;
+    expect(await subject()).toBe("Claim t1: claude/agent (approved by claude)");
     expect(started.status).toBe("in_progress");
     expect(started.branch_base).toBeDefined();
     // abandon は always_ask：エージェントは人の承認（--approved-by）がなければ拒否される
@@ -175,15 +191,14 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     // 依存先が abandoned なら deps_done は満たされ、着手できる（WF-2）
     const ready = await runCommand(ticketList, human, { ready: true });
     expect(ready.data.map((t) => t.id)).toEqual(["t2"]);
-    // 着手は既定で anyone：聞かない値に付けた --auto は拒否され、付けなければ着手できる
-    expect(
-      await rejected(
-        runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2", auto: true }),
-      ),
-    ).toMatchObject({ code: "TRANSITION_REJECTED" });
-    const claimed = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2" });
+    // 人が --auto で始めた流れでは、エージェントは --auto で聞かずに着手でき、承認者にエージェントが残る
+    const claimed = await runCommand(ticketClaim, agent, {
+      no_worktree: true,
+      ticket: "t2",
+      auto: true,
+    });
     expect(claimed.data.status).toBe("in_progress");
-    expect(await subject()).toBe("Claim t2: claude/agent");
+    expect(await subject()).toBe("Claim t2: claude/agent (approved by claude/agent with --auto)");
   });
 
   it("既定の Workflow：ブランチなしで着手したチケット（PR の要らない作業）には pr_merged を当てず、エージェントが人の承認を記録して done にできる（ST-10）", async () => {

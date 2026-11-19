@@ -291,16 +291,22 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     expect(merge.ask_human).toContain("dg pr merge t1 --auto");
     // 実装を委譲する親は --no-run で claim し、印で頼む
     const impl = kind(facts({ ticket: { status: "todo", pr: undefined } }));
-    // 既定の着手の境目（todo → in_progress）は anyone なので、claim は承認の引数を付けずに返す（ST-2）
+    // 既定の着手の境目（todo → in_progress）は ask_unless_auto なので、claim は --approved-by human の形で返し、
+    // 付けてよい場面と --auto に替える場面を次の行で案内する（ST-2）
     expect(impl.commands[0]).toBe(
-      "dg --json --actor agent ticket claim t1 --branch <short-english-words> --no-run",
+      "dg --json --actor agent ticket claim t1 --branch <short-english-words> --no-run --approved-by human",
     );
+    expect(impl.commands[1]).toContain(
+      "Pass --approved-by human on the claim only when a person instructed or approved starting t1",
+    );
+    expect(impl.commands[1]).toContain("pass --auto instead of --approved-by human");
+    expect(impl.commands[1]).toContain("(boundaries todo → in_progress: ask_unless_auto)");
     // ブランチ名の形（dg が ID を付ける）と値に使える文字を、claim の手の後で案内する（ST-3）
-    expect(impl.commands[1]).toContain("dg records the branch as t1-<value>");
-    expect(impl.commands[1]).toContain("lowercase letters, digits, and hyphens");
+    expect(impl.commands[2]).toContain("dg records the branch as t1-<value>");
+    expect(impl.commands[2]).toContain("lowercase letters, digits, and hyphens");
     // 上限は claim の検査と同じ定数から引く（t985）
-    expect(impl.commands[1]).toContain(`up to ${BRANCH_VALUE_MAX} characters`);
-    expect(impl.commands[2]).toContain("deguboard: ticket=t1 step=implement");
+    expect(impl.commands[2]).toContain(`up to ${BRANCH_VALUE_MAX} characters`);
+    expect(impl.commands[3]).toContain("deguboard: ticket=t1 step=implement");
     // 実行中の見直し・実装があれば、新しく起動させず終わりを待つ
     const reviewing = kind(facts({ runs: [review(6, null, { finished_at: null, result: null })] }));
     expect(reviewing).toMatchObject({ kind: "review", running_run: expect.any(String) });
