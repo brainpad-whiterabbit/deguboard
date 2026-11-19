@@ -383,7 +383,14 @@ describe("見直し（review）", () => {
     /** 先端は、見直した SHA（OTHER）に base のコミット（MAIN）を取り込み、tree が自動マージの結果と同じマージコミット */
     const merged = (over: Partial<TipMerge> = {}): BranchTip => ({
       ...TIP,
-      merge: { parents: [OTHER, MAIN], onBase: [MAIN], tree: TREE, autoTree: TREE, ...over },
+      merge: {
+        parents: [OTHER, MAIN],
+        onBase: [MAIN],
+        earlier: [],
+        tree: TREE,
+        autoTree: TREE,
+        ...over,
+      },
     });
     const before = run({ head: OTHER, started_at: BEFORE_TIP, finished_at: BEFORE_TIP });
 
@@ -416,6 +423,37 @@ describe("見直し（review）", () => {
         expect(failed(view)).toEqual(["review", "check"]);
         expect(detail(view, "review")).toContain("No review of the last push");
       }
+    });
+
+    it("base を 2 回取り込んだ先端でも、連なりの先の見直しを数える。連なりが切れている・tree が違うなら数えない", () => {
+      const MID = "d".repeat(40);
+      const OLD_MAIN = "9".repeat(40);
+      // 先端は MID に MAIN を取り込み、MID は見直した SHA（OTHER）に OLD_MAIN を取り込んだマージコミット
+      const twice = (over: Partial<TipMerge> = {}) =>
+        merged({
+          parents: [MID, MAIN],
+          earlier: [{ sha: MID, parents: [OTHER, OLD_MAIN], onBase: [OLD_MAIN] }],
+          ...over,
+        });
+      const view = review([before], twice());
+      expect(failed(view)).toEqual([]);
+      expect(detail(view, "review")).toBe(
+        "Review r1 of bbbbbbbb passed, and the last push (remote tip aaaaaaaa) only merged base into it",
+      );
+      const unmet = [
+        // 途中のマージコミットを読んでいない（その先が見直した SHA に着いていない）
+        review([before], twice({ earlier: [] })),
+        // 途中が base を取り込んだ形でない
+        review(
+          [before],
+          twice({ earlier: [{ sha: MID, parents: [OTHER, OLD_MAIN], onBase: [] }] }),
+        ),
+        // 途中か先端で競合を手で解いた（tree が 1 回の自動マージの結果と違う）
+        review([before], twice({ tree: "f".repeat(40) })),
+        // 見直したのは途中の base の側の親
+        review([{ ...before, head: OLD_MAIN }], twice()),
+      ];
+      for (const v of unmet) expect(detail(v, "review")).toContain("No review of the last push");
     });
 
     it("SHA を持たない見直しは、取り込みの先端でも時刻で比べる。先端そのものの見直しがあれば後のものを使う", () => {
