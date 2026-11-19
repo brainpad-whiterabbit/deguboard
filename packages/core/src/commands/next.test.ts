@@ -209,8 +209,8 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     const ctx = await reopenInitialized(await initializedLocalFixture(), {
       actor: { kind: "agent", user: "eiki" },
     });
-    await runCommand(ticketCreate, ctx, { title: "A" });
-    await runCommand(ticketCreate, ctx, { title: "B" });
+    await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
+    await runCommand(ticketCreate, ctx, { title: "B", approved_by: "human" });
     return ctx;
   }
 
@@ -291,22 +291,16 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     expect(merge.ask_human).toContain("dg pr merge t1 --auto");
     // 実装を委譲する親は --no-run で claim し、印で頼む
     const impl = kind(facts({ ticket: { status: "todo", pr: undefined } }));
-    // 既定の着手の境目（todo → in_progress）は ask_unless_auto なので、claim は --approved-by human の形で返し、
-    // 付けてよい場面と --auto に替える場面を次の行で案内する（ST-2）
+    // 既定の着手の境目（todo → in_progress）は anyone なので、claim は承認の引数を付けずに返す（ST-2）
     expect(impl.commands[0]).toBe(
-      "dg --json --actor agent ticket claim t1 --branch <short-english-words> --no-run --approved-by human",
+      "dg --json --actor agent ticket claim t1 --branch <short-english-words> --no-run",
     );
-    expect(impl.commands[1]).toContain(
-      "Pass --approved-by human on the claim only when a person instructed or approved starting t1",
-    );
-    expect(impl.commands[1]).toContain("pass --auto instead of --approved-by human");
-    expect(impl.commands[1]).toContain("(boundaries todo → in_progress: ask_unless_auto)");
     // ブランチ名の形（dg が ID を付ける）と値に使える文字を、claim の手の後で案内する（ST-3）
-    expect(impl.commands[2]).toContain("dg records the branch as t1-<value>");
-    expect(impl.commands[2]).toContain("lowercase letters, digits, and hyphens");
+    expect(impl.commands[1]).toContain("dg records the branch as t1-<value>");
+    expect(impl.commands[1]).toContain("lowercase letters, digits, and hyphens");
     // 上限は claim の検査と同じ定数から引く（t985）
-    expect(impl.commands[2]).toContain(`up to ${BRANCH_VALUE_MAX} characters`);
-    expect(impl.commands[3]).toContain("deguboard: ticket=t1 step=implement");
+    expect(impl.commands[1]).toContain(`up to ${BRANCH_VALUE_MAX} characters`);
+    expect(impl.commands[2]).toContain("deguboard: ticket=t1 step=implement");
     // 実行中の見直し・実装があれば、新しく起動させず終わりを待つ
     const reviewing = kind(facts({ runs: [review(6, null, { finished_at: null, result: null })] }));
     expect(reviewing).toMatchObject({ kind: "review", running_run: expect.any(String) });
@@ -417,7 +411,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     });
   });
 
-  it("着手の claim の手は todo → in_progress の境目の decide に合わせ、聞かない値なら承認の引数を付けず、always_ask なら --auto を勧めず、human_only なら人に頼む文にする（ST-2）", async () => {
+  it("着手の claim の手は todo → in_progress の境目の decide に合わせ、聞かない値なら承認の引数を付けず、ask_unless_auto なら --auto の道を添え、always_ask なら --auto を勧めず、human_only なら人に頼む文にする（ST-2）", async () => {
     const ctx = await prepared();
     const claim = "dg --json --actor agent ticket claim t1 --branch <short-english-words> --no-run";
     const stepOf = async (decide: string) => {
@@ -431,6 +425,14 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     const open = await stepOf("anyone");
     expect(open[0]).toBe(claim);
     expect(open.join(" ")).not.toContain("--approved-by");
+    // 承認を求める値では --approved-by human の形で返し、付けてよい場面と --auto に替える場面を次の行で案内する
+    const unlessAuto = await stepOf("ask_unless_auto");
+    expect(unlessAuto[0]).toBe(`${claim} --approved-by human`);
+    expect(unlessAuto[1]).toContain(
+      "Pass --approved-by human on the claim only when a person instructed or approved starting t1",
+    );
+    expect(unlessAuto[1]).toContain("pass --auto instead of --approved-by human");
+    expect(unlessAuto[1]).toContain("(boundaries todo → in_progress: ask_unless_auto)");
     const always = await stepOf("always_ask");
     expect(always[0]).toBe(`${claim} --approved-by human`);
     expect(always[1]).toContain("--auto does not skip this approval");
@@ -615,7 +617,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
 
   it("implement・fix の手の model は plan.tier を models.* に対応させ、tier を省いた段階は standard、対応が空なら null。review とほかの手は null", async () => {
     const ctx = await prepared();
-    await runCommand(ticketCreate, ctx, { title: "C" });
+    await runCommand(ticketCreate, ctx, { title: "C", approved_by: "human" });
     const created = await runCommand(planCreate, ctx, {
       tickets: ["t1", "t2"],
       tier: { t1: "heavy", t2: "light" },

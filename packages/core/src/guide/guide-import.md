@@ -16,13 +16,14 @@ Turns the requirements, research results, and review findings settled in the con
 ## Flow
 
 1. When the requirements are settled, **propose** turning them into tickets. Do not file on your own. Show the decomposition (title, summary, acceptance criteria, dependencies, Epic) in a table, and get approval with the choices "File after approval", "Revise", and "Cancel"
-2. For one ticket: `dg --json --actor agent ticket create "<title>" --created-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--gate high] [--assignee agent] [--origin t9] [--origin-cause tests]`
-3. For several: write a YAML draft to one file and run `dg --json --actor agent ticket import <file>`. IDs are assigned together in one commit
+2. For one ticket: `dg --json --actor agent ticket create "<title>" --created-by human --approved-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--gate high] [--assignee agent] [--origin t9] [--origin-cause tests]`
+3. For several: write a YAML draft to one file and run `dg --json --actor agent ticket import <file> --approved-by human`. IDs are assigned together in one commit
 4. Read the IDs from the result's `data` and report them to a human
 
 ## Creator and assignee
 
-- The creator (`created_by`) is the person who instructed or approved the filing, or the AI that filed without a human's check. When filing on a human's instruction or approval, pass `--created-by human` so the user is the creator. In an automatic step that files without a human's check, do not pass it (it becomes `<user>/agent`)
+- The Workflow's `governance.create` judges filing (`ticket create` and `ticket import`; `always_ask` by default): pass `--approved-by human` only after a human approved or instructed the filing (step 1). When the board's value is `anyone`, pass no `--approved-by`
+- The creator (`created_by`) is the person who instructed or approved the filing, or the AI that filed without a human's check. When filing on a human's instruction or approval, pass `--created-by human` so the user is the creator. In an automatic step that files without a human's check (only where the board's `governance.create` lets an agent file without asking), do not pass it (it becomes `<user>/agent`)
 - The assignee (`assignee`) is optional. If you will continue advancing it, use `--assignee agent`. If a human will advance it, use `--assignee human`. Claim overwrites it with the claiming actor
 
 ## Origin of a defect

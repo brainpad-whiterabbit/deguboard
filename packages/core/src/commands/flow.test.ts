@@ -398,16 +398,15 @@ describe("approvalOf（承認の要否は Workflow の値から決まる）", ()
     });
   });
 
-  it("既定の値では --auto が ask_unless_auto の割り当て・点検の直す行・Plan・マージを聞かずに進め、always_ask の見直しと human_only のリリースは聞く", () => {
+  it("既定の値では --auto が ask_unless_auto の点検の直す行・Plan・マージを聞かずに進め、always_ask の割り当て・見直し・リリースは聞く", () => {
     const auto = (stage: Parameters<typeof approvalOf>[0]) =>
       approvalOf(stage, { auto: true, ...DEFAULT_DECISIONS });
-    expect(auto("assign")).toEqual({
-      required: false,
-      what: null,
-      auto: "Rows to add",
-      auto_ok: true,
-      value: "flow.assign: ask_unless_auto",
-      agent: "allow",
+    expect(auto("assign")).toMatchObject({
+      required: true,
+      auto: null,
+      auto_ok: false,
+      value: "flow.assign: always_ask",
+      agent: "approval",
     });
     expect(auto("plan")).toMatchObject({
       required: false,
@@ -434,7 +433,22 @@ describe("approvalOf（承認の要否は Workflow の値から決まる）", ()
       value: "flow.audit: always_ask",
       agent: "approval",
     });
-    const release = auto("release");
+    expect(auto("release")).toMatchObject({
+      required: true,
+      what: "Merging the release PR, publishing, and closing",
+      auto: null,
+      auto_ok: false,
+      value: "flow.release: always_ask",
+      agent: "approval",
+    });
+  });
+
+  it("flow.release が human_only なら、関所と閉じる操作は人だけの文になり、マージと公開は人に聞く", () => {
+    const release = approvalOf("release", {
+      auto: true,
+      ...DEFAULT_DECISIONS,
+      flow: { ...DEFAULT_DECISIONS.flow, release: "human_only" },
+    });
     expect(release).toMatchObject({
       required: true,
       auto: null,
@@ -448,7 +462,7 @@ describe("approvalOf（承認の要否は Workflow の値から決まる）", ()
     );
   });
 
-  it("flow.release が always_ask なら、リリースの段階は人だけの文にならず、マージ・公開・閉じるを人に聞く", () => {
+  it("flow.release が always_ask（既定）なら、リリースの段階は人だけの文にならず、マージ・公開・閉じるを人に聞く", () => {
     for (const auto of [false, true])
       expect(
         approvalOf("release", {
@@ -707,14 +721,11 @@ describe("dg flow next", () => {
       stage: { name: "release", rule: 7 },
       approval: {
         required: true,
-        what: expect.stringContaining(
-          "merging the release PR and publishing (ask a person before each one; when approved, the agent runs them)",
-        ),
-        value: "flow.release: human_only",
+        what: "Merging the release PR, publishing, and closing",
+        value: "flow.release: always_ask",
       },
-      // リリースの値は human_only なので、関所は人が通す
-      checkpoint:
-        "Ask a person to run dg checkpoint release s1 (only a person can do it; an agent's call is rejected)",
+      // リリースの値は always_ask なので、関所は人の承認の後に呼ぶ
+      checkpoint: "dg --json --actor agent checkpoint release s1 --approved-by human",
     });
     // リリースの関所を通った後も、閉じるまでリリースを返す（関所は返さない）。記録が足されて事実が変わったので、続いても止めない
     await pass(ctx, "release");
@@ -913,7 +924,7 @@ describe("dg flow next", () => {
     await pass(ctx, "audit");
     expect(await flow(ctx, {})).toMatchObject({
       stage: { name: "release" },
-      checkpoint: expect.stringContaining("dg checkpoint release s1"),
+      checkpoint: expect.stringContaining("checkpoint release s1"),
     });
     await pass(ctx, "release");
     expect((await flow(ctx, {})).checkpoint).toBeNull();
@@ -1010,22 +1021,28 @@ describe("dg flow next", () => {
     // 割り当ての候補を持つのはチケットの指定だけなので、Iteration にない t2 を含めて指定する
     const pair = { targets: ["t1", "t2"] };
     const add = "dg --json --actor agent iteration add s1 <tickets to add…>";
-    // 既定（flow.assign は ask_unless_auto）：--auto なら聞かずに進め、コマンドに --auto が付く。なければ承認の後に --approved-by で呼ぶ
+    // 既定（flow.assign は always_ask）：--auto でも聞いて止まり、承認の後に --approved-by で呼ぶ
     expect(await flow(ctx, { ...pair, auto: true })).toMatchObject({
       stage: { name: "assign" },
-      commands: [`${add} --auto`],
-      approval: { required: false, auto_ok: true, value: "flow.assign: ask_unless_auto" },
+      commands: [`${add} --approved-by human`],
+      approval: {
+        required: true,
+        what: "Rows to add",
+        auto_ok: false,
+        value: "flow.assign: always_ask",
+      },
     });
+    // ask_unless_auto にすると、--auto がなければ承認の後に --approved-by で呼び、--auto なら聞かずに進め、コマンドに --auto が付く
+    // （同じ引数で続けて呼ぶと止まるので、--auto のない呼び出しを先にする）
+    await runCommand(workflowSet, ctx, { definition: { flow: { assign: "ask_unless_auto" } } });
     expect(await flow(ctx, pair)).toMatchObject({
       commands: [`${add} --approved-by human`],
       approval: { required: true, what: "Rows to add", agent: "approval" },
     });
-    // always_ask にすると、--auto でも聞いて止まる
-    await runCommand(workflowSet, ctx, { definition: { flow: { assign: "always_ask" } } });
     expect(await flow(ctx, { ...pair, auto: true })).toMatchObject({
       stage: { name: "assign" },
-      commands: [`${add} --approved-by human`],
-      approval: { required: true, what: "Rows to add", auto_ok: false },
+      commands: [`${add} --auto`],
+      approval: { required: false, auto_ok: true, value: "flow.assign: ask_unless_auto" },
     });
     // anyone にすると、--auto がなくても聞かず、コマンドに何も付かない
     await runCommand(workflowSet, ctx, { definition: { flow: { assign: "anyone" } } });

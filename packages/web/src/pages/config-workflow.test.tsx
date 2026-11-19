@@ -38,7 +38,7 @@ const WRITTEN: WorkflowDefinition = {
   boundaries: [{ from: "review", to: "done", requires: ["pr_merged"], decide: "human_only" }],
   wip: { in_progress: 5 },
   flow: {
-    release: "always_ask",
+    release: "human_only",
     "deploy-staging": { decide: "always_ask", after: "audit", guide: "docs/flow/deploy.md" },
     skip: ["retro"],
   },
@@ -168,9 +168,9 @@ describe("設定画面の Workflow のタブ（workflow.yaml を読むだけで�
       jaOf("Todo"),
     ]);
     expect(marks("states.todo.label")).toEqual([false, null]);
-    expect(cells("flow.assign")[2]).toBe("ask_unless_auto");
+    expect(cells("flow.assign")[2]).toBe("always_ask");
     expect(marks("flow.assign")).toEqual([false, null]);
-    expect(cells("governance.create")[2]).toBe("anyone");
+    expect(cells("governance.create")[2]).toBe("always_ask");
     expect(cells("wip.in_progress")[2]).toBe("5");
     expect(marks("wip.in_progress")).toEqual([false, null]);
     // 書いた値：書いたまま出し、「変更あり」の title に既定を出す（表示名の既定は訳）
@@ -179,7 +179,7 @@ describe("設定画面の Workflow のタブ（workflow.yaml を読むだけで�
     expect(cells("boundaries.review.done.decide")[2]).toBe("human_only変更あり");
     expect(marks("boundaries.review.done.decide")).toEqual([true, "既定は ask_unless_auto"]);
     expect(marks("boundaries.review.done.requires")).toEqual([false, null]);
-    expect(marks("flow.release")).toEqual([true, "既定は human_only"]);
+    expect(marks("flow.release")).toEqual([true, "既定は always_ask"]);
     expect(cells("flow.skip")[2]).toBe("retro変更あり");
     expect(marks("flow.skip")).toEqual([true, "既定は 空"]);
     // wip は書いた列だけに上限が付く：既定で上限のある review は「上限なし」になる
@@ -393,6 +393,7 @@ describe("Workflow のタブの部品", () => {
       workflowMatches(sections, "human_only").map((s) => [s.key, s.rows.map((r) => r.key)]),
     ).toEqual([
       ["boundaries", ["boundaries.review.done.decide"]],
+      ["flow", ["flow.release"]],
       ["governance", ["governance.delete"]],
     ]);
   });

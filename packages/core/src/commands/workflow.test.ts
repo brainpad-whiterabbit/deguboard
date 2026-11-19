@@ -236,11 +236,11 @@ describe("workflow show", () => {
         ...strict,
         wip: { todo: 8, review: 3 },
         flow: {
-          release: "always_ask",
+          release: "human_only",
           "deploy-staging": { decide: "always_ask", after: "audit", guide: "docs/deploy.md" },
           skip: ["retro"],
         },
-        governance: { create: "anyone" },
+        governance: { create: "always_ask" },
       },
     });
     const after = await rowsOf();
@@ -278,11 +278,11 @@ describe("workflow show", () => {
       { key: "wip.review", value: 3, default: 3, modified: false },
     ]);
     expect(after.row("flow.release")).toMatchObject({
-      value: "always_ask",
-      default: "human_only",
+      value: "human_only",
+      default: "always_ask",
       modified: true,
     });
-    expect(after.row("flow.assign")).toMatchObject({ value: "ask_unless_auto", modified: false });
+    expect(after.row("flow.assign")).toMatchObject({ value: "always_ask", modified: false });
     // 独自の段階は既定を持たず、after と guide を添える
     expect(after.row("flow.deploy-staging")).toEqual({
       key: "flow.deploy-staging",
@@ -292,7 +292,7 @@ describe("workflow show", () => {
     });
     expect(after.row("flow.skip")).toMatchObject({ value: ["retro"], default: [], modified: true });
     // 既定と同じ値を書いた行は、既定と違わない
-    expect(after.row("governance.create")).toMatchObject({ value: "anyone", modified: false });
+    expect(after.row("governance.create")).toMatchObject({ value: "always_ask", modified: false });
   });
 
   it("Run の step の語彙と表示名は Core の固定で、workflow.yaml に書いても変わらない", async () => {
@@ -479,8 +479,12 @@ describe("workflow set", () => {
     expect(validated.data.issues[0]?.message).toContain("transitions is no longer read");
     expect(ctx.store.workflow?.resolved).toEqual(DEFAULT_WORKFLOW);
     // 既定の todo → in_progress の requires（deps_done）が、前に transitions に書いていた条件と同じに効く
-    const dep = await runCommand(ticketCreate, ctx, { title: "先" });
-    const t = await runCommand(ticketCreate, ctx, { title: "後", depends_on: [dep.data.id] });
+    const dep = await runCommand(ticketCreate, ctx, { title: "先", approved_by: "human" });
+    const t = await runCommand(ticketCreate, ctx, {
+      title: "後",
+      depends_on: [dep.data.id],
+      approved_by: "human",
+    });
     await expect(
       runCommand(ticketClaim, ctx, {
         ticket: t.data.id,
@@ -504,14 +508,18 @@ describe("workflow set", () => {
   it("Workflow を置き換えても既存のチケットが読め、どのチケットも新しい制約で遷移する（チケットの workflow は Workflow を選ばない）", async () => {
     const f = await eachFixture();
     const ctx = await openAgent(f);
-    const a = await runCommand(ticketCreate, ctx, { title: "A" });
+    const a = await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
     await runCommand(ticketClaim, ctx, {
       no_worktree: true,
       ticket: a.data.id,
       branch: "t1-a",
       approved_by: "human",
     });
-    const b = await runCommand(ticketCreate, ctx, { title: "B", workflow: "general" });
+    const b = await runCommand(ticketCreate, ctx, {
+      title: "B",
+      workflow: "general",
+      approved_by: "human",
+    });
     await runCommand(workflowSet, asHuman(ctx), { definition: strict });
 
     const again = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });

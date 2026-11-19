@@ -148,7 +148,10 @@ describe("dg mcp", () => {
         { method: "tools/list" },
         {
           method: "tools/call",
-          params: { name: "ticket_create", arguments: { title: "MCP から" } },
+          params: {
+            name: "ticket_create",
+            arguments: { title: "MCP から", approved_by: "human" },
+          },
         },
         {
           method: "tools/call",

@@ -127,11 +127,13 @@ describe("dg brief と dg next の文（EX-3）", () => {
     const ctx = await reopenInitialized(await initializedLocalFixture(), {
       actor: { kind: "agent", user: "eiki" },
     });
+    // 起票は既定（governance.create: always_ask）でエージェントに人の承認が要る
     await runCommand(ticketCreate, ctx, {
       title: "A",
       body: "## 受け入れ条件\n\n- [ ] 一覧が出る\n",
+      approved_by: "human",
     });
-    await runCommand(ticketCreate, ctx, { title: "B" });
+    await runCommand(ticketCreate, ctx, { title: "B", approved_by: "human" });
     return ctx;
   }
 
@@ -182,6 +184,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
     await runCommand(ticketCreate, ctx, {
       title: "C",
       body: "## Summary\n\ns\n\n## Acceptance criteria\n\n- [ ] 英語の節の項目\n",
+      approved_by: "human",
     });
     const implement = (await runCommand(brief, ctx, { ticket: "t3", role: "implement" })).data;
     expect(implement.text).toContain("1. 英語の節の項目");

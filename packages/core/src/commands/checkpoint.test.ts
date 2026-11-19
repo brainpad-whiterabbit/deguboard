@@ -121,13 +121,20 @@ describe("dg checkpoint は段階の値で判定し、通ったら Iteration の
     });
   });
 
-  it("既定のリリース（human_only）：エージェントは承認者を渡しても拒否され、人が通すと承認者なしで記録される", async () => {
+  it("既定のリリース（always_ask）：エージェントは承認がなければ・--auto では拒否され、--approved-by で通り、人が通すと承認者なしで記録される", async () => {
     const { human, agent, subject, records, pass } = await humanAndAgent();
-    for (const input of [{}, { approved_by: "human" }])
-      expect(await rejected(pass(agent, "release", input))).toMatchObject(
-        limits("release", "flow.release: human_only"),
-      );
+    expect(await rejected(pass(agent, "release"))).toMatchObject(
+      asks("release", "flow.release: always_ask"),
+    );
+    expect(await rejected(pass(agent, "release", { auto: true }))).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "--auto goes ahead without asking only where the value is ask_unless_auto, and passing the release checkpoint is not such a place (flow.release: always_ask)",
+    });
     expect(records()).toEqual([]);
+    const approved = await pass(agent, "release", { approved_by: "human" });
+    expect(approved.checkpoint).toMatchObject({ by: "claude/agent", approved_by: "claude" });
+    expect(await subject()).toBe("Checkpoint release of s1 (approved by claude)");
     const release = await pass(human, "release");
     expect(release.checkpoint).toEqual({ name: "release", at: toIsoDateTime(NOW), by: "eiki" });
     expect(await subject()).toBe("Checkpoint release of s1");

@@ -72,6 +72,7 @@ async function prepareRepo(f: Layout): Promise<void> {
   await runCommand(ticketCreate, ctx, {
     title: "A",
     body: "## 受け入れ条件\n\n- [ ] 1 つめ\n- [ ] 2 つめ\n",
+    approved_by: "human",
   });
   await runCommand(ticketClaim, ctx, {
     no_worktree: true,

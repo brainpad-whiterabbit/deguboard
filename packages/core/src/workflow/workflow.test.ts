@@ -128,7 +128,7 @@ describe("操作に当てる方針（operationPolicy）", () => {
     expect(move(DEFAULT_WORKFLOW, "todo", "in_progress")).toEqual({
       source: "boundaries",
       name: "boundaries todo → in_progress",
-      decisions: ["ask_unless_auto"],
+      decisions: ["anyone"],
       requires: ["deps_done"],
     });
     expect(move(DEFAULT_WORKFLOW, "review", "done")).toMatchObject({
@@ -232,8 +232,8 @@ describe("操作に当てる方針（operationPolicy）", () => {
       m.requires.join(","),
     ]);
     expect(rows).toEqual([
-      ["todo → in_progress", "allow", "approval", "deps_done"],
-      ["todo → review", "allow", "approval", "deps_done"],
+      ["todo → in_progress", "allow", "allow", "deps_done"],
+      ["todo → review", "allow", "allow", "deps_done"],
       ["todo → done", "allow", "approval", "deps_done,pr_merged"],
       ["todo → abandoned", "allow", "approval", ""],
       ["in_progress → todo", "allow", "allow", ""],
@@ -270,7 +270,7 @@ describe("省いた項目の既定", () => {
         abandoned: "Abandoned",
       },
       boundaries: [
-        { from: "todo", to: "in_progress", requires: ["deps_done"], decide: "ask_unless_auto" },
+        { from: "todo", to: "in_progress", requires: ["deps_done"], decide: "anyone" },
         { from: "in_progress", to: "review", requires: [], decide: "anyone" },
         { from: "review", to: "done", requires: ["pr_merged"], decide: "ask_unless_auto" },
       ],
@@ -278,11 +278,11 @@ describe("省いた項目の既定", () => {
       wip: { in_progress: 5, review: 3 },
       flow: {
         stages: {
-          assign: "ask_unless_auto",
+          assign: "always_ask",
           check: "ask_unless_auto",
           plan: "ask_unless_auto",
           audit: "always_ask",
-          release: "human_only",
+          release: "always_ask",
           retro: "always_ask",
         },
         custom: [],
@@ -293,7 +293,7 @@ describe("省いた項目の既定", () => {
         config: "always_ask",
         reassign: "always_ask",
         epic: "always_ask",
-        create: "anyone",
+        create: "always_ask",
       },
     });
     expect(workflow).not.toHaveProperty("fields");
@@ -340,8 +340,8 @@ describe("省いた項目の既定", () => {
         boundaries: [{ from: "review", to: "done", requires: ["branch_merged"] }],
         exceptions: { abandon: "anyone" },
         wip: { review: 2 },
-        flow: { release: "always_ask", skip: ["retro"] },
-        governance: { create: "always_ask" },
+        flow: { release: "human_only", skip: ["retro"] },
+        governance: { create: "anyone" },
       },
       "workflow.yaml",
     );
@@ -360,10 +360,10 @@ describe("省いた項目の既定", () => {
     });
     expect(workflow?.wip).toEqual({ review: 2 });
     expect(workflow?.flow).toMatchObject({
-      stages: { release: "always_ask", assign: "ask_unless_auto" },
+      stages: { release: "human_only", assign: "always_ask" },
       skip: ["retro"],
     });
-    expect(workflow?.governance).toMatchObject({ create: "always_ask", delete: "human_only" });
+    expect(workflow?.governance).toMatchObject({ create: "anyone", delete: "human_only" });
   });
 
   it("補った Workflow を書く形に戻して読み直すと、同じ Workflow になる（workflow show の definition を workflow set に渡せる）", () => {

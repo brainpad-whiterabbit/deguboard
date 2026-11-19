@@ -28,7 +28,7 @@ async function prepared(cwd?: string) {
   cleanups.push(f.cleanup);
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
   const ctx = await openContext({ cwd: cwd ?? f.cloneA, actor });
-  await runCommand(ticketCreate, ctx, { title: "A" });
+  await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
   return { f, ctx };
 }
 
@@ -90,7 +90,7 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
     // 別の clone の dg が書いて push したものは、取り込んでも dg の外の変更ではない
     await runCommand(init, await openContext({ cwd: f.cloneB, initialize: {}, actor }), {});
     const other = await openContext({ cwd: f.cloneB, actor });
-    await runCommand(ticketCreate, other, { title: "B" });
+    await runCommand(ticketCreate, other, { title: "B", approved_by: "human" });
     await runCommand(sync, other, {});
     await runCommand(sync, ctx, {});
     expect(await checkOutside(ctx.repo)).toEqual({ kind: "clean", initial: false });
@@ -143,7 +143,7 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
 
   it("同じマシンで並べて動く dg の書きかけを、dg の外の変更と取り違えない", async () => {
     const { f, ctx } = await prepared();
-    await runCommand(ticketCreate, ctx, { title: "B" });
+    await runCommand(ticketCreate, ctx, { title: "B", approved_by: "human" });
     const other = await openContext({ cwd: f.cloneA, actor });
     const reader = await openContext({ cwd: f.cloneA, actor });
     const priorities = ["high", "low", "medium"] as const;

@@ -114,7 +114,7 @@ describe("カンバンの管理の操作は governance の値で判定される"
 
   it("reassign：ほかのユーザの担当の付け替えと claim を外すのは既定（always_ask）で承認が要り、自分の担当と担当なしは聞かずに替えられる", async () => {
     const { human, agent, governance: write, subject } = await humanAndAgent();
-    // 着手の境目（既定は ask_unless_auto）を誰でもにして、claim を governance.reassign だけが判定するようにする
+    // 着手の境目を誰でも（既定と同じ anyone）と書いておき、claim を governance.reassign だけが判定するようにする
     const governance = (values: Record<string, string>) =>
       write(values, [
         "boundaries:",
@@ -217,9 +217,20 @@ describe("カンバンの管理の操作は governance の値で判定される"
     expect((await runCommand(epicReopen, agent, { epic: "e1" })).data.status).toBe("open");
   });
 
-  it("create：起票（create・import）は既定（anyone）で誰でもでき、値を替えるとエージェントに拒否・承認、人に --override を求める", async () => {
+  it("create：起票（create・import）は既定（always_ask）でエージェントに承認が要り、人は聞かずにでき、値を替えるとエージェントに拒否・承認、人に --override を求める", async () => {
     const { human, agent, governance, subject } = await humanAndAgent();
-    expect((await runCommand(ticketCreate, agent, { title: "A" })).data.id).toBe("t1");
+    const asks = (command: string) => ({
+      code: "TRANSITION_REJECTED",
+      message: `The Workflow asks for a person's approval for dg ticket ${command} (governance.create: always_ask)`,
+    });
+    expect(await rejected(runCommand(ticketCreate, agent, { title: "A" }))).toMatchObject(
+      asks("create"),
+    );
+    expect(
+      await rejected(runCommand(ticketImport, agent, { drafts: [{ title: "A" }] })),
+    ).toMatchObject(asks("import"));
+    await runCommand(ticketCreate, agent, { title: "A", approved_by: "human" });
+    expect(await subject()).toBe("File t1: A (approved by claude)");
 
     await governance({ create: "human_only" });
     const limits = (command: string) => ({
@@ -253,6 +264,9 @@ describe("カンバンの管理の操作は governance の値で判定される"
     await runCommand(ticketCreate, human, { title: "E", override: "手で足す" });
     expect(await subject()).toBe("File t5: E (override by eiki: 手で足す)");
     expect((await runCommand(ticketCreate, agent, { title: "F" })).data.id).toBe("t6");
+
+    await governance({ create: "anyone" });
+    expect((await runCommand(ticketCreate, agent, { title: "G" })).data.id).toBe("t7");
   });
 
   it("workflow.yaml に誤りがあって読めないときは、Core の既定の governance で判定する（NOT_FOUND で止めない）", async () => {
@@ -266,10 +280,17 @@ describe("カンバンの管理の操作は governance の値で判定される"
     ]);
     expect(human.store.workflow).toBeUndefined();
 
-    // create は既定で anyone：人もエージェントも起票できる（create・import）
+    // create は既定で always_ask：人は聞かずに起票でき、エージェントは承認が要る（create・import）
     expect((await runCommand(ticketCreate, human, { title: "A" })).data.id).toBe("t1");
-    expect((await runCommand(ticketCreate, agent, { title: "B" })).data.id).toBe("t2");
-    await runCommand(ticketImport, agent, { drafts: [{ title: "C" }] });
+    expect(await rejected(runCommand(ticketCreate, agent, { title: "B" }))).toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message:
+        "The Workflow asks for a person's approval for dg ticket create (governance.create: always_ask)",
+    });
+    expect(
+      (await runCommand(ticketCreate, agent, { title: "B", approved_by: "human" })).data.id,
+    ).toBe("t2");
+    await runCommand(ticketImport, agent, { drafts: [{ title: "C" }], approved_by: "human" });
     expect(human.store.require("ticket", "t3").data.title).toBe("C");
 
     // delete は既定で human_only：エージェントは拒否され、人はできる
@@ -298,11 +319,7 @@ describe("カンバンの管理の操作は governance の値で判定される"
   });
 
   it("名前だけで操作が決まるコマンドのうち、エージェントに拒むものは flow と governance の値から決まる（ask が人のコマンドに回す）", () => {
-    expect(commandsRejectedForAgent(resolveWorkflow({}))).toEqual([
-      "iteration.close",
-      "iteration.reopen",
-      "ticket.delete",
-    ]);
+    expect(commandsRejectedForAgent(resolveWorkflow({}))).toEqual(["ticket.delete"]);
     expect(
       commandsRejectedForAgent(
         resolveWorkflow({

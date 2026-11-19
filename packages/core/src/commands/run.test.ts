@@ -84,8 +84,8 @@ async function prepareRepo(f: Layout): Promise<void> {
   const actor = { kind: "agent" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
   const ctx = await openContext({ cwd: f.cloneA, actor });
-  await runCommand(ticketCreate, ctx, { title: "A" });
-  await runCommand(ticketCreate, ctx, { title: "B" });
+  await runCommand(ticketCreate, ctx, { title: "A", approved_by: "human" });
+  await runCommand(ticketCreate, ctx, { title: "B", approved_by: "human" });
 }
 
 /**
@@ -184,7 +184,7 @@ describe("run", () => {
 
   it("list はチケットで絞れ、実行時間 duration_seconds を返す（実行中は null）", async () => {
     const ctx = await prepared();
-    await runCommand(ticketCreate, ctx, { title: "C" });
+    await runCommand(ticketCreate, ctx, { title: "C", approved_by: "human" });
     const t1 = await start(ctx, "t1");
     const t3 = await start(ctx, "t3");
     await finishRun(ctx, t1.id, {
@@ -207,7 +207,7 @@ describe("run", () => {
 
   it("閉じた Run に待った秒数 waited_seconds を、渡された区間を started_at から finished_at の範囲で切って書き、list は作業時間 active_seconds も返す。区間のない Run は 0 でなく null（t958）", async () => {
     const ctx = await prepared();
-    await runCommand(ticketCreate, ctx, { title: "C" });
+    await runCommand(ticketCreate, ctx, { title: "C", approved_by: "human" });
     const t1 = await start(ctx, "t1");
     const t2 = await start(ctx, "t2");
     const t3 = await start(ctx, "t3");
@@ -413,7 +413,7 @@ describe("run", () => {
 
   it("recent は Iteration（チケットの今の値）で絞れ、Run のないチケットは返さない", async () => {
     const ctx = await prepared();
-    await runCommand(ticketCreate, ctx, { title: "C" });
+    await runCommand(ticketCreate, ctx, { title: "C", approved_by: "human" });
     await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(iterationAdd, ctx, {
       iteration: "s1",
