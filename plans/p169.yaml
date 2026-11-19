@@ -7,7 +7,7 @@ after:
     - t1148
   t1151:
     - t1150
-pending_approval: true
+pending_approval: false
 details:
   t1145:
     scope: guide と Skill の雛形から Workflow の値で決まる内容を外し、既定値に頼るテストをなくす。usage・README・ADR は変えない（t1147）
@@ -33,3 +33,5 @@ details:
     scope: v1.0.0〜v1.2.0 の Release の本文を gh release edit で書き直す（PR の要らない作業）
     approach: t1150 の規約に沿って 3 つの本文の書き直しの案を作り、人に見せて承認を得てから gh release edit で書き換える
     tier: standard
+approved_by: Eiki Kitajima
+approved_at: 2026-11-19T09:36:42Z
