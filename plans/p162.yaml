@@ -11,7 +11,7 @@ after:
     - t1125
   t1127:
     - t1126
-pending_approval: true
+pending_approval: false
 details:
   t1118:
     scope: usage と README の Security and privacy の記述を、拡張が直接起動するものとターミナルに入れるものに分けて書き直す。拡張のコードは変えない
@@ -53,3 +53,5 @@ details:
     scope: claude-code の Run に検査とテストを前景で回した秒数を残し、dg metrics show で集計し、数えるコマンドの一覧を config に足す
     approach: 会話記録からコマンドと秒数を拾う部分と、検査とテストに数えるかを決める読まない関数を分け、Run と metrics の形と requirements の約束を同じ PR で揃える
     tier: heavy
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-19T02:27:55Z
