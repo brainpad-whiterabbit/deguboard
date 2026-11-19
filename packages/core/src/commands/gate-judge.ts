@@ -27,6 +27,7 @@ const GATE_CONDITIONS = [
   "fix_rounds",
   "mergeable",
   "head",
+  "base",
   "check",
 ] as const;
 export type GateConditionId = (typeof GATE_CONDITIONS)[number];
@@ -64,6 +65,14 @@ export type PrFact =
   | { kind: "unreadable"; reason: string }
   | { kind: "read"; pr: PrGateFacts };
 
+/**
+ * base（マージ先のブランチ）の今の先端と、作業ブランチの最新のコミットがそれを含むか。unreadable は base を取り込めない・
+ * 読めない（reason は理由の文）
+ */
+export type BaseFact =
+  | { kind: "unreadable"; reason: string }
+  | { kind: "read"; sha: string; contained: boolean };
+
 /** 見直しの判定に使う Run の項目（閉じた Run・実行中の Run・持ち主のない保留を同じ形で受ける） */
 export type ReviewRun = Pick<
   Run,
@@ -78,7 +87,7 @@ export interface ReviewFacts {
 
 /**
  * 品質ゲートの判定に使う事実。段と for が判定しない条件の事実は読まず（gateReads）、空の値（acceptance は []、
- * review は tip: null と runs: []、latest は null）で渡す。判定はその事実を見ない
+ * review は tip: null と runs: []、latest と base は null）で渡す。判定はその事実を見ない
  */
 export interface GateFacts {
   ticket: string;
@@ -95,12 +104,14 @@ export interface GateFacts {
   review: ReviewFacts;
   /** 作業ブランチの最新のコミット（リモートがあればリモートの先端）。読めなければ null */
   latest: string | null;
+  /** base の今の先端を latest が含むか。latest を読めないときは読まない（null） */
+  base: BaseFact | null;
   /** actions.test が空でないか。空なら検査は回さずに通すので、ほかの条件によらず判定する */
   checkConfigured: boolean;
 }
 
 /** 検査のほかの条件を決めた結果（1 段目） */
-interface GateDraft {
+export interface GateDraft {
   ticket: string;
   for: GateStage;
   gate: GateLevel;
@@ -120,17 +131,19 @@ const short = (sha: string) => sha.slice(0, 8);
 /**
  * 段と for が判定に使う事実（どれを読むか）。集める側（gate.ts）と決める側が同じ表を使う。
  * 受け入れ条件は、PR を出す前は付けられない項目の理由を PR の本文に書けばよいので見ない。
- * 最新のコミット（latest）は head の条件に使い、見直しも検査も判定しない free では比べない
+ * 最新のコミット（latest）は head と base の条件に使い、見直しも検査も判定しない free では比べない。
+ * base の今の先端（base）は、検査が見るのを base に入る形にするための条件なので、検査を判定する段のマージの前だけ読む
  */
 export function gateReads(
   level: GateLevel,
   stage: GateStage,
-): { acceptance: boolean; review: boolean; latest: boolean } {
+): { acceptance: boolean; review: boolean; latest: boolean; base: boolean } {
   const scope = gateScopeOf(level);
   return {
     acceptance: stage === "merge" && scope.acceptance,
     review: scope.review,
     latest: stage === "merge" && (scope.review || scope.check),
+    base: stage === "merge" && scope.check,
   };
 }
 
@@ -267,6 +280,37 @@ function headCondition(pr: PrGateFacts, latest: string): GateCondition {
 }
 
 /**
+ * 作業ブランチの最新のコミットは、base の今の先端を含まなければならない（t1152）。検査（check）が見るのは作業ブランチの先端だけで、
+ * 先端を切った後に base に入った変更との組み合わせ（マージして base に入る形）は見ていない。含んでいれば、先端で通った検査は
+ * base に入る形で通っている。含まないときの次の手は base を取り込んで push し直すことで、取り込んだ先端で検査を回し直す
+ * （取り込んだだけのマージコミットなら、前の見直しは数えたまま。reviewedTip）。マージした後の検査はしない
+ */
+function baseCondition(base: BaseFact | null, latest: string, afterCheck = false): GateCondition {
+  if (base === null || base.kind === "unreadable")
+    return {
+      id: "base",
+      ok: false,
+      detail: `Cannot read the current tip of base, so it cannot be compared with the work branch${base ? ` (${base.reason})` : ""}`,
+    };
+  return {
+    id: "base",
+    ok: base.contained,
+    detail: base.contained
+      ? `The latest commit of the work branch (${short(latest)}) contains the current tip of base (${short(base.sha)})`
+      : `The latest commit of the work branch (${short(latest)}) does not contain the current tip of base (${short(base.sha)}${afterCheck ? "; base moved while the check ran" : ""}), so the check has not seen what the merge would put on base. Merge base into the work branch, push, and judge again (the check runs on the new tip; a merge commit that only brings base in keeps the review)`,
+  };
+}
+
+/**
+ * 検査の後に base の今の先端を読み直すか。検査（actions.test）を回すと分単位の時間がかかり、その間に別の PR が base に入ると、
+ * 1 段目が検査の前に読んだ base の事実は古くなる（並行のチケット・--auto）。この判定で検査を回し、1 段目が base を満たすとしたときだけ
+ * 読み直す（覚えた結果を使ったときは時間が空いていないので読み直さず、fetch を増やさない）
+ */
+export function rereadsBase(draft: GateDraft, check: CheckOutcome): boolean {
+  return check.ran === true && draft.conditions.some((c) => c.id === "base" && c.ok);
+}
+
+/**
  * 検査のほかの条件を決め、検査を回すかを返す（1 段目）。gh・Git が読めなかった事実の条件は満たさないとする（判定できないものを通さない）。
  * 判定する条件はチケットの段（TK-9）で決まる。high はすべて、low は見直し（review・fix_rounds）を除き、
  * free は pr と（マージの前の）mergeable だけ。判定しない条件は conditions に出さない。
@@ -294,6 +338,9 @@ export function judgeBeforeCheck(
     // free は見直しも検査も判定しないので比べず、マージは判定した PR の先端（sha）に固定する
     if (reads.latest && facts.pr.kind === "read" && facts.latest !== null)
       conditions.push(headCondition(facts.pr.pr, facts.latest));
+    // base の今の先端を含むか。最新のコミットを読めないときは head と同じく比べない
+    if (reads.base && facts.latest !== null)
+      conditions.push(baseCondition(facts.base, facts.latest));
   }
   // 検査（actions.test）。free は回さない。時間がかかるので、ほかの条件をすべて満たしたときだけ回す（空なら回さずに通すので、いつでも判定する）
   const check = !gateScopeOf(facts.level).check
@@ -315,10 +362,19 @@ export function judgeBeforeCheck(
 
 /**
  * 1 段目の結果に検査の結果を入れて結論を出す（2 段目）。check は、1 段目が judge を返したときに回した検査の結果
- * （ほかのときは渡さない）
+ * （ほかのときは渡さない）。baseAfterCheck は、検査の後に読み直した base の事実と比べた最新のコミット（rereadsBase が真のときだけ渡す）で、
+ * 1 段目の base の条件をこれで決め直す：検査の間に base が進んでいれば満たさない（通った検査の結果は、そのコミットの結果として残す）
  */
-export function concludeGate(draft: GateDraft, check?: CheckOutcome): GateView {
-  const conditions = [...draft.conditions];
+export function concludeGate(
+  draft: GateDraft,
+  check?: CheckOutcome,
+  baseAfterCheck?: { latest: string; base: BaseFact },
+): GateView {
+  const conditions = draft.conditions.map((c) =>
+    c.id === "base" && baseAfterCheck
+      ? baseCondition(baseAfterCheck.base, baseAfterCheck.latest, true)
+      : c,
+  );
   if (draft.check === "judge") {
     if (!check) throw new Error("The check was to be judged, but no result was given");
     conditions.push({ id: "check", ok: check.ok, detail: check.detail });
@@ -364,7 +420,7 @@ type GatePassage =
 
 /**
  * ゲートの結果から、越えた条件と止める条件を出す。waived（waivedBy）の条件は満たさなくても越え、ほかの満たさない条件が
- * 1 つでもあれば止める。PR（pr）・衝突（mergeable）・先端（head と sha）は、承認があっても越えない（t884）。
+ * 1 つでもあれば止める。PR（pr）・衝突（mergeable）・先端（head と sha）・base の取り込み（base）は、承認があっても越えない（t884）。
  * マージは判定した先端に固定するので、先端が読めなければ止める（ready は固定しないので先端は要らない。t750）
  */
 export function gatePassage(gate: GateView, waived: ReadonlySet<GateConditionId>): GatePassage {

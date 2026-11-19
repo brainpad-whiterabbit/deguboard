@@ -799,6 +799,40 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(await calls()).toEqual([]);
   });
 
+  it("main が進んだ後の dg pr merge は、承認があっても base を理由に GATE_FAILED で止まり、main を取り込んで push し直した先端に固定してマージする（t1152）", async () => {
+    const { ctx, f, tip, calls, undraft } = await prepared();
+    await passedReview(ctx);
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    // 別の clone が main を進める
+    await git(f.cloneB, ["fetch", "-q", "origin"]);
+    await git(f.cloneB, ["checkout", "-q", "--detach", "origin/main"]);
+    await writeFile(path.join(f.cloneB, "main.txt"), "main\n");
+    await git(f.cloneB, ["add", "--", "main.txt"]);
+    await git(f.cloneB, ["commit", "-q", "-m", "main を進める"]);
+    await git(f.cloneB, ["push", "-q", "origin", "HEAD:main"]);
+    for (const approved_by of [undefined, "human"]) {
+      const err = await rejection(
+        runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false, approved_by }),
+      );
+      expect(err).toBeInstanceOf(OperationError);
+      expect(err!.code).toBe("GATE_FAILED");
+      expect(err!.detail).toContain("base: The latest commit of the work branch");
+      expect(err!.detail).toContain("Merge base into the work branch, push, and judge again");
+      expect(err!.detail).toContain("A person's approval does not override base");
+    }
+    expect(await calls()).toEqual([]);
+    // 取り込んだだけのマージコミットを push する（前の見直しは数えたまま）
+    await git(f.cloneA, ["merge", "-q", "--no-edit", "origin/main"]);
+    await git(f.cloneA, ["push", "-q", "origin", "t1"]);
+    const merged = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
+    expect(merged).not.toBe(tip);
+    const view = (await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }))
+      .data as PrAdvanceView;
+    expect(view.gate).toMatchObject({ passed: true, sha: merged });
+    expect(await calls()).toEqual([`pr merge 7 --squash --match-head-commit ${merged}`]);
+  });
+
   it("free のチケットで gh が PR の先端を返さなければ、dg pr merge は理由を head: で示して GATE_FAILED で止まる（判定できる条件がなくても理由が空にならない。t750）", async () => {
     const { ctx, calls, undraft, withoutHead } = await prepared();
     await runCommand(ticketUpdate, asHuman(ctx), { ticket: "t1", gate: "free" });
