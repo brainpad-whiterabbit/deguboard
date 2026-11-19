@@ -1,0 +1,34 @@
+{
+  "id": "r20261119-010433-45c6",
+  "ticket": "t1107",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-19T01:04:33Z",
+  "finished_at": "2026-11-19T01:13:21Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "今回 done に進み最後の push を集めていなかった手直しの Run で、同じ警告が sync の warnings に 2 回出る"
+  ],
+  "usage": {
+    "input": 38,
+    "output": 18077,
+    "cache_read": 1488889,
+    "cache_write": 84615
+  },
+  "tools": {
+    "read": 9,
+    "search": 0,
+    "write": 13,
+    "bash": 12,
+    "other": 1,
+    "read_before_write": 6,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "e671c729-9c11-485c-ad52-6e18ca5fc79b",
+  "review": null,
+  "waited_seconds": 0
+}
