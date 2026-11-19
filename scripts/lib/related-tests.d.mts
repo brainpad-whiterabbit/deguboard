@@ -8,3 +8,7 @@ export function selectRelatedTests(
   tests: readonly string[],
   sources: readonly string[],
 ): { tests: string[]; unpaired: string[] };
+export function planRelatedRun(
+  changed: readonly string[],
+  files: readonly string[],
+): { tests: string[]; messages: string[] };
