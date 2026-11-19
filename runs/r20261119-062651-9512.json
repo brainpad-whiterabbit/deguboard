@@ -1,0 +1,38 @@
+{
+  "id": "r20261119-062651-9512",
+  "ticket": "t1138",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-19T06:26:51Z",
+  "finished_at": "2026-11-19T06:28:30Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "Rule misses usage sections and new values because it greps only source file names (t1129 case not caught)",
+    "Rule raises heavy findings for any new helper file missing from the package table, a false positive",
+    "Basis line lists seven ticket IDs and miscategorizes t1129 and t1130",
+    "Rule is one long sentence and omits how-it-works docs"
+  ],
+  "usage": {
+    "input": 32,
+    "output": 8336,
+    "cache_read": 763494,
+    "cache_write": 39712
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 2,
+    "bash": 12,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "e671c729-9c11-485c-ad52-6e18ca5fc79b",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 11
+}
