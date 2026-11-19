@@ -81,6 +81,9 @@ const GROUP_SUMMARY: Record<string, string> = {
     "Aggregate Runs (records of actual work), and read the per-ticket data behind retrospective metrics",
   retro:
     "Perspectives of the retrospective and their approved metric definitions (the team's config.yaml)",
+  label: "Labels of tickets",
+  "label axis":
+    "Axes that the labels of a ticket follow, such as area and kind (the team's config.yaml)",
   run: "Record Runs (one AI execution each)",
   pr: "Advance a PR only when it meets the quality gate (dg gate)",
   flow: "Iteration flow stages and the next step",
@@ -139,16 +142,21 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     .showHelpAfterError("(See usage with --help)");
 
   const groups = new Map<string, Command>();
-  const groupFor = (name: string): Command => {
-    let g = groups.get(name);
+  /** 群のコマンド。path が 2 つなら群の中の群（["label", "axis"] は dg label axis）で、親の群の下に作る */
+  const groupFor = (path: readonly string[]): Command => {
+    const key = path.join(" ");
+    let g = groups.get(key);
     if (!g) {
-      g = program.command(name).description(GROUP_SUMMARY[name] ?? name);
+      const name = path[path.length - 1]!;
+      const parent = path.length > 1 ? groupFor(path.slice(0, -1)) : program;
+      g = parent.command(name).description(GROUP_SUMMARY[key] ?? name);
       g.helpCommand("help [command]", "Show usage for a command")
         .exitOverride()
         .configureOutput(program.configureOutput());
-      for (const [alias, target] of Object.entries(GROUP_ALIASES))
-        if (target === name) g.alias(alias);
-      groups.set(name, g);
+      if (path.length === 1)
+        for (const [alias, target] of Object.entries(GROUP_ALIASES))
+          if (target === name) g.alias(alias);
+      groups.set(key, g);
     }
     return g;
   };
@@ -599,9 +607,11 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     });
 
   for (const def of options.commands ?? allCommands) {
-    const [group, op] = def.name.split(".") as [string, string | undefined];
-    const parent = op === undefined ? program : groupFor(group);
-    const cmd = parent.command(op ?? group).description(def.summary);
+    // 名前の最後が操作で、その前が群（label.axis.set は群 label の中の群 axis の set）
+    const parts = def.name.split(".");
+    const op = parts[parts.length - 1]!;
+    const parent = parts.length === 1 ? program : groupFor(parts.slice(0, -1));
+    const cmd = parent.command(op).description(def.summary);
     cmd.exitOverride().configureOutput(program.configureOutput());
     const shapes = shapesOf(def);
     const bound = bindInputs(cmd, def, shapes);

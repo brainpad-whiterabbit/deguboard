@@ -1,5 +1,5 @@
 // config.yaml のスキーマ。項目の全体はここが正本（requirements.md 5.10）。
-// 葉でない項目は振り返りの観点（retro.perspectives）だけで、下の「各項目の文」と scope は葉の項目の話。
+// 葉でない項目は振り返りの観点（retro.perspectives）とラベルの軸（labels.axes）で、下の「各項目の文」と scope は葉の項目の話。
 // 入れ子の既定は prefault で与える（Zod 4 の default は検証を短絡するため）。
 // 各項目の文は described に書く：description（詳しい説明。スキーマの describe になる）と、設定画面が短く出すための
 // summary（1 行の要約）・example（例の値）・empty（空のときの動き）・options（選択肢ごとの説明）。configFields が設定画面（config.show の fields）に渡す。
@@ -201,6 +201,16 @@ const DEFAULT_RETRO_PERSPECTIVES: Record<string, RetroPerspective> = {
     metrics: {},
   },
 };
+
+/** ラベルの軸（1 つ）。名前と 1 行の説明 */
+export const labelAxisSchema = z.looseObject({
+  name: slugSchema.describe("Name of the axis (a slug, such as area)"),
+  description: z
+    .string()
+    .min(1)
+    .describe("What the axis tells about a ticket, in one line (such as which part it touches)"),
+});
+export type LabelAxis = z.output<typeof labelAxisSchema>;
 
 export const configSchema = z.looseObject({
   git: z
@@ -475,6 +485,31 @@ export const configSchema = z.looseObject({
         ),
     })
     .prefault({}),
+  labels: z
+    .looseObject({
+      // 軸の一覧で、葉の項目ではない。configFields（設定画面と config.set の項目）には出さず、dg label axis set・remove が書く。
+      // 既定を持たない（default を付けない）：書いていない（まだ決めていない）・[]（使わないと決めた）・一覧（使う）の
+      // 3 つの状態を読み分ける（model/label-axes.ts の labelAxesState。既定の軸を効かせない理由もその冒頭が指す ADR）
+      axes: z
+        .array(labelAxisSchema)
+        .superRefine((axes, ctx) => {
+          const seen = new Set<string>();
+          for (const [index, axis] of axes.entries()) {
+            if (seen.has(axis.name))
+              ctx.addIssue({
+                code: "custom",
+                message: `The axis ${axis.name} is listed more than once`,
+                path: [index, "name"],
+              });
+            seen.add(axis.name);
+          }
+        })
+        .optional()
+        .describe(
+          "Axes the labels of a ticket follow (name and one-line description each). Not written: not decided yet. An empty list: decided not to use axes. Written by dg label axis set and dg label axis remove",
+        ),
+    })
+    .prefault({}),
 });
 export type Config = z.output<typeof configSchema>;
 
@@ -545,10 +580,11 @@ export interface ConfigField {
   clears_to_default: boolean;
 }
 
-/** default・prefault の包みを外した中身 */
+/** default・prefault・optional の包みを外した中身 */
 function unwrap(schema: z.ZodType): z.ZodType {
   let s = schema;
-  while (s instanceof z.ZodDefault || s instanceof z.ZodPrefault) s = s.unwrap() as z.ZodType;
+  while (s instanceof z.ZodDefault || s instanceof z.ZodPrefault || s instanceof z.ZodOptional)
+    s = s.unwrap() as z.ZodType;
   return s;
 }
 
@@ -580,7 +616,8 @@ function fieldOf(key: string, schema: z.ZodType, fallback: unknown): ConfigField
 
 /**
  * config.yaml の葉の項目を、スキーマの並びのまま既定値・説明・範囲つきで出す。
- * 鍵が利用者の決める入れ子（retro.perspectives）は 1 つの入力欄に収まらないので出さない（専用のコマンドが書く）
+ * 鍵が利用者の決める入れ子（retro.perspectives）と、入れ子の一覧（labels.axes）は 1 つの入力欄に収まらないので出さない（専用のコマンドが書く）。
+ * ここに出ない項目は個人の設定でも読まない（overlayLocalConfig がスキーマにない項目として無視する）
  */
 export function configFields(): ConfigField[] {
   const defaults = defaultConfig() as Record<string, unknown>;
@@ -589,6 +626,8 @@ export function configFields(): ConfigField[] {
   const walk = (key: string, schema: z.ZodType, value: unknown): void => {
     const inner = unwrap(schema);
     if (inner instanceof z.ZodRecord) return;
+    if (inner instanceof z.ZodArray && unwrap(inner.element as z.ZodType) instanceof z.ZodObject)
+      return;
     if (inner instanceof z.ZodObject) {
       const values = (value ?? {}) as Record<string, unknown>;
       for (const [leaf, child] of Object.entries(inner.shape))

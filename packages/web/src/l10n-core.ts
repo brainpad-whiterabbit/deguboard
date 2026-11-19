@@ -450,6 +450,8 @@ export const CORE_MESSAGES: CoreTextTable = {
  * 既定の値を訳して出す項目は、ここに鍵を足すだけでよい（判定と引き方は l10n.ts の 1 か所）。
  * 優先度の判断基準（config の priority.*）と振り返りの既定の観点（retro.perspectives）の名前と問いは core が英語で持つので、日本語の訳を置く
  * （名前と問いの両方が既定のままの観点だけを訳す。判定は l10n.ts の isDefaultPerspective）。
+ * ラベルの軸の候補の説明（core の LABEL_AXIS_CANDIDATES）も英語で持つので日本語の訳を置く（名前と説明が候補のままの軸だけを訳す。
+ * 判定は設定画面の shownLabelAxes。軸の名前は ID なので訳さない）。
  * Run の step の表示名と Status の既定の表示名は core が英語で持つので日本語の訳を置く（判定は l10n.ts の shownWorkflow）。
  * 鍵が core の既定の文にあることは l10n.test.ts が確かめる
  */
@@ -506,6 +508,12 @@ export const DEFAULT_VALUES: CoreTextTable = {
   "Was the Try of the previous retrospective finished, and did the numbers it aimed at move?": {
     ja: "前の振り返りの Try は終わり、ねらった数字は動いたか",
   },
+  // ラベルの軸の候補の説明（core の LABEL_AXIS_CANDIDATES）：area・kind・impact・platform・audience
+  "Which part of the product the ticket touches": { ja: "チケットが製品のどの部分を触るか" },
+  "What kind of change the ticket makes": { ja: "チケットがどんな種類の変更をするか" },
+  "What reaches the users of the product": { ja: "製品の利用者に何が届くか" },
+  "Which environment the ticket is about": { ja: "チケットがどの環境の話か" },
+  "Who the change is for": { ja: "誰のための変更か" },
   // Run の step の表示名（core の RUN_STEPS）
   Investigate: { ja: "調査" },
   Implement: { ja: "実装" },

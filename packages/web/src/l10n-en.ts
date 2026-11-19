@@ -730,6 +730,12 @@ export const EN: Readonly<Record<string, string>> = {
   数え方: "How to count",
   数字の出どころ: "Where the numbers come from",
   この指標で測れないもの: "What this metric cannot measure",
+  "チケットのラベルを付ける軸（触る部分・変更の種類など）。ここでは読むだけで、軸は {0} が書く":
+    "Axes the labels of a ticket follow (such as the part it touches and the kind of change). Read-only here: {0} writes the axes",
+  "軸をまだ決めていない（ラベルは自由に付けられる）":
+    "No axes decided yet (labels can be given freely)",
+  "軸を使わないと決めている（ラベルは自由に付けられる）":
+    "Decided not to use axes (labels can be given freely)",
   // pages/epics.tsx
   "タイトル {0}": "Title {0}",
   "この Epic でカンバンを見る": "View this Epic on the board",

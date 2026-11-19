@@ -7,6 +7,10 @@
 // 観点はほかの項目と同じ行（名前・ID・指標の数、下に問い）、指標はその子の行（ID と数え方の最初の文）で出し、指標の全文・出どころ・
 // 測れないものは「詳しく」に畳む。既定と違う観点（名前・問いを変えた、足した）にはほかの項目と同じ左の線と「変更あり」を付ける（retroChanges）。
 // 検索は観点の名前・問いと、指標の ID・数え方・出どころ・測れないものに当て、当たった指標の「詳しく」を開いて出す。
+// ラベルの軸（labels.axes）も軸の一覧で fields に入らないので、チームのタブの「ラベル」の節に view.team から読むだけで出す
+// （書くのは dg label axis。チームだけが持つので自分のタブには出さない）。書いていない（まだ決めていない）・[]（使わないと決めた）は
+// その旨の 1 行を出し、一覧は軸ごとに名前と説明を出す。名前と説明が dg の候補（view.label_axis_candidates）のままの軸は
+// 説明を表示言語の訳で出す（shownLabelAxes）。検索は軸の名前と説明に当てる。
 // 項目の文は短く出す：要約（summary）1 行をいつも出し、詳しい説明（description）の全文は「詳しく」に畳む。例（example）は入力欄のプレースホルダに、
 // 空のときの動き（empty）は欄の下の 1 行に、選択肢のある項目は選んでいる値の説明（option_descriptions）だけを出す。
 // guide.notes.* は同じ説明の項目なので、説明を 1 つだけ出し、差し込む先ごとの行の表にする。
@@ -31,6 +35,8 @@ import type {
   ConfigField,
   ConfigScope,
   ConfigShowView,
+  LabelAxis,
+  LabelAxisCandidate,
   RetroMetric,
   RetroPerspective,
 } from "../types.js";
@@ -579,6 +585,18 @@ export function ConfigPage() {
   );
   const hasRetro = tab === "team" && view?.team.retro?.perspectives !== undefined;
 
+  /** チームの軸（書いていなければ undefined）。ラベルの節はチームのタブだけに出し、候補を返さない古い応答では出さない（軸を知らない版） */
+  const teamAxes = view?.team.labels?.axes;
+  const hasLabels = tab === "team" && view?.label_axis_candidates !== undefined;
+  /** ラベルの節に出す軸。候補のままの軸は説明を表示言語の訳にしてから検索する。検索に当たらなければ空 */
+  const labelAxes = useMemo(
+    () =>
+      hasLabels
+        ? labelAxisMatches(shownLabelAxes(teamAxes ?? [], view?.label_axis_candidates ?? []), query)
+        : [],
+    [hasLabels, teamAxes, view, query],
+  );
+
   const overrides = view ? Object.keys(view.local).length : 0;
 
   return (
@@ -687,7 +705,7 @@ export function ConfigPage() {
         </p>
         {loadError ? <p className="error">{trNode("設定を読めない: {0}", loadError)}</p> : null}
         {!view && !loadError ? <p className="muted">{tr("読み込み中…")}</p> : null}
-        {view && groups.length === 0 && retro.length === 0 ? (
+        {view && groups.length === 0 && retro.length === 0 && labelAxes.length === 0 ? (
           <p className="empty">{tr("該当する設定がない")}</p>
         ) : null}
         {groups.map((g) => {
@@ -706,6 +724,12 @@ export function ConfigPage() {
         })}
         {hasRetro && (retro.length > 0 || !query.trim()) ? (
           <RetroSection perspectives={retro} changes={retroChanged} />
+        ) : null}
+        {hasLabels && (labelAxes.length > 0 || !query.trim()) ? (
+          <LabelsSection
+            state={teamAxes === undefined ? "undecided" : teamAxes.length === 0 ? "off" : "on"}
+            axes={labelAxes}
+          />
         ) : null}
       </>
     );
@@ -1201,6 +1225,60 @@ function RetroSection({
           </div>
         );
       })}
+    </section>
+  );
+}
+
+/**
+ * ラベルの軸を画面に出す形にする。名前と説明が dg の候補（config.show の label_axis_candidates の同じ名前の軸）のままの軸だけ、
+ * 説明を表示言語の訳で出す（shownDefaultText。UI-11）。説明を書き換えた軸と、候補にない軸は書いたまま出す。名前は ID なので訳さない
+ */
+export function shownLabelAxes(
+  axes: readonly LabelAxis[],
+  candidates: readonly LabelAxisCandidate[],
+): LabelAxis[] {
+  return axes.map((axis) => {
+    const candidate = candidates.find((c) => c.name === axis.name);
+    return candidate !== undefined && candidate.description === axis.description
+      ? { ...axis, description: String(shownDefaultText(candidate.description)) }
+      : axis;
+  });
+}
+
+/** ラベルの節に出す軸。検索語が空ならすべてを、あれば名前か説明に当たった軸だけを出す（大文字小文字は区別しない） */
+export function labelAxisMatches(axes: readonly LabelAxis[], query: string): LabelAxis[] {
+  const q = query.trim().toLowerCase();
+  return axes.filter((a) => [a.name, a.description].some((s) => s.toLowerCase().includes(q)));
+}
+
+/**
+ * チームのタブの「ラベル」の節。読むだけで入力欄は置かない（軸は dg label axis が検査して書く）。
+ * 軸を書いていない（undecided）ときと、使わないと決めた（off。labels.axes が []）ときは、その旨の 1 行だけを出す。
+ * 軸はほかの項目と同じ行（名前と、その下に説明を 1 行の説明として折り返して出す）にする
+ */
+function LabelsSection({ state, axes }: { state: "undecided" | "off" | "on"; axes: LabelAxis[] }) {
+  return (
+    <section className="config-group config-labels" aria-labelledby="config-group-labels">
+      <h3 id="config-group-labels">{tr("ラベル")}</h3>
+      <p className="config-summary muted">
+        {trNode(
+          "チケットのラベルを付ける軸（触る部分・変更の種類など）。ここでは読むだけで、軸は {0} が書く",
+          <code>dg label axis set</code>,
+        )}
+      </p>
+      {state === "undecided" ? (
+        <p className="empty">{tr("軸をまだ決めていない（ラベルは自由に付けられる）")}</p>
+      ) : state === "off" ? (
+        <p className="empty">{tr("軸を使わないと決めている（ラベルは自由に付けられる）")}</p>
+      ) : null}
+      {axes.map((axis) => (
+        <div key={axis.name} className="config-field config-label-axis" data-axis={axis.name}>
+          <div className="config-field-head">
+            <code className="config-name">{axis.name}</code>
+          </div>
+          <p className="config-summary muted">{axis.description}</p>
+        </div>
+      ))}
     </section>
   );
 }
