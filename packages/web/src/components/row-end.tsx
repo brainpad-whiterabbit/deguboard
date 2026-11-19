@@ -1,7 +1,8 @@
 // 左パネルのカンバン（board.tsx）とバックログ（backlog.tsx）の行の右端の部品と、その判定。
 // 開いた Plan に入っているチケットの Plan の番号と待ち（kanbanPlanMarks）、todo の行の着手可・待ち・承認待ち（kanbanReadiness）を、
 // カンバンの行（KanbanRowEnd）とバックログの行（BacklogRowEnd）で同じ判定と同じ部品で出す。
-// カンバンの行は、下の段にチケットの Run を 1 回 1 つの丸で並べる（RunPips。run.recent の要約を読むだけで、dg は呼ばない）
+// カンバンの行は、下の段にチケットの Run を 1 回 1 つの丸で並べる（RunPips。run.recent の要約を読むだけで、dg は呼ばない）。
+// Done の行は最後の丸の横に Run の回数を出す（showsRunCount）
 
 import { type ReactNode } from "react";
 import { AssigneeMark } from "./assignee-mark.js";
@@ -109,7 +110,11 @@ export function KanbanRowEnd({
   stepLabel: (step: string) => string;
 }) {
   // 実行中の Run があれば、todo でも着手可・待ちより Run の並びを出す（手が動いていることの方が大事なので）
-  const sub = runs ? <RunPips runs={runs} stepLabel={stepLabel} /> : readinessBadge(ticket, mark);
+  const sub = runs ? (
+    <RunPips runs={runs} stepLabel={stepLabel} count={showsRunCount(ticket, runs)} />
+  ) : (
+    readinessBadge(ticket, mark)
+  );
   return (
     <span className="row-end">
       <span className="row-end-top">
@@ -127,15 +132,30 @@ export function stepLabelOf(steps: WorkflowView["steps"], step: string): string 
   return steps?.find((s) => s.id === step)?.label ?? step;
 }
 
-/** カンバンの行に Run の並びを出すか：In Progress と Review の行で Run があるとき。ほかの状態の行も実行中の Run があれば出す（UI-2） */
+/** カンバンの行に Run の並びを出すか：In Progress・Review・Done の行で Run があるとき。ほかの状態の行も実行中の Run があれば出す（UI-2） */
 export function showRunPips(
   ticket: Pick<Ticket, "status">,
   runs: TicketRunsView | undefined,
 ): runs is TicketRunsView {
   if (!runs || runs.runs.length === 0) return false;
-  if (ticket.status === "in_progress" || ticket.status === "review") return true;
+  if (ticket.status === "in_progress" || ticket.status === "review" || ticket.status === "done")
+    return true;
   // 新しい 3 件の外にある実行中の Run も見る（core の TicketRunsView.running）
   return runs.running;
+}
+
+/**
+ * 並びを Run の回数で締めくくるか：実行中の Run のない Done の行。終わったチケットは最後の Run の結果と経過より、
+ * 何回回したかの方が振り返りに役立つので、最後の丸の横に全部の回数（runCountCaption）を出し、「+n」と行の地の色（runTone）は出さない。
+ * 実行中の Run があれば、ほかの行と同じ出し方にする（手が動いていることの方が大事なので）
+ */
+export function showsRunCount(ticket: Pick<Ticket, "status">, runs: TicketRunsView): boolean {
+  return ticket.status === "done" && !runs.running;
+}
+
+/** 回数で締めくくる並び（showsRunCount）の最後の丸の横の文字：全部の Run の回数「n 回」 */
+export function runCountCaption(runs: Pick<TicketRunsView, "total">): string {
+  return tr("{0} 回", runs.total);
 }
 
 /**
@@ -158,7 +178,7 @@ const PIP_LABELS: Record<RunPipKey, string> = {
 
 /**
  * 行の地の色を変える Run の結果：最後の Run が返事待ち（waiting）か、失敗・中断で終わった（failed）。ほかは null。
- * 並びを出さない行（showRunPips が偽）には呼び出し側で使わない
+ * 並びを出さない行（showRunPips が偽）と回数で締めくくる行（showsRunCount）には呼び出し側で使わない
  */
 export function runTone(runs: TicketRunsView): "waiting" | "failed" | null {
   const last = runs.runs[0];
@@ -215,22 +235,26 @@ export function runPipDetails(
 
 /**
  * カンバンの行の Run の並び（UI-2）：古い順に 3 個までの丸（それより古い分は「+n」）と、最後の丸の横の文字（runPipCaption）。
+ * 回数で締めくくる並び（count。showsRunCount）は「+n」を出さず、最後の丸の横に全部の回数（runCountCaption）を出す。
  * 最後の丸は少し大きい。丸の色と形（塗り・中抜き・半分塗り。styles.css の .run-pip）が結果を表し、実行中と返事待ちの最後の丸は明滅する
  * （動きを減らす設定では明滅しない）。丸ごとに Tab で止まり、重ねるか移ると runPipDetails を出す。並び全体に読み上げ用の名前を付ける
+ * （回数で締めくくる並びも同じ名前。回数と最後の Run の両方が入っている）
  */
 export function RunPips({
   runs,
   stepLabel,
+  count = false,
 }: {
   runs: TicketRunsView;
   stepLabel: (step: string) => string;
+  count?: boolean;
 }) {
   const now = useMinuteNow();
   // run.recent は新しい順なので、古い順に並べ直す
   const shown = [...runs.runs].reverse();
   const last = shown.at(-1);
   if (!last) return null;
-  const older = runs.total - shown.length;
+  const older = count ? 0 : runs.total - shown.length;
   const caption = runPipCaption(last, stepLabel, now);
   return (
     <span
@@ -257,7 +281,7 @@ export function RunPips({
           </span>
         );
       })}
-      <span className="run-pips-caption">{caption}</span>
+      <span className="run-pips-caption">{count ? runCountCaption(runs) : caption}</span>
     </span>
   );
 }
