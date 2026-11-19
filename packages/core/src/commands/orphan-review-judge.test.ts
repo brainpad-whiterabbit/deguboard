@@ -9,7 +9,7 @@ import {
   orphanReviewsOf,
   type HeldRound,
   type OrphanReviewFacts,
-  type RunningFact,
+  type AdopterRunFact,
 } from "./orphan-review-judge.js";
 
 /** 時刻はすべてこのファイルの定数で、時計を読まない */
@@ -97,7 +97,7 @@ describe("持ち主のない保留から見直しの記録を作る（orphanRevi
 
 describe("保留を数えるか、これから Run に結び付くかもしれないので数えないか（countOrphanReviews）", () => {
   /** 実行中の Run。既定は t1 の、待ちの印のない開いた実装の Run */
-  const open = (over: Partial<RunningFact> = {}): RunningFact => ({
+  const open = (over: Partial<AdopterRunFact> = {}): AdopterRunFact => ({
     id: "r-open",
     ticket: "t1",
     step: "implement",
@@ -141,7 +141,7 @@ describe("保留を数えるか、これから Run に結び付くかもしれ�
   });
 
   // 動いているサブエージェントの印 × 止まって待つ印 × 書き終わり待ちの印 × どのチケットの Run か
-  const cases: Array<[string, RunningFact, boolean, boolean]> = [
+  const cases: Array<[string, AdopterRunFact, boolean, boolean]> = [
     ["動いている印があり、待ちの印がない", open(), true, false],
     ["動いている印があり、止まって待つ印がある", open({ waiting_since: PUSH_2 }), true, true],
     ["動いている印があり、書き終わり待ちの印がある", open({ settling_since: PUSH_2 }), true, true],

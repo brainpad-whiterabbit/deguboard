@@ -13,7 +13,7 @@ import {
   settledRuns,
   type OpenRunFacts,
   type ReconcileAction,
-  type RunningFact,
+  type ReconcileRunFact,
   type TicketReconcileFacts,
 } from "./reconcile-judge.js";
 
@@ -31,17 +31,17 @@ const MERGED_AT = "2026-11-06T05:00:00Z";
 /** どの列にも入る、持ち主のない保留の見直しを書く位置 */
 const REVIEWS: ReconcileAction = { kind: "record_reviews" };
 
-const implementing = (over: Partial<RunningFact> = {}): RunningFact => ({
+const implementing = (over: Partial<ReconcileRunFact> = {}): ReconcileRunFact => ({
   id: "r20261106-000000-aaaa",
   ticket: "t1",
   step: "implement",
   started_at: RUN_AT,
   ...over,
 });
-const fixing = (over: Partial<RunningFact> = {}): RunningFact =>
+const fixing = (over: Partial<ReconcileRunFact> = {}): ReconcileRunFact =>
   implementing({ id: "r20261106-030000-bbbb", step: "fix", started_at: FIX_AT, ...over });
 /** 手直しの Run の次の Run（見直し）。既定は手直しより後に始まった */
-const reviewing = (over: Partial<RunningFact> = {}): RunningFact =>
+const reviewing = (over: Partial<ReconcileRunFact> = {}): ReconcileRunFact =>
   implementing({ id: "r20261106-040000-cccc", step: "review", started_at: NEXT_AT, ...over });
 
 /** gh が「PR はない」と答えた、push 済みの作業ブランチの事実 */
@@ -111,7 +111,7 @@ const closeAt = (finishedAt: string | undefined): ReconcileAction => ({
   finishedAt,
 });
 /** run は、閉じずに次の sync に回すと決めた Run（その知らせにだけ付く） */
-const warning = (message: string, run?: RunningFact["id"]): ReconcileAction => ({
+const warning = (message: string, run?: ReconcileRunFact["id"]): ReconcileAction => ({
   kind: "warn",
   message,
   ...(run !== undefined ? { run } : {}),

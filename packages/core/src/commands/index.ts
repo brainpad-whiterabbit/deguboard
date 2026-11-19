@@ -17,6 +17,12 @@ export * from "./run.js";
 export * from "./ask.js";
 export * from "./local.js";
 export { hookArgv } from "./hook-argv.js";
+// 照合と別のセッションの残りが Run を閉じるときに error に書く文（画面の訳の表がこの文を鍵にする）。決める関数は公開しない
+export {
+  RECONCILE_TAKEN_ERROR,
+  RECONCILE_TODO_ERROR,
+  STALE_SESSION_ERROR,
+} from "./run-close-judge.js";
 // dg hooks install・uninstall・check の判定と書き込み（CLI が写す）。入口が呼ぶものだけを公開する
 export {
   checkHooks,

@@ -82,14 +82,13 @@ import {
   isSubagentTranscript,
   NO_PR_ERROR,
   OPEN_AT_SESSION_END_ERROR,
-  openedInOtherSession,
   openRun,
   REVIEW_UNRECORDED,
   runRefresh,
-  STALE_SESSION_ERROR,
   transcriptUnderRoot,
   usageContext,
 } from "./run.js";
+import { openedInOtherSession, STALE_SESSION_ERROR } from "./run-close-judge.js";
 
 /** 頼んだ文の先頭の印。最初の空でない行が `deguboard: ticket=<id> step=<step>` のとき */
 export function parseMarker(prompt: string): { ticket: TicketId; step: string } | undefined {

@@ -64,6 +64,9 @@ export function gateScopeOf(level: GateLevel): GateScope {
  */
 export const BRANCH_VALUE_MAX = 50;
 
+/** `--branch` の値に使える文字と長さの案内。claim と update のヘルプ（ticket.ts）と dg next の案内（next.ts）が同じ文を使う */
+export const BRANCH_VALUE_FORM = `in lowercase letters, digits, and hyphens, up to ${BRANCH_VALUE_MAX} characters`;
+
 /**
  * チケットが前に持っていたキー。読むときは値に出さず、書くたびにファイルから消す（Store の retired）。
  * workflow はチケットごとに Workflow を選んでいたときの名前（Workflow はカンバンに 1 つ。requirements.md 5.8）

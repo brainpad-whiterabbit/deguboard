@@ -22,7 +22,6 @@ import { slowLock } from "../../test/helpers/slow-lock.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import {
-  fixRunFinishedAt,
   NO_PR_ERROR,
   OPEN_AT_SESSION_END_ERROR,
   REVIEW_UNRECORDED,
@@ -34,12 +33,12 @@ import {
   reviewOfFindings,
   runReviewResult,
   runStart,
-  STALE_SESSION_ERROR,
   UNCLAIMED_ERROR,
   type RunRefreshItem,
   type RunView,
   type TicketRunsView,
 } from "./run.js";
+import { fixRunFinishedAt, STALE_SESSION_ERROR } from "./run-close-judge.js";
 import { commit, configSet, init, validate } from "./setup.js";
 import { asHuman } from "../../test/helpers/commands-context.js";
 import { workflowValidate } from "./workflow.js";
