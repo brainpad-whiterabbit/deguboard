@@ -4,7 +4,7 @@
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
 // - 未 push のコミットがある間はタイトル行の同期のボタンが点付きになり、押して同期すると元に戻ること（UI-6）
-// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・更新日で並べたメニューと行・Epic の札に触れて光らせた行・選んでいる Epic の見出し・Run の丸と回数を出した Done の行・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・更新日で並べたメニューと行・選んだ行の帯と ID のコピーの形のメニューとコピーした後の帯・Epic の札に触れて光らせた行・選んでいる Epic の見出し・Run の丸と回数を出した Done の行・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
 // - 導入のチェックリストの「アンインストール」の節で、消すものを確かめてから一時リポジトリを外せること（閉じた節・開いた節・確認・外した後の知らせを撮る。
 //   ボードを消すので、ボードの要る検査の後に置く。HOME は一時ディレクトリなので、手元の個人の設定には触れない）
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
@@ -277,6 +277,68 @@ describe("VS Code の実機の左パネル", () => {
     await head.waitFor({ state: "detached" });
     await sidebar.locator('nav a[href="#/board"]').click();
     await sidebar.locator(".ticket-row", { hasText: TITLES[0] }).waitFor();
+  });
+
+  it("カンバンで行を 2 件選ぶと、帯に「ID をコピー」と ▾ と × が 1 行に並び、▾ のメニューとコピーした後の帯をライトとダークで撮る", async () => {
+    // 実機の画面は英語なので、名前は英語の訳（l10n-en.ts）で引く
+    await sidebar.locator('nav a[href="#/board"]').click();
+    for (const title of [TITLES[0], TITLES[2]]) {
+      await sidebar.getByRole("link", { name: new RegExp(title) }).click({
+        modifiers: ["ControlOrMeta"],
+      });
+    }
+    const bar = sidebar.getByRole("region", { name: "Selected rows" });
+    await bar.getByText("2 selected").waitFor();
+    const copyIds = bar.getByRole("button", { name: "Copy IDs" });
+    const formats = bar.getByRole("button", { name: "Choose what to copy" });
+    const clear = bar.getByRole("button", { name: "Clear selection" });
+    // 左パネルの幅で 1 行に収まる（ボタンの縦の位置がそろう）
+    const tops = await Promise.all(
+      [bar.getByRole("button", { name: "Ask" }), copyIds, formats, clear].map(
+        async (b) => (await b.boundingBox())!.y,
+      ),
+    );
+    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(4);
+    // × は帯の中に収まり、件数（2 selected）も切れない
+    const barBox = (await bar.boundingBox())!;
+    const clearBox = (await clear.boundingBox())!;
+    expect(clearBox.x + clearBox.width).toBeLessThanOrEqual(barBox.x + barBox.width);
+    const count = bar.getByText("2 selected");
+    expect(await count.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("selection-bar", theme);
+      await access(shot.sidebar);
+    }
+    await formats.click();
+    const menu = sidebar.getByRole("menu", { name: "Copy as" });
+    await menu.getByRole("menuitem", { name: /IDs and titles/ }).waitFor();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      if (!(await menu.isVisible())) await formats.click();
+      await menu.waitFor();
+      const shot = await host.screenshot("copy-formats", theme);
+      await access(shot.sidebar);
+    }
+    // ▾ をもう一度押して閉じる（テーマを替えた後はフォーカスが Webview の外にあり、Esc が届かないことがある）
+    await formats.click();
+    await menu.waitFor({ state: "detached" });
+    // コピーした後は、ボタンの下の行に何件の何をコピーしたかを少しの間出す（撮る前に押し直す）。
+    // 知らせは COPY_NOTICE_MS で消えるので、撮り終えた後もまだ出ていれば撮った絵にも写っている。消えていたら撮り直す
+    const copied = bar.getByText("Copied 2 IDs");
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      for (let attempt = 1; ; attempt++) {
+        await copyIds.click();
+        await copied.waitFor();
+        const shot = await host.screenshot("ids-copied", theme);
+        await access(shot.sidebar);
+        if (await copied.isVisible()) break;
+        if (attempt === 5) throw new Error(`コピーの知らせが写るように撮れなかった（${theme}）`);
+      }
+    }
+    await clear.click();
+    await bar.waitFor({ state: "detached" });
   });
 
   it("設定画面に並列の上限（work.parallel）の数の欄が出て、ライトとダークで撮る", async () => {

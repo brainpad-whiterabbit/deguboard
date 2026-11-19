@@ -12,7 +12,7 @@
 // 場所で変わる候補（閉じた Iteration の見出しの「振り返る」）を出す。場所は core が決め、画面は鍵に写して渡すだけ。
 // 設定画面の項目の行は対象を持たず、設定の項目（item）を渡す（候補はその項目の説明と変更、振り返りの観点なら振り返る。これも core が決める）。
 // 一覧の行は select で複数選べ（selection.tsx）、選んだ行の吹き出しは選んだ全件を対象にする。選んでいる間は
-// 画面の下に「n 件を選択 ・ 頼む」の帯（SelectionBar）を出す。
+// 画面の下に「n 件を選択 頼む ID をコピー」の帯（SelectionBar）を出す。
 // 選べる行はキーでも操作できる（リンクにフォーカスがあるとき）：Space で選びに足し外しし、a か Shift+F10 で頼む一覧を開く。↑↓・Enter は row-nav.tsx
 
 import {
@@ -34,10 +34,26 @@ import { askKey } from "../ask-key.js";
 import { candidateTitle } from "../ask-candidate.js";
 import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
 import { useCommandData } from "../command-data.js";
-import { useAsk, useUiState } from "../host.js";
+import { useAsk, useHost, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskCandidate, AskMenu } from "../types.js";
-import { SCOPE_ATTR, SELECT_ATTR, scopeOf, selectKind, useSelection } from "./selection.js";
+import { useCopyNotice } from "./copyable-code.js";
+import {
+  COPY_FORMATS,
+  copiedMessage,
+  copySample,
+  copyText,
+  type CopyFormat,
+  type CopyItem,
+} from "./copy-ids.js";
+import {
+  SCOPE_ATTR,
+  SELECT_ATTR,
+  inViewOrder,
+  scopeOf,
+  selectKind,
+  useSelection,
+} from "./selection.js";
 import { language, tr, trCore, msg } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
@@ -400,14 +416,74 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
   };
 }
 
+/** Ctrl/⌘+C を文字のコピーに任せる場所（入力欄と、書ける要素） */
+const TEXT_INPUT = "input, textarea, select, [contenteditable]:not([contenteditable=false])";
+
 /**
- * 行を選んでいる間に画面の下に出す帯：「n 件を選択 ・ 頼む」と「選択を外す」。「頼む」で選んだ全件の頼むことの一覧を出す。
+ * Ctrl/⌘+C を選んだ行の ID のコピーに使うか。行を選んでいて、文字を選んでおらず、入力欄にフォーカスがないときだけ
+ * （文字のコピーを横取りしない）。変換中（IME）・Alt・Shift つきは受けない
+ */
+export function isCopyIdsKey(
+  e: Pick<
+    globalThis.KeyboardEvent,
+    "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey" | "isComposing" | "defaultPrevented"
+  > & { target: EventTarget | null },
+  textSelected: boolean,
+): boolean {
+  if (e.defaultPrevented || e.isComposing || e.altKey || e.shiftKey) return false;
+  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "c") return false;
+  if (textSelected) return false;
+  const t = e.target as Element | null;
+  return !t?.closest?.(TEXT_INPUT);
+}
+
+/**
+ * 行を選んでいる間に画面の下に出す帯：「n 件を選択 頼む ID をコピー ▾」と「選択を外す」（× のアイコン）。
+ * 左パネルの幅で 1 行に収めるため、件数と「頼む」の間の区切り（・）は置かない。
+ * 「頼む」で選んだ全件の頼むことの一覧を出す。「ID をコピー」で選んだ ID を一覧に見えている順に空白で区切ってコピーし（host.copy）、
+ * ▾ のメニューで形（ID・ID とタイトル・Markdown のリスト。copy-ids.ts）を選べる。文字を選んでいないときの Ctrl/⌘+C も ID をコピーする。
+ * コピーしても選択は外さず、帯のボタンの下の行に何件の何をコピーしたか（だめならそのこと）を少しの間出す
+ * （件数の場所に出すと、左パネルの幅では文言が切れる）。
  * 入力欄を開いている間は出さない（入力欄が同じ場所に出る）。
  */
 export function SelectionBar() {
   const selection = useSelection();
   const ask = useAsk();
+  const host = useHost();
+  const { tickets } = useStore();
   const ids = selection?.ids ?? [];
+  const shown = !!selection && ids.length > 0 && !ask.request;
+  const { result, track } = useCopyNotice();
+  const [copied, setCopied] = useState("");
+  const [formatsAt, setFormatsAt] = useState<HTMLElement | null>(null);
+
+  // 押した時点の画面の並びとタイトルで作る（選んだ後に並び順を変えても、見えている順で出す）
+  const itemsInView = (): CopyItem[] => {
+    const titles = new Map<string, string>(tickets.map((t) => [t.id, t.title]));
+    return inViewOrder(ids).map((id) => ({ id, title: titles.get(id) }));
+  };
+  const copy = (format: CopyFormat) => {
+    const items = itemsInView();
+    setCopied(tr(copiedMessage(format), items.length));
+    track(host.copy(copyText(format, items)));
+  };
+  // キーの受け手は最新の copy を呼ぶ（描いたあとに effect で写す。キーは描いたあとに押すので足りる）
+  const copyRef = useRef(copy);
+  useEffect(() => {
+    copyRef.current = copy;
+  });
+  useEffect(() => {
+    if (!shown) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      // 文字の選択は範囲が潰れていないかで見る（カーソルだけの選択は文字を選んでいない）
+      const text = window.getSelection();
+      if (!isCopyIdsKey(e, !!text && !text.isCollapsed)) return;
+      e.preventDefault();
+      copyRef.current("ids");
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [shown]);
   const spot = useAskSpot(
     selection && ids.length > 0
       ? {
@@ -419,14 +495,16 @@ export function SelectionBar() {
         }
       : null,
   );
-  if (!selection || ids.length === 0 || ask.request) return null;
+  if (!selection || !shown) return null;
+  const sampleItems = formatsAt ? itemsInView() : [];
+  const closeFormats = (refocus: boolean) => {
+    if (refocus) formatsAt?.focus();
+    setFormatsAt(null);
+  };
   return (
     <div className="selection-bar" role="region" aria-label={tr("選んだ行")} {...spot.props}>
       <span className="selection-count" aria-live="polite">
         {trNode("{0} 件を選択", ids.length)}
-      </span>
-      <span className="muted" aria-hidden="true">
-        {tr("・")}
       </span>
       <button
         type="button"
@@ -437,16 +515,83 @@ export function SelectionBar() {
       >
         {tr("頼む")}
       </button>
+      <span className="selection-copy">
+        <button
+          type="button"
+          className="selection-copy-ids"
+          title={tr("選んだ {0} 件の ID をコピー（Ctrl/⌘+C）", ids.length)}
+          onClick={() => copy("ids")}
+        >
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1" />
+            <path d="M3.5 10.5h-1v-8h8v1" />
+          </svg>
+          {tr("ID をコピー")}
+        </button>
+        <button
+          type="button"
+          className="selection-copy-formats"
+          aria-label={tr("コピーの形を選ぶ")}
+          title={tr("コピーの形を選ぶ")}
+          aria-haspopup="menu"
+          aria-expanded={formatsAt !== null}
+          onClick={(e) => {
+            if (formatsAt) closeFormats(false);
+            else setFormatsAt(e.currentTarget);
+          }}
+        >
+          <span aria-hidden="true">▾</span>
+        </button>
+      </span>
       <span className="selection-gap" />
       <button
         type="button"
         className="selection-clear"
+        aria-label={tr("選択を外す")}
         title={tr("選択を外す（Esc）")}
         onClick={selection.clear}
       >
-        {tr("選択を外す")}
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <path d="M4 4l8 8M12 4l-8 8" />
+        </svg>
       </button>
+      {/* 読み上げのため要素は常に置き、空の間は帯の並びから外す（styles.css の .selection-status:empty） */}
+      <span
+        className={result === "failed" ? "selection-status error" : "selection-status"}
+        role="status"
+        aria-live="polite"
+      >
+        {result === "copied" ? copied : result === "failed" ? tr("コピーできませんでした") : ""}
+      </span>
       {spot.overlay}
+      {formatsAt ? (
+        <PopupMenu
+          anchor={formatsAt}
+          ariaLabel={tr("コピーの形")}
+          label={tr("コピーの形")}
+          ready
+          onClose={closeFormats}
+        >
+          {COPY_FORMATS.map(({ format, name }) => (
+            <button
+              key={format}
+              type="button"
+              role="menuitem"
+              className="ask-menu-item copy-format"
+              onClick={() => {
+                closeFormats(true);
+                copy(format);
+              }}
+            >
+              <span>{tr(name)}</span>
+              <small className="copy-format-sample">
+                {copySample(format, sampleItems)}
+                {ids.length > 1 ? " …" : ""}
+              </small>
+            </button>
+          ))}
+        </PopupMenu>
+      ) : null}
     </div>
   );
 }
@@ -474,10 +619,7 @@ export function AskSpotBox({
   );
 }
 
-/**
- * 頼むことの一覧。body に出し（行や見出しの overflow に切られないように）、吹き出しの右端に合わせて下に開く。下に入らなければ上に開く。
- * 先頭の項目にフォーカスを置き、↑↓・Home・End で動き、Esc で閉じて呼んだ場所に戻る。外を押す・スクロールで閉じる
- */
+/** 頼むことの一覧（場所の名前の下に候補を並べる。開き方と閉じ方は PopupMenu） */
 function AskMenuList({
   anchor,
   label,
@@ -491,10 +633,61 @@ function AskMenuList({
   onPick(candidate: AskCandidate): void;
   onClose(refocus: boolean): void;
 }) {
+  return (
+    <PopupMenu
+      anchor={anchor}
+      ariaLabel={tr("エージェントに頼む（{0}）", label)}
+      label={label}
+      ready={menu !== undefined}
+      onClose={onClose}
+    >
+      {!menu ? (
+        <div className="ask-menu-note muted">{tr("読み込み中…")}</div>
+      ) : menu.error ? (
+        <div className="ask-menu-note error">{menu.error}</div>
+      ) : (
+        menu.candidates.map((c) => (
+          <button
+            key={c.action}
+            type="button"
+            role="menuitem"
+            className="ask-menu-item"
+            title={candidateTitle(c, tr("Skill を使わない"))}
+            onClick={() => onPick(c)}
+          >
+            <span>{trCore(c.label)}</span>
+            {c.recommended ? <span className="ask-menu-rec">{tr("おすすめ")}</span> : null}
+          </button>
+        ))
+      )}
+    </PopupMenu>
+  );
+}
+
+/**
+ * 吹き出し・ボタンから開くメニューの枠（頼むことの一覧と、選択の帯のコピーの形）。body に出し（行や見出しの overflow に切られないように）、
+ * anchor の右端に合わせて下に開く。下に入らなければ上に開く。ready になったら先頭の項目にフォーカスを置き、↑↓・Home・End で動き、
+ * Esc で閉じて呼んだ場所に戻る。外を押す・スクロールで閉じる
+ */
+function PopupMenu({
+  anchor,
+  ariaLabel,
+  label,
+  ready,
+  onClose,
+  children,
+}: {
+  anchor: HTMLElement;
+  ariaLabel: string;
+  label: string;
+  ready: boolean;
+  onClose(refocus: boolean): void;
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-  const loaded = menu !== undefined;
 
+  // 中身（children）が変わると大きさも変わるので測り直す（同じ位置なら状態を変えず、描き直しを繰り返さない）
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -506,12 +699,12 @@ function AskMenuList({
     const left = Math.max(4, Math.min(a.right - w, vw - w - 4));
     const below = a.bottom + 2;
     const top = below + h <= vh - 4 ? below : Math.max(4, a.top - h - 2);
-    setPos({ left, top });
-  }, [anchor, loaded, menu]);
+    setPos((p) => (p && p.left === left && p.top === top ? p : { left, top }));
+  }, [anchor, ready, children]);
 
   useEffect(() => {
-    if (loaded) ref.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
-  }, [loaded]);
+    if (ready) ref.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+  }, [ready]);
 
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
@@ -556,33 +749,15 @@ function AskMenuList({
       ref={ref}
       className="ask-menu"
       role="menu"
-      aria-label={tr("エージェントに頼む（{0}）", label)}
+      aria-label={ariaLabel}
       style={pos ? { left: pos.left, top: pos.top } : { visibility: "hidden" }}
       onKeyDown={onKeyDown}
-      // body に出しても React の上の要素（見出し・Plan の行）へは伝わるので止める
+      // body に出しても React の上の要素（見出し・Plan の行・選択の帯）へは伝わるので止める
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <div className="ask-menu-label">{label}</div>
-      {!menu ? (
-        <div className="ask-menu-note muted">{tr("読み込み中…")}</div>
-      ) : menu.error ? (
-        <div className="ask-menu-note error">{menu.error}</div>
-      ) : (
-        menu.candidates.map((c) => (
-          <button
-            key={c.action}
-            type="button"
-            role="menuitem"
-            className="ask-menu-item"
-            title={candidateTitle(c, tr("Skill を使わない"))}
-            onClick={() => onPick(c)}
-          >
-            <span>{trCore(c.label)}</span>
-            {c.recommended ? <span className="ask-menu-rec">{tr("おすすめ")}</span> : null}
-          </button>
-        ))
-      )}
+      {children}
     </div>,
     document.body,
   );
