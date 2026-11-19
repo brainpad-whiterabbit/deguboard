@@ -202,7 +202,7 @@ export const epicClose = defineCommand({
   positionals: ["epic"],
   group: "epic",
   summary:
-    "Close an Epic. Rejected if tickets other than done or abandoned remain; use force to close it anyway. The Workflow's governance.epic judges closing and reopening an Epic (always_ask by default; see dg workflow show --help for the values). When the value asks for a person's approval, an agent passes --approved-by, and the approver is recorded in the commit message",
+    "Close an Epic. Rejected if tickets other than done or abandoned remain; use force to close it anyway. The Workflow's governance.epic judges closing and reopening an Epic (dg workflow show gives its value; see dg workflow show --help for the values). When the value asks for a person's approval, an agent passes --approved-by, and the approver is recorded in the commit message",
   input: z.object({
     epic: epicRef,
     force: z.boolean().optional().describe("Close even if tickets remain"),
@@ -250,7 +250,7 @@ export const epicReopen = defineCommand({
   positionals: ["epic"],
   group: "epic",
   summary:
-    "Reopen a closed Epic. The Workflow's governance.epic judges it, as for epic close (always_ask by default)",
+    "Reopen a closed Epic. The Workflow's governance.epic judges it, as for epic close (dg workflow show gives its value)",
   input: z.object({ epic: epicRef, ...permissionFields }),
   write: true,
   needs: "store",

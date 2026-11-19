@@ -337,7 +337,7 @@ export const iterationClose = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Close an Iteration and record the time it closed (closed_at) and the counts of completed and carried-over tickets. Carried-over tickets lose their iteration. The Workflow's flow.release judges closing and reopening an Iteration (always_ask by default; see dg workflow show --help for the values). When the value asks for a person's approval, an agent passes --approved-by after a person approved it (--auto does not skip it), and the approver is recorded in the commit message",
+    "Close an Iteration and record the time it closed (closed_at) and the counts of completed and carried-over tickets. Carried-over tickets lose their iteration. The Workflow's flow.release judges closing and reopening an Iteration (dg workflow show gives its value; see dg workflow show --help for the values). When the value asks for a person's approval, an agent passes --approved-by after a person approved it (--auto skips it only when the value is ask_unless_auto), and the approver is recorded in the commit message",
   input: z.object({ iteration: iterationRef, ...permissionFields }),
   write: true,
   needs: "store",
@@ -374,7 +374,7 @@ export const iterationReopen = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Reopen a closed Iteration and make it active again (rejected if another Iteration is active). Clears closed_at and the completed and carried-over counts. The start time (started_at) is not changed, and the time it was reopened is recorded (reopened_at): the checkpoint records (checkpoints, added by dg checkpoint) from before it are kept but no longer counted, so the stages pass their checkpoints again. Carried-over tickets do not come back, so add them again with iteration add. The Workflow's flow.release judges it, as for iteration close (always_ask by default)",
+    "Reopen a closed Iteration and make it active again (rejected if another Iteration is active). Clears closed_at and the completed and carried-over counts. The start time (started_at) is not changed, and the time it was reopened is recorded (reopened_at): the checkpoint records (checkpoints, added by dg checkpoint) from before it are kept but no longer counted, so the stages pass their checkpoints again. Carried-over tickets do not come back, so add them again with iteration add. The Workflow's flow.release judges it, as for iteration close (dg workflow show gives its value)",
   input: z.object({ iteration: iterationRef, ...permissionFields }),
   write: true,
   needs: "store",

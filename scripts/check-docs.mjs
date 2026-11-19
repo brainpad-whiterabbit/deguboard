@@ -1,4 +1,4 @@
-// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・packages・scripts・test の ADR 番号が先頭のコメントの外にあること（ファイルと行を出す）と、先頭のコメントの異なる番号が 2 つ以上ないこと・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・英語版と日本語版（README.md と README.ja.md、docs/usage.md と docs/usage.ja.md、docs/how-it-works.md と docs/how-it-works.ja.md）の節の構成のずれ・コードとテストの要件 ID・packages のテスト以外の文字列（コメントの外）にある要件 ID（ファイルと行を出す）・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複・文書の中の Workflow の既定値の書き写し（「既定」「default」と権限の値を同じ文に書くこと。ADR の「採らなかった案」を除く）。
+// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・packages・scripts・test の ADR 番号が先頭のコメントの外にあること（ファイルと行を出す）と、先頭のコメントの異なる番号が 2 つ以上ないこと・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・英語版と日本語版（README.md と README.ja.md、docs/usage.md と docs/usage.ja.md、docs/how-it-works.md と docs/how-it-works.ja.md）の節の構成のずれ・コードとテストの要件 ID・packages のテスト以外の文字列（コメントの外）にある要件 ID（ファイルと行を出す）・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複・文書と packages のテスト以外の文字列（コメントの外）の Workflow の既定値の書き写し（「既定」「default」と権限の値を同じ文に書くこと。ADR の「採らなかった案」を除く）。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行（CSS などは先頭の /* の塊）で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
 // 要件の 1 項は字下げのない箇条書きの項目（「- XX-N」の項と ID のない項）とその下の字下げした行を、行のまま（記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える（節の前文は数えない）。置き換え済みかは各 ADR のステータスの「置き換え（ADR-0xx）」から読み、packages・scripts・test のコードの ADR-0xx の参照すべて（コメント・テスト名・文字列）を照らし、置き換えの先を置き換え済みでなくなるまでたどって今の判断を出す。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、判断と理由を書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
@@ -490,6 +490,26 @@ for (const rel of tracked.filter((f) => f.endsWith(".md") && !f.split("/").inclu
     );
   }
 }
+// コマンドの定義の文字列（ヘルプ・エラー・警告など dg の出力の文）も同じ理由で見る（t1156）。見るのは、上の要件 ID の位置と同じ packages のテスト以外のコードの、コメントを除いた行。
+// 文字列の中の値はバッククォートで囲まないので、語の境で値を探す。文は行ごとに「. 」「; 」で切る（「(always_ask by default; see …)」の括弧の補足は同じ文に数える）。
+// 既定の値の正本の resolve.ts は値と既定を書くのが役目なので除く
+const WORKFLOW_DEFAULTS_SOURCE = "packages/core/src/workflow/resolve.ts";
+const workflowBareValueRe = new RegExp(`(?<![\\w-])(?:${WORKFLOW_VALUES.join("|")})(?![\\w-])`);
+let workflowDefaultCodeCount = 0;
+for (const rel of requirementPlacementFiles.filter((f) => f !== WORKFLOW_DEFAULTS_SOURCE)) {
+  workflowDefaultCodeCount++;
+  const lines = withoutComments(await readFile(path.join(root, rel), "utf8"));
+  for (const [i, line] of lines.entries()) {
+    if (!defaultWordRe.test(line) || !workflowBareValueRe.test(line)) continue;
+    for (const sentence of line.split(/(?<=[.;])\s+/)) {
+      if (workflowBareValueRe.test(sentence) && defaultWordRe.test(sentence)) {
+        errors.push(
+          `${rel}:${i + 1}: 文字列が Workflow の既定値を書き写している（「${sentence.trim().slice(0, 40)}…」）。値は dg workflow show を指す`,
+        );
+      }
+    }
+  }
+}
 
 // dg guide の節の参照：日本語の「`dg guide <topic>` の「<節>」」と、英語の「the "<節>" section of `dg guide <topic>`」（"<節>" の後ろの「(…)」の補足を許す）を、文書（.md）と packages の .ts・.tsx の文字列とコメントから集め、guide-<topic>.md の見出し（末尾の補足「（…）」か半角の「 (…)」を除いた名前を含む）と、節の中の太字の項目・一覧の先頭のコードと照らす。日本語は「と「…」」で続く節も見る。バッククォートの有無によらない。
 // guide-<topic>.md の中の英語の「the "<節>" section」（of の後ろにトピックがない）は同じトピックの節を指す。
@@ -558,7 +578,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(
-  `check:docs: ADR ${adrFiles.length} 件（最後に使った番号 ADR-${lastUsed} 以内、${ADR_WARN_CHARS} 字超の警告 ${warnings.length} 件）、ADR 番号の参照 ${adrRefFileCount} 件が実在、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、日本語版の見出し（${pairHeadingCounts.join("・")}）が英語版と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、packages のコード ${requirementPlacementFiles.length} 件の文字列に要件 ID なし、要件 ${requirementItemCount} 項が ${REQUIREMENT_ITEM_MAX_CHARS} 字以内、コードとテストの ADR の参照 ${adrRefCount} 件に置き換え済みなし、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし、文書 ${workflowDefaultDocCount} 件に Workflow の既定値の書き写しなし`,
+  `check:docs: ADR ${adrFiles.length} 件（最後に使った番号 ADR-${lastUsed} 以内、${ADR_WARN_CHARS} 字超の警告 ${warnings.length} 件）、ADR 番号の参照 ${adrRefFileCount} 件が実在、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、日本語版の見出し（${pairHeadingCounts.join("・")}）が英語版と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、packages のコード ${requirementPlacementFiles.length} 件の文字列に要件 ID なし、要件 ${requirementItemCount} 項が ${REQUIREMENT_ITEM_MAX_CHARS} 字以内、コードとテストの ADR の参照 ${adrRefCount} 件に置き換え済みなし、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし、文書 ${workflowDefaultDocCount} 件と packages のコード ${workflowDefaultCodeCount} 件の文字列に Workflow の既定値の書き写しなし`,
 );
 
 /** ファイルの先頭のコメント（shebang を除く）。// の行と、先頭の /* … *\/ の塊（CSS の先頭コメント）を行ごとに返す。それ以外の行で止める */

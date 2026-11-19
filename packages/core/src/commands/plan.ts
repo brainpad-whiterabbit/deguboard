@@ -329,7 +329,7 @@ export const planApprove = defineCommand({
   positionals: ["plan"],
   group: "plan",
   summary:
-    "Approve a Plan awaiting approval. Records the approver (approved_by) and the time. The Workflow's flow.plan judges it (ask_unless_auto by default; see dg workflow show --help for the values): an agent passes --approved-by after a person approved the Plan, and that person is recorded as the approver; with --auto, in a flow that a person started with --auto, the agent approves without asking and is recorded as the approver. A call that needs no approval records the caller",
+    "Approve a Plan awaiting approval. Records the approver (approved_by) and the time. The Workflow's flow.plan judges it (dg workflow show gives its value; see dg workflow show --help for the values): an agent passes --approved-by after a person approved the Plan, and that person is recorded as the approver; with --auto, in a flow that a person started with --auto, only when the value is ask_unless_auto, the agent approves without asking and is recorded as the approver. A call that needs no approval records the caller",
   input: z.object({ plan: planRef, ...permissionFields }),
   write: true,
   needs: "store",
