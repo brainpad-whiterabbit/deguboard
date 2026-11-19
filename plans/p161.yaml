@@ -9,7 +9,7 @@ after:
     - t1122
   t1126:
     - t1125
-pending_approval: true
+pending_approval: false
 details:
   t1118:
     scope: usage と README の Security and privacy の記述を、拡張が直接起動するものとターミナルに入れるものに分けて書き直す。拡張のコードは変えない
@@ -47,3 +47,5 @@ details:
     scope: oxfmt と oxlint を最新の固定の版に上げ、要る直しを同じ PR に入れる
     approach: 版を上げて lockfile を更新し、format と lint の差を確かめて直す
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-19T02:17:47Z
