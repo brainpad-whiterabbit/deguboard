@@ -10,7 +10,7 @@ after:
     - t1152
     - t1153
     - t1154
-pending_approval: true
+pending_approval: false
 details:
   t1153:
     scope: base を取り込んだだけのマージコミットで前の見直しを数える判定と、一時の worktree での自動マージ結果の作成。rebase は対象外
@@ -44,3 +44,5 @@ details:
     scope: dg workflow show のテキスト出力の sections の表示を直す
     approach: テキストの整形で rows を鍵ごとの値・既定値・modified に展開し、テストを足す
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-19T12:35:03Z
