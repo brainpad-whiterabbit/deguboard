@@ -9,7 +9,7 @@ import { runCommand, type CommandContext } from "./define.js";
 import { chooseCheck, matchesAnyGlob, planCheck } from "./gate-check.js";
 import { gate } from "./gate.js";
 import type { GateView } from "./gate-judge.js";
-import { stageFactsOf, stageOf } from "./next.js";
+import { nextOf, stageFactsOf, stageOf, withBaseFact } from "./next.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
 import { ticketCheck, ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
@@ -338,10 +338,19 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(base(stale).detail).toContain("Merge base into the work branch, push, and judge again");
     expect(check(stale).not_run).toBe(true);
     expect(await runs()).toBe(0);
+    // dg next は同じ事実（baseContainment）を ready の番で読み、ready の前に取り込む手を返す（t1155。
+    // PR の番号は記録していないので、段階の事実に足して渡す）
+    const ticket = { ...ctx.store.require("ticket", "t1").data, pr: 7 };
+    const step = async () =>
+      nextOf(ctx, await withBaseFact(ctx, await stageFactsOf(ctx, ticket, { fetch: true })));
+    const behind = await step();
+    expect(behind.kind).toBe("merge_base");
+    expect(behind.commands[0]).toContain("git merge --no-ff origin/main");
     // main を取り込んで push し直す。取り込んだだけのマージコミットなので、前の見直しは数えたまま。
     // ready は base を判定しない（取り込みは ready の前に済ませるが、判定はマージの前だけ）
     await git(f.cloneA, ["merge", "-q", "--no-edit", "origin/main"]);
     await git(f.cloneA, ["push", "-q", "origin", "t1"]);
+    expect((await step()).kind).toBe("ready");
     const ready = await judge(ctx, "ready");
     expect(ready.passed).toBe(true);
     expect(ready.conditions.map((c) => c.id)).not.toContain("base");

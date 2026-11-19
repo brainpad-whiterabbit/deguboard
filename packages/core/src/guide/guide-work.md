@@ -23,6 +23,7 @@ The tickets of an approved Plan are advanced in parallel when two or more of the
    - `implement`: do the claim in `commands` (with `--no-run`: the hook opens the Run of the subagent asked with the mark; with the approval flag it carries, as "Approval to start" of "Before and after claim" says), and follow "Before and after claim". Claim creates the worktree of the work branch, and returns its location in `worktree` (the default is `{{worktree.root}}/<branch name>`). Pass the text, and when it returns, do "Receive the implementation result". See "Who implements and fixes" below
    - `review`: start the reviewer by the "Starting the review (parent)" section of `dg guide review` (the text includes the "Review" steps)
    - `fix`: follow the "Fix loop (parent)" section of `dg guide review`, and pass the text with `brief <id> --role fix` (the text includes the "Fix findings" steps and the findings of the review record)
+   - `merge_base`: base has moved on since the work branch last took it in, so follow "Merging base in before ready" below. It comes before `ready`, at the high and low levels
    - `ready`: put the PR out by the "How to finish" section of `dg guide review`. For a Workflow that does not look at PRs (such as general, where `sync` does not move it to review), after the PR is put out, move it to review yourself with `dg --json --actor agent ticket move <id> review`
    - `wait_merge`: the PR waits for its merge. Do not stop for it while other tickets of `ready` can advance (see "Following the Plan"). When nothing is left to start or wait for, follow "Merging after approval" below
    - `wait_human`: tell a human the `ask_human` (it is in the "How to finish" section of `dg guide review`), and do not wait for the answer: advance the other tickets of `ready` meanwhile. A decision that needs approval is asked as approval, and only that stops the flow. For review findings from a human, follow the "Fix loop (parent)" section of `dg guide review`
@@ -31,6 +32,14 @@ The tickets of an approved Plan are advanced in parallel when two or more of the
    - `done`: clean up by the steps of `dg guide done`
 
 For `wait_merge`, `wait_human`, `wait_deps`, and `wait_session` with no Plan, there is no other ticket of `ready` to advance meanwhile. Then go to "Choosing the next step" below and ask with its choices instead.
+
+## Merging base in before ready
+
+The parent does the `merge_base` step itself, in the worktree of the work branch (`worktree` of `ticket show`). It opens no Run. The whole check of `dg pr ready` then runs on a commit the merge can use ("Base" in the "Quality gate" section of `dg guide review`).
+
+1. Confirm that the worktree has no uncommitted changes and is at the pushed tip, and merge base as `commands` gives it (`git merge --no-ff <base>`; `dg next` has just fetched base). Write the merge commit's message by the repository's convention
+2. When the merge is made with no conflict, push the work branch and call `next` again. A merge commit that only brings base in keeps the review, so the step is then `ready`
+3. When the merge stops on a conflict, run `git merge --abort`, and do not resolve it yourself: a merge resolved by hand does not keep the review, so it goes to a fix. Ask a subagent with the mark of the fix step in `commands` and the text of `brief <id> --role fix`, adding that it is to merge base into the work branch, resolve the conflict, and push ("Who implements and fixes" below says who fixes). When it returns, call `next` again: at high it returns `review` for the new tip, and at low `ready`
 
 ## Merging after approval
 
@@ -50,7 +59,7 @@ The Workflow's review → done boundary judges the merge, and the merge follows 
 ## Gate level
 
 - **Setting it**: when the command gave `--gate-<level>`, before the first `next` of each target ticket, compare the level with `gate` of `ticket show` (no `gate` is high). Only when it differs: to raise it, run `dg --json --actor agent ticket update <id> --gate <level>` without asking; to lower it (high → low → free), ask the human to run `dg ticket update <id> --gate <level>` and wait, because only a human can lower the level and dg refuses the agent's call. With no level given, keep the ticket's own level
-- **Flow per level**: `next` follows the level. high (the default): implement → review → fix → `ready` → merge. low: implement → `ready` → merge, with no review or fix loop, and `dg gate` still runs the checks. free: implement → `ready` → merge, with neither the review nor the checks. For low and free, do not start a reviewer (`brief <id> --role review` warns). The conditions per level are in the "Quality gate" section of `dg guide review`
+- **Flow per level**: `next` follows the level. high (the default): implement → review → fix → `ready` → merge. low: implement → `ready` → merge, with no review or fix loop, and `dg gate` still runs the checks. At high and low, `merge_base` comes before `ready` when base has moved on. free: implement → `ready` → merge, with neither the review nor the checks. For low and free, do not start a reviewer (`brief <id> --role review` warns). The conditions per level are in the "Quality gate" section of `dg guide review`
 
 ## Before and after claim
 

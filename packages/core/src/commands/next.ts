@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { detectAgent } from "../agents/index.js";
 import type { TipMerge } from "../git/facts-judge.js";
-import { remoteTip } from "../git/facts.js";
+import { baseContainment, remoteTip } from "../git/facts.js";
 import { withTipMerge } from "../git/tip-merge.js";
 import { OPENED_STEPS, REVIEW_STEP, type Run } from "../model/run.js";
 import { BRANCH_VALUE_FORM, gateLevelOf, gateScopeOf, type Ticket } from "../model/ticket.js";
@@ -69,6 +69,7 @@ export const NEXT_KINDS = [
   "implement",
   "review",
   "fix",
+  "merge_base",
   "ready",
   "wait_merge",
   "wait_deps",
@@ -131,7 +132,7 @@ export function modelOf(
 }
 
 /** 実行中の Run を待つ（新しく起動しない）手。ほかの手（done・wait_deps・wait_merge など）は待たない */
-const WAITABLE: readonly NextKind[] = ["implement", "review", "fix", "ready"];
+const WAITABLE: readonly NextKind[] = ["implement", "review", "fix", "merge_base", "ready"];
 
 /** 段階を求める材料（事実）。テストは事実を直に渡して求め方を確かめる */
 export interface StageFacts {
@@ -158,6 +159,11 @@ export interface StageFacts {
    * gate-judge.ts の reviewedTip）。マージコミットでない・読んでいないときは undefined
    */
   pushedMerge?: TipMerge | undefined;
+  /**
+   * 作業ブランチのリモートの先端が base の今の先端を含むか（contained）と、取り込む相手の ref（origin/main など）。
+   * ready の手の前にだけ読む（withBaseFact）。読んでいない・読めないときは undefined で、取り込みの手は返さない
+   */
+  base?: { ref: string; contained: boolean } | undefined;
 }
 
 const stage = (
@@ -346,6 +352,51 @@ export async function stageFactsOf(
     pushedAt: tip?.at,
     pushedSha: tip?.sha,
     pushedMerge: merged?.merge,
+  };
+}
+
+/**
+ * PR を出す手（ready）の番か：draft で、見直しが通っている（low・free は見直しを判定しないので実装の後）。
+ * base の取り込みはこの番でだけ確かめる
+ */
+function readyTurn(facts: StageFacts, st: Stage): boolean {
+  return st.name === "reviewed" && st.review_passed && facts.ticket.status === "in_progress";
+}
+
+/**
+ * ready の前に base を取り込むか（純粋関数）。ready の番で、段がマージの前に base を判定し（検査を判定する high・low。
+ * gate-judge.ts の gateReads と同じ範囲）、先端が base の今の先端を含まないとき。dg pr ready が回す全体の検査を、
+ * マージで使える先端（base に入る形）で回すために、ready の前に取り込む（t1152 の base の条件）。
+ * free は base を判定しないので取り込まない。base を読めないときも取り込みの手にはせず、マージの前の dg gate の base に任せる
+ */
+export function mergesBaseBeforeReady(facts: StageFacts, st: Stage = stageOf(facts)): boolean {
+  return (
+    readyTurn(facts, st) &&
+    gateScopeOf(gateLevelOf(facts.ticket)).check &&
+    facts.base?.contained === false
+  );
+}
+
+/**
+ * ready の番で base を判定する段なら、base の今の先端を取り込んで読み、先端が含むかを事実に足す（dg gate と同じ関数。
+ * git/facts.ts の baseContainment）。fetch が要るので、ほかの段階と ticket show では読まない
+ */
+export async function withBaseFact(ctx: CommandContext, facts: StageFacts): Promise<StageFacts> {
+  if (
+    facts.pushedSha === undefined ||
+    !readyTurn(facts, stageOf(facts)) ||
+    !gateScopeOf(gateLevelOf(facts.ticket)).check
+  )
+    return facts;
+  const read = await baseContainment(ctx.repo, facts.pushedSha);
+  if ("reason" in read) return facts;
+  const { codeRemote, baseBranch } = ctx.repo;
+  return {
+    ...facts,
+    base: {
+      ref: codeRemote ? `${codeRemote}/${baseBranch}` : baseBranch,
+      contained: read.contained,
+    },
   };
 }
 
@@ -565,6 +616,23 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
         dg(`run review-result ${id} --findings-file <file>`),
       ]);
     case "reviewed":
+      // 取り込みは親が worktree で行い、Run を開かない。自動マージで済む取り込みだけをここで行い、競合は手で解かずに中止して
+      // 手直しに回す：手で解いたマージは見直しを無効にする（gate-judge.ts の reviewedTip）ので、解くのは Run の付く手直しにする。
+      // ready と同じく、このブランチの実装・手直し・見直しの Run が実行中なら終わりを待つ（競合の手直しを頼んだ後もここに来る）
+      if (mergesBaseBeforeReady(facts, st)) {
+        const ref = facts.base?.ref ?? "<base>";
+        return make(
+          "merge_base",
+          null,
+          [
+            `In the worktree of the work branch (worktree of ${dg(`ticket show ${id}`)}), with no uncommitted changes and at the pushed tip, run git merge --no-ff ${ref} (dg next has just fetched it; write the merge commit's message by the repository's convention)`,
+            `If the merge stops on a conflict, run git merge --abort and do not resolve it here: ask a sub-agent to fix it (${marker(fixStep)}, and tell it to merge ${ref} into the work branch, resolve the conflict, and push). A merge resolved by hand does not keep the review`,
+            "When the merge is made with no conflict, push the work branch (git push)",
+          ],
+          null,
+          runningOf(REVIEW_STEP),
+        );
+      }
       return facts.ticket.status === "in_progress" && st.review_passed
         ? // dg pr ready が品質ゲートを判定してから gh pr ready を呼ぶ（t545）。
           // このブランチの見直しの Run が開いたままなら、ready にせず終わりを待つ（t664）。見直しの途中で段を low・free に
@@ -625,7 +693,8 @@ export const next = defineCommand({
     "For a ticket whose gate level is low or free, a PR skips the review: a draft is reviewed with review_passed (the ready step), otherwise ready (wait_merge). " +
     "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
     "A review result held with no review Run counts as a review the same way as in dg gate. " +
-    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, wait_session, done),the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. The implement claim follows the decide value of the Workflow's todo → in_progress boundary (dg workflow show gives its value): when it asks for a person's approval, the claim carries --approved-by human, with a sentence that says when to pass it and when to pass --auto instead; when only a person may start a ticket, it is a sentence asking a person to claim. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another. For implement, review, and fix steps it does not wait for a Run left over from a crashed session: a Run opened by a sub-agent of a different session whose record has not been written for 30 minutes. It returns the steps to ask again with the mark, and says that asking again closes that Run as interrupted. A newer record, an unknown session, and a Run the parent opened itself are still waited for), and the questions to ask a person (ask_human). " +
+    "It returns the kind of step (kind: implement, review, fix, merge_base, ready, wait_merge, wait_deps, wait_human, wait_session, done),the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. The implement claim follows the decide value of the Workflow's todo → in_progress boundary (dg workflow show gives its value): when it asks for a person's approval, the claim carries --approved-by human, with a sentence that says when to pass it and when to pass --auto instead; when only a person may start a ticket, it is a sentence asking a person to claim. For implement, review, fix, merge_base, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the merge_base and ready steps, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another. For implement, review, and fix steps it does not wait for a Run left over from a crashed session: a Run opened by a sub-agent of a different session whose record has not been written for 30 minutes. It returns the steps to ask again with the mark, and says that asking again closes that Run as interrupted. A newer record, an unknown session, and a Run the parent opened itself are still waited for), and the questions to ask a person (ask_human). " +
+    "Before the ready step, when the gate level is high or low and the remote tip of the work branch does not contain the current tip of base (dg fetches base to compare, only at this point), the step is merge_base instead: commands tell the parent to merge base into the work branch in its worktree and push, and, when the merge stops on a conflict, to abort it and ask a sub-agent to fix it with the mark (a merge that only brings base in keeps the review, and one resolved by hand does not). It opens no Run. At free, and when base cannot be read, the step stays ready. " +
     "For wait_merge, ask_human always asks whether to merge the PR, and commands give the gate judgment and the dg pr merge <id> --approved-by human to run only after a person approves (when declined, do not merge; a PR that does not meet the gate is merged only when a person approves it anyway, and " +
     NEVER_OVERRIDDEN +
     "; merging without asking is only for a flow started with --auto where the value of the review → done boundary is ask_unless_auto, with dg pr merge <id> --auto, as approval of dg flow next says). " +
@@ -645,7 +714,7 @@ export const next = defineCommand({
   async run(ctx, input) {
     requireReserveWithTakeOver(input);
     const ticket = ctx.store.require("ticket", input.ticket).data;
-    const facts = await stageFactsOf(ctx, ticket, { fetch: true });
+    const facts = await withBaseFact(ctx, await stageFactsOf(ctx, ticket, { fetch: true }));
     const env = ctx.env ?? process.env;
     const found = nextOf(ctx, facts, {
       hooksReach: await hooksReachSession(ctx.repo.localDir, env),
