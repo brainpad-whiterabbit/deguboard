@@ -54,7 +54,7 @@ PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だ�
 
 - `packages/core/src/commands/pr.ts`（`dg pr ready`・`dg pr merge`）・`packages/core/src/commands/gate.ts`（`judgeGate`）・`packages/core/src/commands/gate-judge.ts`（条件の判定と、越える条件・止める条件）
 - `packages/core/src/workflow/resolve.ts`（`CORE_FIXED`）・`packages/core/src/commands/permission.ts`（`requireOperation`）・`packages/core/src/commands/governance.test.ts`・`packages/core/src/commands/uninstall.ts`（`dg uninstall`）とそのテスト
-- `packages/core/src/commands/pre-tool-use.ts`（`advancesPrOutsideDg`・`touchesDataDir`・`toolDenyReason`）・`packages/core/src/commands/hook.ts`（`turnStopped`）
+- `packages/core/src/commands/pre-tool-use.ts`（`advancesPrOutsideDg`・`touchesDataDir`・`toolDenyReason`）・`packages/core/src/commands/turn-stopped.ts`（Stop の処理。`runTurnStopped`）
 - `packages/core/src/git/outside.ts`（基準と比べ方・戻し方）・`packages/core/src/git/write.ts`（`withWriteLock`）・`packages/core/src/commands/define.ts`（`runCommand` の検査）
 - `packages/core/src/commands/pr.test.ts`・`gate.test.ts`・`gate-judge.test.ts`・`hook.test.ts` の「PreToolUse」・`packages/core/src/git/outside.test.ts`
 
