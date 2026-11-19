@@ -8,6 +8,7 @@ import { StoreProvider } from "../store.js";
 import {
   type MockClient,
   boardFixture,
+  escapeMenu,
   fixture,
   iteration,
   iterationDetail,
@@ -161,7 +162,7 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
     );
     await waitFor(() => expect(items()[0]).toBe("割り当てるおすすめ"));
     expect(within(menu()).getByText("選んだ 2 件")).toBeTruthy();
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     // 帯の右クリックの文脈には、押しても動かない「詳細を開く」「ID をコピー」の webviewSection を載せない
     expect(contextOf(bar()!)).toEqual({ preventDefaultContextMenuItems: true });
     // 帯の「頼む」
@@ -218,7 +219,7 @@ describe("見直しの指摘（UI-15）", () => {
     fireEvent.click(linkOf("四つ目"), { ctrlKey: true });
     fireEvent.click(within(bar()!).getByRole("button", { name: "頼む" }));
     await waitFor(() => expect(items()[0]).toBe("割り当てるおすすめ"));
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     expect(screen.queryByRole("menu")).toBeNull();
     expect(selected()).toEqual(["t3", "t4"]);
     fireEvent.keyDown(document.body, { key: "Escape" });
@@ -268,7 +269,7 @@ describe("カンバンとパネルの詳細の行を複数選ぶ（UI-15）", ()
       within(rowOf("API")).getByRole("button", { name: "エージェントに頼む（選んだ 2 件）" }),
     );
     await waitFor(() => expect(items()[0]).toBe("点検するおすすめ"));
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     expect(bar()!.textContent).toContain("2 件を選択");
     // Iteration を替えると（画面が替わると）外す
     window.location.hash = "#/board?iteration=all";
@@ -301,7 +302,7 @@ describe("カンバンとパネルの詳細の行を複数選ぶ（UI-15）", ()
     fireEvent.click(within(api).getByRole("button", { name: "エージェントに頼む（選んだ 2 件）" }));
     await waitFor(() => expect(items().length).toBeGreaterThan(0));
     expect(items()).toContain("s1 から外す");
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     // 行の中のボタン（吹き出し）を修飾キーつきで押しても選び方は変わらない
     fireEvent.click(within(api).getByRole("button", { name: /エージェントに頼む/ }), {
       ctrlKey: true,
@@ -548,10 +549,8 @@ describe("選んだ行の ID をコピーする（UI-15）", () => {
         .getAllByRole("menuitem")
         .map((b) => b.textContent),
     ).toEqual(["IDt3 …", "ID とタイトルt3 画面 …", "Markdown のリスト- t3 画面 …"]);
-    // 先頭の項目にフォーカスを置く
-    expect(document.activeElement?.textContent).toBe("IDt3 …");
-    // Esc でメニューだけを閉じ、▾ に戻る。選択は残る
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    // 先頭の項目にフォーカスを置き（escapeMenu が移るのを待って確かめる）、Esc でメニューだけを閉じ、▾ に戻る。選択は残る
+    await escapeMenu();
     expect(screen.queryByRole("menu")).toBeNull();
     expect(document.activeElement).toBe(formats);
     expect(selected()).toEqual(["t3", "t4"]);

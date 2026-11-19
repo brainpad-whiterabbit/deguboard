@@ -20,6 +20,8 @@ import type {
   SetupViewItem,
   StatusView,
 } from "@deguboard/core";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { expect } from "vitest";
 import { ClientError } from "./client/http.js";
 import type {
   EpicRow,
@@ -450,4 +452,16 @@ export function markedText(el: Element | null | undefined): string | undefined {
   for (const mark of copy.querySelectorAll("[role=img][aria-label]"))
     mark.replaceWith(mark.getAttribute("aria-label")!);
   return copy.textContent ?? "";
+}
+
+/**
+ * 開いている一覧（画面に 1 つだけの role="menu"）を Esc で閉じる。先頭の項目にフォーカスが移るのを待ってから、その項目で押す。
+ * フォーカスは一覧を描いた後の effect（ask-menu.tsx の PopupMenu など）が置くので、項目が出た時点（候補を待った直後）には
+ * まだ body に残っていることがある（負荷が高いと、描画と effect が別のタスクに分かれる）。そのときの document.activeElement に
+ * Esc を送ると一覧の onKeyDown に届かず開いたまま残り、後の操作がずれる
+ */
+export async function escapeMenu(): Promise<void> {
+  const first = within(screen.getByRole("menu")).getAllByRole("menuitem")[0]!;
+  await waitFor(() => expect(document.activeElement).toBe(first));
+  fireEvent.keyDown(first, { key: "Escape" });
 }
