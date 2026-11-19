@@ -403,7 +403,7 @@ export const configSchema = z.looseObject({
         empty: PARENT_MODEL,
       }),
       // agent ごとの上書き（models.<agent>.<tier>）。鍵は、呼んだ agent を判定できる Adapter だけから作る。
-      // 判定できない agent（Copilot CLI など）の鍵は dg next が決して引かず、設定しても黙って無視されるため
+      // 判定できない agent（detect を持たない Adapter）の鍵は dg next が決して引かず、設定しても黙って無視されるため
       ...Object.fromEntries(detectableAgentNames().map((agent) => [agent, agentModelsSchema])),
     })
     .prefault({}),

@@ -27,6 +27,24 @@ export async function fresh(query: UsageQuery, files: string[]): Promise<string[
   return out;
 }
 
+/**
+ * file を 1 行ずつ読む。呼ぶ側のループが break・return で抜けるか例外で止まると、そこで読むのをやめてファイルを閉じる。
+ * 読めないファイルの例外は、呼ぶ側のループ（for await）に投げる
+ */
+export async function* readLines(file: string): AsyncGenerator<string, void, undefined> {
+  const input = createReadStream(file);
+  try {
+    yield* createInterface({ input, crlfDelay: Infinity });
+  } finally {
+    input.destroy();
+  }
+}
+
+/** モデル名ごとの応答の数（Map の順が最初に出た順）から、いちばん多いモデル名。同じ数なら先に出た方。なければ null */
+export function mainModel(counts: ReadonlyMap<string, number>): string | null {
+  return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+
 /** 0 以上の整数だけを数として受け取る */
 export const count = (v: unknown): number | undefined =>
   typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : undefined;
@@ -89,7 +107,7 @@ export const none = (warning: string): CollectedUsage => ({
 });
 
 /** ほかの Run を始めた記録とみなす、ID が最初に出るまでの開始からの猶予 */
-export const START_MS = 60_000;
+const START_MS = 60_000;
 
 /**
  * 同じ会話記録で期間が重なる Run に、1 つの応答を二重に数えないための判定（MT-2）。
@@ -164,7 +182,7 @@ export class OverlapClaims {
 export const TIMESTAMPS = /"timestamp":"([^"]+)"/g;
 
 /** 行の timestamp がすべて limit を過ぎているか。timestamp のない行は過ぎていないとみなす */
-export function pastAll(line: string, limit: number): boolean {
+function pastAll(line: string, limit: number): boolean {
   const stamps = Array.from(line.matchAll(TIMESTAMPS), (m) => Date.parse(m[1] ?? ""));
   return stamps.length > 0 && stamps.every((t) => t > limit);
 }
@@ -179,20 +197,14 @@ export async function sightings(
   limit: number,
 ): Promise<Map<string, number>> {
   const seen = new Map<string, number>();
-  const input = createReadStream(file);
-  try {
-    const lines = createInterface({ input, crlfDelay: Infinity });
-    for await (const line of lines) {
-      if (seen.size === ids.length || pastAll(line, limit)) break;
-      for (const id of ids) {
-        if (seen.has(id) || !line.includes(id)) continue;
-        const entry = parse(line);
-        const at = entry ? timeOf(entry) : NaN;
-        seen.set(id, Number.isNaN(at) ? Infinity : at);
-      }
+  for await (const line of readLines(file)) {
+    if (seen.size === ids.length || pastAll(line, limit)) break;
+    for (const id of ids) {
+      if (seen.has(id) || !line.includes(id)) continue;
+      const entry = parse(line);
+      const at = entry ? timeOf(entry) : NaN;
+      seen.set(id, Number.isNaN(at) ? Infinity : at);
     }
-  } finally {
-    input.destroy();
   }
   return seen;
 }
