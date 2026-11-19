@@ -40,6 +40,17 @@ const items = () =>
   within(menu())
     .getAllByRole("menuitem")
     .map((b) => b.textContent);
+/**
+ * 開いている一覧を Esc で閉じる。先頭の項目にフォーカスが移るのを待ってから、その項目で押す。
+ * フォーカスは一覧を描いた後の effect（ask-menu.tsx の PopupMenu）が置くので、項目が出た時点（items() を待った直後）には
+ * まだ body に残っていることがある（負荷が高いと、描画と effect が別のタスクに分かれる）。そのときの document.activeElement に
+ * Esc を送ると一覧に届かず開いたまま残り、次に吹き出しを押すと閉じてしまう
+ */
+const escapeMenu = async () => {
+  const first = within(menu()).getAllByRole("menuitem")[0]!;
+  await waitFor(() => expect(document.activeElement).toBe(first));
+  fireEvent.keyDown(first, { key: "Escape" });
+};
 const composer = () => screen.getByRole("region", { name: "エージェントに頼む" });
 /** ask-menu で引いた組（鍵）。対象と場所が同じなら同じ鍵になり、core は同じ候補を返す */
 const askedSets = (client: MockClient) =>
@@ -91,7 +102,7 @@ describe("カンバンの選んでいる Epic の見出し（UI-10・UI-15）", 
     expect(within(menu()).getByText("Epic の見出し e1")).toBeTruthy();
     // 場所（@・#）を付けずに Epic の ID だけで引く（詳細のタイトルと同じ鍵）
     expect(askedSets(client)).toContain("e1");
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     expect(screen.queryByRole("menu")).toBeNull();
 
     head()!.focus();
@@ -133,7 +144,7 @@ describe("カンバンの選んでいる Epic の見出し（UI-10・UI-15）", 
     expect(head()!.textContent).toBe("Epice1 最初の版0/1終了×");
     fireEvent.click(bubble("Epic の見出し e1"));
     await waitFor(() => expect(items().length).toBeGreaterThan(0));
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     fireEvent.click(screen.getByRole("button", { name: "Epic e1 の絞り込みを外す" }));
     await waitFor(() => expect(head()).toBeNull());
   });
@@ -172,7 +183,7 @@ describe("バックログの選んでいる Epic の見出し（UI-10・UI-15）
     fireEvent.click(bubble("Epic の見出し e1"));
     await waitFor(() => expect(items()[0]).toBe("起票して e1 に足すおすすめ"));
     expect(askedSets(client)).toContain("e1");
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
 
     fireEvent.click(screen.getByRole("button", { name: "Epic e1 の絞り込みを外す" }));
     expect(head()).toBeNull();
@@ -191,7 +202,7 @@ describe("バックログの選んでいる Epic の見出し（UI-10・UI-15）
     fireEvent.click(bubble("Epic の見出し なし"));
     await waitFor(() => expect(items().length).toBeGreaterThan(0));
     expect(askedSets(client)).toContain("t3 t4");
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await escapeMenu();
     // 検索で 1 件に減らすと、見出しの件数と対象も 1 件になる
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "四つ目" } });
     expect(head()!.textContent).toBe("Epicなし1 件×");
