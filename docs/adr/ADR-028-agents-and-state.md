@@ -4,7 +4,7 @@
 
 ## 要約
 
-ツールはエージェントを起動も監視もせず、エージェントが `dg` を呼んでチケットを読み書きする。状態はチケットのブランチの事実で前進させ、排他は claim の push で決める。主体は `<ユーザ>`・`<ユーザ>/agent` の ID で、起票者と担当者を分けて記録する。
+ツールはエージェントを起動も監視もせず、エージェントが `dg` を呼んでチケットを読み書きする。状態はチケットのブランチの事実で前進させ、排他は claim の push で決める。同じユーザの別のセッションの重なりは、マシンの中のセッションの記録と予約で止める。主体は `<ユーザ>`・`<ユーザ>/agent` の ID で、起票者と担当者を分けて記録する。
 
 ## 背景
 
@@ -32,6 +32,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 - 着手は `dg ticket claim` で行い、そのコミットを push できたときに取得とする（SY-3）
 - 同一マシンの二重起動は Git 管理外のローカルロックで拒み、チーム間の排他には使わない（SY-5）
+- 同じユーザの別のセッションの重なりは、agent の claim のセッションの記録と、Plan・チケットの予約を Git 管理外の `deguboard-local/` に置いて止める。記録したセッションが生きている間、別のセッションの agent の claim・`unclaim`・`dg next` の進める手を拒む（SY-5・PL-7）
 - 応答のない claim は人が確かめてから強制の指定で外す。生存監視はしない（ST-7）
 
 ### 主体の ID はユーザ名と種別で、起票者と担当者を分けて記録する
@@ -59,6 +60,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 - `packages/core/src/git/facts.ts`（`collectBranchFacts`・`findMergedLeftover`）・`packages/core/src/git/facts-judge.ts`（branch_merged と前の作業の PR の判定。組み合わせは `facts-judge.test.ts`）・`packages/core/src/workflow/reconcile.ts`・`packages/core/src/commands/setup.ts`（照合。事実を集めて、決めた列を行う）・`packages/core/src/commands/reconcile-judge.ts`（照合が対象のチケットごとに行うことと、その後も開いたままの Run の閉じ方の決定。組み合わせは `reconcile-judge.test.ts`）・`packages/core/src/commands/ticket.ts`（`requireBranchAvailable`・claim・unclaim）
 - `packages/core/src/model/actor.ts`・`packages/core/src/git/repo.ts`（ユーザ名）・`packages/core/src/git/lock.ts`
+- `packages/core/src/commands/claim-sessions.ts`（claim のセッションの記録）・`packages/core/src/commands/reservations.ts`（予約）・`packages/core/src/commands/claim-judge.ts`（記録が効くか・拒むかの判定）
 - `packages/core/src/model/plan.ts`・`packages/core/src/commands/plan.ts`・`packages/core/src/model/config.ts`（`models.*`）・`packages/core/src/commands/next.ts`（`modelOf`。モデル名を引く順）
 - `packages/core/src/commands/commands-flow-reconcile.test.ts`・`commands-flow-ticket.test.ts`・`commands-plan.test.ts`
 
@@ -68,6 +70,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 - ブランチの事実は作業の結果として必ず残り、取り逃しがない。PR に依存しなければ、PR の要らない作業（データの整備・確認）でも同じ仕組みで動く
 - 前の作業と見分けられない形を前進させない側に倒すのは、claim 直後のチケットが誤って done になったため（commit のないブランチと、同じ名前の古い PR の両方で起きた）。起点を記録するのは、commit のないまま push したブランチが base が進むだけでマージ済みに見え、review を飛ばして done になったため。拾えない形（push せずにローカルで ff マージしたなど）は人が `ticket move --override "理由"` で進める（ブランチの記録があるチケットは、既定の境目の `requires` を満たさないため。ADR-003）
 - Git を compare-and-swap として使えば、サーバーなしで claim を atomic にできる
+- セッションの記録と予約をマシンの中に置くのは、同じユーザのセッションは主体の ID がどれも `<ユーザ>/agent` で claim の push では見分けられず、セッションが生きているかはそのマシンのフックの記録でしかわからないため
 - 主体を申告から環境の設定に移すのは、2026-11 の調査で `--actor` の申告が抜けた呼び出しが human として通り、Workflow の人に限る制限を素通りしたため。申告の抜けは手順では防げない
 - ID にホスト名を含めないのは、同じ人が別の PC から操作しても同じ人であるため。種別を ID に含めるのは、同じマシンで人と AI が動くと区別がつかず、AI がどれだけ起票・作業したかを後から数えられないため。起票者と担当者を分けるのは、AI が起票して人が進める、人が起票して AI が進める、のどちらも普通にあるため
 - Plan を分けるのは、Epic は目的の範囲、Iteration は期間、Plan は実行順、Run は実績と役割が違うため。進捗を書かないのは、push の衝突を減らすため
@@ -80,6 +83,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 - **ツールがエージェントをヘッドレス起動して監視する**：先行プロジェクトで安定せず、失敗した実行とロックが残った
 - **実行中のプロセスを監視して状態を進める**：監視の失敗が状態の誤りになる
 - **ロックサーバーや DB による排他**：常駐サーバーが要り、オフラインで使えない
+- **claim のセッションの記録と予約を Git に記録してマシンをまたいで効かせる**：別のマシンではセッションが生きているかを確かめられず、予約のたびに push が要る。チーム間の排他は claim の push で足りる
 - **主体（human / agent）をプロセスや鍵で確かめる**：リポジトリに書ける人はファイルを直接直せるので、CLI で確かめても守れない
 - **主体を申告だけに頼る**：申告の抜けが human として通り、人に限った制限を守れなかった。毎回の申告を手順で求めても、抜けは防げなかった
 - **ID にホスト名を含める（`eiki@laptop`）**：同じ人が別の PC だと別人になる
