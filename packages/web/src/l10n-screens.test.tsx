@@ -286,7 +286,7 @@ const SCENES: Scene[] = [
     hash: "#/board",
     act: async () => {
       // 行の吹き出しを開いて候補を出す。候補の一覧を書き出した後、先頭の候補で入力欄を開く
-      fireEvent.click(document.querySelector<HTMLElement>("[aria-haspopup='menu']")!);
+      fireEvent.click(document.querySelector<HTMLElement>(".ask-bubble")!);
       await settle();
       const menu = screenText(document.querySelector(".ask-menu")!);
       fireEvent.click(document.querySelector<HTMLElement>(".ask-menu-item")!);

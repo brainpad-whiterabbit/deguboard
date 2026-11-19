@@ -3,6 +3,7 @@
 import { type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import { BACKLOG_TICKET_SECTION, useAskSpot, type AskSection } from "./ask-menu.js";
 import { useEpicHighlightClass } from "./epic-chip.js";
+import { RowLabels, useRowLabels } from "./row-labels.js";
 import { useHost } from "../host.js";
 import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
@@ -376,7 +377,9 @@ export function RowPriority({ priority }: { priority: Priority }) {
  * kanban と backlog の行は担当者の列を出さない（担当は右端の印で出す。row-end.tsx の KanbanRowEnd・BacklogRowEnd）。
  * 列がないぶんの幅はタイトルに回る。
  * variant で行の種類を選ぶ（TicketRowVariant）。end を渡すと右端の優先度の印の代わりにそれを出す（カンバンの行の Plan の番号と待ち、Run の並びなど）。
- * カンバンとバックログの行で PR の番号があるときは、行のリンクの外の 2 段目に PR のリンクを出す（RowPrLink）。包みの class は呼び出し側が prRowClass で付ける。
+ * カンバンとバックログの行で PR の番号があるときは、行のリンクの外の 2 段目に PR のリンクを出す（RowPrLink）。
+ * 画面がラベルを出すとき（RowLabelsContext）は、行のリンクの外のタイトルの下の段にラベルの札を出す（RowLabels。PR があればその右に並ぶ）。
+ * 包みの class は呼び出し側が subRowClass で付ける。
  * Epic の札に触れている間（EpicHighlight で包んだ一覧）は、その Epic の行を光らせ、ほかを薄くする（useEpicHighlightClass）
  */
 export function TicketRow({
@@ -399,6 +402,7 @@ export function TicketRow({
   const kanban = variant === "kanban";
   const backlog = variant === "backlog";
   const epicClass = useEpicHighlightClass(ticket);
+  const labels = useRowLabels();
   return (
     <>
       <TicketLink
@@ -421,6 +425,9 @@ export function TicketRow({
         {end ?? <RowPriority priority={ticket.priority} />}
       </TicketLink>
       {(kanban || backlog) && ticket.pr ? <RowPrLink pr={ticket.pr} className={epicClass} /> : null}
+      {(kanban || backlog) && labels ? (
+        <RowLabels labels={ticket.labels} setting={labels} className={epicClass} />
+      ) : null}
     </>
   );
 }
@@ -434,15 +441,20 @@ export function prHref(webUrl: string | null | undefined, pr: number): string | 
 }
 
 /**
- * PR のある行の包み（UI-2）の class。カンバンとバックログの行で PR の番号があるときだけ付け、番号の列の 2 段目に PR のリンクを置く（styles.css の .pr-row）。
- * 包みは行の要素（.row-item・li）
+ * 2 段の行の包み（UI-2・UI-3）の class。カンバンとバックログの行で、PR の番号があるか、ラベルを出す（showLabels）行にラベルがあるときだけ付ける。
+ * PR のリンクは番号の列の 2 段目、ラベルはタイトルの列の 2 段目に置く（styles.css の .sub-row・.has-pr・.has-labels）。
+ * 包みは行の要素（.row-item・li）。どちらもない行には付けず、1 段の行のままにする
  */
-function prRowClass(
-  ticket: Pick<Ticket, "pr">,
+export function subRowClass(
+  ticket: Pick<Ticket, "pr" | "labels">,
   variant: TicketRowVariant | undefined,
+  showLabels: boolean,
 ): string | undefined {
-  if (!ticket.pr || (variant !== "kanban" && variant !== "backlog")) return undefined;
-  return `pr-row ${variant}`;
+  if (variant !== "kanban" && variant !== "backlog") return undefined;
+  const pr = !!ticket.pr;
+  const labels = showLabels && ticket.labels.length > 0;
+  if (!pr && !labels) return undefined;
+  return `sub-row ${variant}${pr ? " has-pr" : ""}${labels ? " has-labels" : ""}`;
 }
 
 /**
@@ -542,10 +554,10 @@ export function AskRow({
         }
       : null,
   );
-  const prClass = prRowClass(ticket, variant);
+  const subClass = subRowClass(ticket, variant, useRowLabels() !== null);
   return (
     <div
-      className={`row-item${dimmed ? " is-waiting" : ""}${tone ? ` run-tone-${tone}` : ""}${prClass ? ` ${prClass}` : ""}`}
+      className={`row-item${dimmed ? " is-waiting" : ""}${tone ? ` run-tone-${tone}` : ""}${subClass ? ` ${subClass}` : ""}`}
       {...(ask ? spot.props : {})}
     >
       <TicketRow
@@ -615,6 +627,7 @@ export function TicketTable({
    */
   end?: ((t: Ticket) => ReactNode) | undefined;
 }) {
+  const showLabels = useRowLabels() !== null;
   if (tickets.length === 0) return <p className="empty">{tr("該当するチケットはない")}</p>;
   const hideAssignee = sameAssignee(tickets);
   const endOf = (t: Ticket) => (end ? end(t) : <RowPriority priority={t.priority} />);
@@ -625,7 +638,7 @@ export function TicketTable({
         const content = (
           <TicketRow ticket={t} hideAssignee={hideAssignee} variant={variant} end={endOf(t)} />
         );
-        const className = prRowClass(t, variant);
+        const className = subRowClass(t, variant, showLabels);
         return rowMenu ? (
           <BacklogItem key={t.id} ticket={t} className={className}>
             {content}

@@ -17,6 +17,7 @@ import {
   TicketTable,
   priorityTitle,
   sameAssignee,
+  subRowClass,
 } from "./parts.js";
 import { mockClient, ticket } from "../test-helpers.js";
 
@@ -269,6 +270,21 @@ describe("状態の印と空の一覧", () => {
   it("空の一覧は「該当するチケットはない」を出す", async () => {
     mount(<TicketTable tickets={[]} />);
     expect(await screen.findByText("該当するチケットはない")).toBeTruthy();
+  });
+});
+
+describe("2 段の行の包みの class", () => {
+  it("カンバンとバックログの行で、PR があるか、ラベルを出す行にラベルがあるときだけ付け、どちらがあるかを足す", () => {
+    const of = (pr: number | null, labels: string[]) => ({ ...(pr ? { pr } : {}), labels });
+    expect(subRowClass(of(null, []), "kanban", true)).toBeUndefined();
+    expect(subRowClass(of(null, ["web"]), "kanban", false)).toBeUndefined();
+    expect(subRowClass(of(12, []), "kanban", true)).toBe("sub-row kanban has-pr");
+    expect(subRowClass(of(12, ["web"]), "kanban", false)).toBe("sub-row kanban has-pr");
+    expect(subRowClass(of(null, ["web"]), "backlog", true)).toBe("sub-row backlog has-labels");
+    expect(subRowClass(of(12, ["web"]), "backlog", true)).toBe("sub-row backlog has-pr has-labels");
+    // 一覧（履歴など）の行は 2 段にしない
+    expect(subRowClass(of(12, ["web"]), "list", true)).toBeUndefined();
+    expect(subRowClass(of(12, ["web"]), undefined, true)).toBeUndefined();
   });
 });
 

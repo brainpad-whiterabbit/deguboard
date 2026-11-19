@@ -165,7 +165,7 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
     await pr.waitFor();
     expect((await pr.locator(".row-pr").textContent())?.trim()).toBe(`#${PR}`);
     expect(await plain.locator(".row-pr").count(), "PR のない行に PR の欄はない").toBe(0);
-    expect(await plain.getAttribute("class"), "PR のない行の包み").not.toContain("pr-row");
+    expect(await plain.getAttribute("class"), "PR のない行の包み").not.toContain("sub-row");
 
     // 番号の左端は PR のない行と同じ。タイトルは番号の列の右（列の幅は PR の文字の幅しだいで広がる）
     const [codeP, codeN] = await Promise.all([

@@ -360,6 +360,9 @@ export const EN: Readonly<Record<string, string>> = {
   "{0} は人の承認を待っている": "{0} is awaiting human approval",
   着手可: "Ready",
   "{0} を待っている": "Waiting on {0}",
+  // components/row-labels.tsx
+  "ラベル {0} の絞り込みを外す": "Remove filter label {0}",
+  "ラベル {0} で絞る": "Filter by label {0}",
   // components/run-parts.tsx
   実行中: "Running",
   成功: "Success",
@@ -422,6 +425,11 @@ export const EN: Readonly<Record<string, string>> = {
   "履歴が浅い clone なので、これより前の経過は欠けている":
     "This is a shallow clone, so earlier history is missing",
   "経過はない（まだコミットされていない）": "No timeline yet (not committed)",
+  // components/view-menu.tsx
+  ラベルを出す: "Show labels",
+  "表示（既定と違う）": "View (changed)",
+  表示: "View",
+  表示を切り替える: "Change the view",
   // components/worktree-row.tsx
   "worktree のパスをコピー": "Copy worktree path",
   // host.tsx
@@ -474,7 +482,7 @@ export const EN: Readonly<Record<string, string>> = {
   "planned・active のすべて": "All planned and active",
   "開いた Iteration はない": "No open Iterations",
   "Iteration の見出し {0}": "Iteration heading {0}",
-  担当で絞り込む: "Filter by assignee",
+  "担当・ラベルで絞り込む": "Filter by assignee or label",
   "{0} 日目": "Day {0}",
   一覧の一番上へ戻る: "Back to the top of the list",
   "Iteration・Epic・担当を切り替える": "Switch Iteration, Epic, or assignee",

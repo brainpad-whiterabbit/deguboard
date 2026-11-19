@@ -7,9 +7,24 @@ import {
   boardIterationSelection,
   boardSelection,
   hideClosedFinished,
+  labelOptions,
   ticketProgress,
   ticketsInSelection,
 } from "./board.js";
+
+describe("カンバンのラベルの絞り込みの候補", () => {
+  it("範囲のチケットのラベルを重ねずに名前の順で並べ、絞っているラベルは範囲になくても残す", () => {
+    const tickets = [
+      ticket({ id: "t1", labels: ["web", "docs"] }),
+      ticket({ id: "t2", labels: ["docs"] }),
+      ticket({ id: "t3", labels: [] }),
+    ];
+    expect(labelOptions(tickets, undefined)).toEqual(["docs", "web"]);
+    expect(labelOptions(tickets, "web")).toEqual(["docs", "web"]);
+    expect(labelOptions(tickets, "cli")).toEqual(["cli", "docs", "web"]);
+    expect(labelOptions([], undefined)).toEqual([]);
+  });
+});
 
 const iterations: Pick<Iteration, "id" | "status">[] = [
   { id: "s1", status: "closed" },

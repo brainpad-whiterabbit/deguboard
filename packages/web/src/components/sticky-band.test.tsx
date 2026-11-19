@@ -179,7 +179,7 @@ describe("左パネルのカンバンで見出しが上に抜けたら残す 1 �
     expect(document.getElementById("board-band-drop")).toBeNull();
   });
 
-  it("重ねた札で Iteration を切り替えると閉じて一番上へ戻す。Epic・担当を切り替えると閉じるだけで、一覧の位置は保つ", async () => {
+  it("重ねた札で Iteration を切り替えると閉じて一番上へ戻す。Epic・担当・ラベルを切り替えると閉じるだけで、一覧の位置は保つ", async () => {
     const client = mockClient(boardFixture());
     client.data.iterations.push(iteration({ id: "s1", name: "次", status: "planned" }));
     client.data.tickets[1] = { ...client.data.tickets[1]!, assignee: "eiki/agent" };
@@ -200,10 +200,17 @@ describe("左パネルのカンバンで見出しが上に抜けたら残す 1 �
 
     const drop = open();
     fireEvent.click(within(drop).getByRole("button", { name: "絞り込み" }));
-    fireEvent.change(within(drop).getByRole("combobox"), { target: { value: "eiki/agent" } });
+    fireEvent.change(within(drop).getByLabelText("担当"), { target: { value: "eiki/agent" } });
     expect(document.getElementById("board-band-drop")).toBeNull();
     expect(page.scrollTop).toBe(400);
     expect(window.location.hash).toContain("assignee=eiki");
+
+    const again = open();
+    fireEvent.click(within(again).getByRole("button", { name: /^絞り込み/ }));
+    fireEvent.change(within(again).getByLabelText("ラベル"), { target: { value: "web" } });
+    expect(document.getElementById("board-band-drop")).toBeNull();
+    expect(page.scrollTop).toBe(400);
+    expect(window.location.hash).toContain("label=web");
 
     fireEvent.click(within(open()).getByRole("button", { name: /^s1/ }));
     expect(document.getElementById("board-band-drop")).toBeNull();

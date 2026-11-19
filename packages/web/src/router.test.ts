@@ -37,11 +37,12 @@ describe("ハッシュのルーティング", () => {
       page: "board",
       iteration: "s5",
     });
-    expect(parseRoute("#/board?iteration=s4&epic=e1&assignee=eiki%2Fagent")).toEqual({
+    expect(parseRoute("#/board?iteration=s4&epic=e1&assignee=eiki%2Fagent&label=web")).toEqual({
       page: "board",
       iteration: "s4",
       epic: "e1",
       assignee: "eiki/agent",
+      label: "web",
     });
   });
 
@@ -50,6 +51,7 @@ describe("ハッシュのルーティング", () => {
       { page: "board" as const, epic: "e1" },
       { page: "board" as const, iteration: "s4", epic: "e1", assignee: "eiki/agent" },
       { page: "board" as const, iteration: "*" },
+      { page: "board" as const, label: "ui/ux" },
       { page: "ticket" as const, id: "t3" },
       { page: "epics" as const, id: "e1" },
       { page: "iterations" as const, id: "s2" },
