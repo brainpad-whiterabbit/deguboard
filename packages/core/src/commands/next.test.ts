@@ -9,7 +9,7 @@ import type { Run, RunReview } from "../model/run.js";
 import { BRANCH_VALUE_MAX } from "../model/ticket.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
-import { next, nextOf, stageOf, type NextStep, type StageFacts } from "./next.js";
+import { heldStepOf, next, nextOf, stageOf, type NextStep, type StageFacts } from "./next.js";
 import { planApprove, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
 import { runStart } from "./run.js";
@@ -793,7 +793,7 @@ describe("dg next の WIP の上限（WF-8）", () => {
     const { step, warnings } = await nextOfT(ctx, "t2");
     expect(step.kind).toBe("implement");
     expect(step.commands[0]).toBe(
-      "WIP limit (in_progress): rather than starting new work, first advance a ticket in a column further along (in_progress: t1) with dg --json --actor agent next <id>. Starting is not refused",
+      "WIP limit (in_progress): rather than starting new work, first advance a ticket in a column further along (in_progress: t1) with dg --json --actor agent next <id> --reserve. Starting is not refused",
     );
     // 拒否しない：着手の手（claim）はそのまま残る
     expect(step.commands.some((c) => c.includes("ticket claim t2"))).toBe(true);
@@ -825,7 +825,7 @@ describe("dg next の WIP の上限（WF-8）", () => {
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "review" });
     const { step, warnings } = await nextOfT(ctx, "t3");
     expect(step.commands[0]).toBe(
-      "WIP limit (review): rather than starting new work, first advance a ticket in a column further along (review: t1, t2) with dg --json --actor agent next <id>. Starting is not refused",
+      "WIP limit (review): rather than starting new work, first advance a ticket in a column further along (review: t1, t2) with dg --json --actor agent next <id> --reserve. Starting is not refused",
     );
     expect(step.commands.some((c) => c.includes("ticket claim t3"))).toBe(true);
     expect(warnings).toContain(
@@ -840,7 +840,7 @@ describe("dg next の WIP の上限（WF-8）", () => {
     const { step, warnings } = await nextOfT(ctx, "t1");
     // 進める先に todo の列（t1・t2）は挙げない
     expect(step.commands[0]).toBe(
-      "WIP limit (todo): rather than starting new work, first advance a ticket in a column further along (in_progress: t3) with dg --json --actor agent next <id>. Starting is not refused",
+      "WIP limit (todo): rather than starting new work, first advance a ticket in a column further along (in_progress: t3) with dg --json --actor agent next <id> --reserve. Starting is not refused",
     );
     expect(step.commands.some((c) => c.includes("ticket claim t1"))).toBe(true);
     expect(warnings).toContain(
@@ -880,5 +880,36 @@ describe("dg next の WIP の上限（WF-8）", () => {
     const { step, warnings } = await nextOfT(fresh, "t3");
     expect(step.commands.some((c) => c.startsWith("WIP limit"))).toBe(false);
     expect(warnings.some((w) => w.includes("WIP limit"))).toBe(false);
+  });
+});
+
+describe("別のセッションが予約したチケットの手（heldStepOf。PL-7）", () => {
+  it("進める手（step・実行中の Run・モデル・コマンド・人への問い・頼む文）を落とし、進めているセッションの文だけを commands に返す。段階・PR・Plan はそのまま", () => {
+    const step: NextStep = {
+      ticket: "t1",
+      stage: { name: "reviewed", reviews: 1, fixes: 1, review_passed: false, reason: "r" },
+      kind: "fix",
+      step: "fix",
+      running_run: "r-1",
+      pr: 7,
+      plan: { id: "p1", tier: "heavy", scope: "s", approach: "a" },
+      model: "some-model",
+      commands: ["Put deguboard: ticket=t1 step=fix on the first line"],
+      ask_human: "ask",
+      brief: "deguboard: ticket=t1 step=fix",
+    };
+    expect(heldStepOf(step, "t1 is being worked on by another session of yours")).toEqual({
+      ticket: "t1",
+      stage: step.stage,
+      kind: "wait_session",
+      step: null,
+      running_run: null,
+      pr: 7,
+      plan: step.plan,
+      model: null,
+      commands: ["t1 is being worked on by another session of yours"],
+      ask_human: null,
+      brief: null,
+    });
   });
 });

@@ -1,7 +1,8 @@
 // ticket claim の拒否ともう一度の claim かどうかの決定の組み合わせ（status・担当・PR・仮番号・--retry-reason・--branch）を、
 // git なしで確かめる。取り込んだ後の値で決める経路（古い索引・push に負けた後のやり直し）と、Run を開いて前の手直しを閉じる経路は
 // commands-flow-reclaim.test.ts の代表の件が見る。境目の方針と担当の付け替えの許可は commands-flow-ticket.test.ts。
-// claim したセッションの記録が効くか・別のセッションの操作を拒むかの組み合わせもここで確かめ、記録を読み書きする経路は claim-sessions.test.ts
+// claim したセッションの記録が効くか・別のセッションの操作を拒むかの組み合わせもここで確かめ、記録を読み書きする経路は claim-sessions.test.ts。
+// claim の前の予約（Plan とチケット）も同じ関数が決めるので、その組み合わせもここで確かめる（読み書きする経路は reservations.test.ts）
 import { describe, expect, it } from "vitest";
 import { OperationError, UsageError } from "../errors.js";
 import { STATUSES } from "../model/common.js";
@@ -10,11 +11,13 @@ import {
   decideClaim,
   decideReclaim,
   decideSessionClaim,
+  holdingReservation,
   sessionClaimHolds,
   workBranchName,
   type ClaimFacts,
   type ClaimRejection,
   type ReclaimFacts,
+  type ReservationCandidate,
   type SessionClaim,
   type SessionClaimFacts,
   type SessionSigns,
@@ -385,6 +388,152 @@ describe("別のセッションが claim したチケットへの、もう一度
       expect(sessionClaim({ takeOver: true, operation })).toEqual({
         kind: "pass",
         warning: `Took t1 over from ${HOLDER} with --take-over`,
+        takenOver: true,
       });
+  });
+});
+
+/** sess-a が Plan p1 を予約した記録の文（予約の対象を名指しする） */
+const RESERVER = `session sess-a (it reserved p1 at ${CLAIMED_AT}; its last dg hook arrived at ${iso(5)})`;
+/** 予約が止める操作 */
+const RESERVED_OPERATIONS = ["start", "claim", "reserve", "next"] as const;
+/** 既定：sess-a が p1 を予約して 10 分後に、別のセッション sess-b の AI が p1 のチケット t1 を claim する */
+const reserved = (over: Partial<SessionClaimFacts> = {}) =>
+  sessionClaim({ operation: "start", reserved: "p1", ...over });
+
+describe("別のセッションが予約したチケットと Plan への操作（SY-5。claim の記録と同じ関数で決める）", () => {
+  it("生きている別のセッションの予約があると、AI の claim・予約・dg next を拒み、予約したセッションと対象、操作ごとの越え方を示す", () => {
+    const rejected = (cannot: string, how: string) => ({
+      kind: "reject",
+      code: "REJECTED",
+      message: `t1 is being worked on by another session of yours: ${RESERVER}. This session (sess-b) cannot ${cannot} while that session is alive. Leave the ticket to that session. If that session has stopped, or a person told you to take the work over, add --take-over${how}. The record is ignored once SessionEnd reaches that session or no dg hook has reached it for 30 minutes`,
+    });
+    const moves = " (the reservation moves to this session)";
+    expect(reserved()).toEqual(rejected("claim it", moves));
+    expect(reserved({ operation: "reserve" })).toEqual(rejected("reserve it", moves));
+    expect(reserved({ operation: "next" })).toEqual(
+      rejected("advance it", ` to the call, together with --reserve${moves}`),
+    );
+    // もう一度の claim は、claim の記録と同じ言い回しで、予約の対象を名指しする
+    expect(reserved({ operation: "claim" })).toEqual(
+      rejected("claim it again", " (the record moves to this session)"),
+    );
+  });
+
+  it("予約がない・予約したセッション自身・無視する予約（SessionEnd・30 分）は、操作・主体・--take-over がどれでも黙って通す", () => {
+    const passing: Partial<SessionClaimFacts>[] = [
+      { record: undefined },
+      { session: "sess-a" },
+      { endedAt: iso(5) },
+      { now: after(35) },
+    ];
+    for (const pass of passing)
+      for (const operation of RESERVED_OPERATIONS)
+        for (const actorKind of ["agent", "human"] as const)
+          for (const takeOver of [false, true])
+            for (const session of pass.session ? ["sess-a"] : ["sess-b", undefined])
+              expect(
+                reserved({ ...pass, operation, actorKind, takeOver, session }),
+                JSON.stringify({ pass, operation, actorKind, takeOver, session }),
+              ).toEqual({ kind: "pass" });
+  });
+
+  it("人の操作とセッションがわからない AI の呼び出しは拒まずに知らせ、--take-over は越えて引き継いだことを返す", () => {
+    for (const operation of RESERVED_OPERATIONS) {
+      const did = operation === "start" || operation === "claim" ? "claim" : "call";
+      for (const takeOver of [false, true]) {
+        for (const session of ["sess-b", undefined])
+          expect(reserved({ operation, actorKind: "human", session, takeOver })).toEqual({
+            kind: "pass",
+            warning: `t1 is being worked on by an agent in ${RESERVER}. A person's ${did} is not stopped, so it was done as asked; tell that session if it should stop`,
+          });
+        expect(reserved({ operation, session: undefined, takeOver })).toEqual({
+          kind: "pass",
+          warning: `t1 is being worked on by ${RESERVER}. The session calling dg is unknown (the agent sets no session ID), so this ${did} could not be checked against it and was done as asked`,
+        });
+      }
+      expect(reserved({ operation, takeOver: true })).toEqual({
+        kind: "pass",
+        warning: `Took t1 over from ${RESERVER} with --take-over`,
+        takenOver: true,
+      });
+    }
+  });
+});
+
+describe("チケットに効いている予約（チケット自身、それを含む Plan の順）", () => {
+  const CLOCK = { now: after(10), idleMs: IDLE_MS };
+  const candidate = (
+    target: string,
+    session: string,
+    over: Partial<ReservationCandidate> = {},
+  ): ReservationCandidate => ({
+    target,
+    record: { session, claimed_at: CLAIMED_AT },
+    lastHookAt: undefined,
+    endedAt: undefined,
+    ...over,
+  });
+
+  it("候補がなければなく、効く最初の候補を返す（チケットの予約が Plan の予約より先）", () => {
+    expect(holdingReservation([], CLOCK)).toBeUndefined();
+    const ticket = candidate("t1", "sess-b");
+    const plan = candidate("p1", "sess-a");
+    expect(holdingReservation([plan], CLOCK)).toBe(plan);
+    expect(holdingReservation([ticket, plan], CLOCK)).toBe(ticket);
+  });
+
+  it("効かない予約（SessionEnd・30 分・読めない時刻）は飛ばし、次の候補を見る。どれも効かなければない", () => {
+    const plan = candidate("p1", "sess-a");
+    const dead: ReservationCandidate[] = [
+      candidate("t1", "sess-b", { endedAt: iso(5) }),
+      candidate("t1", "sess-b", { record: { session: "sess-b", claimed_at: iso(-30) } }),
+      candidate("t1", "sess-b", { record: { session: "sess-b", claimed_at: "いつか" } }),
+    ];
+    for (const ticket of dead) {
+      expect(holdingReservation([ticket, plan], CLOCK), JSON.stringify(ticket)).toBe(plan);
+      expect(holdingReservation([ticket], CLOCK), JSON.stringify(ticket)).toBeUndefined();
+    }
+    // フックが届いていれば、記録から 30 分を過ぎても効く（候補ごとのフックの時刻で見る）
+    const alive = candidate("t1", "sess-b", {
+      record: { session: "sess-b", claimed_at: iso(-30) },
+      lastHookAt: iso(5),
+    });
+    expect(holdingReservation([alive, plan], CLOCK)).toBe(alive);
+  });
+
+  it("チケットの claim の記録が呼んだセッションのものなら、別のセッションの予約（チケット・Plan）があっても効く予約はない。記録がない・別のセッションの記録・セッションがわからない呼び出しでは予約が効く", () => {
+    const ticket = candidate("t1", "sess-b");
+    const plan = candidate("p1", "sess-b");
+    const claimBy = (session: string): SessionClaim => ({ session, claimed_at: CLAIMED_AT });
+    for (const candidates of [[ticket], [plan], [ticket, plan]]) {
+      const first = candidates[0];
+      // claim の記録は呼んだセッション自身のもの：記録の古さによらず（呼んでいるので生きている）予約より優先する
+      for (const claim of [claimBy("sess-a"), { session: "sess-a", claimed_at: iso(-600) }])
+        expect(holdingReservation(candidates, CLOCK, { claim, session: "sess-a" })).toBeUndefined();
+      const others: { claim: SessionClaim | undefined; session: string | undefined }[] = [
+        { claim: undefined, session: "sess-a" },
+        { claim: claimBy("sess-c"), session: "sess-a" },
+        { claim: claimBy("sess-a"), session: undefined },
+        { claim: undefined, session: undefined },
+      ];
+      for (const own of others)
+        expect(holdingReservation(candidates, CLOCK, own), JSON.stringify(own)).toBe(first);
+    }
+  });
+
+  it("todo のチケット（新しい claim）では、呼んだセッションの claim の記録が残っていても前の作業の周期のものとして数えず、別のセッションの予約が効いて claim を拒む", () => {
+    const own = { claim: { session: "sess-b", claimed_at: CLAIMED_AT }, session: "sess-b" };
+    for (const held of [candidate("t1", "sess-a"), candidate("p1", "sess-a")]) {
+      expect(holdingReservation([held], CLOCK, { ...own, fresh: true })).toBe(held);
+      // todo でなければ（もう一度の claim など）、同じ記録が予約より優先される
+      expect(holdingReservation([held], CLOCK, { ...own, fresh: false })).toBeUndefined();
+      const decision = reserved({
+        record: held.record,
+        reserved: held.target,
+        lastHookAt: held.lastHookAt,
+      });
+      expect(decision.kind).toBe("reject");
+    }
   });
 });

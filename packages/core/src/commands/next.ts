@@ -22,6 +22,13 @@ import { hooksReachSession, takeHookWarnings, unlinkedReviewWarning } from "./ho
 import { staleSkillWarningsOf } from "./skill-files.js";
 import { orphanReviewRuns } from "./orphan-review.js";
 import { crashedSubagentRuns, sessionOf } from "./run.js";
+import { isTerminal } from "../model/common.js";
+import {
+  judgeReservedNext,
+  requireReserveWithTakeOver,
+  reserve,
+  reserveFields,
+} from "./reservations.js";
 
 /** 段階の名前。claimed → implemented → reviewed(n) → fixed(n) → ready → merged と、todo・blocked・awaiting_approval・reviewing・waiting_human・closed */
 export const STAGES = [
@@ -64,6 +71,7 @@ export const NEXT_KINDS = [
   "wait_merge",
   "wait_deps",
   "wait_human",
+  "wait_session",
   "done",
 ] as const;
 export type NextKind = (typeof NEXT_KINDS)[number];
@@ -347,7 +355,7 @@ export function wipCheckOf(
   const over = wipOverOf(tickets, wf.wip, { starting });
   return {
     warnings: wipWarningsOf(over, wf.labels),
-    step: wipAdvanceStepOf(over, tickets, dg("next <id>")),
+    step: wipAdvanceStepOf(over, tickets, dg("next <id> --reserve")),
   };
 }
 
@@ -564,7 +572,24 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
   }
 }
 
-// 要件 EX-3・EX-5（次の一手と段階）・TK-9（段が low・free の見直しの省略）・WF-8（列の WIP の上限）
+/**
+ * 別のセッションが予約して進めているチケットの手（PL-7。t1149）。進める手（コマンド・サブエージェントに頼む文・モデル）を
+ * 返さず、どのセッションが進めているかと越え方（拒否の文。claim-judge.ts の decideSessionClaim）だけを返す。段階はそのまま出す
+ */
+export function heldStepOf(step: NextStep, message: string): NextStep {
+  return {
+    ...step,
+    kind: "wait_session",
+    step: null,
+    running_run: null,
+    model: null,
+    commands: [message],
+    ask_human: null,
+    brief: null,
+  };
+}
+
+// 要件 EX-3・EX-5（次の一手と段階）・TK-9（段が low・free の見直しの省略）・WF-8（列の WIP の上限）・PL-7（別のセッションの予約）
 export const next = defineCommand({
   name: "next",
   positionals: ["ticket"],
@@ -578,19 +603,23 @@ export const next = defineCommand({
     "For a ticket whose gate level is low or free, a PR skips the review: a draft is reviewed with review_passed (the ready step), otherwise ready (wait_merge). " +
     "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
     "A review result held with no review Run counts as a review the same way as in dg gate. " +
-    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. The implement claim follows the decide value of the Workflow's todo → in_progress boundary (ask_unless_auto by default): when it asks for a person's approval, the claim carries --approved-by human, with a sentence that says when to pass it and when to pass --auto instead; when only a person may start a ticket, it is a sentence asking a person to claim. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another. For implement, review, and fix steps it does not wait for a Run left over from a crashed session: a Run opened by a sub-agent of a different session whose record has not been written for 30 minutes. It returns the steps to ask again with the mark, and says that asking again closes that Run as interrupted. A newer record, an unknown session, and a Run the parent opened itself are still waited for), and the questions to ask a person (ask_human). " +
+    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, wait_session, done),the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. The implement claim follows the decide value of the Workflow's todo → in_progress boundary (ask_unless_auto by default): when it asks for a person's approval, the claim carries --approved-by human, with a sentence that says when to pass it and when to pass --auto instead; when only a person may start a ticket, it is a sentence asking a person to claim. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another. For implement, review, and fix steps it does not wait for a Run left over from a crashed session: a Run opened by a sub-agent of a different session whose record has not been written for 30 minutes. It returns the steps to ask again with the mark, and says that asking again closes that Run as interrupted. A newer record, an unknown session, and a Run the parent opened itself are still waited for), and the questions to ask a person (ask_human). " +
     "For wait_merge, ask_human always asks whether to merge the PR, and commands give the gate judgment and the dg pr merge <id> --approved-by human to run only after a person approves (when declined, do not merge; a PR that does not meet the gate is merged only when a person approves it anyway, and an unmet pr, mergeable, or head is never overridden; merging without asking is only for a flow started with --auto where the value of the review → done boundary is ask_unless_auto, with dg pr merge <id> --auto, as approval of dg flow next says). " +
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.<agent>.<tier> of the agent that called dg, detected from the environment, and when that is empty or the agent cannot be detected, to models.<tier>; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
     "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. A ticket in the awaiting_approval stage is wait_human too (a person approves its Plan). " +
     "When a column has more tickets than its WIP limit (wip in workflow.yaml; dg workflow show), it warns, and the step that starts a todo ticket puts first in commands a step to advance tickets in the columns further along (for that step, in_progress at its limit counts as over, since claiming adds one). Starting is not refused, and config's work.parallel is a separate setting. " +
-    "It also warns with the dg hook warnings not reported yet (see dg hook --help), and with the installed dg Skills that are older than this dg, or that a dg of the same version wrote with different contents (update them with dg skill install; Skills written by a newer dg are not reported). It writes nothing but the mark of the reported hook warnings in deguboard-local",
+    "It also warns with the dg hook warnings not reported yet (see dg hook --help), and with the installed dg Skills that are older than this dg, or that a dg of the same version wrote with different contents (update them with dg skill install; Skills written by a newer dg are not reported). " +
+    "With --reserve, the calling session reserves the ticket before advancing it (pass it when you advance the ticket, as the steps of dg guide work do; not when you only look). When another live session of the same user has reserved the ticket, or the open Plan that includes it (dg plan show <p> --reserve), an agent gets kind wait_session with no step to advance: commands has one sentence that names that session and says how to take the work over (--reserve --take-over moves the reservation of the ticket to the calling session), and model and brief are null. A person's call and a call whose session is unknown get the usual step with a warning. A done or abandoned ticket is not reserved. " +
+    "It writes nothing but the mark of the reported hook warnings and, with --reserve, the reservation, both in deguboard-local",
   input: z.object({
     ticket: ticketRef,
+    ...reserveFields,
   }),
   write: false,
   needs: "store",
   async run(ctx, input) {
+    requireReserveWithTakeOver(input);
     const ticket = ctx.store.require("ticket", input.ticket).data;
     const facts = await stageFactsOf(ctx, ticket, { fetch: true });
     const env = ctx.env ?? process.env;
@@ -599,11 +628,24 @@ export const next = defineCommand({
       agent: detectAgent(env).agent,
       crashed: await crashedSubagentRuns(ctx, facts.runs, sessionOf(ctx, undefined)),
     });
+    // 別のセッションが予約したチケット（予約した Plan のチケットを含む）は、進める手を返さない（PL-7。reservations.ts）。
+    // --reserve は呼んだセッションの予約を書き、付けない呼び出しは判定だけで何も書かない。終わったチケットは進めないので見ない
+    const reserved: string[] = [];
+    const held = isTerminal(ticket.status)
+      ? undefined
+      : input.reserve
+        ? await reserve(ctx, { ticket: ticket.id }, input, reserved)
+        : await judgeReservedNext(ctx, ticket.id).then((d) => {
+            if (d.kind === "reject") return d;
+            if (d.warning) reserved.push(d.warning);
+            return undefined;
+          });
     // 新しく着手する手（todo の implement）にだけ、先の列を進める手を前に置く。ほかの手はそのチケット自身を先へ進める
-    const starting = found.kind === "implement" && found.stage.name === "todo";
+    const starting = !held && found.kind === "implement" && found.stage.name === "todo";
     const wip = wipCheckOf(ctx, starting);
-    const step =
-      starting && wip.step !== null && found.running_run === null
+    const step = held
+      ? heldStepOf(found, held.message)
+      : starting && wip.step !== null && found.running_run === null
         ? { ...found, commands: [wip.step, ...found.commands] }
         : found;
     const role = BRIEF_ROLE_OF[step.kind];
@@ -612,6 +654,7 @@ export const next = defineCommand({
     // フックの中で出た警告は誰にも届いていないので、まだ知らせていないものをここで知らせる（t756）
     // 入れてある dg の Skill が今の dg のものより古ければ、それも知らせる（t858）
     const extra = [
+      ...reserved,
       ...wip.warnings,
       ...(unlinked ? [unlinked] : []),
       ...(await takeHookWarnings(ctx.repo.localDir)),

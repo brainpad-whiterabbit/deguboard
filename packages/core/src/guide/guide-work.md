@@ -18,7 +18,7 @@ The tickets of an approved Plan are advanced in parallel when two or more of the
 
 ## Flow
 
-1. If a level was given, follow "Gate level" first. Call `dg --json --actor agent next <id>`, and do one of the `kind` steps. Do the `commands` in order. If there is a `brief`, paste it to a subagent (you may add a location for temporary files after it). If `model` is not empty, start the subagent with that model (`null` means the parent's model). A research subagent with no mark uses the calling agent's `models.<agent>.light`, or `models.light` if that is empty (the parent's model if both are empty). After finishing, call `next` again
+1. If a level was given, follow "Gate level" first. Call `dg --json --actor agent next <id> --reserve`, and do one of the `kind` steps. `--reserve` reserves the ticket for this session before the claim, so that another session of yours does not start it; pass it on every `next` of a ticket you advance, and leave it out when you only look at a ticket. Do the `commands` in order. If there is a `brief`, paste it to a subagent (you may add a location for temporary files after it). If `model` is not empty, start the subagent with that model (`null` means the parent's model). A research subagent with no mark uses the calling agent's `models.<agent>.light`, or `models.light` if that is empty (the parent's model if both are empty). After finishing, call `next` again
 2. The parent's step for each `kind`:
    - `implement`: do the claim in `commands` (with `--no-run`: the hook opens the Run of the subagent asked with the mark; with the approval flag it carries, as "Approval to start" of "Before and after claim" says), and follow "Before and after claim". Claim creates the worktree of the work branch, and returns its location in `worktree` (the default is `{{worktree.root}}/<branch name>`). Pass the text, and when it returns, do "Receive the implementation result". See "Who implements and fixes" below
    - `review`: start the reviewer by the "Starting the review (parent)" section of `dg guide review` (the text includes the "Review" steps)
@@ -27,9 +27,10 @@ The tickets of an approved Plan are advanced in parallel when two or more of the
    - `wait_merge`: the PR waits for its merge. Do not stop for it while other tickets of `ready` can advance (see "Following the Plan"). When nothing is left to start or wait for, follow "Merging after approval" below
    - `wait_human`: tell a human the `ask_human` (it is in the "How to finish" section of `dg guide review`), and do not wait for the answer: advance the other tickets of `ready` meanwhile. A decision that needs approval is asked as approval, and only that stops the flow. For review findings from a human, follow the "Fix loop (parent)" section of `dg guide review`
    - `wait_deps`: wait, and advance another ticket of `ready` of `plan show`
+   - `wait_session`: another session of yours reserved the ticket or its Plan and is advancing it, so no step is returned. Leave the ticket to that session, and advance another ticket of `ready`. Take it over, as the sentence in `commands` says, only when that session has stopped or a human told you to
    - `done`: clean up by the steps of `dg guide done`
 
-For `wait_merge`, `wait_human`, and `wait_deps` with no Plan, there is no other ticket of `ready` to advance meanwhile. Then go to "Choosing the next step" below and ask with its choices instead.
+For `wait_merge`, `wait_human`, `wait_deps`, and `wait_session` with no Plan, there is no other ticket of `ready` to advance meanwhile. Then go to "Choosing the next step" below and ask with its choices instead.
 
 ## Merging after approval
 
@@ -77,7 +78,8 @@ When it returns, compare the result with `acceptance` of `ticket show`, and atta
 
 Follow the order and contents of the approved Plan (`dg guide plan`).
 
-- Before starting, run `dg --json --actor agent plan show <p>`. If `pending_approval` is true, do not start. Ask a human for approval
+- Before starting, run `dg --json --actor agent plan show <p> --reserve`, and add `--reserve` each time you read `plan show` again while advancing the Plan. It reserves the Plan and its tickets for this session, so that another session of yours does not claim them. If the call is rejected because another session of yours is advancing the Plan, do not start: tell the human, and take the Plan over with `--take-over` only when that session has stopped or the human told you to
+- If `pending_approval` is true, do not start. Ask a human for approval. A Plan awaiting approval is not reserved, so run `plan show <p> --reserve` again once it is approved
 - The tickets that can be started are `ready` of `plan show`, in the Plan's order (todo, with no waits). `next` of `plan show` is the first of them. `waiting` is the party to wait for. `after` is not checked by claim, so keep it yourself (when several tickets advance at the same time, see `dg guide parallel`)
 - The scope (`scope`) and approach (`approach`) appear in `plan` of `next`. Before you widen the scope or change the approach, confirm with a human
 - After a PR is put out, read `plan show` again, and advance what is in `ready`. When all tickets of the Plan are finished, do the "Closing a Plan" section of `dg guide done`

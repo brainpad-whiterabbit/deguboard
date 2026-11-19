@@ -589,8 +589,10 @@ function commandsOf(
           ]
         : [dg(`plan create ${stage.tickets.join(" ")}`)];
     case "work":
+      // 進める呼び出しなので、Plan とチケットを呼んだセッションが予約する（--reserve。PL-7、reservations.ts）。
+      // 承認のために Plan を見せる plan の段階は、見るだけなので付けない
       return [
-        dg(`plan show ${stage.plan}`),
+        dg(`plan show ${stage.plan} --reserve`),
         ...stage.tickets.flatMap((t) => [
           ...(gate && gate.of(t) !== gate.level
             ? [
@@ -600,7 +602,7 @@ function commandsOf(
                   : dg(`ticket update ${t} --gate ${gate.level}`),
               ]
             : []),
-          dg(`next ${t}`),
+          dg(`next ${t} --reserve`),
         ]),
       ];
     case "audit":
@@ -766,7 +768,7 @@ export const flowNext = defineCommand({
     "For such a stage, stage.name is its name, stage.after its after, and stage.rule null; guide.text is the document in its guide as written (config values are not filled in), guide.path its path from the top of the repository (read that file to read it again; guide.command is null), commands is empty, checkpoint is its checkpoint command, and approval comes from its decide (approval.value is flow.<name>.decide: <value>). If the document is missing or cannot be read (outside the repository, not a regular file, or over 64 KiB), the stage is still returned with an empty guide.text and a warning. " +
     "If the facts (tickets, Plans, Runs, checkpoint records) have not changed for the same stage as the previous return, it returns stop (repeated is the stage). The previous return is remembered for each target on this machine (deguboard-local/flow/, not shared), and it is forgotten when stop is returned, so the call after a stop works the stage out again. Returns the stage's section (guide), the commands to call (commands; with --gate, the work stage sets the level on tickets whose level differs before next; when that lowers the level, the entry is a sentence to ask a person to run the command, because only a person can lower it), and whether approval is needed (approval). " +
     "The Workflow's values decide approval (dg workflow show): flow.assign, flow.check, flow.plan, flow.audit, and flow.release for their stages, and the decide of the review → done boundary for the merges of the work stage. approval.value is that value, and approval.agent is what it means for an agent in this call: allow (go ahead without asking), approval (ask a person first; required is true), or reject (only a person does it; required is true). --auto goes ahead without asking only where the value is ask_unless_auto: auto_ok is then true, and the judged commands carry --auto (iteration add, plan approve, and the checkpoint), which records the agent as the approver. A value of always_ask is asked with --auto too. A judged command (in commands or checkpoint) that carries --approved-by human is run only after a person approves approval.what. In the check stage the value decides only the rows to fix; deletions, abandoned, and closing are always asked. " +
-    "When a column is over its WIP limit (wip in workflow.yaml), it warns the same way as dg next, and the work stage puts first in commands a step to advance tickets in the columns further along (starting is not refused). Writes no data (only the memory of the previous return, under deguboard-local)",
+    "When a column is over its WIP limit (wip in workflow.yaml), it warns the same way as dg next, and the work stage puts first in commands a step to advance tickets in the columns further along (starting is not refused). The work stage's plan show and next in commands carry --reserve, so that the session that runs them reserves the Plan and its tickets before claiming (see dg next --help). Writes no data (only the memory of the previous return, under deguboard-local)",
   input: z.object({
     targets: z
       .array(z.string().min(1))
