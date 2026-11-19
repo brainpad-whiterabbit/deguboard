@@ -38,7 +38,7 @@ for (const key of Object.keys(process.env)) {
 // ワーカー数の上限。既定・変え方・理由は vitest.workers.ts の冒頭のコメント
 const maxWorkers = resolveMaxWorkers(
   process.env.DEGUBOARD_TEST_MAX_WORKERS,
-  isRelatedRun(process.argv),
+  isRelatedRun(process.env),
 );
 
 export default defineConfig({

@@ -8,7 +8,8 @@
 // （全体 193 秒と 195 秒）、1 本だけのときは 4 が 2 割遅い（133 秒と 110 秒）だけだったので、全体のテストを CPU 数の半分にする。
 // 並列のエージェントは worktree ごとに test:related を回すので、半分ずつでも何本も重なる（2026-11-17 に 3 本が重なり、
 // 8 CPU で負荷平均が 16、全体のテストが 432 秒かかった）。test:related は lock に入れず待たずに回したいので、
-// 全体のテストより少ない 4 分の 1 にする。test:related かどうかは vitest run の --changed で見る（isRelatedRun）。
+// 全体のテストより少ない 4 分の 1 にする。test:related かどうかは、scripts/test-related.mjs が vitest に渡す
+// 環境変数 DEGUBOARD_TEST_RELATED で見る（isRelatedRun）。
 //
 // 手元で 1 本だけ速く回したいときや、もっと絞りたいときは DEGUBOARD_TEST_MAX_WORKERS に数か "75%" のような割合を渡す。
 // test:related でも、渡した値をそのまま使う。それ以外の値と 0 はエラーで止まる。
@@ -22,11 +23,11 @@ export const DEFAULT_MAX_WORKERS = "50%";
 export const RELATED_MAX_WORKERS = "25%";
 
 /**
- * vitest を変えたファイルに関わるテストだけで回しているか（test:related の vitest run --changed）を、コマンドの引数から見る。
- * package.json の test:related が --changed を渡すことは test/lint/vitest-max-workers.test.ts が確かめる
+ * vitest を変えたファイルに関わるテストだけで回しているか（test:related）を、環境変数から見る。
+ * scripts/test-related.mjs がこの変数を "1" にして vitest を起動することは test/lint/vitest-max-workers.test.ts が確かめる
  */
-export function isRelatedRun(argv: readonly string[]): boolean {
-  return argv.some((arg) => arg === "--changed" || arg.startsWith("--changed="));
+export function isRelatedRun(env: Readonly<Record<string, string | undefined>>): boolean {
+  return env.DEGUBOARD_TEST_RELATED === "1";
 }
 
 /**
