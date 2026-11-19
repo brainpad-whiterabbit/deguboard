@@ -1236,6 +1236,7 @@ describe("設定画面の部品", () => {
   it("保存の前に確かめるのは、同期と照合・worktree・実行するコマンドを変える項目だけ", () => {
     expect([...CONFIRM_KEYS.keys()].sort()).toEqual([
       "actions.light_test",
+      "actions.pre_review_test",
       "actions.test",
       "git.base_branch",
       "git.data_branch",

@@ -292,7 +292,7 @@ export const configSchema = z.looseObject({
       // 検査とテストに数えるコマンドに足すもの（MT-1。見分け方は agents/check-commands.ts）
       check_commands: described(z.array(z.string().min(1)).default([]), {
         summary: "More commands counted as checks and tests in a Run's check_seconds",
-        description: `Commands counted, besides the defaults, as checks and tests when a Run is closed: the seconds they ran in the foreground are recorded in the Run's check_seconds (dg metrics show adds them up). The defaults are always counted: actions.test, actions.light_test, and dg gate --only check. One command per entry, as its words separated by spaces (e.g. mise run test). A Bash command counts when one of its parts (split at && || ; | and newlines), after leading VAR=value assignments, starts with the words of an entry, so mise run test does not count mise run test:related. Counted only for Runs of ${checkAgentNames().join(", ")}, from the conversation record (metrics.read_transcripts); the command strings are not recorded`,
+        description: `Commands counted, besides the defaults, as checks and tests when a Run is closed: the seconds they ran in the foreground are recorded in the Run's check_seconds (dg metrics show adds them up). The defaults are always counted: actions.test, actions.light_test, actions.pre_review_test, and dg gate --only check. One command per entry, as its words separated by spaces (e.g. mise run test). A Bash command counts when one of its parts (split at && || ; | and newlines), after leading VAR=value assignments, starts with the words of an entry, so mise run test does not count mise run test:related. Counted only for Runs of ${checkAgentNames().join(", ")}, from the conversation record (metrics.read_transcripts); the command strings are not recorded`,
         example: ["mise run test"],
         empty: "Only the defaults are counted",
       }),
@@ -329,6 +329,14 @@ export const configSchema = z.looseObject({
           "Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file changed since the last commit whose actions.test passed (or against base, when there is none) falls outside, actions.test runs",
         example: ["docs/**"],
         empty: LIGHT_CHECK_UNUSED,
+      }),
+      // 見直しの前と手直しの後の検査（dg gate --only check）。選び方は commands/gate-check.ts の planCheck
+      pre_review_test: described(z.array(z.string().min(1)).default([]), {
+        summary: "Check run by dg gate --only check, before the review, instead of actions.test",
+        description:
+          "Argument array of the check that dg gate --only check (run before the push: before the review and after a fix) runs instead of actions.test (e.g. [mise, run, check:pre-review]). When only files under actions.light_paths changed, actions.light_test still runs instead. Passing it does not count as actions.test: the check of dg pr ready and dg pr merge runs actions.test. When empty, dg gate --only check runs actions.test. When actions.test is empty, this check does not run either",
+        example: ["mise", "run", "check:pre-review"],
+        empty: "dg gate --only check runs actions.test",
       }),
     })
     .prefault({}),

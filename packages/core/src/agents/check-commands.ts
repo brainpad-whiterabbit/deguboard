@@ -7,13 +7,14 @@ import type { Config } from "../model/config.js";
 export type CheckCommands = ReadonlyArray<readonly string[]>;
 
 /**
- * config から数えるコマンドを決める：actions.test・actions.light_test（空でなければ）と、metrics.check_commands の各行を空白で分けた語。
+ * config から数えるコマンドを決める：actions.test・actions.light_test・actions.pre_review_test（空でなければ）と、metrics.check_commands の各行を空白で分けた語。
  * dg gate --only check は呼び方（mise run dg --、node …/dg.js）がリポジトリごとに違い、語の並びで書けないので、isCheckCommand がいつも数える
  */
 export function checkCommandsOf(config: Pick<Config, "metrics" | "actions">): CheckCommands {
   return [
     config.actions.test,
     config.actions.light_test,
+    config.actions.pre_review_test,
     ...config.metrics.check_commands.map((line) => line.trim().split(/\s+/)),
   ].filter((words) => words.length > 0 && words[0] !== "");
 }

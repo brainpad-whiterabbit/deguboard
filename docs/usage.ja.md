@@ -189,7 +189,7 @@ dg config set metrics.read_transcripts true
 
 設定はチームで共有されます。自分のマシンだけ止めるときは `DEGUBOARD_NO_TRANSCRIPTS=1` を設定します。
 
-検査とテストに数えるのは `actions.test`・`actions.light_test`・`dg gate --only check` です。ほかのコマンドも数えるには、`metrics.check_commands` にカンマで区切って並べます（例：`dg config set metrics.check_commands "mise run test"`）。コマンドの見分け方は `metrics.check_commands` の説明（`dg config show`）にあります。値は `dg metrics show` が集計します。
+検査とテストに数えるのは `actions.test`・`actions.light_test`・`actions.pre_review_test`・`dg gate --only check` です。ほかのコマンドも数えるには、`metrics.check_commands` にカンマで区切って並べます（例：`dg config set metrics.check_commands "mise run test"`）。コマンドの見分け方は `metrics.check_commands` の説明（`dg config show`）にあります。値は `dg metrics show` が集計します。
 
 ## 承認待ちの通知
 

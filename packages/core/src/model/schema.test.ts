@@ -407,6 +407,7 @@ describe("スキーマ", () => {
       "actions.test",
       "actions.light_test",
       "actions.light_paths",
+      "actions.pre_review_test",
       "work.parallel",
       "merge.method",
       "merge.delete_branch",
@@ -451,6 +452,8 @@ describe("スキーマ", () => {
     // 軽い検査とその対象のパスは既定で空（空ならいつも actions.test を回す。t632）
     expect(byKey.get("actions.light_test")).toMatchObject({ type: "list", default: [] });
     expect(byKey.get("actions.light_paths")).toMatchObject({ type: "list", default: [] });
+    // 見直しの前の検査は既定で空（空なら dg gate --only check も actions.test を回す。t1154）
+    expect(byKey.get("actions.pre_review_test")).toMatchObject({ type: "list", default: [] });
     expect(byKey.get("git.remote")).toMatchObject({ type: "string", default: "origin" });
     // 誰がどの操作をしてよいかは config に持たない（Workflow の governance と Core の固定が決める）。
     // 前の版の config.yaml に残った値は、未知の項目として読み飛ばす（読み込みを止めない）

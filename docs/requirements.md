@@ -182,7 +182,8 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないときは、push する操作は止まって次の手を示し、ほかの操作は警告して続く。push する操作が自分で取り込んだ config でこの値が変わったときは push せずに止まり、画面の自動の取り込みが先に取り込んだときは止まらずに新しいリモートを使う（エラーと戻し方は `dg guide overview`）
 - `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push する。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく扱い、別のカンバンのブランチを指したときは取り込まずに止まる（エラーと戻し方は `dg guide overview`）
-- `metrics.check_commands`：検査とテストに数えるコマンド（MT-1）に足すコマンド。`actions.test`・`actions.light_test`・`dg gate --only check` は足さなくても数える（見分け方は `packages/core/src/agents/check-commands.test.ts`）
+- `metrics.check_commands`：検査とテストに数えるコマンド（MT-1）に足すコマンド。`actions.test`・`actions.light_test`・`actions.pre_review_test`・`dg gate --only check` は足さなくても数える（見分け方は `packages/core/src/agents/check-commands.test.ts`）
+- `actions.pre_review_test`：`dg gate --only check`（見直しの前と手直しの後）が `actions.test` の代わりに回す検査。通っても `dg pr ready`・`dg pr merge` の検査（EX-6）には数えず、省けば `actions.test` を回す（選び方は `dg gate --help`）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。`dg next` が implement・fix の手の `model` に返す（EX-5）。`models.<agent>.<tier>` があれば、呼んだ agent ではそれを先に使う（引く順は `dg next --help`）
 - `retro.perspectives`：振り返りの観点（MT-7）。観点ごとに名前・問い・承認した指標の定義（数え方の文と出どころのコマンド）を持つ入れ子で、チームだけが持つ。`config set` と設定画面では書かず、`dg retro` のコマンドが検査して書く。設定画面は読むだけで出す（UI-14。細部は `dg retro --help`、理由は [ADR-035](adr/ADR-035-retro-perspectives.md)）
 
@@ -280,7 +281,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - EX-6 `dg pr ready`・`dg pr merge` は段（TK-9）の条件を満たすときだけ gh を呼び、ほかは `GATE_FAILED` で返す。出す前に直さなかった軽い指摘を本文に足す。merge は判定したコミットに固定し、gh が失敗してもマージ済みなら成功。条件の外のマージは EX-10、ready は人が行う（AG-10。細部は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - EX-7 `--auto` は、Workflow の値が `ask_unless_auto` の場面だけを聞かずに進める。操作のコマンドが `--auto` を受け、その場面でだけ通して承認者に agent を記録し、ほかの場面の `--auto` は拒否する。`always_ask`・`human_only`・Core の固定は越えない（細部は `dg guide all`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - EX-8 `dg flow next` は流れの段階と、その手のやり方の節・呼ぶコマンド・関所・承認の要否を返す。割り当て・点検・見直しを終えたかは、`dg checkpoint` が段階の値で判定して Iteration に足した記録と根拠で決め、根拠が変わった記録と再開より前の記録は数えない。`flow` の `skip` の段階は返さず、同じ段階が事実も変わらずに続けば止まる手を返す（規則は `dg flow next --help`、EX-3）
-- EX-9 `dg gate <id> --only check` は、作業ブランチの worktree の HEAD（push の前のコミットも）を品質ゲートの検査と同じ判定で検査し、結果を同じコミットの `dg pr ready`・`dg pr merge` が回し直さずに使う（細部は `dg gate --help`）
+- EX-9 `dg gate <id> --only check` は、作業ブランチの worktree の HEAD（push の前のコミットも）を検査し、`actions.pre_review_test` があれば `actions.test` の代わりにそれを回す。`dg pr ready`・`dg pr merge` は、同じコミットの結果が自分の回す検査のものであるときだけ、回し直さずに使う（細部は `dg gate --help`）
 - EX-10 品質ゲートを満たさない PR は、人が承認したときだけ、承認者を渡した `dg pr merge` がマージし、越えた条件と承認者を PR に残す。この承認は `--auto` でも設定でも省けない（WF-7）。PR の状態・衝突・判定した先端は承認があっても越えられない（細部は `dg pr merge --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 
 ## 7. 非機能要件

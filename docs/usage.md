@@ -189,7 +189,7 @@ dg config set metrics.read_transcripts true
 
 The setting is shared with your team. To turn it off on your own machine only, set `DEGUBOARD_NO_TRANSCRIPTS=1`.
 
-The checks and tests counted are `actions.test`, `actions.light_test`, and `dg gate --only check`. To count more commands, list them in `metrics.check_commands`, separated by commas (for example `dg config set metrics.check_commands "mise run test"`). How a command is matched is in the description of `metrics.check_commands` (`dg config show`). `dg metrics show` adds the values up.
+The checks and tests counted are `actions.test`, `actions.light_test`, `actions.pre_review_test`, and `dg gate --only check`. To count more commands, list them in `metrics.check_commands`, separated by commas (for example `dg config set metrics.check_commands "mise run test"`). How a command is matched is in the description of `metrics.check_commands` (`dg config show`). `dg metrics show` adds the values up.
 
 ## Approval notifications
 

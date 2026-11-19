@@ -59,7 +59,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Tools: read files with Read and edit them with Edit. Do not read or write source with Bash cat, heredoc, or sed -i.
       - Run: the marker on the first line makes the hook open and close the implementation Run. Do not open or close a Run. The parent has already claimed the ticket.
       - Do not: claim, unclaim, iteration add, Plan operations, launching a reviewer, making the PR ready (\`dg pr ready\`), merge, \`ticket check\`, \`ticket update --pr\`, or work on other tickets. Do not fix things outside the scope; report them in what you return.
-      - Return: the draft PR's URL and number; the acceptance criteria you checked (by number) and those you could not (with reasons); the sources you reread and what you changed there; the result of \`dg gate t12 --only check\` before the push (passed or not, light or full, and the SHA); and anything the human should know."
+      - Return: the draft PR's URL and number; the acceptance criteria you checked (by number) and those you could not (with reasons); the sources you reread and what you changed there; the result of the check before the review, \`dg gate t12 --only check\` before the push (passed or not, which check ran (light, pre-review, or full), and the SHA); and anything the human should know."
     `);
     expect(composeBrief("review", facts({ step: "review" }))).toMatchInlineSnapshot(`
       "deguboard: ticket=t12 step=review
@@ -67,7 +67,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Read the files only; do not change them.
       - Diff: After \`git fetch origin\`, look at \`git diff origin/main...feat/t12\`.
       - Ticket body: Read the body and acceptance criteria in \`dg --json --actor agent ticket show t12\`.
-      - Conventions: Follow the agent instruction file at the repository root, and the steps below. On the latest commit, run \`dg --json --actor agent gate t12 --only check\` (the check of the quality gate; it reuses the result remembered for the same commit) and use its result.
+      - Conventions: Follow the agent instruction file at the repository root, and the steps below. On the latest commit, run \`dg --json --actor agent gate t12 --only check\` (the check before the review; it reuses the result remembered for the same commit) and use its result.
       --- Steps: Review ---
       1. 検査を通す
       2. 読み直した正本を直す
@@ -76,7 +76,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Run: the marker on the first line makes the hook open and close the review Run. Do not open or close a Run.
       - Record: Before returning the list, write the findings as a JSON array (each with severity (heavy or light), category, cause (ticket, plan, implementation, tests, documents, environment, unknown), file, line, reason, and fix; the shape and the meaning of each cause are in \`dg run review-result --help\`) to a temporary file outside the repository, and record it once with \`dg --json --actor agent run review-result t12 --findings-file <file>\`. Use \`[]\` if there are no findings. dg works out the counts and whether the review passed.
       - Do not: change files in the repository, commit, push, write anything to dg other than the Run, or look at other tickets.
-      - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a promise, procedure, or rule this PR changed, details added to an ADR or requirements, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the result of \`dg gate t12 --only check\` on the latest commit (passed or not, light or full, and the SHA). Report mismatches with the references section (\`## References\` or \`## 参考\` in the body) under the light findings, and do not count them as heavy."
+      - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a promise, procedure, or rule this PR changed, details added to an ADR or requirements, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the result of \`dg gate t12 --only check\` on the latest commit (passed or not, which check ran (light, pre-review, or full), and the SHA). Report mismatches with the references section (\`## References\` or \`## 参考\` in the body) under the light findings, and do not count them as heavy."
     `);
     expect(composeBrief("fix", facts({ step: "fix" }))).toMatchInlineSnapshot(`
       "deguboard: ticket=t12 step=fix
@@ -86,7 +86,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Findings to fix: (paste the list of findings here: the heavy findings and the light ones you decided to fix, returned by the reviewer or the human reviewer, each with file and line, reason, and how to fix it)
       - Before you start fixing: Run \`dg --json --actor agent run retry-reason t12 --reason <summary of finding 1> --reason <summary of finding 2> …\` once, as a standalone command, to write the retry reasons on the fix Run. Repeat --reason once per finding you fix (the number of reasons is the retry count). Write only the findings from the reviewer or the human reviewer, not fixes for failed checks. Each summary is one line and must not contain secrets, command strings, or paths.
       - Scope of the fix: The heavy findings listed, and the light ones you decide to fix. For the other light findings, decide whether to fix them, and return the reasons for those you leave.
-      - Conventions: Follow the agent instruction file at the repository root, and the steps below. Before you push, run \`dg --json --actor agent gate t12 --only check\` and confirm it passes (the check of the quality gate on the latest commit; it also remembers the result for that commit).
+      - Conventions: Follow the agent instruction file at the repository root, and the steps below. Before you push, run \`dg --json --actor agent gate t12 --only check\` and confirm it passes (the check before the review, on the latest commit; it also remembers the result for that commit. The whole check runs at \`dg pr ready\`).
       --- Steps: Fix findings ---
       1. 検査を通す
       2. 読み直した正本を直す
@@ -97,7 +97,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Tools: read files with Read and edit them with Edit. Do not read or write source with Bash cat, heredoc, or sed -i.
       - Run: the marker on the first line makes the hook open and close the fix Run. Do not open or close a Run (do not use claim, \`run start\`, or \`run finish\`).
       - Do not: claim, unclaim, making the PR ready (\`dg pr ready\`), merge, \`ticket update --pr\`, \`ticket check\`, or work on other tickets.
-      - Return: the commits you made (hash and summary) and whether you pushed; the light findings you did not fix, with reasons; the acceptance criteria you checked (by number) and those you could not (with reasons); the result of \`dg gate t12 --only check\` before the push (passed or not, light or full, and the SHA); and anything the human should know."
+      - Return: the commits you made (hash and summary) and whether you pushed; the light findings you did not fix, with reasons; the acceptance criteria you checked (by number) and those you could not (with reasons); the result of \`dg gate t12 --only check\` before the push (passed or not, which check ran (light, pre-review, or full), and the SHA); and anything the human should know."
     `);
   });
 

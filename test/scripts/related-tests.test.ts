@@ -172,7 +172,7 @@ describe("test:related が回すテストの選び方", () => {
 describe("test:related の回す・知らせる・何もしない（planRelatedRun）", () => {
   const files = [...tests, ...sources];
   const unpairedLine = (names: string) =>
-    `test:related: no name-paired test for ${names} (the full tests in dg gate <id> --only check cover them)`;
+    `test:related: no name-paired test for ${names} (the full tests in mise run check, which dg pr ready runs, cover them)`;
   const nothingLine = "test:related: no related tests to run";
 
   it.each([
