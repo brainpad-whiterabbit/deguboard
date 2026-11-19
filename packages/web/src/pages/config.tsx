@@ -74,6 +74,7 @@ const NAMES: Record<string, string> = {
   "actions.test": msg("テストのコマンド"),
   "actions.light_test": msg("軽い検査のコマンド"),
   "actions.light_paths": msg("軽い検査で済ませるパス"),
+  "actions.pre_review_test": msg("見直しの前の検査のコマンド"),
   "work.parallel": msg("同時に進めるチケットの上限"),
   "merge.method": msg("マージの方法"),
   "merge.delete_branch": msg("マージしたら作業ブランチを消す"),
@@ -165,7 +166,7 @@ function noteLabel(key: string): string {
 /**
  * 保存の前に確かめる項目と、確かめの文に出す変わること。誤ると同期・照合・worktree・実行するコマンドを壊し、
  * 戻すまで気づきにくい（チームのタブでは全員に効く）。どちらのタブでも確かめる。
- * actions.test・actions.light_test と worktree.setup は確認なしで実行するコマンドなので、シェルの許可と同じ重さで扱う
+ * actions.test・actions.light_test・actions.pre_review_test と worktree.setup は確認なしで実行するコマンドなので、シェルの許可と同じ重さで扱う
  */
 export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   ["git.remote", msg("作業ブランチと PR の先が変わる（git.data_remote が空ならデータの同期先も）")],
@@ -178,6 +179,10 @@ export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   [
     "actions.light_test",
     msg("軽い検査として確認なしで実行するコマンドが変わる（シェルを許すのと同じ）"),
+  ],
+  [
+    "actions.pre_review_test",
+    msg("見直しの前の検査として確認なしで実行するコマンドが変わる（シェルを許すのと同じ）"),
   ],
 ]);
 

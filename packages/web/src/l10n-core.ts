@@ -115,9 +115,9 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
       ja: "run finish・run refresh が Adapter で会話記録を読んで使用量を補うか。DEGUBOARD_NO_TRANSCRIPTS のマシンでは true でも読まない",
     },
   // metrics.check_commands
-  "Commands counted, besides the defaults, as checks and tests when a Run is closed: the seconds they ran in the foreground are recorded in the Run's check_seconds (dg metrics show adds them up). The defaults are always counted: actions.test, actions.light_test, and dg gate --only check. One command per entry, as its words separated by spaces (e.g. mise run test). A Bash command counts when one of its parts (split at && || ; | and newlines), after leading VAR=value assignments, starts with the words of an entry, so mise run test does not count mise run test:related. Counted only for Runs of claude-code, from the conversation record (metrics.read_transcripts); the command strings are not recorded":
+  "Commands counted, besides the defaults, as checks and tests when a Run is closed: the seconds they ran in the foreground are recorded in the Run's check_seconds (dg metrics show adds them up). The defaults are always counted: actions.test, actions.light_test, actions.pre_review_test, and dg gate --only check. One command per entry, as its words separated by spaces (e.g. mise run test). A Bash command counts when one of its parts (split at && || ; | and newlines), after leading VAR=value assignments, starts with the words of an entry, so mise run test does not count mise run test:related. Counted only for Runs of claude-code, from the conversation record (metrics.read_transcripts); the command strings are not recorded":
     {
-      ja: "Run を閉じるときに、既定のほかに検査とテストに数えるコマンド。前景で回していた秒数を Run の check_seconds に残す（dg metrics show が足す）。既定の actions.test・actions.light_test・dg gate --only check はいつも数える。1 項目に 1 つのコマンドを、空白で区切った語で書く（例：mise run test）。Bash のコマンドの部分（&& || ; | と改行で分ける）のどれかが、先頭の VAR=value の代入を除いて、項目の語で始まれば数える。そのため mise run test は mise run test:related を数えない。数えるのは claude-code の Run だけで、会話記録から数える（metrics.read_transcripts）。コマンドの文字列は記録しない",
+      ja: "Run を閉じるときに、既定のほかに検査とテストに数えるコマンド。前景で回していた秒数を Run の check_seconds に残す（dg metrics show が足す）。既定の actions.test・actions.light_test・actions.pre_review_test・dg gate --only check はいつも数える。1 項目に 1 つのコマンドを、空白で区切った語で書く（例：mise run test）。Bash のコマンドの部分（&& || ; | と改行で分ける）のどれかが、先頭の VAR=value の代入を除いて、項目の語で始まれば数える。そのため mise run test は mise run test:related を数えない。数えるのは claude-code の Run だけで、会話記録から数える（metrics.read_transcripts）。コマンドの文字列は記録しない",
     },
   // notify.approvals
   "Whether the VS Code extension shows a notification when Plans awaiting approval or tickets in review increase (the count is always shown)":
@@ -138,6 +138,11 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file changed since the last commit whose actions.test passed (or against base, when there is none) falls outside, actions.test runs":
     {
       ja: "軽い検査（actions.light_test）で済ませるファイルの glob（リポジトリの最上位からの相対パス。* と ? は / をまたがず、** は階層をまたぐ。例 docs/**）。前回 actions.test が通ったコミットから変わったファイル（前回がなければ base との差分）に 1 つでも外のファイルがあれば actions.test を回す",
+    },
+  // actions.pre_review_test
+  "Argument array of the check that dg gate --only check (run before the push: before the review and after a fix) runs instead of actions.test (e.g. [mise, run, check:pre-review]). When only files under actions.light_paths changed, actions.light_test still runs instead. Passing it does not count as actions.test: the check of dg pr ready and dg pr merge runs actions.test. When empty, dg gate --only check runs actions.test. When actions.test is empty, this check does not run either":
+    {
+      ja: "dg gate --only check（push の前、つまり見直しの前と手直しの後に回す）が actions.test の代わりに回す検査のコマンドの引数配列（例 [mise, run, check:pre-review]）。変わったファイルが actions.light_paths に入るものだけなら、これまでどおり actions.light_test を回す。通っても actions.test が通ったことにはならず、dg pr ready・dg pr merge の検査は actions.test を回す。空なら dg gate --only check は actions.test を回す。actions.test が空ならこの検査も回さない",
     },
   // work.parallel
   "Most tickets of a Plan advanced at the same time with a subagent each (dg guide parallel). An integer from 1 to 10":
@@ -258,6 +263,10 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   "Globs of files the lighter check is enough for": {
     ja: "軽い検査で済ませてよいファイルの glob",
   },
+  // actions.pre_review_test
+  "Check run by dg gate --only check, before the review, instead of actions.test": {
+    ja: "dg gate --only check が見直しの前に、actions.test の代わりに回す検査",
+  },
   // work.parallel
   "Most tickets of a Plan advanced at the same time (1 to 10)": {
     ja: "Plan のチケットを同時に進める数の上限（1〜10）",
@@ -323,6 +332,10 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
   // actions.light_test・actions.light_paths
   "The lighter check is not used (actions.test runs)": {
     ja: "軽い検査を使わない（actions.test を回す）",
+  },
+  // actions.pre_review_test
+  "dg gate --only check runs actions.test": {
+    ja: "dg gate --only check は actions.test を回す",
   },
   // review.heavy_categories
   "The reviewer's severity is kept": { ja: "見直し役の severity のまま" },

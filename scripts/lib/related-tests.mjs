@@ -2,7 +2,7 @@
 // git もファイルも読まない。振る舞いは test/scripts/related-tests.test.ts が確かめる（t1127）。
 // import をたどらず名前だけで選ぶのは、vitest の --changed が import の木をたどると、core のコマンドを 1 つ変えただけで
 // CLI・HTTP・画面のテストまで数百本を回し、作業の途中の確かめに数分かかったため。名前で選ばれないテスト（import で
-// 関わるもの）は、push の前の dg gate <id> --only check の全体のテストが見る
+// 関わるもの）は、dg pr ready の検査（mise run check）の全体のテストが見る
 
 /**
  * test:related の実行の印に vitest へ渡す環境変数。vitest.workers.ts の isRelatedRun が見てワーカー数を決める。
@@ -76,7 +76,7 @@ export function planRelatedRun(changed, files) {
   const messages = [];
   if (selected.unpaired.length > 0) {
     messages.push(
-      `test:related: no name-paired test for ${selected.unpaired.join(", ")} (the full tests in dg gate <id> --only check cover them)`,
+      `test:related: no name-paired test for ${selected.unpaired.join(", ")} (the full tests in mise run check, which dg pr ready runs, cover them)`,
     );
   }
   if (selected.tests.length === 0) messages.push("test:related: no related tests to run");

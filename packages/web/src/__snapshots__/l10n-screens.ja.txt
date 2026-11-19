@@ -361,6 +361,22 @@ actions.light_paths
 空のとき: 軽い検査を使わない（actions.test を回す）
 詳しく
 actions.light_paths
+見直しの前の検査のコマンド
+actions.pre_review_test
+[title] 既定は 空
+変更あり
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（設定の項目 actions.pre_review_test）
+dg gate --only check が見直しの前に、actions.test の代わりに回す検査
+空
+[aria-label] 項目
+[placeholder] 例 [mise, run, check:pre-review]
+足す
+[title] 既定の 空 に戻す
+既定に戻す
+空のとき: dg gate --only check は actions.test を回す
+詳しく
+actions.pre_review_test
 同時に進めるチケットの上限
 work.parallel
 [title] 既定は 3

@@ -5,7 +5,9 @@
 // 最後に全体の検査（actions.test）が通ったコミットも別に覚える（full）。その後の差分が actions.light_paths に入るだけなら、
 // 軽い検査（actions.light_test）を回す（t632・t741）。軽い検査が通っても full は消さない。
 // 全体を回し直すのは、コードを変えた・祖先でない（rebase・force push）・merge を含む（main の取り込み）・コマンドを変えた、のとき（t741）
-// dg gate --only check は、作業ブランチの worktree の HEAD（push の前のコミットも）を同じ判定で検査する（t741）
+// dg gate --only check は、作業ブランチの worktree の HEAD（push の前のコミットも）を検査する（t741）。見直しの前と手直しの後に回すので、
+// 軽い検査で済まないときは、全体の代わりに見直しの前の検査（actions.pre_review_test）を回す。未設定なら全体。見直しの前の検査が通っても
+// full は動かさず、ready・merge の検査はその結果を使わない（全体の検査は ready の前の 1 回で足りる。選び方は planCheck。t1154）
 
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -205,6 +207,46 @@ function chooseCheckSince(
   };
 }
 
+/** 検査を回す場面。pre_review は dg gate --only check（見直しの前と手直しの後）、gate は ready・merge の品質ゲート */
+export type CheckPurpose = "pre_review" | "gate";
+
+/** 回すと決めた検査。kind は全体（actions.test）・軽い検査（actions.light_test）・見直しの前の検査（actions.pre_review_test） */
+export interface PlannedCheck {
+  command: string[];
+  kind: "full" | "light" | "pre_review";
+  why: string;
+}
+
+/**
+ * 場面に合わせて回す検査を決める（t1154）。choice は差分から選んだ検査（chooseCheck・chooseCheckSince）。
+ * 軽い検査はどの場面でもそのまま。全体になったときは、見直しの前（dg gate --only check）で actions.pre_review_test が設定してあれば
+ * それに替える。替えないのは、未設定のとき、actions.test と同じコマンドのとき（全体の検査そのもの）、このコミットで全体の検査が
+ * すでに通っているとき（passedFull。覚えた結果を使えるので回さない）。ready・merge（gate）はいつも choice のまま
+ */
+export function planCheck(
+  actions: Pick<Config["actions"], "test" | "pre_review_test">,
+  purpose: CheckPurpose,
+  choice: CheckChoice,
+  passedFull: boolean,
+): PlannedCheck {
+  if (choice.light) return { command: choice.command, kind: "light", why: choice.why };
+  const full: PlannedCheck = { command: choice.command, kind: "full", why: choice.why };
+  if (purpose !== "pre_review" || actions.pre_review_test.length === 0) return full;
+  if (sameCommand(actions.pre_review_test, actions.test) || passedFull) return full;
+  return {
+    command: actions.pre_review_test,
+    kind: "pre_review",
+    why: "Ran actions.pre_review_test instead of actions.test because dg gate --only check is the check before the review and after a fix; the check of dg pr ready and dg pr merge runs actions.test, and this result does not count for it",
+  };
+}
+
+/** detail に出す検査の呼び名 */
+const KIND_LABELS: Record<PlannedCheck["kind"], string> = {
+  full: "actions.test",
+  light: "light check actions.light_test",
+  pre_review: "pre-review check actions.pre_review_test",
+};
+
 /** base（リモートがあればリモートの base_branch）と sha の分岐点からの差分のファイル。改名は元と先の両方を数える。読めなければ undefined */
 async function changedFiles(ctx: CommandContext, sha: string): Promise<string[] | undefined> {
   const base = ctx.repo.codeRemote
@@ -260,7 +302,8 @@ async function hasUncommittedChanges(dir: string): Promise<boolean> {
 /**
  * 検査の条件を判定する。actions.test が空なら判定しない（通す）。既定では、作業ブランチの最新のコミット（リモートの先端）を
  * checkout した、未コミットの変更のない作業ブランチの worktree で回す。local（dg gate --only check）は worktree の HEAD を、
- * 未コミットの変更がないことを確かめて検査する（push の前でもよい）。どちらも結果はコミットとコマンドごとに覚える
+ * 未コミットの変更がないことを確かめて検査する（push の前でもよい）。どちらも結果はコミットとコマンドごとに覚える。
+ * local は見直しの前の検査の場面でもあり、全体の代わりに actions.pre_review_test を回す（planCheck）
  */
 export async function judgeCheck(
   ctx: CommandContext,
@@ -297,10 +340,16 @@ export async function judgeCheck(
   }
   const file = path.join(ctx.repo.localDir, CHECKS_DIR, `${ticket.id}.json`);
   const record = await readRecord(file);
-  const choice = await chooseFor(ctx, sha, record.full);
+  const { actions } = ctx.config;
+  const choice = planCheck(
+    actions,
+    options.local ? "pre_review" : "gate",
+    await chooseFor(ctx, sha, record.full),
+    record.results.some((r) => r.sha === sha && sameCommand(r.command, actions.test)),
+  );
   const command = choice.command;
-  // detail には、どちらの検査を回したか（actions.test か actions.light_test か）と、選んだ理由を出す
-  const shown = `${choice.light ? "light check actions.light_test" : "actions.test"}: ${command.join(" ")}`;
+  // detail には、どの検査を回したか（actions.test・actions.light_test・actions.pre_review_test）と、選んだ理由を出す
+  const shown = `${KIND_LABELS[choice.kind]}: ${command.join(" ")}`;
   const why = choice.why ? ` (${choice.why})` : "";
   const found = record.results.find((r) => r.sha === sha && sameCommand(r.command, command));
   let result: { code: number; tail: string };
@@ -343,8 +392,8 @@ export async function judgeCheck(
         tail: result.tail,
         at: new Date(ctx.now()).toISOString(),
       });
-      // 全体の検査が通ったときだけ、その基準のコミットを動かす。軽い検査では消さない（t741）
-      if (!choice.light) record.full = { sha, command };
+      // 全体の検査が通ったときだけ、その基準のコミットを動かす。軽い検査と見直しの前の検査では動かさない（t741・t1154）
+      if (choice.kind === "full") record.full = { sha, command };
       record.results = prunedResults(record);
       await mkdir(path.dirname(file), { recursive: true });
       await writeFileAtomic(file, `${JSON.stringify(record, null, 2)}\n`);

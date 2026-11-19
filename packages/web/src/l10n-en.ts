@@ -578,6 +578,7 @@ export const EN: Readonly<Record<string, string>> = {
   テストのコマンド: "Test command",
   軽い検査のコマンド: "Lighter check command",
   軽い検査で済ませるパス: "Paths the lighter check is enough for",
+  見直しの前の検査のコマンド: "Pre-review check command",
   同時に進めるチケットの上限: "Most tickets advanced at the same time",
   マージの方法: "Merge method",
   マージしたら作業ブランチを消す: "Delete the work branch after merging",
@@ -648,6 +649,8 @@ export const EN: Readonly<Record<string, string>> = {
     "changes the command run as tests without confirmation (same as allowing a shell)",
   "軽い検査として確認なしで実行するコマンドが変わる（シェルを許すのと同じ）":
     "changes the command run as the lighter check without confirmation (same as allowing a shell)",
+  "見直しの前の検査として確認なしで実行するコマンドが変わる（シェルを許すのと同じ）":
+    "changes the command run as the pre-review check without confirmation (same as allowing a shell)",
   "claim のたびに確認なしで回すコマンドが変わる（シェルを許すのと同じ）":
     "changes the command run on every claim without confirmation (same as allowing a shell)",
   空: "Empty",

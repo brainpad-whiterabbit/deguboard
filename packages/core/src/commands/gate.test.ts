@@ -6,7 +6,7 @@ import { createFixtureFrom, git, type Layout } from "../../test/helpers/git-fixt
 import { resetGhCache } from "../git/facts.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { chooseCheck, matchesAnyGlob } from "./gate-check.js";
+import { chooseCheck, matchesAnyGlob, planCheck } from "./gate-check.js";
 import { gate } from "./gate.js";
 import type { GateView } from "./gate-judge.js";
 import { stageFactsOf, stageOf } from "./next.js";
@@ -625,6 +625,45 @@ describe("dg gate の検査（actions.test。t601）", () => {
       expect((await lines()).length).toBe(before);
     });
 
+    it("dg gate --only check は見直しの前の検査（actions.pre_review_test）を回し、その結果を ready の全体の検査に数えない（t1154）", async () => {
+      const { ctx: first, f, lines, commit } = await withLight();
+      const pre = path.join(f.root, "pre.sh");
+      await writeFile(
+        pre,
+        `#!/bin/sh\necho pre >> '${path.join(f.root, "check-count")}'\necho 見直しの前の検査\nexit 0\n`,
+        { mode: 0o755 },
+      );
+      await runCommand(configSet, asHuman(first), {
+        key: "actions.pre_review_test",
+        value: `sh, ${pre}`,
+      });
+      const ctx = await openContext({ cwd: f.cloneA, actor: first.actor });
+      const only = async () =>
+        (await runCommand(gate, ctx, { ticket: "t1", only: "check" })).data as GateView;
+      // コードを変えた差分：--only check は全体の代わりに見直しの前の検査を回し、同じコミットでは回し直さない
+      await commit("src/a.ts");
+      const view = await only();
+      expect(view.passed).toBe(true);
+      expect(check(view).detail).toMatch(
+        /^The check \(pre-review check actions\.pre_review_test: sh .*pre\.sh\) passed on the latest commit [0-9a-f]{8} \(Ran actions\.pre_review_test instead of actions\.test because /,
+      );
+      expect(check(await only()).detail).toContain("reused the remembered result");
+      expect(await lines()).toEqual(["pre"]);
+      // 同じコミットの ready は、見直しの前の検査の結果を使わずに全体（actions.test）を回す
+      await review(ctx, 1, 0);
+      const ready = await judge(ctx, "ready");
+      expect(ready.passed).toBe(true);
+      expect(check(ready).detail).toContain("The check (actions.test: sh ");
+      expect(await lines()).toEqual(["pre", "run"]);
+      // 全体が通ったコミットでの --only check は、全体の結果を使って回さない
+      expect(check(await only()).detail).toContain("The check (actions.test: sh ");
+      expect(await lines()).toEqual(["pre", "run"]);
+      // 文書だけを足したあとは、--only check も軽い検査を回す
+      await commit("docs/a.md");
+      expect(check(await only()).detail).toContain("light check actions.light_test");
+      expect(await lines()).toEqual(["pre", "run", "light"]);
+    });
+
     it("旧形式（1 チケット 1 件のオブジェクト）の記録は読めないものとして、検査を回して新しい形式で書き直す（t741）", async () => {
       const { ctx, f, lines } = await withLight();
       await review(ctx, 1, 0);
@@ -690,5 +729,46 @@ describe("回す検査の選び方（chooseCheck。t632）", () => {
       command: ["light"],
       light: true,
     });
+  });
+});
+
+describe("場面ごとの検査の決め方（planCheck。t1154）", () => {
+  const actions = { test: ["full"], pre_review_test: ["pre"] };
+  const whole = { command: ["full"], light: false, why: "全体の理由" };
+  const light = { command: ["light"], light: true, why: "軽い理由" };
+
+  it("軽い検査は、場面と見直しの前の検査の設定によらず軽い検査のまま", () => {
+    for (const purpose of ["pre_review", "gate"] as const)
+      for (const pre of [["pre"], []])
+        for (const passedFull of [true, false])
+          expect(
+            planCheck({ ...actions, pre_review_test: pre }, purpose, light, passedFull),
+          ).toEqual({ command: ["light"], kind: "light", why: "軽い理由" });
+  });
+
+  it("見直しの前（dg gate --only check）で全体になったら、設定した見直しの前の検査に替える", () => {
+    const planned = planCheck(actions, "pre_review", whole, false);
+    expect(planned).toMatchObject({ command: ["pre"], kind: "pre_review" });
+    expect(planned.why).toContain("Ran actions.pre_review_test instead of actions.test");
+  });
+
+  it("見直しの前でも、未設定・actions.test と同じコマンド・このコミットで全体が通っているときは全体のまま", () => {
+    const full = { command: ["full"], kind: "full", why: "全体の理由" };
+    expect(planCheck({ ...actions, pre_review_test: [] }, "pre_review", whole, false)).toEqual(
+      full,
+    );
+    expect(
+      planCheck({ ...actions, pre_review_test: ["full"] }, "pre_review", whole, false),
+    ).toEqual(full);
+    expect(planCheck(actions, "pre_review", whole, true)).toEqual(full);
+  });
+
+  it("ready・merge の検査は、見直しの前の検査を設定していても全体のまま", () => {
+    for (const passedFull of [true, false])
+      expect(planCheck(actions, "gate", whole, passedFull)).toEqual({
+        command: ["full"],
+        kind: "full",
+        why: "全体の理由",
+      });
   });
 });

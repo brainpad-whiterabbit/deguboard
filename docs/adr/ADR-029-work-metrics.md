@@ -23,7 +23,7 @@
 
 - エージェント・モデル・日時・トークン数・結果・エラー・やり直しの理由・step（項目は RN-1）と、ツールの呼び出しの種類ごとの回数と最初に書くまでの読む・探すの回数
 - 親の依頼を待った秒数（`waited_seconds`。[下の節](#親の依頼を待った時間は会話記録から数え作業時間から除く)）
-- 検査とテストを前景で回していた秒数（`check_seconds`）。コマンドの文字列は見分けに使うだけで写さない。数えるのは `actions.test`・`actions.light_test`・`dg gate --only check` と、config（`metrics.check_commands`）で足したコマンド。数えられない Run は 0 で補わない
+- 検査とテストを前景で回していた秒数（`check_seconds`）。コマンドの文字列は見分けに使うだけで写さない。数えるのは `actions.test`・`actions.light_test`・`actions.pre_review_test`・`dg gate --only check` と、config（`metrics.check_commands`）で足したコマンド。数えられない Run は 0 で補わない
 - 失敗したツールの呼び出しの数（`tools.errors`）。会話記録の結果の失敗の印だけで数え、結果の文は読まない。印を読めない Run と前の Run は 0 で補わず、`metrics show` が件数を出す
 - 集計は Run から Step までの単位で表示のたびに求め、保存しない（MT-3）
 - Epic・Iteration へは、Run の持つチケットの今の所属でたどる

@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { defaultConfig } from "../model/config.js";
 import { checkCommandsOf, commandParts, isCheckCommand } from "./check-commands.js";
 
-/** このリポジトリの設定と同じ形：actions.test・actions.light_test と、足したコマンド */
+/** このリポジトリの設定と同じ形：actions.test・actions.light_test・actions.pre_review_test と、足したコマンド */
 const counted = checkCommandsOf({
   actions: {
     ...defaultConfig().actions,
     test: ["mise", "run", "check"],
     light_test: ["mise", "run", "check:light"],
+    pre_review_test: ["mise", "run", "check:pre-review"],
   },
   metrics: {
     read_transcripts: true,
@@ -16,10 +17,11 @@ const counted = checkCommandsOf({
 });
 
 describe("検査とテストに数えるコマンド（MT-1）", () => {
-  it("数えるコマンドは actions.test・actions.light_test と、metrics.check_commands の各行を空白で分けた語。空の項目は入れない", () => {
+  it("数えるコマンドは actions.test・actions.light_test・actions.pre_review_test と、metrics.check_commands の各行を空白で分けた語。空の項目は入れない", () => {
     expect(counted).toEqual([
       ["mise", "run", "check"],
       ["mise", "run", "check:light"],
+      ["mise", "run", "check:pre-review"],
       ["mise", "run", "test:related"],
       ["mise", "run", "test"],
     ]);
@@ -36,6 +38,7 @@ describe("検査とテストに数えるコマンド（MT-1）", () => {
   it.each([
     ["数えるコマンドそのもの", "mise run check"],
     ["軽い検査", "mise run check:light"],
+    ["見直しの前の検査", "mise run check:pre-review"],
     ["足したコマンド", "mise run test:related"],
     ["後ろに引数が続く", "mise run test -- packages/core/src/model/run.test.ts"],
     ["後ろにリダイレクトとパイプが続く", "mise run check 2>&1 | tail -20"],
