@@ -1,0 +1,36 @@
+{
+  "id": "r20261119-030101-89da",
+  "ticket": "t1128",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-19T03:01:01Z",
+  "finished_at": "2026-11-19T03:17:16Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "検査とテストの区間に許可の確認を待った時間も含むことがコメントとヘルプにない",
+    "dg gate の見分けが dg の語の位置を問わず、前に別のコマンドが付いた形も数える",
+    "要件 MT-2 の列挙に検査とテストの秒数が漏れている"
+  ],
+  "usage": {
+    "input": 44,
+    "output": 10805,
+    "cache_read": 1251790,
+    "cache_write": 55137
+  },
+  "tools": {
+    "read": 8,
+    "search": 0,
+    "write": 10,
+    "bash": 15,
+    "other": 2,
+    "read_before_write": 7,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "e671c729-9c11-485c-ad52-6e18ca5fc79b",
+  "review": null,
+  "waited_seconds": 0
+}
