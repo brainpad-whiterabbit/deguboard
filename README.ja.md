@@ -56,7 +56,7 @@ Claude Code では、「s3 を計画して」のように普通の言葉で言�
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/assign.ja.gif" alt="チケットを Iteration と Epic に割り当てる" width="560">
 
-2. **計画を立てる**：カンバンの見出しで **エージェントに頼む** → **計画を立てる** を選びます。エージェントが依存から進める順を決め、Plan が上の帯に承認待ちで出ます。帯の状態を押すと依存のグラフが開きます。
+2. **計画を立てる**：カンバンの見出しで **エージェントに頼む** → **計画を立てる** を選びます。エージェントが依存から進める順を決め、Plan が上の帯に承認待ちで出ます。帯の Plan の行を押すと依存のグラフが開きます。
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/plan.ja.gif" alt="進める順を計画して承認する" width="612">
 
