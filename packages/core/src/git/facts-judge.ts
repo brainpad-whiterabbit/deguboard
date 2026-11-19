@@ -1,5 +1,5 @@
 // 照合が読む事実の導出のうち、読んだ値から決めるだけの判定（ST-4・ST-6、ADR-028）。git・gh を読まない（import は型だけ）。
-// 作業ブランチの先端が base を取り込んだだけのマージコミットかの判定（RN-10）もここに置く（値を読むのは tip-merge.ts）。
+// 作業ブランチの先端が base を取り込んだだけのマージコミット（の連なり）かの判定（RN-10）もここに置く（値を読むのは tip-merge.ts）。
 // 値を読むのは facts.ts で、読んだ値をここへ渡す。判定の組み合わせは facts-judge.test.ts が git・gh なしで確かめ、
 // git を通すテスト（facts.test.ts・commands-flow-reconcile.test.ts）は経路の代表だけを見る
 
@@ -67,20 +67,30 @@ export function judgeBranchMerged(facts: BranchMergeFacts): boolean | undefined 
   return facts.ancestor;
 }
 
-/**
- * 作業ブランチのリモートの先端がマージコミットのときの事実（先端が親を 2 つ以上持つときだけ読む。tip-merge.ts）。
- * base を取り込んだだけの更新かを決める材料（RN-10）
- */
-export interface TipMerge {
-  /** 先端の親の SHA（順に） */
+/** マージコミットの親と、そのうち base のコミットであるもの */
+export interface MergeParents {
+  /** 親の SHA（順に） */
   parents: readonly string[];
   /** 親のうち base のコミット（base の先端かその祖先）であるもの */
   onBase: readonly string[];
+}
+
+/**
+ * 作業ブランチのリモートの先端がマージコミットのときの事実（先端が親を 2 つ以上持つときだけ読む。tip-merge.ts）。
+ * base を取り込んだだけの更新かを決める材料（RN-10）。parents と onBase は先端のもの
+ */
+export interface TipMerge extends MergeParents {
+  /**
+   * 先端の base でない親から、base でない親を順に辿って読んだマージコミット（先端に近い順。先端は含まない）。
+   * base を 2 回以上取り込んだ先端で、取り込みの連なりの先の見直した SHA に着くために読む。
+   * 辿るのをやめる場所は nextInBaseMergeChain が決める
+   */
+  earlier: ReadonlyArray<MergeParents & { sha: string }>;
   /** 先端の tree */
   tree: string;
   /**
-   * base でない親に base の親を自動でマージした結果の tree。競合した・作れなかったとき、作らなかったとき
-   * （親が baseMergeParents の形でない・base でない親を見直した見直しがない）は null
+   * 連なりの先（baseMergeChain の work）に、先端の base の親を 1 回だけ自動でマージした結果の tree。
+   * 競合した・作れなかったとき、作らなかったとき（連なりが baseMergeChain の形でない・その先を見直した見直しがない）は null
    */
   autoTree: string | null;
 }
@@ -90,9 +100,7 @@ export interface TipMerge {
  * 親がちょうど 2 つで、片方だけが base のコミットのときだけ。親の順は問わない。
  * 両方が base のコミット（作業が base に入った後）・どちらも違う（別のブランチのマージ）・親が 3 つ以上は undefined
  */
-export function baseMergeParents(
-  merge: Pick<TipMerge, "parents" | "onBase">,
-): { work: string; base: string } | undefined {
+export function baseMergeParents(merge: MergeParents): { work: string; base: string } | undefined {
   if (merge.parents.length !== 2) return undefined;
   const [a, b] = merge.parents as [string, string];
   const aOnBase = merge.onBase.includes(a);
@@ -102,14 +110,49 @@ export function baseMergeParents(
 }
 
 /**
- * 先端が base を取り込んだだけのマージコミットなら、取り込む前の作業の先端の SHA（その SHA の見直しを先端の見直しとして数える）。
- * 親が baseMergeParents の形で、先端の tree が自動マージの結果と同じときだけ。競合を手で解いた・マージに変更を混ぜた
+ * 先端から base だけを取り込んだマージコミットが続くなら、その連なりの先（work：最後のマージコミットの base でない親）と、
+ * 先端が取り込んだ base のコミット（base：先端の base の親）。先端と earlier のどれもが baseMergeParents の形で、
+ * それぞれが前のマージコミットの base でない親であるときだけ。途中に別のブランチのマージがある・つながっていないなら undefined。
+ * 途中のマージコミットが取り込んだ base のコミットは返さない：見直した SHA に今の base を 1 回マージした結果と先端の tree を
+ * 比べれば、途中の取り込みで競合を手で解いた・変更を混ぜたものも tree の違いに出る（段ごとのマージと一括のマージで
+ * tree が違う場合も数えない側に倒れる）
+ */
+export function baseMergeChain(
+  merge: Pick<TipMerge, "parents" | "onBase" | "earlier">,
+): { work: string; base: string } | undefined {
+  const tip = baseMergeParents(merge);
+  if (!tip) return undefined;
+  let work = tip.work;
+  for (const commit of merge.earlier) {
+    const pair = commit.sha === work ? baseMergeParents(commit) : undefined;
+    if (!pair) return undefined;
+    work = pair.work;
+  }
+  return { work, base: tip.base };
+}
+
+/**
+ * 取り込みの連なりをさらに辿るために次に読むコミットの SHA（tip-merge.ts が読んで earlier に足す）。辿らないなら undefined：
+ * 連なりの先が見直した SHA（reviewed）に着いた・連なりが baseMergeChain の形でなくなった。
+ * 返した SHA がマージコミットでなければ、読む側はそこで止める（取り込みの後の別のコミット・rebase は見直しに着かない）
+ */
+export function nextInBaseMergeChain(
+  merge: Pick<TipMerge, "parents" | "onBase" | "earlier">,
+  reviewed: readonly string[],
+): string | undefined {
+  const end = baseMergeChain(merge);
+  return end && !reviewed.includes(end.work) ? end.work : undefined;
+}
+
+/**
+ * 先端が base を取り込んだだけのマージコミット（の連なり）なら、取り込む前の作業の先端の SHA（その SHA の見直しを先端の見直しとして数える）。
+ * 連なりが baseMergeChain の形で、先端の tree が自動マージの結果と同じときだけ。競合を手で解いた・マージに変更を混ぜた
  * （tree が違う）・自動マージの結果がない（null）は undefined。rebase と、取り込みの後に積んだコミットは、
- * 先端がこの形のマージコミットでないので数えない
+ * 連なりがこの形でないので数えない
  */
 export function mergedBaseOnto(merge: TipMerge | undefined): string | undefined {
   if (!merge || merge.autoTree === null || merge.autoTree !== merge.tree) return undefined;
-  return baseMergeParents(merge)?.work;
+  return baseMergeChain(merge)?.work;
 }
 
 /** 前の作業の PR かを決める PR の値（gh pr view の結果のうち） */

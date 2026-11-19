@@ -1,17 +1,22 @@
-// 作業ブランチのリモートの先端がマージコミットのときの事実を読む（RN-10）。base を取り込んだだけの更新では、取り込む前の先端の
-// 見直しを数える。決めるのは facts-judge.ts の読まない関数（baseMergeParents・mergedBaseOnto）で、ここは親・tree・自動マージの
-// 結果を git から集めるだけ
+// 作業ブランチのリモートの先端がマージコミットのときの事実を読む（RN-10）。base を取り込んだだけの更新（2 回以上の取り込みの
+// 連なりも）では、取り込む前の先端の見直しを数える。決めるのは facts-judge.ts の読まない関数（baseMergeChain・
+// nextInBaseMergeChain・mergedBaseOnto）で、ここは親・tree・自動マージの結果を git から集めるだけ
 
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { baseMergeParents, type TipMerge } from "./facts-judge.js";
+import {
+  baseMergeChain,
+  nextInBaseMergeChain,
+  type MergeParents,
+  type TipMerge,
+} from "./facts-judge.js";
 import { baseRef, type BranchTip } from "./facts.js";
 import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
 
 /**
- * work に base を自動でマージした結果の tree。競合した・作れなかったときは null。
+ * work に base を自動でマージした結果の tree。競合した・作れなかったときは null。readTipMerge が 1 回の判定に 1 回だけ呼ぶ。
  * 一時の worktree を work に checkout してコミットなしのマージをし、index から tree を書く。作業ツリーなしで tree を作る
  * `git merge-tree --write-tree` は git 2.38 からで、動かす条件の git 2.30 では使えない。worktree は結果によらず消す。
  * 利用者の hooks は動かさず（空の hooksPath）、rerere も切る（前に手で解いた競合を自動の結果に混ぜない）
@@ -56,16 +61,14 @@ export async function autoMergeTree(
 }
 
 /**
- * 先端（sha）がマージコミットなら、その事実を読む。マージコミットでない・読めないときは undefined。
- * 自動マージの結果（autoTree）は時間がかかるので、親が「作業の先端と base のコミット」の形で、作業の先端が見直した SHA
- * （reviewed）にあるときだけ作る。fetch を渡せば、親が base のコミットかを比べる前に base を取り込む
+ * sha がマージコミットなら、親・そのうち base（の先端かその祖先）のコミットであるもの・tree を読む。
+ * マージコミットでない・読めないときは undefined。base は比べる base の ref（なければどの親も base のコミットとしない）
  */
-export async function readTipMerge(
+async function readMergeCommit(
   repo: GitRepo,
   sha: string,
-  reviewed: readonly string[],
-  opts: { fetch?: boolean } = {},
-): Promise<TipMerge | undefined> {
+  base: () => Promise<string | undefined>,
+): Promise<(MergeParents & { tree: string }) | undefined> {
   const read = await runGit(repo.dataDir, ["log", "-1", "--format=%P %T", sha], {
     allowFailure: true,
   });
@@ -73,6 +76,58 @@ export async function readTipMerge(
   const tree = fields.pop();
   const parents = fields;
   if (read.code !== 0 || !tree || parents.length < 2) return undefined;
+  const ref = await base();
+  const onBase: string[] = [];
+  if (ref)
+    for (const parent of parents) {
+      const r = await runGit(repo.dataDir, ["merge-base", "--is-ancestor", parent, ref], {
+        allowFailure: true,
+      });
+      if (r.code === 0) onBase.push(parent);
+    }
+  return { parents, onBase, tree };
+}
+
+/**
+ * 先端（sha）がマージコミットなら、その事実を読む。マージコミットでない・読めないときは undefined。
+ * 先端が base を取り込んだだけの形なら、base でない親を辿って、見直した SHA（reviewed）に着くかマージコミットでなくなるまで
+ * マージコミットを読む（どこまで辿るかは nextInBaseMergeChain が決める）。
+ * 自動マージの結果（autoTree）は時間がかかるので、連なりの先が見直した SHA にあるときだけ、取り込みの回数によらず 1 回だけ作る
+ * （見直した SHA に、先端の base の親をマージする）。fetch を渡せば、親が base のコミットかを比べる前に base を取り込む。
+ * autoMerge は自動マージを作る関数の差し替え（テストが呼んだ回数と引数を見る）
+ */
+export async function readTipMerge(
+  repo: GitRepo,
+  sha: string,
+  reviewed: readonly string[],
+  opts: { fetch?: boolean; autoMerge?: typeof autoMergeTree } = {},
+): Promise<TipMerge | undefined> {
+  let ref: Promise<string | undefined> | undefined;
+  // base の ref は、先端がマージコミットと分かってから（fetch の後に）1 回だけ引く
+  const base = () => (ref ??= fetchedBaseRef(repo, opts));
+  const tip = await readMergeCommit(repo, sha, base);
+  if (!tip) return undefined;
+  const earlier: Array<MergeParents & { sha: string }> = [];
+  const chain = { parents: tip.parents, onBase: tip.onBase, earlier };
+  for (let next = nextInBaseMergeChain(chain, reviewed); next !== undefined;) {
+    const commit = await readMergeCommit(repo, next, base);
+    if (!commit) break;
+    earlier.push({ sha: next, parents: commit.parents, onBase: commit.onBase });
+    next = nextInBaseMergeChain(chain, reviewed);
+  }
+  const end = baseMergeChain(chain);
+  const autoTree =
+    end && reviewed.includes(end.work)
+      ? await (opts.autoMerge ?? autoMergeTree)(repo, end.work, end.base)
+      : null;
+  return { ...chain, tree: tip.tree, autoTree };
+}
+
+/** 比べる base の ref。fetch を渡せば、その前に base を取り込む */
+async function fetchedBaseRef(
+  repo: GitRepo,
+  opts: { fetch?: boolean },
+): Promise<string | undefined> {
   if (opts.fetch && repo.codeRemote)
     await runGit(
       repo.dataDir,
@@ -83,19 +138,7 @@ export async function readTipMerge(
       ],
       { allowFailure: true, timeoutMs: 60_000 },
     );
-  const base = await baseRef(repo);
-  const onBase: string[] = [];
-  if (base)
-    for (const parent of parents) {
-      const r = await runGit(repo.dataDir, ["merge-base", "--is-ancestor", parent, base], {
-        allowFailure: true,
-      });
-      if (r.code === 0) onBase.push(parent);
-    }
-  const pair = baseMergeParents({ parents, onBase });
-  const autoTree =
-    pair && reviewed.includes(pair.work) ? await autoMergeTree(repo, pair.work, pair.base) : null;
-  return { parents, onBase, tree, autoTree };
+  return baseRef(repo);
 }
 
 /**
