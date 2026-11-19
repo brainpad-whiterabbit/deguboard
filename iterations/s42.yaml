@@ -3,3 +3,10 @@ name: s42
 goal: s41 の振り返りの Try を進める。文書の書き漏れをマージの前に見つけ（t1138）、品質ゲートの検査の時間を減らす（t1139）。あわせて、バックログとカンバンの行でラベルを見られるようにし、並び順を選べるようにする。複数選んだ行の ID をコピーできるようにする（t1140・t1141・t1142）。
 status: active
 started_at: 2026-11-19T06:22:07Z
+checkpoints:
+  - name: check
+    at: 2026-11-19T06:45:22Z
+    by: Eiki Kitajima/agent
+    approved_by: Eiki Kitajima/agent
+    basis:
+      facts: c075ec5cab53d0d0
