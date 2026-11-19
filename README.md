@@ -104,7 +104,7 @@ The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deg
 ## Security and privacy
 
 - The extension sends no telemetry and starts no HTTP server. Its only network access is `git` connecting to your remotes and `gh` connecting to GitHub.
-- What the extension writes, which commands it runs, and what the Skills and hooks do are in [What it writes and runs](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#what-it-writes-and-runs) in the usage guide.
+- What the extension writes, which commands it runs itself, what it types into a terminal when you press a button, and what the Skills and hooks do are in [What it writes and runs](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#what-it-writes-and-runs) in the usage guide.
 - See [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) for how to report vulnerabilities.
 
 ## Documentation

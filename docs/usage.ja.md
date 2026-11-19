@@ -272,7 +272,10 @@ dg のフックは、エージェントの協力なしに Run を記録し、デ
 
 `~/.local/bin/dg` は「dg コマンドを入れる」でだけ書き、「dg コマンドを外す」で外す。
 
-拡張が呼ぶコマンドは `git`・`gh`・`dg --version` だけで、信頼したフォルダーでだけ動く。
+拡張が自分で起動するコマンドは `git`・`gh`・`dg --version` だけで、信頼したフォルダーでだけ動く。ほかのコマンドと文はターミナルに入れ、人がボタンを押したときだけ入れる。
+
+- 導入のチェックリストのボタンは、deguboard のターミナルにコマンドを入れて Enter で実行する。`git init`・`dg init`・チェックリストが示す `dg skill install` と `dg hooks install`・`dg uninstall`（`dg uninstall --personal`）。入れる行は先にフォルダーへ移り（`cd`）、コマンドを `&&` でつなぎ、失敗したところで止まる。`dg` は PATH からではなく起動ファイルの絶対パスで呼ぶ。このターミナルは、これらのボタンを押したときだけ開く
+- 行や見出しの **エージェントに頼む** から送ると、依頼文（`dg ask` と同じ依頼文）を、選んだ開いているターミナルに入れる。Enter は押さない。複数行の依頼文はクリップボードを通して貼り付け、クリップボードは後で元に戻す。ターミナルもエージェントも起動しない
 
 Skill は `dg guide` を読ませる文面だけ。フックは `dg hook <イベント>` を呼ぶだけで、Run を記録し、`dg` を通さない PR の ready・マージとデータへの書き込みを拒む。Skill は `dg skill install --dry-run`、フックは `dg hooks install --dry-run` で中身を見られる。dg の Skill は `dg skill uninstall` で外せる（自分の Skill と `.claude/.gitignore` は残る）。deguboard をすべて外すときは[アンインストール](#アンインストール)を見る。
 
