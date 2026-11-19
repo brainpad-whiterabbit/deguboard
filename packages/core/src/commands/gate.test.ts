@@ -100,9 +100,24 @@ async function prepared() {
   return { f, ctx, setPr };
 }
 
-/** 見直しの Run を開いて結果を書いて閉じる。at は開始の時刻（push との前後を決める） */
-async function review(ctx: CommandContext, at: Date, heavy: number) {
-  ctx.now = () => at;
+/** コミットのコミッタの時刻（git が記録した時刻。秒の単位） */
+async function commitTime(cwd: string, rev = "HEAD"): Promise<Date> {
+  const out = await git(cwd, ["log", "-1", "--format=%ct", rev]);
+  return new Date(Number(out.stdout.trim()) * 1000);
+}
+
+/**
+ * 見直しの Run を開いて結果を書いて閉じる。at は開始の時刻で、数なら ctx の作業ブランチの先端のコミットの時刻からその分だけ後、
+ * Date ならその時刻。Date.now() と git の時計を別々に読むと秒の境目でずれうるので、比べる相手のコミットの時刻から取る（t1122）。
+ * Run は開いたときのローカルの先端の SHA（head）を記録するので、review の条件は SHA で比べ、時刻では比べない（reviewedTip）。
+ * 時刻は見直しどうしの順（後の見直しほど大きな分を渡す）と、heavy の回数を数える branch_at との前後にだけ使う
+ */
+async function review(ctx: CommandContext, at: number | Date, heavy: number) {
+  const start =
+    typeof at === "number"
+      ? new Date((await commitTime(ctx.repo.topLevel)).getTime() + at * 60_000)
+      : at;
+  ctx.now = () => start;
   const run = (
     await runCommand(runStart, ctx, { ticket: "t1", step: "review", agent: "claude-code" })
   ).data as Run;
@@ -120,12 +135,10 @@ const judge = async (ctx: CommandContext, stage: "ready" | "merge" = "merge") =>
 
 const failed = (view: GateView) => view.conditions.filter((c) => !c.ok).map((c) => c.id);
 
-const later = (minutes: number) => new Date(Date.now() + minutes * 60_000);
-
 describe("dg gate（品質ゲート。t532）", () => {
   it("最後の push より後の見直しが通り、受け入れ条件がすべて付き、PR が開いて衝突しなければ通る", async () => {
     const { ctx, f } = await prepared();
-    await review(ctx, later(1), 0);
+    await review(ctx, 1, 0);
     expect(failed(await judge(ctx, "ready"))).toEqual([]);
     // マージの前は受け入れ条件もすべて要る
     expect(failed(await judge(ctx))).toEqual(["acceptance"]);
@@ -164,7 +177,8 @@ describe("dg gate（品質ゲート。t532）", () => {
     await git(f.cloneB, ["checkout", "-qb", "t1", "FETCH_HEAD"]);
     await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "見直しの前に作った"]);
     const reviewed = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
-    await review(ctx, later(1), 0);
+    // 見直しの開始は、別の clone のコミットの時刻から 1 分後に固定する（時刻で比べれば通ってしまう並びをテストが作る）
+    await review(ctx, new Date((await commitTime(f.cloneB)).getTime() + 60_000), 0);
     const run = [...ctx.store.runs.values()].find((d) => d.data.step === "review")!.data;
     expect(run.head).toBe(reviewed);
     expect(failed(await judge(ctx, "ready"))).toEqual([]);
@@ -179,7 +193,7 @@ describe("dg gate（品質ゲート。t532）", () => {
 
   it("gh が返した PR の事実（draft・衝突）を判定に渡し、gh の出力を読めなければ PR を読めないとして pr と mergeable を満たさない", async () => {
     const { ctx, setPr } = await prepared();
-    await review(ctx, later(1), 0);
+    await review(ctx, 1, 0);
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
     await setPr(pr({ isDraft: true, mergeable: "CONFLICTING" }));
     expect(failed(await judge(ctx))).toEqual(["pr", "mergeable"]);
@@ -235,7 +249,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
 
   it("最新のコミットの worktree で actions.test を回して判定し、同じコミットでは回し直さない", async () => {
     const { ctx, runs } = await withCheck();
-    await review(ctx, later(1), 0);
+    await review(ctx, 1, 0);
     const view = await judge(ctx, "ready");
     expect(view.passed).toBe(true);
     // 軽い検査を設定していなければ、actions.test を回したとだけ出す
@@ -261,7 +275,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     // 新しいコミットを push して見直す（前のコミットの結果は使わない）
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "直し"]);
     await git(f.cloneA, ["push", "-q", "origin", "t1"]);
-    await review(ctx, later(2), 0);
+    await review(ctx, 2, 0);
     const view = await judge(ctx, "ready");
     expect(failed(view)).toEqual(["check"]);
     expect(check(view).not_run).toBeUndefined();
@@ -275,7 +289,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
 
   it("通った後に actions.test を変えると、同じコミットでも検査を回し直す（覚えた結果はコマンドごと）", async () => {
     const { f, ctx: first, runs } = await withCheck();
-    await review(first, later(1), 0);
+    await review(first, 1, 0);
     expect(check(await judge(first, "ready")).ok).toBe(true);
     expect(await runs()).toBe(1);
     // 検査のコマンドを別のスクリプトに変える。同じコミットでも、覚えた結果は使わずに回す
@@ -303,7 +317,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     const name = "dg-t615-no-such-check";
     await runCommand(configSet, asHuman(first), { key: "actions.test", value: name });
     const ctx = await openContext({ cwd: f.cloneA, actor: first.actor });
-    await review(ctx, later(1), 0);
+    await review(ctx, 1, 0);
     const view = await judge(ctx, "ready");
     expect(view.passed).toBe(false);
     expect(check(view)).toMatchObject({
@@ -329,7 +343,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
 
   it("worktree が最新のコミットでない・未コミットの変更があるなら回さずに満たさない", async () => {
     const { f, ctx, runs } = await withCheck();
-    await review(ctx, later(1), 0);
+    await review(ctx, 1, 0);
     // push していないコミットがある（worktree の HEAD がリモートの先端と違う）
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "まだ push していない"]);
     expect(check(await judge(ctx, "ready")).detail).toContain("is not the latest commit");
@@ -356,7 +370,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(await runs()).toBe(1);
     // push した後の ready は、同じコミットの覚えた結果を使う
     await git(f.cloneA, ["push", "-q", "origin", "t1"]);
-    await review(ctx, later(1), 0);
+    await review(ctx, 1, 0);
     expect(failed(await judge(ctx, "ready"))).toEqual([]);
     expect(await runs()).toBe(1);
     // 未コミットの変更があれば回さずに拒む
@@ -368,7 +382,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
   describe("軽い検査（actions.light_test・actions.light_paths。t632）", () => {
     /** 差分のない今のコミットで全体の検査を 1 回通し（actions.test を回す）、そのコミットの短い SHA を返す（t741） */
     const passFull = async (ctx: CommandContext, cloneA: string, at: number) => {
-      await review(ctx, later(at), 0);
+      await review(ctx, at, 0);
       expect(check(await judge(ctx, "ready")).detail).toContain(
         "Ran actions.test because there are no files changed from base",
       );
@@ -413,7 +427,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     it("差分がすべて対象のパスに入れば軽い検査を回して detail に出し、同じコミットの merge では回し直さない", async () => {
       const { ctx, lines, commit } = await withLight();
       await commit("docs/a/b.md", "NOTE.md");
-      await review(ctx, later(1), 0);
+      await review(ctx, 1, 0);
       const view = await judge(ctx, "ready");
       expect(view.passed).toBe(true);
       expect(check(view).detail).toMatch(
@@ -432,7 +446,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
       const { ctx, lines, commit } = await withLight();
       // docs/ の下と最上位の md に加えて、docs の外の md（* は / をまたがない）とコードを変える
       await commit("docs/a.md", "README.md", "src/a.ts");
-      await review(ctx, later(1), 0);
+      await review(ctx, 1, 0);
       const view = await judge(ctx, "ready");
       expect(view.passed).toBe(true);
       expect(check(view).detail).toContain("The check (actions.test: sh ");
@@ -444,7 +458,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
 
     it("差分のファイルがない（空のコミットだけ）なら actions.test を回す", async () => {
       const { ctx, lines } = await withLight();
-      await review(ctx, later(1), 0);
+      await review(ctx, 1, 0);
       const view = await judge(ctx, "ready");
       expect(check(view).detail).toContain(
         "Ran actions.test because there are no files changed from base",
@@ -456,7 +470,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
       const { ctx, f, lines, commit } = await withLight();
       const base = await passFull(ctx, f.cloneA, 1);
       await commit("docs/a.md");
-      await review(ctx, later(2), 0);
+      await review(ctx, 2, 0);
       const view = await judge(ctx, "ready");
       expect(view.passed).toBe(true);
       expect(check(view).detail).toContain(
@@ -465,7 +479,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
       expect(await lines()).toEqual(["run", "light"]);
       // 軽い検査が通っても、全体の記録（基準のコミット）は消えない。次の light_paths だけの差分も同じ基準から選ぶ
       await commit("NOTE.md");
-      await review(ctx, later(3), 0);
+      await review(ctx, 3, 0);
       expect(check(await judge(ctx, "ready")).detail).toContain(`since commit ${base}`);
       expect(await lines()).toEqual(["run", "light", "light"]);
     });
@@ -474,10 +488,10 @@ describe("dg gate の検査（actions.test。t601）", () => {
       const { ctx, f, lines, commit } = await withLight();
       await passFull(ctx, f.cloneA, 1);
       await commit("docs/a.md");
-      await review(ctx, later(2), 0);
+      await review(ctx, 2, 0);
       expect(check(await judge(ctx, "ready")).detail).toContain("Ran the light check");
       await commit("src/a.ts");
-      await review(ctx, later(3), 0);
+      await review(ctx, 3, 0);
       const view = await judge(ctx, "ready");
       expect(view.passed).toBe(true);
       expect(check(view).detail).toContain("Ran actions.test because the changes since commit");
@@ -497,7 +511,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
       await git(f.cloneA, ["add", "--", "docs/b.md"]);
       await git(f.cloneA, ["commit", "-q", "-m", "書き直し"]);
       await git(f.cloneA, ["push", "-q", "-f", "origin", "t1"]);
-      await review(ctx, later(2), 0);
+      await review(ctx, 2, 0);
       const view = await judge(ctx, "ready");
       expect(check(view).detail).toContain(
         "is not an ancestor of the latest commit (rebased or force-pushed)",
@@ -517,7 +531,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
       await git(f.cloneA, ["checkout", "-q", "t1"]);
       await git(f.cloneA, ["merge", "-q", "--no-ff", "-m", "main を取り込む", "main-side"]);
       await git(f.cloneA, ["push", "-q", "origin", "t1"]);
-      await review(ctx, later(2), 0);
+      await review(ctx, 2, 0);
       const view = await judge(ctx, "ready");
       expect(check(view).detail).toContain("because a merge commit came after commit");
       expect(await lines()).toEqual(["run", "run"]);
@@ -527,7 +541,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
       const { ctx, f, lines, commit } = await withLight();
       await passFull(ctx, f.cloneA, 1);
       await commit("docs/a.md");
-      await review(ctx, later(2), 0);
+      await review(ctx, 2, 0);
       expect(check(await judge(ctx, "ready")).detail).toContain("Ran the light check");
       const other = path.join(f.root, "check-other-t741.sh");
       await writeFile(
@@ -537,7 +551,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
       );
       await runCommand(configSet, asHuman(ctx), { key: "actions.test", value: `sh, ${other}` });
       const changed = await openContext({ cwd: f.cloneA, actor: ctx.actor });
-      await review(changed, later(3), 0);
+      await review(changed, 3, 0);
       expect(check(await judge(changed, "ready")).detail).toContain(
         "Ran actions.test because actions.test changed since commit",
       );
@@ -552,7 +566,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
       // 軽い検査で 6 件の通った結果を積む（基準のコミットは動かない）
       for (let i = 0; i < 6; i++) {
         await commit(`docs/n${i}.md`);
-        await review(ctx, later(2 + i), 0);
+        await review(ctx, 2 + i, 0);
         expect(check(await judge(ctx, "ready")).ok).toBe(true);
         shas.push((await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim());
       }
@@ -577,7 +591,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
 
     it("旧形式（1 チケット 1 件のオブジェクト）の記録は読めないものとして、検査を回して新しい形式で書き直す（t741）", async () => {
       const { ctx, f, lines } = await withLight();
-      await review(ctx, later(1), 0);
+      await review(ctx, 1, 0);
       const dir = path.join(ctx.repo.localDir, "checks");
       await mkdir(dir, { recursive: true });
       await writeFile(
@@ -587,7 +601,8 @@ describe("dg gate の検査（actions.test。t601）", () => {
           command: ctx.config.actions.test,
           code: 0,
           tail: "",
-          at: new Date().toISOString(),
+          // 旧形式は読めないものとして捨てるので、at は比べない。時計を読まずに固定の値を置く
+          at: "2026-01-01T00:00:00.000Z",
         }),
       );
       expect(check(await judge(ctx, "ready")).ok).toBe(true);
