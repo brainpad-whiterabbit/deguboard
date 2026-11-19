@@ -2,22 +2,26 @@
 // （vitest.config.ts が使う）。ワーカー数の決まりの正本はこのコメントで、ほかの文書と設定はここを指す。
 // テストは test/lint/vitest-max-workers.test.ts
 //
-// 既定は、全体のテストが CPU 数の半分、test:related が 4 分の 1。全体のテストは check の flock で 1 本ずつになるが、
+// 既定は、全体のテストが CPU 数の 4 分の 3、test:related が 4 分の 1。全体のテストは check の flock で 1 本ずつになるが、
 // test:related は lock の外で回るので、全体のテストと重なる。vitest の既定（論理 CPU 数 - 1）のままだと 2 本で CPU 数の
-// ほぼ倍のワーカーが取り合い、時間に頼るテストが落ちやすくなる。8 CPU で測ると、重ねたときは 4 と 7 で時間が変わらず
-// （全体 193 秒と 195 秒）、1 本だけのときは 4 が 2 割遅い（133 秒と 110 秒）だけだったので、全体のテストを CPU 数の半分にする。
-// 並列のエージェントは worktree ごとに test:related を回すので、半分ずつでも何本も重なる（2026-11-17 に 3 本が重なり、
-// 8 CPU で負荷平均が 16、全体のテストが 432 秒かかった）。test:related は lock に入れず待たずに回したいので、
-// 全体のテストより少ない 4 分の 1 にする。test:related かどうかは、scripts/test-related.mjs が vitest に渡す
+// ほぼ倍のワーカーが取り合い、時間に頼るテストが落ちやすくなる。そこで、全体のテスト 1 本と test:related 1 本を足して
+// CPU 数に収まる割合にする（足して 100% 以下であることは test/lint/vitest-max-workers.test.ts が確かめる）。
+// テストの時間のほとんどは git の子プロセスの起動で、CPU を使い切るまではワーカー数に応じて縮む。8 CPU（4 コア）で
+// 全体のテスト（162 ファイル）を 1 回ずつ測ると、1 本だけのときは 4 本で 153 秒・6 本で 122 秒・8 本で 116 秒、
+// 2 本の test:related を重ねたときは 4 本で 170 秒・6 本で 149 秒で、どれも落ちなかった（2026-11-19、t1139）。
+// 8 本は 6 本とほぼ変わらず、重なる test:related の分が残らないので採らない。
+// 並列のエージェントは worktree ごとに test:related を回すので、何本も重なる（全体のテストも test:related も CPU 数の
+// 半分だった 2026-11-17 に 3 本が重なり、8 CPU で負荷平均が 16、全体のテストが 432 秒かかった）。test:related は
+// lock に入れず待たずに回したいので、4 分の 1 にする。test:related かどうかは、scripts/test-related.mjs が vitest に渡す
 // 環境変数 DEGUBOARD_TEST_RELATED で見る（isRelatedRun）。
 //
-// 手元で 1 本だけ速く回したいときや、もっと絞りたいときは DEGUBOARD_TEST_MAX_WORKERS に数か "75%" のような割合を渡す。
+// 手元で 1 本だけ速く回したいときや、もっと絞りたいときは DEGUBOARD_TEST_MAX_WORKERS に数か "50%" のような割合を渡す。
 // test:related でも、渡した値をそのまま使う。それ以外の値と 0 はエラーで止まる。
 // vitest 自身の VITEST_MAX_WORKERS を使わないのは、vitest がその値を parseInt で読むので "75%" が 75 本になり、
 // 数でない値も黙って NaN になるから
 
-/** 環境変数がない（または空の）ときの、全体のテストの上限。CPU 数の半分 */
-export const DEFAULT_MAX_WORKERS = "50%";
+/** 環境変数がない（または空の）ときの、全体のテストの上限。CPU 数の 4 分の 3 */
+export const DEFAULT_MAX_WORKERS = "75%";
 
 /** 環境変数がない（または空の）ときの、test:related の上限。全体のテストより少なくする */
 export const RELATED_MAX_WORKERS = "25%";

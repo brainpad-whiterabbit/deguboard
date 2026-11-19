@@ -47,11 +47,17 @@ describe("test:related のワーカー数（t1076）", () => {
 });
 
 describe("resolveMaxWorkers", () => {
-  it("環境変数がないときと空のときは CPU 数の半分を既定にする", () => {
-    expect(DEFAULT_MAX_WORKERS).toBe("50%");
-    expect(resolveMaxWorkers(undefined)).toBe("50%");
-    expect(resolveMaxWorkers("")).toBe("50%");
-    expect(resolveMaxWorkers("  ")).toBe("50%");
+  it("環境変数がないときと空のときは CPU 数の 4 分の 3 を既定にする", () => {
+    expect(DEFAULT_MAX_WORKERS).toBe("75%");
+    expect(resolveMaxWorkers(undefined)).toBe("75%");
+    expect(resolveMaxWorkers("")).toBe("75%");
+    expect(resolveMaxWorkers("  ")).toBe("75%");
+  });
+
+  it("全体のテスト 1 本と test:related 1 本の既定は、足して CPU 数に収まる（t1139）", () => {
+    expect(
+      Number.parseInt(DEFAULT_MAX_WORKERS) + Number.parseInt(RELATED_MAX_WORKERS),
+    ).toBeLessThanOrEqual(100);
   });
 
   it("数を設定したときはその数を上限にする", () => {
