@@ -5,6 +5,7 @@ import {
   type AskView,
   type CommandResult,
   type Issue,
+  type WorkflowSection,
   type WriteOutcome,
 } from "@deguboard/core";
 import type { ErrorView } from "./errors.js";
@@ -58,6 +59,9 @@ export function printHuman(
     const { run, ...rest } = data;
     streams.out(record(rest));
     if (run) streams.out(`run: ${run}`);
+  } else if (commandName === "workflow.show" && isWorkflowView(data)) {
+    // sections は項目ごとに rows を入れ子に持ち、表のセルに入らない。鍵ごとの 1 行に開いて 1 つの表にする
+    streams.out(record({ ...data, sections: sectionRows(data.sections) }));
   } else if (isIssueReport(data)) {
     if (data.issues.length === 0) streams.out("No issues");
     for (const issue of data.issues) streams.out(formatIssue(issue));
@@ -79,6 +83,36 @@ function isAskView(data: unknown): data is Pick<AskView, "text" | "candidates"> 
 
 function isClaimView(data: unknown): data is Row & { run: string | null } {
   return typeof data === "object" && data !== null && "run" in data;
+}
+
+function isWorkflowView(data: unknown): data is Row & { sections: WorkflowSection[] } {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    Array.isArray((data as { sections?: unknown }).sections)
+  );
+}
+
+/**
+ * dg workflow show の sections を、鍵ごとの行（key・value・default・modified・custom）にする。
+ * 鍵は項目の名前で始まるので項目の列は置かない。値は空の配列と上限のない wip（null）を空のセルと分けて出す
+ */
+function sectionRows(sections: WorkflowSection[]): Row[] {
+  return sections.flatMap((s) =>
+    s.rows.map((r) => ({
+      key: r.key,
+      value: rowValue(r.value),
+      default: "default" in r ? rowValue(r.default) : "",
+      modified: r.modified,
+      custom: r.custom ? `after: ${r.custom.after}, guide: ${r.custom.guide}` : undefined,
+    })),
+  );
+}
+
+function rowValue(v: unknown): string {
+  if (v === null) return "none";
+  if (Array.isArray(v)) return v.length === 0 ? "[]" : v.map(String).join(", ");
+  return String(v);
 }
 
 function isIssueReport(data: unknown): data is { ok: boolean; issues: Issue[] } {
