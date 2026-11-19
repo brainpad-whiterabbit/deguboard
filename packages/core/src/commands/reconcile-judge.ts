@@ -377,18 +377,11 @@ export function decideOpenRunReconcile(f: OpenRunFacts): RunAction[] {
     return [];
   }
   if (run.step !== OPENED_STEPS.claim) return [];
-  const failure = (error: string): RunAction[] => [
-    {
-      kind: "close_run",
-      run: run.id,
-      opener: "claim",
-      result: "failure",
-      finishedAt: undefined,
-      error,
-    },
-  ];
-  if (ticket.status === "todo") return failure(RECONCILE_TODO_ERROR);
+  // error は定数の名前をここに書く（web の l10n.test.ts が、core のソースで error に渡す定数を拾って訳の表と突き合わせる）
+  const failure = { kind: "close_run", run: run.id, opener: "claim", result: "failure" } as const;
+  if (ticket.status === "todo")
+    return [{ ...failure, finishedAt: undefined, error: RECONCILE_TODO_ERROR }];
   if (ticket.assignee !== undefined && !sameUser(ticket.assignee, f.actor))
-    return failure(RECONCILE_TAKEN_ERROR);
+    return [{ ...failure, finishedAt: undefined, error: RECONCILE_TAKEN_ERROR }];
   return [];
 }
