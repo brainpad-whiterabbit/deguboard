@@ -1,0 +1,37 @@
+id: p163
+tickets: [t1129, t1130, t1131, t1132, t1133, t1135, t1134]
+after:
+  t1135:
+    - t1132
+  t1134:
+    - t1135
+pending_approval: true
+details:
+  t1129:
+    scope: usage と how-it-works の計測の説明を、会話記録から数える値の一覧に合わせる。英日を揃える
+    approach: MT-1〜MT-3・5.10 と check-commands.ts・metrics.ts を確かめてから英語版を直し、日本語版を同じ構成にする
+    tier: standard
+  t1130:
+    scope: ADR-025・ADR-029 の細部の正本と check_seconds の範囲、development.md の git/ の行の記述だけを直す。判断は変えない
+    approach: 各ファイルと関数を今のコードで確かめて書き換え、ADR の字数の目安と check:docs を確かめる
+    tier: standard
+  t1131:
+    scope: git.test.ts の gh がない環境の件を、偽の gh で作るようにする
+    approach: facts.test.ts の偽の gh の形に倣い、PATH を先頭の bin で上書きして後で戻す
+    tier: standard
+  t1132:
+    scope: test-related.mjs の終わり方の判定を読まない関数に出し、組み合わせと merge-base の失敗をテストする
+    approach: 回す・知らせる・何もしないを決める関数を related-tests.mjs に置いて表で確かめ、merge-base の失敗は一時のリポジトリで 1 件だけ確かめる
+    tier: standard
+  t1133:
+    scope: agents の adapters の重複・外で使わない export・コメントの製品名を片付ける。数え方は変えない
+    approach: 最多のモデル名と 1 行ずつ読む部分を transcript.ts の関数に寄せ、既存のテストで数え方が変わらないことを確かめる
+    tier: standard
+  t1135:
+    scope: check-commands・related-tests の分岐のテストを足し、run.test.ts の時刻の基準を固定にする
+    approach: 表のテストに件を足し、run.test.ts は固定の t0 を基準にする
+    tier: standard
+  t1134:
+    scope: scripts の .mjs を型検査に入れるか、入れない理由を tsconfig に書く
+    approach: checkJs で入れて typecheck が通るかを試し、通らない理由が大きければコメントで対象外にする
+    tier: standard
