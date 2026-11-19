@@ -24,13 +24,15 @@ afterEach(async () => {
 });
 
 describe("vsix-sha256", () => {
-  it("VSIX の SHA256 と確かめ方の文を出す", async () => {
+  it("VSIX の SHA256 と確かめ方の文を英語で出す", async () => {
     const vsix = join(dir, "deguboard-vscode.vsix");
     await writeFile(vsix, "fake vsix");
     const sha256 = createHash("sha256").update("fake vsix").digest("hex");
     const { stdout } = await run(process.execPath, [SCRIPT, vsix]);
-    expect(stdout).toContain(`deguboard-vscode.vsix の SHA256：${sha256}`);
-    expect(stdout).toContain("`sha256sum deguboard-vscode.vsix` を実行し");
+    expect(stdout).toContain(`SHA256 of deguboard-vscode.vsix: ${sha256}`);
+    expect(stdout).toContain(
+      "To verify: run `sha256sum deguboard-vscode.vsix` in the folder that has the file. If the output matches the value above, the file has not been tampered with.",
+    );
   });
 
   it("VSIX がなければ vsix を先に走らせるよう案内して失敗する", async () => {

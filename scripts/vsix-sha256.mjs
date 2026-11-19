@@ -20,9 +20,10 @@ const sha256 = createHash("sha256")
   .update(await readFile(vsix))
   .digest("hex");
 
+// 囲みの間の文は、英語で書く Release の本文（CLAUDE.md の規約）にそのまま貼るので英語で出す
 console.log(`
---- GitHub の Release の本文に貼る文 ---
-${name} の SHA256：${sha256}
+--- Text to paste into the GitHub Release notes ---
+SHA256 of ${name}: ${sha256}
 
-確かめ方：vsix と同じフォルダで \`sha256sum ${name}\` を実行し、出た値が上の値と一致すれば改ざんされていない。
+To verify: run \`sha256sum ${name}\` in the folder that has the file. If the output matches the value above, the file has not been tampered with.
 ---`);
