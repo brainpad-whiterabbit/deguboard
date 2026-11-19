@@ -1,0 +1,37 @@
+{
+  "id": "r20261119-105827-393d",
+  "ticket": "t1149",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-19T10:58:27Z",
+  "finished_at": "2026-11-19T11:03:16Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "claim の予約の判定と claim 後の予約の書き込みが予約のロックの外にあり、予約なしの claim の push 中に別のセッションが予約できる",
+    "todo のチケットの新しい claim でも前の作業の claim の記録が残っていると別のセッションの予約を越えてしまう",
+    "Plan の予約を take-over しても前のセッションが claim 済みのチケットはそのセッションに残ることがヘルプに書かれていない"
+  ],
+  "usage": {
+    "input": 22,
+    "output": 12294,
+    "cache_read": 748639,
+    "cache_write": 74166
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 7,
+    "bash": 9,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "c3536bd5-2e8d-4bba-9010-df0649451df7",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 144
+}
