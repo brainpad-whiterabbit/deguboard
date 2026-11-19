@@ -1,6 +1,7 @@
-// 日時の表示。月日（11/03・2025/11/03）は formatMonthDay、暦の日数の差は calendarDayDiff の 1 か所で出し、履歴とカンバン・バックログの見出しで共用する。
+// 日時の表示。経過の短い書き方（3時間）は shortSpan、月日（11/03・2025/11/03）は formatMonthDay、暦の日数の差は calendarDayDiff の 1 か所で出し、履歴とカンバン・バックログの見出しで共用する。
 // 履歴の日付は今日・昨日を言葉にし、ほかは月日にする（formatShortDay）。履歴の閉じた Iteration の期間は時刻と所要時間で出す（formatPeriod）。チケット詳細の作成・更新と Plan 詳細の日時は経過と同じ手元時刻で、今年なら年を省く
 
+import { useEffect, useState } from "react";
 import { formatTime } from "./timeline.js";
 import { tr } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
@@ -12,6 +13,30 @@ export function formatShortTime(iso: string, now: Date = new Date()): string {
   return !Number.isNaN(d.getTime()) && d.getFullYear() === now.getFullYear()
     ? text.slice(text.indexOf("-") + 1)
     : text;
+}
+
+/**
+ * 経過の短い書き方：1 時間未満は分、1 日未満は時間、それより長ければ日（切り捨て）。
+ * カンバンの Run の丸の横の文字（row-end.tsx）と、更新日で並べた行の相対の更新時刻（parts.tsx）で使う
+ */
+export function shortSpan(ms: number): string {
+  const minutes = Math.max(0, Math.floor(ms / 60_000));
+  if (minutes < 60) return tr("{0}分", minutes);
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? tr("{0}時間", hours) : tr("{0}日", Math.floor(hours / 24));
+}
+
+/**
+ * 経過の文字を 1 分ごとに描き直すための今の時刻（dg は呼ばず、描き直すだけ）。
+ * カンバンの Run の丸の横の文字（row-end.tsx）と、更新日で並べた行の相対の更新時刻（parts.tsx）で使う
+ */
+export function useMinuteNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
 }
 
 /**

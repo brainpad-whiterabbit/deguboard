@@ -1,4 +1,5 @@
-// バックログ（UI-3）。done と abandoned 以外を Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は優先度と番号で出す。
+// バックログ（UI-3）。done と abandoned 以外を Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は選んだ並び順
+// （既定は優先度と番号。components/row-sort.ts）で出す。
 // 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。
 // Iteration が 1 つもない（planned・active がない）カンバンでは区画に分けず 1 つの一覧で出す。
 // 表示だけで書き込まない。Iteration の移動・作成・閉じると Epic の作成は、吹き出しからエージェントに頼む（ADR-027）。
@@ -12,9 +13,10 @@
 // 行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
 // 行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
 // 行のタイトルの下にラベルの札を出し（components/row-labels.tsx）、押すとそのラベルで絞る（もう一度押すと外す）。
-// 漏斗の隣の「表示」ボタン（components/view-menu.tsx）でラベルを出すかを切り替える（値は host.state に残し、カンバンと同じ値）。
+// 漏斗の隣の「表示」ボタン（components/view-menu.tsx）でラベルを出すか（値は host.state に残し、カンバンと同じ値）と並び順（バックログだけの値）を切り替える。
+// 並びが既定と違う間は、よく使う絞り込みの行に並びの札（× で既定に戻す）を出し、更新日で並べている間は行の 2 段目に相対の更新時刻を出す。
 // 左パネルでスクロールすると、検索の行（検索欄と漏斗）を上の端に貼り付け、Iteration の区画の見出しをその下に貼り付ける（次の区画の見出しに押し出されて入れ替わる）。
-// 絞り込みか検索が効いている間は、よく使う絞り込みの行が検索の行の下へ抜けたら、効いている条件の札（Epic を含む。× で外す）と「n / m 件」の行を
+// 絞り込みか検索が効いているか並びが既定と違う間は、よく使う絞り込みの行が検索の行の下へ抜けたら、効いている条件の札（Epic を含む。× で外す）と並びの札と「n / m 件」の行を
 // 検索の行の下に重ねる（BacklogBand。components/sticky-band.tsx と styles.css の .backlog-search）。左パネルで検索欄に打ち込むと一覧を一番上へ戻す。
 // 行・区画の見出し・選んでいる Epic の見出しは、エージェントに頼める場所にする（吹き出しと Shift+F10。UI-15）。Epic の札と件数は頼む入口にしない
 
@@ -28,7 +30,15 @@ import { DetailLink, TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { RowLabelsContext } from "../components/row-labels.js";
-import { RowViewMenu, useRowView } from "../components/view-menu.js";
+import { RowSortChip, RowViewMenu, useRowView } from "../components/view-menu.js";
+import {
+  BACKLOG_SORT_KEYS,
+  DEFAULT_ROW_SORT,
+  RowUpdatedContext,
+  rowSortChanged,
+  sortRows,
+  useRowSort,
+} from "../components/row-sort.js";
 import { useSelection } from "../components/selection.js";
 import {
   scrollPageToTop,
@@ -195,7 +205,7 @@ export interface BacklogSection {
 
 /**
  * 絞り込んだチケットを区画に分ける。並びは active → planned（それぞれ番号の順）→ チケットが残る closed → Iteration なし。
- * 区画の中は rows の並び（優先度と番号）のまま。0 件の区画も出す（closed は残るものがあるときだけ）
+ * 区画の中は rows の並び（選んだ並び順）のまま。0 件の区画も出す（closed は残るものがあるときだけ）
  */
 export function sectionsOf(
   rows: readonly Ticket[],
@@ -228,7 +238,16 @@ export function BacklogPage() {
     [store.tickets],
   );
   const tickets = store.tickets;
-  const rows = useMemo(() => filterBacklog(tickets, filter, store.me), [tickets, filter, store.me]);
+  // 並び順（「表示」のメニュー）。区画に分ける sectionsOf は並びを保つので、区画の中だけが並び替わる
+  const [sort, setSort] = useRowSort("backlog");
+  const rows = useMemo(
+    () => sortRows(filterBacklog(tickets, filter, store.me), sort),
+    [tickets, filter, store.me, sort],
+  );
+  const sorted = rowSortChanged(sort);
+  const sortChip = sorted ? (
+    <RowSortChip sort={sort} onReset={() => setSort(DEFAULT_ROW_SORT)} />
+  ) : null;
   // 絞り込み・検索はハッシュに入らないので、変えたら行の選択を外す（隠れた行を頼む対象に残さない。カンバンは画面が替わって外れる）
   const selection = useSelection();
   const clearSelection = selection?.clear;
@@ -346,11 +365,15 @@ export function BacklogPage() {
             setFiltersOpen(!filtersOpen);
           }}
         />
-        <RowViewMenu view={view} onChange={setView} />
+        <RowViewMenu
+          view={view}
+          onChange={setView}
+          sort={{ sort, keys: BACKLOG_SORT_KEYS, onChange: setSort }}
+        />
       </div>
       {sidebar ? (
-        <StickyBand shown={filtering && scrolled.past}>
-          <BacklogBand active={active} onChange={set} count={count} />
+        <StickyBand shown={(filtering || sorted) && scrolled.past}>
+          <BacklogBand active={active} onChange={set} count={count} sortChip={sortChip} />
         </StickyBand>
       ) : null}
       {filtersOpen ? (
@@ -365,6 +388,7 @@ export function BacklogPage() {
         meKnown={store.me !== null}
         onChange={set}
         count={count}
+        sortChip={sortChip}
         markRef={sidebar ? scrolled.ref : undefined}
       />
       <div className="backlog-layout">
@@ -391,13 +415,15 @@ export function BacklogPage() {
         <div className="backlog-main">
           <EpicHighlight.Provider value={epicHighlight.highlight}>
             <RowLabelsContext.Provider value={rowLabels}>
-              {store.iterations.some((i) => i.status !== "closed") ? (
-                sectionsOf(rows, store.iterations, tickets).map((s) => (
-                  <Section key={s.iteration?.id ?? "none"} section={s} rowEnd={rowEnd} />
-                ))
-              ) : (
-                <TicketTable tickets={rows} assigneeInEnd rowMenu end={rowEnd} />
-              )}
+              <RowUpdatedContext.Provider value={sort.key === "updated"}>
+                {store.iterations.some((i) => i.status !== "closed") ? (
+                  sectionsOf(rows, store.iterations, tickets).map((s) => (
+                    <Section key={s.iteration?.id ?? "none"} section={s} rowEnd={rowEnd} />
+                  ))
+                ) : (
+                  <TicketTable tickets={rows} assigneeInEnd rowMenu end={rowEnd} />
+                )}
+              </RowUpdatedContext.Provider>
             </RowLabelsContext.Provider>
           </EpicHighlight.Provider>
         </div>
@@ -426,6 +452,7 @@ function QuickFilters({
   meKnown,
   onChange,
   count,
+  sortChip,
   markRef,
 }: {
   filter: BacklogFilter;
@@ -436,6 +463,8 @@ function QuickFilters({
   onChange: (patch: Partial<BacklogFilter>) => void;
   /** 絞っているときの「n / m 件」。絞っていなければ null */
   count: ReactNode;
+  /** 並びが既定と違う間の並びの札（RowSortChip）。既定なら null */
+  sortChip: ReactNode;
   /** この行に付ける目印（useScrolledPast の ref）。検索の行の下へ抜けたら効いている条件の札の行を重ねる。左パネルでなければ undefined */
   markRef: ((el: HTMLDivElement | null) => void) | undefined;
 }) {
@@ -458,6 +487,7 @@ function QuickFilters({
       {folded.map((a) => (
         <FilterChip key={a.key} filter={a} onChange={onChange} />
       ))}
+      {sortChip}
       {count}
     </div>
   );
@@ -486,24 +516,27 @@ function FilterChip({
 }
 
 /**
- * 左パネルで絞っている間、よく使う絞り込みの行が検索の行の下へ抜けたら、検索の行の下に重ねる 1 行（UI-3）。
- * 効いている条件をすべて（よく使うチップで見えていた条件と Epic も）× で外せる札にし、右端に「n / m 件」を出す。
+ * 左パネルで絞っているか並びが既定と違う間、よく使う絞り込みの行が検索の行の下へ抜けたら、検索の行の下に重ねる 1 行（UI-3）。
+ * 効いている条件をすべて（よく使うチップで見えていた条件と Epic も）× で外せる札にし、並びの札（sortChip）と右端に「n / m 件」を出す。
  * 札は折り返さずに文字を省く（行の高さは styles.css の --dg-sticky-filter-h）
  */
 function BacklogBand({
   active,
   onChange,
   count,
+  sortChip,
 }: {
   active: readonly ActiveFilter[];
   onChange: (patch: Partial<BacklogFilter>) => void;
   count: ReactNode;
+  sortChip: ReactNode;
 }) {
   return (
     <div className="chip-row backlog-band-filters" role="group" aria-label={tr("絞り込み")}>
       {active.map((a) => (
         <FilterChip key={a.key} filter={a} onChange={onChange} />
       ))}
+      {sortChip}
       {count}
     </div>
   );
