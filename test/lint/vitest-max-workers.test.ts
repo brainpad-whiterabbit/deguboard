@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { RELATED_ENV } from "../../scripts/lib/related-tests.mjs";
 import {
   DEFAULT_MAX_WORKERS,
   RELATED_MAX_WORKERS,
@@ -27,20 +28,20 @@ describe("test:related のワーカー数（t1076）", () => {
     expect(() => resolveMaxWorkers("0", true)).toThrow(/DEGUBOARD_TEST_MAX_WORKERS must be/);
   });
 
-  it("vitest run の --changed があれば test:related とみなす", () => {
-    expect(isRelatedRun(["node", "vitest", "run", "--changed", "origin/main"])).toBe(true);
-    expect(isRelatedRun(["node", "vitest", "run", "--changed=origin/main"])).toBe(true);
-    expect(isRelatedRun(["node", "vitest", "run", "--changed"])).toBe(true);
-    expect(isRelatedRun(["node", "vitest", "run"])).toBe(false);
-    expect(isRelatedRun(["node", "vitest", "run", "--changedSince"])).toBe(false);
+  it("scripts/test-related.mjs が vitest に渡す環境変数が 1 なら test:related とみなす", () => {
+    expect(isRelatedRun({ [RELATED_ENV]: "1" })).toBe(true);
+    expect(isRelatedRun({})).toBe(false);
+    expect(isRelatedRun({ [RELATED_ENV]: "" })).toBe(false);
   });
 
-  it("package.json の test:related は --changed を渡し、lock（test-locked.sh）の外で回る", () => {
+  it("package.json の test:related は scripts/test-related.mjs を呼び、lock（test-locked.sh）の外で回る", () => {
     const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
       scripts: Record<string, string>;
     };
     const script = pkg.scripts["test:related"] ?? "";
-    expect(isRelatedRun(script.split(/\s+/))).toBe(true);
+    expect(script).toBe("node scripts/test-related.mjs");
+    const body = readFileSync(path.join(root, "scripts/test-related.mjs"), "utf8");
+    expect(body).toContain('[RELATED_ENV]: "1"');
     expect(script).not.toContain("test-locked");
   });
 });

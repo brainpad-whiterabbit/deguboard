@@ -12,7 +12,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p packages/web/tsconfig.json && tsc -p test/tsconfig.json",
     "test": "vitest run",
     "test:locked": "sh scripts/test-locked.sh vitest run",
-    "test:related": "vitest run --changed origin/main --passWithNoTests",
+    "test:related": "node scripts/test-related.mjs",
     "test:layout": "vitest run --config vitest.layout.config.ts",
     "test:vscode": "vitest run --config vitest.vscode.config.ts",
     "test:docs": "vitest run test/scripts/check-docs.test.ts",

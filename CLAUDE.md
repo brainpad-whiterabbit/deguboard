@@ -19,7 +19,7 @@ AI エージェントに開発を任せるための開発の流れを Git リポ
 ツールとコマンドは mise に統一する（[mise.toml](mise.toml)、[ADR-008](docs/adr/ADR-008-tech-stack.md)）。始め方は [development.md の「開発の始め方」](docs/development.md#開発の始め方)。
 
 - コードや文書を変更したら、コミットの前に `mise run format` で整える。チケットの作業は、push の前に `dg --json --actor agent gate <id> --only check` が通ることを確かめる（どの検査を回すかは `dg gate --help`）。段（`gate`）が free のチケットは検査は要らない（`mise run format` はする）。チケットの外の作業は、コミットの前に `mise run check` が通ることを確かめる（`main` との差分のファイルがすべて config の `actions.light_paths`（`dg config show` で見る）に入るときは、`mise run check` の代わりに軽い検査 `mise run check:light` でよい）
-- 作業の途中は `mise run test:related` で変えたファイルに関わるテストだけを回す。全体の検査は、チケットの作業では push の前の `dg --json --actor agent gate <id> --only check` で、チケットの外の作業ではコミットの前の `mise run check` でだけ回す
+- 作業の途中は `mise run test:related` で、変えたテストと、変えたファイルと名前で対になるテストだけを回す（import はたどらないので、ほかのテストは全体の検査が見る）。全体の検査は、チケットの作業では push の前の `dg --json --actor agent gate <id> --only check` で、チケットの外の作業ではコミットの前の `mise run check` でだけ回す
 - 新しいタスクは mise.toml に足し、pnpm scripts を呼ぶだけにする。`pnpm run`・`npx` を直接案内しない
 
 ## コードの規約
