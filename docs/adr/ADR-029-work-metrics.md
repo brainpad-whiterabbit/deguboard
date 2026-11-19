@@ -23,7 +23,7 @@
 
 - エージェント・モデル・日時・トークン数・結果・エラー・やり直しの理由・step（項目は RN-1）と、ツールの呼び出しの種類ごとの回数と最初に書くまでの読む・探すの回数
 - 親の依頼を待った秒数（`waited_seconds`。[下の節](#親の依頼を待った時間は会話記録から数え作業時間から除く)）
-- 検査とテストを前景で回していた秒数（`check_seconds`）。コマンドの文字列は見分けに使うだけで写さない。数えるのは品質ゲートの検査と、config（`metrics.check_commands`）で足したコマンド。数えられない Run は 0 で補わない
+- 検査とテストを前景で回していた秒数（`check_seconds`）。コマンドの文字列は見分けに使うだけで写さない。数えるのは `actions.test`・`actions.light_test`・`dg gate --only check` と、config（`metrics.check_commands`）で足したコマンド。数えられない Run は 0 で補わない
 - 失敗したツールの呼び出しの数（`tools.errors`）。会話記録の結果の失敗の印だけで数え、結果の文は読まない。印を読めない Run と前の Run は 0 で補わず、`metrics show` が件数を出す
 - 集計は Run から Step までの単位で表示のたびに求め、保存しない（MT-3）
 - Epic・Iteration へは、Run の持つチケットの今の所属でたどる
@@ -86,7 +86,7 @@
 
 - `packages/core/src/agents/index.ts`（`detectAgent`・読む許可）・`packages/core/src/agents/adapters/`（製品ごとの Adapter と `transcript.ts` の `bindFile`・`OverlapClaims`）・`packages/core/src/agents/agents.test.ts`・`packages/core/src/agents/check-commands.ts`（`check-commands.test.ts`）
 - `packages/core/src/model/run.ts`（Run の形）・`packages/core/src/commands/run.ts`（`run start`・`run finish`・`run refresh`）・`packages/core/src/run/record.ts`・`packages/core/src/commands/run.test.ts`
-- `packages/core/src/commands/ticket.ts`（`ticket update --pr`）・`packages/core/src/commands/setup.ts`（照合が閉じる Run と `dg lint`）・`packages/core/src/commands/reconcile-judge.ts`（照合が閉じる実装・手直しの Run の結果と finished_at の決定。組み合わせは `reconcile-judge.test.ts`）・`packages/core/src/commands/run-close-judge.ts`（チケットの操作と照合が同じに使う、閉じる Run の結果と手直しの finished_at の決め方）・`packages/core/src/commands/commands-flow-reconcile.test.ts`・`packages/core/src/commands/commands-flow-reclaim.test.ts`
+- `packages/core/src/commands/ticket.ts`（`ticket update --pr`）・`claim-judge.ts`（claim と reclaim の拒否と、手直しの Run を開くか）・`setup.ts`（照合が閉じる Run と `dg lint`）・`reconcile-judge.ts`（照合が閉じる Run の結果と finished_at）・`run-close-judge.ts`（チケットの操作と照合が共に使う、閉じる Run の結果と手直しの finished_at）と、テストの `claim-judge.test.ts`・`reconcile-judge.test.ts`・`commands-flow-reconcile.test.ts`・`commands-flow-reclaim.test.ts`
 - `packages/core/src/model/metrics.ts`・`packages/core/src/commands/metrics.ts`（`dg metrics show --help`・`dg metrics lines --help`・`dg metrics sources --help`）・`packages/core/src/git/facts.ts`（PR の行数と変えたファイル）
 
 ## 理由
