@@ -298,16 +298,11 @@ describe("--auto は ask_unless_auto の場面だけを聞かずに進め、承�
     expect(
       await rejected(runCommand(ticketMove, agent, { ticket: "t1", status: "review", auto: true })),
     ).toMatchObject(notAutoPlace("moving t1 from done to review", "exceptions.reopen: always_ask"));
-    // 着手の境目（todo → in_progress）は既定で anyone：--auto は拒否され、付けなければ聞かずに進む
-    expect(
-      await rejected(
-        runCommand(ticketMove, agent, { ticket: "t2", status: "in_progress", auto: true }),
-      ),
-    ).toMatchObject(
-      notAutoPlace("moving t2 from todo to in_progress", "boundaries todo → in_progress: anyone"),
+    // 着手の境目（todo → in_progress）も既定で ask_unless_auto：--auto で進み、承認者にエージェントが残る
+    await runCommand(ticketMove, agent, { ticket: "t2", status: "in_progress", auto: true });
+    expect(await subject()).toBe(
+      "Move t2 from todo to in_progress (approved by claude/agent with --auto)",
     );
-    const started = await runCommand(ticketMove, agent, { ticket: "t2", status: "in_progress" });
-    expect(started.data.status).toBe("in_progress");
     // 聞かない境目（in_progress → review は anyone）の --auto は拒否される
     expect(
       await rejected(runCommand(ticketMove, agent, { ticket: "t2", status: "review", auto: true })),

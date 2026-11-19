@@ -57,10 +57,10 @@ const DEFAULT_LABELS: Record<Status, string> = {
   abandoned: "Abandoned",
 };
 
-// 着手（todo → in_progress）は anyone にする。どのチケットを進めるかは人が割り当て（flow.assign）と Plan の承認（flow.plan）で
-// 決めるので、着手のたびに承認者を求めても判断が増えない。頼まれていない着手は unclaim で戻せる
+// 着手（todo → in_progress）は ask_unless_auto にする。着手はブランチ・worktree・Run を作り、チケットをほかの人から取るので、
+// エージェントが人の指示か承認（そのチケットを含む Plan の承認を含む）なしに始めない。人が --auto で始めた流れでは聞かずに始める
 const DEFAULT_BOUNDARIES: readonly Boundary[] = [
-  { ...BOUNDARIES[0], requires: ["deps_done"], decide: "anyone" },
+  { ...BOUNDARIES[0], requires: ["deps_done"], decide: "ask_unless_auto" },
   { ...BOUNDARIES[1], requires: [], decide: "anyone" },
   { ...BOUNDARIES[2], requires: ["pr_merged"], decide: "ask_unless_auto" },
 ];
