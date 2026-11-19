@@ -1551,6 +1551,15 @@ t1
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（行 t1）
 [aria-label] エージェントに頼む
+頼む
+[title] Iteration s1「最初の Iteration」（active）
+s1
+最初の Iteration
+[title] s1 を外す
+[aria-label] s1 を外す
+×
+[title] 閉じる（Esc）
+[aria-label] 閉じる
 [aria-label] 頼むこと
 [title] /dgplan: チケットを進める順を決めて Plan に記録し、人の承認を得ます。
 [aria-label] おすすめ
@@ -1576,26 +1585,22 @@ t1
 説明する
 [title] Skill を使わない
 自由に
-[title] 閉じる（Esc）
-[aria-label] 閉じる
-×
 [title] チケットを進める順を決めて Plan に記録し、人の承認を得ます。
 /dgplan
-[title] Iteration s1「最初の Iteration」（active）
-s1
-active
-[aria-label] s1 を外す
-×
 s1 を進める Plan を立て、承認を待ちます。
 [aria-label] 指示
 [placeholder] 指示を足す（なくてもよい）
-全文
-[title] Skill の呼び出しか、Skill を使わない文章だけか。既定は dg の Skill がリポジトリか ~/.claude/skills にあれば Skill、なければ文章
-形式：Skill
-[title] 指示の欄を空にする（下書きも消す）
-クリア
-Ctrl+↵
-コピー
+[title] 全文を見る
+[aria-label] 全文を見る
+[title] 形式：Skill（押すと切り替える）。Skill の呼び出しか、Skill を使わない文章だけか。既定は dg の Skill がリポジトリか ~/.claude/skills にあれば Skill、なければ文章
+[aria-label] 形式：Skill
+[title] 空にする（指示の欄と下書きを消す）
+[aria-label] 空にする
+[title] このキーでもコピーできる
+Ctrl ↵
+[aria-label] コピー
+✓
+コピーした
 ✓ コピーしました。エージェントの入力欄に貼ってください
 
 ## dg init 前の導入のチェックリスト（リモートにチームのボードがある）

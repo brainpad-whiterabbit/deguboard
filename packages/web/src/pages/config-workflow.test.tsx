@@ -279,7 +279,7 @@ describe("設定画面の Workflow のタブ（workflow.yaml を読むだけで�
       await waitFor(() => expect(screen.getAllByRole("menuitem")).toHaveLength(1));
       fireEvent.click(screen.getByRole("menuitem", { name: /設定を説明・変更する/ }));
       const composer = await screen.findByRole("region", { name: "エージェントに頼む" });
-      fireEvent.click(within(composer).getByRole("button", { name: "全文" }));
+      fireEvent.click(within(composer).getByRole("button", { name: "全文を見る" }));
       return () => within(composer).getByLabelText("全文", { selector: "pre" }).textContent;
     };
     // 行から：その値のキー
@@ -312,7 +312,7 @@ describe("設定画面の Workflow のタブ（workflow.yaml を読むだけで�
     await waitFor(() => expect(screen.getAllByRole("menuitem")).toHaveLength(1));
     fireEvent.click(screen.getByRole("menuitem", { name: /設定を説明・変更する/ }));
     const composer = await screen.findByRole("region", { name: "エージェントに頼む" });
-    fireEvent.click(within(composer).getByRole("button", { name: "全文" }));
+    fireEvent.click(within(composer).getByRole("button", { name: "全文を見る" }));
     await waitFor(() =>
       expect(within(composer).getByLabelText("全文", { selector: "pre" }).textContent).toBe(
         "/dgconfig workflow.governance",

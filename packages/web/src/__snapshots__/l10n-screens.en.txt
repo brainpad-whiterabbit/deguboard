@@ -1549,6 +1549,15 @@ t1
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Row t1)
 [aria-label] Ask Agent
+Ask
+[title] Iteration s1 "最初の Iteration" (active)
+s1
+最初の Iteration
+[title] Remove s1
+[aria-label] Remove s1
+×
+[title] Close (Esc)
+[aria-label] Close
 [aria-label] Request
 [title] /dgplan: Decides the order to advance tickets, records it as a Plan, and gets human approval.
 [aria-label] Recommended
@@ -1574,26 +1583,22 @@ Check
 Explain
 [title] No Skill
 Free-form
-[title] Close (Esc)
-[aria-label] Close
-×
 [title] Decides the order to advance tickets, records it as a Plan, and gets human approval.
 /dgplan
-[title] Iteration s1 "最初の Iteration" (active)
-s1
-active
-[aria-label] Remove s1
-×
 Make a Plan to proceed with s1, and wait for approval.
 [aria-label] Instructions
 [placeholder] Add instructions (optional)
-Full text
-[title] Invoke a Skill, or plain text without a Skill. Defaults to Skill if the dg Skills are in the repository or ~/.claude/skills, otherwise text
-Format: Skill
-[title] Empty the instructions (the draft is cleared too)
-Clear
-Ctrl+↵
-Copy
+[title] Show full text
+[aria-label] Show full text
+[title] Format: Skill (click to switch). Invoke a Skill, or plain text without a Skill. Defaults to Skill if the dg Skills are in the repository or ~/.claude/skills, otherwise text
+[aria-label] Format: Skill
+[title] Clear (empties the instructions and the draft)
+[aria-label] Clear
+[title] These keys copy too
+Ctrl ↵
+[aria-label] Copy
+✓
+Copied
 ✓ Copied. Paste it into the agent's input
 
 ## dg init 前の導入のチェックリスト（リモートにチームのボードがある）
