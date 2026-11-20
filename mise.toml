@@ -105,7 +105,8 @@ run = "pnpm run test:docs"
 
 # 見直しの前の検査は全体のテストを回さない。全体（check）は dg pr ready の検査が、開く前の先端で 1 回回す
 [tasks."check:pre-review"]
-description = "見直しの前の検査。型・lint と、変えたファイルに関わるテスト（test:related）を順に回す。チケットの作業で、コードを変えたときに dg gate <id> --only check（config の actions.pre_review_test）が push の前に回す。全体のテストと書式・文書の検査は回さないので、check の代わりにはならない（check は dg pr ready・dg pr merge の検査が回す）"
+description = "見直しの前の検査。文書の検査（check:docs）を先に回し、型・lint と、変えたファイルに関わるテスト（test:related）を順に回す。チケットの作業で、変えたファイルに config の actions.light_paths の外のものがあるときに dg gate <id> --only check（config の actions.pre_review_test）が push の前に回す。全体のテストと書式の検査は回さないので、check の代わりにはならない（check は dg pr ready・dg pr merge の検査が回す）"
+depends = ["check:docs"]
 run = ["pnpm run typecheck", "pnpm run lint", "pnpm run test:related"]
 
 # テストの段（test:locked）は、別の worktree の全体のテストと重ならないように lock を取ってから回す。
