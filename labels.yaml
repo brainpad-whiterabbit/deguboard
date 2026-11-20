@@ -6,3 +6,7 @@ ui:
   axis: area
   description: Web 画面（カンバン・バックログ・設定）。VS Code 固有の部分は vscode
   created_at: 2026-11-20T06:21:40Z
+tooling:
+  axis: area
+  description: 開発ツール・テスト基盤・依存・リリースの手順。製品の振る舞いは含まない
+  created_at: 2026-11-20T06:21:43Z
