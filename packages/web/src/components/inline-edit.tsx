@@ -2,7 +2,8 @@
 // 閉じた選択で ↑↓ を押すと値だけが変わり、保存しない（Enter で確定する）。欄から外れたら取り消す。
 // 保存は呼ぶ側（ticket.update に 1 属性だけ渡す）に任せ、ここは値の文字列を返して結果を待ち、失敗なら欄を開いたままにする。
 // Enter・Esc・選んで閉じたら、フォーカスを値のボタンに戻す。
-// 値がリンク（Epic・Iteration）なら、リンクと値のボタンを入れ子にせず並べ、ボタンは鉛筆の印だけにする
+// 値がリンク（Epic・Iteration）なら、リンクと値のボタンを入れ子にせず並べ、ボタンは鉛筆の印だけにする。
+// 入力欄の下に選ぶ部品（picker。ラベルの語彙）を出すときは、入力欄と部品を 1 つの欄とみなし、欄の外へフォーカスが出たときだけ取り消す
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { tr } from "../l10n.js";
@@ -165,6 +166,7 @@ export function InlineEdit({
   placeholder,
   normalize = (raw) => raw,
   link,
+  picker,
   children,
 }: {
   /** 属性の名前。編集欄の aria-label と、値のボタンの名前（「〜を変える」）に使う */
@@ -186,6 +188,8 @@ export function InlineEdit({
   normalize?: (raw: string) => string;
   /** 値をリンクで出すとき。ボタンの外に置き、ボタンには children の代わりに鉛筆の印を出す */
   link?: ReactNode;
+  /** 入力欄の下に出す選ぶ部品。今の入力と、入力を書き換える関数を受ける（入力欄のときだけ使う） */
+  picker?: ((raw: string, setRaw: (raw: string) => void) => ReactNode) | undefined;
   /** 見ているときの値 */
   children: ReactNode;
 }) {
@@ -255,23 +259,81 @@ export function InlineEdit({
       onBlur={onCancel}
     />
   ) : (
+    <TextEdit
+      label={label}
+      value={value}
+      inputType={inputType}
+      placeholder={placeholder}
+      picker={picker}
+      onCommit={commit}
+      onClose={close}
+      onBlur={onCancel}
+    />
+  );
+}
+
+/**
+ * 入力欄（と、あれば下の選ぶ部品）。開くたびに作り直すので、入力は今の値から始まる。
+ * Enter で確定、Esc で閉じる。部品があれば、部品の中でも Esc で閉じ、部品へのフォーカスの移動では取り消さない
+ */
+function TextEdit({
+  label,
+  value,
+  inputType,
+  placeholder,
+  picker,
+  onCommit,
+  onClose,
+  onBlur,
+}: {
+  label: string;
+  value: string;
+  inputType: "text" | "number" | "date";
+  placeholder: string | undefined;
+  picker: ((raw: string, setRaw: (raw: string) => void) => ReactNode) | undefined;
+  onCommit: (raw: string) => void;
+  onClose: () => void;
+  onBlur: () => void;
+}) {
+  const [raw, setRaw] = useState(value);
+  const input = (
     <input
       autoFocus
       type={inputType}
-      defaultValue={value}
+      value={raw}
       placeholder={placeholder}
       aria-label={label}
+      onChange={(e) => setRaw(e.target.value)}
       onKeyDown={(e) => {
         // 日本語の変換を確定する Enter では保存しない
         if (e.key === "Enter" && !e.nativeEvent.isComposing) {
           e.preventDefault();
-          commit(e.currentTarget.value);
-        } else if (e.key === "Escape") {
+          onCommit(e.currentTarget.value);
+        } else if (e.key === "Escape" && !picker) {
           e.preventDefault();
-          close();
+          onClose();
         }
       }}
-      onBlur={onCancel}
+      onBlur={picker ? undefined : onBlur}
     />
+  );
+  if (!picker) return input;
+  return (
+    <div
+      className="inline-picker"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      onBlur={(e) => {
+        if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)))
+          onBlur();
+      }}
+    >
+      {input}
+      {picker(raw, setRaw)}
+    </div>
   );
 }

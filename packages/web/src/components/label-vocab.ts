@@ -1,0 +1,154 @@
+// ラベルの語彙を画面でどう見せるか（UI-2・UI-3）。語彙と軸は core の label.list（store が読む）を写すだけで、ここは読んだ一覧から
+// 札の見た目・絞り込みの候補の並び・属性の欄の選択肢を決める。React にも CommandClient にも依らない関数だけを置く。
+// - 語彙のある名前は軸の色（軸の並びの番号で 6 色を回す）。語彙にない名前は色を付けず印を付ける
+// - 語彙が 1 つもないボード（軸を決めていない・labels.yaml がない）は、前と同じく名前から色を決め、印は付けない（すべてに印が付くだけになるため）
+// - 手順が付けるラベル（PROCEDURE_LABEL_PREFIXES）は、語彙にあってもなくても目立たない見た目にし、行の札の後ろへ回す
+
+import type { LabelListView } from "../types.js";
+
+/** ラベルの色の数（styles.css の --dg-label-0〜5 と .label-color-0〜5） */
+export const LABEL_COLOR_COUNT = 6;
+
+/**
+ * 手順が付けるラベルの頭（見直しの audit-<S>、振り返りの retro-<S>、リリースの release-<S>）。
+ * 人が分類に使うラベルではないので、行では目立たせず「表示」のメニューで隠せる
+ */
+export const PROCEDURE_LABEL_PREFIXES = ["audit-", "retro-", "release-"] as const;
+
+export function isProcedureLabel(name: string): boolean {
+  return PROCEDURE_LABEL_PREFIXES.some((p) => name.startsWith(p));
+}
+
+/** 語彙の 1 件の画面の見方 */
+export interface VocabularyLabel {
+  name: string;
+  axis: string;
+  /** 軸の並び（label.list の axes の順）の番号。色は LABEL_COLOR_COUNT で割った余り */
+  axisIndex: number;
+  description: string;
+}
+
+/** 画面の語彙。axes は label.list の軸の順で、語彙のない軸は入れない */
+export interface LabelVocabulary {
+  axes: ReadonlyArray<{
+    name: string;
+    description: string | null;
+    labels: readonly VocabularyLabel[];
+  }>;
+  byName: ReadonlyMap<string, VocabularyLabel>;
+}
+
+export const EMPTY_VOCABULARY: LabelVocabulary = { axes: [], byName: new Map() };
+
+/** label.list の出力から画面の語彙を作る。読めていなければ（null）語彙なし */
+export function vocabularyOf(view: LabelListView | null | undefined): LabelVocabulary {
+  if (!view) return EMPTY_VOCABULARY;
+  const byName = new Map<string, VocabularyLabel>();
+  const axes: Array<LabelVocabulary["axes"][number]> = [];
+  view.axes.forEach((axis, axisIndex) => {
+    const labels = axis.labels.map((l) => ({
+      name: l.name,
+      axis: axis.name,
+      axisIndex,
+      description: l.description,
+    }));
+    for (const l of labels) byName.set(l.name, l);
+    if (labels.length > 0) axes.push({ name: axis.name, description: axis.description, labels });
+  });
+  return { axes, byName };
+}
+
+/**
+ * ラベルの名前から色の番号（0〜LABEL_COLOR_COUNT-1）を決める。語彙のないボードで使う。同じ名前はどの画面・どの人でも同じ色になる。
+ * 名前の UTF-16 の符号単位を 32 ビットの FNV-1a で混ぜ、色の数で割った余り。
+ * 31 倍して足す形は 31 が 6 で割って 1 余るので、余りが文字の和だけで決まり、似た名前が同じ色に寄る
+ */
+export function labelColorIndex(name: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) {
+    hash ^= name.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0) % LABEL_COLOR_COUNT;
+}
+
+/** 札の見た目。axis は語彙の軸の色、plain は名前から決めた色（語彙のないボード）、unknown は語彙にない名前、procedure は手順のラベル */
+export type LabelLook =
+  | { kind: "axis"; color: number; label: VocabularyLabel }
+  | { kind: "plain"; color: number }
+  | { kind: "unknown" }
+  | { kind: "procedure"; label: VocabularyLabel | undefined };
+
+export function labelLook(name: string, vocabulary: LabelVocabulary): LabelLook {
+  const label = vocabulary.byName.get(name);
+  if (isProcedureLabel(name)) return { kind: "procedure", label };
+  if (label) return { kind: "axis", color: label.axisIndex % LABEL_COLOR_COUNT, label };
+  if (vocabulary.byName.size === 0) return { kind: "plain", color: labelColorIndex(name) };
+  return { kind: "unknown" };
+}
+
+/** 札に付ける class（styles.css の .label-color-*・.label-unknown・.label-procedure） */
+export function labelLookClass(look: LabelLook): string {
+  switch (look.kind) {
+    case "axis":
+    case "plain":
+      return `label-color-${look.color}`;
+    case "unknown":
+      return "label-unknown";
+    case "procedure":
+      return "label-procedure";
+  }
+}
+
+/**
+ * 行に並べる順：手順のラベルを後ろへ回し（ほかの順は保つ）、hideProcedure なら手順のラベルを除く。
+ * 行に出せる数は限られるので、人が分類に使うラベルを先に見せる
+ */
+export function rowLabelOrder(labels: readonly string[], hideProcedure: boolean): string[] {
+  const own = labels.filter((l) => !isProcedureLabel(l));
+  return hideProcedure ? own : [...own, ...labels.filter(isProcedureLabel)];
+}
+
+/** 絞り込みの候補の 1 つ */
+export interface LabelOption {
+  name: string;
+  /** 語彙の説明。語彙にない名前は undefined */
+  description: string | undefined;
+}
+
+/** 絞り込みの候補の組。axis が null の組は語彙にない名前（語彙のないボードでは全部） */
+export interface LabelOptionGroup {
+  axis: string | null;
+  options: LabelOption[];
+}
+
+/**
+ * 絞り込みの候補（names。名前の順に並んだもの）を、語彙の軸ごとの組に分ける。組は軸の順、語彙にない名前の組は最後。
+ * 候補にない語彙は出さない（絞っても 0 件になるため）
+ */
+export function labelOptionGroups(
+  names: readonly string[],
+  vocabulary: LabelVocabulary,
+): LabelOptionGroup[] {
+  const groups = vocabulary.axes.map((a): LabelOptionGroup => ({ axis: a.name, options: [] }));
+  const byAxis = new Map(groups.map((g) => [g.axis, g]));
+  const rest: LabelOption[] = [];
+  for (const name of names) {
+    const v = vocabulary.byName.get(name);
+    const group = v ? byAxis.get(v.axis) : undefined;
+    if (v && group) group.options.push({ name, description: v.description });
+    else rest.push({ name, description: undefined });
+  }
+  const filled = groups.filter((g) => g.options.length > 0);
+  return rest.length > 0 ? [...filled, { axis: null, options: rest }] : filled;
+}
+
+/** 絞り込みの候補の文字（名前と、語彙にあれば説明） */
+export function labelOptionText(option: LabelOption): string {
+  return option.description ? `${option.name} — ${option.description}` : option.name;
+}
+
+/** 属性の欄のラベル（入力を parseLabels で分けたもの）に、語彙のラベルを足すか外す。今あれば外し、なければ後ろに足す */
+export function toggleLabel(names: readonly string[], name: string): string[] {
+  return names.includes(name) ? names.filter((n) => n !== name) : [...names, name];
+}

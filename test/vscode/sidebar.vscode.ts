@@ -4,12 +4,12 @@
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
 // - 未 push のコミットがある間はタイトル行の同期のボタンが点付きになり、押して同期すると元に戻ること（UI-6）
-// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・更新日で並べたメニューと行・選んだ行の帯と ID のコピーの形のメニューとコピーした後の帯・頼む小窓とコピーした後のボタン・Epic の札に触れて光らせた行・選んでいる Epic の見出し・Run の丸と回数を出した Done の行・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・詳細のラベルの語彙の選択・更新日で並べたメニューと行・選んだ行の帯と ID のコピーの形のメニューとコピーした後の帯・頼む小窓とコピーした後のボタン・Epic の札に触れて光らせた行・選んでいる Epic の見出し・Run の丸と回数を出した Done の行・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
 // - 導入のチェックリストの「アンインストール」の節で、消すものを確かめてから一時リポジトリを外せること（閉じた節・開いた節・確認・外した後の知らせを撮る。
 //   ボードを消すので、ボードの要る検査の後に置く。HOME は一時ディレクトリなので、手元の個人の設定には触れない）
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
-import { access } from "node:fs/promises";
+import { access, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { FrameLocator } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -20,6 +20,7 @@ import {
   init,
   iterationCreate,
   iterationStart,
+  labelAxisSet,
   openContext,
   planApprove,
   planCreate,
@@ -35,6 +36,7 @@ import {
   ticketMove,
   ticketUpdate,
   uninstallRouteOf,
+  withWrite,
   workflowSet,
 } from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
@@ -78,7 +80,36 @@ beforeAll(async () => {
   await runCommand(epicCreate, ctx, { title: "実機の Epic" });
   // t1・t2 は s1 のカンバン、t3 はカンバンの作業中。バックログ（Iteration なし）にも行が出るよう 2 件目は入れない。
   // t1 だけ Epic e1 に入れ、札に触れて光らせる行と薄くする行を撮る。
-  // 行のラベル（UI-2・UI-3）を撮るため、t1 は 4 つ（3 つと「+1」）のラベルと PR（ラベルは PR の右）、t2・t3 は 1 つのラベルを持つ
+  // 行のラベル（UI-2・UI-3）を撮るため、t1 は 4 つ（3 つと「+1」）のラベルと PR（ラベルは PR の右）、t2 は 1 つのラベル、
+  // t3 は 1 つのラベルと手順のラベル（audit-s1。目立たない見た目）を持つ。
+  // 札の色を軸ごとに分けて撮るため、軸 area（web・ui）と kind（docs・gate）の語彙を置き、cli と release は語彙にない名前（「?」の印）にする。
+  // 語彙を書くコマンドはまだないので、dg の書き込みとして labels.yaml を直に書く（core の label.test.ts と同じ）
+  await runCommand(labelAxisSet, ctx, {
+    name: "area",
+    description: "Which part the ticket touches",
+  });
+  await runCommand(labelAxisSet, ctx, { name: "kind", description: "What kind of change it is" });
+  const vocabulary: Array<[string, string, string]> = [
+    ["web", "area", "The screens of the web package"],
+    ["ui", "area", "How the screens look and behave"],
+    ["docs", "kind", "Documents for users and contributors"],
+    ["gate", "kind", "The quality gate and its checks"],
+  ];
+  await withWrite(
+    ctx,
+    () =>
+      writeFile(
+        path.join(ctx.repo.dataDir, "labels.yaml"),
+        vocabulary
+          .map(
+            ([name, axis, description]) =>
+              `${name}:\n  axis: ${axis}\n  description: ${description}\n  created_at: 2026-11-01T00:00:00Z\n`,
+          )
+          .join(""),
+      ),
+    { message: "語彙を書く" },
+  );
+  await ctx.store.rescan();
   await runCommand(ticketCreate, ctx, {
     title: TITLES[0],
     acceptance: ["行が出る"],
@@ -96,7 +127,7 @@ beforeAll(async () => {
     title: TITLES[2],
     acceptance: ["行が出る"],
     iteration: "s1",
-    labels: ["gate"],
+    labels: ["gate", "audit-s1"],
   });
   await runCommand(ticketClaim, ctx, { ticket: "t3", without_branch: true });
   // 設定画面の振り返りの節を撮るため、review に推薦の指標を 2 つ記録し、cost の問いを書き換え（変更あり）、既定にない観点 flow を足す（変更あり・指標なし）
@@ -193,6 +224,20 @@ describe("VS Code の実機の左パネル", () => {
     await chip.locator("button").click();
     await chip.waitFor({ state: "detached" });
     await sidebar.locator(".ticket-row", { hasText: TITLES[2] }).waitFor();
+  });
+
+  it("詳細の属性の欄でラベルを直すとき、入力欄の下に軸ごとの語彙と説明が出たところをライトとダークで撮り、Esc で閉じる", async () => {
+    const panel = host.panelFrame();
+    // テーマを切り替えるとフォーカスが欄の外へ出て閉じるので、テーマごとに開き直す。表示言語は英語（「ラベルを変える」は Change Labels）
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      await panel.locator('[aria-label="Change Labels"]').click();
+      await panel.locator(".label-picker").waitFor();
+      const shot = await host.screenshot("label-picker", theme);
+      await access(shot.window);
+      await host.page.keyboard.press("Escape");
+      await panel.locator(".label-picker").waitFor({ state: "detached" });
+    }
   });
 
   it("「表示」の並び順で更新日を選んだメニューと、並びの札と行の相対の更新時刻をライトとダークで撮り、札の × で既定に戻す", async () => {

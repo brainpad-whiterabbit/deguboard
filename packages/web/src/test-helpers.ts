@@ -27,6 +27,7 @@ import type {
   EpicRow,
   Iteration,
   IterationDetail,
+  LabelListView,
   PlanRow,
   RunSummary,
   Ticket,
@@ -41,6 +42,8 @@ export interface Fixture {
   plans: PlanRow[];
   workflow: WorkflowView;
   status: StatusView;
+  /** label.list の応答（ラベルの軸と語彙）。既定は軸を決めていない語彙なしのボード */
+  labels: LabelListView;
 }
 
 /**
@@ -195,6 +198,7 @@ export function fixture(partial: Partial<Fixture> = {}): Fixture {
       data_dir: "/x",
       web_url: null,
     },
+    labels: { state: "undecided", axes: [] },
     ...partial,
   };
 }
@@ -323,6 +327,7 @@ export function mockClient(data = fixture()): MockClient {
       return { ...rest, items };
     },
     "workflow.show": () => data.workflow,
+    "label.list": () => data.labels,
     history: () => ({ events: [], shallow: false, incomplete: [] }),
     "run.list": () => [],
     "run.recent": () => [],
