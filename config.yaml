@@ -165,3 +165,5 @@ labels:
       description: 製品のどの部分に触れるか
     - name: kind
       description: どんな種類の変更か
+    - name: impact
+      description: 製品の利用者に何が届くか
