@@ -107,7 +107,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - TK-1 必須は `id`・`title`・`status`・`created_at`・`updated_at`。Workflow はチケットごとに選ばない（カンバンに 1 つ。5.8）
 - TK-2 `depends_on` は同じリポジトリのチケットの ID。循環は作成・更新時に拒否する
-- TK-3 本文は Markdown。`## Summary` と `## Acceptance criteria`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` が雛形を作り、受け入れ条件は `ticket check` が番号で印を付ける。空か空白だけの本文は拒む。節の欠けや状態の食い違い、実装と手直しの Run の抜け（RN-5・RN-6）、軸を使うボードでのラベルと語彙のずれ（5.10）は `dg lint` が指摘する（項目は `dg lint --help`）
+- TK-3 本文は Markdown。`## Summary` と `## Acceptance criteria`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` が雛形を作り、受け入れ条件は `ticket check` が番号で印を付ける。空か空白だけの本文は拒む。節の欠け、状態の食い違い、Run の抜け（RN-5・RN-6）、ラベルと語彙のずれは `dg lint` が指摘する（項目は `dg lint --help`）
 - TK-4 チケットの項目はスキーマが決めたものだけで、利用者が定義する任意フィールドは持たない。前の版の任意フィールドの値は、スキーマにない項目として残る（DT-2）
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが確認できたときに付ける。deguboard は自動で付けず、照合で done にしたチケットに未チェックが残れば `sync` が警告する（遷移は止めない。理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）
 - TK-6 `epic` は Epic の ID。閉じた Epic には付けられない

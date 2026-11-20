@@ -1081,7 +1081,7 @@ export const lint = defineCommand({
           `There are ${active.length} active Iterations (${ids})`,
         );
     }
-    // ラベルと語彙のずれ（ADR-037）。判定は model/label-lint.ts。チケットの指摘はチケットに、語彙の指摘は labels.yaml に置く
+    // ラベルと語彙のずれ。軸がオフのボードは見ない。判定は model/label-lint.ts。チケットの指摘はチケットに、語彙の指摘は labels.yaml に置く
     for (const f of labelLintFindings(
       ctx.store.teamConfig.labels.axes,
       ctx.store.labels,
