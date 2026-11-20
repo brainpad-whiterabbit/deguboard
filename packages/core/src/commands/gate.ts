@@ -2,6 +2,7 @@
 // 判定は保存せず、呼ぶたびに事実から求める。dg pr ready・dg pr merge が gh を呼ぶ前に呼ぶ（pr.ts。EX-6）
 // このファイルは事実を集めて（collectGateFacts）検査を回す（judgeCheck）。決めるのは gate-judge.ts の読まない関数
 
+import { setTimeout as sleep } from "node:timers/promises";
 import { NEVER_OVERRIDDEN } from "./pr-approval.js";
 import { z } from "zod";
 import {
@@ -20,9 +21,11 @@ import { judgeCheck, latestCommit } from "./gate-check.js";
 import {
   FIX_ROUNDS_LIMIT,
   GATE_STAGES,
+  MERGEABLE_REREAD_DELAYS_MS,
   concludeGate,
   gateReads,
   judgeBeforeCheck,
+  mergeableRereadDelay,
   rereadsBase,
   type BaseFact,
   type GateConditionId,
@@ -51,6 +54,31 @@ async function readPrFact(ctx: CommandContext, ticket: Ticket): Promise<PrFact> 
   if ("reason" in facts) return { kind: "unreadable", reason: facts.reason };
   if ("missing" in facts) return { kind: "missing", selector };
   return { kind: "read", pr: facts.pr };
+}
+
+/** mergeable が UNKNOWN の間に読み直す前に待つ時間（ミリ秒）。テストが短くする */
+export const mergeableTiming: { delaysMs: readonly number[] } = {
+  delaysMs: MERGEABLE_REREAD_DELAYS_MS,
+};
+
+/**
+ * PR の事実を読み、mergeable が UNKNOWN の間は待って読み直す（t1192）。待つか・どれだけ待つかは gate-judge.ts の
+ * mergeableRereadDelay が決め、ここは読んで待つだけ。待った時間の合計を waitedMs に返す
+ */
+async function readSettledPrFact(
+  ctx: CommandContext,
+  ticket: Ticket,
+  stage: GateStage,
+): Promise<{ pr: PrFact; waitedMs: number }> {
+  let pr = await readPrFact(ctx, ticket);
+  let waitedMs = 0;
+  for (let rereads = 0; ; rereads++) {
+    const delay = mergeableRereadDelay(stage, pr, rereads, mergeableTiming.delaysMs);
+    if (delay === null) return { pr, waitedMs };
+    await sleep(delay);
+    waitedMs += delay;
+    pr = await readPrFact(ctx, ticket);
+  }
 }
 
 /**
@@ -107,7 +135,8 @@ export async function collectGateFacts(
   const reads = gateReads(level, stage);
   // base の取り込みは、先端のマージコミットを読むときと base の今の先端を読むときで 1 回にまとめる
   const fetchBase = fetchBaseOnce(ctx.repo);
-  const pr = await readPrFact(ctx, ticket);
+  // PR は最初に読む（mergeable が UNKNOWN の間に待つので、待った後の事実をほかの読みより前に揃える）
+  const { pr, waitedMs } = await readSettledPrFact(ctx, ticket, stage);
   const acceptance = reads.acceptance
     ? (parseAcceptance(ctx.store.tickets.get(ticket.id)?.body ?? "") ?? [])
     : [];
@@ -128,6 +157,7 @@ export async function collectGateFacts(
     recordedPr: ticket.pr ?? null,
     branchAt: ticket.branch_at,
     pr,
+    mergeableWaitedMs: waitedMs,
     acceptance,
     review,
     latest,
@@ -171,7 +201,7 @@ export const gate = defineCommand({
     "pr (the PR is open; with --for merge, not a draft) · acceptance (with --for merge, every acceptance criterion is checked) · " +
     "review (the latest review of the work branch's remote tip has closed with success, and the run review-result result passed. A review counts for the tip when the SHA it recorded (the local tip of the work branch when the review Run was opened, or when a held result was written) is the remote tip's SHA. It also counts when the remote tip only brought base into the reviewed SHA, once or several times in a row: from the tip back to that SHA there are only merge commits, each with two parents, one a commit of base and the other the previous commit of the work branch, and the tip's tree is the result of merging the base commit that the tip brought in into the reviewed SHA automatically (dg makes that result once, however many merges there are: with git merge-tree --write-tree on git 2.38 or later, and in a temporary worktree that it removes on older git). A merge whose conflicts were resolved by hand or that carries other changes (anywhere in that row), a commit added after a merge, and a rebase do not count, so review again; neither does a row of merges whose tree differs from that one automatic merge. A review with no recorded SHA (an earlier version's Run) counts when it started after the time of the remote tip's commit) · " +
     "(a review result held with no review Run, while the ticket has no open review Run and no running sub-agent, counts as a review closed when the result was written; when several are held after the same push, only the latest counts) · " +
-    `fix_rounds (reviews that raised heavy findings on this branch are at most ${FIX_ROUNDS_LIMIT} times) · mergeable (with --for merge, gh's mergeable is MERGEABLE) · ` +
+    `fix_rounds (reviews that raised heavy findings on this branch are at most ${FIX_ROUNDS_LIMIT} times) · mergeable (with --for merge, gh's mergeable is MERGEABLE. While gh returns UNKNOWN for an open PR that is not a draft (GitHub is still computing it, as just after a push), dg waits and reads the PR again, up to ${MERGEABLE_REREAD_DELAYS_MS.length} times over ${MERGEABLE_REREAD_DELAYS_MS.reduce((a, b) => a + b, 0) / 1000} s in all, and judges the value it settles on; if it is still UNKNOWN after that, mergeable is unmet, and detail says how long dg waited) · ` +
     "head (with --for merge at high and low, the PR's head commit (sha in the output, which dg pr merge pins with --match-head-commit) is the latest commit of the work branch, the commit that review and check judge) · " +
     "base (with --for merge at high and low, the latest commit of the work branch contains the current tip of base, which dg fetches before it compares, and again after a check that it ran (not reused), since base can move while the check runs, so that the check has seen what the merge puts on base. When it is unmet, merge base into the work branch, push, and judge again: the check runs on the new tip, and a merge commit that only brings base in keeps the review. Merge base in before dg pr ready, and dg pr merge reuses the check of that tip unless base has moved since. Nothing is checked after the merge) · " +
     "check (config's actions.test passes when run in a worktree with no uncommitted changes, checked out at the latest commit of the work branch (remote tip). When the last commit whose actions.test passed is an ancestor of the latest commit, no merge commit came after it, actions.test is unchanged, and every file changed since then falls under actions.light_paths, the lighter check actions.light_test runs instead (with no such record yet, the diff against base decides the same way). Otherwise actions.test runs. detail gives which one ran and why. When actions.test is empty, it passes without judging and detail says so. When it fails, detail gives the exit code and the tail of the output. A passing result is remembered per commit and per command in deguboard-local and is not rerun for the same commit (it still counts after the worktree is removed, e.g. after a merge. A failing result is not remembered; the next check reruns it). It takes time, so it runs only when all the other conditions are met; not_run: true marks a check skipped because they were not met). " +

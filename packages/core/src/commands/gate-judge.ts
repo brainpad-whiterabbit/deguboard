@@ -99,6 +99,8 @@ export interface GateFacts {
   /** 作業ブランチを切った時刻（修正ループの回数を数え始める時刻） */
   branchAt: string | undefined;
   pr: PrFact;
+  /** mergeable が UNKNOWN の間に待って読み直した時間の合計（ミリ秒。mergeableRereadDelay）。待たなければ 0 か省略 */
+  mergeableWaitedMs?: number;
   /** 受け入れ条件の項目（チケットの本文から） */
   acceptance: ReadonlyArray<{ index: number; checked: boolean }>;
   review: ReviewFacts;
@@ -243,8 +245,32 @@ function fixRoundsCondition(runs: readonly ReviewRun[], branchAt: string | undef
   return condition;
 }
 
-/** base と衝突しない（mergeable）。PR を読めなければ満たさない */
-function mergeableCondition(pr: PrFact): GateCondition {
+/**
+ * mergeable が UNKNOWN の間、PR を読み直す前に待つ時間（ミリ秒）。長さが読み直しの回数の上限で、合計が待つ上限。
+ * push の直後は GitHub が mergeable を計算中で UNKNOWN を返し、base を取り込んで push した直後の dg pr merge が止まっていた（t1192）
+ */
+export const MERGEABLE_REREAD_DELAYS_MS: readonly number[] = [1000, 2000, 3000, 4000];
+
+/**
+ * 読んだ PR の事実を、待ってから読み直すか。読み直すなら待つ時間（ミリ秒）を、読み直さないなら null を返す。
+ * 読み直すのは、mergeable を判定する（for merge）・開いていて draft でない PR の mergeable が UNKNOWN で、
+ * 読み直した回数（rereads）が上限（delays の長さ）に届かない間だけ。PR を読めない・閉じた・draft の PR は、
+ * 待っても pr の条件で落ちるので待たない。上限まで UNKNOWN のままなら、mergeable はその値のまま満たさない
+ */
+export function mergeableRereadDelay(
+  stage: GateStage,
+  pr: PrFact,
+  rereads: number,
+  delays: readonly number[] = MERGEABLE_REREAD_DELAYS_MS,
+): number | null {
+  if (stage !== "merge" || pr.kind !== "read") return null;
+  const { state, isDraft, mergeable } = pr.pr;
+  if (mergeable !== "UNKNOWN" || state !== "OPEN" || isDraft) return null;
+  return delays[rereads] ?? null;
+}
+
+/** base と衝突しない（mergeable）。PR を読めなければ満たさない。waitedMs は UNKNOWN の間に待った時間 */
+function mergeableCondition(pr: PrFact, waitedMs = 0): GateCondition {
   if (pr.kind !== "read")
     return {
       id: "mergeable",
@@ -252,13 +278,18 @@ function mergeableCondition(pr: PrFact): GateCondition {
       detail: "Cannot read the PR, so conflicts cannot be checked",
     };
   const { mergeable } = pr.pr;
+  // 待ったことを書くのは UNKNOWN のままのときだけ。待つ間に CONFLICTING などに決まったなら「まだ」は誤り
+  const waited =
+    waitedMs > 0 && mergeable === "UNKNOWN"
+      ? `; it was still ${mergeable} after waiting ${waitedMs / 1000} s and reading again`
+      : "";
   return {
     id: "mergeable",
     ok: mergeable === "MERGEABLE",
     detail:
       mergeable === "MERGEABLE"
         ? "No conflict with base"
-        : `mergeable is ${mergeable} (there is a conflict, or it is still being computed. Wait a moment and check again)`,
+        : `mergeable is ${mergeable} (there is a conflict, or it is still being computed${waited}. Wait a moment and check again)`,
   };
 }
 
@@ -333,7 +364,7 @@ export function judgeBeforeCheck(
       fixRoundsCondition(facts.review.runs, facts.branchAt),
     );
   if (stage === "merge") {
-    conditions.push(mergeableCondition(facts.pr));
+    conditions.push(mergeableCondition(facts.pr, facts.mergeableWaitedMs));
     // 最新のコミットを読めないときは、見直し（review）と検査（check）が別の条件で落ちるので比べない。
     // free は見直しも検査も判定しないので比べず、マージは判定した PR の先端（sha）に固定する
     if (reads.latest && facts.pr.kind === "read" && facts.latest !== null)
