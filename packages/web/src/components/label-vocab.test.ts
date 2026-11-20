@@ -1,3 +1,5 @@
+// 写しを照らすためだけに core の実行時のコード（isProcedureLabel）を取り込む（画面のコードは型だけを取る。ADR-033）
+import { isProcedureLabel as coreIsProcedureLabel } from "@deguboard/core";
 import { describe, expect, it } from "vitest";
 import type { LabelListView } from "../types.js";
 import {
@@ -109,9 +111,18 @@ describe("札の見た目", () => {
     });
   });
 
-  it("手順のラベルは頭が audit-・retro-・release- のものだけ", () => {
-    expect(["audit-s3", "retro-s1", "release-s9"].every(isProcedureLabel)).toBe(true);
-    expect(["audit", "auditor", "pre-release-s1", "retros"].some(isProcedureLabel)).toBe(false);
+  it("手順のラベルは頭が audit-・retro-・release- のものと、対象のない見直しの audit", () => {
+    expect(["audit", "audit-s3", "retro-s1", "release-s9"].every(isProcedureLabel)).toBe(true);
+    expect(["auditor", "pre-release-s1", "retros", "retro", "release"].some(isProcedureLabel)).toBe(
+      false,
+    );
+  });
+
+  it("core の isProcedureLabel の写しで、同じ結果になる", () => {
+    const names = ["audit", "audit-s3", "auditor", "retro", "retro-s1", "retros", "release"];
+    const more = ["release-s9", "pre-release-s1", "ui", "bug", "Audit", ""];
+    for (const name of [...names, ...more])
+      expect([name, isProcedureLabel(name)]).toEqual([name, coreIsProcedureLabel(name)]);
   });
 });
 

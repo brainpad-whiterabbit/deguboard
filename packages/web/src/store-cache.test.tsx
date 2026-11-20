@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "./app.js";
 import { HostProvider, type Host } from "./host.js";
@@ -121,5 +121,61 @@ describe("前回の一覧の cache", () => {
     await screen.findByText("ログイン");
     expect(document.querySelector(".skeleton")).toBeNull();
     expect(screen.queryByText("読み込み中…")).toBeNull();
+  });
+});
+
+describe("ラベルの語彙（label.list）が読めないとき", () => {
+  const vocabulary = {
+    state: "on" as const,
+    axes: [
+      { name: "kind", description: "種類", labels: [] },
+      {
+        name: "area",
+        description: "部分",
+        labels: [
+          {
+            name: "web",
+            description: "画面の部品",
+            created_at: "2026-01-01T00:00:00Z",
+            count: 1,
+            last_used_at: null,
+          },
+        ],
+      },
+    ],
+  };
+  function failingLabels(client: ReturnType<typeof mockClient>) {
+    client.handlers["label.list"] = () => {
+      throw new Error("labels.yaml を読めない");
+    };
+    return client;
+  }
+
+  it("最初の読み込みなら、一覧は描き、ラベルは名前から決めた色で出して語彙にない印を付けない", async () => {
+    const state = createUiState(memoryBackend());
+    mount(failingLabels(mockClient(boardFixture())), state);
+    await screen.findByText("ログイン");
+    expect(screen.getByRole("button", { name: "web" }).className).toMatch(
+      /^row-label label-color-\d$/,
+    );
+    expect(document.querySelector(".label-unknown")).toBeNull();
+  });
+
+  it("cache に前回の語彙があれば、それで軸の色を出し続け、書き直す cache にも残す", async () => {
+    const state = createUiState(memoryBackend());
+    const before = boardFixture();
+    state.set(SNAPSHOT_KEY, {
+      tickets: before.tickets,
+      epics: before.epics,
+      iterations: before.iterations,
+      plans: before.plans,
+      workflow: before.workflow,
+      labels: vocabulary,
+    });
+    mount(failingLabels(mockClient(boardFixture())), state, state);
+    // 読み直して cache を書き直す（前回の cache は me を持たない）まで待つ
+    await waitFor(() => expect(state.get<{ me?: unknown }>(SNAPSHOT_KEY)?.me).toBeTruthy());
+    expect(screen.getByRole("button", { name: "web" }).className).toBe("row-label label-color-1");
+    expect(state.get<{ labels?: unknown }>(SNAPSHOT_KEY)?.labels).toEqual(vocabulary);
   });
 });

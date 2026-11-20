@@ -9,7 +9,7 @@
 //   ボードを消すので、ボードの要る検査の後に置く。HOME は一時ディレクトリなので、手元の個人の設定には触れない）
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
-import { access, writeFile } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import path from "node:path";
 import type { FrameLocator } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -20,6 +20,7 @@ import {
   init,
   iterationCreate,
   iterationStart,
+  labelAdd,
   labelAxisSet,
   openContext,
   planApprove,
@@ -36,7 +37,6 @@ import {
   ticketMove,
   ticketUpdate,
   uninstallRouteOf,
-  withWrite,
   workflowSet,
 } from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
@@ -83,7 +83,6 @@ beforeAll(async () => {
   // 行のラベル（UI-2・UI-3）を撮るため、t1 は 4 つ（3 つと「+1」）のラベルと PR（ラベルは PR の右）、t2 は 1 つのラベル、
   // t3 は 1 つのラベルと手順のラベル（audit-s1。目立たない見た目）を持つ。
   // 札の色を軸ごとに分けて撮るため、軸 area（web・ui）と kind（docs・gate）の語彙を置き、cli と release は語彙にない名前（「?」の印）にする。
-  // 語彙を書くコマンドはまだないので、dg の書き込みとして labels.yaml を直に書く（core の label.test.ts と同じ）
   await runCommand(labelAxisSet, ctx, {
     name: "area",
     description: "Which part the ticket touches",
@@ -95,21 +94,8 @@ beforeAll(async () => {
     ["docs", "kind", "Documents for users and contributors"],
     ["gate", "kind", "The quality gate and its checks"],
   ];
-  await withWrite(
-    ctx,
-    () =>
-      writeFile(
-        path.join(ctx.repo.dataDir, "labels.yaml"),
-        vocabulary
-          .map(
-            ([name, axis, description]) =>
-              `${name}:\n  axis: ${axis}\n  description: ${description}\n  created_at: 2026-11-01T00:00:00Z\n`,
-          )
-          .join(""),
-      ),
-    { message: "語彙を書く" },
-  );
-  await ctx.store.rescan();
+  for (const [name, axis, description] of vocabulary)
+    await runCommand(labelAdd, ctx, { name, axis, description });
   await runCommand(ticketCreate, ctx, {
     title: TITLES[0],
     acceptance: ["行が出る"],

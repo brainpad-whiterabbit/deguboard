@@ -12,8 +12,8 @@ import {
 import { parseLabels } from "./ticket-props.js";
 
 /**
- * 語彙のラベルの選択。語彙がなければ何も出さない。マウスで押しても入力欄からフォーカスを動かさない（続けて Enter で保存できる）。
- * キーでは Tab で項目へ移って Space・Enter で押せる（欄の外へ出たときだけ取り消すのは InlineEdit）
+ * 語彙のラベルの選択。語彙がなければ何も出さない。マウスで押しても入力欄からフォーカスを動かさない（続けて Enter で保存できる。
+ * 止めるのは包む InlineEdit の mousedown）。キーでは Tab で項目へ移って Space・Enter で押せる（欄の外へ出たときだけ取り消すのは InlineEdit）
  */
 export function LabelPicker({
   vocabulary,
@@ -43,7 +43,6 @@ export function LabelPicker({
                 aria-pressed={on}
                 // 札と説明の間に区切りがないと読み上げで続いてしまうので、絞り込みの候補と同じ形の名前にする
                 aria-label={labelOptionText({ name: l.name, description: l.description })}
-                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => onChange(toggleLabel(current, l.name).join(", "))}
               >
                 <span className="view-menu-check" aria-hidden="true">

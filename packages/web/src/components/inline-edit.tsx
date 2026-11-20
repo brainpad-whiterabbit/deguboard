@@ -321,6 +321,11 @@ function TextEdit({
   return (
     <div
       className="inline-picker"
+      // 選ぶ部品のどこを押しても（項目のボタンも、軸の名前や項目の間のような押せない所も）入力欄からフォーカスを動かさない。
+      // 動かすと relatedTarget のない blur になり、下の onBlur が選んだ途中のラベルごと取り消すため
+      onMouseDown={(e) => {
+        if (!(e.target instanceof HTMLInputElement)) e.preventDefault();
+      }}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.preventDefault();

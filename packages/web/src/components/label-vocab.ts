@@ -2,7 +2,8 @@
 // 札の見た目・絞り込みの候補の並び・属性の欄の選択肢を決める。React にも CommandClient にも依らない関数だけを置く。
 // - 語彙のある名前は軸の色（軸の並びの番号で 6 色を回す）。語彙にない名前は色を付けず印を付ける
 // - 語彙が 1 つもないボード（軸を決めていない・labels.yaml がない）は、前と同じく名前から色を決め、印は付けない（すべてに印が付くだけになるため）
-// - 手順が付けるラベル（PROCEDURE_LABEL_PREFIXES）は、語彙にあってもなくても目立たない見た目にし、行の札の後ろへ回す
+// - 手順が付けるラベル（isProcedureLabel）は、語彙にあってもなくても目立たない見た目にし、行の札の後ろへ回す。
+//   判定は core の model/labels.ts の写し（画面は core の型だけを取る。ADR-033）。ずれは label-vocab.test.ts が core と照らして見る
 
 import type { LabelListView } from "../types.js";
 
@@ -15,8 +16,9 @@ export const LABEL_COLOR_COUNT = 6;
  */
 export const PROCEDURE_LABEL_PREFIXES = ["audit-", "retro-", "release-"] as const;
 
+/** 手順が付けるラベルか。対象のない見直しは接頭辞のない audit を付ける（dg guide audit）ので、それも含める */
 export function isProcedureLabel(name: string): boolean {
-  return PROCEDURE_LABEL_PREFIXES.some((p) => name.startsWith(p));
+  return name === "audit" || PROCEDURE_LABEL_PREFIXES.some((p) => name.startsWith(p));
 }
 
 /** 語彙の 1 件の画面の見方 */

@@ -869,6 +869,12 @@ describe("画面", () => {
       expect(input.value).toBe("web, bug");
       fireEvent.click(web);
       expect(input.value).toBe("bug");
+      // 項目も、軸の名前のような押せない所も、押してフォーカスを入力欄から動かさない（動くと欄が閉じて選んだ途中を失う）
+      expect(fireEvent.mouseDown(bug)).toBe(false);
+      expect(fireEvent.mouseDown(within(area).getByText("area"))).toBe(false);
+      expect(fireEvent.mouseDown(picker)).toBe(false);
+      expect(fireEvent.mouseDown(input)).toBe(true);
+      expect(input.value).toBe("bug");
       // 語彙の項目へフォーカスが移っても欄は閉じない
       fireEvent.blur(input, { relatedTarget: bug });
       expect(screen.getByLabelText("ラベル")).toBeTruthy();
