@@ -1,0 +1,36 @@
+{
+  "id": "r20261120-042813-221d",
+  "ticket": "t1182",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-20T04:28:13Z",
+  "finished_at": "2026-11-20T04:31:13Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "語彙のキー（ラベルの名前）の形を検査しておらず、予約されたフィールド名がマージの別の規則に当たる",
+    "分岐点にない語彙のファイルを両側が違う値で足した add/add の競合を返すテストがない"
+  ],
+  "usage": {
+    "input": 22,
+    "output": 10007,
+    "cache_read": 612773,
+    "cache_write": 54978
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 6,
+    "bash": 11,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "b4cec18b-e9c5-412a-ad57-9f0ef157ec9d",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 59
+}
