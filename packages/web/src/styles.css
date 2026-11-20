@@ -3700,10 +3700,16 @@ button.ask-icon:disabled {
 .ask-box textarea:focus {
   outline: none;
 }
+/* 狭い幅（200px）ではアイコン・キーの印・コピーが 1 行に入らず、小窓の幅を押し広げて閉じるボタンを画面の外へ出すので折り返す。
+   コピーは折り返しても右に寄せる */
 .ask-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.15rem;
+}
+.ask-foot button.ask-copy {
+  margin-left: auto;
 }
 /* ⌘↵・Ctrl+↵ のキーの印 */
 .ask-keys {

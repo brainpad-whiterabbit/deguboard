@@ -225,14 +225,23 @@ describe("吹き出しの一覧（UI-15）", () => {
       expect(await rec.getAttribute("aria-pressed"), "おすすめは選んでいない").toBe("false");
       expect(await chips.nth(1).getAttribute("aria-pressed"), "選んだ候補").toBe("true");
       expect(await chips.nth(1).textContent()).toBe(items[1]);
+      // 3 つの札と閉じるボタンが幅の中にあり、小窓が横にはみ出さないこと。札の行と下の段（アイコン・キーの印・コピー）の
+      // どれかが 1 行に入らないと小窓の幅を押し広げ、閉じるボタンが画面の外へ出る。選び直すと札の名前が変わるので、前後で見る
+      const expectInside = async (when: string) => {
+        for (let i = 0; i < 3; i++) {
+          const box = (await chips.nth(i).boundingBox())!;
+          expect(box.x, `${when}: 札 ${i} の左端`).toBeGreaterThanOrEqual(0);
+          expect(box.x + box.width, `${when}: 札 ${i} の右端`).toBeLessThanOrEqual(width);
+        }
+        const overflow = await composer.evaluate((el) => el.scrollWidth - el.clientWidth);
+        expect(overflow, `${when}: 小窓の横のはみ出し`).toBe(0);
+        const close = (await composer.getByRole("button", { name: "閉じる" }).boundingBox())!;
+        expect(close.x + close.width, `${when}: 閉じるボタンの右端`).toBeLessThanOrEqual(width);
+      };
       const more = chips.nth(2);
       expect(await more.getAttribute("class"), "最後の札は「ほか N」").toContain("ask-more");
       expect(await more.textContent()).toContain(String(items.length - 2));
-      for (let i = 0; i < 3; i++) {
-        const box = (await chips.nth(i).boundingBox())!;
-        expect(box.x, `札 ${i} の左端`).toBeGreaterThanOrEqual(0);
-        expect(box.x + box.width, `札 ${i} の右端`).toBeLessThanOrEqual(width);
-      }
+      await expectInside("選ぶ前");
       // 「ほか N」の一覧は小窓の中に出て幅に収まり、残りの候補を選ぶと札の 2 番目がその候補に替わる（札は 3 つのまま）
       await more.click();
       const list = composer.locator(".ask-menu");
@@ -248,10 +257,7 @@ describe("吹き出しの一覧（UI-15）", () => {
       await expect.poll(() => chips.nth(1).textContent()).toBe(last);
       expect(await chips.count(), "選び直しても札は 3 つ").toBe(3);
       expect(await chips.nth(1).getAttribute("aria-pressed")).toBe("true");
-      // 閉じるボタンの右端は小数の丸めで幅を 0.5px 超えることがある（幅 200px で 200.27px を実測）。
-      // 札と違って溢れは見た目に出ない差なので、0.5px までの超えは許す
-      const close = (await composer.getByRole("button", { name: "閉じる" }).boundingBox())!;
-      expect(close.x + close.width, "閉じるボタンの右端").toBeLessThanOrEqual(width + 0.5);
+      await expectInside("選び直した後");
       await composer.getByRole("button", { name: "閉じる" }).click();
       expect(await composer.count()).toBe(0);
       await page.close();
