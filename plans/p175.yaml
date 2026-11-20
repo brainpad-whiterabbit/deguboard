@@ -1,0 +1,23 @@
+id: p175
+tickets: [t1196, t1197, t1199, t1198]
+after:
+  t1198:
+    - t1197
+pending_approval: true
+details:
+  t1196:
+    scope: usage.md と usage.ja.md のラベルの節に画面・統合済みの名前の読み替え・lint の指摘を足し、Names の説明をヘルプに合わせ、README.md と README.ja.md の Tips にリンクを足す
+    approach: 各 1〜2 文で書き、細部は dg のヘルプに任せ、英語版と日本語版の節の構成をそろえる
+    tier: standard
+  t1197:
+    scope: dg label axis remove の判定を純粋な関数に移す。振る舞いと誤りの文は変えない
+    approach: model/labels.ts の judgeLabel* と同じ形の判定を model/label-axes.ts に置き、組み合わせのテストをそこへ移す
+    tier: standard
+  t1199:
+    scope: requirements.md 5.1 の labels.yaml の行、merge.test.ts の古いコメントと語彙の書き方、mise.toml の release:version の説明を直す
+    approach: 5.1 の行を縮めて統合の約束を TK-13 に寄せ、テストは label.add・label.update で語彙を書くか直に書く理由だけを残す
+    tier: standard
+  t1198:
+    scope: config.show が軸の状態を返して設定画面はそれを出すだけにし、リリースのラベルの判定を core の 1 か所にまとめる。振る舞いは変えない
+    approach: ConfigShowView に軸の状態を足し、releaseLabeled を共有して flow.ts の isRelease を置き換える
+    tier: standard
