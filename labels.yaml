@@ -30,3 +30,7 @@ security:
   axis: area
   description: 安全性の修正と脅威への対策
   created_at: 2026-11-20T06:21:56Z
+metrics:
+  axis: area
+  description: Run の記録と指標
+  created_at: 2026-11-20T06:21:59Z
