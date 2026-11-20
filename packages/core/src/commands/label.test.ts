@@ -1,4 +1,5 @@
-// ラベルの軸を読み書きするコマンド（label.axis.set・label.axis.remove・label.axis.list。ADR-037）と、語彙を読む label.list
+// ラベルの軸を読み書きするコマンド（label.axis.set・label.axis.remove・label.axis.list。ADR-037）と、
+// 語彙を読む label.list、語彙を書く label.add・label.update・label.remove
 // 同期を確かめないので、すべてデータのリモートのない initializedLocalFixture で回す
 
 import { readFile, writeFile } from "node:fs/promises";
@@ -16,7 +17,15 @@ import { withWrite } from "../git/write.js";
 import { LABEL_AXIS_CANDIDATES } from "../model/label-axes.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { labelAxisList, labelAxisRemove, labelAxisSet, labelList } from "./label.js";
+import {
+  labelAdd,
+  labelAxisList,
+  labelAxisRemove,
+  labelAxisSet,
+  labelList,
+  labelRemove,
+  labelUpdate,
+} from "./label.js";
 import {
   configSet,
   configShow,
@@ -220,7 +229,7 @@ describe("ラベルの軸", () => {
   });
 });
 
-/** labels.yaml をデータのディレクトリに置いて索引を作り直す（語彙を書くコマンドはまだないので、dg の書き込みとして直に書く） */
+/** labels.yaml をデータのディレクトリに置いて索引を作り直す（統合の記録と読めない項目は語彙を書くコマンドでは作れないので、dg の書き込みとして直に書く） */
 async function writeLabels(ctx: CommandContext, lines: string[]): Promise<void> {
   await withWrite(
     ctx,
@@ -404,5 +413,182 @@ describe("ラベルの語彙（labels.yaml）", () => {
       ["lint_label_unused", "labels.yaml", undefined],
       ["lint_label_merged", ctx.store.tickets.get(created.data.id)?.path, created.data.id],
     ]);
+  });
+});
+
+// 書いてよいかの判定の組み合わせは model/labels.test.ts。ここは書き込みの経路の代表だけを確かめる
+describe("語彙を書く（label.add・label.update・label.remove）", () => {
+  /** labels.yaml の中身（なければ undefined） */
+  const fileVocabulary = async (ctx: CommandContext): Promise<unknown> =>
+    parse(await readFile(path.join(ctx.repo.dataDir, "labels.yaml"), "utf8").catch(() => ""));
+  const subject = async (ctx: CommandContext) =>
+    (await git(ctx.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim();
+
+  it("add は名前を小文字にそろえて labels.yaml に足し、update は説明だけを替え、remove は消す。日本語の名前も書ける", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    await runCommand(labelAxisSet, ctx, area);
+    const added = await runCommand(labelAdd, ctx, {
+      name: "UI",
+      axis: "area",
+      description: "The board and its panels",
+    });
+    expect(added.write).toBeDefined();
+    expect(added.data).toMatchObject({
+      name: "ui",
+      axis: "area",
+      description: "The board and its panels",
+    });
+    await runCommand(labelAdd, ctx, { name: "画面", axis: "area", description: "日本語の名前" });
+    // 書いた時刻は、書いた記録から取る
+    const createdAt = added.data.created_at;
+    expect(await fileVocabulary(ctx)).toMatchObject({
+      ui: { axis: "area", description: "The board and its panels", created_at: createdAt },
+      画面: { axis: "area", description: "日本語の名前" },
+    });
+
+    const updated = await runCommand(labelUpdate, ctx, { name: "Ui", description: "画面の全体" });
+    expect(updated.data).toEqual({ ...added.data, description: "画面の全体" });
+    const removed = await runCommand(labelRemove, ctx, { name: "画面" });
+    expect(removed.data).toMatchObject({ name: "画面", axis: "area" });
+    expect(await fileVocabulary(ctx)).toEqual({
+      ui: { axis: "area", description: "画面の全体", created_at: createdAt },
+    });
+    // 開き直しても同じ語彙を読み、検証は誤りを出さない
+    const again = await reopenInitialized(f);
+    expect((await runCommand(labelList, again, {})).data.axes).toEqual([
+      {
+        ...area,
+        labels: [
+          {
+            name: "ui",
+            description: "画面の全体",
+            created_at: createdAt,
+            count: 0,
+            last_used_at: null,
+          },
+        ],
+      },
+    ]);
+    expect((await runCommand(validate, again, {})).data).toEqual({ ok: true, issues: [] });
+  });
+
+  it("拒む語彙は書かない：軸にない語彙・手順の接頭辞・もうある名前・統合済みの名前・説明のない語彙、チケットが使っている語彙の remove、読めない項目の上書き", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    await runCommand(labelAxisSet, ctx, area);
+    await runCommand(labelAxisSet, ctx, kind);
+    await writeLabels(ctx, [
+      "ui:",
+      "  axis: area",
+      "  description: The board",
+      "  created_at: 2026-11-01T00:00:00Z",
+      "web:",
+      "  axis: area",
+      "  description: The web UI",
+      "  created_at: 2026-11-01T00:00:00Z",
+      "  merged_into: ui",
+      "  merged_at: 2026-11-01T00:00:00Z",
+      "broken:",
+      "  axis: area",
+    ]);
+    const before = await fileVocabulary(ctx);
+    const d = "説明";
+    for (const [input, code] of [
+      [{ name: "core", axis: "impact", description: d }, "VALIDATION_FAILED"],
+      [{ name: "audit-s3", axis: "area", description: d }, "VALIDATION_FAILED"],
+      [{ name: "a b", axis: "area", description: d }, "VALIDATION_FAILED"],
+      [{ name: "a,b", axis: "area", description: d }, "VALIDATION_FAILED"],
+      [{ name: "ui", axis: "kind", description: d }, "ALREADY_EXISTS"],
+      [{ name: "web", axis: "area", description: d }, "REJECTED"],
+      // 読めなかった項目は語彙にないが、黙って上書きしない
+      [{ name: "broken", axis: "area", description: d }, "VALIDATION_FAILED"],
+      [{ name: "core", axis: "area", description: "" }, "INVALID_INPUT"],
+      [{ name: "core", axis: "area" }, "INVALID_INPUT"],
+    ] as const)
+      await expect(runCommand(labelAdd, ctx, input)).rejects.toMatchObject({ code });
+    await expect(
+      runCommand(labelUpdate, ctx, { name: "none", description: d }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const ticket = await runCommand(ticketCreate, ctx, { title: "一", labels: ["ui"] });
+    await expect(runCommand(labelRemove, ctx, { name: "ui" })).rejects.toMatchObject({
+      code: "REJECTED",
+      message: "1 ticket carries the label ui, so it cannot be removed",
+      detail: expect.stringContaining(ticket.data.id),
+    });
+    expect(await fileVocabulary(ctx)).toEqual(before);
+  });
+
+  it("label.axis.remove は語彙が残っている軸を拒み（--all も）、語彙を消せば消せる。統合の記録だけの軸は消せる", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    await runCommand(labelAxisSet, ctx, area);
+    await runCommand(labelAxisSet, ctx, kind);
+    await runCommand(labelAdd, ctx, { name: "ui", axis: "area", description: "The board" });
+    await runCommand(labelAdd, ctx, { name: "core", axis: "area", description: "The core" });
+    await expect(runCommand(labelAxisRemove, ctx, { name: "area" })).rejects.toMatchObject({
+      code: "REJECTED",
+      message: "The label axis area still has labels, so it cannot be removed",
+      detail: expect.stringContaining("area: core, ui"),
+    });
+    await expect(runCommand(labelAxisRemove, ctx, { all: true })).rejects.toMatchObject({
+      code: "REJECTED",
+    });
+    expect((await list(ctx)).axes).toEqual([area, kind]);
+    // 語彙のない軸は消せる
+    expect((await runCommand(labelAxisRemove, ctx, { name: "kind" })).data.axes).toEqual([area]);
+    await runCommand(labelRemove, ctx, { name: "ui" });
+    await runCommand(labelRemove, ctx, { name: "core" });
+    expect((await runCommand(labelAxisRemove, ctx, { name: "area" })).data).toEqual({
+      state: "off",
+      axes: [],
+    });
+  });
+
+  it("語彙を書く操作は Workflow の governance.labels で判定する：エージェントは人の承認が要り、承認者が履歴に残る。読むだけの list は判定しない", async () => {
+    const f = await initializedLocalFixture();
+    const human = await reopenInitialized(f);
+    const opened = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
+    const agent = { ...human, actor: opened.actor };
+    const governance = (value: string) =>
+      writeWorkflowYaml(human, ["governance:", `  labels: ${value}`]);
+    await runCommand(labelAxisSet, human, area);
+    const ui = { name: "ui", axis: "area", description: "The board" };
+
+    // workflow.yaml のないボード（Core の既定）でも、エージェントには人の承認が要る
+    const asks = (command: string) => ({
+      code: "TRANSITION_REJECTED",
+      message: `The Workflow asks for a person's approval for dg label ${command} (governance.labels: always_ask)`,
+    });
+    await expect(runCommand(labelAdd, agent, ui)).rejects.toMatchObject(asks("add"));
+    await governance("always_ask");
+    await expect(runCommand(labelAdd, agent, ui)).rejects.toMatchObject(asks("add"));
+    await expect(
+      runCommand(labelUpdate, agent, { name: "ui", description: "d" }),
+    ).rejects.toMatchObject(asks("update"));
+    await expect(runCommand(labelRemove, agent, { name: "ui" })).rejects.toMatchObject(
+      asks("remove"),
+    );
+    expect((await runCommand(labelList, agent, {})).data.axes).toEqual([{ ...area, labels: [] }]);
+
+    await runCommand(labelAdd, agent, { ...ui, approved_by: "human" });
+    expect(await subject(human)).toBe("Add the label ui (approved by claude)");
+    await runCommand(labelUpdate, agent, { name: "ui", description: "d", approved_by: "human" });
+    expect(await subject(human)).toBe("Update the label ui (approved by claude)");
+    await runCommand(labelRemove, agent, { name: "ui", approved_by: "human" });
+    expect(await subject(human)).toBe("Remove the label ui (approved by claude)");
+    // 人は聞かずに書ける
+    expect((await runCommand(labelAdd, human, ui)).data.name).toBe("ui");
+
+    await governance("human_only");
+    await expect(
+      runCommand(labelRemove, agent, { name: "ui", approved_by: "human" }),
+    ).rejects.toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message: "The Workflow limits dg label remove to a person (governance.labels: human_only)",
+    });
+    await governance("anyone");
+    expect((await runCommand(labelRemove, agent, { name: "ui" })).data.name).toBe("ui");
   });
 });

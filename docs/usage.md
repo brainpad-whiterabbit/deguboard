@@ -53,14 +53,14 @@ The board's Workflow (`workflow.yaml`) decides who may do what on the board: whi
 
 ### What it decides
 
-| Item         | What it decides                                                                                                                                                                                   |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `states`     | The display names of the five Statuses. Statuses cannot be added or removed                                                                                                                       |
-| `boundaries` | For each of the three forward moves (todo → in_progress, in_progress → review, review → done), the Git facts it requires (`requires`) and who decides (`decide`)                                  |
-| `exceptions` | Who may make the moves outside the flow: `abandon` (to abandoned), `back` (to the previous Status), and `reopen` (out of done)                                                                    |
-| `wip`        | The limit of tickets in a column                                                                                                                                                                  |
-| `flow`       | Who decides at each stage of the flow (`assign`, `check`, `plan`, `audit`, `release`, `retro`), the stages to skip (`skip`), and stages of your own                                               |
-| `governance` | Who may delete tickets (`delete`), change the team's settings (`config`), change another person's assignee or claim (`reassign`), close or reopen an Epic (`epic`), and create tickets (`create`) |
+| Item         | What it decides                                                                                                                                                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `states`     | The display names of the five Statuses. Statuses cannot be added or removed                                                                                                                                                                       |
+| `boundaries` | For each of the three forward moves (todo → in_progress, in_progress → review, review → done), the Git facts it requires (`requires`) and who decides (`decide`)                                                                                  |
+| `exceptions` | Who may make the moves outside the flow: `abandon` (to abandoned), `back` (to the previous Status), and `reopen` (out of done)                                                                                                                    |
+| `wip`        | The limit of tickets in a column                                                                                                                                                                                                                  |
+| `flow`       | Who decides at each stage of the flow (`assign`, `check`, `plan`, `audit`, `release`, `retro`), the stages to skip (`skip`), and stages of your own                                                                                               |
+| `governance` | Who may delete tickets (`delete`), change the team's settings (`config`), change another person's assignee or claim (`reassign`), close or reopen an Epic (`epic`), create tickets (`create`), and change the vocabulary of the labels (`labels`) |
 
 The facts for `requires` are `deps_done` (the tickets it depends on are done), `branch_exists`, `branch_pushed`, `branch_merged`, `pr_open`, `pr_draft`, and `pr_merged`. A `!` in front, such as `!pr_draft`, requires the fact to be false.
 
@@ -169,6 +169,18 @@ dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-api
 - **See**: `dg config show`, or the settings screen (read only).
 
 The recommended metrics, their definitions, and the arguments are in `dg retro --help` and `dg guide retro`.
+
+## Label axes and vocabulary
+
+Labels are free text until the team decides their axes. An axis is a point of view that the labels of a ticket follow, such as `area` (which part the ticket touches) or `kind` (what kind of change it makes). The vocabulary is the list of labels of each axis, each with a description. Both are optional: a board with no axes works as before.
+
+- **Axes**: kept in `labels.axes` of the team's `config.yaml`, with no personal override. `dg label axis set <name> --description "<text>"` adds an axis or changes its description, and `dg label axis remove <name>` removes one that has no labels left. `dg label axis list --candidates` shows the candidates that dg holds. `/dgcheck` proposes axes once to a board that has not decided them; `dg label axis remove --all` records the decision not to use them. `dg config set` and the settings screen cannot write them.
+- **Vocabulary**: kept in `labels.yaml` on the data branch, so labels added at the same time on two machines merge without a conflict. `dg label add <name> --axis <axis> --description "<text>"` adds a label, `dg label update <name> --description "<text>"` changes its description, and `dg label remove <name>` removes a label that no ticket carries.
+- **Names**: a name is lowered and belongs to one axis only. It cannot contain whitespace, a comma, or an underscore, and letters other than ASCII, such as Japanese, can be used. The name `audit` and names that start with `audit-`, `retro-`, or `release-` are attached by the steps of an Iteration and are not vocabulary.
+- **Who may change them**: the Workflow judges changing the axes by `governance.config` and changing the vocabulary by `governance.labels` (see [Workflow](#workflow)).
+- **See**: `dg label list` shows the vocabulary by axis, with how many tickets carry each label; `--undefined` adds the names that tickets carry but the vocabulary does not have. The settings screen shows the axes (read only).
+
+The arguments and what is rejected are in `dg label --help` and the help of each command.
 
 ## Count tokens
 

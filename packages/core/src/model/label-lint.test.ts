@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { LabelEntry } from "./labels.js";
-import { isProcedureLabel, labelLintFindings } from "./label-lint.js";
+import { labelLintFindings } from "./label-lint.js";
 
 const added = "2026-11-01T00:00:00Z";
 const before = "2026-10-01T00:00:00Z";
@@ -57,13 +57,6 @@ describe("ラベルの指摘（labelLintFindings）", () => {
         message: "The label tooling is not in the vocabulary, but 3 ticket(s) carry it",
       },
     ]);
-  });
-
-  it("手順のラベルは audit と、audit-・retro-・release- で始まる名前", () => {
-    for (const name of ["audit", "audit-s3", "retro-s2", "release-s10"])
-      expect(isProcedureLabel(name)).toBe(true);
-    for (const name of ["auditor", "retro", "release", "pre-release-s1"])
-      expect(isProcedureLabel(name)).toBe(false);
   });
 
   it("付いたチケットのない語彙は指摘し、1 件だけの語彙は created_at より後に閉じた Iteration があるときだけ指摘する", () => {

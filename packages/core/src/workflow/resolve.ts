@@ -90,6 +90,7 @@ const DEFAULT_GOVERNANCE: Record<GovernanceOperation, Decision> = {
   reassign: "always_ask",
   epic: "always_ask",
   create: "always_ask",
+  labels: "always_ask",
 };
 
 /** 書いた値に、書いていない鍵の既定を足す */
@@ -311,6 +312,9 @@ const COMMAND_OPERATIONS: Record<string, Pick<Operation, "fixed" | "stage" | "go
   "ticket.import": { governs: "create" },
   "epic.close": { governs: "epic" },
   "epic.reopen": { governs: "epic" },
+  "label.add": { governs: "labels" },
+  "label.update": { governs: "labels" },
+  "label.remove": { governs: "labels" },
 };
 
 /** コマンドの名前だけで決まる操作。なければ undefined（入力とデータで決まる操作は、コマンドの中で判定する） */

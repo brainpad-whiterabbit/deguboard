@@ -345,7 +345,7 @@ describe("設定画面の Workflow のタブ（workflow.yaml を読むだけで�
     // 節の名前とキー：その節の行をすべて
     fireEvent.change(search, { target: { value: "カンバンの管理" } });
     expect(shown()).toEqual(
-      ["delete", "config", "reassign", "epic", "create"].map((o) => `governance.${o}`),
+      ["delete", "config", "reassign", "epic", "create", "labels"].map((o) => `governance.${o}`),
     );
     fireEvent.change(search, { target: { value: "exceptions" } });
     expect(shown()).toEqual(["exceptions.abandon", "exceptions.back", "exceptions.reopen"]);
