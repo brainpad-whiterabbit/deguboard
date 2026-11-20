@@ -3,7 +3,7 @@ tickets: [t1196, t1197, t1199, t1198]
 after:
   t1198:
     - t1197
-pending_approval: true
+pending_approval: false
 details:
   t1196:
     scope: usage.md と usage.ja.md のラベルの節に画面・統合済みの名前の読み替え・lint の指摘を足し、Names の説明をヘルプに合わせ、README.md と README.ja.md の Tips にリンクを足す
@@ -21,3 +21,5 @@ details:
     scope: config.show が軸の状態を返して設定画面はそれを出すだけにし、リリースのラベルの判定を core の 1 か所にまとめる。振る舞いは変えない
     approach: ConfigShowView に軸の状態を足し、releaseLabeled を共有して flow.ts の isRelease を置き換える
     tier: standard
+approved_by: maji
+approved_at: 2026-11-20T12:34:29Z
