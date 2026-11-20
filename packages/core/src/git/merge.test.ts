@@ -1252,7 +1252,11 @@ describe("ラベルの語彙（labels.yaml）のマージ", () => {
     `${name}:\n  axis: area\n  description: ${description}\n  created_at: ${AT}\n`;
   const labelsFile = (ctx: CommandContext) => path.join(ctx.repo.dataDir, "labels.yaml");
   const labels = (ctx: CommandContext) => readFile(labelsFile(ctx), "utf8");
-  /** 語彙を書くコマンドはまだないので、labels.yaml を dg の書き込み（すぐ push する操作）として直に書き換える */
+  /**
+   * label.add・label.update を通さず、labels.yaml を dg の書き込み（すぐ push する操作）として直に書き換える。
+   * 見たいのはマージの経路で、created_at を AT に固定して両側の内容を文字どおり比べたいから（label.add は今の時刻を書き、
+   * 軸の設定と governance.labels の判定も要る）
+   */
   const rewrite = (ctx: CommandContext, change: (text: string) => string) =>
     withWrite(
       ctx,
