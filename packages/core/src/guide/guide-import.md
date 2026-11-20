@@ -15,7 +15,7 @@ Turns the requirements, research results, and review findings settled in the con
 
 ## Flow
 
-1. When the requirements are settled, **propose** turning them into tickets. Do not file on your own. Show the decomposition (title, summary, acceptance criteria, dependencies, Epic) in a table, and get approval with the choices "File after approval", "Revise", and "Cancel"
+1. When the requirements are settled, **propose** turning them into tickets. Do not file on your own. Show the decomposition (title, summary, acceptance criteria, dependencies, Epic) in a table, and get approval with the choices "File after approval", "Revise", and "Cancel". Do not ask about the axes of the labels (`labels.axes`) here, even when the board has not decided them: `dg guide check` proposes them
 2. For one ticket: `dg --json --actor agent ticket create "<title>" --created-by human --approved-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--gate high] [--assignee agent] [--origin t9] [--origin-cause tests]`
 3. For several: write a YAML draft to one file and run `dg --json --actor agent ticket import <file> --approved-by human`. IDs are assigned together in one commit
 4. Read the IDs from the result's `data` and report them to a human
