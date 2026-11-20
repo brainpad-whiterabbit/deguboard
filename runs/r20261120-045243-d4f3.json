@@ -1,0 +1,35 @@
+{
+  "id": "r20261120-045243-d4f3",
+  "ticket": "t1194",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-20T04:52:43Z",
+  "finished_at": "2026-11-20T04:57:19Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "手順のラベルの接頭辞の一覧が main の点検の一覧と二重で、接頭辞のない audit の判定が点検と食い違う"
+  ],
+  "usage": {
+    "input": 22,
+    "output": 9869,
+    "cache_read": 571364,
+    "cache_write": 47901
+  },
+  "tools": {
+    "read": 10,
+    "search": 0,
+    "write": 12,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 5,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "b4cec18b-e9c5-412a-ad57-9f0ef157ec9d",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 25
+}
