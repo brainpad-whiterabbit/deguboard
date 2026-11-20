@@ -6,9 +6,11 @@
 
 Iteration の流れ（段階・次の 1 手・止まる判定・承認の要否）は `dg flow next` が返し、`dg guide` は各手のやり方だけを書く。承認の要否は Workflow の権限の値から決め、`--auto` は「値が `ask_unless_auto` の場面を聞かずに進める」の 1 つの意味にして、各コマンドが受けて判定する。コマンドで止められない判断は関所（`dg checkpoint`）が段階の値で判定して Iteration に根拠付きで記録し、`dg flow next` はその記録で段階を終えたかを決める。利用者が手続きを変える入口は Workflow の値と独自の段階、config の項目、`guide.notes` の枠に限る。Skill の印は書いた dg の版を持ち、VS Code 拡張の更新と dg の警告は版で新旧を比べる。
 
+この ADR が決めるのは Iteration の流れ全体と guide の節・カスタマイズで、1 枚のチケットの手続き（段階・次の 1 手・修正ループ・品質ゲート・brief）は [ADR-011](ADR-011-procedure-in-code.md) が決める。
+
 ## 背景
 
-[ADR-011](ADR-011-procedure-in-code.md) は 1 枚のチケットの手続きを Core に置く。この ADR はその範囲を Iteration の流れ全体（割り当て → 点検 → 計画 → 作業 → 見直し → リリース）と guide の読み込み・カスタマイズに広げ、ADR-011 の決定はそのまま有効。
+1 枚のチケットの手続きは Core が持つ（ADR-011）が、Iteration の流れ全体（割り当て → 点検 → 計画 → 作業 → 見直し → リリース）と guide の読み込み・カスタマイズには次の問題があった。
 
 - 段階の判定と `--auto` で選んでよい判断が文のままだと、LLM が読んで守るので、段階の飛ばしや止まり損ねが確率的に起きる
 - 「割り当てを終えた・点検した・見直しを終えた」は Git にもチケットのデータにもなく、会話の中にしかない
@@ -48,11 +50,10 @@ Iteration の流れ（段階・次の 1 手・止まる判定・承認の要否�
 
 ### カスタマイズは Workflow の値と config の項目と guide.notes の枠で行う
 
-- 利用者が既定の手続きを変える入口は、`workflow.yaml` の値（[ADR-003](ADR-003-status-and-workflow.md)。流れから外す段階 `flow` の `skip` を含む）と、`config.yaml` の項目と、guide の決まった位置に文を差し込む `guide.notes.<topic>` と、下の独自の段階だけにする。値と項目はコードが読んで判定に効かせ、同梱の手順に文を足せるのは `guide.notes` だけ。`work.parallel` の扱いは [ADR-011](ADR-011-procedure-in-code.md) に従う
+- 利用者が既定の手続きを変える入口は、`workflow.yaml` の値（[ADR-003](ADR-003-status-and-workflow.md)。流れから外す段階 `flow` の `skip` を含む）と、`config.yaml` の項目と、guide の決まった位置に文を差し込む `guide.notes.<topic>` と、下の独自の段階だけにする。値と項目はコードが読んで判定に効かせ、同梱の手順に文を足せるのは `guide.notes` だけ。`work.parallel` の扱いと、修正ループの回数を config に置かないことは [ADR-011](ADR-011-procedure-in-code.md) に従う
 - 同梱の段階にない段階は、`workflow.yaml` の `flow` に独自の段階（`decide`・`after`・`guide`）として足す。独自の段階はいつも関所で、`dg flow next` は同梱の段階と同じ形で返す
 - `after` に書けるのは同梱の段階だけで、同じ `after` の段階は書いた順に行う。手順の文書が読めないときは、警告を出して段階は返す。細部は `core/commands/flow.ts` と `dg workflow show --help`・`dg flow next --help` が正本
 - SKILL.md と guide の書き換えはカスタマイズの前提にしない。Skill は `dg skill install` で最新に保てる形のままにする
-- 修正ループの回数は config に置かない
 
 ### Skill の印は書いた dg の版を持ち、自動の更新と警告は版で新旧を比べる
 

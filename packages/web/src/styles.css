@@ -3701,10 +3701,19 @@ button.ask-icon:disabled {
 .ask-box textarea:focus {
   outline: none;
 }
+/* 狭い幅（200px）ではアイコン・キーの印・コピーが 1 行に入らず、小窓の幅を押し広げて閉じるボタンを画面の外へ出すので折り返す。
+   キーの印とコピーは組（.ask-copy-group）で右に寄せ、折り返しても離さない。
+   左パネルでは .spacer が消える（[data-surface="sidebar"] .spacer）ので、寄せは spacer でなく margin で行う */
 .ask-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.15rem;
+}
+.ask-copy-group {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
 }
 /* ⌘↵・Ctrl+↵ のキーの印 */
 .ask-keys {

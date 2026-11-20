@@ -551,33 +551,35 @@ export function AskComposer({
           >
             <Icon d="M3 4.5h10M6 4.5V3h4v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5" />
           </button>
-          <span className="spacer" />
-          <kbd className="ask-keys" title={tr("このキーでもコピーできる")}>
-            {COPY_KEYS}
-          </kbd>
-          {/* 名前は ✓ の間も「コピー」のまま（読み上げには下の知らせの文が入る） */}
-          <button
-            type="button"
-            className={`primary ask-copy${done?.which === "copy" ? " ask-done" : ""}`}
-            aria-label={tr("コピー")}
-            onClick={() => void copy()}
-            disabled={!base}
-          >
-            {done?.which === "copy" ? (
-              <>
-                <span aria-hidden="true">✓</span>
-                {tr("コピーした")}
-              </>
-            ) : (
-              trNode(
-                "{0}コピー",
-                <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-                  <rect x="5.5" y="5.5" width="8" height="8" rx="1" />
-                  <path d="M3.5 10.5h-1v-8h8v1" />
-                </svg>,
-              )
-            )}
-          </button>
+          {/* キーの印とコピーは組にして右に寄せる（左パネルでは .spacer が消えるので、spacer では寄せない） */}
+          <span className="ask-copy-group">
+            <kbd className="ask-keys" title={tr("このキーでもコピーできる")}>
+              {COPY_KEYS}
+            </kbd>
+            {/* 名前は ✓ の間も「コピー」のまま（読み上げには下の知らせの文が入る） */}
+            <button
+              type="button"
+              className={`primary ask-copy${done?.which === "copy" ? " ask-done" : ""}`}
+              aria-label={tr("コピー")}
+              onClick={() => void copy()}
+              disabled={!base}
+            >
+              {done?.which === "copy" ? (
+                <>
+                  <span aria-hidden="true">✓</span>
+                  {tr("コピーした")}
+                </>
+              ) : (
+                trNode(
+                  "{0}コピー",
+                  <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                    <rect x="5.5" y="5.5" width="8" height="8" rx="1" />
+                    <path d="M3.5 10.5h-1v-8h8v1" />
+                  </svg>,
+                )
+              )}
+            </button>
+          </span>
         </div>
       </div>
       {shown?.kind === "command" ? (
