@@ -58,18 +58,26 @@ dev:
   axis: area
   description: tooling に統合する前の名前
   created_at: 2026-11-20T06:22:19Z
+  merged_into: tooling
+  merged_at: 2026-11-20T06:22:46Z
 test:
   axis: area
   description: tooling に統合する前の名前
   created_at: 2026-11-20T06:22:21Z
+  merged_into: tooling
+  merged_at: 2026-11-20T06:22:46Z
 deps:
   axis: area
   description: tooling に統合する前の名前
   created_at: 2026-11-20T06:22:24Z
+  merged_into: tooling
+  merged_at: 2026-11-20T06:22:46Z
 release:
   axis: area
   description: tooling に統合する前の名前
   created_at: 2026-11-20T06:22:27Z
+  merged_into: tooling
+  merged_at: 2026-11-20T06:22:46Z
 architecture:
   axis: area
   description: core に統合する前の名前
