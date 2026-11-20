@@ -62,3 +62,7 @@ deps:
   axis: area
   description: tooling に統合する前の名前
   created_at: 2026-11-20T06:22:24Z
+release:
+  axis: area
+  description: tooling に統合する前の名前
+  created_at: 2026-11-20T06:22:27Z
