@@ -174,6 +174,21 @@ function kanbanRowOf(title: string): Element {
   )!;
 }
 
+/** frontend を web に統合した語彙（web を持つ行はまだない） */
+const MERGED_FRONTEND_LABELS = {
+  state: "on" as const,
+  axes: [{ name: "area", description: "部分", labels: [] }],
+  merged: [
+    {
+      name: "frontend",
+      axis: "area",
+      description: "前の名前",
+      merged_into: "web",
+      merged_at: "2026-01-02T00:00:00Z",
+    },
+  ],
+};
+
 describe("画面", () => {
   it("カンバンは Workflow の表示名の 4 列で、チケットを Status の列に出す。中止は 0 件なら出さない", async () => {
     mount(boardClient());
@@ -3539,6 +3554,39 @@ describe("画面", () => {
     await waitFor(() => expect(screen.queryByText("API")).toBeNull());
     expect(screen.getByText("画面")).toBeTruthy();
     expect(screen.getByText("ラベル web（frontend は統合済み）")).toBeTruthy();
+  });
+
+  it("統合済みの名前の札は、統合先で絞っている間は選んだ札として出し、もう一度押すと外す", async () => {
+    const client = mockClient(boardFixture({ labels: MERGED_FRONTEND_LABELS }));
+    // 統合先と統合の前の名前を両方持つ行（lint が指摘する）
+    client.data.tickets.find((t) => t.id === "t3")!.labels = ["web", "frontend"];
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("画面");
+
+    fireEvent.click(screen.getByRole("button", { name: "frontend" }));
+    await waitFor(() => expect(screen.queryByText("API")).toBeNull());
+    expect(window.location.hash).toContain("label=frontend");
+    const badge = screen.getByRole("button", { name: "frontend" });
+    expect(badge.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(badge);
+    await waitFor(() => expect(screen.getByText("API")).toBeTruthy());
+    expect(window.location.hash).not.toContain("label=");
+  });
+
+  it("統合先を持つ行がなくても、バックログのラベルの選択肢に統合先を残して選んだ値に出す", async () => {
+    const client = mockClient(boardFixture({ labels: MERGED_FRONTEND_LABELS }));
+    client.data.tickets.find((t) => t.id === "t3")!.labels = ["frontend"];
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("画面");
+    act(() => {
+      window.location.hash = "#/backlog";
+    });
+    await screen.findByLabelText("検索");
+    fireEvent.click(screen.getByRole("button", { name: "frontend" }));
+    await waitFor(() => expect(screen.getByText("ラベル web（frontend は統合済み）")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "絞り込み（絞っている）" }));
+    const selects = [...document.querySelectorAll<HTMLSelectElement>("#backlog-filters select")];
+    expect(selects.some((s) => s.value === "web")).toBe(true);
   });
 
   it("担当もラベルもなければ、カンバンの見出しに漏斗を出さない（「表示」ボタンは出す）", async () => {

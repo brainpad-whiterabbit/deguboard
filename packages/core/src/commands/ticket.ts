@@ -459,7 +459,8 @@ export const ticketImport = defineCommand({
     return ok(
       result.value.map((d) => d.data),
       result.write,
-      warnings,
+      // 下書きごとに buildTicket が同じ置き換えの警告を足すので、同じ文は 1 つにまとめる
+      [...new Set(warnings)],
     );
   },
 });

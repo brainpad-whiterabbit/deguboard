@@ -36,7 +36,7 @@
 ### 統合はチケットを書き換える
 
 - ラベルを別のラベルにまとめる（改名も、新しい名前への統合として扱う）ときは、そのラベルを持つチケットを、done・abandoned も含めてすべて書き換える。チケットに残った古い名前を、読むときに新しい名前へ読み替えることはしない（`dg lint` が指摘し、もう一度の `dg label merge` が書き換える）
-- 統合の後に入力された古い名前は受け止める。チケットに書く値（`ticket create`・`update`・`import`）は統合先に置き換えて書き、絞る値（`ticket list --label` と画面の絞り込み）は統合先で探し、どちらも警告を返す。判定は 1 つの関数（`packages/core/src/model/labels.ts` の `normalizeLabelNames`）に置く
+- 統合の後に入力された古い名前は受け止める。チケットに書く値（`ticket create`・`update`・`import`）は統合先に置き換えて書き、絞る値（`ticket list --label` と画面の絞り込み）は統合先で探し、どちらも警告を返す
 - 書き換えは `dg label merge` が 1 回の書き込みで行い、語彙を書く操作として `governance.labels` で判定する。チケットの中身の変更ではないので `updated_at` は進めない。元の名前は統合の記録として `labels.yaml` に残す（細部は `dg label merge --help`）
 
 ## 理由

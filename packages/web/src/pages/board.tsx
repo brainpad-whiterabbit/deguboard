@@ -223,7 +223,12 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   const rowLabels = view.labels
     ? {
         selected: label ?? "",
-        onSelect: (name: string) => setFilter({ label: label === name ? undefined : name }),
+        // 統合済みの名前の札は統合先で絞るので、読み替えた名前で比べて、もう一度押すと外す
+        onSelect: (name: string) =>
+          setFilter({
+            label:
+              label === resolveLabelFilter(name, store.labelVocabulary).name ? undefined : name,
+          }),
         vocabulary: store.labelVocabulary,
         hideProcedure: !view.procedureLabels,
       }

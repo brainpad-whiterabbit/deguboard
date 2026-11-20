@@ -865,15 +865,17 @@ describe("統合済みの名前を統合先へ読み替える（ticket create・
     expect(updated.warnings).toContain(warning("written"));
 
     const imported = await runCommand(ticketImport, ctx, {
-      source: "- title: 三\n  labels: [web]\n- title: 四\n  labels: [bug]\n",
+      source:
+        "- title: 三\n  labels: [web]\n- title: 四\n  labels: [bug]\n- title: 五\n  labels: [web]\n",
     });
-    expect(imported.data.map((t) => t.labels)).toEqual([["ui"], ["bug"]]);
+    // 同じ古い名前を使う下書きが 2 つあっても、警告は 1 つにまとめる
+    expect(imported.data.map((t) => t.labels)).toEqual([["ui"], ["bug"], ["ui"]]);
     expect(imported.warnings.filter((w) => w === warning("written"))).toHaveLength(1);
 
     // 開き直して、ファイルに書かれた値を読む
     const again = await reopenInitialized(f);
     const listed = await runCommand(ticketList, again, { label: ["web"] });
-    expect(listed.data.map((t) => t.id)).toEqual(["t1", "t2", "t3"]);
+    expect(listed.data.map((t) => t.id)).toEqual(["t1", "t2", "t3", "t5"]);
     expect(listed.warnings).toEqual([warning("used for the filter")]);
     expect((await runCommand(ticketList, again, { label: ["bug"] })).warnings).toEqual([]);
   });

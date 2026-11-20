@@ -29,6 +29,7 @@ import { IterationGoal, shortPeriod } from "../components/iteration-parts.js";
 import { DetailLink, TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
+import { labelOptions } from "./board.js";
 import { resolveLabelFilter, type LabelFilterValue } from "../components/label-vocab.js";
 import {
   LabelFilterOptions,
@@ -248,10 +249,6 @@ export function BacklogPage() {
   const [filtersOpen, setFiltersOpen] = useUiState("backlog.filters", false);
   const [filter, setFilter] = useState<BacklogFilter>(EMPTY_FILTER);
   const set = (patch: Partial<BacklogFilter>) => setFilter((f) => ({ ...f, ...patch }));
-  const labels = useMemo(
-    () => [...new Set(store.tickets.flatMap((t) => t.labels))].sort(),
-    [store.tickets],
-  );
   const claims = useMemo(
     () => claimOptions(store.tickets.filter((t) => !isFinished(t.status))),
     [store.tickets],
@@ -259,6 +256,11 @@ export function BacklogPage() {
   const tickets = store.tickets;
   // 統合済みの名前（統合の前に付いた行の札）は統合先で絞り、札に読み替えたことを添える（ticket list --label と同じ規則）
   const labelFilter = resolveLabelFilter(filter.label, store.labelVocabulary);
+  // 統合先を持つチケットがなくても、絞っている名前を選択肢に残す（board.tsx の labelOptions と同じ）
+  const labels = useMemo(
+    () => labelOptions(store.tickets, labelFilter.name || undefined),
+    [store.tickets, labelFilter.name],
+  );
   const effective = useMemo(
     () => ({ ...filter, label: labelFilter.name }),
     [filter, labelFilter.name],
@@ -297,7 +299,14 @@ export function BacklogPage() {
   const rowLabels = view.labels
     ? {
         selected: labelFilter.name,
-        onSelect: (label: string) => set({ label: labelFilter.name === label ? "" : label }),
+        // 統合済みの名前の札は統合先で絞るので、読み替えた名前で比べて、もう一度押すと外す
+        onSelect: (label: string) =>
+          set({
+            label:
+              labelFilter.name === resolveLabelFilter(label, store.labelVocabulary).name
+                ? ""
+                : label,
+          }),
         vocabulary: store.labelVocabulary,
         hideProcedure: !view.procedureLabels,
       }
