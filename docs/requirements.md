@@ -186,6 +186,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - `actions.pre_review_test`：`dg gate --only check`（見直しの前と手直しの後）が `actions.test` の代わりに回す検査。通っても `dg pr ready`・`dg pr merge` の検査（EX-6）には数えず、省けば `actions.test` を回す（選び方は `dg gate --help`）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。`dg next` が implement・fix の手の `model` に返す（EX-5）。`models.<agent>.<tier>` があれば、呼んだ agent ではそれを先に使う（引く順は `dg next --help`）
 - `retro.perspectives`：振り返りの観点（MT-7）。観点ごとに名前・問い・承認した指標の定義（数え方の文と出どころのコマンド）を持つ入れ子で、チームだけが持つ。`config set` と設定画面では書かず、`dg retro` のコマンドが検査して書く。設定画面は読むだけで出す（UI-14。細部は `dg retro --help`、理由は [ADR-035](adr/ADR-035-retro-perspectives.md)）
+- `labels.axes`：ラベルの軸（名前と説明の一覧）で、チームだけが持つ。書いていない（まだ決めていない。既定）・`[]`（使わない）・一覧の 3 つの状態を読み分ける。`dg label axis` のコマンドが `governance.config` の判定で書き、設定画面は読むだけで出す（UI-14。候補と細部は `dg label axis list --help`、理由は [ADR-037](adr/ADR-037-label-axes.md)）
 
 ## 6. 機能要件
 
@@ -242,7 +243,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - UI-11 VS Code 拡張は `core` と CLI を同梱して `dg` なしで動き、起動ファイルで外に出す。コマンドで `~/.local/bin/dg` に張り、外せる。PATH の `dg` の有無と版は UI-12 で示す。文言は表示言語で出す（core の文・既定のままの値も訳し、チケットの中身・人の値・指示は訳さない）。細部は `vscode/src/launcher.ts`・`vscode/src/l10n.ts`・`web/src/l10n.ts` とそのテスト
 - UI-12 VS Code 拡張は左パネルを主画面にし、エディタのパネルには詳細だけを出す。ID から要約と詳細を開け、コマンドで ID か題から探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせる。導入はタイトル行のアイコンで開くチェックリストで進め（項目が欠けている間はアイコンに点を付ける）、必須を満たすと一覧に変え、推奨は帯で示す。末尾から確かめて外せる（CL-10）。細部は `packages/vscode/`
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
-- UI-14 設定画面：チームの `config.yaml` の項目（5.10）と個人の上書きを分けて直せ、上書きは外せる。影響の大きい項目は保存前に確かめ、振り返りの観点と Workflow（5.8）は読むだけ。行から頼める（UI-15）。settings.json は使わない（細部は `packages/web/src/pages/config.tsx` のテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
+- UI-14 設定画面：チームの `config.yaml`（5.10）と個人の上書きを分けて直せ、上書きは外せる。影響の大きい項目は保存前に確かめ、振り返りの観点・ラベルの軸・Workflow（5.8）は読むだけ。行から頼める（UI-15）。settings.json は使わない（細部は `packages/web/src/pages/config.tsx` のテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 - UI-15 エージェントに頼む：行・見出しから `dg ask` の依頼文を作って頼め、データに書き込まない。対象なしなら設定の説明と変更（5.10）も頼める。設定画面の行から項目の説明・変更か観点の振り返り（MT-7）を頼める。VS Code では開いているターミナルにも送れる。選んだ行の ID は形を選びコピーできる。細部は `packages/web/src/components/ask-menu.tsx`・`packages/vscode/src/terminals.ts` のテスト
 - UI-16 VS Code 拡張は、制限モードと仮想ワークスペースでは動かない（理由は `packages/vscode/package.json` の `capabilities`）
 

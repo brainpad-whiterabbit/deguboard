@@ -5,14 +5,14 @@ argument-hint: "[key...] (followed by what to explain or change)"
 
 # Settings (config)
 
-Explains the settings of deguboard (`config.yaml`) and the board's Workflow (`workflow.yaml`) to a human, and changes them when a human asks. Reading and explaining proceed without approval. Every change is written only after a human approves its before → after, with `dg config set` (the Workflow: with `dg workflow set`, see "The Workflow" below). Do not edit `config.yaml`, the personal settings file (`deguboard-local/config.yaml`), or `workflow.yaml` directly. The perspectives of the retrospective (`retro.perspectives`) are not written here: they go to `dg retro` (see "The perspectives of the retrospective" below).
+Explains the settings of deguboard (`config.yaml`) and the board's Workflow (`workflow.yaml`) to a human, and changes them when a human asks. Reading and explaining proceed without approval. Every change is written only after a human approves its before → after, with `dg config set` (the Workflow: with `dg workflow set`, see "The Workflow" below). Do not edit `config.yaml`, the personal settings file (`deguboard-local/config.yaml`), or `workflow.yaml` directly. The perspectives of the retrospective (`retro.perspectives`) are not written here: they go to `dg retro` (see "The perspectives of the retrospective" below). The axes of the labels (`labels.axes`) are not written here either: they go to `dg label axis` (see "The axes of the labels" below).
 
 ## Deciding the target
 
 - The keys after the Skill call (`/dgconfig commit.mode work.parallel`), or the items named in the instruction, are the targets. A group (`models`, `actions`) means every item under it. The instruction says whether to explain or to change, and gives the new value
 - A key that starts with `workflow.` (`workflow.flow`, `workflow.flow.assign`, as the Workflow tab of the settings screen passes) is an item of `workflow.yaml`: follow "The Workflow" below
 - A question ("what is `commit.mode`?", "what do you recommend?") asks for an explanation: explain and stop, without proposing to write. Change only when a human asks for a change
-- A name that is not among the `fields` of `config show --fields`: say so and show the keys that are close. Do not guess
+- A name that is not among the `fields` of `config show --fields` (other than `retro.perspectives` and `labels.axes`, which `fields` leaves out): say so and show the keys that are close. Do not guess
 - No target given: show the items whose value differs from the default (key, value, default, scope) and the groups of the rest, and ask what to explain or change, with the choices below
 
 {{choices}}
@@ -24,6 +24,7 @@ Explains the settings of deguboard (`config.yaml`) and the board's Workflow (`wo
 - `fields`: every leaf item, with its `key`, `type`, `options`, `option_descriptions`, `summary`, `description`, `example`, `empty` (what an empty value does), `default`, `scope`, and `clears_to_default`
 - `config`: the value in effect, read in the order personal > team > default. `team`: the team's value, without the personal overrides. `local`: the personal overrides on this machine (key → value). `defaults`: every default
 - `retro.perspectives` is not in `fields`. Its value is in `config`, and its default in `defaults`
+- `labels.axes` is not in `fields` either. Its value is in `config` (it has no default: not written means not decided yet). `label_axis_candidates` has the candidate axes that dg holds
 
 ## Explaining
 
@@ -51,6 +52,10 @@ Moving the data to another remote or branch (`git.data_remote`, `git.data_branch
 ## The perspectives of the retrospective
 
 `retro.perspectives` is nested by perspective (ID → name, question, and the approved metric definitions), and `config set` refuses it. Explain it by reading it from `config` (each perspective's ID, name, question, and how many metrics it has). Send every change to `dg retro`: `dg retro perspective` adds a perspective or changes its name or question, `dg retro remove` removes a perspective or one definition, and `dg retro metric` records a metric definition. Run them by the "Perspectives" section of `dg guide retro`, with the same approval of before → after as in "Changing". Metric definitions are proposed and approved in the retrospective itself, so do not make them up here.
+
+## The axes of the labels
+
+`labels.axes` is a list of axes (each a name and a description), only in the team's `config.yaml` (no personal override), and `config set` refuses it. Explain it by reading it from `config`, telling its three states apart: not written (not decided yet, the default), an empty list (decided not to use axes), and a list of axes. The candidate axes that dg holds are in `label_axis_candidates`. Send every change to `dg label axis`: `dg label axis set <name> --description <text>` adds an axis or changes its description, `dg label axis remove <name>` removes one, and `dg config unset labels.axes` returns to not decided. They are judged by the Workflow's `governance.config` as in "Changing": show before → after, and add `--approved-by human` only after the human approves (details in `dg label axis --help`).
 
 ## The Workflow
 

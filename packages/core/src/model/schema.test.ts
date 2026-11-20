@@ -9,6 +9,7 @@ import {
   nestedConfigValue,
   overlayLocalConfig,
 } from "./config.js";
+import { LABEL_AXIS_CANDIDATES, labelAxesState } from "./label-axes.js";
 import { planSchema } from "./plan.js";
 import { RECOMMENDED_RETRO_METRICS, recommendedRetroMetricsTable } from "./retro-recommended.js";
 import { emptyUsage, isRunId, newRunId, runSchema } from "./run.js";
@@ -388,6 +389,70 @@ describe("スキーマ", () => {
     });
     expect(config.retro.perspectives["outcome"]?.name).toBe("Outcome");
     expect(ignored.map((i) => i.key)).toEqual(["retro.perspectives.outcome.name"]);
+  });
+
+  it("ラベルの軸（labels.axes）は名前と説明の一覧をスキーマが検査し、書いていない・[]・一覧の 3 つの状態を読み分ける。個人の設定では上書きできない（t1181）", () => {
+    const area = { name: "area", description: "どこを触るか" };
+    const kind = { name: "kind", description: "何をする変更か" };
+    // 書いていない：既定を補わない（既定の軸を効かせない）
+    expect(defaultConfig().labels).toEqual({});
+    expect(labelAxesState(configSchema.parse({}).labels.axes)).toBe("undecided");
+    expect(labelAxesState(configSchema.parse({ labels: {} }).labels.axes)).toBe("undecided");
+    // []：使わないと決めた。書いていないのと混ざらない
+    const off = configSchema.parse({ labels: { axes: [] } });
+    expect(off.labels.axes).toEqual([]);
+    expect(labelAxesState(off.labels.axes)).toBe("off");
+    // 一覧：書いた順のまま読む
+    const on = configSchema.parse({ labels: { axes: [kind, area] } });
+    expect(on.labels.axes).toEqual([kind, area]);
+    expect(labelAxesState(on.labels.axes)).toBe("on");
+    for (const bad of [
+      { labels: { axes: [{ name: "area" }] } },
+      { labels: { axes: [{ name: "area", description: "" }] } },
+      { labels: { axes: [{ name: "Area Of", description: "d" }] } },
+      { labels: { axes: [{ description: "d" }] } },
+      { labels: { axes: ["area"] } },
+      { labels: { axes: { area } } },
+      { labels: { axes: null } },
+      // 同じ名前の軸は 1 つだけ
+      { labels: { axes: [area, { ...area, description: "別の説明" }] } },
+    ])
+      expect(configSchema.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    // 軸の一覧は葉の項目でないので、設定画面と config.set の項目には出さず、個人の設定では上書きできない
+    expect(configFields().some((f) => f.key.startsWith("labels"))).toBe(false);
+    for (const team of [configSchema.parse({}), on]) {
+      for (const axes of [[], [area]]) {
+        const { config, local, ignored } = overlayLocalConfig(team, { labels: { axes } });
+        expect(config.labels).toEqual(team.labels);
+        expect(local).toEqual({});
+        expect(ignored.map((i) => i.key)).toEqual(["labels.axes"]);
+      }
+    }
+  });
+
+  it("軸の候補は既定の候補の area・kind と推薦の impact・platform・audience で、kind は推薦の語彙 feature・bug・refactor を持つ。どれも英語で、書く軸と同じ形（t1181）", () => {
+    expect(LABEL_AXIS_CANDIDATES.map((c) => [c.name, c.group])).toEqual([
+      ["area", "default"],
+      ["kind", "default"],
+      ["impact", "recommended"],
+      ["platform", "recommended"],
+      ["audience", "recommended"],
+    ]);
+    expect(
+      LABEL_AXIS_CANDIDATES.map((c) => [c.name, c.recommended_labels?.map((l) => l.name)]).filter(
+        ([, labels]) => labels !== undefined,
+      ),
+    ).toEqual([["kind", ["feature", "bug", "refactor"]]]);
+    for (const c of LABEL_AXIS_CANDIDATES) {
+      expect(JAPANESE.test(c.description), c.name).toBe(false);
+      for (const l of c.recommended_labels ?? []) {
+        expect(l.description.length, l.name).toBeGreaterThan(0);
+        expect(JAPANESE.test(l.description), l.name).toBe(false);
+      }
+    }
+    // 選ばれたらそのまま dg label axis set で書ける形（スキーマに合い、名前は slug で重ならない）
+    const axes = LABEL_AXIS_CANDIDATES.map(({ name, description }) => ({ name, description }));
+    expect(configSchema.parse({ labels: { axes } }).labels.axes).toEqual(axes);
   });
 
   it("configFields は config の葉の項目を既定値・型・説明つきで出す", () => {

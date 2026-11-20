@@ -670,6 +670,47 @@ describe("dg", () => {
     expect(help.out).toContain("retro.perspectives.<id>");
   });
 
+  it("群の中の群のコマンド（label.axis.set）は dg label axis set で呼べ、群のヘルプに並ぶ（t1181）", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    const top = await dg(f.cloneA, ["label", "--help"]);
+    expect(top.out).toContain("axis");
+    const help = await dg(f.cloneA, ["label", "axis", "--help"]);
+    expect(help.code).toBe(0);
+    for (const op of ["set", "remove", "list"])
+      expect(help.out).toMatch(new RegExp(`^ *${op} `, "m"));
+    expect((await dg(f.cloneA, ["label", "axis", "set", "--help"])).out).toContain("--description");
+
+    const set = await dg(f.cloneA, [
+      "--json",
+      "label",
+      "axis",
+      "set",
+      "area",
+      "--description",
+      "Which part",
+    ]);
+    expect(set.code).toBe(0);
+    expect(set.json().data).toEqual({
+      state: "on",
+      axes: [{ name: "area", description: "Which part" }],
+    });
+    // 説明のない set は使い方の誤り
+    expect((await dg(f.cloneA, ["--json", "label", "axis", "set", "kind"])).code).toBe(2);
+    const listed = (await dg(f.cloneA, ["--json", "label", "axis", "list", "--candidates"])).json()
+      .data as { state: string; candidates: { name: string }[] };
+    expect(listed.state).toBe("on");
+    expect(listed.candidates.map((c) => c.name)).toEqual([
+      "area",
+      "kind",
+      "impact",
+      "platform",
+      "audience",
+    ]);
+    const removed = await dg(f.cloneA, ["--json", "label", "axis", "remove", "area"]);
+    expect(removed.json().data).toEqual({ state: "off", axes: [] });
+  });
+
   it("Iteration は予定の期間を持たないので、create・update のヘルプに --start・--end がなく、渡すと使い方の誤り", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
