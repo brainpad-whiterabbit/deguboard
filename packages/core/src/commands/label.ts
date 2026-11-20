@@ -1,7 +1,7 @@
 // ラベルの軸（config.yaml の labels.axes。requirements.md 5.10、ADR-037）。
 // 軸の一覧は入れ子で config.set の 1 項目に収まらないので、ここのコマンドがスキーマで検査してチームの config.yaml に書く。
 // チームの設定の変更なので、config.set と同じく Workflow の governance.config で判定する。
-// 軸の候補と推薦の語彙は model/label-axes.ts が持ち、label.axis.list の --candidates で出す。
+// 軸の候補と推薦の語彙は model/label-axes.ts が持ち、label.axis.list の --candidates で出す。軸を消してよいかの判定も model/label-axes.ts。
 // 語彙（データのブランチの labels.yaml。requirements.md 5.1）は label.list が読み、label.add・label.update・label.remove が書く。
 // label.merge は語彙をまとめ、元の名前を持つチケットも同じ書き込みで書き換える（ADR-037）。
 // 語彙を書く操作は Workflow の governance.labels で判定する（名前だけで決まるので、入口の runCommand が判定する）。
@@ -14,6 +14,8 @@ import { slugSchema } from "../model/common.js";
 import type { LabelAxis } from "../model/config.js";
 import { idNumber } from "../model/id.js";
 import {
+  judgeLabelAxisRemove,
+  judgeLabelAxisRemoveInput,
   LABEL_AXIS_CANDIDATES,
   labelAxesState,
   type LabelAxesState,
@@ -25,7 +27,6 @@ import {
   judgeLabelRemove,
   judgeLabelUpdate,
   labelListView,
-  labelsOfAxis,
   type LabelListView,
   type LabelWriteJudgement,
 } from "../model/labels.js";
@@ -136,38 +137,18 @@ export const labelAxisRemove = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
-    const { name } = input;
-    if ((name === undefined) !== (input.all === true))
-      throw new OperationError(
-        "VALIDATION_FAILED",
-        "Give either the name of an axis or --all",
-        "dg label axis remove <name> removes one axis, and dg label axis remove --all removes every axis",
-      );
+    // 名前と --all の組み合わせは軸を読まずに決まるので、書き込みのロックに入る前に弾く
+    const invalid = judgeLabelAxisRemoveInput(input);
+    if (invalid) throw new OperationError(invalid.code, invalid.message, invalid.detail);
     const result = await writeAxes(
       ctx,
       "label.axis.remove",
       input,
-      name === undefined ? "every label axis" : `the label axis ${name}`,
-      (axes = []) => {
-        if (name !== undefined && !axes.some((a) => a.name === name))
-          throw new OperationError(
-            "NOT_FOUND",
-            `No label axis ${name}`,
-            `Axes: ${axes.map((a) => a.name).join(", ") || "(none)"}`,
-          );
-        // 語彙の残る軸は消さない（軸のない語彙を残さない）。語彙を先に消してもらう
-        const left = axes
-          .filter((a) => name === undefined || a.name === name)
-          .map((a) => ({ axis: a.name, labels: labelsOfAxis(ctx.store.labels, a.name) }))
-          .filter((a) => a.labels.length > 0);
-        if (left.length > 0)
-          throw new OperationError(
-            "REJECTED",
-            `The label ${left.length === 1 ? "axis" : "axes"} ${left.map((a) => a.axis).join(", ")} still ${left.length === 1 ? "has" : "have"} labels, so ${left.length === 1 ? "it" : "they"} cannot be removed`,
-            `${left.map((a) => `${a.axis}: ${a.labels.join(", ")}`).join("; ")}. Remove the labels first with dg label remove`,
-          );
-        if (name === undefined) return [];
-        return axes.filter((a) => a.name !== name);
+      input.name === undefined ? "every label axis" : `the label axis ${input.name}`,
+      (axes) => {
+        const judged = judgeLabelAxisRemove(input, axes, ctx.store.labels);
+        if (!judged.ok) throw new OperationError(judged.code, judged.message, judged.detail);
+        return judged.axes;
       },
     );
     return ok<LabelAxesView>(result.value, result.write);

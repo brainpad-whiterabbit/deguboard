@@ -106,18 +106,15 @@ describe("ラベルの軸", () => {
     expect(await fileLabels(ctx)).toBeUndefined();
   });
 
+  // 判定の組み合わせは model/label-axes.test.ts。ここは経路の代表（判定の誤りをそのまま返す・消した軸を書く）だけ
   it("label.axis.remove は軸を消し、最後の軸を消すと [] （off）が残る。config.unset labels.axes は undecided に戻す", async () => {
     const f = await initializedLocalFixture();
     const ctx = await reopenInitialized(f);
-    // 書いていないボードの軸は消せない
-    await expect(runCommand(labelAxisRemove, ctx, { name: "area" })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-    expect(await fileLabels(ctx)).toBeUndefined();
     await runCommand(labelAxisSet, ctx, area);
     await runCommand(labelAxisSet, ctx, kind);
     await expect(runCommand(labelAxisRemove, ctx, { name: "impact" })).rejects.toMatchObject({
       code: "NOT_FOUND",
+      message: "No label axis impact",
       detail: "Axes: area, kind",
     });
     expect((await runCommand(labelAxisRemove, ctx, { name: "area" })).data).toEqual({
@@ -140,23 +137,16 @@ describe("ラベルの軸", () => {
   it("label.axis.remove --all は、書いていないボードにも [] を書いて使わないと決めたことを残す。名前と --all は片方だけを受ける", async () => {
     const f = await initializedLocalFixture();
     const ctx = await reopenInitialized(f);
-    for (const bad of [{}, { name: "area", all: true }, { all: false }])
-      await expect(runCommand(labelAxisRemove, ctx, bad)).rejects.toMatchObject({
-        code: "VALIDATION_FAILED",
-        message: "Give either the name of an axis or --all",
-      });
+    await expect(runCommand(labelAxisRemove, ctx, {})).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+      message: "Give either the name of an axis or --all",
+    });
     expect(await fileLabels(ctx)).toBeUndefined();
     expect((await runCommand(labelAxisRemove, ctx, { all: true })).data).toEqual({
       state: "off",
       axes: [],
     });
     expect(await fileLabels(ctx)).toEqual({ axes: [] });
-    await runCommand(labelAxisSet, ctx, area);
-    await runCommand(labelAxisSet, ctx, kind);
-    expect((await runCommand(labelAxisRemove, ctx, { all: true })).data).toEqual({
-      state: "off",
-      axes: [],
-    });
   });
 
   it("label.axis.list --candidates は、今の軸に dg の持つ候補と kind の推薦の語彙を添えて出す（候補は書かれない）", async () => {
@@ -532,24 +522,19 @@ describe("語彙を書く（label.add・label.update・label.remove）", () => {
     expect(await fileVocabulary(ctx)).toEqual(before);
   });
 
-  it("label.axis.remove は語彙が残っている軸を拒み（--all も）、語彙を消せば消せる。統合の記録だけの軸は消せる", async () => {
+  // 語彙の残り方の組み合わせ（--all・統合の記録）は model/label-axes.test.ts。ここは書いた語彙を判定が読む経路の代表だけ
+  it("label.axis.remove は語彙が残っている軸を拒み、語彙を消せば消せる", async () => {
     const f = await initializedLocalFixture();
     const ctx = await reopenInitialized(f);
     await runCommand(labelAxisSet, ctx, area);
-    await runCommand(labelAxisSet, ctx, kind);
     await runCommand(labelAdd, ctx, { name: "ui", axis: "area", description: "The board" });
     await runCommand(labelAdd, ctx, { name: "core", axis: "area", description: "The core" });
     await expect(runCommand(labelAxisRemove, ctx, { name: "area" })).rejects.toMatchObject({
       code: "REJECTED",
       message: "The label axis area still has labels, so it cannot be removed",
-      detail: expect.stringContaining("area: core, ui"),
+      detail: "area: core, ui. Remove the labels first with dg label remove",
     });
-    await expect(runCommand(labelAxisRemove, ctx, { all: true })).rejects.toMatchObject({
-      code: "REJECTED",
-    });
-    expect((await list(ctx)).axes).toEqual([area, kind]);
-    // 語彙のない軸は消せる
-    expect((await runCommand(labelAxisRemove, ctx, { name: "kind" })).data.axes).toEqual([area]);
+    expect((await list(ctx)).axes).toEqual([area]);
     await runCommand(labelRemove, ctx, { name: "ui" });
     await runCommand(labelRemove, ctx, { name: "core" });
     expect((await runCommand(labelAxisRemove, ctx, { name: "area" })).data).toEqual({

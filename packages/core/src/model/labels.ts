@@ -390,14 +390,6 @@ export function labelRenameWarnings(renamed: readonly LabelRename[], use: string
   );
 }
 
-/** 軸に残っている語彙の名前（名前の順。統合の記録は数えない）。dg label axis remove が、語彙の残る軸を拒むのに使う */
-export function labelsOfAxis(vocabulary: Vocabulary, axis: string): string[] {
-  return [...vocabulary]
-    .filter(([, e]) => e.axis === axis && !isMerged(e))
-    .map(([name]) => name)
-    .sort();
-}
-
 /** 語彙の 1 件と、その使われ方 */
 export interface LabelUsage {
   name: string;

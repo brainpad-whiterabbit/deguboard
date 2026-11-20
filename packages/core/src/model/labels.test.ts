@@ -9,7 +9,6 @@ import {
   judgeLabelUpdate,
   labelListView,
   labelRenameWarnings,
-  labelsOfAxis,
   mergedLabelTarget,
   normalizeLabelNames,
   parseVocabulary,
@@ -246,7 +245,7 @@ describe("語彙の一覧（labelListView）", () => {
   });
 });
 
-describe("語彙を書く操作の判定（judgeLabelAdd・judgeLabelUpdate・judgeLabelRemove・labelsOfAxis）", () => {
+describe("語彙を書く操作の判定（judgeLabelAdd・judgeLabelUpdate・judgeLabelRemove）", () => {
   const axes = [
     { name: "area", description: "Which part" },
     { name: "kind", description: "What kind" },
@@ -372,13 +371,6 @@ describe("語彙を書く操作の判定（judgeLabelAdd・judgeLabelUpdate・ju
       ok: false,
       code: "REJECTED",
     });
-  });
-
-  it("labelsOfAxis は軸に残る語彙を名前の順に返し、統合の記録は数えない", () => {
-    const more = new Map([...vocabulary, ["core", entry("area", "The core")]]);
-    expect(labelsOfAxis(more, "area")).toEqual(["core", "ui"]);
-    expect(labelsOfAxis(more, "kind")).toEqual(["bug"]);
-    expect(labelsOfAxis(more, "impact")).toEqual([]);
   });
 });
 
