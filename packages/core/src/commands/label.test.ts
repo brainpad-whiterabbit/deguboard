@@ -26,7 +26,14 @@ import {
   labelRemove,
   labelUpdate,
 } from "./label.js";
-import { configSet, configShow, configUnset, validate, type ConfigShowView } from "./setup.js";
+import {
+  configSet,
+  configShow,
+  configUnset,
+  lint,
+  validate,
+  type ConfigShowView,
+} from "./setup.js";
 import { ticketCreate } from "./ticket.js";
 
 afterEach(runCleanups);
@@ -382,6 +389,30 @@ describe("ラベルの語彙（labels.yaml）", () => {
     await writeLabels(ctx, vocabulary);
     expect([...ctx.store.labels.keys()]).toEqual(["ui", "bug", "web"]);
     expect((await runCommand(validate, ctx, {})).data.issues).toEqual([]);
+  });
+
+  it("lint は軸がオンのボードでだけ、チケットの指摘をチケットに、語彙の指摘を labels.yaml に置く（組み合わせは model/label-lint.test.ts）", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    await writeLabels(ctx, vocabulary);
+    const created = await runCommand(ticketCreate, ctx, {
+      title: "一",
+      labels: ["web", "tooling"],
+    });
+    const labelIssues = async () =>
+      (await runCommand(lint, ctx, {})).data.issues
+        .filter((i) => i.code.startsWith("lint_label_"))
+        .map((i) => [i.code, i.path, i.id]);
+    // 軸を書いていない（undecided）ボードは見ない
+    expect(await labelIssues()).toEqual([]);
+    await runCommand(labelAxisSet, ctx, area);
+    await runCommand(labelAxisSet, ctx, kind);
+    expect(await labelIssues()).toEqual([
+      ["lint_label_undefined", "labels.yaml", undefined],
+      ["lint_label_unused", "labels.yaml", undefined],
+      ["lint_label_unused", "labels.yaml", undefined],
+      ["lint_label_merged", ctx.store.tickets.get(created.data.id)?.path, created.data.id],
+    ]);
   });
 });
 
