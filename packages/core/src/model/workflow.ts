@@ -68,7 +68,14 @@ export const FLOW_BUNDLED_STAGES = [
 export const FLOW_SKIP_KEY = "skip";
 
 /** カンバンの管理の操作 */
-export const GOVERNANCE_OPERATIONS = ["delete", "config", "reassign", "epic", "create"] as const;
+export const GOVERNANCE_OPERATIONS = [
+  "delete",
+  "config",
+  "reassign",
+  "epic",
+  "create",
+  "labels",
+] as const;
 export type GovernanceOperation = (typeof GOVERNANCE_OPERATIONS)[number];
 
 // 条件は形だけ見る（未知の名前は validate.ts が WF-3 の指摘にする）
@@ -116,6 +123,7 @@ export const workflowDefinitionSchema = z.looseObject({
       reassign: decisionSchema,
       epic: decisionSchema,
       create: decisionSchema,
+      labels: decisionSchema,
     })
     .partial()
     .optional(),

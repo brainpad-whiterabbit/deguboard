@@ -29,7 +29,7 @@ import {
   type TicketId,
 } from "../model/id.js";
 import { iterationSchema, RETIRED_ITERATION_KEYS, type Iteration } from "../model/iteration.js";
-import type { Vocabulary } from "../model/labels.js";
+import type { LabelEntry, Vocabulary } from "../model/labels.js";
 import { planSchema, type Plan } from "../model/plan.js";
 import { isRunId, runSchema, type Run, type RunId } from "../model/run.js";
 import { pendingDeps, RETIRED_TICKET_KEYS, ticketSchema, type Ticket } from "../model/ticket.js";
@@ -500,6 +500,35 @@ export class Store {
       ...result.issues,
     ];
     return entry;
+  }
+
+  /**
+   * labels.yaml の 1 項目を書く（なければファイルを作る。entry が undefined なら項目を消す）。ほかの項目とコメントはそのまま残す。
+   * 何を書いてよいかの判定は呼び手（commands/label.ts と model/labels.ts）がする。ここで拒むのは、読めないファイルと、
+   * 読めなかった項目（this.labels にないのにファイルにある名前）を黙って上書きすること
+   */
+  async writeLabel(name: string, entry: LabelEntry | undefined): Promise<void> {
+    const file = path.join(this.root, LABELS_FILE);
+    const { doc, errors } = await readYamlFile(file);
+    const raw: unknown = errors.length > 0 ? undefined : doc.toJS();
+    if (errors.length > 0 || (raw != null && (typeof raw !== "object" || Array.isArray(raw))))
+      throw new OperationError(
+        "VALIDATION_FAILED",
+        `${LABELS_FILE} cannot be read, so the vocabulary cannot be written`,
+        errors.join("\n") || "The top level must be a mapping from label names to entries",
+      );
+    if (doc.has(name) && !this.labels.has(name))
+      throw new OperationError(
+        "VALIDATION_FAILED",
+        `${LABELS_FILE} has an entry ${name} that cannot be read, so it is not overwritten`,
+        "dg validate reports what is wrong with it. Fix or remove the entry in the file first",
+      );
+    patchYamlDocument(doc, { [name]: entry });
+    await writeFileAtomic(file, stringifyYaml(doc));
+    const labels = new Map(this.labels);
+    if (entry === undefined) labels.delete(name);
+    else labels.set(name, entry);
+    this.labels = labels;
   }
 
   // ---- 走査 ----

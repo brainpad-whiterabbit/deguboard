@@ -80,6 +80,7 @@ const ROW_NAMES: Record<string, string> = {
   "governance.reassign": msg("ほかのユーザの担当の変更"),
   "governance.epic": msg("Epic を閉じる・再開する"),
   "governance.create": msg("チケットを起票する"),
+  "governance.labels": msg("ラベルの語彙の変更"),
 };
 
 /** 節の名前（今の言語）。知らない節は key */

@@ -2,7 +2,9 @@
 // 軸の一覧は入れ子で config.set の 1 項目に収まらないので、ここのコマンドがスキーマで検査してチームの config.yaml に書く。
 // チームの設定の変更なので、config.set と同じく Workflow の governance.config で判定する。
 // 軸の候補と推薦の語彙は model/label-axes.ts が持ち、label.axis.list の --candidates で出す。
-// 語彙（データのブランチの labels.yaml。requirements.md 5.1）は label.list が読む。一覧を作る判定は model/labels.ts
+// 語彙（データのブランチの labels.yaml。requirements.md 5.1）は label.list が読み、label.add・label.update・label.remove が書く。
+// 語彙を書く操作は Workflow の governance.labels で判定する（名前だけで決まるので、入口の runCommand が判定する）。
+// 一覧を作る判定と、書いてよいかの判定は model/labels.ts
 
 import { z } from "zod";
 import { OperationError } from "../errors.js";
@@ -15,8 +17,17 @@ import {
   type LabelAxesState,
   type LabelAxisCandidate,
 } from "../model/label-axes.js";
-import { labelListView, type LabelListView } from "../model/labels.js";
+import {
+  judgeLabelAdd,
+  judgeLabelRemove,
+  judgeLabelUpdate,
+  labelListView,
+  labelsOfAxis,
+  type LabelListView,
+  type LabelWriteJudgement,
+} from "../model/labels.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
+import { nowIso } from "./helpers.js";
 import {
   hasRecord,
   permissionFields,
@@ -109,7 +120,7 @@ export const labelAxisRemove = defineCommand({
   positionals: ["name"],
   group: "label",
   summary:
-    "Remove an axis of the labels. Removing the last axis leaves an empty list (decided not to use axes). --all removes every axis and writes the empty list, also when no axis was written yet: use it to record the decision not to use axes. " +
+    "Remove an axis of the labels. An axis that still has labels in the vocabulary is rejected: remove them first with dg label remove (dg label list shows them). Removing the last axis leaves an empty list (decided not to use axes). --all removes every axis and writes the empty list, also when no axis was written yet: use it to record the decision not to use axes. " +
     AXES_NOTE,
   input: z.object({
     name: slugSchema.optional().describe("Name of the axis to remove. Omit with --all"),
@@ -135,13 +146,24 @@ export const labelAxisRemove = defineCommand({
       input,
       name === undefined ? "every label axis" : `the label axis ${name}`,
       (axes = []) => {
-        if (name === undefined) return [];
-        if (!axes.some((a) => a.name === name))
+        if (name !== undefined && !axes.some((a) => a.name === name))
           throw new OperationError(
             "NOT_FOUND",
             `No label axis ${name}`,
             `Axes: ${axes.map((a) => a.name).join(", ") || "(none)"}`,
           );
+        // 語彙の残る軸は消さない（軸のない語彙を残さない）。語彙を先に消してもらう
+        const left = axes
+          .filter((a) => name === undefined || a.name === name)
+          .map((a) => ({ axis: a.name, labels: labelsOfAxis(ctx.store.labels, a.name) }))
+          .filter((a) => a.labels.length > 0);
+        if (left.length > 0)
+          throw new OperationError(
+            "REJECTED",
+            `The label ${left.length === 1 ? "axis" : "axes"} ${left.map((a) => a.axis).join(", ")} still ${left.length === 1 ? "has" : "have"} labels, so ${left.length === 1 ? "it" : "they"} cannot be removed`,
+            `${left.map((a) => `${a.axis}: ${a.labels.join(", ")}`).join("; ")}. Remove the labels first with dg label remove`,
+          );
+        if (name === undefined) return [];
         return axes.filter((a) => a.name !== name);
       },
     );
@@ -177,7 +199,7 @@ export const labelList = defineCommand({
   name: "label.list",
   group: "label",
   summary:
-    "Show the vocabulary of the labels (labels.yaml on the data branch) by axis. state is the state of the axes (see dg label axis list). axes lists the axes in the order of labels.axes, each with its labels (name, description, created_at), the number of tickets that carry the label (count: done and abandoned tickets count too), and when it was last used (last_used_at: the created_at of the newest ticket that carries it, or null when no ticket does). An axis whose description is null is not in labels.axes: only labels point to it. Labels recorded as merged into another are not vocabulary and are left out. Entries of labels.yaml that cannot be read are left out too: dg validate reports them",
+    "Show the vocabulary of the labels (labels.yaml on the data branch) by axis. Write it with dg label add, update, and remove. state is the state of the axes (see dg label axis list). axes lists the axes in the order of labels.axes, each with its labels (name, description, created_at), the number of tickets that carry the label (count: done and abandoned tickets count too), and when it was last used (last_used_at: the created_at of the newest ticket that carries it, or null when no ticket does). An axis whose description is null is not in labels.axes: only labels point to it. Labels recorded as merged into another are not vocabulary and are left out. Entries of labels.yaml that cannot be read are left out too: dg validate reports them",
   input: z.object({
     merged: z
       .boolean()
@@ -202,4 +224,121 @@ export const labelList = defineCommand({
   },
 });
 
-export const labelCommands = [labelAxisSet, labelAxisRemove, labelAxisList, labelList];
+/** 語彙を書いた結果の 1 件（add・update は書いた項目、remove は消した項目） */
+export interface LabelView {
+  name: string;
+  axis: string;
+  description: string;
+  created_at: string;
+}
+
+const VOCABULARY_NOTE =
+  "The Workflow's governance.labels judges writing the vocabulary (dg workflow show gives its value; see dg workflow show --help for the values): when the value asks for a person's approval, an agent passes --approved-by after a person approved the change, and the approver is recorded in the commit message";
+
+const labelName = z
+  .string()
+  .min(1)
+  .describe("Name of the label. Uppercase letters are lowered (UI becomes ui)");
+
+/**
+ * 語彙の 1 項目を書く。権限の判定は入口（runCommand）が済ませているので、ここは取り込んだ後の軸・語彙・チケットで
+ * 書いてよいかを確かめて（model/labels.ts の judge*）書く。承認者はその操作のコミットに残す（epic close と同じ）
+ */
+async function writeVocabulary(
+  ctx: CommandContext,
+  input: PermissionInput,
+  verb: "Add" | "Update" | "Remove",
+  judge: () => LabelWriteJudgement,
+) {
+  return withWrite(
+    ctx,
+    async () => {
+      const judged = judge();
+      if (!judged.ok) throw new OperationError(judged.code, judged.message, judged.detail);
+      await ctx.store.writeLabel(judged.name, verb === "Remove" ? undefined : judged.entry);
+      const { axis, description, created_at } = judged.entry;
+      return { name: judged.name, axis, description, created_at } satisfies LabelView;
+    },
+    {
+      message: (label) => `${verb} the label ${label.name}${recordNote(ctx, input)}`,
+      immediate: hasRecord(input),
+    },
+  );
+}
+
+export const labelAdd = defineCommand({
+  name: "label.add",
+  positionals: ["name"],
+  group: "label",
+  summary:
+    "Add a label to the vocabulary (labels.yaml on the data branch), on one axis and with a description. A name is lowered, and belongs to one axis only. Rejected: a name with whitespace, a comma, or an underscore, or that starts with a hyphen; a name that starts with audit-, retro-, or release- (the steps of an Iteration attach those, and they are not vocabulary); an axis that is not in labels.axes (dg label axis list); a name that already exists, on this axis or another; and a name recorded as merged into another. Letters other than ASCII, such as Japanese, can be used. " +
+    VOCABULARY_NOTE,
+  input: z.object({
+    name: labelName,
+    axis: slugSchema.describe("Name of the axis the label belongs to (one of labels.axes)"),
+    description: z.string().min(1).describe("What the label covers, in one line. Required"),
+    ...permissionFields,
+  }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    const result = await writeVocabulary(ctx, input, "Add", () =>
+      judgeLabelAdd(input, ctx.store.teamConfig.labels.axes, ctx.store.labels, nowIso(ctx)),
+    );
+    return ok<LabelView>(result.value, result.write);
+  },
+});
+
+export const labelUpdate = defineCommand({
+  name: "label.update",
+  positionals: ["name"],
+  group: "label",
+  summary:
+    "Change the description of a label of the vocabulary. The name and the axis stay. A name that is not in the vocabulary, or that is recorded as merged into another, is rejected. " +
+    VOCABULARY_NOTE,
+  input: z.object({
+    name: labelName,
+    description: z.string().min(1).describe("What the label covers, in one line. Required"),
+    ...permissionFields,
+  }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    const result = await writeVocabulary(ctx, input, "Update", () =>
+      judgeLabelUpdate(input, ctx.store.labels),
+    );
+    return ok<LabelView>(result.value, result.write);
+  },
+});
+
+export const labelRemove = defineCommand({
+  name: "label.remove",
+  positionals: ["name"],
+  group: "label",
+  summary:
+    "Remove a label from the vocabulary, and return the removed label. A label that a ticket carries is rejected (done and abandoned tickets count too): take it off the tickets first (dg ticket list --label <name> shows them). A name that is not in the vocabulary, or that is recorded as merged into another, is rejected. " +
+    VOCABULARY_NOTE,
+  input: z.object({ name: labelName, ...permissionFields }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    const result = await writeVocabulary(ctx, input, "Remove", () =>
+      judgeLabelRemove(
+        input,
+        ctx.store.labels,
+        [...ctx.store.tickets.values()].map((doc) => doc.data),
+      ),
+    );
+    return ok<LabelView>(result.value, result.write);
+  },
+});
+
+export const labelCommands = [
+  labelAxisSet,
+  labelAxisRemove,
+  labelAxisList,
+  labelList,
+  labelAdd,
+  labelUpdate,
+  labelRemove,
+];

@@ -1,7 +1,15 @@
 // ラベルの語彙の形の検査と、一覧を作る判定（model/labels.ts）。ファイルも git も読まない
 
 import { describe, expect, it } from "vitest";
-import { labelListView, parseVocabulary, type LabelEntry } from "./labels.js";
+import {
+  judgeLabelAdd,
+  judgeLabelRemove,
+  judgeLabelUpdate,
+  labelListView,
+  labelsOfAxis,
+  parseVocabulary,
+  type LabelEntry,
+} from "./labels.js";
 
 const at = "2026-11-01T00:00:00Z";
 const entry = (axis: string, description: string, more: Partial<LabelEntry> = {}): LabelEntry => ({
@@ -38,13 +46,30 @@ describe("語彙の形の検査（parseVocabulary）", () => {
     ]);
   });
 
-  it("名前が slug（小文字・数字・ハイフン）でない項目は、中身が正しくても外して誤りにする。マージドライバがフィールドの名前で選ぶ規則に当たる名前を語彙にしない", () => {
-    const names = ["updated_at", "closed_at", "started_at", "UI", "日本語", "-ui", "a b", ""];
+  it("名前の規則（小文字・空白とカンマと _ なし・先頭が - でない）に合わない項目は、中身が正しくても外して誤りにする。マージドライバがフィールドの名前で選ぶ規則に当たる名前（どれも _ を含む）を語彙にしない。日本語の名前は読む", () => {
+    const names = [
+      "updated_at",
+      "closed_at",
+      "started_at",
+      "approved_at",
+      "UI",
+      "-ui",
+      "a b",
+      "a　b",
+      "a,b",
+      "",
+    ];
     const parsed = parseVocabulary({
       ui: entry("area", "The board"),
+      画面: entry("area", "日本語の名前"),
+      "ui.v2": entry("area", "記号も使える"),
       ...Object.fromEntries(names.map((name) => [name, entry("area", "x")])),
     });
-    expect(parsed.entries).toEqual([["ui", entry("area", "The board")]]);
+    expect(parsed.entries).toEqual([
+      ["ui", entry("area", "The board")],
+      ["画面", entry("area", "日本語の名前")],
+      ["ui.v2", entry("area", "記号も使える")],
+    ]);
     expect(parsed.errors.map((e) => e.name)).toEqual(names);
     for (const e of parsed.errors) expect(e.detail).toContain("name: ");
   });
@@ -213,5 +238,133 @@ describe("語彙の一覧（labelListView）", () => {
       labelListView(undefined, new Map(), [ticket(["a"], at)], { undefined: true }).undefined,
     ).toEqual([{ name: "a", count: 1 }]);
     expect(labelListView(axes, vocabulary, [], { undefined: true }).undefined).toEqual([]);
+  });
+});
+
+describe("語彙を書く操作の判定（judgeLabelAdd・judgeLabelUpdate・judgeLabelRemove・labelsOfAxis）", () => {
+  const axes = [
+    { name: "area", description: "Which part" },
+    { name: "kind", description: "What kind" },
+  ];
+  const now = "2026-11-20T00:00:00Z";
+  const vocabulary = new Map([
+    ["ui", { ...entry("area", "The board"), color: "blue" }],
+    ["bug", entry("kind", "A defect")],
+    ["web", entry("area", "Old", { merged_into: "ui", merged_at: at })],
+  ]);
+  const add = (name: string, axis = "area", description = "説明", given = axes) =>
+    judgeLabelAdd({ name, axis, description }, given, vocabulary, now);
+
+  it("add は名前を小文字にそろえ、軸と説明と今の時刻の項目を返す。日本語の名前も足せる", () => {
+    expect(add("Core", "area", "  The core package ")).toEqual({
+      ok: true,
+      name: "core",
+      entry: { axis: "area", description: "The core package", created_at: now },
+    });
+    expect(add("画面")).toMatchObject({ ok: true, name: "画面" });
+    // 接頭辞と同じ綴りを途中に持つ名前は足せる
+    expect(add("pre-release-notes")).toMatchObject({ ok: true, name: "pre-release-notes" });
+  });
+
+  it("add は、空白・カンマ・_ を含む名前、先頭が - の名前、手順の接頭辞の名前、説明のない語彙を拒む", () => {
+    for (const name of ["a b", "a,b", "updated_at", "-ui", "", "a\tb"])
+      expect(add(name)).toMatchObject({ ok: false, code: "VALIDATION_FAILED" });
+    for (const name of ["audit-s3", "retro-s3", "release-s3", "Audit-S3"])
+      expect(add(name)).toMatchObject({
+        ok: false,
+        code: "VALIDATION_FAILED",
+        message: expect.stringContaining("starts with"),
+      });
+    for (const description of ["", "   "])
+      expect(add("core", "area", description)).toMatchObject({
+        ok: false,
+        code: "VALIDATION_FAILED",
+        message: "A label needs a description (--description)",
+      });
+  });
+
+  it("add は、labels.axes にない軸（軸を決めていない・使わないボードも）を拒む", () => {
+    expect(add("core", "impact")).toMatchObject({
+      ok: false,
+      code: "VALIDATION_FAILED",
+      message: "No label axis impact",
+      detail: expect.stringContaining("Axes: area, kind"),
+    });
+    for (const given of [undefined, []])
+      expect(
+        judgeLabelAdd({ name: "core", axis: "area", description: "d" }, given, vocabulary, now),
+      ).toMatchObject({ ok: false, detail: expect.stringContaining("Axes: (none)") });
+  });
+
+  it("add は、もうある名前（同じ軸・ほかの軸）と統合済みの名前を拒む", () => {
+    expect(add("UI")).toMatchObject({
+      ok: false,
+      code: "ALREADY_EXISTS",
+      message: "The label ui already exists",
+    });
+    expect(add("ui", "kind")).toMatchObject({
+      ok: false,
+      code: "ALREADY_EXISTS",
+      message: "The label ui already exists on the axis area",
+    });
+    expect(add("web")).toMatchObject({
+      ok: false,
+      code: "REJECTED",
+      message: "web was merged into ui, so it cannot be added again",
+    });
+  });
+
+  it("update は説明だけを替えてほかの項目を残し、語彙にない名前・統合の記録・空の説明を拒む", () => {
+    expect(judgeLabelUpdate({ name: "UI", description: " 画面 " }, vocabulary)).toEqual({
+      ok: true,
+      name: "ui",
+      entry: { ...entry("area", "画面"), color: "blue" },
+    });
+    expect(judgeLabelUpdate({ name: "none", description: "d" }, vocabulary)).toMatchObject({
+      ok: false,
+      code: "NOT_FOUND",
+    });
+    expect(judgeLabelUpdate({ name: "web", description: "d" }, vocabulary)).toMatchObject({
+      ok: false,
+      code: "REJECTED",
+    });
+    expect(judgeLabelUpdate({ name: "ui", description: " " }, vocabulary)).toMatchObject({
+      ok: false,
+      code: "VALIDATION_FAILED",
+    });
+  });
+
+  it("remove は、チケットが使っている語彙（done・abandoned も）・語彙にない名前・統合の記録を拒み、使われていなければ消す項目を返す", () => {
+    const tickets = [
+      { id: "t1", labels: ["ui", "tooling"] },
+      { id: "t2", labels: ["ui"] },
+      { id: "t3", labels: [] },
+    ];
+    expect(judgeLabelRemove({ name: "ui" }, vocabulary, tickets)).toMatchObject({
+      ok: false,
+      code: "REJECTED",
+      message: "2 tickets carry the label ui, so it cannot be removed",
+      detail: expect.stringContaining("t1, t2"),
+    });
+    expect(judgeLabelRemove({ name: "Bug" }, vocabulary, tickets)).toEqual({
+      ok: true,
+      name: "bug",
+      entry: entry("kind", "A defect"),
+    });
+    expect(judgeLabelRemove({ name: "tooling" }, vocabulary, tickets)).toMatchObject({
+      ok: false,
+      code: "NOT_FOUND",
+    });
+    expect(judgeLabelRemove({ name: "web" }, vocabulary, [])).toMatchObject({
+      ok: false,
+      code: "REJECTED",
+    });
+  });
+
+  it("labelsOfAxis は軸に残る語彙を名前の順に返し、統合の記録は数えない", () => {
+    const more = new Map([...vocabulary, ["core", entry("area", "The core")]]);
+    expect(labelsOfAxis(more, "area")).toEqual(["core", "ui"]);
+    expect(labelsOfAxis(more, "kind")).toEqual(["bug"]);
+    expect(labelsOfAxis(more, "impact")).toEqual([]);
   });
 });

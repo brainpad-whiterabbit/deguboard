@@ -40,6 +40,7 @@ export const TEST_WORKFLOW_FILE = {
     reassign: "always_ask",
     epic: "always_ask",
     create: "always_ask",
+    labels: "always_ask",
   },
 } satisfies WorkflowDefinitionInput;
 
