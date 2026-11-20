@@ -10,3 +10,7 @@ tooling:
   axis: area
   description: 開発ツール・テスト基盤・依存・リリースの手順。製品の振る舞いは含まない
   created_at: 2026-11-20T06:21:43Z
+core:
+  axis: area
+  description: Core のモデル・コマンド・同期。CLI や画面の入口は含まない
+  created_at: 2026-11-20T06:21:46Z
