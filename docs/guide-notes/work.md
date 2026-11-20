@@ -1,2 +1,5 @@
 In a test that compares times, take the expected value from what the test prepared (such as the modification time of the file or record it wrote), not from Date.now() or a new Date() taken separately, because two clocks read at different moments can fall on either side of a second boundary.
 Basis: in s35 t961 took the expected time from Date.now(), which can differ by a second from the time of the record it prepared. Drop this rule when, for 3 Iterations in a row, no escaped defect has the origin_cause tests.
+
+In a PR that changes a screen of packages/web or packages/vscode, or a default in packages/core/src/workflow/resolve.ts, run `mise run test:layout` and `mise run test:vscode` before `dg pr ready`, because `mise run check` runs neither of them.
+Basis: in s42 escaped-defect-rate was 24% (9/38), and the 2 of the 9 with the origin_cause tests had broken one of these tests (t1144 broke test:vscode). Drop this rule when, for 3 Iterations in a row, no escaped defect with the origin_cause tests fixes test:layout or test:vscode.
