@@ -59,6 +59,7 @@ import {
   type ConfigField,
 } from "../model/config.js";
 import { LABEL_AXIS_CANDIDATES, type LabelAxisCandidate } from "../model/label-axes.js";
+import { labelLintFindings } from "../model/label-lint.js";
 import {
   OPENED_STEPS,
   REVIEW_STEP,
@@ -73,7 +74,7 @@ import type { Doc } from "../storage/documents.js";
 import { pathExists } from "../storage/exists.js";
 import { checkReferences } from "../storage/integrity.js";
 import type { Issue } from "../storage/issue.js";
-import { CONFIG_FILE, WORKFLOW_FILE } from "../storage/paths.js";
+import { CONFIG_FILE, LABELS_FILE, WORKFLOW_FILE } from "../storage/paths.js";
 import { cyclePath, findCrossingCycle } from "../storage/wait-cycle.js";
 import { defaultWorkflowFile } from "../workflow/resolve.js";
 import { removeMergedWork, type MergedWork, type RemovedWork } from "./branch-cleanup.js";
@@ -979,7 +980,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "Point out missing or empty recommended body sections (## Summary and ## Acceptance criteria; the Japanese headings ## 概要 and ## 受け入れ条件 are also read), unfinished tickets left in a closed Epic, tickets that moved past todo or abandoned without being in an Iteration when lint.require_iteration is true (except done tickets in closed Epics), open Epics and Plans whose tickets are all finished, cycles across an open Plan's after and depends_on, and two or more active Iterations. Gaps in implementation and fix Runs (an agent got to a PR with no implementation Run, a commit after a closed implementation Run that falls within no Run's window, or a commit after a review with no fix Run) only look at unfinished tickets and done tickets in Iterations that are not closed. Unchecked acceptance criteria on done tickets are not flagged",
+    "Point out missing or empty recommended body sections (## Summary and ## Acceptance criteria; the Japanese headings ## 概要 and ## 受け入れ条件 are also read), unfinished tickets left in a closed Epic, tickets that moved past todo or abandoned without being in an Iteration when lint.require_iteration is true (except done tickets in closed Epics), open Epics and Plans whose tickets are all finished, cycles across an open Plan's after and depends_on, and two or more active Iterations. When the axes of the labels are on (labels.axes lists axes; not when it is not written or empty), it also points out the drift between the labels and their vocabulary: each name that tickets carry but the vocabulary does not have, once per name with the number of tickets (names that procedures attach, audit, audit-, retro-, and release-, are left out), vocabulary that no ticket carries, or that only one ticket carries after an Iteration closed later than the label was added, names that differ only in case, vocabulary whose axis is not in labels.axes, todo, in_progress, and review tickets that carry two or more labels of one axis, and tickets that carry a name merged into another. Gaps in implementation and fix Runs (an agent got to a PR with no implementation Run, a commit after a closed implementation Run that falls within no Run's window, or a commit after a review with no fix Run) only look at unfinished tickets and done tickets in Iterations that are not closed. Unchecked acceptance criteria on done tickets are not flagged",
   input: z.object({}),
   write: false,
   needs: "store",
@@ -1079,6 +1080,18 @@ export const lint = defineCommand({
           "lint_iteration_multiple_active",
           `There are ${active.length} active Iterations (${ids})`,
         );
+    }
+    // ラベルと語彙のずれ。軸がオフのボードは見ない。判定は model/label-lint.ts。チケットの指摘はチケットに、語彙の指摘は labels.yaml に置く
+    for (const f of labelLintFindings(
+      ctx.store.teamConfig.labels.axes,
+      ctx.store.labels,
+      tickets.map((t) => t.data),
+      [...ctx.store.iterations.values()].map((d) => d.data),
+    )) {
+      const doc = f.ticket === undefined ? undefined : tickets.find((t) => t.id === f.ticket);
+      if (doc) warn(doc.path, doc.id, f.code, f.message);
+      else
+        issues.push({ severity: "warning", code: f.code, path: LABELS_FILE, message: f.message });
     }
     // 実装の Run の抜け（RN-5・RN-6）。Run を開けなかった環境や手順の抜けで、agent の PR があるのに実装の Run がないもの、
     // 閉じた実装の Run の後のコミットが、どの Run の期間（開始から終わりまで。実行中は今まで）にも入らないもの、

@@ -64,7 +64,7 @@ epics/e3.md
 iterations/s3.yaml
 plans/p7.yaml
 workflow.yaml               # カンバンに 1 つの Workflow（5.8）。なければ既定で動く
-labels.yaml                 # ラベルの語彙（名前ごとに軸と説明。ADR-037）。なければ語彙なし。`dg label list` が読む
+labels.yaml                 # ラベルの語彙（名前ごとに軸と説明。ADR-037）。なければ語彙なし。`dg label list` が読み、`dg label add`・`update`・`remove` が書く（WF-7）
 runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開始日時と乱数
 ```
 
@@ -107,7 +107,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - TK-1 必須は `id`・`title`・`status`・`created_at`・`updated_at`。Workflow はチケットごとに選ばない（カンバンに 1 つ。5.8）
 - TK-2 `depends_on` は同じリポジトリのチケットの ID。循環は作成・更新時に拒否する
-- TK-3 本文は Markdown。`## Summary` と `## Acceptance criteria`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` が雛形を作り、受け入れ条件は `ticket check` が番号で印を付ける。空か空白だけの本文は拒む。節の欠けや状態の食い違い、実装と手直しの Run の抜け（RN-5・RN-6）は `dg lint` が指摘する（項目は `dg lint --help`）
+- TK-3 本文は Markdown。`## Summary` と `## Acceptance criteria`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` が雛形を作り、受け入れ条件は `ticket check` が番号で印を付ける。空か空白だけの本文は拒む。節の欠け、状態の食い違い、Run の抜け（RN-5・RN-6）、ラベルと語彙のずれは `dg lint` が指摘する（項目は `dg lint --help`）
 - TK-4 チケットの項目はスキーマが決めたものだけで、利用者が定義する任意フィールドは持たない。前の版の任意フィールドの値は、スキーマにない項目として残る（DT-2）
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが確認できたときに付ける。deguboard は自動で付けず、照合で done にしたチケットに未チェックが残れば `sync` が警告する（遷移は止めない。理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）
 - TK-6 `epic` は Epic の ID。閉じた Epic には付けられない
@@ -154,7 +154,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - WF-4 同梱するのは既定の `workflow.yaml` を 1 つだけで、`dg init` が置く（既にあれば書き換えない）。進め方の違いは値を書き換えて表す
 - WF-5 Run の step の語彙（investigate・implement・review・fix・merge）と Run を開く操作（RN-5）は Core が持ち、`run start` は語彙にない step を拒否する。手続きは YAML に書かず、既定の手続きは Core が（EX-3）、各手のやり方は `dg guide` が持つ
 - WF-6 `dg workflow set` は `workflow.yaml` を作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す。エージェントにはいつも人の承認（`--approved-by`）を求め、承認者を履歴に残す（WF-7。細部は `dg workflow set --help`）。前の版の `workflows/` は読まず、`workflow.yaml` がないのに残っていれば警告する
-- WF-7 チケットを消す・チームの設定を変える・ほかのユーザの担当と claim を替える・Epic を閉じる/再開する・起票は、`governance` の値で ST-2 と同じく判定する。フックと dg を外す・段を下げる・`workflow set`・品質ゲートを越えるマージは Core が固定し、`workflow.yaml` では緩められない（値は `dg workflow show`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
+- WF-7 チケットを消す・チームの設定の変更・ほかのユーザの担当と claim を替える・Epic の開閉・起票・語彙を書く（`governance.labels`）は `governance` で ST-2 と同じく判定する。フックと dg を外す・段を下げる・`workflow set`・品質ゲートを越えるマージは Core の固定で緩められない（値は `dg workflow show`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - WF-8 `wip` は列ごとのチケットの数の上限で、config の `work.parallel`（同時に動かすサブエージェントの数）とは別のもの。上限を超える列があると `dg next` と `dg flow next` は警告し、着手の手の前に先の列を進める手を返すが、着手は拒否しない（細部は `dg next --help`）
 - WF-9 Iteration・Epic への出し入れは `flow.assign`、Plan の承認は `flow.plan`、Iteration を閉じる/再開するは `flow.release` の値で、ST-2 と同じく判定する。コマンドで止められない判断は、関所 `dg checkpoint` が同じ値で判定する（EX-8。既定は `dg workflow show`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - WF-10 `flow` には、プロジェクト独自の段階（名前は小文字・数字・`-`）を、`decide`・位置 `after`（同梱の段階か work）・手順の文書 `guide` で足せる。`dg flow next` は `after` のあとに書いた順で、関所を通るまで返し、文書が読めなければ警告して返す（細部は `dg flow next --help`、[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）

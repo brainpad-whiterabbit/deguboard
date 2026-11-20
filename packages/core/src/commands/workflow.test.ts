@@ -219,7 +219,7 @@ describe("workflow show", () => {
       ["exceptions.abandon", "exceptions.back", "exceptions.reopen"],
       ["wip.in_progress", "wip.review"],
       ["assign", "check", "plan", "audit", "release", "retro", "skip"].map((s) => `flow.${s}`),
-      ["delete", "config", "reassign", "epic", "create"].map((o) => `governance.${o}`),
+      ["delete", "config", "reassign", "epic", "create", "labels"].map((o) => `governance.${o}`),
     ]);
     for (const r of before.sections.flatMap((s) => s.rows))
       expect(r.value, r.key).toEqual(r.default);

@@ -24,6 +24,7 @@
 
 - 語彙は `config.yaml` に置かず、ボードのデータの `labels.yaml` に、最上位のキーをラベルの名前にして置く。データのマージドライバがラベルごとにマージできるようにするため（形の正本は `packages/core/src/model/labels.ts`）
 - チケットの `labels` は文字列の配列のままにし、軸ごとの項目は持たせない
+- 語彙は `dg label add`・`dg label update`・`dg label remove` が書く。チームの設定ではなくボードのデータの変更で、起票のたびに増えるので、`governance.config` と分けて Workflow の `governance.labels` で判定する（語彙だけを緩められる）。語彙の残る軸は消せない
 
 ### 既定はオフで、点検が勧める
 

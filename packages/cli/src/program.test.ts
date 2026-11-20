@@ -732,6 +732,36 @@ describe("dg", () => {
     });
   });
 
+  it("dg label add・update・remove は語彙を書き、名前を小文字にそろえる。軸にない語彙は失敗、説明のない add は使い方の誤り（t1194）", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    const help = (await dg(f.cloneA, ["label", "--help"])).out;
+    for (const op of ["add", "update", "remove"])
+      expect(help).toMatch(new RegExp(`^ *${op} `, "m"));
+    await dg(f.cloneA, ["label", "axis", "set", "area", "--description", "Which part"]);
+    const label = (args: string[]) => dg(f.cloneA, ["--json", "label", ...args]);
+
+    const added = await label(["add", "UI", "--axis", "area", "--description", "The board"]);
+    expect(added.code).toBe(0);
+    expect(added.json().data).toMatchObject({ name: "ui", axis: "area", description: "The board" });
+    expect((await label(["add", "画面", "--axis", "area", "--description", "日本語"])).code).toBe(
+      0,
+    );
+    expect((await label(["add", "core", "--axis", "kind", "--description", "d"])).code).toBe(1);
+    expect((await label(["add", "core", "--axis", "area"])).code).toBe(2);
+    const updated = await label(["update", "ui", "--description", "画面の全体"]);
+    expect(updated.json().data).toMatchObject({ name: "ui", description: "画面の全体" });
+    expect((await label(["remove", "画面"])).code).toBe(0);
+    // 語彙の残る軸は消せない
+    const kept = await label(["axis", "remove", "area"]);
+    expect(kept.code).toBe(1);
+    expect(kept.json().error?.code).toBe("REJECTED");
+    const listed = (await label(["list"])).json().data as {
+      axes: { labels: { name: string }[] }[];
+    };
+    expect(listed.axes.map((a) => a.labels.map((l) => l.name))).toEqual([["ui"]]);
+  });
+
   it("Iteration は予定の期間を持たないので、create・update のヘルプに --start・--end がなく、渡すと使い方の誤り", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);

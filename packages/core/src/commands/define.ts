@@ -116,7 +116,7 @@ export function ok<O>(data: O, write?: WriteOutcome, warnings: string[] = []): C
 /**
  * 入力を検証してから実行する。形の誤りは UsageError（終了コード 2）。
  * 名前だけで操作が決まるコマンド（workflow/resolve.ts の commandOperation：Core に固定の workflow set、流れの段階の
- * Iteration・Epic への出し入れ・Plan の承認・Iteration を閉じる/再開する、カンバンの管理の起票・チケットを消す・Epic を閉じる/再開する）は、
+ * Iteration・Epic への出し入れ・Plan の承認・Iteration を閉じる/再開する、カンバンの管理の起票・チケットを消す・Epic を閉じる/再開する・ラベルの語彙を書く）は、
  * 実行の前に Core の固定と Workflow の flow・governance で判定し、通らなければ TRANSITION_REJECTED で止める
  * （全入口がここを通るので検査は 1 か所）。入力とデータで決まる操作（チームの設定・担当の付け替え・段を下げる・
  * ticket update の Iteration と Epic）は、コマンドが同じ判定（permission.ts の requireOperation）を自分で呼ぶ。
