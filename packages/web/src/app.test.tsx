@@ -838,6 +838,85 @@ describe("画面", () => {
       await waitFor(() => expect(updates()).toEqual([{ ticket: "t3", labels: ["web", "ui"] }]));
     });
 
+    it("ラベルの入力欄の下に語彙を軸ごとに説明つきで並べ、押すと入力に足し外しする。語彙にない名前も書けて、Enter で保存する", async () => {
+      const usage = (name: string, description: string) => ({
+        name,
+        description,
+        created_at: "2026-01-01T00:00:00Z",
+        count: 0,
+        last_used_at: null,
+      });
+      const { updates } = await open(
+        fixture({
+          labels: {
+            state: "on",
+            axes: [
+              { name: "area", description: "部分", labels: [usage("web", "画面の部品")] },
+              { name: "kind", description: "種類", labels: [usage("bug", "不具合を直す")] },
+            ],
+          },
+        }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "ラベルを変える" }));
+      const picker = screen.getByRole("group", { name: "語彙から選ぶ" });
+      const area = within(picker).getByRole("group", { name: "area" });
+      const web = within(area).getByRole("button", { name: "web — 画面の部品" });
+      expect(web.getAttribute("aria-pressed")).toBe("true");
+      const bug = within(picker).getByRole("button", { name: "bug — 不具合を直す" });
+      expect(bug.getAttribute("aria-pressed")).toBe("false");
+      const input = screen.getByLabelText("ラベル") as HTMLInputElement;
+      fireEvent.click(bug);
+      expect(input.value).toBe("web, bug");
+      fireEvent.click(web);
+      expect(input.value).toBe("bug");
+      // 項目も、軸の名前のような押せない所も、押してフォーカスを入力欄から動かさない（動くと欄が閉じて選んだ途中を失う）
+      expect(fireEvent.mouseDown(bug)).toBe(false);
+      expect(fireEvent.mouseDown(within(area).getByText("area"))).toBe(false);
+      expect(fireEvent.mouseDown(picker)).toBe(false);
+      expect(fireEvent.mouseDown(input)).toBe(true);
+      expect(input.value).toBe("bug");
+      // 語彙の項目へフォーカスが移っても欄は閉じない
+      fireEvent.blur(input, { relatedTarget: bug });
+      expect(screen.getByLabelText("ラベル")).toBeTruthy();
+      fireEvent.change(input, { target: { value: "bug, misc" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() => expect(updates()).toEqual([{ ticket: "t3", labels: ["bug", "misc"] }]));
+    });
+
+    it("語彙のある欄も、欄の外へフォーカスが出たら取り消す。Esc は語彙の項目の上でも取り消す", async () => {
+      const { updates } = await open(
+        fixture({
+          labels: {
+            state: "on",
+            axes: [
+              {
+                name: "area",
+                description: "部分",
+                labels: [
+                  {
+                    name: "ui",
+                    description: "画面",
+                    created_at: "2026-01-01T00:00:00Z",
+                    count: 0,
+                    last_used_at: null,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "ラベルを変える" }));
+      const ui = screen.getByRole("button", { name: "ui — 画面" });
+      fireEvent.click(ui);
+      fireEvent.keyDown(ui, { key: "Escape" });
+      expect(screen.queryByLabelText("ラベル")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "ラベルを変える" }));
+      fireEvent.blur(screen.getByLabelText("ラベル"), { relatedTarget: document.body });
+      expect(screen.queryByLabelText("ラベル")).toBeNull();
+      expect(updates()).toEqual([]);
+    });
+
     it("選択も Esc で取り消せ、値が変わらなければ保存しない", async () => {
       const { updates } = await open();
       fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
@@ -3350,6 +3429,52 @@ describe("画面", () => {
     expect(document.querySelector(".epic-head")).toBeTruthy();
   });
 
+  it("ラベルの語彙（label.list）を読み、カンバンとバックログの行の札を軸の色で出して語彙にない名前に印を付け、絞り込みの候補の横に説明を出す", async () => {
+    const usage = (name: string, description: string) => ({
+      name,
+      description,
+      created_at: "2026-01-01T00:00:00Z",
+      count: 1,
+      last_used_at: null,
+    });
+    const client = mockClient(
+      boardFixture({
+        labels: {
+          state: "on",
+          axes: [
+            { name: "kind", description: "種類", labels: [usage("bug", "不具合を直す")] },
+            { name: "area", description: "部分", labels: [usage("web", "画面の部品")] },
+          ],
+        },
+      }),
+    );
+    client.data.tickets.find((t) => t.id === "t2")!.labels = ["misc"];
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("画面");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "web" }).className).toBe("row-label label-color-1"),
+    );
+    const misc = screen.getByRole("button", { name: "misc" });
+    expect(misc.className).toBe("row-label label-unknown");
+    fireEvent.click(screen.getByRole("button", { name: "絞り込み" }));
+    const select = screen.getByLabelText("ラベル") as HTMLSelectElement;
+    expect([...select.querySelectorAll("optgroup")].map((g) => g.label)).toEqual([
+      "area",
+      "語彙にない",
+    ]);
+    expect([...select.options].map((o) => o.textContent)).toEqual([
+      "すべて",
+      "web — 画面の部品",
+      "misc",
+    ]);
+
+    act(() => {
+      window.location.hash = "#/backlog";
+    });
+    await screen.findByLabelText("検索");
+    expect(screen.getByRole("button", { name: "web" }).className).toBe("row-label label-color-1");
+  });
+
   it("担当もラベルもなければ、カンバンの見出しに漏斗を出さない（「表示」ボタンは出す）", async () => {
     const client = boardClient();
     for (const t of client.data.tickets) t.labels = [];
@@ -3411,7 +3536,7 @@ describe("画面", () => {
     expect(
       screen.getByRole("button", { name: "表示（既定と違う）" }).classList.contains("active"),
     ).toBe(true);
-    expect(host.state.get("rows.view")).toEqual({ labels: false });
+    expect(host.state.get("rows.view")).toEqual({ labels: false, procedureLabels: true });
 
     act(() => {
       window.location.hash = "#/backlog";
@@ -3423,7 +3548,7 @@ describe("画面", () => {
     fireEvent.click(backlogView);
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "ラベルを出す" }));
     expect(document.querySelectorAll(".row-labels").length).toBe(1);
-    expect(host.state.get("rows.view")).toEqual({ labels: true });
+    expect(host.state.get("rows.view")).toEqual({ labels: true, procedureLabels: true });
     expect(screen.getByRole("button", { name: "表示" }).classList.contains("active")).toBe(false);
   });
 

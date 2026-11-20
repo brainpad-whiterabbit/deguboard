@@ -91,7 +91,7 @@ body {
   --dg-info: var(--vscode-focusBorder);
   --dg-warning: var(--vscode-editorWarning-foreground, var(--vscode-inputValidation-warningBorder));
   --dg-error: var(--vscode-errorForeground);
-  /* 行のラベルの 6 色（components/row-labels.tsx の labelColorIndex が名前から選ぶ）。テーマの図表の色を使い、明暗はテーマに任せる */
+  /* 行のラベルの 6 色（components/label-vocab.ts の labelLook が語彙の軸か名前から選ぶ）。テーマの図表の色を使い、明暗はテーマに任せる */
   --dg-label-0: var(--vscode-charts-blue, #3794ff);
   --dg-label-1: var(--vscode-charts-green, #388a34);
   --dg-label-2: var(--vscode-charts-purple, #8250df);
@@ -279,6 +279,51 @@ h3 {
 .inline-hint {
   margin-top: 2px;
   font-size: 0.85em;
+  white-space: normal;
+}
+/*
+ * 詳細のラベルの入力欄の下の語彙（components/label-picker.tsx）。軸の名前の下に、札と説明の 1 行ずつを並べる。
+ * 押したもの（aria-pressed）は ✓ を出す。説明は折り返して全部読めるようにする
+ */
+.label-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  max-height: 16em;
+  overflow-y: auto;
+}
+.label-picker-axis {
+  display: flex;
+  flex-direction: column;
+}
+.label-picker-axis-name {
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+}
+.label-picker-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 2px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.label-picker-item:hover,
+.label-picker-item:focus-visible {
+  background: var(--vscode-list-hoverBackground);
+  outline: none;
+}
+.label-picker-item .row-label {
+  flex: none;
+}
+.label-picker-desc {
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
   white-space: normal;
 }
 /* Status の印は状態色の薄塗りと縁 */
@@ -1611,8 +1656,10 @@ textarea.body {
   white-space: nowrap;
 }
 /*
- * ラベルの札。色は名前から決めた 6 色（.label-color-*）のどれかで、地と枠をその色で薄く塗り、文字はその色と前景色を混ぜて明暗どちらのテーマでも読めるようにする。
- * 絞っているラベル（aria-pressed）は地を濃くする。「+N」は色を付けない
+ * ラベルの札。色は 6 色（.label-color-*。語彙の軸ごと、語彙のないボードでは名前から。components/label-vocab.ts）のどれかで、
+ * 地と枠をその色で薄く塗り、文字はその色と前景色を混ぜて明暗どちらのテーマでも読めるようにする。
+ * 絞っているラベル（aria-pressed）は地を濃くする。「+N」は色を付けない。
+ * 語彙にない名前（.label-unknown）は色を付けず破線の枠と「?」、手順のラベル（.label-procedure）は地も枠も付けず薄い文字にする
  */
 .row-label {
   --dg-label: var(--vscode-descriptionForeground);
@@ -1663,6 +1710,23 @@ button.row-label[aria-pressed="true"] {
 }
 .label-color-5 {
   --dg-label: var(--dg-label-5);
+}
+.row-label.label-unknown {
+  border-style: dashed;
+}
+.label-unknown-mark {
+  margin-left: 2px;
+  font-weight: 700;
+}
+.row-label.label-procedure {
+  background: transparent;
+  border-color: transparent;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.75;
+}
+button.row-label.label-procedure[aria-pressed="true"] {
+  border-color: var(--vscode-descriptionForeground);
+  opacity: 1;
 }
 .row-pr {
   grid-row: 2;
@@ -2489,6 +2553,11 @@ button.row-label[aria-pressed="true"] {
 .view-menu-check {
   width: 1em;
   text-align: center;
+}
+/* 選べない項目（ラベルを切っている間の「手順のラベルを出す」）。フォーカスは受けるので ↑↓ で飛ばさない */
+.view-menu-item[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
 }
 /* 並び順の欄（RowViewMenu の sort）。上の項目と線で分け、小さな見出しを置く。選んでいる基準は名前の右に向きの矢印を出す */
 .view-menu-group {

@@ -29,7 +29,7 @@ import { IterationGoal, shortPeriod } from "../components/iteration-parts.js";
 import { DetailLink, TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
-import { RowLabelsContext } from "../components/row-labels.js";
+import { LabelFilterOptions, RowLabelsContext } from "../components/row-labels.js";
 import { RowSortChip, RowViewMenu, useRowView } from "../components/view-menu.js";
 import {
   BACKLOG_SORT_KEYS,
@@ -273,6 +273,8 @@ export function BacklogPage() {
     ? {
         selected: filter.label,
         onSelect: (label: string) => set({ label: filter.label === label ? "" : label }),
+        vocabulary: store.labelVocabulary,
+        hideProcedure: !view.procedureLabels,
       }
     : null;
 
@@ -307,11 +309,7 @@ export function BacklogPage() {
           "ラベル{0}",
           <select value={filter.label} onChange={(e) => set({ label: e.target.value })}>
             <option value="">{tr("すべて")}</option>
-            {labels.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
+            <LabelFilterOptions names={labels} vocabulary={store.labelVocabulary} />
           </select>,
         )}
       </label>
