@@ -307,7 +307,7 @@ export function judgeLabelMerge(
       return rejection(
         "NOT_FOUND",
         `No label ${name}`,
-        "Only a label of the vocabulary can be merged (dg label list shows them). Change a name that is not in the vocabulary on the tickets that carry it (dg ticket update <id> --label)",
+        "Only a label of the vocabulary can be merged (dg label list shows them). For a name that is not in the vocabulary, add it first (dg label add) and then merge it, or change it on the tickets that carry it (dg ticket update <id> --label)",
       );
     if (!isMerged(e)) {
       merged.push(name);

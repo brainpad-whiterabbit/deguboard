@@ -202,7 +202,7 @@ export const labelList = defineCommand({
   name: "label.list",
   group: "label",
   summary:
-    "Show the vocabulary of the labels (labels.yaml on the data branch) by axis. Write it with dg label add, update, and remove. state is the state of the axes (see dg label axis list). axes lists the axes in the order of labels.axes, each with its labels (name, description, created_at), the number of tickets that carry the label (count: done and abandoned tickets count too), and when it was last used (last_used_at: the created_at of the newest ticket that carries it, or null when no ticket does). An axis whose description is null is not in labels.axes: only labels point to it. Labels recorded as merged into another are not vocabulary and are left out. Entries of labels.yaml that cannot be read are left out too: dg validate reports them",
+    "Show the vocabulary of the labels (labels.yaml on the data branch) by axis. Write it with dg label add, update, remove, and merge. state is the state of the axes (see dg label axis list). axes lists the axes in the order of labels.axes, each with its labels (name, description, created_at), the number of tickets that carry the label (count: done and abandoned tickets count too), and when it was last used (last_used_at: the created_at of the newest ticket that carries it, or null when no ticket does). An axis whose description is null is not in labels.axes: only labels point to it. Labels recorded as merged into another are not vocabulary and are left out. Entries of labels.yaml that cannot be read are left out too: dg validate reports them",
   input: z.object({
     merged: z
       .boolean()
