@@ -27,15 +27,26 @@ describe("語彙の形の検査（parseVocabulary）", () => {
     const merged = entry("area", "Old name", { merged_into: "ui", merged_at: at });
     const parsed = parseVocabulary({
       ui: { ...entry("area", "The board and its panels"), color: "blue" },
-      日本語: entry("kind", "日本語の名前も使える"),
+      "audit-s3": entry("kind", "数字とハイフンも使える"),
       web: merged,
     });
     expect(parsed.errors).toEqual([]);
     expect(parsed.entries).toEqual([
       ["ui", { ...entry("area", "The board and its panels"), color: "blue" }],
-      ["日本語", entry("kind", "日本語の名前も使える")],
+      ["audit-s3", entry("kind", "数字とハイフンも使える")],
       ["web", merged],
     ]);
+  });
+
+  it("名前が slug（小文字・数字・ハイフン）でない項目は、中身が正しくても外して誤りにする。マージドライバがフィールドの名前で選ぶ規則に当たる名前を語彙にしない", () => {
+    const names = ["updated_at", "closed_at", "started_at", "UI", "日本語", "-ui", "a b", ""];
+    const parsed = parseVocabulary({
+      ui: entry("area", "The board"),
+      ...Object.fromEntries(names.map((name) => [name, entry("area", "x")])),
+    });
+    expect(parsed.entries).toEqual([["ui", entry("area", "The board")]]);
+    expect(parsed.errors.map((e) => e.name)).toEqual(names);
+    for (const e of parsed.errors) expect(e.detail).toContain("name: ");
   });
 
   it("読めない項目はその項目だけを外して名前つきの誤りにし、ほかの語彙は読む", () => {

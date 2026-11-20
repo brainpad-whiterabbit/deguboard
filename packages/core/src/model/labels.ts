@@ -32,7 +32,7 @@ export interface VocabularyError {
 }
 
 /**
- * labels.yaml の中身（YAML を読んだ値）を項目ごとに検査する。読めない項目は errors に入れ、読めた項目だけを返す
+ * labels.yaml の中身（YAML を読んだ値）を項目ごとに、名前（slug）と中身の形で検査する。読めない項目は errors に入れ、読めた項目だけを返す
  * （1 項目の誤りでほかの語彙を失わない。DT-1）。ファイルがない・空（null）は語彙なし
  */
 export function parseVocabulary(raw: unknown): {
@@ -48,8 +48,13 @@ export function parseVocabulary(raw: unknown): {
   const entries: Array<[string, LabelEntry]> = [];
   const errors: VocabularyError[] = [];
   for (const [name, value] of Object.entries(raw)) {
+    // 名前は slug に限る。updated_at・closed_at のような名前（_ を含む）は、マージドライバがフィールドの名前で選ぶ規則
+    // （git/merge.ts の NEWER_WINS・SAME_STATUS_TIMES）に当たり、ラベルごとの 3-way と違う解き方になるため。
+    // slug でも通る checkpoints（UNION_RECORDS）は、両側が配列のときだけ効く規則で、項目はマッピングなので当たらない
+    const key = slugSchema.safeParse(name);
     const parsed = labelEntrySchema.safeParse(value);
-    if (!parsed.success) errors.push({ name, detail: z.prettifyError(parsed.error) });
+    if (!key.success) errors.push({ name, detail: `name: ${z.prettifyError(key.error)}` });
+    else if (!parsed.success) errors.push({ name, detail: z.prettifyError(parsed.error) });
     else if (parsed.data.merged_into === name)
       errors.push({ name, detail: "merged_into points to the label itself" });
     else entries.push([name, parsed.data]);
