@@ -2,18 +2,7 @@
 // 意味が重なるかはエージェントが点検で判断するので、ここは数えて指摘するだけにする。git もファイルも読まない（読むのは commands/setup.ts の lint）
 
 import type { LabelAxis } from "./config.js";
-import { labelListView, type Vocabulary } from "./labels.js";
-
-/**
- * 手順が付けるラベルの接頭辞（dg guide audit の audit-<S>、retro の retro-<S>、release の release-<S>）。
- * 手順が読み書きする印で、軸に沿う語彙ではないので、語彙にない名前として指摘しない
- */
-export const PROCEDURE_LABEL_PREFIXES = ["audit-", "retro-", "release-"] as const;
-
-/** 手順が付けるラベルか。対象のない見直しは接頭辞のない audit を付ける（dg guide audit）ので、それも含める */
-export function isProcedureLabel(name: string): boolean {
-  return name === "audit" || PROCEDURE_LABEL_PREFIXES.some((p) => name.startsWith(p));
-}
+import { isProcedureLabel, labelListView, type Vocabulary } from "./labels.js";
 
 /** ラベルの指摘の 1 件。ticket があるものはそのチケットの指摘、ないものは語彙（labels.yaml）の指摘 */
 export interface LabelFinding {

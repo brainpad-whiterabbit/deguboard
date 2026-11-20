@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  isProcedureLabel,
   judgeLabelAdd,
   judgeLabelRemove,
   judgeLabelUpdate,
@@ -262,18 +263,26 @@ describe("語彙を書く操作の判定（judgeLabelAdd・judgeLabelUpdate・ju
       entry: { axis: "area", description: "The core package", created_at: now },
     });
     expect(add("画面")).toMatchObject({ ok: true, name: "画面" });
-    // 接頭辞と同じ綴りを途中に持つ名前は足せる
-    expect(add("pre-release-notes")).toMatchObject({ ok: true, name: "pre-release-notes" });
+    // 接頭辞と同じ綴りを途中に持つ名前と、接頭辞の手前までの名前は足せる
+    for (const name of ["pre-release-notes", "auditor", "retro", "release"])
+      expect(add(name)).toMatchObject({ ok: true, name });
   });
 
-  it("add は、空白・カンマ・_ を含む名前、先頭が - の名前、手順の接頭辞の名前、説明のない語彙を拒む", () => {
+  it("手順のラベルは audit と、audit-・retro-・release- で始まる名前", () => {
+    for (const name of ["audit", "audit-s3", "retro-s2", "release-s10"])
+      expect(isProcedureLabel(name)).toBe(true);
+    for (const name of ["auditor", "retro", "release", "pre-release-s1"])
+      expect(isProcedureLabel(name)).toBe(false);
+  });
+
+  it("add は、空白・カンマ・_ を含む名前、先頭が - の名前、手順のラベルの名前（点検と同じ isProcedureLabel）、説明のない語彙を拒む", () => {
     for (const name of ["a b", "a,b", "updated_at", "-ui", "", "a\tb"])
       expect(add(name)).toMatchObject({ ok: false, code: "VALIDATION_FAILED" });
-    for (const name of ["audit-s3", "retro-s3", "release-s3", "Audit-S3"])
+    for (const name of ["audit", "Audit", "audit-s3", "retro-s3", "release-s3", "Audit-S3"])
       expect(add(name)).toMatchObject({
         ok: false,
         code: "VALIDATION_FAILED",
-        message: expect.stringContaining("starts with"),
+        message: expect.stringContaining("the steps of an Iteration attach"),
       });
     for (const description of ["", "   "])
       expect(add("core", "area", description)).toMatchObject({

@@ -27,10 +27,15 @@ export const labelNameSchema = z
   .refine((name) => name === name.toLowerCase(), { message: "A label name is lowercase" });
 
 /**
- * 手順が付けるラベルの接頭辞（audit-<S>・retro-<S>・release-<S>。Iteration ごとに増える印で、軸に属さない）。
- * 語彙には足さない
+ * 手順が付けるラベルの接頭辞（dg guide audit の audit-<S>、retro の retro-<S>、release の release-<S>。
+ * Iteration ごとに増える印で、軸に属さない）。語彙には足さず（judgeLabelAdd）、語彙にない名前としても指摘しない（model/label-lint.ts）
  */
 export const PROCEDURE_LABEL_PREFIXES = ["audit-", "retro-", "release-"] as const;
+
+/** 手順が付けるラベルか。対象のない見直しは接頭辞のない audit を付ける（dg guide audit）ので、それも含める */
+export function isProcedureLabel(name: string): boolean {
+  return name === "audit" || PROCEDURE_LABEL_PREFIXES.some((p) => name.startsWith(p));
+}
 
 /** 語彙の 1 項目。merged_into・merged_at を持つものは統合の記録で、語彙としては使わない（付けられる名前に数えない） */
 export const labelEntrySchema = z
@@ -121,7 +126,7 @@ function vocabularyEntry(
 
 /**
  * 語彙に足す名前と項目を決める（dg label add。git もファイルも読まない）。名前は小文字にそろえてから確かめる。
- * 拒むのは、名前の規則（labelNameSchema）に合わない名前・手順の接頭辞の名前・説明のない語彙・labels.axes にない軸・
+ * 拒むのは、名前の規則（labelNameSchema）に合わない名前・手順のラベルの名前（isProcedureLabel）・説明のない語彙・labels.axes にない軸・
  * 統合済みの名前・もうある名前（名前は軸をまたいで 1 つなので、ほかの軸にある名前も足せない）
  */
 export function judgeLabelAdd(
@@ -138,12 +143,11 @@ export function judgeLabelAdd(
       `${JSON.stringify(input.name)} cannot be a label name`,
       z.prettifyError(key.error),
     );
-  const prefix = PROCEDURE_LABEL_PREFIXES.find((p) => name.startsWith(p));
-  if (prefix !== undefined)
+  if (isProcedureLabel(name))
     return rejection(
       "VALIDATION_FAILED",
-      `${name} starts with ${prefix}, which marks the tickets that the steps of an Iteration file`,
-      `Names that start with ${PROCEDURE_LABEL_PREFIXES.join(", ")} are attached by the steps and belong to no axis, so they are not vocabulary`,
+      `${name} is a name that the steps of an Iteration attach to the tickets they file`,
+      `The name audit and names that start with ${PROCEDURE_LABEL_PREFIXES.join(", ")} are attached by the steps and belong to no axis, so they are not vocabulary`,
     );
   const description = input.description.trim();
   if (description === "")

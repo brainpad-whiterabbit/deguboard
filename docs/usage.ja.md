@@ -176,7 +176,7 @@ dg init --data-remote git@github.com:acme/kanban.git --data-branch deguboard-api
 
 - **軸**：チームの `config.yaml` の `labels.axes` に置き、個人の上書きはない。`dg label axis set <名前> --description "<説明>"` で軸を足すか説明を変え、`dg label axis remove <名前>` で語彙の残っていない軸を消す。`dg label axis list --candidates` が dg の持つ候補を出す。`/dgcheck` は、軸を決めていないカンバンに一度だけ軸を勧める。使わないと決めたことは `dg label axis remove --all` で残す。`dg config set` と設定画面では書けない
 - **語彙**：データのブランチの `labels.yaml` に置くので、2 台で同時に足したラベルは競合せずにマージされる。`dg label add <名前> --axis <軸> --description "<説明>"` でラベルを足し、`dg label update <名前> --description "<説明>"` で説明を変え、`dg label remove <名前>` でどのチケットにも付いていないラベルを消す
-- **名前**：名前は小文字にそろえ、1 つの軸だけに属する。空白・カンマ・アンダースコアは使えず、日本語など ASCII のほかの文字は使える。`audit-`・`retro-`・`release-` で始まる名前は Iteration の手順が付けるもので、語彙にしない
+- **名前**：名前は小文字にそろえ、1 つの軸だけに属する。空白・カンマ・アンダースコアは使えず、日本語など ASCII のほかの文字は使える。`audit` と、`audit-`・`retro-`・`release-` で始まる名前は Iteration の手順が付けるもので、語彙にしない
 - **誰が変えられるか**：軸の変更は Workflow の `governance.config`、語彙の変更は `governance.labels` で判定する（[Workflow](#workflow)）
 - **見る**：`dg label list` が語彙を軸ごとに、ラベルごとのチケットの数を添えて出す。`--undefined` で、チケットに付いているが語彙にない名前も出す。設定画面は軸を出す（読むだけ）
 

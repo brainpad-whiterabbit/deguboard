@@ -271,7 +271,7 @@ export const labelAdd = defineCommand({
   positionals: ["name"],
   group: "label",
   summary:
-    "Add a label to the vocabulary (labels.yaml on the data branch), on one axis and with a description. A name is lowered, and belongs to one axis only. Rejected: a name with whitespace, a comma, or an underscore, or that starts with a hyphen; a name that starts with audit-, retro-, or release- (the steps of an Iteration attach those, and they are not vocabulary); an axis that is not in labels.axes (dg label axis list); a name that already exists, on this axis or another; and a name recorded as merged into another. Letters other than ASCII, such as Japanese, can be used. " +
+    "Add a label to the vocabulary (labels.yaml on the data branch), on one axis and with a description. A name is lowered, and belongs to one axis only. Rejected: a name with whitespace, a comma, or an underscore, or that starts with a hyphen; the name audit and a name that starts with audit-, retro-, or release- (the steps of an Iteration attach those, and they are not vocabulary); an axis that is not in labels.axes (dg label axis list); a name that already exists, on this axis or another; and a name recorded as merged into another. Letters other than ASCII, such as Japanese, can be used. " +
     VOCABULARY_NOTE,
   input: z.object({
     name: labelName,
