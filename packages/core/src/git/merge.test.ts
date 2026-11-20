@@ -15,7 +15,7 @@ import { iterationCreate } from "../commands/iteration.js";
 import { planApprove, planClose, planCreate } from "../commands/plan.js";
 import { configSet, init, sync } from "../commands/setup.js";
 import { ticketCreate, ticketUpdate } from "../commands/ticket.js";
-import { attributesFile, mergeDocuments, mergeDriverCommandLine } from "./merge.js";
+import { attributesFile, mergeBase, mergeDocuments, mergeDriverCommandLine } from "./merge.js";
 import { checkOutside, recordBaseline } from "./outside.js";
 import { CONFLICT_REMEDY, UNRESOLVABLE_REMEDY, withWrite } from "./write.js";
 
@@ -1244,4 +1244,165 @@ describe("dg sync --resolve（SY-4）", () => {
     await runCommand(sync, a, {});
     expect(await t1(a)).toContain("title: B の題");
   });
+});
+
+describe("ラベルの語彙（labels.yaml）のマージ（ADR-037）", () => {
+  const AT = "2026-11-01T00:00:00Z";
+  const label = (name: string, description: string) =>
+    `${name}:\n  axis: area\n  description: ${description}\n  created_at: ${AT}\n`;
+  const labelsFile = (ctx: CommandContext) => path.join(ctx.repo.dataDir, "labels.yaml");
+  const labels = (ctx: CommandContext) => readFile(labelsFile(ctx), "utf8");
+  /** 語彙を書くコマンドはまだないので、labels.yaml を dg の書き込み（すぐ push する操作）として直に書き換える */
+  const rewrite = (ctx: CommandContext, change: (text: string) => string) =>
+    withWrite(
+      ctx,
+      async () => writeFile(labelsFile(ctx), change(await labels(ctx).catch(() => ""))),
+      { message: "語彙を書く", immediate: true },
+    );
+  const add = (ctx: CommandContext, name: string, description: string) =>
+    rewrite(ctx, (text) => text + label(name, description));
+  const describeUi = (ctx: CommandContext, description: string) =>
+    rewrite(ctx, (text) => text.replace("description: 画面", `description: ${description}`));
+
+  it("最上位のキー（ラベルの名前）ごとに解く：別々のラベルを両側で足せば両方を残し、同じラベルを違う値に変えたらその名前を競合として返し、採る側を渡せばその側を採る", async () => {
+    const base = label("ui", "画面");
+    const merged = await mergeDocuments(
+      base,
+      base + label("core", "中核"),
+      base + label("docs", "文書"),
+    );
+    expect(merged).toEqual({
+      ok: true,
+      text: base + label("core", "中核") + label("docs", "文書"),
+      resolved: [],
+    });
+    const ours = label("ui", "リモートの説明");
+    const theirs = label("ui", "ローカルの説明") + label("docs", "文書");
+    const entry = (description: string) => ({ axis: "area", description, created_at: AT });
+    expect(await mergeDocuments(base, ours, theirs)).toEqual({
+      ok: false,
+      conflicts: ["ui"],
+      details: [
+        {
+          field: "ui",
+          base: entry("画面"),
+          ours: entry("リモートの説明"),
+          theirs: entry("ローカルの説明"),
+        },
+      ],
+    });
+    const settled = await mergeDocuments(base, ours, theirs, "theirs");
+    expect(settled).toMatchObject({
+      ok: true,
+      resolved: [
+        { field: "ui", taken: entry("ローカルの説明"), discarded: entry("リモートの説明") },
+      ],
+    });
+    expect(settled?.ok && settled.text).toBe(theirs);
+  });
+
+  it("分岐点にない語彙のファイルだけは、空のマッピングから両側が足したものとして解く。ほかのファイルの add/add は変えない", async () => {
+    expect(mergeBase("labels.yaml", "")).toBe("{}\n");
+    expect(mergeBase("labels.yaml", undefined)).toBe("{}\n");
+    expect(mergeBase("labels.yaml", label("ui", "画面"))).toBe(label("ui", "画面"));
+    expect(mergeBase("plans/p1.yaml", "")).toBe("");
+    expect(mergeBase("plans/p1.yaml", undefined)).toBeUndefined();
+    expect(mergeBase(undefined, "")).toBe("");
+    const merged = await mergeDocuments(
+      mergeBase("labels.yaml", "") ?? "",
+      label("ui", "画面"),
+      label("core", "中核"),
+    );
+    expect(merged).toMatchObject({ ok: true, text: label("ui", "画面") + label("core", "中核") });
+  });
+
+  it("別々のラベルを 2 つの clone が足しても、sync は競合にせず両方を残す。両側が最初のラベルを足した（分岐点にファイルがない）ときも同じ", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    const attr = await git(a.repo.dataDir, ["check-attr", "merge", "labels.yaml"]);
+    expect(attr.stdout.trim()).toBe("labels.yaml: merge: deguboard");
+
+    // b はリモートに届かない間に最初のラベルを足す（コミットは手元に残る）。その間に a も最初のラベルを足して push する
+    const offline = async (write: () => Promise<unknown>) => {
+      const url = (await git(b.repo.dataDir, ["remote", "get-url", "origin"])).stdout.trim();
+      await git(b.repo.dataDir, ["remote", "set-url", "origin", path.join(url, "missing")]);
+      await write();
+      await git(b.repo.dataDir, ["remote", "set-url", "origin", url]);
+    };
+    await offline(() => add(b, "core", "中核"));
+    expect((await add(a, "ui", "画面")).write).toMatchObject({ committed: true, pushed: true });
+    const first = await runCommand(sync, b, {});
+    expect(first.data.conflicts).toEqual([]);
+    expect(first.data.pushed).toBe(true);
+    expect([...b.store.labels.keys()].sort()).toEqual(["core", "ui"]);
+
+    // ファイルがある後も、別々のラベルは競合しない
+    await runCommand(sync, a, {});
+    await offline(() => add(b, "docs", "文書"));
+    await add(a, "web", "Web の画面");
+    const second = await runCommand(sync, b, {});
+    expect(second.data.conflicts).toEqual([]);
+    expect(second.data.pushed).toBe(true);
+    expect([...b.store.labels.keys()].sort()).toEqual(["core", "docs", "ui", "web"]);
+    await runCommand(sync, a, {});
+    expect(await labels(a)).toBe(await labels(b));
+    expect(a.store.issues).toEqual([]);
+  });
+
+  for (const side of ["remote", "local"] as const) {
+    it(`push が拒否されて取り込み直すとき、同じラベルを両側で違う値に変えた labels.yaml の競合で止まり、dg sync --resolve ${side} で戻せる`, async () => {
+      const f = await fixture();
+      const { a, b } = await twoClones(f);
+      await add(a, "ui", "画面");
+      await runCommand(sync, b, {});
+      // a の push の直前に、b が同じラベルの説明を変えて push する。a の push は拒否され、取り込み直しに入る
+      const hooks = {
+        beforePush: async () => {
+          hooks.beforePush = async () => {};
+          await describeUi(b, "リモートの説明");
+        },
+      };
+      const { write } = await describeUi({ ...a, hooks }, "ローカルの説明");
+      // 競合で止まり、自分のコミットは push されずに手元に残る
+      expect(write).toMatchObject({ committed: true, pushed: false });
+      expect(write.warnings.join("\n")).toContain(
+        "Conflicts with remote changes, so it cannot push (labels.yaml)",
+      );
+      expect(write.warnings.join("\n")).toContain(CONFLICT_REMEDY);
+      expect(await labels(a)).toBe(label("ui", "ローカルの説明"));
+      expect((await git(a.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+
+      // ただの sync は、競合したラベルと両側の値を返す
+      const entry = (description: string) => ({ axis: "area", description, created_at: AT });
+      const stopped = await runCommand(sync, a, {});
+      expect(stopped.data.conflicts).toEqual(["labels.yaml"]);
+      expect(stopped.data.status).toMatchObject({ ahead: 1, behind: 1, dirty: false });
+      expect(stopped.data.conflict_fields).toEqual([
+        {
+          file: "labels.yaml",
+          field: "ui",
+          base: entry("画面"),
+          local: entry("ローカルの説明"),
+          remote: entry("リモートの説明"),
+        },
+      ]);
+
+      const synced = await runCommand(sync, a, { resolve: side });
+      expect(synced.data.conflicts).toEqual([]);
+      expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
+      const [taken, discarded] =
+        side === "remote"
+          ? ["リモートの説明", "ローカルの説明"]
+          : ["ローカルの説明", "リモートの説明"];
+      expect(synced.data.resolved).toEqual([
+        { file: "labels.yaml", field: "ui", taken: entry(taken), discarded: entry(discarded) },
+      ]);
+      expect(a.store.labels.get("ui")).toEqual(entry(taken));
+      // 続けて書け、b も取り込めば同じ内容になる
+      expect((await add(a, "core", "中核")).write).toMatchObject({ committed: true, pushed: true });
+      await runCommand(sync, b, {});
+      expect(await labels(b)).toBe(await labels(a));
+      expect(b.store.labels.get("ui")).toEqual(entry(taken));
+    });
+  }
 });

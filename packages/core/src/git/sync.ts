@@ -9,6 +9,7 @@ import {
   isMergeDriverPath,
   MERGE_LOG_ENV,
   MERGE_PREFER_ENV,
+  mergeBase,
   mergeDocuments,
   type ResolvedField,
 } from "./merge.js";
@@ -316,7 +317,7 @@ export interface ConflictField {
  * （mergeDocuments）を、採る側を渡さずに回して集める。rebase は止まったコミットで中止するので、git の報告する競合のファイルからは、
  * 後のコミットでぶつかる分が分からない。先頭どうしで比べれば、--resolve が積み直しの中で解く競合をまとめて示せる。
  * 中止した後（HEAD がローカルの先頭に戻った後）に呼ぶ。ドライバの対象でないファイル（config.yaml・workflows）と、
- * 片側にないファイル（add/add・削除）は行単位のマージなので入れない。
+ * 片側にないファイル（add/add・削除）は行単位のマージなので入れない（両側が作った語彙のファイルだけは入れる）。
  * ローカルの途中のコミットで変えて先頭で分岐点の値に戻したフィールドは、先頭どうしではぶつからないので入らない。
  * manual でコミットしていない変更も HEAD にないので入らない
  */
@@ -338,7 +339,9 @@ export async function conflictFields(repo: GitRepo): Promise<ConflictField[]> {
   };
   const fields: ConflictField[] = [];
   for (const file of both) {
-    const [o, l, r] = await Promise.all([base, "HEAD", remote].map((rev) => show(rev, file)));
+    const [at, l, r] = await Promise.all([base, "HEAD", remote].map((rev) => show(rev, file)));
+    // 分岐点にない語彙のファイルは、ドライバと同じく空のマッピングとして比べる（mergeBase）
+    const o = mergeBase(file, at);
     if (o === undefined || l === undefined || r === undefined) continue;
     // rebase と同じ向き：ours（%A）がリモート、theirs（%B）がローカル
     const outcome = await mergeDocuments(o, r, l);

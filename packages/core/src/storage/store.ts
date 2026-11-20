@@ -29,6 +29,7 @@ import {
   type TicketId,
 } from "../model/id.js";
 import { iterationSchema, RETIRED_ITERATION_KEYS, type Iteration } from "../model/iteration.js";
+import type { Vocabulary } from "../model/labels.js";
 import { planSchema, type Plan } from "../model/plan.js";
 import { isRunId, runSchema, type Run, type RunId } from "../model/run.js";
 import { pendingDeps, RETIRED_TICKET_KEYS, ticketSchema, type Ticket } from "../model/ticket.js";
@@ -39,9 +40,11 @@ import { writeFileAtomic } from "./atomic.js";
 import { loadLocalConfig, loadTeamConfig, readYamlFile } from "./config-file.js";
 import { createDoc, readDoc, writeDoc, type Doc, type DocFormat } from "./documents.js";
 import { formatIssue, type Issue } from "./issue.js";
+import { loadLabels } from "./labels-file.js";
 import {
   CONFIG_FILE,
   DIRS,
+  LABELS_FILE,
   LOCAL_CONFIG_FILE,
   LOCAL_CONFIG_LABEL,
   deletedTicketPath,
@@ -189,6 +192,8 @@ export class Store {
   readonly runs = new Map<RunId, Doc<Run>>();
   /** カンバンに 1 つの Workflow。workflow.yaml がなければ Core の既定、誤りがあって読めなければ undefined（遷移と照合が止まる） */
   workflow: WorkflowEntry | undefined;
+  /** ラベルの語彙（labels.yaml。統合の記録も含む）。ファイルがなければ空で、読めない項目は入らない（issues に出る） */
+  labels: Vocabulary = new Map();
   lastScan: ScanStats = { read: 0, reused: 0 };
   /**
    * 相対パスごとの読みの結果。rescan() で見つからなくなったファイルの分は捨てる。
@@ -254,6 +259,7 @@ export class Store {
       this.readCollection("plan", this.plans, cached),
       this.readCollection("run", this.runs, cached),
       this.readWorkflow(cached),
+      this.readLabels(cached),
     ]);
     this.issues = issues.flat();
     for (const key of this.readCache.keys()) {
@@ -609,6 +615,19 @@ export class Store {
     }
     const { entry, issues } = await cached(WORKFLOW_FILE, () => this.loadWorkflow());
     this.workflow = entry;
+    return issues;
+  }
+
+  /** labels.yaml を読む。なければ語彙なし（たいてい無いので、無ければ読まず、読み直した数にも数えない） */
+  private async readLabels(cached: CachedLoader): Promise<Issue[]> {
+    if (!(await this.stampOf(LABELS_FILE))) {
+      this.labels = new Map();
+      return [];
+    }
+    const { entries, issues } = await cached(LABELS_FILE, () =>
+      loadLabels(path.join(this.root, LABELS_FILE)),
+    );
+    this.labels = new Map(entries);
     return issues;
   }
 

@@ -711,6 +711,27 @@ describe("dg", () => {
     expect(removed.json().data).toEqual({ state: "off", axes: [] });
   });
 
+  it("dg label list は語彙を読み、--merged と --undefined で統合の記録と語彙にない名前を足す（t1182）", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    expect((await dg(f.cloneA, ["label", "--help"])).out).toMatch(/^ *list /m);
+    const help = (await dg(f.cloneA, ["label", "list", "--help"])).out;
+    expect(help).toContain("--merged");
+    expect(help).toContain("--undefined");
+    const created = await dg(f.cloneA, ["ticket", "create", "ログイン", "--label", "ui"]);
+    expect(created.code).toBe(0);
+    const plain = await dg(f.cloneA, ["--json", "label", "list"]);
+    expect(plain.code).toBe(0);
+    expect(plain.json().data).toEqual({ state: "undecided", axes: [] });
+    const full = await dg(f.cloneA, ["--json", "label", "list", "--merged", "--undefined"]);
+    expect(full.json().data).toEqual({
+      state: "undecided",
+      axes: [],
+      merged: [],
+      undefined: [{ name: "ui", count: 1 }],
+    });
+  });
+
   it("Iteration は予定の期間を持たないので、create・update のヘルプに --start・--end がなく、渡すと使い方の誤り", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);

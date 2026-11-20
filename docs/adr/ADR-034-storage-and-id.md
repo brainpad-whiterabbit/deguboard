@@ -41,7 +41,7 @@
 
 ### 同期の競合：フィールド単位でマージする
 
-- 取り込みは rebase で行い、git のマージドライバを、チケット・墓標・Epic の Markdown と、`plans/`・`iterations/` の YAML に当てる。規則の正本は core の `git/merge.ts`
+- 取り込みは rebase で行い、git のマージドライバを、チケット・墓標・Epic の Markdown と、`plans/`・`iterations/`・`labels.yaml` の YAML に当てる。規則の正本は core の `git/merge.ts`
 - frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。素の YAML は全体を frontmatter と同じに扱い、最上位のフィールドごとに決める。両側が違う値に変えたフィールドと本文の同じ行のぶつかりを競合にする。ただし両側が同じ状態（同じ status。status のない Plan は、両側が同じ時刻のフィールドを持つこと）で、状態と一緒に書く時刻だけがずれたときは早い方を採る（SY-4）。消さずに足すだけの記録（Iteration の `checkpoints`）は、両側が足した要素の和集合にする
 - `config.yaml` と `workflow.yaml` は当てず、行単位のマージのままにする
 - 登録は `dg init` と `dg sync` が行い、ドライバは絶対パスで指す。`.gitattributes` はデータのブランチにコミットし、既にあるものには足りない行を足す
