@@ -3,6 +3,7 @@
 // チームの設定の変更なので、config.set と同じく Workflow の governance.config で判定する。
 // 軸の候補と推薦の語彙は model/label-axes.ts が持ち、label.axis.list の --candidates で出す。
 // 語彙（データのブランチの labels.yaml。requirements.md 5.1）は label.list が読み、label.add・label.update・label.remove が書く。
+// label.merge は語彙をまとめ、元の名前を持つチケットも同じ書き込みで書き換える（ADR-037）。
 // 語彙を書く操作は Workflow の governance.labels で判定する（名前だけで決まるので、入口の runCommand が判定する）。
 // 一覧を作る判定と、書いてよいかの判定は model/labels.ts
 
@@ -11,6 +12,7 @@ import { OperationError } from "../errors.js";
 import { withWrite } from "../git/write.js";
 import { slugSchema } from "../model/common.js";
 import type { LabelAxis } from "../model/config.js";
+import { idNumber } from "../model/id.js";
 import {
   LABEL_AXIS_CANDIDATES,
   labelAxesState,
@@ -19,6 +21,7 @@ import {
 } from "../model/label-axes.js";
 import {
   judgeLabelAdd,
+  judgeLabelMerge,
   judgeLabelRemove,
   judgeLabelUpdate,
   labelListView,
@@ -199,7 +202,7 @@ export const labelList = defineCommand({
   name: "label.list",
   group: "label",
   summary:
-    "Show the vocabulary of the labels (labels.yaml on the data branch) by axis. Write it with dg label add, update, and remove. state is the state of the axes (see dg label axis list). axes lists the axes in the order of labels.axes, each with its labels (name, description, created_at), the number of tickets that carry the label (count: done and abandoned tickets count too), and when it was last used (last_used_at: the created_at of the newest ticket that carries it, or null when no ticket does). An axis whose description is null is not in labels.axes: only labels point to it. Labels recorded as merged into another are not vocabulary and are left out. Entries of labels.yaml that cannot be read are left out too: dg validate reports them",
+    "Show the vocabulary of the labels (labels.yaml on the data branch) by axis. Write it with dg label add, update, remove, and merge. state is the state of the axes (see dg label axis list). axes lists the axes in the order of labels.axes, each with its labels (name, description, created_at), the number of tickets that carry the label (count: done and abandoned tickets count too), and when it was last used (last_used_at: the created_at of the newest ticket that carries it, or null when no ticket does). An axis whose description is null is not in labels.axes: only labels point to it. Labels recorded as merged into another are not vocabulary and are left out. Entries of labels.yaml that cannot be read are left out too: dg validate reports them",
   input: z.object({
     merged: z
       .boolean()
@@ -255,7 +258,7 @@ async function writeVocabulary(
     async () => {
       const judged = judge();
       if (!judged.ok) throw new OperationError(judged.code, judged.message, judged.detail);
-      await ctx.store.writeLabel(judged.name, verb === "Remove" ? undefined : judged.entry);
+      await ctx.store.writeLabels([[judged.name, verb === "Remove" ? undefined : judged.entry]]);
       const { axis, description, created_at } = judged.entry;
       return { name: judged.name, axis, description, created_at } satisfies LabelView;
     },
@@ -333,6 +336,95 @@ export const labelRemove = defineCommand({
   },
 });
 
+/** 統合の結果 */
+export interface LabelMergeView {
+  /** 行き先のラベル */
+  to: LabelView;
+  /** 行き先をこの操作で語彙に足したか */
+  created: boolean;
+  /** 統合の記録にした名前（前から行き先への統合の記録だった名前は入らない） */
+  merged: string[];
+  /** 行き先を付け替えた、前からの統合の記録 */
+  repointed: string[];
+  /** 書き換えたチケットの数と ID（番号の順） */
+  count: number;
+  tickets: string[];
+}
+
+export const labelMerge = defineCommand({
+  name: "label.merge",
+  positionals: ["names"],
+  group: "label",
+  summary:
+    "Merge labels of the vocabulary into one: dg label merge <from>... <to>. The last name is the label to merge into, and the names before it are merged. Every ticket that carries a merged name is rewritten to carry the last name instead, once (done and abandoned tickets too), in one write, and updated_at of the tickets stays (the content of a ticket does not change). The merged names stay in labels.yaml as records of the merge (merged_into, merged_at; dg label list --merged shows them) and are no longer vocabulary, and the records of earlier merges into them now point to the last name. When the last name is not in the vocabulary, --axis and --description create it, so a rename is a merge of one name into a new name; the rules of dg label add apply to the new name. Rejected: a merged name that is not in the vocabulary, or that is a record of a merge into another label; a last name that is a record of a merge; a last name that is not in the vocabulary without both --axis and --description; and --axis or --description with a last name that exists. A name already recorded as merged into the last name is accepted, to rewrite the tickets that still carry it (dg lint reports them). The result gives the number of rewritten tickets (count) and their IDs (tickets). " +
+    VOCABULARY_NOTE,
+  input: z.object({
+    names: z
+      .array(labelName)
+      .min(2)
+      .describe(
+        "The labels to merge, then the label to merge them into (the last name). At least two names. Uppercase letters are lowered",
+      ),
+    axis: slugSchema
+      .optional()
+      .describe(
+        "Axis of the label to merge into, to create it when it is not in the vocabulary (one of labels.axes)",
+      ),
+    description: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Description of the label to merge into, to create it when it is not in the vocabulary",
+      ),
+    ...permissionFields,
+  }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    const to = input.names.at(-1) ?? "";
+    const from = [...new Set(input.names.slice(0, -1).map((name) => name.toLowerCase()))];
+    const result = await withWrite(
+      ctx,
+      async () => {
+        // 取り込んだ後の語彙とチケットで決める。墓標は索引にないので、書き換えの対象にならない
+        const judged = judgeLabelMerge(
+          { from, to, axis: input.axis, description: input.description },
+          ctx.store.teamConfig.labels.axes,
+          ctx.store.labels,
+          [...ctx.store.tickets.values()]
+            .map((doc) => doc.data)
+            .sort((a, b) => idNumber(a.id) - idNumber(b.id)),
+          nowIso(ctx),
+        );
+        if (!judged.ok) throw new OperationError(judged.code, judged.message, judged.detail);
+        // 語彙とすべてのチケットを 1 回の書き込み（1 コミット）に入れる。一部のチケットだけが新しい名前になった状態を、
+        // 履歴にもリモートにも残さない（push が拒否された後の取り込み直しで止まれば、withWrite がこのコミットごと捨てる）。
+        // 語彙を先に書く：書く前に拒むのは語彙の書き込み（読めない項目の上書き）だけなので、拒まれたときにチケットが書かれていない
+        await ctx.store.writeLabels(judged.entries);
+        // updated_at は変えない（チケットの中身の変更ではなく名前の付け替えなので、更新順を乱さない。metrics lines と同じ）
+        for (const t of judged.tickets)
+          await ctx.store.update("ticket", t.id, { labels: t.labels });
+        const { axis, description, created_at } = judged.entry;
+        return {
+          to: { name: judged.to, axis, description, created_at },
+          created: judged.created,
+          merged: judged.merged,
+          repointed: judged.repointed,
+          count: judged.tickets.length,
+          tickets: judged.tickets.map((t) => t.id),
+        } satisfies LabelMergeView;
+      },
+      {
+        message: (view) =>
+          `Merge the ${from.length === 1 ? "label" : "labels"} ${from.join(", ")} into ${view.to.name}${recordNote(ctx, input)}`,
+        immediate: hasRecord(input),
+      },
+    );
+    return ok<LabelMergeView>(result.value, result.write);
+  },
+});
+
 export const labelCommands = [
   labelAxisSet,
   labelAxisRemove,
@@ -341,4 +433,5 @@ export const labelCommands = [
   labelAdd,
   labelUpdate,
   labelRemove,
+  labelMerge,
 ];

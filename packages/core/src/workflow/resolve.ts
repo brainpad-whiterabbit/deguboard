@@ -315,6 +315,7 @@ const COMMAND_OPERATIONS: Record<string, Pick<Operation, "fixed" | "stage" | "go
   "label.add": { governs: "labels" },
   "label.update": { governs: "labels" },
   "label.remove": { governs: "labels" },
+  "label.merge": { governs: "labels" },
 };
 
 /** コマンドの名前だけで決まる操作。なければ undefined（入力とデータで決まる操作は、コマンドの中で判定する） */
