@@ -8,6 +8,7 @@ import { AbortWrite, withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
 import { STATUSES, isTerminal, statusSchema, type Status } from "../model/common.js";
 import { parseId, type TicketId } from "../model/id.js";
+import { labelRenameWarnings, normalizeLabelNames } from "../model/labels.js";
 import { FINDING_CAUSES, OPENED_STEPS, type RunId, type StepOpener } from "../model/run.js";
 import {
   BRANCH_VALUE_FORM,
@@ -45,7 +46,7 @@ import {
 } from "./reservations.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { parseDraftSource } from "./draft-source.js";
-import { matchesFilter, ticketFilterSchema } from "./filters.js";
+import { matchesFilter, resolveLabelFilter, ticketFilterSchema } from "./filters.js";
 import { hooksReachSession, hooksSilentWarning, selfRunWarning } from "./hook-sessions.js";
 import { stageFactsOf, stageOf, type Stage } from "./next.js";
 import {
@@ -158,9 +159,13 @@ function resolveOrigin(store: Store, refs: readonly string[], self?: TicketId): 
   return ids;
 }
 
+/** ラベルの欄の説明に足す、統合済みの名前の扱い（create・import・update で同じ文） */
+const MERGED_LABEL_HELP =
+  "A name recorded as merged into another label (dg label merge) is written as that label, with a warning";
+
 const ticketAttributes = {
   priority: z.enum(PRIORITIES).optional().describe("Priority"),
-  labels: z.array(z.string()).optional().describe("Labels"),
+  labels: z.array(z.string()).optional().describe(`Labels. ${MERGED_LABEL_HELP}`),
   // 要件 TK-9
   gate: z
     .enum(GATE_LEVELS)
@@ -220,11 +225,22 @@ const createInput = z.object({
 });
 type CreateInput = z.output<typeof createInput>;
 
-/** 作成・取り込みで共通の検証。参照先の存在と整合を確かめ、frontmatter の形にする */
+/**
+ * チケットに書くラベル。統合済みの名前は統合先に置き換え、置き換えたことを warnings に入れる（create・import・update の入口がここだけを通る）。
+ * 置き換えの判定は model/labels.ts の normalizeLabelNames（ticket list --label の読み替えと同じ関数）
+ */
+function labelsToWrite(store: Store, labels: readonly string[], warnings: string[]): string[] {
+  const normalized = normalizeLabelNames(labels, store.labels);
+  warnings.push(...labelRenameWarnings(normalized.renamed, "written"));
+  return normalized.labels;
+}
+
+/** 作成・取り込みで共通の検証。参照先の存在と整合を確かめ、frontmatter の形にする。ラベルの置き換えの警告は warnings に入れる */
 function buildTicket(
   ctx: CommandContext,
   input: CreateInput,
   resolveDep: (ref: string) => TicketId,
+  warnings: string[],
 ): Record<string, unknown> {
   const store = ctx.store;
   const epic = input.epic === undefined ? undefined : requireOpenEpic(store, input.epic);
@@ -239,7 +255,7 @@ function buildTicket(
     title: input.title,
     status: "todo",
     priority: input.priority ?? "medium",
-    labels: input.labels ?? [],
+    labels: labelsToWrite(store, input.labels ?? [], warnings),
     ...(input.gate ? { gate: input.gate } : {}),
     ...(iteration ? { iteration } : {}),
     ...(epic ? { epic } : {}),
@@ -307,10 +323,13 @@ export const ticketCreate = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
+    const warnings: string[] = [];
     const result = await withWrite(
       ctx,
       async () => {
-        const data = buildTicket(ctx, input, resolveExistingDep(ctx.store));
+        // push が拒まれると読み直して呼び直されるので、前の回の警告を残さない
+        warnings.length = 0;
+        const data = buildTicket(ctx, input, resolveExistingDep(ctx.store), warnings);
         const id = ctx.store.nextId("ticket");
         // 新しいチケットには入ってくる辺がないので、循環は作れない。作成と更新で同じ検査を通すために置く
         rejectPlanWaitCycle(ctx.store, id, data["depends_on"] as TicketId[], []);
@@ -324,7 +343,7 @@ export const ticketCreate = defineCommand({
         markProvisional: provisionalMarker(ctx),
       },
     );
-    return ok(withBody(result.value), result.write);
+    return ok(withBody(result.value), result.write, warnings);
   },
 });
 
@@ -374,9 +393,12 @@ export const ticketImport = defineCommand({
         throw new OperationError("VALIDATION_FAILED", `Provisional key ${d.key} is duplicated`);
       if (d.key) keys.add(d.key);
     }
+    const warnings: string[] = [];
     const result = await withWrite(
       ctx,
       async () => {
+        // push が拒まれると読み直して呼び直されるので、前の回の警告を残さない
+        warnings.length = 0;
         const store = ctx.store;
         const first = Number(store.nextId("ticket").slice(1));
         const idByKey = new Map<string, TicketId>();
@@ -394,7 +416,7 @@ export const ticketImport = defineCommand({
         };
         const built = drafts.map((d) => ({
           draft: d,
-          data: buildTicket(ctx, d, resolveDep),
+          data: buildTicket(ctx, d, resolveDep, warnings),
         }));
         // 下書きの中の循環は入れる前に確かめる
         const deps = new Map<string, string[]>();
@@ -437,6 +459,8 @@ export const ticketImport = defineCommand({
     return ok(
       result.value.map((d) => d.data),
       result.write,
+      // 下書きごとに buildTicket が同じ置き換えの警告を足すので、同じ文は 1 つにまとめる
+      [...new Set(warnings)],
     );
   },
 });
@@ -472,8 +496,9 @@ export const ticketList = defineCommand({
   write: false,
   needs: "store",
   async run(ctx, input) {
+    const resolved = resolveLabelFilter(input, ctx.store.labels);
     const filter = {
-      ...input,
+      ...resolved.filter,
       ...(input.assignee ? { assignee: resolveActorRef(ctx.actor, input.assignee) } : {}),
       ...(input.created_by ? { created_by: resolveActorRef(ctx.actor, input.created_by) } : {}),
     };
@@ -493,6 +518,8 @@ export const ticketList = defineCommand({
         deps_done: ctx.store.depsDone(d.data),
         run_agent: agents.get(d.data.id) ?? null,
       })),
+      undefined,
+      resolved.warnings,
     );
   },
 });
@@ -553,7 +580,9 @@ export const ticketUpdate = defineCommand({
     labels: z
       .array(z.string())
       .optional()
-      .describe("Labels. Replaces the whole list (specify all of them, including existing ones)"),
+      .describe(
+        `Labels. Replaces the whole list (specify all of them, including existing ones). ${MERGED_LABEL_HELP}`,
+      ),
     depends_on: z
       .array(z.string())
       .optional()
@@ -639,7 +668,10 @@ export const ticketUpdate = defineCommand({
         };
         if (input.title !== undefined) patch["title"] = input.title;
         if (input.priority !== undefined) patch["priority"] = input.priority;
-        if (input.labels !== undefined) patch["labels"] = input.labels;
+        // 呼び直されても重ならないよう、ラベルの警告はこの回の値として返す
+        const labelWarnings: string[] = [];
+        if (input.labels !== undefined)
+          patch["labels"] = labelsToWrite(store, input.labels, labelWarnings);
         if (input.gate !== undefined) {
           // 段を下げると判定する条件が減るので、Core の固定で人に限る（WF-7）。上げるのと同じ段は誰でもできる
           const before = gateLevelOf(t);
@@ -748,7 +780,7 @@ export const ticketUpdate = defineCommand({
             closed.push({ ...result, opener: "claim" });
           }
         }
-        return { doc: await store.update("ticket", t.id, patch, body), closed };
+        return { doc: await store.update("ticket", t.id, patch, body), closed, labelWarnings };
       },
       {
         message: ({ doc, closed }) =>
@@ -758,7 +790,10 @@ export const ticketUpdate = defineCommand({
       },
     );
     await dropClosed(ctx, result.value.closed);
-    return ok(withBody(result.value.doc), result.write, warnings);
+    return ok(withBody(result.value.doc), result.write, [
+      ...result.value.labelWarnings,
+      ...warnings,
+    ]);
   },
 });
 

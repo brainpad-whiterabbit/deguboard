@@ -387,6 +387,9 @@ export const EN: Readonly<Record<string, string>> = {
   "ほかのラベル {0}": "More labels: {0}",
   語彙にない: "Not in the vocabulary",
   手順のラベル: "Procedure label",
+  "ラベル {0}（{1} は統合済み）": "Label {0} ({1} was merged)",
+  "ラベル {0} は {1} に統合されたので、{1} で絞っています。これからは {1} を使ってください":
+    "The label {0} was merged into {1}, so the filter uses {1}. Use {1} from now on",
   // components/run-parts.tsx
   実行中: "Running",
   成功: "Success",

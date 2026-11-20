@@ -1,5 +1,6 @@
 // ラベルの軸を読み書きするコマンド（label.axis.set・label.axis.remove・label.axis.list。ADR-037）と、
-// 語彙を読む label.list、語彙を書く label.add・label.update・label.remove、ラベルを統合する label.merge
+// 語彙を読む label.list、語彙を書く label.add・label.update・label.remove、ラベルを統合する label.merge、
+// 統合済みの名前を書くときと絞るときに統合先へ読み替える ticket.create・update・import・list
 // 同期を確かめないテストは、データのリモートのない initializedLocalFixture で回す。リモート付きは、統合の push が拒否される 1 件だけ
 
 import { readFile, writeFile } from "node:fs/promises";
@@ -36,7 +37,14 @@ import {
   validate,
   type ConfigShowView,
 } from "./setup.js";
-import { ticketCreate, ticketDelete, ticketMove } from "./ticket.js";
+import {
+  ticketCreate,
+  ticketDelete,
+  ticketImport,
+  ticketList,
+  ticketMove,
+  ticketUpdate,
+} from "./ticket.js";
 
 afterEach(runCleanups);
 
@@ -278,10 +286,11 @@ describe("ラベルの語彙（labels.yaml）", () => {
     const ctx = await reopenInitialized(f);
     await runCommand(labelAxisSet, ctx, area);
     await runCommand(labelAxisSet, ctx, kind);
-    await writeLabels(ctx, vocabulary);
     await runCommand(ticketCreate, ctx, { title: "一", labels: ["ui", "tooling"] });
     const second = await runCommand(ticketCreate, ctx, { title: "二", labels: ["ui", "web"] });
     await runCommand(ticketCreate, ctx, { title: "三", labels: ["tooling"] });
+    // 統合済みの名前は書くときに置き換わるので、統合の前に書いたチケットに残った名前として、語彙はチケットの後に書く
+    await writeLabels(ctx, vocabulary);
     // 期待する時刻は、用意したチケットの記録から取る
     const lastUsed = second.data.created_at;
 
@@ -396,11 +405,12 @@ describe("ラベルの語彙（labels.yaml）", () => {
   it("lint は軸がオンのボードでだけ、チケットの指摘をチケットに、語彙の指摘を labels.yaml に置く（組み合わせは model/label-lint.test.ts）", async () => {
     const f = await initializedLocalFixture();
     const ctx = await reopenInitialized(f);
-    await writeLabels(ctx, vocabulary);
+    // 統合済みの名前は書くときに置き換わるので、統合の前に書いたチケットに残った名前として、語彙はチケットの後に書く
     const created = await runCommand(ticketCreate, ctx, {
       title: "一",
       labels: ["web", "tooling"],
     });
+    await writeLabels(ctx, vocabulary);
     const labelIssues = async () =>
       (await runCommand(lint, ctx, {})).data.issues
         .filter((i) => i.code.startsWith("lint_label_"))
@@ -815,5 +825,58 @@ describe("ラベルを統合する（label.merge）", () => {
     expect(merged.write).toMatchObject({ committed: true, pushed: true });
     expect(merged.data).toMatchObject({ count: 4, tickets: ["t1", "t2", "t3", "t4"] });
     expect(labelsOf(again)).toEqual({ t1: ["ui"], t2: ["ui"], t3: ["ui", "bug"], t4: ["ui"] });
+  });
+});
+
+// 読み替えの組み合わせ（重なり・連鎖・語彙にない名前）は model/labels.test.ts（normalizeLabelNames）。ここは入口ごとの経路の代表だけ
+describe("統合済みの名前を統合先へ読み替える（ticket create・update・import・list）", () => {
+  const vocabularyLines = [
+    "ui:",
+    "  axis: area",
+    "  description: The board",
+    "  created_at: 2026-11-01T00:00:00Z",
+    "web:",
+    "  axis: area",
+    "  description: Old name",
+    "  created_at: 2026-11-01T00:00:00Z",
+    "  merged_into: ui",
+    "  merged_at: 2026-11-02T00:00:00Z",
+  ];
+  const warning = (use: string) =>
+    `The label web was merged into ui, so ui is ${use} instead. Use ui from now on`;
+
+  it("書くときは統合先に置き換えて警告を返し、--label の絞り込みは統合先で探して警告を添える", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    await runCommand(labelAxisSet, ctx, area);
+    await writeLabels(ctx, vocabularyLines);
+
+    const created = await runCommand(ticketCreate, ctx, { title: "一", labels: ["web", "bug"] });
+    expect(created.data.labels).toEqual(["ui", "bug"]);
+    expect(created.warnings).toContain(warning("written"));
+
+    const plain = await runCommand(ticketCreate, ctx, { title: "二", labels: ["bug"] });
+    expect(plain.warnings).not.toContain(warning("written"));
+    const updated = await runCommand(ticketUpdate, ctx, {
+      ticket: plain.data.id,
+      labels: ["ui", "web"],
+    });
+    expect(updated.data.labels).toEqual(["ui"]);
+    expect(updated.warnings).toContain(warning("written"));
+
+    const imported = await runCommand(ticketImport, ctx, {
+      source:
+        "- title: 三\n  labels: [web]\n- title: 四\n  labels: [bug]\n- title: 五\n  labels: [web]\n",
+    });
+    // 同じ古い名前を使う下書きが 2 つあっても、警告は 1 つにまとめる
+    expect(imported.data.map((t) => t.labels)).toEqual([["ui"], ["bug"], ["ui"]]);
+    expect(imported.warnings.filter((w) => w === warning("written"))).toHaveLength(1);
+
+    // 開き直して、ファイルに書かれた値を読む
+    const again = await reopenInitialized(f);
+    const listed = await runCommand(ticketList, again, { label: ["web"] });
+    expect(listed.data.map((t) => t.id)).toEqual(["t1", "t2", "t3", "t5"]);
+    expect(listed.warnings).toEqual([warning("used for the filter")]);
+    expect((await runCommand(ticketList, again, { label: ["bug"] })).warnings).toEqual([]);
   });
 });

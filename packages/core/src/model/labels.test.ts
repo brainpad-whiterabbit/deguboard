@@ -8,7 +8,10 @@ import {
   judgeLabelRemove,
   judgeLabelUpdate,
   labelListView,
+  labelRenameWarnings,
   labelsOfAxis,
+  mergedLabelTarget,
+  normalizeLabelNames,
   parseVocabulary,
   type LabelEntry,
 } from "./labels.js";
@@ -515,5 +518,62 @@ describe("統合の判定（judgeLabelMerge）", () => {
       tickets: [{ id: "t1", labels: ["ui"] }],
     });
     expect(merge(["gone", "ui"], {}, [])).toMatchObject({ ok: true, entries: [], tickets: [] });
+  });
+});
+
+describe("統合済みの名前の読み替え（mergedLabelTarget・normalizeLabelNames）", () => {
+  const record = (to: string) => entry("area", "Old name", { merged_into: to, merged_at: at });
+  const vocabulary = new Map<string, LabelEntry>([
+    ["ui", entry("area", "The board")],
+    ["frontend", record("ui")],
+    ["web", record("ui")],
+    ["docs", entry("kind", "Documents")],
+  ]);
+
+  it("統合の記録の名前は統合先へ置き換え、語彙の名前と語彙にない名前はそのまま。読み替えた名前を 1 回ずつ返す", () => {
+    expect(normalizeLabelNames(["frontend", "docs", "stray", "frontend"], vocabulary)).toEqual({
+      labels: ["ui", "docs", "stray"],
+      renamed: [{ from: "frontend", to: "ui" }],
+    });
+  });
+
+  it("読み替えて重なった名前は最初の場所に 1 つ残し、読み替えのない並びは重なりも含めてそのまま返す", () => {
+    expect(normalizeLabelNames(["web", "docs", "ui", "frontend"], vocabulary)).toEqual({
+      labels: ["ui", "docs"],
+      renamed: [
+        { from: "web", to: "ui" },
+        { from: "frontend", to: "ui" },
+      ],
+    });
+    expect(normalizeLabelNames(["docs", "docs"], vocabulary)).toEqual({
+      labels: ["docs", "docs"],
+      renamed: [],
+    });
+    expect(normalizeLabelNames([], new Map())).toEqual({ labels: [], renamed: [] });
+  });
+
+  it("手で書き換えた記録の連鎖は記録でない名前までたどり、循環は元の名前に戻れば読み替えない", () => {
+    const chain = new Map<string, string>([
+      ["a", "b"],
+      ["b", "c"],
+      ["x", "y"],
+      ["y", "x"],
+      ["p", "q"],
+      ["q", "r"],
+      ["r", "q"],
+    ]);
+    const into = (name: string) => chain.get(name);
+    expect(mergedLabelTarget("a", into)).toBe("c");
+    expect(mergedLabelTarget("c", into)).toBeUndefined();
+    expect(mergedLabelTarget("x", into)).toBeUndefined();
+    // 元の名前を含まない循環は、たどれたところで止める
+    expect(mergedLabelTarget("p", into)).toBe("q");
+  });
+
+  it("警告は読み替えた名前ごとに 1 つで、統合先を使うよう添える", () => {
+    expect(labelRenameWarnings([{ from: "web", to: "ui" }], "written")).toEqual([
+      "The label web was merged into ui, so ui is written instead. Use ui from now on",
+    ]);
+    expect(labelRenameWarnings([], "written")).toEqual([]);
   });
 });

@@ -4,6 +4,7 @@
 // - 語彙が 1 つもないボード（軸を決めていない・labels.yaml がない）は、前と同じく名前から色を決め、印は付けない（すべてに印が付くだけになるため）
 // - 手順が付けるラベル（isProcedureLabel）は、語彙にあってもなくても目立たない見た目にし、行の札の後ろへ回す。
 //   判定は core の model/labels.ts の写し（画面は core の型だけを取る。ADR-033）。ずれは label-vocab.test.ts が core と照らして見る
+// - 絞り込みの統合済みの名前は統合先へ読み替える（resolveLabelFilter。統合先をたどる mergedLabelTarget も core の写し）
 
 import type { LabelListView } from "../types.js";
 
@@ -38,11 +39,17 @@ export interface LabelVocabulary {
     labels: readonly VocabularyLabel[];
   }>;
   byName: ReadonlyMap<string, VocabularyLabel>;
+  /** 統合の記録（統合済みの名前 → 統合先。label.list の merged）。絞り込みの読み替えに使う */
+  mergedInto: ReadonlyMap<string, string>;
 }
 
-export const EMPTY_VOCABULARY: LabelVocabulary = { axes: [], byName: new Map() };
+export const EMPTY_VOCABULARY: LabelVocabulary = {
+  axes: [],
+  byName: new Map(),
+  mergedInto: new Map(),
+};
 
-/** label.list の出力から画面の語彙を作る。読めていなければ（null）語彙なし */
+/** label.list の出力（統合の記録も読む --merged 付き）から画面の語彙を作る。読めていなければ（null）語彙なし */
 export function vocabularyOf(view: LabelListView | null | undefined): LabelVocabulary {
   if (!view) return EMPTY_VOCABULARY;
   const byName = new Map<string, VocabularyLabel>();
@@ -57,7 +64,39 @@ export function vocabularyOf(view: LabelListView | null | undefined): LabelVocab
     for (const l of labels) byName.set(l.name, l);
     if (labels.length > 0) axes.push({ name: axis.name, description: axis.description, labels });
   });
-  return { axes, byName };
+  const mergedInto = new Map((view.merged ?? []).map((m) => [m.name, m.merged_into]));
+  return { axes, byName, mergedInto };
+}
+
+/**
+ * 統合の記録の名前なら、統合先の名前。記録でない名前は undefined。
+ * core の model/labels.ts の mergedLabelTarget の写し（画面は core の型だけを取る）。ずれは label-vocab.test.ts が core と照らして見る
+ */
+export function mergedLabelTarget(
+  name: string,
+  mergedInto: (name: string) => string | undefined,
+): string | undefined {
+  let to = mergedInto(name);
+  const seen = new Set([name]);
+  while (to !== undefined && !seen.has(to)) {
+    seen.add(to);
+    const next = mergedInto(to);
+    if (next === undefined) break;
+    to = next;
+  }
+  return to === name ? undefined : to;
+}
+
+/** ラベルの絞り込みの値。name は絞る名前で、統合済みの名前を選んだ（URL・行の札）ときは統合先にし、mergedFrom に元の名前を残す */
+export interface LabelFilterValue {
+  name: string;
+  mergedFrom: string | undefined;
+}
+
+/** 絞り込みのラベルを読み替える（ticket list --label と同じ規則）。空の値は空のまま */
+export function resolveLabelFilter(name: string, vocabulary: LabelVocabulary): LabelFilterValue {
+  const to = name ? mergedLabelTarget(name, (n) => vocabulary.mergedInto.get(n)) : undefined;
+  return to === undefined ? { name, mergedFrom: undefined } : { name: to, mergedFrom: name };
 }
 
 /**

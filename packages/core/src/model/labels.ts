@@ -337,6 +337,59 @@ export function judgeLabelMerge(
   return { ok: true, to, entry, created: !target, merged, repointed, entries, tickets: rewritten };
 }
 
+/**
+ * 統合の記録の名前なら、統合先の名前。記録でない名前は undefined。
+ * dg label merge は記録が記録を指さないように付け替えるが、手で書き換えた labels.yaml の連鎖と循環に備えて、記録でない名前に着くまでたどる
+ * （循環なら、最後にたどれた名前で止め、それが元の名前なら undefined）。画面の絞り込みは web の components/label-vocab.ts に写しを持つ（照らすのは label-vocab.test.ts）
+ */
+export function mergedLabelTarget(
+  name: string,
+  mergedInto: (name: string) => string | undefined,
+): string | undefined {
+  let to = mergedInto(name);
+  const seen = new Set([name]);
+  while (to !== undefined && !seen.has(to)) {
+    seen.add(to);
+    const next = mergedInto(to);
+    if (next === undefined) break;
+    to = next;
+  }
+  return to === name ? undefined : to;
+}
+
+/** 統合済みの名前を統合先へ読み替えた 1 件 */
+export interface LabelRename {
+  from: string;
+  to: string;
+}
+
+/**
+ * ラベルの名前の並びの、統合済みの名前を統合先へ読み替える（git もファイルも読まない）。チケットに書く値（ticket create・update・import）と、
+ * 絞り込みの値（ticket list --label）が同じ関数を通る。読み替えたときだけ、重なった名前を最初の場所に 1 つ残す（judgeLabelMerge と同じ）。
+ * 語彙にない名前・語彙の名前はそのまま
+ */
+export function normalizeLabelNames(
+  names: readonly string[],
+  vocabulary: Vocabulary,
+): { labels: string[]; renamed: LabelRename[] } {
+  const renamed: LabelRename[] = [];
+  const mapped = names.map((name) => {
+    const to = mergedLabelTarget(name, (n) => vocabulary.get(n)?.merged_into);
+    if (to === undefined) return name;
+    if (!renamed.some((r) => r.from === name)) renamed.push({ from: name, to });
+    return to;
+  });
+  return { labels: renamed.length > 0 ? [...new Set(mapped)] : [...names], renamed };
+}
+
+/** 読み替えの警告の文。use は読み替えた名前で何をしたか（書いた・絞った） */
+export function labelRenameWarnings(renamed: readonly LabelRename[], use: string): string[] {
+  return renamed.map(
+    (r) =>
+      `The label ${r.from} was merged into ${r.to}, so ${r.to} is ${use} instead. Use ${r.to} from now on`,
+  );
+}
+
 /** 軸に残っている語彙の名前（名前の順。統合の記録は数えない）。dg label axis remove が、語彙の残る軸を拒むのに使う */
 export function labelsOfAxis(vocabulary: Vocabulary, axis: string): string[] {
   return [...vocabulary]
