@@ -26,16 +26,28 @@ export const labelNameSchema = z
   )
   .refine((name) => name === name.toLowerCase(), { message: "A label name is lowercase" });
 
+/** リリースの手順が付けるラベル（release-<S>）の接頭辞 */
+const RELEASE_LABEL_PREFIX = "release-";
+
 /**
  * 手順が付けるラベルの接頭辞（dg guide audit の audit-<S>、retro の retro-<S>、release の release-<S>。
  * Iteration ごとに増える印で、軸に属さない）。語彙には足さず（judgeLabelAdd）、語彙にない名前としても指摘しない（model/label-lint.ts）
  */
-export const PROCEDURE_LABEL_PREFIXES = ["audit-", "retro-", "release-"] as const;
+export const PROCEDURE_LABEL_PREFIXES = ["audit-", "retro-", RELEASE_LABEL_PREFIX] as const;
 
 /** 手順が付けるラベルか。対象のない見直しは接頭辞のない audit を付ける（dg guide audit）ので、それも含める */
 export function isProcedureLabel(name: string): boolean {
   return name === "audit" || PROCEDURE_LABEL_PREFIXES.some((p) => name.startsWith(p));
 }
+
+/**
+ * リリースの手順で起票したチケット（ラベル release-<S>）か。<S> がなければどれも違う。
+ * 流れ（dg flow next）は、これをリリースの段で進めるものとして、計画と見直しの対象から外す
+ */
+export const releaseLabeled =
+  (s: string | null) =>
+  (t: { readonly labels: readonly string[] }): boolean =>
+    s !== null && t.labels.includes(`${RELEASE_LABEL_PREFIX}${s}`);
 
 /** 語彙の 1 項目。merged_into・merged_at を持つものは統合の記録で、語彙としては使わない（付けられる名前に数えない） */
 export const labelEntrySchema = z

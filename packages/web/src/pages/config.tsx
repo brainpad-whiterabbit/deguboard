@@ -9,7 +9,7 @@
 // 検索は観点の名前・問いと、指標の ID・数え方・出どころ・測れないものに当て、当たった指標の「詳しく」を開いて出す。
 // ラベルの軸（labels.axes）も軸の一覧で fields に入らないので、チームのタブの「ラベル」の節に view.team から読むだけで出す
 // （書くのは dg label axis。チームだけが持つので自分のタブには出さない）。書いていない（まだ決めていない）・[]（使わないと決めた）は
-// その旨の 1 行を出し、一覧は軸ごとに名前と説明を出す。名前と説明が dg の候補（view.label_axis_candidates）のままの軸は
+// その旨の 1 行を出し（どちらかは画面で見分けず、core が返す view.label_axes_state を出す）、一覧は軸ごとに名前と説明を出す。名前と説明が dg の候補（view.label_axis_candidates）のままの軸は
 // 説明を表示言語の訳で出す（shownLabelAxes）。検索は軸の名前と説明に当てる。
 // 項目の文は短く出す：要約（summary）1 行をいつも出し、詳しい説明（description）の全文は「詳しく」に畳む。例（example）は入力欄のプレースホルダに、
 // 空のときの動き（empty）は欄の下の 1 行に、選択肢のある項目は選んでいる値の説明（option_descriptions）だけを出す。
@@ -585,9 +585,14 @@ export function ConfigPage() {
   );
   const hasRetro = tab === "team" && view?.team.retro?.perspectives !== undefined;
 
-  /** チームの軸（書いていなければ undefined）。ラベルの節はチームのタブだけに出し、候補を返さない古い応答では出さない（軸を知らない版） */
+  /**
+   * チームの軸（書いていなければ undefined）と、その状態（core が判定する）。ラベルの節はチームのタブだけに出し、
+   * 状態と候補を返さない古い応答では出さない（軸を知らない版）
+   */
   const teamAxes = view?.team.labels?.axes;
-  const hasLabels = tab === "team" && view?.label_axis_candidates !== undefined;
+  const labelAxesState = view?.label_axes_state;
+  const hasLabels =
+    tab === "team" && labelAxesState !== undefined && view?.label_axis_candidates !== undefined;
   /** ラベルの節に出す軸。候補のままの軸は説明を表示言語の訳にしてから検索する。検索に当たらなければ空 */
   const labelAxes = useMemo(
     () =>
@@ -725,11 +730,8 @@ export function ConfigPage() {
         {hasRetro && (retro.length > 0 || !query.trim()) ? (
           <RetroSection perspectives={retro} changes={retroChanged} />
         ) : null}
-        {hasLabels && (labelAxes.length > 0 || !query.trim()) ? (
-          <LabelsSection
-            state={teamAxes === undefined ? "undecided" : teamAxes.length === 0 ? "off" : "on"}
-            axes={labelAxes}
-          />
+        {hasLabels && labelAxesState && (labelAxes.length > 0 || !query.trim()) ? (
+          <LabelsSection state={labelAxesState} axes={labelAxes} />
         ) : null}
       </>
     );
@@ -1256,7 +1258,13 @@ export function labelAxisMatches(axes: readonly LabelAxis[], query: string): Lab
  * 軸を書いていない（undecided）ときと、使わないと決めた（off。labels.axes が []）ときは、その旨の 1 行だけを出す。
  * 軸はほかの項目と同じ行（名前と、その下に説明を 1 行の説明として折り返して出す）にする
  */
-function LabelsSection({ state, axes }: { state: "undecided" | "off" | "on"; axes: LabelAxis[] }) {
+function LabelsSection({
+  state,
+  axes,
+}: {
+  state: ConfigShowView["label_axes_state"];
+  axes: LabelAxis[];
+}) {
   return (
     <section className="config-group config-labels" aria-labelledby="config-group-labels">
       <h3 id="config-group-labels">{tr("ラベル")}</h3>

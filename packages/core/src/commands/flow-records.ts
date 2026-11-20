@@ -15,6 +15,7 @@ import {
   type Checkpoint,
   type CheckpointStage,
 } from "../model/iteration.js";
+import { releaseLabeled } from "../model/labels.js";
 import type { Ticket } from "../model/ticket.js";
 import { writeFileAtomic } from "../storage/atomic.js";
 import type { Store } from "../storage/store.js";
@@ -67,10 +68,6 @@ function commonIteration(tickets: readonly Ticket[]): string | null {
 
 const allTickets = (store: Store): Ticket[] =>
   sortedDocs(store.tickets.values()).map((d) => d.data);
-
-/** リリースの手順で起票したチケット（ラベル release-<S>）か。<S> がなければどれも違う */
-const releaseLabeled = (s: string | null) => (t: Ticket) =>
-  s !== null && t.labels.includes(`release-${s}`);
 
 /**
  * 割り当ての候補。チケットか Plan の指定で、対象のうち Iteration に入っていない、終わっていないチケット

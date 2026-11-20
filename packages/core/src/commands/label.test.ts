@@ -62,6 +62,10 @@ async function fileLabels(ctx: CommandContext): Promise<unknown> {
 const list = async (ctx: CommandContext, input: { candidates?: boolean } = {}) =>
   (await runCommand(labelAxisList, ctx, input)).data;
 
+/** config.show --fields（設定画面が読む値）の軸の状態 */
+const shownAxesState = async (ctx: CommandContext) =>
+  ((await runCommand(configShow, ctx, { fields: true })).data as ConfigShowView).label_axes_state;
+
 describe("ラベルの軸", () => {
   it("書いていないボードは undecided で、label.axis.set が軸をチームの config.yaml に足し、ある軸は場所を変えずに説明だけを替える", async () => {
     const f = await initializedLocalFixture();
@@ -88,6 +92,8 @@ describe("ラベルの軸", () => {
     expect(shown.defaults.labels).toEqual({});
     expect(shown.fields.some((field) => field.key.startsWith("labels"))).toBe(false);
     expect(shown.label_axis_candidates).toEqual(LABEL_AXIS_CANDIDATES);
+    // 設定画面は軸の状態を自分で見分けず、label.axis.list と同じ state を config.show から受け取る
+    expect(shown.label_axes_state).toBe("on");
   });
 
   it("label.axis.set は名前が slug でない軸と説明のない軸を弾き、何も書かない", async () => {
@@ -128,10 +134,12 @@ describe("ラベルの軸", () => {
     // off は [] としてファイルに残り、書いていないのと見分けられる
     expect(await fileLabels(ctx)).toEqual({ axes: [] });
     expect(await list(ctx)).toEqual({ state: "off", axes: [] });
+    expect(await shownAxesState(ctx)).toBe("off");
     const reset = await runCommand(configUnset, ctx, { key: "labels.axes" });
     expect(reset.data.labels).toEqual({});
     expect(await fileLabels(ctx)).toBeUndefined();
     expect(await list(ctx)).toEqual({ state: "undecided", axes: [] });
+    expect(await shownAxesState(ctx)).toBe("undecided");
   });
 
   it("label.axis.remove --all は、書いていないボードにも [] を書いて使わないと決めたことを残す。名前と --all は片方だけを受ける", async () => {

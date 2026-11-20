@@ -9,6 +9,7 @@ import { composeGuide, readStageGuide } from "../guide/guide.js";
 import { isFinishedSet, isTerminal } from "../model/common.js";
 import { compareIds, type IterationId } from "../model/id.js";
 import type { Checkpoint, CheckpointStage } from "../model/iteration.js";
+import { releaseLabeled } from "../model/labels.js";
 import {
   GATE_LEVELS,
   gateLevelOf,
@@ -630,7 +631,7 @@ export function flowFactsOf(
   const target = resolveFlowTarget(store, refs);
   const s = target.iteration;
   // リリースの手順で起票したチケット。リリースの段で進めるので、計画しない
-  const isRelease = (t: Ticket) => s !== null && t.labels.includes(`release-${s}`);
+  const isRelease = releaseLabeled(s);
   const all = sortedDocs(store.tickets.values()).map((d) => d.data);
   const ids = new Set(target.tickets.map((t) => t.id));
   const iteration = s ? store.iterations.get(s as IterationId)?.data : undefined;
