@@ -1246,7 +1246,7 @@ describe("dg sync --resolve（SY-4）", () => {
   });
 });
 
-describe("ラベルの語彙（labels.yaml）のマージ（ADR-037）", () => {
+describe("ラベルの語彙（labels.yaml）のマージ", () => {
   const AT = "2026-11-01T00:00:00Z";
   const label = (name: string, description: string) =>
     `${name}:\n  axis: area\n  description: ${description}\n  created_at: ${AT}\n`;

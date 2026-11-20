@@ -23,7 +23,7 @@ export const MERGE_DRIVER_NAME = "deguboard";
 
 /**
  * ドライバを当てるパス。frontmatter を持つ Markdown（チケット・墓標・Epic）と、素の YAML（Plan・Iteration・ラベルの語彙）。
- * 語彙（labels.yaml）は最上位のキーがラベルの名前なので、フィールド単位のマージがラベルごとのマージになる（ADR-037）。
+ * 語彙（labels.yaml）は最上位のキーがラベルの名前なので、フィールド単位のマージがラベルごとのマージになる（model/labels.ts）。
  * config.yaml と workflows は人が手で書く設定なので外し、行単位のマージのままにする
  */
 const ATTRIBUTE_LINES = [
