@@ -15,16 +15,30 @@ Turns the requirements, research results, and review findings settled in the con
 
 ## Flow
 
-1. When the requirements are settled, **propose** turning them into tickets. Do not file on your own. Show the decomposition (title, summary, acceptance criteria, dependencies, Epic) in a table, and get approval with the choices "File after approval", "Revise", and "Cancel". Do not ask about the axes of the labels (`labels.axes`) here, even when the board has not decided them: `dg guide check` proposes them
-2. For one ticket: `dg --json --actor agent ticket create "<title>" --created-by human --approved-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--gate high] [--assignee agent] [--origin t9] [--origin-cause tests]`
-3. For several: write a YAML draft to one file and run `dg --json --actor agent ticket import <file> --approved-by human`. IDs are assigned together in one commit
-4. Read the IDs from the result's `data` and report them to a human
+1. When the requirements are settled, **propose** turning them into tickets. Do not file on your own. Show the decomposition (title, summary, acceptance criteria, dependencies, Epic, labels) in a table, and get approval with the choices "File after approval", "Revise", and "Cancel". Choose the labels as "Labels" below says; when it adds new vocabulary, show it in the same table. Do not ask about the axes of the labels (`labels.axes`) here, even when the board has not decided them: `dg guide check` proposes them
+2. When the approved table has new vocabulary, add it first, as "Labels" below says, so the tickets are filed with labels that are in the vocabulary
+3. For one ticket: `dg --json --actor agent ticket create "<title>" --created-by human --approved-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--label ui,bug] [--priority high] [--gate high] [--assignee agent] [--origin t9] [--origin-cause tests]`
+4. For several: write a YAML draft to one file and run `dg --json --actor agent ticket import <file> --approved-by human`. IDs are assigned together in one commit
+5. Read the IDs from the result's `data` and report them to a human
 
 ## Creator and assignee
 
 - The Workflow's `governance.create` judges filing (`ticket create` and `ticket import`), which follows the approval rule of `dg guide overview`: pass `--approved-by human` only after a human approved or instructed the filing (step 1)
 - The creator (`created_by`) is the person who instructed or approved the filing, or the AI that filed without a human's check. When filing on a human's instruction or approval, pass `--created-by human` so the user is the creator. In an automatic step that files without a human's check (only where the board's `governance.create` lets an agent file without asking), do not pass it (it becomes `<user>/agent`)
 - The assignee (`assignee`) is optional. If you will continue advancing it, use `--assignee agent`. If a human will advance it, use `--assignee human`. Claim overwrites it with the claiming actor
+
+## Labels
+
+Read the state of the axes with `dg --json --actor agent label list`. When `state` is not `on` (the axes are not decided, or the board decided not to use them), the labels are free as before: attach the names that fit, and skip the rest of this section.
+
+When `state` is `on`, choose the labels of each ticket from the vocabulary, axis by axis:
+
+- **Pick the main one per axis**: read the descriptions of the labels of the axis, and attach the one that fits the ticket best. Attach one per axis, not every label that touches it
+- **Create new vocabulary only when it will be reused**: when no label of the axis fits, create a new one only when it would go on two or more tickets of the same filing (one `ticket create` or `ticket import`), or more tickets of the same kind are expected to follow. Otherwise leave the axis empty. An axis may stay empty
+- **Describe a new label in one line** that tells what goes in and what does not (for example "Kanban and backlog screens of the web view; not the VS Code settings screen"). Its name follows the rules in `dg label add --help`
+- **Show new vocabulary in the approval table**: in the labels column, mark each new label as new (in the human's language, for example 「新規」), and list each new label once, with its axis and description, under the table. The human approves it together with the filing
+- **Add it before filing**: after approval, run `dg --json --actor agent label add <name> --axis <axis> --description "<description>"` for each new label, then file. Writing the vocabulary is judged by the Workflow's `governance.labels`, which follows the approval rule of `dg guide overview`: pass `--approved-by human` only when the human approved the table that showed the label. On `TRANSITION_REJECTED`, file the tickets without that label and give the human the exact command to run
+- Labels that procedures attach (`audit-<S>`, `release-<S>`, and the like) are not vocabulary: attach them as those procedures say
 
 ## Origin of a defect
 
