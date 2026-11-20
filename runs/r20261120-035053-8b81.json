@@ -1,0 +1,36 @@
+{
+  "id": "r20261120-035053-8b81",
+  "ticket": "t1181",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-20T03:50:53Z",
+  "finished_at": "2026-11-20T03:53:48Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "dgconfig の手順の文書が labels.axes の読み方と書き方（dg label axis、候補の置き場所）を案内していない",
+    "label-axes のコメントが候補の渡し先を fields と誤って書いている"
+  ],
+  "usage": {
+    "input": 20,
+    "output": 5516,
+    "cache_read": 471631,
+    "cache_write": 60202
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 6,
+    "bash": 8,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "b4cec18b-e9c5-412a-ad57-9f0ef157ec9d",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 100
+}
