@@ -673,9 +673,12 @@ describe("ラベルを統合する（label.merge）", () => {
       .filter(Boolean)
       .sort();
     expect(changed).toEqual(
-      ["labels.yaml", ...["t1", "t2", "t4", "t5"].map((id) => later.store.tickets.get(id)?.path)]
-        .map(String)
-        .sort(),
+      [
+        "labels.yaml",
+        ...[...later.store.tickets.values()]
+          .filter((doc) => merged.data.tickets.includes(doc.id))
+          .map((doc) => doc.path),
+      ].sort(),
     );
 
     // 開き直して、ファイルに書かれた値を読む
