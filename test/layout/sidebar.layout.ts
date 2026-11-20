@@ -1661,7 +1661,18 @@ describe("エージェントに頼む吹き出し（UI-15）", () => {
         const box = (await menu.boundingBox())!;
         expect(box.x, "一覧の左端").toBeGreaterThanOrEqual(0);
         expect(box.x + box.width, "一覧の右端").toBeLessThanOrEqual(width);
-        expect(await menu.locator("[role=menuitem]").first().textContent()).toContain("おすすめ");
+        // おすすめは先頭の項目の青い点（ask-menu.tsx の RecDot）。点だけで、意味は名前と title に持つ
+        const dots = menu.locator(".ask-rec");
+        expect(await dots.count(), "おすすめの点の数").toBe(1);
+        const first = menu.locator("[role=menuitem]").first();
+        expect(await first.locator(".ask-rec").count(), "おすすめは先頭の項目").toBe(1);
+        expect(await dots.getAttribute("aria-label")).toBe("おすすめ");
+        expect(await dots.getAttribute("title")).toBe("おすすめ");
+        expect(await first.textContent(), "点は文字を持たない").not.toContain("おすすめ");
+        const dot = (await dots.boundingBox())!;
+        const item = (await first.boundingBox())!;
+        expect(dot.width, "点が見える").toBeGreaterThan(0);
+        expect(dot.x + dot.width, "点は項目の右端の内側").toBeLessThanOrEqual(item.x + item.width);
       } finally {
         await context.close();
       }
