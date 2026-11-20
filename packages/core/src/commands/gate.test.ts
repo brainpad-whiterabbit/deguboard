@@ -7,7 +7,7 @@ import { resetGhCache } from "../git/facts.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { chooseCheck, matchesAnyGlob, planCheck } from "./gate-check.js";
-import { gate } from "./gate.js";
+import { gate, mergeableTiming } from "./gate.js";
 import type { GateView } from "./gate-judge.js";
 import { nextOf, stageFactsOf, stageOf, withBaseFact } from "./next.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
@@ -259,6 +259,23 @@ describe("dg gate（品質ゲート。t532）", () => {
     expect(failed(unreadable)).toEqual(["pr", "mergeable"]);
     expect(unreadable).toMatchObject({ pr: null, sha: null });
     expect(unreadable.conditions[0]!.detail).toContain("Cannot check the PR");
+  });
+
+  it("gh が mergeable を UNKNOWN のまま返すと、待って読み直し、上限まで待ったら待った時間を添えて満たさない", async () => {
+    const { ctx, setPr } = await prepared();
+    await review(ctx, 1, 0);
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
+    const saved = mergeableTiming.delaysMs;
+    mergeableTiming.delaysMs = [5, 5];
+    cleanups.push(() => {
+      mergeableTiming.delaysMs = saved;
+    });
+    await setPr(pr({ mergeable: "UNKNOWN" }));
+    const view = await judge(ctx);
+    expect(failed(view)).toEqual(["mergeable"]);
+    expect(view.conditions.find((c) => c.id === "mergeable")!.detail).toContain(
+      "still UNKNOWN after waiting 0.01 s",
+    );
   });
 
   it("low と free は、リモートの追跡 ref がなく fetch もできなくても通る。high は push の時刻を読めず review で落ちる（t663）", async () => {
