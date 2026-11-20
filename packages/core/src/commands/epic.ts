@@ -10,6 +10,15 @@ import { defineCommand, ok } from "./define.js";
 import { epicRef, nowIso, sortedDocs, ticketRef, ticketsInEpic, withBody } from "./helpers.js";
 import { ASSIGN_NOTE, hasRecord, permissionFields, recordNote } from "./permission.js";
 
+// Epic のラベルはやめた（model/epic.ts の RETIRED_EPIC_KEYS）。渡されたら黙って捨てずに伝える
+const RETIRED_EPIC_INPUTS = {
+  labels: {
+    flag: "label",
+    message:
+      "Epics no longer have labels (labels belong to tickets only). Leave out --label, and put labels on the Epic's tickets with dg ticket update --label if needed",
+  },
+} as const;
+
 export const epicCreate = defineCommand({
   name: "epic.create",
   positionals: ["title"],
@@ -17,10 +26,10 @@ export const epicCreate = defineCommand({
   summary: "Create an Epic",
   input: z.object({
     title: z.string().min(1).describe("Title"),
-    labels: z.array(z.string()).optional().describe("Labels"),
     summary: z.string().optional().describe("Summary. Goes into the body template"),
     body: z.string().optional().describe("Full body. Takes precedence over summary"),
   }),
+  retiredInputs: RETIRED_EPIC_INPUTS,
   write: true,
   needs: "store",
   async run(ctx, input) {
@@ -35,7 +44,6 @@ export const epicCreate = defineCommand({
             id,
             title: input.title,
             status: "open",
-            labels: input.labels ?? [],
             created_at: now,
             updated_at: now,
           },
@@ -103,12 +111,9 @@ export const epicUpdate = defineCommand({
   input: z.object({
     epic: epicRef,
     title: z.string().min(1).optional().describe("Title"),
-    labels: z
-      .array(z.string())
-      .optional()
-      .describe("Labels. Replaces the whole list (specify all of them, including existing ones)"),
     body: z.string().optional().describe("Replace the whole body"),
   }),
+  retiredInputs: RETIRED_EPIC_INPUTS,
   write: true,
   needs: "store",
   async run(ctx, input) {
@@ -118,7 +123,6 @@ export const epicUpdate = defineCommand({
         const doc = ctx.store.require("epic", input.epic);
         const patch: Record<string, unknown> = { updated_at: nowIso(ctx) };
         if (input.title !== undefined) patch["title"] = input.title;
-        if (input.labels !== undefined) patch["labels"] = input.labels;
         return ctx.store.update("epic", doc.id, patch, input.body);
       },
       { message: (doc) => `Update ${doc.id}: ${doc.data.title}` },

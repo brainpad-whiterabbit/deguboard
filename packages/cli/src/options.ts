@@ -10,6 +10,7 @@
 //   string（meta cliSource）    位置引数 <file> の中身（YAML / JSON。- で標準入力）を読んだ文字列。オプションにはしない（ticket import。program.ts）
 //   record・array（meta cliFile） --<cliFile> <path> の YAML / JSON（- で標準入力）を読んだ値（workflow set の --file・run review-result の --findings-file。program.ts）
 //   positionals                 CommandDef.positionals のキーは位置引数。最後が配列なら可変長
+//   retiredInputs               CommandDef.retiredInputs の flag をヘルプに出さずに受け、値をそのキーで入力に入れる（Core が誤りにする）
 
 import type { AnyCommand } from "@deguboard/core";
 import { Argument, InvalidArgumentError, Option, type Command } from "commander";
@@ -178,6 +179,12 @@ function singular(flag: string): string {
 export interface Bound {
   positionals: FieldShape[];
   options: FieldShape[];
+  /** やめた入力（CommandDef の retiredInputs）のキーとオプションの名前。受けた値を入力に入れ、Core が誤りにする */
+  retired: { key: string; flag: string }[];
+}
+
+function camelOf(flag: string): string {
+  return flag.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 
 /** コマンドに位置引数とオプションを登録する */
@@ -254,7 +261,14 @@ export function bindInputs(cmd: Command, command: AnyCommand, shapes = shapesOf(
       }
     }
   }
-  return { positionals, options };
+  // やめたオプションはヘルプに出さずに受ける。commander の unknown option では項目がなくなったことが伝わらない
+  const retired = Object.entries(command.retiredInputs ?? {}).map(([key, { flag, message }]) => {
+    const opt = new Option(`--${flag} <value>`, message).hideHelp();
+    opt.argParser((raw: string, previous: string[] = []) => [...previous, raw]);
+    cmd.addOption(opt);
+    return { key, flag };
+  });
+  return { positionals, options, retired };
 }
 
 /** commander が解析した位置引数とオプションを、core の入力オブジェクトにする */
@@ -280,7 +294,7 @@ export function collectInput(
   });
   for (const shape of bound.options) {
     // commander はフラグ名を camelCase にする
-    const camel = shape.flag.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    const camel = camelOf(shape.flag);
     // --no-run のような否定の形は、commander が run: false（省けば true）にする
     if (shape.kind === "boolean" && shape.flag.startsWith("no-")) {
       if (opts[camel.charAt(2).toLowerCase() + camel.slice(3)] === false) input[shape.key] = true;
@@ -290,6 +304,10 @@ export function collectInput(
     const value = opts[name];
     if (value === undefined) continue;
     input[shape.key] = shape.nullable && value === NONE ? null : value;
+  }
+  for (const { key, flag } of bound.retired) {
+    const value = opts[camelOf(flag)];
+    if (value !== undefined) input[key] = value;
   }
   return input;
 }

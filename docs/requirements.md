@@ -68,7 +68,7 @@ runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開�
 ```
 
 - DT-1 書き込みは一時ファイルへ書いてから rename する。読み込みは Zod のスキーマで検証し、読めないファイルは止めずに `dg validate` と画面で報告する
-- DT-2 スキーマにない項目は読み書きで残す（版の違う `dg` が消さない）。`dg` がやめた項目（Iteration の `start`・`end`、チケット・Epic・Iteration・Plan の `project`、チケットの `workflow`、config の `default_project`・`default_workflow`）は値に出さず、書くときに消す（[ADR-009](adr/ADR-009-epic-and-iteration.md)、5.3）
+- DT-2 スキーマにない項目は読み書きで残す（版の違う `dg` が消さない）。`dg` がやめた項目（Epic の `labels` など）は値に出さず、書くときに消す。やめた項目の一覧は `packages/core/src/model/` と `packages/core/src/storage/retired-projects.ts` の `RETIRED_*_KEYS` が正本（[ADR-009](adr/ADR-009-epic-and-iteration.md)、5.3）
 
 ### 5.2 ID と番号
 
@@ -122,7 +122,7 @@ updated_at: 2026-10-31T05:10:00Z
 目的ごとにチケットを束ねる単位。Iteration（期間）・Plan（実行順）とは別の軸で、Iteration をまたぐ。Ticket と同じく frontmatter と Markdown の本文を持ち、`status` は `open` / `closed`。
 
 - EP-1 必須は `id`・`title`・`status`・`created_at`・`updated_at`。閉じたときに `closed_at` を書く。本文は Markdown で、`## Summary` を推奨する（日本語の `## 概要` も読む）
-- EP-2 所属はチケットの `epic` で表し、Epic 側にチケットの一覧は持たない。Epic は入れ子にしない
+- EP-2 所属はチケットの `epic` で表し、Epic 側にチケットの一覧とラベルは持たない（ラベルはチケットだけが持つ）。Epic は入れ子にしない
 - EP-3 進捗は保存しない。done の件数と abandoned を除く件数をチケットから都度求める。`epic show` と `iteration show` は同じ形の `progress` を返す
 - EP-4 閉じる・再開するのは Workflow の `governance.epic` で判定し、既定ではエージェントは人の承認があるときだけ行える（WF-7）。done・abandoned 以外のチケットが残るときは、強制の指定がなければ閉じない。閉じた Epic にはチケットを足せない（TK-6）
 - EP-5 Epic の状態はチケットの遷移を縛らない。Epic に削除はない（閉じて残す）
