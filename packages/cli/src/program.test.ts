@@ -755,7 +755,7 @@ describe("dg", () => {
     // 語彙の残る軸は消せない
     const kept = await label(["axis", "remove", "area"]);
     expect(kept.code).toBe(1);
-    expect(kept.json().error.code).toBe("REJECTED");
+    expect(kept.json().error?.code).toBe("REJECTED");
     const listed = (await label(["list"])).json().data as {
       axes: { labels: { name: string }[] }[];
     };

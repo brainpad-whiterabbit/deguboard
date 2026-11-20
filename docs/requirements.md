@@ -154,7 +154,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - WF-4 同梱するのは既定の `workflow.yaml` を 1 つだけで、`dg init` が置く（既にあれば書き換えない）。進め方の違いは値を書き換えて表す
 - WF-5 Run の step の語彙（investigate・implement・review・fix・merge）と Run を開く操作（RN-5）は Core が持ち、`run start` は語彙にない step を拒否する。手続きは YAML に書かず、既定の手続きは Core が（EX-3）、各手のやり方は `dg guide` が持つ
 - WF-6 `dg workflow set` は `workflow.yaml` を作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す。エージェントにはいつも人の承認（`--approved-by`）を求め、承認者を履歴に残す（WF-7。細部は `dg workflow set --help`）。前の版の `workflows/` は読まず、`workflow.yaml` がないのに残っていれば警告する
-- WF-7 チケットを消す・チームの設定を変える・ほかのユーザの担当と claim を替える・Epic を閉じる/再開する・起票・ラベルの語彙を書く（`governance.labels`）は、`governance` の値で ST-2 と同じく判定する。フックと dg を外す・段を下げる・`workflow set`・品質ゲートを越えるマージは Core が固定し、`workflow.yaml` では緩められない（値は `dg workflow show`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
+- WF-7 チケットを消す・チームの設定の変更・ほかのユーザの担当と claim を替える・Epic の開閉・起票・語彙を書く（`governance.labels`）は `governance` で ST-2 と同じく判定する。フックと dg を外す・段を下げる・`workflow set`・品質ゲートを越えるマージは Core の固定で緩められない（値は `dg workflow show`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - WF-8 `wip` は列ごとのチケットの数の上限で、config の `work.parallel`（同時に動かすサブエージェントの数）とは別のもの。上限を超える列があると `dg next` と `dg flow next` は警告し、着手の手の前に先の列を進める手を返すが、着手は拒否しない（細部は `dg next --help`）
 - WF-9 Iteration・Epic への出し入れは `flow.assign`、Plan の承認は `flow.plan`、Iteration を閉じる/再開するは `flow.release` の値で、ST-2 と同じく判定する。コマンドで止められない判断は、関所 `dg checkpoint` が同じ値で判定する（EX-8。既定は `dg workflow show`、理由は [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - WF-10 `flow` には、プロジェクト独自の段階（名前は小文字・数字・`-`）を、`decide`・位置 `after`（同梱の段階か work）・手順の文書 `guide` で足せる。`dg flow next` は `after` のあとに書いた順で、関所を通るまで返し、文書が読めなければ警告して返す（細部は `dg flow next --help`、[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
