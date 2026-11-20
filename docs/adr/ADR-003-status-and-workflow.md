@@ -32,7 +32,7 @@
 - `states`：5 つの Status の表示名
 - `boundaries`：前へ進む隣どうしの 3 つの境目ごとの、越える条件と、決める人の権限の値。境目は増やせない
 - `exceptions`：流れの外の動きの権限の値。名前で書き、`from`・`to` は書かせない
-- `wip`：列ごとの上限。最初の版は着手を拒否しない。人の見直しや承認を待つ列が埋まるだけで作業が止まらないよう、拒否より先の列を進める案内を選ぶ（振る舞いは WF-8）。config の `work.parallel` は同時に動かすサブエージェントの数で、目的が違うので別に持つ
+- `wip`：列ごとの上限。人の見直しや承認を待つ列が埋まるだけで作業が止まらないよう、着手は拒否せず、先の列を進める案内にとどめる（WF-8）。config の `work.parallel` とは目的が違うので別に持つ
 - `flow`：流れの段階ごとの権限の値と、プロジェクト独自の段階（[ADR-030](ADR-030-flow-and-guide-in-core.md)）
 - `governance`：カンバンの管理の操作ごとの権限の値（操作は WF-7）
 
@@ -43,9 +43,9 @@
 - 前へ進む操作は、越える境目の `requires`（越える条件）と `decide`（権限の値）で判定する。`decide` は境目を越えるすべての操作（claim・PR を出す操作・`pr merge`・手の move）に同じ値を当てる。境目を飛ばす動きは間の境目をすべて越えたものとし、厳しいほうの値が効く
 - `requires` は越える条件で、きっかけではない。満たしても自動では進まず、満たさずに手で越える操作は拒否する。事実を作る操作（`pr merge`）は `decide` だけで判定し、Status を進めるのは事実を見た照合
 - 照合（reconcile）は、越える境目の `requires` と `decide` をエージェントの側として判定し、`human_only` では止まり、人の承認を求める値では止まらない。進めなかったチケットは `sync` が理由を警告する
-- ブランチなしで着手したチケット（in_progress・review）にはブランチと PR の事実の条件を当てない（着手していない todo には当てたままにする）。PR のないチケットの照合には PR の事実の条件を当てず、手で越える操作には当てたままにする（範囲は `core/workflow/resolve.ts` の `requiresForTicket` と `core/workflow/reconcile.ts`）
+- ブランチなしで着手したチケットにはブランチと PR の事実の条件を当てない。PR のないチケットの照合には PR の事実の条件を当てず、手で越える操作には当てたままにする（範囲は `core/workflow/resolve.ts` の `requiresForTicket` と `core/workflow/reconcile.ts`）
 - 前へ進まない動きは `exceptions`（`abandon`・`reopen`・`back`）の値で判定する
-- 書き込みの操作は、Core の固定・`exceptions`・`boundaries`・`flow`・`governance` のうち最初に当てはまったものの値で判定し、行き先はコマンドの名前と引数だけで決まる。順と操作の対応は `core/workflow/resolve.ts` の `operationPolicy` が正本。Core の固定は [ADR-026](ADR-026-guard-pr-and-data.md)、`flow` と `--auto` は [ADR-030](ADR-030-flow-and-guide-in-core.md)
+- 書き込みの操作に当てる値は、コマンドの名前と引数だけで決まる。当てる順と操作の対応は `core/workflow/resolve.ts` の `operationPolicy` が正本。Core の固定は [ADR-026](ADR-026-guard-pr-and-data.md)、`flow` と `--auto` は [ADR-030](ADR-030-flow-and-guide-in-core.md)
 
 ### 権限の値は 5 つで、承認と強制を記録する
 
