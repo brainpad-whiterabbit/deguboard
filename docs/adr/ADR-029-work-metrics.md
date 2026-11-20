@@ -23,7 +23,7 @@
 
 - エージェント・モデル・日時・トークン数・結果・エラー・やり直しの理由・step（項目は RN-1）と、ツールの呼び出しの種類ごとの回数と最初に書くまでの読む・探すの回数
 - 親の依頼を待った秒数（`waited_seconds`。[下の節](#親の依頼を待った時間は会話記録から数え作業時間から除く)）
-- 検査とテストを前景で回していた秒数（`check_seconds`）。コマンドの文字列は見分けに使うだけで写さない。数えるのは `actions.test`・`actions.light_test`・`actions.pre_review_test`・`dg gate --only check` と、config（`metrics.check_commands`）で足したコマンド。数えられない Run は 0 で補わない
+- 検査とテストを前景で回していた秒数（`check_seconds`）。コマンドの文字列は見分けに使うだけで写さない。数えられない Run は 0 で補わない
 - 失敗したツールの呼び出しの数（`tools.errors`）。会話記録の結果の失敗の印だけで数え、結果の文は読まない。印を読めない Run と前の Run は 0 で補わず、`metrics show` が件数を出す
 - 集計は Run から Step までの単位で表示のたびに求め、保存しない（MT-3）
 - Epic・Iteration へは、Run の持つチケットの今の所属でたどる
@@ -31,9 +31,9 @@
 ### 親の依頼を待った時間は会話記録から数え、作業時間から除く
 
 - サブエージェントが止まって親の続きの依頼を待つ間も Run は開いたまま（[ADR-025](ADR-025-runs-by-hooks.md)）なので、Run の時刻の差（経過時間）は待ちを含む。Run を閉じるときに、使用量と同じ会話記録から待ちの区間を数え、Run の開始から終了の範囲で切った秒数（`waited_seconds`）を Run に残す
-- 待ちは、ターンが終わってから親の依頼が記録に入るまでの空きだけにする。自分のバックグラウンドのコマンドの通知・harness の催促で続いた空きと、ツールの結果を待つ間は作業に数える。入力の出どころは記録の文でなく項目で見分け、知らない形の入力があれば数えない
+- 待ちは、ターンが終わってから親の依頼が記録に入るまでの空きだけにし、ほかの空きは作業に数える。入力の出どころは記録の文でなく項目で見分け、知らない形の入力があれば数えない
 - 経過時間はそのまま残す。作業時間（`active_seconds`）は保存せず、表示と集計のたびに経過時間から待ちを引いて出す
-- 待ちを数えられない Run（親が自分で開いた Run、待ちを数えない Adapter の Run、待ちを記録する前に閉じて `run refresh` が数え直せない Run）は 0 で補わず `null` にし、`metrics show` が件数を出す
+- 待ちを数えられない Run は 0 で補わず `null` にし、`metrics show` が件数を出す
 - フックの止まって待っている印（ADR-025）は `dg next` の表示にだけ使い、待ちの数には使わない
 
 ### 変更行数はチケットに記録し、1 行あたりのトークンは内訳で出す
@@ -45,7 +45,7 @@
 ### 実装・見直し・手直しを別の Run にする
 
 - 実装・見直し・手直しを別の step の Run にし、`metrics show --step` で分けて比べる
-- 実装の Run は作業する主体のチケットの操作が開け閉めする。開くのは claim（RN-5）、閉じるのは PR の記録か照合が PR を見つけたとき（`success`）、やめるときは `unclaim` と abandoned（`failure`）、PR の要らない作業は review・done への move（RN-6）
+- 実装の Run は作業する主体のチケットの操作が開け閉めする（開く操作は RN-5、閉じる操作と結果は RN-6）
 - サブエージェントの Run と、手直しの Run の開き方と閉じ方は [ADR-025](ADR-025-runs-by-hooks.md)
 - 手直しの Run には直した指摘を `retry_reasons` に 1 件 1 行で残す。`fix` の Run の数は手直しの回数の目安にとどまり、修正ループの回数は見直しの結果から数える（ADR-025・[ADR-011](ADR-011-procedure-in-code.md)）
 - 実装・手直しの Run の抜けは `dg lint` が指摘する（安全網）
@@ -56,7 +56,7 @@
 
 ### 親の使用量は Run で測らない
 
-- 計画を立て、サブエージェントを進める親の作業は Run にしない。フックが届くセッションでは実装と手直しをいつもサブエージェントに頼み、チケットの Run の使用量をサブエージェントの会話記録から数えた値にそろえる（[ADR-025](ADR-025-runs-by-hooks.md)）。フックが届かないセッションで親が自分で実装・手直しする分は、その step の Run に入る。Run の合計はチケットの作業の量として読み、全体の費用とみなさない
+- 計画を立て、サブエージェントを進める親の作業は Run にしない。親が自分で実装・手直しする分（フックが届かないセッション。[ADR-025](ADR-025-runs-by-hooks.md)）は、その step の Run に入る。Run の合計はチケットの作業の量として読み、全体の費用とみなさない
 - 親の使用量を測るなら、まず期間を指定した会話記録の親と子の集計から考える
 
 ### 推定費用は持たない
@@ -71,7 +71,7 @@
 
 ### 会話記録を Run に結び付ける
 
-- Run を閉じる操作が Run の `agent` の Adapter で会話記録から使用量を取る。`run refresh` は後から同じ探し方で取り直し、取れた値だけを書き換える（MT-5）。待った秒数も閉じるときと同じ数え方で数え直し、会話記録の場所が残る期間（RN-3）の Run に、待ちを数える前に閉じた Run も含めて入れる。ツールの回数と検査とテストの秒数は取り直さない（RN-4）
+- Run を閉じる操作が Run の `agent` の Adapter で会話記録から使用量を取る。`run refresh` は後から同じ探し方と数え方で使用量と待った秒数を取り直し、取れた値だけを書き換える（MT-5。待ちを数える前に閉じた Run にも入る）
 - Run はセッション ID を持ち、会話記録のパスはマシンごとのローカル（`deguboard-local/`）に置いて Git に入れない。数える範囲は記録の場所で決め、場所がなければ Run の ID を最初に含む記録から推測する。1 つの応答は 1 つの Run にだけ数える。セッションと記録の場所の取り方は [ADR-025](ADR-025-runs-by-hooks.md)
 
 ### 写すのは数だけ
@@ -82,11 +82,11 @@
 
 ### 細部の正本
 
-エージェント名の判定・ツールの種類の分け方・数える範囲と重なりの分け方・待ちの区間の数え方・検査とテストに数えるコマンドの見分け方・モデル名の選び方・閉じる時刻・閉じた Run への操作・抜けの指摘の条件は、次のコードとテストとヘルプが正本で、「なぜ」はそのコメントとテスト名にある。
+エージェント名の判定・ツールの種類の分け方・数える範囲と重なりの分け方・待ちの区間の数え方と数えない Run・検査とテストに数えるコマンド・モデル名の選び方・実装の Run を開け閉めする操作と結果・閉じる時刻・`run refresh` が取り直す値と範囲・抜けの指摘の条件は、次のコードとテスト（同じ名前の `.test.ts`）とヘルプが正本で、「なぜ」はそのコメントとテスト名にある。
 
-- `packages/core/src/agents/index.ts`（`detectAgent`・読む許可）・`packages/core/src/agents/adapters/`（製品ごとの Adapter と `transcript.ts` の `bindFile`・`OverlapClaims`）・`packages/core/src/agents/agents.test.ts`・`packages/core/src/agents/check-commands.ts`（`check-commands.test.ts`）
-- `packages/core/src/model/run.ts`（Run の形）・`packages/core/src/commands/run.ts`（`run start`・`run finish`・`run refresh`）・`packages/core/src/run/record.ts`・`packages/core/src/commands/run.test.ts`
-- `packages/core/src/commands/ticket.ts`（`ticket update --pr`）・`claim-judge.ts`（claim と reclaim の拒否と、手直しの Run を開くか）・`setup.ts`（照合が閉じる Run と `dg lint`）・`reconcile-judge.ts`（照合が閉じる Run の結果と finished_at）・`run-close-judge.ts`（チケットの操作と照合が共に使う、閉じる Run の結果と手直しの finished_at）と、テストの `claim-judge.test.ts`・`reconcile-judge.test.ts`・`commands-flow-reconcile.test.ts`・`commands-flow-reclaim.test.ts`
+- `packages/core/src/agents/index.ts`（`detectAgent`・読む許可）・`packages/core/src/agents/adapters/`（製品ごとの Adapter の冒頭と、`transcript.ts` の `bindFile`・`OverlapClaims`）・`packages/core/src/agents/agents.test.ts`・`packages/core/src/agents/check-commands.ts`
+- `packages/core/src/model/run.ts`（Run の形）・`packages/core/src/commands/run.ts`（`run start`・`run finish`・`run refresh` と、その `--help`）・`packages/core/src/run/record.ts`
+- `packages/core/src/commands/ticket.ts`（`ticket update --pr`）・`claim-judge.ts`（claim と reclaim の拒否と、手直しの Run を開くか）・`setup.ts`（照合が閉じる Run と `dg lint`）・`reconcile-judge.ts`（照合が閉じる Run の結果と finished_at）・`run-close-judge.ts`（チケットの操作と照合が共に使う、閉じる Run の結果と手直しの finished_at）と、結合テストの `commands-flow-reconcile.test.ts`・`commands-flow-reclaim.test.ts`
 - `packages/core/src/model/metrics.ts`・`packages/core/src/commands/metrics.ts`（`dg metrics show --help`・`dg metrics lines --help`・`dg metrics sources --help`）・`packages/core/src/git/facts.ts`（PR の行数と変えたファイル）
 
 ## 理由

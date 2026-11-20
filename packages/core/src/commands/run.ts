@@ -1249,7 +1249,7 @@ export const runRecent = defineCommand({
   },
 });
 
-/** 取り直しで比べる値。usage の 4 つは usage.<キー> と書く。待った秒数（waited_seconds）は refreshPlan が別に比べ、ツールの回数（tools）は取り直さない（RN-4） */
+/** 取り直しで比べる値。usage の 4 つは usage.<キー> と書く。待った秒数（waited_seconds）は refreshPlan が別に比べ、ツールの回数（tools）と検査とテストの秒数（check_seconds）は取り直さない（RN-4） */
 const REFRESH_FIELDS = ["model", "input", "output", "cache_read", "cache_write"] as const;
 type RefreshField = (typeof REFRESH_FIELDS)[number];
 type UsageKey = Exclude<RefreshField, "model">;

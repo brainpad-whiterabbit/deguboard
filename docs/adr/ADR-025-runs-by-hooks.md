@@ -18,12 +18,12 @@ Run をエージェント自身が `run start`・`ticket claim` で開き、`run
 
 - 親はサブエージェントに頼む文の最初の行に印 `deguboard: ticket=<id> step=<step>` を書く。起動の呼び出しが返ったときのフックが、印のチケットと step の Run を開き、記録の場所をサブエージェントの記録にする。印のないサブエージェント（調べものなど）は Run にしない
 - 実装・見直し・手直しのどれも印で開く。サブエージェントは `run start`・`ticket claim` で Run を開かない（委譲する親は `--no-run` で claim する）
-- フックが届くセッションでは、親は PR を作るチケットの実装と手直しを、モデルが親と同じときも小さな手直しも、いつもサブエージェントに印で頼む。`dg next` は親が自分で進める道を案内せず、agent が `--no-run` なしで claim（もう一度の claim を含む）すると、Run は開いたうえで頼むよう警告する
+- フックが届くセッションでは、親は PR を作るチケットの実装と手直しを、モデルが親と同じときも小さな手直しも、いつもサブエージェントに印で頼む。`dg next` は親が自分で進める道を案内せず、agent が `--no-run` なしで claim すると、拒まずに警告する（RN-5）
 - 人の作業、フックが届かないセッションで親が自分で進める実装と手直し、PR の要らない作業（`--without-branch`）は、claim・もう一度の claim・`run start` で開く
-- セッションは harness が渡すものから取る（主体はセッションの始まりのフックが入れ、届かないサブエージェントは申告）。セッションの始まりのフックが主体とセッション ID を以後の Bash の環境に入れ、それが届かないサブエージェントの Bash では、製品が親のセッションの ID で付けると確かめた環境変数を Adapter が読む
+- セッションは harness が渡すものから取り、エージェントに言わせない。セッションの始まりのフックが以後の Bash の環境に入れ、それが届かないサブエージェントの Bash では Adapter が製品の環境変数から補う
 - フックのイベント・設定・入力の読み方は Adapter に閉じ、Core は製品によらない出来事だけを見る（AG-5）。フックはエージェントを起動も監視もせず（EX-1）、失敗しても作業を止めない
 - 受け付ける会話記録のパスは、その agent の Adapter の置き場所の下だけにする（`dg serve` 越しに任意のファイルを読ませない）
-- フックの命令は、`dg hooks install` を動かした node と `dg.js` の絶対パスで呼び（VS Code 拡張の起動ファイル経由なら、その起動ファイルの絶対パス）、git が追跡しないリポジトリの設定（Claude Code は `.claude/settings.local.json`）に書く。追跡する設定には書かない（`--shared` を選べば PATH の `dg` を呼ぶ）。届いていないフックは `dg hooks check` と印で頼む操作が警告する
+- フックの命令は、`dg hooks install` を動かした node と dg の絶対パスで呼び、git が追跡しないリポジトリの設定に書く。追跡する設定には、選んだときだけ PATH の `dg` を呼ぶ命令を書く。届いていないフックは `dg hooks check` と印で頼む操作が警告する（AG-9）
 
 ### 閉じるのは step を終えた事実で決め、止まったら待つ
 
@@ -47,14 +47,14 @@ Run をエージェント自身が `run start`・`ticket claim` で開き、`run
 ### 落ちたセッションの残りは、次の開始が interrupted で閉じる
 
 - 同じチケットの見直しか手直しを新しく始めるとき、開いたままの前の Run が別のセッションのものなら、落ちたセッションの残りとみなして `interrupted` で閉じてから開く
-- 印の起動は step によらず、同じチケットで別のセッションのサブエージェントの記録に結び付いた開いたままの Run のうち、記録の最後の更新が一定の時間より古いものを、落ちたセッションの残りとして `interrupted` で閉じてから開く。`dg next` はその Run を待たせず、印で頼み直す手順を返す。時間の値はコードが正本
+- 印の起動は step によらず、同じチケットで別のセッションのサブエージェントの記録に結び付いた開いたままの Run のうち、記録の最後の更新が一定の時間より古いものを、落ちたセッションの残りとして `interrupted` で閉じてから開く。`dg next` もその Run を待たせない（RN-7）。時間の値はコードが正本
 - 記録が新しい別のセッションの Run は、並行して動いているとみなして閉じない。親が自分で開いた Run（サブエージェントの記録に結び付かない）はセッションをまたいで残す
 - 同じセッションの重ねた起動は二重の起動として拒む。どちらかのセッションが分からなければ落ちた残りと決めず、今までどおりに扱う
 
 ### Run のない間の書き込みは deguboard-local に保留する
 
 - 前景で起動したサブエージェントは、動いている間に Run がない。見直しの結果とやり直しの理由は、書く先がなければこのマシンの `deguboard-local/` にチケットごとに保留し（Git に入れない）、フックがその Run を閉じるときに結び付ける
-- 前景の見直し役が動いている間に、別のプロセスの `dg sync`・`dg pr ready` がその保留を見直しの記録（`capture: none`）として先に書いていたら、起動の戻りのフックは新しい Run を開かずにその記録を引き取る（同じチケット・同じセッションで起動より後に書かれた記録だけ）。会話記録を結び付けて使用量を数え直し、`capture: none` を外す。記録を書いた後に置かれた保留の結果（見直し役の呼び直し）があれば、記録の結果をそれに置き換える
+- 前景の見直し役が動いている間に、別のプロセスの `dg sync`・`dg pr ready` がその保留を見直しの記録（`capture: none`）として先に書いていたら、起動の戻りのフックは新しい Run を開かずにその記録を引き取り、会話記録を結び付けて使用量を数え直す（引き取る記録の絞り方は `orphan-review-judge.ts` の `adoptableReviewRecord`）
 
 ### フックがなければ Run は記録せず、見直しの結果は保留を見直しの記録にする
 
@@ -64,12 +64,12 @@ Run をエージェント自身が `run start`・`ticket claim` で開き、`run
 
 ### 細部の正本
 
-イベントごとの扱い・起動の時刻の補い・区切りの同じ秒の判定・書き終わりの待ち方・sync が閉じる範囲・保留の結び付け方は、次のコードとテストが正本で、「なぜ」はそのコメントとテスト名にある。
+イベントごとの扱い・セッションの取り方・フックの命令のパスと書く設定・起動の時刻の補い・区切りの同じ秒の判定・書き終わりの待ち方・sync が閉じる範囲・保留の結び付け方と引き取り方は、次のコードとテスト（同じ名前の `.test.ts`）が正本で、「なぜ」はそのコメントとテスト名にある。
 
-- `packages/core/src/commands/hook.ts`（冒頭にイベントごとの扱い）・`packages/core/src/agents/adapters/claude-code-hooks.ts`（Claude Code のフックの入力と発火の順）
+- `packages/core/src/commands/hook.ts`（冒頭にイベントごとの扱い）・`hook-settings.ts`（冒頭に命令のパスと書く設定。`dg hooks install --help`）・`packages/core/src/agents/adapters/claude-code-hooks.ts`（Claude Code のフックの入力と発火の順）・`claude-code.ts`（`sessionFromEnv`）
 - `packages/core/src/run/record.ts`（保留と実行中の記録）
 - `packages/core/src/commands/run.ts`（`openRun`・`closePreviousFixRun`・`sessionOf`・`crashedSubagentRunAt`・`run review-result`・`run retry-reason`）・`run-close-judge.ts`（次の Run を開くときの前の手直しの Run の閉じ方と、区切りの同じ秒の判定）・`claim-judge.ts`（もう一度の claim で手直しの Run を開くか）・`reconcile-judge.ts`（照合の区切りの決定）・`setup.ts`（照合の事実の集めと、決めた列の実行）・`orphan-review-judge.ts`（持ち主のない保留の判定と数え方）・`orphan-review.ts`（判定の事実の集め方と記録の書き方）
-- `packages/core/src/commands/hook.test.ts`・`run.test.ts`・`run-close-judge.test.ts`・`claim-judge.test.ts`・`reconcile-judge.test.ts`・`commands-flow-reconcile.test.ts`・`commands-flow-reclaim.test.ts`・`orphan-review-judge.test.ts`・`orphan-review.test.ts`・`packages/core/src/agents/agents.test.ts`
+- 結合テストの `packages/core/src/commands/commands-flow-reconcile.test.ts`・`commands-flow-reclaim.test.ts`・`packages/core/src/agents/agents.test.ts`
 
 ## 理由
 
