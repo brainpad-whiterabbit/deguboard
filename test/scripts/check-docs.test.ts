@@ -318,6 +318,23 @@ describe.concurrent("check-docs の ADR 番号の位置（t641）", () => {
   });
 });
 
+// 写した docs/adr/README.md の「最後に使った番号」と、その番号の ADR のファイル名を読む。
+// ADR を足す PR でこのテストが落ちないよう、番号を書き込まずに写した文書から決める（t1181）
+async function lastAdr(dir: string): Promise<{ number: number; file: string }> {
+  const readme = await readFile(join(dir, "docs/adr/README.md"), "utf8");
+  const match = /最後に使った番号：ADR-(\d{3})/.exec(readme);
+  if (!match) throw new Error("docs/adr/README.md に「最後に使った番号」の行がない");
+  const file = (await readdir(join(dir, "docs/adr"))).find((name) =>
+    name.startsWith(`ADR-${match[1]}-`),
+  );
+  if (!file) throw new Error(`docs/adr に ADR-${match[1]} のファイルがない`);
+  return { number: Number(match[1]), file };
+}
+
+function adrId(n: number): string {
+  return `ADR-${String(n).padStart(3, "0")}`;
+}
+
 describe.concurrent("check-docs の最後に使った番号（t634）", () => {
   it("写したままなら最後に使った番号の指摘は出ない", async ({ dir, expect }) => {
     const { stderr } = await run(dir);
@@ -325,16 +342,17 @@ describe.concurrent("check-docs の最後に使った番号（t634）", () => {
   });
 
   it("実在の最大より小さい番号を書くと、その ADR を出して落ちる", async ({ dir, expect }) => {
+    const last = await lastAdr(dir);
     await rewrite(
       dir,
       "docs/adr/README.md",
-      /最後に使った番号：ADR-036/,
-      "最後に使った番号：ADR-035",
+      new RegExp(`最後に使った番号：${adrId(last.number)}`),
+      `最後に使った番号：${adrId(last.number - 1)}`,
     );
     const { code, stderr } = await run(dir);
     expect(code).toBe(1);
-    expect(stderr).toMatch(
-      /「最後に使った番号」が ADR-035 だが、ADR-036-rework-causes-and-origin\.md はそれより大きい/,
+    expect(stderr).toContain(
+      `「最後に使った番号」が ${adrId(last.number - 1)} だが、${last.file} はそれより大きい`,
     );
   });
 
@@ -342,11 +360,13 @@ describe.concurrent("check-docs の最後に使った番号（t634）", () => {
     dir,
     expect,
   }) => {
-    await writeFile(join(dir, "docs/adr/ADR-037-probe.md"), "# 確かめ\n");
+    const last = await lastAdr(dir);
+    const probe = `${adrId(last.number + 1)}-probe.md`;
+    await writeFile(join(dir, "docs/adr", probe), "# 確かめ\n");
     const { code, stderr } = await run(dir);
     expect(code).toBe(1);
     expect(stderr).toContain(
-      "docs/adr/README.md: 「最後に使った番号」が ADR-036 だが、ADR-037-probe.md はそれより大きい",
+      `docs/adr/README.md: 「最後に使った番号」が ${adrId(last.number)} だが、${probe} はそれより大きい`,
     );
   });
 

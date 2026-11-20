@@ -8,6 +8,7 @@ import {
   DEFAULT_WORKFLOW,
   defaultConfig,
   flattenConfig,
+  LABEL_AXIS_CANDIDATES,
   NO_PR_ERROR,
   OPEN_AT_SESSION_END_ERROR,
   RECONCILE_TAKEN_ERROR,
@@ -549,9 +550,10 @@ describe("既定の値の訳（UI-11）", () => {
   };
 
   it("DEFAULT_VALUES の鍵はどれも core の既定の文で、表示言語（ja・en）の訳だけを持つ（既定を書き換えたら鍵と訳も直す）", () => {
-    // core の既定の文：config の既定（葉の項目と、振り返りの観点の名前と問い）と、Run の step の表示名と、Status の既定の表示名
+    // core の既定の文：config の既定（葉の項目と、振り返りの観点の名前と問い）と、ラベルの軸の候補の説明と、Run の step の表示名と、Status の既定の表示名
     const coreDefaults = new Set<unknown>([
       ...Object.values(flattenConfig(defaultConfig())).filter((v) => typeof v === "string"),
+      ...LABEL_AXIS_CANDIDATES.map((c) => c.description),
       ...RUN_STEPS.map((s) => s.label),
       ...Object.values(DEFAULT_WORKFLOW.labels),
     ]);

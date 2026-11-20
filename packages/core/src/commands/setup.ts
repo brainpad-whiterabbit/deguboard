@@ -58,6 +58,7 @@ import {
   type Config,
   type ConfigField,
 } from "../model/config.js";
+import { LABEL_AXIS_CANDIDATES, type LabelAxisCandidate } from "../model/label-axes.js";
 import {
   OPENED_STEPS,
   REVIEW_STEP,
@@ -1173,7 +1174,7 @@ export const configShow = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Also show, with the values, each leaf item's key, type, default, summary, description, example, empty (what an empty value does), option_descriptions, and scope (scope: team is team-only, local can be overridden personally), plus the team values, personal overrides, and the defaults of every item (in the form { config, team, local, defaults, fields }; used by the settings screen). fields leaves out the perspectives of the retrospective (retro.perspectives), which are nested by perspective and written with dg retro; their default is in defaults",
+        "Also show, with the values, each leaf item's key, type, default, summary, description, example, empty (what an empty value does), option_descriptions, and scope (scope: team is team-only, local can be overridden personally), plus the team values, personal overrides, and the defaults of every item (in the form { config, team, local, defaults, fields }; used by the settings screen). fields leaves out the perspectives of the retrospective (retro.perspectives), which are nested by perspective and written with dg retro; their default is in defaults. fields also leaves out the axes of the labels (labels.axes), written with dg label axis; label_axis_candidates has the candidate axes that dg holds",
       ),
   }),
   write: false,
@@ -1188,6 +1189,7 @@ export const configShow = defineCommand({
         local: ctx.store.localConfig,
         defaults: defaultConfig(),
         fields: configFields(),
+        label_axis_candidates: LABEL_AXIS_CANDIDATES,
       });
     }
     return ok<ConfigShowView | Config>(config);
@@ -1208,6 +1210,11 @@ export interface ConfigShowView {
    */
   defaults: Config;
   fields: ConfigField[];
+  /**
+   * dg が持つラベルの軸の候補（model/label-axes.ts）。fields に入らないラベルの軸（labels.axes）は既定を持たないので、
+   * 画面は軸の名前と説明がこの候補と同じときだけ、候補のままとして説明を表示言語に訳す（UI-11）
+   */
+  label_axis_candidates: readonly LabelAxisCandidate[];
 }
 
 /** whoami の出力。操作している主体と、その人本人とみなす主体の ID */
@@ -1362,7 +1369,7 @@ export const configSet = defineCommand({
   positionals: ["key", "value"],
   group: "setup",
   summary:
-    "Change one item of config.yaml (point to it with dots, like commit.mode). Separate array items with commas, and set an empty string to empty the list. For a non-empty string default (such as priority.*; clears_to_default is true in config show --fields), an empty string returns it to the default. For items with choices (such as commit.mode), empty, null, and omitted values are rejected. For number items (such as work.parallel), a string of digits is turned into a number, and values out of range are rejected. --local writes to personal settings. The perspectives of the retrospective (retro.perspectives) are not written here but with dg retro perspective and dg retro metric. Returns the value that was written: the team value, or the value layered with personal settings. " +
+    "Change one item of config.yaml (point to it with dots, like commit.mode). Separate array items with commas, and set an empty string to empty the list. For a non-empty string default (such as priority.*; clears_to_default is true in config show --fields), an empty string returns it to the default. For items with choices (such as commit.mode), empty, null, and omitted values are rejected. For number items (such as work.parallel), a string of digits is turned into a number, and values out of range are rejected. --local writes to personal settings. The perspectives of the retrospective (retro.perspectives) are not written here but with dg retro perspective and dg retro metric, and the axes of the labels (labels.axes) with dg label axis set. Returns the value that was written: the team value, or the value layered with personal settings. " +
     TEAM_CONFIG_NOTE,
   input: z.object({
     key: z.string().min(1).describe("Item. Example: commit.mode"),
@@ -1380,6 +1387,13 @@ export const configSet = defineCommand({
         "VALIDATION_FAILED",
         `${input.key} cannot be set with config set`,
         "Write the perspectives of the retrospective with dg retro perspective, dg retro metric, and dg retro remove (dg config unset retro.perspectives returns to the defaults)",
+      );
+    // ラベルの軸も軸ごとの入れ子（名前と説明が揃って 1 つ）なので、同じく --local の分岐より先に弾いて専用のコマンドを案内する
+    if (input.key === "labels" || input.key.startsWith("labels."))
+      throw new OperationError(
+        "VALIDATION_FAILED",
+        `${input.key} cannot be set with config set`,
+        "Write the axes of the labels with dg label axis set and dg label axis remove (dg config unset labels.axes returns to not decided)",
       );
     if (input.local) {
       rejectUnjudgedAuto(ctx, input, "changing a personal setting");

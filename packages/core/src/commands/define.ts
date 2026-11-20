@@ -54,7 +54,7 @@ export interface CommandResult<O> {
 }
 
 export interface CommandDef<I extends z.ZodType, O> {
-  /** `ticket.create` のように群と操作をドットでつなぐ */
+  /** `ticket.create` のように群と操作をドットでつなぐ。群の中をさらに分けるときは 3 つをつなぐ（`label.axis.set` は `dg label axis set`） */
   name: string;
   group: string;
   summary: string;
@@ -158,7 +158,7 @@ async function runChecked<I extends z.ZodType, O>(
       ctx,
       operation,
       parsed.data as PermissionInput,
-      `dg ${def.name.replace(".", " ")}`,
+      `dg ${def.name.replaceAll(".", " ")}`,
     );
   const check =
     ctx.storeless || def.needs === "repo" || def.ownsOutsideCheck

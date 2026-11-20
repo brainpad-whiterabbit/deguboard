@@ -3357,7 +3357,8 @@ button.row-label[aria-pressed="true"] {
   margin-top: 0.75rem;
 }
 /* 振り返りの節（読むだけ）。観点はほかの項目と同じ行（.config-field）、指標はその下に字下げした子の行（ID と数え方の最初の文）にし、全文は「詳しく」に畳む */
-.config-retro > .config-summary {
+.config-retro > .config-summary,
+.config-labels > .config-summary {
   padding: 0 0.6rem;
 }
 .config-retro-none {

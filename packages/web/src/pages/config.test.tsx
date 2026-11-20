@@ -10,8 +10,14 @@ import { toggleRoute } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
-import type { ConfigField, ConfigShowView, RetroPerspective } from "../types.js";
-import { ASK_PERSPECTIVE_KEY, configFields, defaultConfig, GUIDE_TOPICS } from "@deguboard/core";
+import type { ConfigField, ConfigShowView, LabelAxis, RetroPerspective } from "../types.js";
+import {
+  ASK_PERSPECTIVE_KEY,
+  configFields,
+  defaultConfig,
+  GUIDE_TOPICS,
+  LABEL_AXIS_CANDIDATES,
+} from "@deguboard/core";
 import {
   CONFIRM_KEYS,
   RETRO_ITEM_PREFIX,
@@ -23,6 +29,7 @@ import {
   metricSummary,
   retroChanges,
   nameOf,
+  shownLabelAxes,
   shownRetroPerspectives,
   valueAt,
 } from "./config.js";
@@ -1744,5 +1751,117 @@ describe("設定画面の振り返りの節（retro.perspectives を読むだけ
       expect(retroChanges(perspectives(), {})).toEqual({});
       expect(Object.keys(retroChanges(perspectives(), DEFAULTS))).toEqual(["spec", "cost", "flow"]);
     });
+  });
+});
+
+describe("設定画面のラベルの節（labels.axes を読むだけで出す。t1181）", () => {
+  const candidate = (name: string) => LABEL_AXIS_CANDIDATES.find((c) => c.name === name)!;
+  const jaOf = (text: string) => DEFAULT_VALUES[text]!.ja!;
+  /** area は候補のまま、kind は説明を書き換えた軸、team は候補にない軸 */
+  const AXES: LabelAxis[] = [
+    { name: "area", description: candidate("area").description },
+    { name: "kind", description: "What the change does" },
+    { name: "team", description: "担当のチーム" },
+  ];
+  /** axes を渡さなければ labels.axes を書いていないチームの config。core と同じく候補を label_axis_candidates で返す */
+  const labelsClient = (axes?: LabelAxis[]) => {
+    const { client, config } = configClient();
+    Object.assign(config, { labels: axes === undefined ? {} : { axes: structuredClone(axes) } });
+    const show = client.handlers["config.show"]!;
+    client.handlers["config.show"] = (input) => {
+      const out = show(input) as object;
+      return (input as { fields?: boolean }).fields
+        ? { ...out, label_axis_candidates: LABEL_AXIS_CANDIDATES }
+        : out;
+    };
+    return client;
+  };
+  const section = () => screen.queryByRole("region", { name: "ラベル" });
+  const rows = () =>
+    [...document.querySelectorAll("[data-axis]")].map((e) => [
+      e.getAttribute("data-axis"),
+      e.querySelector(".config-name")!.textContent,
+      e.querySelector(".config-summary")!.textContent,
+    ]);
+
+  it("軸を名前と説明の行で出し、候補のままの軸の説明だけを表示言語の訳で出す。入力欄もボタンも置かない", async () => {
+    mount(labelsClient(AXES));
+    await screen.findByText("コミットの仕方");
+    const s = section()!;
+    expect(within(s).getByText("dg label axis set")).toBeTruthy();
+    expect(rows()).toEqual([
+      ["area", "area", jaOf(candidate("area").description)],
+      // 説明を書き換えた軸は、候補にある名前でも書いたまま出す
+      ["kind", "kind", "What the change does"],
+      ["team", "team", "担当のチーム"],
+    ]);
+    expect(s.querySelectorAll("input, select, textarea, button")).toHaveLength(0);
+    expect(s.querySelector(".empty")).toBeNull();
+    // 軸はチームだけが持つので、自分のタブには出さない
+    fireEvent.click(tabOf("自分"));
+    expect(section()).toBeNull();
+  });
+
+  it("書いていないときは「まだ決めていない」、[] のときは「使わないと決めている」の 1 行を出して見分ける", async () => {
+    mount(labelsClient());
+    await screen.findByText("コミットの仕方");
+    expect(within(section()!).getByText(/軸をまだ決めていない/)).toBeTruthy();
+    expect(rows()).toEqual([]);
+    cleanup();
+    mount(labelsClient([]));
+    await screen.findByText("コミットの仕方");
+    expect(within(section()!).getByText(/軸を使わないと決めている/)).toBeTruthy();
+    expect(within(section()!).queryByText(/軸をまだ決めていない/)).toBeNull();
+    expect(rows()).toEqual([]);
+  });
+
+  it("検索は軸の名前と出している説明（訳）に当たり、当たらなければ節ごと出さない", async () => {
+    mount(labelsClient(AXES));
+    await screen.findByText("コミットの仕方");
+    const search = (value: string) =>
+      fireEvent.change(screen.getByLabelText("設定を検索"), { target: { value } });
+    search("KIND");
+    expect(rows().map((r) => r[0])).toEqual(["kind"]);
+    search(jaOf(candidate("area").description));
+    expect(rows().map((r) => r[0])).toEqual(["area"]);
+    search("どの軸にも当たらない語");
+    expect(section()).toBeNull();
+  });
+
+  it("英語の表示では、候補のままの軸の説明を core の英語の文のまま出し、節の文字列を英語の訳で出す", async () => {
+    setLanguage("en");
+    try {
+      mount(labelsClient(AXES));
+      await screen.findByText("Commit mode");
+      const s = screen.getByRole("region", { name: "Labels" });
+      expect(s.querySelector('[data-axis="area"] .config-summary')!.textContent).toBe(
+        candidate("area").description,
+      );
+      cleanup();
+      mount(labelsClient());
+      await screen.findByText("Commit mode");
+      expect(screen.getByText("No axes decided yet (labels can be given freely)")).toBeTruthy();
+    } finally {
+      setLanguage("ja");
+    }
+  });
+
+  it("候補を返さない応答（軸を知らない版）では節を出さない", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    expect(section()).toBeNull();
+  });
+
+  it("軸の候補の説明は 5 つとも日本語の訳を持ち、shownLabelAxes は候補を渡さなければどの軸も書いたまま返す", () => {
+    expect(LABEL_AXIS_CANDIDATES).toHaveLength(5);
+    for (const c of LABEL_AXIS_CANDIDATES)
+      expect(DEFAULT_VALUES[c.description]?.ja, c.name).toBeTruthy();
+    expect(shownLabelAxes(AXES, [])).toEqual(AXES);
+    expect(shownLabelAxes(AXES, LABEL_AXIS_CANDIDATES).map((a) => a.description)).toEqual([
+      jaOf(candidate("area").description),
+      "What the change does",
+      "担当のチーム",
+    ]);
   });
 });
