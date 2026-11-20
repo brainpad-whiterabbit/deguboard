@@ -46,6 +46,8 @@ adr:
   axis: area
   description: docs に統合する前の名前
   created_at: 2026-11-20T06:22:13Z
+  merged_into: docs
+  merged_at: 2026-11-20T06:22:40Z
 web:
   axis: area
   description: ui に統合する前の名前
