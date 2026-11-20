@@ -1,5 +1,8 @@
-// 写しを照らすためだけに core の実行時のコード（isProcedureLabel）を取り込む（画面のコードは型だけを取る。ADR-033）
-import { isProcedureLabel as coreIsProcedureLabel } from "@deguboard/core";
+// 写しを照らすためだけに core の実行時のコード（isProcedureLabel・mergedLabelTarget）を取り込む（画面のコードは型だけを取る。ADR-033）
+import {
+  isProcedureLabel as coreIsProcedureLabel,
+  mergedLabelTarget as coreMergedLabelTarget,
+} from "@deguboard/core";
 import { describe, expect, it } from "vitest";
 import type { LabelListView } from "../types.js";
 import {
@@ -9,6 +12,8 @@ import {
   labelColorIndex,
   labelLook,
   labelOptionGroups,
+  mergedLabelTarget,
+  resolveLabelFilter,
   rowLabelOrder,
   toggleLabel,
   vocabularyOf,
@@ -123,6 +128,48 @@ describe("札の見た目", () => {
     const more = ["release-s9", "pre-release-s1", "ui", "bug", "Audit", ""];
     for (const name of [...names, ...more])
       expect([name, isProcedureLabel(name)]).toEqual([name, coreIsProcedureLabel(name)]);
+  });
+});
+
+describe("絞り込みの統合済みの名前の読み替え", () => {
+  const merged = (name: string, into: string) => ({
+    name,
+    axis: "area",
+    description: "Old name",
+    merged_into: into,
+    merged_at: "2026-01-02T00:00:00Z",
+  });
+  const v = vocabularyOf({ ...VIEW, merged: [merged("web", "ui"), merged("frontend", "ui")] });
+
+  it("統合の記録の名前は統合先で絞り、元の名前を残す。語彙の名前・語彙にない名前・空はそのまま", () => {
+    expect(resolveLabelFilter("web", v)).toEqual({ name: "ui", mergedFrom: "web" });
+    for (const name of ["ui", "misc", ""])
+      expect(resolveLabelFilter(name, v)).toEqual({ name, mergedFrom: undefined });
+    // 統合の記録を読まなかった語彙（--merged なしの label.list・語彙なし）は読み替えない
+    expect(resolveLabelFilter("web", vocabularyOf(VIEW))).toEqual({
+      name: "web",
+      mergedFrom: undefined,
+    });
+    expect(resolveLabelFilter("web", EMPTY_VOCABULARY).mergedFrom).toBeUndefined();
+  });
+
+  it("core の mergedLabelTarget の写しで、連鎖と循環も同じ結果になる", () => {
+    const chain = new Map([
+      ["a", "b"],
+      ["b", "c"],
+      ["x", "y"],
+      ["y", "x"],
+      ["p", "q"],
+      ["q", "r"],
+      ["r", "q"],
+      ["self", "self"],
+    ]);
+    const into = (name: string) => chain.get(name);
+    for (const name of ["a", "b", "c", "x", "y", "p", "q", "r", "self", "none"])
+      expect([name, mergedLabelTarget(name, into)]).toEqual([
+        name,
+        coreMergedLabelTarget(name, into),
+      ]);
   });
 });
 

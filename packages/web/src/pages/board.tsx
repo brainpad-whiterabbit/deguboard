@@ -33,8 +33,17 @@ import { formatShortTime } from "../components/date-time.js";
 import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic-chip.js";
 import { EpicFilterHead } from "../components/epic-head.js";
 import { FilterToggle } from "../components/filter-toggle.js";
-import { LabelFilterOptions, RowLabelsContext } from "../components/row-labels.js";
-import type { LabelVocabulary } from "../components/label-vocab.js";
+import {
+  LabelFilterOptions,
+  labelFilterText,
+  labelFilterTitle,
+  RowLabelsContext,
+} from "../components/row-labels.js";
+import {
+  resolveLabelFilter,
+  type LabelFilterValue,
+  type LabelVocabulary,
+} from "../components/label-vocab.js";
 import { RowSortChip, RowViewMenu, useRowView } from "../components/view-menu.js";
 import {
   BOARD_SORT_KEYS,
@@ -193,25 +202,28 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   }, [store.epics, scoped, query.epic]);
   const noEpic = useMemo(() => scoped.filter((t) => !t.epic).length, [scoped]);
   const claims = useMemo(() => claimOptions(scoped), [scoped]);
-  const labels = useMemo(() => labelOptions(scoped, query.label), [scoped, query.label]);
+  // 統合済みの名前（前の URL・統合の前に付いた行の札）は統合先で絞り、札に読み替えたことを添える（ticket list --label と同じ規則）
+  const labelFilter = resolveLabelFilter(query.label ?? "", store.labelVocabulary);
+  const label = labelFilter.name || undefined;
+  const shownQuery: BoardQuery = { ...query, label };
+  const labels = useMemo(() => labelOptions(scoped, label), [scoped, label]);
   const tickets = useMemo(
     () =>
       sortRows(
         hideClosedFinished(scoped, store.iterations, store.epics, query.epic)
           .filter((t) => matchesEpic(t, query.epic ?? ""))
           .filter((t) => matchesClaim(t, query.assignee ?? ""))
-          .filter((t) => !query.label || t.labels.includes(query.label)),
+          .filter((t) => !label || t.labels.includes(label)),
         sort,
       ),
-    [scoped, store.iterations, store.epics, query.epic, query.assignee, query.label, sort],
+    [scoped, store.iterations, store.epics, query.epic, query.assignee, label, sort],
   );
   // 漏斗の欄は担当かラベルの候補があるときだけ出す
   const hasFilterFields = claims.length > 0 || labels.length > 0;
   const rowLabels = view.labels
     ? {
-        selected: query.label ?? "",
-        onSelect: (label: string) =>
-          setFilter({ label: query.label === label ? undefined : label }),
+        selected: label ?? "",
+        onSelect: (name: string) => setFilter({ label: label === name ? undefined : name }),
         vocabulary: store.labelVocabulary,
         hideProcedure: !view.procedureLabels,
       }
@@ -292,7 +304,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                     : undefined
                 }
                 assignee={query.assignee}
-                label={query.label}
+                label={labelFilter}
                 sortChip={sortChip}
                 onClear={setFilter}
               />
@@ -317,7 +329,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                 claims={claims}
                 labels={labels}
                 vocabulary={store.labelVocabulary}
-                query={query}
+                query={shownQuery}
                 onFilter={(patch) => {
                   setFilter(patch);
                   closeDrop();
@@ -364,13 +376,13 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           claims={claims}
           labels={labels}
           vocabulary={store.labelVocabulary}
-          query={query}
+          query={shownQuery}
           onChange={setFilter}
         />
       ) : null}
       <FilterChips
         assignee={query.assignee}
-        label={query.label}
+        label={labelFilter}
         sortChip={sortChip}
         onClear={setFilter}
       />
@@ -943,12 +955,13 @@ function FilterChips({
   /** 絞っている Epic の札の名前（epicFilterLabel）。札を出さないなら undefined */
   epic?: ReturnType<typeof epicFilterLabel> | undefined;
   assignee: string | undefined;
-  label: string | undefined;
+  /** 絞っているラベル（resolveLabelFilter で読み替えた値。統合済みの名前で絞ったときは札に読み替えたことを添える） */
+  label: LabelFilterValue;
   /** 並びが既定と違う間の並びの札（RowSortChip）。既定なら null */
   sortChip: ReactNode;
   onClear: (patch: Partial<BoardQuery>) => void;
 }) {
-  if (!assignee && !epic && !label && !sortChip) return null;
+  if (!assignee && !epic && !label.name && !sortChip) return null;
   const who = assignee === NO_CLAIM ? tr("なし") : assignee ? actorLabel(assignee) : "";
   return (
     <div className={`filter-chips${className ? ` ${className}` : ""}`}>
@@ -976,12 +989,12 @@ function FilterChips({
           </button>
         </span>
       ) : null}
-      {label ? (
-        <span className="filter-chip" title={tr("ラベル {0}", label)}>
-          <span className="filter-chip-text">{tr("ラベル {0}", label)}</span>
+      {label.name ? (
+        <span className="filter-chip" title={labelFilterTitle(label)}>
+          <span className="filter-chip-text">{labelFilterText(label)}</span>
           <button
             type="button"
-            aria-label={tr("ラベル {0} の絞り込みを外す", label)}
+            aria-label={tr("ラベル {0} の絞り込みを外す", label.name)}
             onClick={() => onClear({ label: undefined })}
           >
             ×

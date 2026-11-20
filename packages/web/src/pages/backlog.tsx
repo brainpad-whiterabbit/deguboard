@@ -29,7 +29,13 @@ import { IterationGoal, shortPeriod } from "../components/iteration-parts.js";
 import { DetailLink, TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
-import { LabelFilterOptions, RowLabelsContext } from "../components/row-labels.js";
+import { resolveLabelFilter, type LabelFilterValue } from "../components/label-vocab.js";
+import {
+  LabelFilterOptions,
+  labelFilterText,
+  labelFilterTitle,
+  RowLabelsContext,
+} from "../components/row-labels.js";
 import { RowSortChip, RowViewMenu, useRowView } from "../components/view-menu.js";
 import {
   BACKLOG_SORT_KEYS,
@@ -122,8 +128,15 @@ interface ActiveFilter {
   clear: Partial<BacklogFilter>;
 }
 
-/** 効いている条件（検索を除く）。検索は常に見えているので含めない */
-function activeFilters(f: BacklogFilter, labelOf: (status: string) => string): ActiveFilter[] {
+/**
+ * 効いている条件（検索を除く）。検索は常に見えているので含めない。
+ * label は読み替えたラベル（resolveLabelFilter。統合済みの名前で絞ったときは札に読み替えたことを添える）
+ */
+function activeFilters(
+  f: BacklogFilter,
+  labelOf: (status: string) => string,
+  label: LabelFilterValue,
+): ActiveFilter[] {
   const parts: ActiveFilter[] = [];
   if (f.mine) parts.push({ key: "mine", text: tr("担当 自分"), clear: { mine: false } });
   if (f.status) {
@@ -135,7 +148,13 @@ function activeFilters(f: BacklogFilter, labelOf: (status: string) => string): A
     const text = `Epic ${f.epic === NO_EPIC ? tr("なし") : f.epic}`;
     parts.push({ key: "epic", text, clear: { epic: "" } });
   }
-  if (f.label) parts.push({ key: "label", text: tr("ラベル {0}", f.label), clear: { label: "" } });
+  if (label.name)
+    parts.push({
+      key: "label",
+      text: labelFilterText(label),
+      ...(label.mergedFrom ? { title: labelFilterTitle(label) } : {}),
+      clear: { label: "" },
+    });
   if (f.assignee) {
     const who = f.assignee === NO_CLAIM ? tr("なし") : actorLabel(f.assignee);
     parts.push({
@@ -238,11 +257,17 @@ export function BacklogPage() {
     [store.tickets],
   );
   const tickets = store.tickets;
+  // 統合済みの名前（統合の前に付いた行の札）は統合先で絞り、札に読み替えたことを添える（ticket list --label と同じ規則）
+  const labelFilter = resolveLabelFilter(filter.label, store.labelVocabulary);
+  const effective = useMemo(
+    () => ({ ...filter, label: labelFilter.name }),
+    [filter, labelFilter.name],
+  );
   // 並び順（「表示」のメニュー）。区画に分ける sectionsOf は並びを保つので、区画の中だけが並び替わる
   const [sort, setSort] = useRowSort("backlog");
   const rows = useMemo(
-    () => sortRows(filterBacklog(tickets, filter, store.me), sort),
-    [tickets, filter, store.me, sort],
+    () => sortRows(filterBacklog(tickets, effective, store.me), sort),
+    [tickets, effective, store.me, sort],
   );
   const sorted = rowSortChanged(sort);
   const sortChip = sorted ? (
@@ -259,7 +284,7 @@ export function BacklogPage() {
   );
   const total = useMemo(() => filterBacklog(tickets, EMPTY_FILTER).length, [tickets]);
   const statuses = BOARD_STATUSES.filter((s) => s !== "done");
-  const active = activeFilters(filter, (st) => store.labelOf(st as Ticket["status"]));
+  const active = activeFilters(filter, (st) => store.labelOf(st as Ticket["status"]), labelFilter);
   const filtering = active.length > 0 || filter.query.trim() !== "";
   const { epics: openEpics } = useOpenEpics();
   // 札に触れている間は、その Epic の行を光らせる（UI-10。Epic で絞っている間は光らせない）
@@ -271,8 +296,8 @@ export function BacklogPage() {
   const [view, setView] = useRowView();
   const rowLabels = view.labels
     ? {
-        selected: filter.label,
-        onSelect: (label: string) => set({ label: filter.label === label ? "" : label }),
+        selected: labelFilter.name,
+        onSelect: (label: string) => set({ label: labelFilter.name === label ? "" : label }),
         vocabulary: store.labelVocabulary,
         hideProcedure: !view.procedureLabels,
       }
@@ -307,7 +332,7 @@ export function BacklogPage() {
       <label>
         {trNode(
           "ラベル{0}",
-          <select value={filter.label} onChange={(e) => set({ label: e.target.value })}>
+          <select value={labelFilter.name} onChange={(e) => set({ label: e.target.value })}>
             <option value="">{tr("すべて")}</option>
             <LabelFilterOptions names={labels} vocabulary={store.labelVocabulary} />
           </select>,

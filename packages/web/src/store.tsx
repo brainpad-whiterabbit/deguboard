@@ -3,7 +3,7 @@
 // cache を渡すと（VS Code の Webview）、読み終えた一覧を残しておき、次に開いたときはそれをすぐ描いてから読み直して差し替える。
 // 最初の読み込みは core の中で 1 本ずつ処理されるコマンドが 8 本並び、サイドバーとパネルが同じ列を使うので、その間を空の画面にしない。
 // 操作している人（whoami。主体の ID・ユーザ名と、本人とみなす ID の own_ids）も一覧と一緒に読み、me に持つ（担当者が自分かの判定に使う）。
-// ラベルの語彙（label.list。軸と語彙）も一覧と一緒に読み、labelVocabulary に持つ（行の札の色・絞り込みの候補・属性の欄の選択に使う）。
+// ラベルの語彙（label.list。軸と語彙と統合の記録）も一覧と一緒に読み、labelVocabulary に持つ（行の札の色・絞り込みの候補と読み替え・属性の欄の選択に使う）。
 // 語彙を読めなくても一覧は描く（前の値のまま。最初なら語彙なしとして、札は名前から色を決める）。
 // チケットごとの Run の要約（run.recent。件数と新しい順 3 件。このマシンの実行中の Run を含む）は、
 // readRunning のとき（左パネルのカンバンの行の Run の並びに使う）だけ、ほかの一覧を描いた後に遅れて読む。
@@ -289,7 +289,7 @@ export function StoreProvider({
         client.run<PlanRow[]>("plan.list"),
         client.run<WorkflowView>("workflow.show"),
         // 語彙は見た目の手がかりなので、読めなくても一覧を描く（null なら前の値のまま）
-        client.run<LabelListView>("label.list").then(
+        client.run<LabelListView>("label.list", { merged: true }).then(
           (r) => r.data,
           () => null,
         ),

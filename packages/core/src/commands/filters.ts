@@ -3,6 +3,7 @@
 
 import { z } from "zod";
 import { STATUSES } from "../model/common.js";
+import { labelRenameWarnings, normalizeLabelNames, type Vocabulary } from "../model/labels.js";
 import { PRIORITIES, type Ticket } from "../model/ticket.js";
 import type { Store } from "../storage/store.js";
 
@@ -11,7 +12,12 @@ export const ticketFilterSchema = z.object({
   priority: z.array(z.enum(PRIORITIES)).optional().describe("Filter by priority"),
   iteration: z.string().optional().describe("Filter by Iteration ID"),
   epic: z.string().optional().describe("Filter by Epic ID"),
-  label: z.array(z.string()).optional().describe("Has any of these labels"),
+  label: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Has any of these labels. A name recorded as merged into another label (dg label merge) is read as that label, with a warning",
+    ),
   assignee: z
     .string()
     .optional()
@@ -33,6 +39,22 @@ export const ticketFilterSchema = z.object({
   query: z.string().optional().describe("Partial match on number, title, or label"),
 });
 export type TicketFilter = z.output<typeof ticketFilterSchema>;
+
+/**
+ * 絞り込みのラベルの統合済みの名前を統合先へ読み替え、読み替えたことを警告にする（書くときの置き換えと同じ normalizeLabelNames）。
+ * 統合の後も古い名前で探す習慣を、0 件にせずに受け止めて直させる
+ */
+export function resolveLabelFilter(
+  f: TicketFilter,
+  vocabulary: Vocabulary,
+): { filter: TicketFilter; warnings: string[] } {
+  if (!f.label) return { filter: f, warnings: [] };
+  const { labels, renamed } = normalizeLabelNames(f.label, vocabulary);
+  return {
+    filter: { ...f, label: labels },
+    warnings: labelRenameWarnings(renamed, "used for the filter"),
+  };
+}
 
 function isReady(store: Store, t: Ticket): boolean {
   return t.status === "todo" && store.depsDone(t);

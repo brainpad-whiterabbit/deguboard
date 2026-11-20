@@ -10,6 +10,7 @@ import {
   labelOptionGroups,
   labelOptionText,
   rowLabelOrder,
+  type LabelFilterValue,
   type LabelLook,
   type LabelOption,
   type LabelVocabulary,
@@ -43,6 +44,24 @@ export function LabelFilterOptions({
       ))}
     </>
   );
+}
+
+/** 絞っているラベルの札の文。統合済みの名前で絞ったときは、統合先で絞っていることと元の名前を添える（警告） */
+export function labelFilterText(label: LabelFilterValue): string {
+  return label.mergedFrom
+    ? tr("ラベル {0}（{1} は統合済み）", label.name, label.mergedFrom)
+    : tr("ラベル {0}", label.name);
+}
+
+/** 絞っているラベルの札のツールチップ。統合済みの名前は、統合先を使うよう促す */
+export function labelFilterTitle(label: LabelFilterValue): string {
+  return label.mergedFrom
+    ? tr(
+        "ラベル {0} は {1} に統合されたので、{1} で絞っています。これからは {1} を使ってください",
+        label.mergedFrom,
+        label.name,
+      )
+    : tr("ラベル {0}", label.name);
 }
 
 /** 行に並べるラベルの数。超える分は「+N」にまとめる */
