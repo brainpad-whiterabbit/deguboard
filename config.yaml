@@ -163,3 +163,5 @@ labels:
   axes:
     - name: area
       description: 製品のどの部分に触れるか
+    - name: kind
+      description: どんな種類の変更か
