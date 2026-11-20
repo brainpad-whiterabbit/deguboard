@@ -18,7 +18,7 @@ AI エージェントに開発を任せるための開発の流れを Git リポ
 
 ツールとコマンドは mise に統一する（[mise.toml](mise.toml)、[ADR-008](docs/adr/ADR-008-tech-stack.md)）。始め方は [development.md の「開発の始め方」](docs/development.md#開発の始め方)。
 
-- コードや文書を変更したら、コミットの前に `mise run format` で整える。チケットの作業は、push の前に `dg --json --actor agent gate <id> --only check`（見直しの前の検査）が通ることを確かめる。変えたファイルがすべて config の `actions.light_paths` に入るときは軽い検査を、ほかは `mise run check:pre-review`（型・lint・`test:related` の順）を回す（選び方の細部は `dg gate --help`）。段（`gate`）が free のチケットは検査は要らない（`mise run format` はする）。チケットの外の作業は、コミットの前に `mise run check` が通ることを確かめる（`main` との差分のファイルがすべて config の `actions.light_paths`（`dg config show` で見る）に入るときは、`mise run check` の代わりに軽い検査 `mise run check:light` でよい）
+- コードや文書を変更したら、コミットの前に `mise run format` で整える。チケットの作業は、push の前に `dg --json --actor agent gate <id> --only check`（見直しの前の検査）が通ることを確かめる。変えたファイルがすべて config の `actions.light_paths` に入るときは軽い検査を、ほかは `mise run check:pre-review`（文書の検査・型・lint・`test:related` の順）を回す（選び方の細部は `dg gate --help`）。段（`gate`）が free のチケットは検査は要らない（`mise run format` はする）。チケットの外の作業は、コミットの前に `mise run check` が通ることを確かめる（`main` との差分のファイルがすべて config の `actions.light_paths`（`dg config show` で見る）に入るときは、`mise run check` の代わりに軽い検査 `mise run check:light` でよい）
 - 作業の途中は `mise run test:related` で、変えたファイルに関わるテストだけを回す（選び方は mise.toml のタスクの説明。import はたどらないので、ほかのテストは全体の検査が見る）。全体の検査（`mise run check`）は、チケットの作業では `dg pr ready` の検査が開く前の先端で 1 回だけ回し（見直しの前と手直しの後は回さない。ready の後に base が進んだときは、取り込んだ新しい先端で `dg pr merge` がもう 1 回回す）、チケットの外の作業ではコミットの前にだけ回す
 - 新しいタスクは mise.toml に足し、pnpm scripts を呼ぶだけにする。`pnpm run`・`npx` を直接案内しない
 

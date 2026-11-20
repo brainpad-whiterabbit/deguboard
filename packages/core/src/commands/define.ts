@@ -80,7 +80,26 @@ export interface CommandDef<I extends z.ZodType, O> {
    * Stop で確かめてエージェントに返し、ほかのイベントで作業を止めない dg hook、書くときだけ止めて読むだけのときは警告にする dg pr ready）
    */
   ownsOutsideCheck?: boolean;
+  /**
+   * やめた入力のキーと、渡されたときの誤りの文（UsageError）。スキーマから外したキーは zod が黙って捨てるので、
+   * 渡した人に項目がなくなったことを伝える。flag は CLI のオプションの名前で、CLI はヘルプに出さずに受けてここに回す
+   */
+  retiredInputs?: Readonly<Record<string, RetiredInput>>;
   run(ctx: CommandContext, input: z.output<I>): Promise<CommandResult<O>>;
+}
+
+export interface RetiredInput {
+  flag: string;
+  message: string;
+}
+
+/** 入力にやめたキーがあれば、その誤りの文 */
+function retiredInputError(def: AnyCommand, rawInput: unknown): string | undefined {
+  if (!def.retiredInputs || typeof rawInput !== "object" || rawInput === null) return undefined;
+  const key = Object.keys(def.retiredInputs).find(
+    (k) => (rawInput as Record<string, unknown>)[k] !== undefined,
+  );
+  return key === undefined ? undefined : def.retiredInputs[key]!.message;
 }
 
 // 入口がコマンドを型を気にせず列挙するための形
@@ -126,6 +145,8 @@ async function runChecked<I extends z.ZodType, O>(
   ctx: CommandContext,
   rawInput: unknown,
 ): Promise<CommandResult<O>> {
+  const retired = retiredInputError(def as AnyCommand, rawInput);
+  if (retired !== undefined) throw new UsageError(retired);
   const parsed = def.input.safeParse(rawInput);
   if (!parsed.success) {
     const { prettifyError } = await import("zod");

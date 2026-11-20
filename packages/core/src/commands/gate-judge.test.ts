@@ -6,12 +6,14 @@ import type { BranchTip, PrGateFacts } from "../git/facts.js";
 import type { GateLevel } from "../model/ticket.js";
 import type { CheckOutcome } from "./gate-check.js";
 import {
+  MERGEABLE_REREAD_DELAYS_MS,
   concludeGate,
   gateFailure,
   gatePassage,
   gateReads,
   heavyReviewRounds,
   judgeBeforeCheck,
+  mergeableRereadDelay,
   rereadsBase,
   reviewedTip,
   waivedBy,
@@ -311,6 +313,82 @@ describe("PR の条件（pr・mergeable）と結果の pr・sha", () => {
       expect(failed(view)).toEqual(["mergeable", "check"]);
       expect(detail(view, "mergeable")).toContain(`mergeable is ${value}`);
     }
+  });
+
+  it("UNKNOWN のまま待ちきったときは、待った時間を detail に添えて満たさない", () => {
+    const view = judge({ pr: openPr({ mergeable: "UNKNOWN" }), mergeableWaitedMs: 10_000 });
+    expect(failed(view)).toEqual(["mergeable", "check"]);
+    expect(detail(view, "mergeable")).toContain("still UNKNOWN after waiting 10 s");
+  });
+
+  it("待つ間に CONFLICTING に決まったときは、待った時間を添えない（「まだ」とは書かない）", () => {
+    const view = judge({ pr: openPr({ mergeable: "CONFLICTING" }), mergeableWaitedMs: 10_000 });
+    expect(failed(view)).toEqual(["mergeable", "check"]);
+    expect(detail(view, "mergeable")).toContain("mergeable is CONFLICTING");
+    expect(detail(view, "mergeable")).not.toContain("after waiting");
+  });
+});
+
+describe("mergeable が UNKNOWN の間の読み直し（mergeableRereadDelay）", () => {
+  const DELAYS = [10, 20, 30];
+
+  /** 読むたびに values を順に返す PR を、判定が止めるまで読み直す。読んだ回数・待った時間の合計・最後の値を返す */
+  const settle = (values: readonly string[], stage: GateStage = "merge") => {
+    let reads = 1;
+    let waited = 0;
+    let pr = openPr({ mergeable: values[0]! });
+    for (let rereads = 0; ; rereads++) {
+      const delay = mergeableRereadDelay(stage, pr, rereads, DELAYS);
+      if (delay === null) break;
+      waited += delay;
+      pr = openPr({ mergeable: values[Math.min(reads, values.length - 1)]! });
+      reads++;
+    }
+    return { reads, waited, mergeable: pr.kind === "read" ? pr.pr.mergeable : null };
+  };
+
+  it("UNKNOWN の間だけ待って読み直し、決まった値（MERGEABLE・CONFLICTING）で止める", () => {
+    expect(settle(["MERGEABLE"])).toEqual({ reads: 1, waited: 0, mergeable: "MERGEABLE" });
+    expect(settle(["UNKNOWN", "MERGEABLE"])).toEqual({
+      reads: 2,
+      waited: 10,
+      mergeable: "MERGEABLE",
+    });
+    expect(settle(["UNKNOWN", "UNKNOWN", "CONFLICTING"])).toEqual({
+      reads: 3,
+      waited: 30,
+      mergeable: "CONFLICTING",
+    });
+  });
+
+  it("上限（delays の長さ）まで UNKNOWN のままなら、待ちの合計で止めて UNKNOWN を返す", () => {
+    expect(settle(["UNKNOWN"])).toEqual({ reads: 4, waited: 60, mergeable: "UNKNOWN" });
+    // 上限の最後の読み直しで決まれば、その値で止める
+    expect(settle(["UNKNOWN", "UNKNOWN", "UNKNOWN", "MERGEABLE"])).toEqual({
+      reads: 4,
+      waited: 60,
+      mergeable: "MERGEABLE",
+    });
+  });
+
+  it("mergeable を判定しない ready と、待っても pr で落ちる PR（読めない・閉じた・draft）は待たない", () => {
+    expect(settle(["UNKNOWN", "MERGEABLE"], "ready")).toMatchObject({ reads: 1, waited: 0 });
+    const unknown = { mergeable: "UNKNOWN" };
+    for (const pr of [
+      openPr({ ...unknown, state: "CLOSED" }),
+      openPr({ ...unknown, isDraft: true }),
+      { kind: "unreadable", reason: "x" } as const,
+      { kind: "missing", selector: "t1" } as const,
+      { kind: "no_selector" } as const,
+    ])
+      expect(mergeableRereadDelay("merge", pr, 0, DELAYS)).toBeNull();
+  });
+
+  it("既定の待ちは有限で、読み直しの回数ごとに待つ時間を返す", () => {
+    const pr = openPr({ mergeable: "UNKNOWN" });
+    const delays = MERGEABLE_REREAD_DELAYS_MS.map((_, i) => mergeableRereadDelay("merge", pr, i));
+    expect(delays).toEqual([...MERGEABLE_REREAD_DELAYS_MS]);
+    expect(mergeableRereadDelay("merge", pr, MERGEABLE_REREAD_DELAYS_MS.length)).toBeNull();
   });
 });
 
