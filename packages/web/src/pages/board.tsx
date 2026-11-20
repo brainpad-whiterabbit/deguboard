@@ -33,7 +33,8 @@ import { formatShortTime } from "../components/date-time.js";
 import { EpicChipRow, EpicHighlight, useEpicHighlight } from "../components/epic-chip.js";
 import { EpicFilterHead } from "../components/epic-head.js";
 import { FilterToggle } from "../components/filter-toggle.js";
-import { RowLabelsContext } from "../components/row-labels.js";
+import { LabelFilterOptions, RowLabelsContext } from "../components/row-labels.js";
+import type { LabelVocabulary } from "../components/label-vocab.js";
 import { RowSortChip, RowViewMenu, useRowView } from "../components/view-menu.js";
 import {
   BOARD_SORT_KEYS,
@@ -211,6 +212,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         selected: query.label ?? "",
         onSelect: (label: string) =>
           setFilter({ label: query.label === label ? undefined : label }),
+        vocabulary: store.labelVocabulary,
+        hideProcedure: !view.procedureLabels,
       }
     : null;
   const chipTickets = useMemo(
@@ -313,6 +316,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                 epics={epicRowOf(closeDrop)}
                 claims={claims}
                 labels={labels}
+                vocabulary={store.labelVocabulary}
                 query={query}
                 onFilter={(patch) => {
                   setFilter(patch);
@@ -359,6 +363,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           id="board-filters"
           claims={claims}
           labels={labels}
+          vocabulary={store.labelVocabulary}
           query={query}
           onChange={setFilter}
         />
@@ -664,6 +669,7 @@ function BoardBandDrop({
   epics,
   claims,
   labels,
+  vocabulary,
   query,
   onFilter,
   progress,
@@ -676,6 +682,7 @@ function BoardBandDrop({
   claims: readonly string[];
   /** ラベルの候補（labelOptions）。担当もラベルも空なら漏斗を出さない */
   labels: readonly string[];
+  vocabulary: LabelVocabulary;
   query: BoardQuery;
   onFilter: (patch: Partial<BoardQuery>) => void;
   progress: Progress;
@@ -702,6 +709,7 @@ function BoardBandDrop({
           id="board-band-filters"
           claims={claims}
           labels={labels}
+          vocabulary={vocabulary}
           query={query}
           onChange={onFilter}
         />
@@ -728,12 +736,14 @@ function BoardFilterFields({
   id,
   claims,
   labels,
+  vocabulary,
   query,
   onChange,
 }: {
   id: string;
   claims: readonly string[];
   labels: readonly string[];
+  vocabulary: LabelVocabulary;
   query: BoardQuery;
   onChange: (patch: Partial<BoardQuery>) => void;
 }) {
@@ -766,11 +776,7 @@ function BoardFilterFields({
               onChange={(e) => onChange({ label: e.target.value || undefined })}
             >
               <option value="">{tr("すべて")}</option>
-              {labels.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
+              <LabelFilterOptions names={labels} vocabulary={vocabulary} />
             </select>,
           )}
         </label>

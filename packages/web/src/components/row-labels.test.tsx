@@ -1,39 +1,33 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { EMPTY_VOCABULARY, vocabularyOf, type LabelVocabulary } from "./label-vocab.js";
 import {
-  LABEL_COLOR_COUNT,
+  LabelFilterOptions,
   RowLabels,
-  labelColorIndex,
   splitRowLabels,
   type RowLabelsSetting,
 } from "./row-labels.js";
 
 afterEach(cleanup);
 
-describe("ラベルの色（名前から決める）", () => {
-  it("同じ名前はいつも同じ色で、色は 6 色のどれか", () => {
-    for (const name of ["web", "docs", "gate", "ui", "日本語のラベル", "", "a".repeat(200)]) {
-      const index = labelColorIndex(name);
-      expect(index).toBe(labelColorIndex(name));
-      expect(Number.isInteger(index)).toBe(true);
-      expect(index).toBeGreaterThanOrEqual(0);
-      expect(index).toBeLessThan(LABEL_COLOR_COUNT);
-    }
-  });
-
-  it("決め方（FNV-1a を 6 で割った余り）を変えない。変えると、人の見慣れたラベルの色が入れ替わる", () => {
-    // 空の名前は FNV-1a の初期値 0x811c9dc5 の余り
-    expect(labelColorIndex("")).toBe(0x811c9dc5 % 6);
-    expect(["a", "ab", "web", "docs", "gate", "ui", "release"].map(labelColorIndex)).toEqual([
-      4, 0, 1, 0, 2, 5, 4,
-    ]);
-  });
-
-  it("似た名前を 1 色に寄せず、6 色をどれも使う", () => {
-    const names = Array.from({ length: 24 }, (_, i) => `label-${i}`);
-    expect(new Set(names.map(labelColorIndex)).size).toBe(LABEL_COLOR_COUNT);
-  });
+/** 軸 area（ui）と kind（bug）の語彙 */
+const VOCAB: LabelVocabulary = vocabularyOf({
+  state: "on",
+  axes: [
+    {
+      name: "area",
+      description: "Part",
+      labels: [{ name: "ui", description: "画面", created_at: "", count: 0, last_used_at: null }],
+    },
+    {
+      name: "kind",
+      description: "Kind",
+      labels: [
+        { name: "bug", description: "不具合", created_at: "", count: 0, last_used_at: null },
+      ],
+    },
+  ],
 });
 
 describe("行に出すラベルと「+N」の分け方", () => {
@@ -48,7 +42,11 @@ describe("行に出すラベルと「+N」の分け方", () => {
 });
 
 describe("行のラベルの札", () => {
-  const setting = (selected = ""): RowLabelsSetting => ({ selected, onSelect: vi.fn() });
+  const setting = (
+    selected = "",
+    vocabulary = EMPTY_VOCABULARY,
+    hideProcedure = false,
+  ): RowLabelsSetting => ({ selected, onSelect: vi.fn(), vocabulary, hideProcedure });
 
   it("ラベルがなければ何も出さない", () => {
     const { container } = render(<RowLabels labels={[]} setting={setting()} />);
@@ -61,6 +59,7 @@ describe("行のラベルの札", () => {
     expect(chips.map((c) => c.textContent)).toEqual(["cli", "flow", "docs"]);
     for (const chip of chips) {
       expect(chip.tabIndex).toBe(-1);
+      // 語彙のないボードは名前から色を決め、印は付けない
       expect(chip.className).toMatch(/label-color-[0-5]/);
     }
     const more = document.querySelector(".row-label.more")!;
@@ -80,5 +79,71 @@ describe("行のラベルの札", () => {
     expect(docs.title).toBe("ラベル docs で絞る");
     fireEvent.click(docs);
     expect(s.onSelect).toHaveBeenCalledWith("docs");
+  });
+
+  it("語彙があれば軸の色で出し、ツールチップに軸と説明を足す。語彙にない名前は色を付けず「?」の印を付ける（読み上げの名前には入れない）", () => {
+    render(<RowLabels labels={["bug", "ui", "misc"]} setting={setting("", VOCAB)} />);
+    const ui = screen.getByRole("button", { name: "ui" });
+    const bug = screen.getByRole("button", { name: "bug" });
+    const misc = screen.getByRole("button", { name: "misc" });
+    expect(ui.className).toBe("row-label label-color-0");
+    expect(bug.className).toBe("row-label label-color-1");
+    expect(ui.title).toBe("ラベル ui で絞る\narea: 画面");
+    expect(misc.className).toBe("row-label label-unknown");
+    expect(misc.textContent).toBe("misc?");
+    expect(misc.title).toBe("ラベル misc で絞る\n語彙にない");
+  });
+
+  it("手順のラベルは目立たない見た目で後ろへ回し、語彙になくても印を付けない。隠す設定なら出さず「+N」にも数えない", () => {
+    const labels = ["audit-s3", "ui", "release-s3", "bug", "retro-s2", "misc"];
+    const { unmount } = render(<RowLabels labels={labels} setting={setting("", VOCAB)} />);
+    expect(screen.getAllByRole("button").map((c) => c.textContent)).toEqual(["ui", "bug", "misc?"]);
+    expect(document.querySelector(".row-label.more")!.getAttribute("aria-label")).toBe(
+      "ほかのラベル audit-s3, release-s3, retro-s2",
+    );
+    unmount();
+    render(<RowLabels labels={["audit-s3"]} setting={setting("", VOCAB)} />);
+    const audit = screen.getByRole("button", { name: "audit-s3" });
+    expect(audit.className).toBe("row-label label-procedure");
+    expect(audit.title).toBe("ラベル audit-s3 で絞る\n手順のラベル");
+    cleanup();
+    render(<RowLabels labels={labels} setting={setting("", VOCAB, true)} />);
+    expect(screen.getAllByRole("button").map((c) => c.textContent)).toEqual(["ui", "bug", "misc?"]);
+    expect(document.querySelector(".row-label.more")).toBeNull();
+    cleanup();
+    const { container } = render(
+      <RowLabels labels={["audit-s3"]} setting={setting("", VOCAB, true)} />,
+    );
+    expect(container.innerHTML).toBe("");
+  });
+});
+
+describe("ラベルの絞り込みの候補", () => {
+  const optionsOf = (names: string[], vocabulary: LabelVocabulary) => {
+    render(
+      <select aria-label="ラベル">
+        <LabelFilterOptions names={names} vocabulary={vocabulary} />
+      </select>,
+    );
+    return [...document.querySelectorAll("optgroup")].map((g) => ({
+      label: g.label,
+      options: [...g.querySelectorAll("option")].map((o) => o.textContent),
+    }));
+  };
+
+  it("語彙があれば軸ごとの組に分けて名前の横に説明を出し、語彙にない名前は最後の組にまとめる", () => {
+    expect(optionsOf(["bug", "misc", "ui"], VOCAB)).toEqual([
+      { label: "area", options: ["ui — 画面"] },
+      { label: "kind", options: ["bug — 不具合"] },
+      { label: "語彙にない", options: ["misc"] },
+    ]);
+  });
+
+  it("語彙のないボードは組に分けず名前だけを並べる", () => {
+    expect(optionsOf(["bug", "ui"], EMPTY_VOCABULARY)).toEqual([]);
+    expect([...document.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
+      "bug",
+      "ui",
+    ]);
   });
 });

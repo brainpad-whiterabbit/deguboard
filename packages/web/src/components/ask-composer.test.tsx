@@ -34,6 +34,7 @@ const READS = new Set([
   "iteration.list",
   "plan.list",
   "workflow.show",
+  "label.list",
   "run.list",
   "ask",
   "ask-menu",

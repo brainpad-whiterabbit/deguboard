@@ -1,6 +1,7 @@
 // VS Code のパネルのチケット詳細の右の列（属性）。Status の選択を先頭に、属性を「計画・つながり・作業・記録」の見出しで分け、
 // 値のない属性は最後の「なし」の 1 行にまとめる。Status の選択には Workflow で今から移れる Status だけを並べる。
 // 属性は値を押してその場で直し、確定で ticket.update に 1 属性だけ渡す。値のない属性は「なし」の行の「＋足す」から選んで値を入れる。
+// ラベルは入力欄の下に語彙を軸ごとに並べ（説明つき）、押して足し外しできる。語彙にない名前も入力欄に書ける（components/label-picker.tsx）。
 // パネルの詳細は 1 件ずつ開いて少しずつ直すので、まとめて直す編集や、選んでから拒否される選択肢は手間が大きい
 
 import { useRef, useState, type ReactNode } from "react";
@@ -14,6 +15,7 @@ import {
   type WorkflowView,
 } from "../types.js";
 import { ConfirmSelect, InlineEdit, type Choice } from "./inline-edit.js";
+import { LabelPicker } from "./label-picker.js";
 import {
   none,
   parseLabels,
@@ -117,6 +119,7 @@ export function PanelProps({
       placeholder?: string;
       normalize?: (raw: string) => string;
       link?: ReactNode;
+      picker?: (raw: string, setRaw: (raw: string) => void) => ReactNode;
     } = {},
   ) => (
     <InlineEdit
@@ -213,7 +216,13 @@ export function PanelProps({
             ticket.labels.join(", "),
             (raw) => ({ labels: parseLabels(raw) }),
             ticket.labels.length ? a.labelsView : none,
-            { placeholder: tr("カンマ区切り"), normalize: (raw) => parseLabels(raw).join(", ") },
+            {
+              placeholder: tr("カンマ区切り"),
+              normalize: (raw) => parseLabels(raw).join(", "),
+              picker: (raw, setRaw) => (
+                <LabelPicker vocabulary={store.labelVocabulary} raw={raw} onChange={setRaw} />
+              ),
+            },
           ),
         ),
       ],

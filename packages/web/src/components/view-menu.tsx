@@ -1,6 +1,6 @@
 // 左パネルの「表示」ボタンとメニュー（UI-2・UI-3）。バックログは検索欄の漏斗の隣、カンバンは見出しの漏斗の隣に置き、
-// 行の見た目（ラベルを出すか）と並び順（components/row-sort.ts）を切り替える。値は人ごとの見た目なので host.state に残す（useUiState）。
-// ラベルを出すかは 2 つのタブで同じ値、並び順はタブごとの値。
+// 行の見た目（ラベルを出すか・手順のラベルも出すか）と並び順（components/row-sort.ts）を切り替える。値は人ごとの見た目なので host.state に残す（useUiState）。
+// ラベルの出し方は 2 つのタブで同じ値、並び順はタブごとの値。
 // 既定と違う間はボタンを色付きにする（styles.css の .view-toggle.active）。メニューの項目は ViewMenuCheck を足して増やす。
 // メニューは上の端の帯には入れない（並びが既定と違うことは帯の札 RowSortChip で知らせ、× で戻せる）
 
@@ -21,9 +21,11 @@ import {
 export interface RowView {
   /** 行のタイトルの下にラベルを出すか */
   labels: boolean;
+  /** ラベルを出すとき、手順のラベル（audit-・retro-・release-。components/label-vocab.ts）も出すか */
+  procedureLabels: boolean;
 }
 
-export const DEFAULT_ROW_VIEW: RowView = { labels: true };
+export const DEFAULT_ROW_VIEW: RowView = { labels: true, procedureLabels: true };
 
 /** host.state の鍵。バックログとカンバンで同じ鍵を読む */
 export const ROW_VIEW_KEY = "rows.view";
@@ -34,12 +36,17 @@ export function rowViewOf(stored: unknown): RowView {
     typeof stored === "object" && stored !== null ? (stored as Record<string, unknown>) : {};
   return {
     labels: typeof v.labels === "boolean" ? v.labels : DEFAULT_ROW_VIEW.labels,
+    procedureLabels:
+      typeof v.procedureLabels === "boolean" ? v.procedureLabels : DEFAULT_ROW_VIEW.procedureLabels,
   };
 }
 
 /** 既定と違う見た目を選んでいるか（「表示」ボタンを色付きにする） */
 export function rowViewChanged(view: RowView): boolean {
-  return view.labels !== DEFAULT_ROW_VIEW.labels;
+  return (
+    view.labels !== DEFAULT_ROW_VIEW.labels ||
+    view.procedureLabels !== DEFAULT_ROW_VIEW.procedureLabels
+  );
 }
 
 /** 行の見た目と、その一部を変える関数 */
@@ -76,6 +83,14 @@ export function RowViewMenu({
     <ViewMenu changed={changed}>
       <ViewMenuCheck checked={view.labels} onToggle={() => onChange({ labels: !view.labels })}>
         {tr("ラベルを出す")}
+      </ViewMenuCheck>
+      {/* 手順のラベルはラベルを出す間だけ意味があるので、ラベルを切っている間は選べなくする */}
+      <ViewMenuCheck
+        checked={view.labels && view.procedureLabels}
+        disabled={!view.labels}
+        onToggle={() => onChange({ procedureLabels: !view.procedureLabels })}
+      >
+        {tr("手順のラベルを出す")}
       </ViewMenuCheck>
       {sort ? (
         <div className="view-menu-group" role="group" aria-label={tr("並び順")}>
@@ -205,10 +220,12 @@ function ViewMenu({ changed, children }: { changed: boolean; children: ReactNode
 /** メニューの入り切りの項目。入っている間は ✓ を出す */
 function ViewMenuCheck({
   checked,
+  disabled = false,
   onToggle,
   children,
 }: {
   checked: boolean;
+  disabled?: boolean | undefined;
   onToggle: () => void;
   children: ReactNode;
 }) {
@@ -217,8 +234,10 @@ function ViewMenuCheck({
       type="button"
       role="menuitemcheckbox"
       aria-checked={checked}
+      // disabled にするとフォーカスできず ↑↓ で飛ばされるので、aria-disabled にして押しても何もしない
+      aria-disabled={disabled || undefined}
       className="view-menu-item"
-      onClick={onToggle}
+      onClick={disabled ? undefined : onToggle}
     >
       <span className="view-menu-check" aria-hidden="true">
         {checked ? "✓" : ""}

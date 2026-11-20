@@ -143,6 +143,8 @@ export const EN: Readonly<Record<string, string>> = {
   "完了 {0} ・ 持ち越し {1}": "Done {0} · Carried over {1}",
   // components/iteration-plans.tsx
   "{0} の詳細を開く": "Open details of {0}",
+  // components/label-picker.tsx
+  語彙から選ぶ: "Pick from the vocabulary",
   // components/setup-checklist.tsx
   "deguboard を始める": "Get Started with deguboard",
   セットアップ: "Setup",
@@ -383,6 +385,8 @@ export const EN: Readonly<Record<string, string>> = {
   "ラベル {0} の絞り込みを外す": "Remove filter label {0}",
   "ラベル {0} で絞る": "Filter by label {0}",
   "ほかのラベル {0}": "More labels: {0}",
+  語彙にない: "Not in the vocabulary",
+  手順のラベル: "Procedure label",
   // components/run-parts.tsx
   実行中: "Running",
   成功: "Success",
@@ -450,6 +454,7 @@ export const EN: Readonly<Record<string, string>> = {
   更新日: "Updated",
   // components/view-menu.tsx
   ラベルを出す: "Show labels",
+  手順のラベルを出す: "Show procedure labels",
   "表示（既定と違う）": "View (changed)",
   表示: "View",
   表示を切り替える: "Change the view",

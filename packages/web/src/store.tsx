@@ -1,8 +1,10 @@
 // 画面の状態。カンバンのチケット・Epic・Iteration・Plan・カンバンの Workflow と同期の状態を CommandClient から読み、書き込みのあとに読み直す。
 // 状態管理のライブラリは入れず、React の context だけで持つ。
 // cache を渡すと（VS Code の Webview）、読み終えた一覧を残しておき、次に開いたときはそれをすぐ描いてから読み直して差し替える。
-// 最初の読み込みは core の中で 1 本ずつ処理されるコマンドが 7 本並び、サイドバーとパネルが同じ列を使うので、その間を空の画面にしない。
+// 最初の読み込みは core の中で 1 本ずつ処理されるコマンドが 8 本並び、サイドバーとパネルが同じ列を使うので、その間を空の画面にしない。
 // 操作している人（whoami。主体の ID・ユーザ名と、本人とみなす ID の own_ids）も一覧と一緒に読み、me に持つ（担当者が自分かの判定に使う）。
+// ラベルの語彙（label.list。軸と語彙）も一覧と一緒に読み、labelVocabulary に持つ（行の札の色・絞り込みの候補・属性の欄の選択に使う）。
+// 語彙を読めなくても一覧は描く（前の値のまま。最初なら語彙なしとして、札は名前から色を決める）。
 // チケットごとの Run の要約（run.recent。件数と新しい順 3 件。このマシンの実行中の Run を含む）は、
 // readRunning のとき（左パネルのカンバンの行の Run の並びに使う）だけ、ほかの一覧を描いた後に遅れて読む。
 // cache には残さない（前回の「実行中」を次に開いたときに出さない）。
@@ -33,6 +35,7 @@ import type {
   ConfigShowView,
   EpicRow,
   Iteration,
+  LabelListView,
   PlanRow,
   Priority,
   Status,
@@ -43,6 +46,7 @@ import type {
 } from "./types.js";
 import { SETUP_BAND_DISMISSED_KEY, type UiState } from "./ui-state.js";
 import { shownDefault, shownWorkflow, tr } from "./l10n.js";
+import { vocabularyOf, type LabelVocabulary } from "./components/label-vocab.js";
 
 /** 優先度の判断基準（config.yaml の priority。config.show が core の既定を混ぜて返す）。読み終えるまでは空 */
 const EMPTY_PRIORITY_CRITERIA: Record<Priority, string> = { high: "", medium: "", low: "" };
@@ -71,6 +75,8 @@ interface Snapshot {
   workflow: WorkflowView | null;
   /** 前の版の cache にはないことがある */
   me?: WhoamiView | null | undefined;
+  /** ラベルの語彙。前の版の cache にはないことがある */
+  labels?: LabelListView | null | undefined;
 }
 
 /**
@@ -106,6 +112,8 @@ export interface Store {
   me: WhoamiView | null;
   /** チケットごとの Run の要約（run.recent。Run のないチケットは入らない）。読み終えるまでと、readRunning でないときは null */
   ticketRuns: ReadonlyMap<string, TicketRunsView> | null;
+  /** ラベルの語彙（label.list を画面の見方にしたもの）。読み終えるまでは語彙なし、読めなかったときは前の値 */
+  labelVocabulary: LabelVocabulary;
   status: StatusView | null;
   /** 優先度の値ごとの判断基準（config.yaml の priority、なければ core の既定）。印のツールチップと詳細の選択の説明に使う */
   priorityCriteria: Record<Priority, string>;
@@ -182,6 +190,7 @@ export function StoreProvider({
   const [plans, setPlans] = useState<PlanRow[]>(cached?.plans ?? []);
   const [workflow, setWorkflow] = useState<WorkflowView | null>(cached?.workflow ?? null);
   const [me, setMe] = useState<WhoamiView | null>(cached?.me ?? null);
+  const [labels, setLabels] = useState<LabelListView | null>(cached?.labels ?? null);
   const [ticketRuns, setTicketRuns] = useState<ReadonlyMap<string, TicketRunsView> | null>(null);
   // 読み直しが重なったとき、古い読み直しの Run の要約で上書きしない
   const runningSeq = useRef(0);
@@ -273,12 +282,17 @@ export function StoreProvider({
       setNeedsSetup(false);
       setMe(whoami.data);
       if (config.data.config?.priority) setPriorityCriteria(priorityCriteriaOf(config.data));
-      const [t, e, i, p, w] = await Promise.all([
+      const [t, e, i, p, w, l] = await Promise.all([
         client.run<TicketRow[]>("ticket.list", { include_abandoned: true }),
         client.run<EpicRow[]>("epic.list"),
         client.run<Iteration[]>("iteration.list"),
         client.run<PlanRow[]>("plan.list"),
         client.run<WorkflowView>("workflow.show"),
+        // 語彙は見た目の手がかりなので、読めなくても一覧を描く（null なら前の値のまま）
+        client.run<LabelListView>("label.list").then(
+          (r) => r.data,
+          () => null,
+        ),
       ]);
       if (stale()) return;
       setTickets(t.data);
@@ -286,6 +300,7 @@ export function StoreProvider({
       setIterations(i.data);
       setPlans(p.data);
       setWorkflow(w.data);
+      if (l) setLabels(l);
       cache?.set(SNAPSHOT_KEY, {
         tickets: t.data,
         epics: e.data,
@@ -293,6 +308,8 @@ export function StoreProvider({
         plans: p.data,
         workflow: w.data,
         me: whoami.data,
+        // 読めなかったときは前に残した語彙を残す
+        labels: l ?? cache?.get<Snapshot>(SNAPSHOT_KEY)?.labels ?? null,
       } satisfies Snapshot);
       for (const key of OLD_SNAPSHOT_KEYS) cache?.remove(key);
       void refreshStatus();
@@ -402,6 +419,7 @@ export function StoreProvider({
   // 既定のままの Status の表示名と、Core が持つ Run の step の表示名は表示言語の訳にして渡す（workflow と labelOf の両方）。
   // cache には core が返したままを残す（表示言語が変わっても訳し直せるように）
   const shownWf = useMemo(() => workflow && shownWorkflow(workflow), [workflow]);
+  const labelVocabulary = useMemo(() => vocabularyOf(labels), [labels]);
   const value = useMemo<Store>(
     () => ({
       client,
@@ -412,6 +430,7 @@ export function StoreProvider({
       workflow: shownWf,
       me,
       ticketRuns,
+      labelVocabulary,
       status,
       priorityCriteria,
       loading,
@@ -438,6 +457,7 @@ export function StoreProvider({
       shownWf,
       me,
       ticketRuns,
+      labelVocabulary,
       status,
       priorityCriteria,
       loading,

@@ -16,18 +16,27 @@ import {
 afterEach(cleanup);
 
 describe("行の見た目の値", () => {
-  it("既定はラベルを出す。残した値がない・壊れている・項目がないときは既定で読む", () => {
-    expect(DEFAULT_ROW_VIEW).toEqual({ labels: true });
+  it("既定はラベルも手順のラベルも出す。残した値がない・壊れている・項目がないときは既定で読む", () => {
+    expect(DEFAULT_ROW_VIEW).toEqual({ labels: true, procedureLabels: true });
     expect(rowViewOf(undefined)).toEqual(DEFAULT_ROW_VIEW);
     expect(rowViewOf("x")).toEqual(DEFAULT_ROW_VIEW);
     expect(rowViewOf({})).toEqual(DEFAULT_ROW_VIEW);
     expect(rowViewOf({ labels: "no" })).toEqual(DEFAULT_ROW_VIEW);
-    expect(rowViewOf({ labels: false, other: 1 })).toEqual({ labels: false });
+    // 手順のラベルの項目を足す前に残した値も読める
+    expect(rowViewOf({ labels: false, other: 1 })).toEqual({
+      labels: false,
+      procedureLabels: true,
+    });
+    expect(rowViewOf({ labels: true, procedureLabels: false })).toEqual({
+      labels: true,
+      procedureLabels: false,
+    });
   });
 
   it("既定と違うときだけ変えたことにする", () => {
-    expect(rowViewChanged({ labels: true })).toBe(false);
-    expect(rowViewChanged({ labels: false })).toBe(true);
+    expect(rowViewChanged({ labels: true, procedureLabels: true })).toBe(false);
+    expect(rowViewChanged({ labels: false, procedureLabels: true })).toBe(true);
+    expect(rowViewChanged({ labels: true, procedureLabels: false })).toBe(true);
   });
 });
 
@@ -47,6 +56,7 @@ function Menu() {
     <>
       <RowViewMenu view={view} onChange={setView} />
       <span data-testid="labels">{String(view.labels)}</span>
+      <span data-testid="procedure">{String(view.procedureLabels)}</span>
     </>
   );
 }
@@ -76,7 +86,7 @@ describe("「表示」ボタンとメニュー", () => {
     expect(screen.getByRole("menu")).toBeTruthy();
     expect(item.getAttribute("aria-checked")).toBe("false");
     expect(screen.getByTestId("labels").textContent).toBe("false");
-    expect(host.state.get(ROW_VIEW_KEY)).toEqual({ labels: false });
+    expect(host.state.get(ROW_VIEW_KEY)).toEqual({ labels: false, procedureLabels: true });
     const changed = screen.getByRole("button", { name: "表示（既定と違う）" });
     expect(changed.classList.contains("active")).toBe(true);
 
@@ -110,6 +120,11 @@ describe("「表示」ボタンとメニュー", () => {
     const priority = within(group).getByRole("menuitemradio", { name: "優先度 ↓" });
     expect(priority.getAttribute("aria-checked")).toBe("true");
     expect(priority.textContent).toBe("✓優先度↓");
+    // ラベルを切っている間の「手順のラベルを出す」は選べないが、↑↓ では止まる
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(
+      screen.getByRole("menuitemcheckbox", { name: "手順のラベルを出す" }),
+    );
     fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
     expect(document.activeElement).toBe(priority);
 
@@ -121,13 +136,37 @@ describe("「表示」ボタンとメニュー", () => {
     expect(priority.getAttribute("aria-checked")).toBe("false");
 
     fireEvent.click(screen.getByRole("menuitem", { name: "既定に戻す" }));
-    expect(host.state.get(ROW_VIEW_KEY)).toEqual({ labels: true });
+    expect(host.state.get(ROW_VIEW_KEY)).toEqual(DEFAULT_ROW_VIEW);
     expect(host.state.get("backlog.sort")).toEqual(DEFAULT_ROW_SORT);
     expect(screen.queryByRole("menuitem", { name: "既定に戻す" })).toBeNull();
     expect(document.activeElement).toBe(
       screen.getByRole("menuitemcheckbox", { name: "ラベルを出す" }),
     );
     expect(screen.getByRole("button", { name: "表示" }).classList.contains("active")).toBe(false);
+  });
+
+  it("「手順のラベルを出す」で手順のラベルを隠す・出す。ラベルを切っている間は選べず、押しても変わらない", () => {
+    const host = hostOf();
+    render(
+      <HostProvider host={host}>
+        <Menu />
+      </HostProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "表示" }));
+    const item = screen.getByRole("menuitemcheckbox", { name: "手順のラベルを出す" });
+    expect(item.getAttribute("aria-checked")).toBe("true");
+    expect(item.getAttribute("aria-disabled")).toBeNull();
+    fireEvent.click(item);
+    expect(item.getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByTestId("procedure").textContent).toBe("false");
+    expect(host.state.get(ROW_VIEW_KEY)).toEqual({ labels: true, procedureLabels: false });
+    expect(screen.getByRole("button", { name: "表示（既定と違う）" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "ラベルを出す" }));
+    expect(item.getAttribute("aria-disabled")).toBe("true");
+    expect(item.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(item);
+    expect(screen.getByTestId("procedure").textContent).toBe("false");
   });
 
   it("メニューの外を押すと閉じ、残した値で開き直す", () => {
