@@ -1,0 +1,37 @@
+{
+  "id": "r20261120-052058-dfd3",
+  "ticket": "t1186",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-20T05:20:58Z",
+  "finished_at": "2026-11-20T05:22:54Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "The help of the workflow show command still lists only add, update, and remove as what governance.labels judges, though label merge is now judged too",
+    "The help of the label list command names add, update, and remove as the writers of the vocabulary and omits merge",
+    "The hint for a from name missing from the vocabulary does not mention adding the name to the vocabulary first and then merging it"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 3816,
+    "cache_read": 340740,
+    "cache_write": 32485
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 3,
+    "bash": 8,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "b4cec18b-e9c5-412a-ad57-9f0ef157ec9d",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 26
+}
