@@ -1,7 +1,7 @@
 // ラベルの軸の候補と、kind の推薦の語彙（requirements.md 5.10、ADR-037）。名前と説明を英語で持つ。
 // 候補は config の既定ではない（labels.axes は書くまでオフ）：軸をまだ決めていないボードに勧めるときの出発点で、
 // 人が選んだものだけを dg label axis set がチームの config.yaml に書く。形は書く軸と同じ（labelAxisSchema）なので、
-// 選ばれたらそのまま記録できる。読むのは dg label axis list --candidates と設定画面（config.show の fields）
+// 選ばれたらそのまま記録できる。読むのは dg label axis list --candidates と設定画面（config.show の label_axis_candidates）
 
 import type { LabelAxis } from "./config.js";
 
