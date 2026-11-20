@@ -64,6 +64,7 @@ epics/e3.md
 iterations/s3.yaml
 plans/p7.yaml
 workflow.yaml               # カンバンに 1 つの Workflow（5.8）。なければ既定で動く
+labels.yaml                 # ラベルの語彙（名前ごとに軸と説明。ADR-037）。なければ語彙なし。`dg label list` が読む
 runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開始日時と乱数
 ```
 

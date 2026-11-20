@@ -4,6 +4,7 @@ export * from "./common.js";
 export * from "./config.js";
 export * from "./retro-recommended.js";
 export * from "./label-axes.js";
+export * from "./labels.js";
 export * from "./ticket.js";
 export * from "./epic.js";
 export * from "./iteration.js";

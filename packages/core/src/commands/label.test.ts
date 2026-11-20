@@ -1,7 +1,7 @@
-// ラベルの軸を読み書きするコマンド（label.axis.set・label.axis.remove・label.axis.list。ADR-037）
+// ラベルの軸を読み書きするコマンド（label.axis.set・label.axis.remove・label.axis.list。ADR-037）と、語彙を読む label.list
 // 同期を確かめないので、すべてデータのリモートのない initializedLocalFixture で回す
 
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parse } from "yaml";
@@ -12,11 +12,13 @@ import {
   runCleanups,
   writeWorkflowYaml,
 } from "../../test/helpers/commands-context.js";
+import { withWrite } from "../git/write.js";
 import { LABEL_AXIS_CANDIDATES } from "../model/label-axes.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { labelAxisList, labelAxisRemove, labelAxisSet } from "./label.js";
-import { configSet, configShow, configUnset, type ConfigShowView } from "./setup.js";
+import { labelAxisList, labelAxisRemove, labelAxisSet, labelList } from "./label.js";
+import { configSet, configShow, configUnset, validate, type ConfigShowView } from "./setup.js";
+import { ticketCreate } from "./ticket.js";
 
 afterEach(runCleanups);
 
@@ -208,5 +210,168 @@ describe("ラベルの軸", () => {
 
     await governance("anyone");
     expect((await runCommand(labelAxisSet, agent, area)).data.axes).toEqual([kind, area]);
+  });
+});
+
+/** labels.yaml をデータのディレクトリに置いて索引を作り直す（語彙を書くコマンドはまだないので、dg の書き込みとして直に書く） */
+async function writeLabels(ctx: CommandContext, lines: string[]): Promise<void> {
+  await withWrite(
+    ctx,
+    () => writeFile(path.join(ctx.repo.dataDir, "labels.yaml"), `${lines.join("\n")}\n`),
+    { message: "語彙を書く" },
+  );
+  await ctx.store.rescan();
+}
+
+describe("ラベルの語彙（labels.yaml）", () => {
+  const at = "2026-11-01T00:00:00Z";
+  const vocabulary = [
+    "ui:",
+    "  axis: area",
+    "  description: The board and its panels",
+    `  created_at: ${at}`,
+    "bug:",
+    "  axis: kind",
+    "  description: A defect",
+    `  created_at: ${at}`,
+    "web:",
+    "  axis: area",
+    "  description: The web UI",
+    `  created_at: ${at}`,
+    "  merged_into: ui",
+    `  merged_at: ${at}`,
+  ];
+
+  it("labels.yaml のないボードの label.list は、軸だけを語彙なしで出す", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    expect((await runCommand(labelList, ctx, {})).data).toEqual({ state: "undecided", axes: [] });
+    await runCommand(labelAxisSet, ctx, area);
+    expect((await runCommand(labelList, ctx, { merged: true, undefined: true })).data).toEqual({
+      state: "on",
+      axes: [{ ...area, labels: [] }],
+      merged: [],
+      undefined: [],
+    });
+  });
+
+  it("label.list は軸ごとの語彙に件数と最後に使われた時刻を添え、--merged で統合の記録、--undefined で語彙にない名前と件数を出す", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    await runCommand(labelAxisSet, ctx, area);
+    await runCommand(labelAxisSet, ctx, kind);
+    await writeLabels(ctx, vocabulary);
+    await runCommand(ticketCreate, ctx, { title: "一", labels: ["ui", "tooling"] });
+    const second = await runCommand(ticketCreate, ctx, { title: "二", labels: ["ui", "web"] });
+    await runCommand(ticketCreate, ctx, { title: "三", labels: ["tooling"] });
+    // 期待する時刻は、用意したチケットの記録から取る
+    const lastUsed = second.data.created_at;
+
+    const plain = (await runCommand(labelList, ctx, {})).data;
+    expect(plain).toEqual({
+      state: "on",
+      axes: [
+        {
+          ...area,
+          labels: [
+            {
+              name: "ui",
+              description: "The board and its panels",
+              created_at: at,
+              count: 2,
+              last_used_at: lastUsed,
+            },
+          ],
+        },
+        {
+          ...kind,
+          labels: [
+            { name: "bug", description: "A defect", created_at: at, count: 0, last_used_at: null },
+          ],
+        },
+      ],
+    });
+    const full = (await runCommand(labelList, ctx, { merged: true, undefined: true })).data;
+    expect(full.axes).toEqual(plain.axes);
+    expect(full.merged).toEqual([
+      {
+        name: "web",
+        axis: "area",
+        description: "The web UI",
+        merged_into: "ui",
+        merged_at: at,
+      },
+    ]);
+    expect(full.undefined).toEqual([
+      { name: "tooling", count: 2 },
+      { name: "web", count: 1 },
+    ]);
+    // 語彙は正しいので、検証は誤りを出さない
+    expect((await runCommand(validate, ctx, {})).data).toEqual({ ok: true, issues: [] });
+  });
+
+  it("読めない項目は止めずに外し、dg validate が名前つきで報告する。ほかの語彙は読める", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    await writeLabels(ctx, [
+      ...vocabulary,
+      "no-description:",
+      "  axis: area",
+      `  created_at: ${at}`,
+      "half-merged:",
+      "  axis: area",
+      "  description: x",
+      `  created_at: ${at}`,
+      "  merged_into: ui",
+    ]);
+    expect([...ctx.store.labels.keys()]).toEqual(["ui", "bug", "web"]);
+    const checked = (await runCommand(validate, ctx, {})).data;
+    expect(checked.ok).toBe(false);
+    expect(checked.issues).toMatchObject([
+      {
+        severity: "error",
+        code: "schema_error",
+        path: "labels.yaml",
+        message:
+          "The label no-description does not match the schema, so it is not read as vocabulary",
+      },
+      {
+        severity: "error",
+        code: "schema_error",
+        path: "labels.yaml",
+        message: "The label half-merged does not match the schema, so it is not read as vocabulary",
+        detail: expect.stringContaining("merged_into and merged_at go together"),
+      },
+    ]);
+    // 読めない項目があっても、一覧とほかの書き込みは止まらない
+    const listed = (await runCommand(labelList, ctx, {})).data;
+    expect(listed.axes.flatMap((a) => a.labels.map((l) => l.name))).toEqual(["ui", "bug"]);
+    await expect(runCommand(ticketCreate, ctx, { title: "続けて書ける" })).resolves.toBeDefined();
+  });
+
+  it("同じ名前を 2 回書いた（軸が違っても）ファイルと、最上位がマッピングでないファイルは、語彙なしにして dg validate が報告する", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    await writeLabels(ctx, [
+      ...vocabulary,
+      "ui:",
+      "  axis: kind",
+      "  description: The same name on another axis",
+      `  created_at: ${at}`,
+    ]);
+    expect(ctx.store.labels.size).toBe(0);
+    expect((await runCommand(validate, ctx, {})).data.issues).toMatchObject([
+      { severity: "error", code: "yaml_error", path: "labels.yaml" },
+    ]);
+
+    await writeLabels(ctx, ["- ui", "- bug"]);
+    expect(ctx.store.labels.size).toBe(0);
+    expect((await runCommand(validate, ctx, {})).data.issues).toMatchObject([
+      { severity: "error", code: "schema_error", path: "labels.yaml" },
+    ]);
+    // 直せば読める
+    await writeLabels(ctx, vocabulary);
+    expect([...ctx.store.labels.keys()]).toEqual(["ui", "bug", "web"]);
+    expect((await runCommand(validate, ctx, {})).data.issues).toEqual([]);
   });
 });

@@ -1,7 +1,8 @@
 // ラベルの軸（config.yaml の labels.axes。requirements.md 5.10、ADR-037）。
 // 軸の一覧は入れ子で config.set の 1 項目に収まらないので、ここのコマンドがスキーマで検査してチームの config.yaml に書く。
 // チームの設定の変更なので、config.set と同じく Workflow の governance.config で判定する。
-// 軸の候補と推薦の語彙は model/label-axes.ts が持ち、label.axis.list の --candidates で出す
+// 軸の候補と推薦の語彙は model/label-axes.ts が持ち、label.axis.list の --candidates で出す。
+// 語彙（データのブランチの labels.yaml。requirements.md 5.1）は label.list が読む。一覧を作る判定は model/labels.ts
 
 import { z } from "zod";
 import { OperationError } from "../errors.js";
@@ -14,6 +15,7 @@ import {
   type LabelAxesState,
   type LabelAxisCandidate,
 } from "../model/label-axes.js";
+import { labelListView, type LabelListView } from "../model/labels.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import {
   hasRecord,
@@ -171,4 +173,33 @@ export const labelAxisList = defineCommand({
   },
 });
 
-export const labelCommands = [labelAxisSet, labelAxisRemove, labelAxisList];
+export const labelList = defineCommand({
+  name: "label.list",
+  group: "label",
+  summary:
+    "Show the vocabulary of the labels (labels.yaml on the data branch) by axis. state is the state of the axes (see dg label axis list). axes lists the axes in the order of labels.axes, each with its labels (name, description, created_at), the number of tickets that carry the label (count: done and abandoned tickets count too), and when it was last used (last_used_at: the created_at of the newest ticket that carries it, or null when no ticket does). An axis whose description is null is not in labels.axes: only labels point to it. Labels recorded as merged into another are not vocabulary and are left out. Entries of labels.yaml that cannot be read are left out too: dg validate reports them",
+  input: z.object({
+    merged: z
+      .boolean()
+      .optional()
+      .describe(
+        "Also show the records of merged labels (merged: name, axis, description, merged_into, merged_at)",
+      ),
+    undefined: z
+      .boolean()
+      .optional()
+      .describe(
+        "Also show the names that tickets carry but the vocabulary does not have, with the number of tickets (undefined: name, count). A name recorded as merged counts as not in the vocabulary",
+      ),
+  }),
+  write: false,
+  needs: "store",
+  async run(ctx, input) {
+    const tickets = [...ctx.store.tickets.values()].map((doc) => doc.data);
+    return ok<LabelListView>(
+      labelListView(ctx.store.teamConfig.labels.axes, ctx.store.labels, tickets, input),
+    );
+  },
+});
+
+export const labelCommands = [labelAxisSet, labelAxisRemove, labelAxisList, labelList];

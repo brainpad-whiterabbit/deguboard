@@ -1,4 +1,4 @@
-// deguboard ブランチのマージドライバ（SY-4、ADR-034）。チケットと Epic の frontmatter と、Plan・Iteration の YAML をフィールド単位で 3-way マージする。
+// deguboard ブランチのマージドライバ（SY-4、ADR-034）。チケットと Epic の frontmatter と、Plan・Iteration・ラベルの語彙の YAML をフィールド単位で 3-way マージする。
 // git が rebase の中で `<dg> merge-driver %O %A %B %P` として呼ぶ。登録は ensureMergeDriver（init と sync）が行う
 
 import { isDeepStrictEqual } from "node:util";
@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { shellQuote } from "../shell-quote.js";
 import { joinFrontmatter, splitFrontmatter } from "../storage/frontmatter.js";
+import { LABELS_FILE } from "../storage/paths.js";
 import {
   cloneYamlDocument,
   parseYamlDocument,
@@ -21,7 +22,8 @@ import { runGit } from "./run.js";
 export const MERGE_DRIVER_NAME = "deguboard";
 
 /**
- * ドライバを当てるパス。frontmatter を持つ Markdown（チケット・墓標・Epic）と、素の YAML（Plan・Iteration）。
+ * ドライバを当てるパス。frontmatter を持つ Markdown（チケット・墓標・Epic）と、素の YAML（Plan・Iteration・ラベルの語彙）。
+ * 語彙（labels.yaml）は最上位のキーがラベルの名前なので、フィールド単位のマージがラベルごとのマージになる（model/labels.ts）。
  * config.yaml と workflows は人が手で書く設定なので外し、行単位のマージのままにする
  */
 const ATTRIBUTE_LINES = [
@@ -30,7 +32,17 @@ const ATTRIBUTE_LINES = [
   `epics/*.md merge=${MERGE_DRIVER_NAME}`,
   `plans/*.yaml merge=${MERGE_DRIVER_NAME}`,
   `iterations/*.yaml merge=${MERGE_DRIVER_NAME}`,
+  `${LABELS_FILE} merge=${MERGE_DRIVER_NAME}`,
 ];
+
+/**
+ * マージに使う分岐点の中身。語彙（labels.yaml）は 1 つのファイルに全員が足すので、分岐点にファイルがない（両側が最初のラベルを足した
+ * add/add。git は空の中身を渡す）ときは、空のマッピングから両側が足したものとして解く。
+ * ほかのファイルの add/add は同じ番号の別のもの（仮番号の衝突）なので、中身を変えずに行単位の競合のまま残す（mergeDocuments）
+ */
+export function mergeBase(file: string | undefined, base: string | undefined): string | undefined {
+  return file === LABELS_FILE && (base ?? "").trim() === "" ? "{}\n" : base;
+}
 
 /** ATTRIBUTE_LINES のパターン（`*` は / を含まない）に当たるか。マージドライバと同じ判定を git の外で回すファイルを選ぶ */
 const DRIVER_PATHS = ATTRIBUTE_LINES.map((line) => {
@@ -426,7 +438,7 @@ export async function runMergeDriver(
   ]);
   const preferEnv = env[MERGE_PREFER_ENV];
   const prefer = preferEnv === "ours" || preferEnv === "theirs" ? preferEnv : undefined;
-  const outcome = await mergeDocuments(base, ours, theirs, prefer);
+  const outcome = await mergeDocuments(mergeBase(name, base) ?? base, ours, theirs, prefer);
   if (outcome?.ok) {
     await writeFile(oursPath, outcome.text);
     const logFile = env[MERGE_LOG_ENV];
