@@ -4,12 +4,12 @@
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
 // - 未 push のコミットがある間はタイトル行の同期のボタンが点付きになり、押して同期すると元に戻ること（UI-6）
-// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・詳細のラベルの語彙の選択・更新日で並べたメニューと行・選んだ行の帯と ID のコピーの形のメニューとコピーした後の帯・頼む小窓とコピーした後のボタン・Epic の札に触れて光らせた行・選んでいる Epic の見出し・Run の丸と回数を出した Done の行・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・バックログ・「表示」のメニュー・行のラベルで絞ったところ・統合済みの名前で絞ったところ・詳細のラベルの語彙の選択・更新日で並べたメニューと行・選んだ行の帯と ID のコピーの形のメニューとコピーした後の帯・頼む小窓とコピーした後のボタン・Epic の札に触れて光らせた行・選んでいる Epic の見出し・Run の丸と回数を出した Done の行・実行計画の依存グラフ・設定画面と振り返りの節と Workflow のタブ・履歴の見方の切り替え）を test/vscode/screenshots/ に出すこと
 // - 導入のチェックリストの「アンインストール」の節で、消すものを確かめてから一時リポジトリを外せること（閉じた節・開いた節・確認・外した後の知らせを撮る。
 //   ボードを消すので、ボードの要る検査の後に置く。HOME は一時ディレクトリなので、手元の個人の設定には触れない）
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
-import { access } from "node:fs/promises";
+import { access, appendFile } from "node:fs/promises";
 import path from "node:path";
 import type { FrameLocator } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -39,6 +39,7 @@ import {
   uninstallRouteOf,
   workflowSet,
 } from "../../packages/core/src/index.js";
+import { withWrite } from "../../packages/core/src/git/write.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import {
   ensureDisplay,
@@ -107,7 +108,7 @@ beforeAll(async () => {
   await runCommand(ticketCreate, ctx, {
     title: TITLES[1],
     acceptance: ["行が出る"],
-    labels: ["release"],
+    labels: ["release", "frontend"],
   });
   await runCommand(ticketCreate, ctx, {
     title: TITLES[2],
@@ -116,6 +117,25 @@ beforeAll(async () => {
     labels: ["gate", "audit-s1"],
   });
   await runCommand(ticketClaim, ctx, { ticket: "t3", without_branch: true });
+  // 統合済みの名前で絞ったところを撮るため、frontend を web に統合した記録だけを labels.yaml に書き、t2 に統合の前の名前 frontend を残す。
+  // dg label merge はチケットも書き換えるので、統合の後に残った古い名前（lint が指摘する）を作るために記録を直接書く
+  await withWrite(
+    ctx,
+    () =>
+      appendFile(
+        path.join(ctx.repo.dataDir, "labels.yaml"),
+        [
+          "frontend:",
+          "  axis: area",
+          "  description: The old name of web",
+          "  created_at: 2026-01-01T00:00:00Z",
+          "  merged_into: web",
+          "  merged_at: 2026-01-02T00:00:00Z",
+          "",
+        ].join("\n"),
+      ),
+    { message: "frontend を web に統合した記録を書く" },
+  );
   // 設定画面の振り返りの節を撮るため、review に推薦の指標を 2 つ記録し、cost の問いを書き換え（変更あり）、既定にない観点 flow を足す（変更あり・指標なし）
   for (const id of ["first-pass-rate", "rounds-per-reviewed"] as const) {
     const metric = RECOMMENDED_RETRO_METRICS["review"]![id]!;
@@ -210,6 +230,43 @@ describe("VS Code の実機の左パネル", () => {
     await chip.locator("button").click();
     await chip.waitFor({ state: "detached" });
     await sidebar.locator(".ticket-row", { hasText: TITLES[2] }).waitFor();
+  });
+
+  it("統合済みの名前で絞ると、カンバンの札に統合先で絞っていることを添え、バックログのラベルの選択に統合先を出すところをライトとダークで撮る", async () => {
+    // 前の URL の統合済みの名前（frontend）で開くと、統合先の web で絞る
+    await sidebar.locator("body").evaluate(() => {
+      location.hash = "#/board?label=frontend";
+    });
+    const chip = sidebar.locator(".filter-chips .filter-chip", { hasText: "frontend" });
+    await chip.waitFor();
+    await sidebar.locator(".ticket-row", { hasText: TITLES[0] }).waitFor();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("label-merged", theme);
+      await access(shot.sidebar);
+    }
+    await chip.locator("button").click();
+    await chip.waitFor({ state: "detached" });
+
+    // バックログは統合の前の名前が残った行（t2）の札を押して絞る。条件の札は一覧を送ったときの帯にだけ出るので、
+    // 絞り込みの欄を開き、ラベルの選択に統合先の web が選ばれているところを撮る
+    await sidebar.locator('nav a[href="#/backlog"]').click();
+    await sidebar.locator(".ticket-row", { hasText: TITLES[1] }).waitFor();
+    await sidebar.locator(".row-labels .row-label", { hasText: "frontend" }).click();
+    const toggle = sidebar.locator(".filter-toggle.active");
+    await toggle.click();
+    const labelSelect = sidebar.locator("#backlog-filters select").nth(2);
+    await expect.poll(() => labelSelect.inputValue()).toBe("web");
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("label-merged-backlog", theme);
+      await access(shot.sidebar);
+    }
+    await labelSelect.selectOption("");
+    await sidebar.locator(".filter-toggle.open").click();
+    await sidebar.locator("#backlog-filters").waitFor({ state: "detached" });
+    await sidebar.locator('nav a[href="#/board"]').click();
+    await sidebar.locator(".ticket-row", { hasText: TITLES[0] }).waitFor();
   });
 
   it("詳細の属性の欄でラベルを直すとき、入力欄の下に軸ごとの語彙と説明が出たところをライトとダークで撮り、Esc で閉じる", async () => {
