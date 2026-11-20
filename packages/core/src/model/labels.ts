@@ -1,8 +1,8 @@
 // ラベルの語彙（データのブランチの labels.yaml。requirements.md 5.1、ADR-037）。
 // 最上位のキーがラベルの名前なので、名前は軸をまたいで 1 つだけになる（同じキーを 2 回書いた YAML は読めない）。
 // キーごとにマージドライバが 3-way で解くので、別々のラベルを同時に足しても競合しない（git/merge.ts）。
-// ここには形の検査と、語彙とチケットから一覧を作る判定、語彙を書く操作（dg label add・update・remove）の判定を、
-// ファイルを読まない関数で置く。読むのは storage/labels-file.ts、書くのは Store の writeLabel
+// ここには形の検査と、語彙とチケットから一覧を作る判定、語彙を書く操作（dg label add・update・remove・merge）の判定を、
+// ファイルを読まない関数で置く。読むのは storage/labels-file.ts、書くのは Store の writeLabels
 
 import { z } from "zod";
 import { isoDateTime, slugSchema } from "./common.js";
@@ -215,6 +215,126 @@ export function judgeLabelRemove(
       `${users.slice(0, LISTED_TICKETS).join(", ")}${users.length > LISTED_TICKETS ? ", ..." : ""}. Take the label off them first (dg ticket update <id> --label), or see them with dg ticket list --label ${name}`,
     );
   return { ok: true, name, entry: found.entry };
+}
+
+/** 統合の判定の結果（通ったとき）。語彙に書く項目と、書き換えるチケット */
+export interface LabelMergePlan {
+  ok: true;
+  /** 行き先の名前と項目 */
+  to: string;
+  entry: LabelEntry;
+  /** 行き先をこの操作で語彙に足すか */
+  created: boolean;
+  /** 統合の記録にした名前（渡された順。前から行き先への統合の記録だった名前は入らない） */
+  merged: string[];
+  /** 行き先を付け替えた、前からの統合の記録（名前の順） */
+  repointed: string[];
+  /** labels.yaml に書く項目（足す行き先・統合の記録・付け替えた記録） */
+  entries: Array<[string, LabelEntry]>;
+  /** 書き換えるチケットと、書き換えた後のラベル（渡された順） */
+  tickets: Array<{ id: string; labels: string[] }>;
+}
+
+/**
+ * ラベルを 1 つにまとめる（dg label merge。git もファイルも読まない）。改名は、1 つの名前を新しい名前へ統合することとして扱う。
+ * - 行き先（to）：語彙にあればそのまま使う。なければ axis と description で足す（judgeLabelAdd と同じ規則）。両方そろわなければ拒む。
+ *   ある行き先に axis・description を渡すのも拒む（黙って捨てない）。統合の記録は行き先にできない
+ * - 元（from）：語彙にある名前だけ。語彙にない名前と、ほかの名前への統合の記録は拒む。行き先への統合の記録は受ける
+ *   （統合の後に取り込んだチケットに残った名前を、同じ操作をもう一度呼んで書き換えるため。記録は書き換えない）
+ * - 元を統合の記録（merged_into・merged_at）にし、行き先が元だった前からの記録は行き先へ付け替える（a → b → c の連鎖を残さない）
+ * - チケットは、元を持つものをすべて（done・abandoned も。渡されたものすべて）書き換え、重なった名前は最初の場所に 1 つだけ残す
+ */
+export function judgeLabelMerge(
+  input: {
+    from: readonly string[];
+    to: string;
+    axis?: string | undefined;
+    description?: string | undefined;
+  },
+  axes: readonly LabelAxis[] | undefined,
+  vocabulary: Vocabulary,
+  tickets: Iterable<{ id: string; labels: readonly string[] }>,
+  now: string,
+): LabelMergePlan | LabelRejection {
+  const to = input.to.toLowerCase();
+  const from = [...new Set(input.from.map((name) => name.toLowerCase()))];
+  if (from.length === 0)
+    return rejection(
+      "VALIDATION_FAILED",
+      "Give the labels to merge, then the label to merge them into",
+    );
+  if (from.includes(to))
+    return rejection("VALIDATION_FAILED", `The label ${to} cannot be merged into itself`);
+
+  const target = vocabulary.get(to);
+  let entry: LabelEntry;
+  if (target && isMerged(target))
+    return rejection(
+      "REJECTED",
+      `${to} was merged into ${target.merged_into}, so labels cannot be merged into it`,
+      from.includes(target.merged_into ?? "") ? undefined : `Merge into ${target.merged_into}`,
+    );
+  if (target) {
+    if (input.axis !== undefined || input.description !== undefined)
+      return rejection(
+        "VALIDATION_FAILED",
+        `The label ${to} already exists, so --axis and --description cannot be given`,
+        "They create the label to merge into when it is not in the vocabulary. dg label update changes the description of a label",
+      );
+    entry = target;
+  } else {
+    if (input.axis === undefined || input.description === undefined)
+      return rejection(
+        "VALIDATION_FAILED",
+        `No label ${to} to merge into`,
+        "Give both --axis and --description to create it (a rename is a merge into a new name), or merge into a label of the vocabulary (dg label list shows them)",
+      );
+    const added = judgeLabelAdd(
+      { name: to, axis: input.axis, description: input.description },
+      axes,
+      vocabulary,
+      now,
+    );
+    if (!added.ok) return added;
+    entry = added.entry;
+  }
+
+  const entries: Array<[string, LabelEntry]> = target ? [] : [[to, entry]];
+  const merged: string[] = [];
+  for (const name of from) {
+    const e = vocabulary.get(name);
+    if (!e)
+      return rejection(
+        "NOT_FOUND",
+        `No label ${name}`,
+        "Only a label of the vocabulary can be merged (dg label list shows them). Change a name that is not in the vocabulary on the tickets that carry it (dg ticket update <id> --label)",
+      );
+    if (!isMerged(e)) {
+      merged.push(name);
+      entries.push([name, { ...e, merged_into: to, merged_at: now }]);
+    } else if (e.merged_into !== to)
+      return rejection(
+        "REJECTED",
+        `${name} is a record of a merge into ${e.merged_into}, not a label of the vocabulary`,
+      );
+  }
+  // 行き先が元だった前からの記録。元のうち前から記録だったものは行き先が to なので、ここには当たらない
+  const repointed = [...vocabulary]
+    .filter(([, e]) => e.merged_into !== undefined && from.includes(e.merged_into))
+    .map(([name]) => name)
+    .sort();
+  for (const name of repointed) {
+    const e = vocabulary.get(name);
+    if (e) entries.push([name, { ...e, merged_into: to }]);
+  }
+
+  const rewritten: LabelMergePlan["tickets"] = [];
+  for (const t of tickets) {
+    if (!t.labels.some((name) => from.includes(name))) continue;
+    const labels = [...new Set(t.labels.map((name) => (from.includes(name) ? to : name)))];
+    rewritten.push({ id: t.id, labels });
+  }
+  return { ok: true, to, entry, created: !target, merged, repointed, entries, tickets: rewritten };
 }
 
 /** 軸に残っている語彙の名前（名前の順。統合の記録は数えない）。dg label axis remove が、語彙の残る軸を拒むのに使う */

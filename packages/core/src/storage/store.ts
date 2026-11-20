@@ -503,11 +503,15 @@ export class Store {
   }
 
   /**
-   * labels.yaml の 1 項目を書く（なければファイルを作る。entry が undefined なら項目を消す）。ほかの項目とコメントはそのまま残す。
+   * labels.yaml の項目を 1 回で書く（なければファイルを作る。項目が undefined なら消す）。ほかの項目とコメントはそのまま残す。
    * 何を書いてよいかの判定は呼び手（commands/label.ts と model/labels.ts）がする。ここで拒むのは、読めないファイルと、
-   * 読めなかった項目（this.labels にないのにファイルにある名前）を黙って上書きすること
+   * 読めなかった項目（this.labels にないのにファイルにある名前）を黙って上書きすること。拒むときは何も書かない。
+   * 書く項目がなければファイルに触らない
    */
-  async writeLabel(name: string, entry: LabelEntry | undefined): Promise<void> {
+  async writeLabels(
+    entries: ReadonlyArray<readonly [name: string, entry: LabelEntry | undefined]>,
+  ): Promise<void> {
+    if (entries.length === 0) return;
     const file = path.join(this.root, LABELS_FILE);
     const { doc, errors } = await readYamlFile(file);
     const raw: unknown = errors.length > 0 ? undefined : doc.toJS();
@@ -517,17 +521,20 @@ export class Store {
         `${LABELS_FILE} cannot be read, so the vocabulary cannot be written`,
         errors.join("\n") || "The top level must be a mapping from label names to entries",
       );
-    if (doc.has(name) && !this.labels.has(name))
-      throw new OperationError(
-        "VALIDATION_FAILED",
-        `${LABELS_FILE} has an entry ${name} that cannot be read, so it is not overwritten`,
-        "dg validate reports what is wrong with it. Fix or remove the entry in the file first",
-      );
-    patchYamlDocument(doc, { [name]: entry });
+    for (const [name] of entries)
+      if (doc.has(name) && !this.labels.has(name))
+        throw new OperationError(
+          "VALIDATION_FAILED",
+          `${LABELS_FILE} has an entry ${name} that cannot be read, so it is not overwritten`,
+          "dg validate reports what is wrong with it. Fix or remove the entry in the file first",
+        );
+    patchYamlDocument(doc, Object.fromEntries(entries));
     await writeFileAtomic(file, stringifyYaml(doc));
     const labels = new Map(this.labels);
-    if (entry === undefined) labels.delete(name);
-    else labels.set(name, entry);
+    for (const [name, entry] of entries) {
+      if (entry === undefined) labels.delete(name);
+      else labels.set(name, entry);
+    }
     this.labels = labels;
   }
 

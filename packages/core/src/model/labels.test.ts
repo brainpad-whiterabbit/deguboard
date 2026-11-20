@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   isProcedureLabel,
   judgeLabelAdd,
+  judgeLabelMerge,
   judgeLabelRemove,
   judgeLabelUpdate,
   labelListView,
@@ -375,5 +376,144 @@ describe("語彙を書く操作の判定（judgeLabelAdd・judgeLabelUpdate・ju
     expect(labelsOfAxis(more, "area")).toEqual(["core", "ui"]);
     expect(labelsOfAxis(more, "kind")).toEqual(["bug"]);
     expect(labelsOfAxis(more, "impact")).toEqual([]);
+  });
+});
+
+describe("統合の判定（judgeLabelMerge）", () => {
+  const axes = [
+    { name: "area", description: "Which part" },
+    { name: "kind", description: "What kind" },
+  ];
+  const now = "2026-11-20T00:00:00Z";
+  const ui = { ...entry("area", "The board"), color: "blue" };
+  const frontend = entry("area", "The front end");
+  const web = entry("area", "The web UI");
+  // old は前に web へ統合した記録、gone は前に ui へ統合した記録
+  const old = entry("area", "Old", { merged_into: "web", merged_at: at });
+  const gone = entry("area", "Gone", { merged_into: "ui", merged_at: at });
+  const vocabulary = new Map<string, LabelEntry>([
+    ["ui", ui],
+    ["frontend", frontend],
+    ["web", web],
+    ["bug", entry("kind", "A defect")],
+    ["old", old],
+    ["gone", gone],
+  ]);
+  const tickets = [
+    { id: "t1", labels: ["web", "bug"] },
+    { id: "t2", labels: ["bug", "frontend", "ui", "web"] },
+    { id: "t3", labels: ["bug"] },
+    { id: "t4", labels: ["ui"] },
+    { id: "t5", labels: [] },
+  ];
+  const merge = (
+    names: string[],
+    more: { axis?: string; description?: string } = {},
+    given: typeof tickets = tickets,
+  ) =>
+    judgeLabelMerge(
+      { from: names.slice(0, -1), to: names.at(-1) ?? "", ...more },
+      axes,
+      vocabulary,
+      given,
+      now,
+    );
+
+  it("元を持つチケットだけを行き先に書き換え、同じチケットで重なった名前は最初の場所に 1 つだけ残す。元は統合の記録になる", () => {
+    expect(merge(["Web", "frontend", "web", "UI"])).toEqual({
+      ok: true,
+      to: "ui",
+      entry: ui,
+      created: false,
+      merged: ["web", "frontend"],
+      repointed: ["old"],
+      entries: [
+        // スキーマにない項目は残す。created_at は元のまま
+        ["web", { ...web, merged_into: "ui", merged_at: now }],
+        ["frontend", { ...frontend, merged_into: "ui", merged_at: now }],
+        // 行き先が元だった記録は行き先へ付け替え、統合した時刻は変えない
+        ["old", { ...old, merged_into: "ui" }],
+      ],
+      tickets: [
+        { id: "t1", labels: ["ui", "bug"] },
+        { id: "t2", labels: ["bug", "ui"] },
+      ],
+    });
+  });
+
+  it("行き先が語彙になければ axis と description で足し、改名は 1 つの名前を新しい名前へ統合することになる。足す名前には add の規則が効く", () => {
+    const renamed = merge(["web", "Site"], { axis: "area", description: " The site " });
+    expect(renamed).toMatchObject({
+      ok: true,
+      to: "site",
+      entry: { axis: "area", description: "The site", created_at: now },
+      created: true,
+      merged: ["web"],
+      repointed: ["old"],
+      tickets: [
+        { id: "t1", labels: ["site", "bug"] },
+        { id: "t2", labels: ["bug", "frontend", "ui", "site"] },
+      ],
+    });
+    expect(renamed.ok && renamed.entries.map(([name]) => name)).toEqual(["site", "web", "old"]);
+    // 片方だけでも、どちらもなくても拒む
+    for (const more of [{}, { axis: "area" }, { description: "d" }])
+      expect(merge(["web", "site"], more)).toMatchObject({
+        ok: false,
+        code: "VALIDATION_FAILED",
+        message: "No label site to merge into",
+      });
+    for (const [to, more] of [
+      ["a_b", { axis: "area", description: "d" }],
+      ["audit-s3", { axis: "area", description: "d" }],
+      ["site", { axis: "impact", description: "d" }],
+      ["site", { axis: "area", description: " " }],
+    ] as const)
+      expect(merge(["web", to], more)).toMatchObject({ ok: false, code: "VALIDATION_FAILED" });
+  });
+
+  it("拒む：自分への統合、元のない呼び出し、語彙にない元、ほかの名前への統合の記録、統合の記録の行き先、ある行き先への axis・description", () => {
+    expect(merge(["ui", "UI"])).toMatchObject({ ok: false, code: "VALIDATION_FAILED" });
+    expect(merge(["ui"])).toMatchObject({ ok: false, code: "VALIDATION_FAILED" });
+    // チケットに付いていても、語彙にない名前は統合の元にできない
+    expect(
+      merge(["tooling", "ui"], {}, [...tickets, { id: "t6", labels: ["tooling"] }]),
+    ).toMatchObject({ ok: false, code: "NOT_FOUND", message: "No label tooling" });
+    expect(merge(["old", "ui"])).toMatchObject({
+      ok: false,
+      code: "REJECTED",
+      message: "old is a record of a merge into web, not a label of the vocabulary",
+    });
+    expect(merge(["web", "gone"])).toMatchObject({
+      ok: false,
+      code: "REJECTED",
+      detail: "Merge into ui",
+    });
+    // 行き先の統合先が元に入っているときは、その名前を勧めない
+    const undo = merge(["ui", "gone"]);
+    expect(undo).toMatchObject({ ok: false, code: "REJECTED" });
+    expect(undo).not.toHaveProperty("detail");
+    for (const more of [{ axis: "area" }, { description: "d" }])
+      expect(merge(["web", "ui"], more)).toMatchObject({
+        ok: false,
+        code: "VALIDATION_FAILED",
+        message: "The label ui already exists, so --axis and --description cannot be given",
+      });
+  });
+
+  it("行き先への統合の記録だった名前は受け、記録は書き換えずに、その名前の残るチケットだけを書き換える。書くものがなければ空で通る", () => {
+    const left = [
+      { id: "t1", labels: ["gone", "ui"] },
+      { id: "t2", labels: ["bug"] },
+    ];
+    expect(merge(["gone", "ui"], {}, left)).toMatchObject({
+      ok: true,
+      created: false,
+      merged: [],
+      repointed: [],
+      entries: [],
+      tickets: [{ id: "t1", labels: ["ui"] }],
+    });
+    expect(merge(["gone", "ui"], {}, [])).toMatchObject({ ok: true, entries: [], tickets: [] });
   });
 });

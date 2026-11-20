@@ -732,11 +732,11 @@ describe("dg", () => {
     });
   });
 
-  it("dg label add・update・remove は語彙を書き、名前を小文字にそろえる。軸にない語彙は失敗、説明のない add は使い方の誤り（t1194）", async () => {
+  it("dg label add・update・remove・merge は語彙を書き、名前を小文字にそろえる。軸にない語彙は失敗、説明のない add と名前が 1 つだけの merge は使い方の誤り（t1194）", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     const help = (await dg(f.cloneA, ["label", "--help"])).out;
-    for (const op of ["add", "update", "remove"])
+    for (const op of ["add", "update", "remove", "merge"])
       expect(help).toMatch(new RegExp(`^ *${op} `, "m"));
     await dg(f.cloneA, ["label", "axis", "set", "area", "--description", "Which part"]);
     const label = (args: string[]) => dg(f.cloneA, ["--json", "label", ...args]);
@@ -752,6 +752,18 @@ describe("dg", () => {
     const updated = await label(["update", "ui", "--description", "画面の全体"]);
     expect(updated.json().data).toMatchObject({ name: "ui", description: "画面の全体" });
     expect((await label(["remove", "画面"])).code).toBe(0);
+    // merge は位置引数の最後が行き先で、その前が統合する名前（t1186）
+    for (const name of ["web", "front"])
+      expect((await label(["add", name, "--axis", "area", "--description", "d"])).code).toBe(0);
+    expect((await label(["merge", "ui"])).code).toBe(2);
+    const merged = await label(["merge", "Web", "front", "ui"]);
+    expect(merged.code).toBe(0);
+    expect(merged.json().data).toMatchObject({
+      to: { name: "ui" },
+      merged: ["web", "front"],
+      count: 0,
+      tickets: [],
+    });
     // 語彙の残る軸は消せない
     const kept = await label(["axis", "remove", "area"]);
     expect(kept.code).toBe(1);

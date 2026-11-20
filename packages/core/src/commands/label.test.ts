@@ -1,6 +1,6 @@
 // ラベルの軸を読み書きするコマンド（label.axis.set・label.axis.remove・label.axis.list。ADR-037）と、
-// 語彙を読む label.list、語彙を書く label.add・label.update・label.remove
-// 同期を確かめないので、すべてデータのリモートのない initializedLocalFixture で回す
+// 語彙を読む label.list、語彙を書く label.add・label.update・label.remove、ラベルを統合する label.merge
+// 同期を確かめないテストは、データのリモートのない initializedLocalFixture で回す。リモート付きは、統合の push が拒否される 1 件だけ
 
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { git } from "../../test/helpers/git-fixture.js";
 import {
+  initializedFixture,
   initializedLocalFixture,
   reopenInitialized,
   runCleanups,
@@ -23,6 +24,7 @@ import {
   labelAxisRemove,
   labelAxisSet,
   labelList,
+  labelMerge,
   labelRemove,
   labelUpdate,
 } from "./label.js";
@@ -34,7 +36,7 @@ import {
   validate,
   type ConfigShowView,
 } from "./setup.js";
-import { ticketCreate } from "./ticket.js";
+import { ticketCreate, ticketDelete, ticketMove } from "./ticket.js";
 
 afterEach(runCleanups);
 
@@ -576,6 +578,13 @@ describe("語彙を書く（label.add・label.update・label.remove）", () => {
     expect(await subject(human)).toBe("Add the label ui (approved by claude)");
     await runCommand(labelUpdate, agent, { name: "ui", description: "d", approved_by: "human" });
     expect(await subject(human)).toBe("Update the label ui (approved by claude)");
+    await runCommand(labelAdd, human, { name: "web", axis: "area", description: "The web UI" });
+    await expect(runCommand(labelMerge, agent, { names: ["web", "ui"] })).rejects.toMatchObject(
+      asks("merge"),
+    );
+    expect(human.store.labels.get("web")?.merged_into).toBeUndefined();
+    await runCommand(labelMerge, agent, { names: ["web", "ui"], approved_by: "human" });
+    expect(await subject(human)).toBe("Merge the label web into ui (approved by claude)");
     await runCommand(labelRemove, agent, { name: "ui", approved_by: "human" });
     expect(await subject(human)).toBe("Remove the label ui (approved by claude)");
     // 人は聞かずに書ける
@@ -590,5 +599,218 @@ describe("語彙を書く（label.add・label.update・label.remove）", () => {
     });
     await governance("anyone");
     expect((await runCommand(labelRemove, agent, { name: "ui" })).data.name).toBe("ui");
+  });
+});
+
+// 統合してよいかの判定の組み合わせは model/labels.test.ts（judgeLabelMerge）。ここは書き込みの経路の代表だけを確かめる
+describe("ラベルを統合する（label.merge）", () => {
+  const at = "2026-11-01T00:00:00Z";
+  const label = (name: string, more: string[] = []) => [
+    `${name}:`,
+    "  axis: area",
+    `  description: The ${name}`,
+    `  created_at: ${at}`,
+    ...more,
+  ];
+  const fileVocabulary = async (ctx: CommandContext) =>
+    parse(await readFile(path.join(ctx.repo.dataDir, "labels.yaml"), "utf8")) as Record<
+      string,
+      Record<string, unknown>
+    >;
+  const labelsOf = (ctx: CommandContext) =>
+    Object.fromEntries([...ctx.store.tickets].map(([id, doc]) => [id, doc.data.labels]));
+  const commits = async (ctx: CommandContext) =>
+    Number((await git(ctx.repo.dataDir, ["rev-list", "--count", "HEAD"])).stdout.trim());
+
+  it("元を持つチケット（done・abandoned も。墓標は除く）を 1 コミットで書き換え、updated_at は進めない。元は統合の記録になり、行き先が元だった記録は付け替わる", async () => {
+    const f = await initializedLocalFixture();
+    // 書き込みのたびにコミットする（統合が 1 コミットになることを数える）。文脈は設定を開いたときに読むので、書いてから開く
+    await runCommand(configSet, await reopenInitialized(f), {
+      key: "commit.mode",
+      value: "each",
+      local: true,
+    });
+    const ctx = await reopenInitialized(f);
+    await runCommand(labelAxisSet, ctx, area);
+    await writeLabels(ctx, [
+      ...label("ui"),
+      ...label("web"),
+      ...label("frontend"),
+      ...label("old", ["  merged_into: web", `  merged_at: ${at}`]),
+    ]);
+    for (const labels of [["web", "bug"], ["frontend", "ui", "web"], ["ui"], ["web"], ["web"]])
+      await runCommand(ticketCreate, ctx, { title: "チケット", labels });
+    await runCommand(ticketCreate, ctx, { title: "消すチケット", labels: ["web"] });
+    await runCommand(ticketMove, ctx, { ticket: "t4", status: "in_progress" });
+    await runCommand(ticketMove, ctx, { ticket: "t4", status: "done", override: "PR なし" });
+    await runCommand(ticketMove, ctx, { ticket: "t5", status: "abandoned" });
+    await runCommand(ticketDelete, ctx, { ticket: "t6" });
+
+    // 統合の時刻を、用意したチケットのどの updated_at よりも後にする（進めていれば値が変わる）
+    const mergedAt = "2030-01-01T00:00:00Z";
+    const later = await reopenInitialized(f, { now: () => new Date(mergedAt) });
+    const updatedAt = Object.fromEntries(
+      [...later.store.tickets].map(([id, doc]) => [id, doc.data.updated_at]),
+    );
+    const before = await commits(later);
+    const merged = await runCommand(labelMerge, later, { names: ["Web", "frontend", "UI"] });
+    expect(merged.data).toEqual({
+      to: { name: "ui", axis: "area", description: "The ui", created_at: at },
+      created: false,
+      merged: ["web", "frontend"],
+      repointed: ["old"],
+      count: 4,
+      tickets: ["t1", "t2", "t4", "t5"],
+    });
+    expect(merged.write).toMatchObject({ committed: true });
+    // 語彙とチケットの書き換えは 1 コミットに入る
+    expect(await commits(later)).toBe(before + 1);
+    expect((await git(later.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+    const changed = (
+      await git(later.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])
+    ).stdout
+      .split("\n")
+      .filter(Boolean)
+      .sort();
+    expect(changed).toEqual(
+      ["labels.yaml", ...["t1", "t2", "t4", "t5"].map((id) => later.store.tickets.get(id)?.path)]
+        .map(String)
+        .sort(),
+    );
+
+    // 開き直して、ファイルに書かれた値を読む
+    const again = await reopenInitialized(f);
+    expect(labelsOf(again)).toEqual({
+      t1: ["ui", "bug"],
+      t2: ["ui"],
+      t3: ["ui"],
+      t4: ["ui"],
+      t5: ["ui"],
+    });
+    expect(again.store.tickets.get("t4")?.data.status).toBe("done");
+    expect(again.store.tickets.get("t5")?.data.status).toBe("abandoned");
+    expect(
+      Object.fromEntries([...again.store.tickets].map(([id, doc]) => [id, doc.data.updated_at])),
+    ).toEqual(updatedAt);
+    expect(await fileVocabulary(again)).toEqual({
+      ui: { axis: "area", description: "The ui", created_at: at },
+      web: {
+        axis: "area",
+        description: "The web",
+        created_at: at,
+        merged_into: "ui",
+        merged_at: mergedAt,
+      },
+      frontend: {
+        axis: "area",
+        description: "The frontend",
+        created_at: at,
+        merged_into: "ui",
+        merged_at: mergedAt,
+      },
+      // 連鎖（old → web → ui）を残さない。統合した時刻は元のまま
+      old: {
+        axis: "area",
+        description: "The old",
+        created_at: at,
+        merged_into: "ui",
+        merged_at: at,
+      },
+    });
+    expect((await runCommand(validate, again, {})).data).toEqual({ ok: true, issues: [] });
+  });
+
+  it("語彙にない行き先は --axis と --description で作り（改名）、どちらもなければ拒んで何も書かない。名前が 1 つだけの呼び出しは入力の誤り", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    await runCommand(labelAxisSet, ctx, area);
+    await writeLabels(ctx, label("web"));
+    const ticket = await runCommand(ticketCreate, ctx, { title: "一", labels: ["web"] });
+    const before = await fileVocabulary(ctx);
+
+    await expect(runCommand(labelMerge, ctx, { names: ["web", "site"] })).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+      message: "No label site to merge into",
+    });
+    await expect(runCommand(labelMerge, ctx, { names: ["web"] })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+    });
+    expect(await fileVocabulary(ctx)).toEqual(before);
+    expect(labelsOf(ctx)).toEqual({ [ticket.data.id]: ["web"] });
+
+    const renamed = await runCommand(labelMerge, ctx, {
+      names: ["web", "Site"],
+      axis: "area",
+      description: "The site",
+    });
+    expect(renamed.data).toMatchObject({
+      to: { name: "site", axis: "area", description: "The site" },
+      created: true,
+      merged: ["web"],
+      count: 1,
+      tickets: [ticket.data.id],
+    });
+    expect(labelsOf(ctx)).toEqual({ [ticket.data.id]: ["site"] });
+    // 書いた時刻は、書いた記録から取る
+    expect(await fileVocabulary(ctx)).toEqual({
+      web: { ...before["web"], merged_into: "site", merged_at: renamed.data.to.created_at },
+      site: { axis: "area", description: "The site", created_at: renamed.data.to.created_at },
+    });
+    const listed = (await runCommand(labelList, ctx, { merged: true })).data;
+    expect(listed.axes[0]?.labels.map((l) => [l.name, l.count])).toEqual([["site", 1]]);
+    expect(listed.merged?.map((m) => [m.name, m.merged_into])).toEqual([["web", "site"]]);
+  });
+
+  // 一部のチケットだけが新しい名前になった状態を残さない：語彙とすべてのチケットが 1 コミットなので、
+  // push が拒否された後の取り込み直しで止まると、書き込みの経路がそのコミットごと捨てる（git/write.ts の dropOwnCommit）
+  it("push が拒否されてリモートの変更を取り込み直すあいだに止まったら、自分のコミットを捨てて、どのチケットも語彙も書き換える前に戻る。もう一度呼べば、取り込んだチケットも含めて書き換える", async () => {
+    const f = await initializedFixture();
+    const a = await reopenInitialized(f);
+    await runCommand(labelAxisSet, a, area);
+    await writeLabels(a, [...label("ui"), ...label("web")]);
+    for (const labels of [["web"], ["web", "ui"], ["web", "bug"]])
+      await runCommand(ticketCreate, a, { title: "チケット", labels });
+    const b = await openContext({
+      cwd: f.cloneB,
+      initialize: {},
+      actor: { kind: "human", user: "b" },
+    });
+    // A は書き込みのたびにコミットして push する
+    await runCommand(configSet, a, { key: "commit.mode", value: "each", local: true });
+    const stopped = new Error("取り込み直しの後で止まる");
+    const hooks = {
+      beforePush: async () => {
+        // A の push の直前に B が先に push し、A の push を拒否させる。取り込み直しの後、もう一度の push の直前で止める
+        hooks.beforePush = async () => {
+          throw stopped;
+        };
+        await runCommand(ticketCreate, b, { title: "リモートの変更", labels: ["web"] });
+      },
+    };
+    const racer = await openContext({
+      cwd: f.cloneA,
+      actor: { kind: "human", user: "eiki" },
+      hooks,
+    });
+    const original = labelsOf(racer);
+    const vocabulary = await fileVocabulary(racer);
+    await expect(runCommand(labelMerge, racer, { names: ["web", "ui"] })).rejects.toBe(stopped);
+
+    // 取り込んだリモートのチケットは残り、自分の書き換えはどのチケットにも語彙にも残らない（索引もファイルも）
+    for (const ctx of [racer, await reopenInitialized(f)]) {
+      expect(labelsOf(ctx)).toEqual({ ...original, t4: ["web"] });
+      expect(ctx.store.labels.get("web")?.merged_into).toBeUndefined();
+      expect(await fileVocabulary(ctx)).toEqual(vocabulary);
+    }
+    expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+    expect(
+      (await git(racer.repo.dataDir, ["log", "--format=%s", "origin/deguboard..HEAD"])).stdout,
+    ).toBe("");
+
+    const again = await reopenInitialized(f);
+    const merged = await runCommand(labelMerge, again, { names: ["web", "ui"] });
+    expect(merged.write).toMatchObject({ committed: true, pushed: true });
+    expect(merged.data).toMatchObject({ count: 4, tickets: ["t1", "t2", "t3", "t4"] });
+    expect(labelsOf(again)).toEqual({ t1: ["ui"], t2: ["ui"], t3: ["ui", "bug"], t4: ["ui"] });
   });
 });
