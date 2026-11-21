@@ -10,10 +10,11 @@
 // 必須を満たした後の末尾には「アンインストール」の節を置く（setup-uninstall.tsx。VS Code の中でだけ出る）。
 // ボードの項目だけは、チームのボードが別のリポジトリにあるときのために、データのリポジトリとブランチを入れて確かめ直す道を持つ（BoardItemGuide。
 // 入れた値は store.setupBoard に持ち、確かめ直しとボタンの dg init の --data-remote・--data-branch に渡す）。
+// 新しくボードを作る状態では、チームで共有するか、このマシンだけに置くか（dg init --no-data-remote）も選ばせる（BoardPlace）。
 // web は core から型だけを取り込む（.oxlintrc.json の no-restricted-imports）ので、DEFAULT_DATA_BRANCH と initCommandLine は core の写しを置く
 
 import type { SetupAction, SetupBoardSource, SetupView, SetupViewItem } from "@deguboard/core";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { failureOf } from "../client/http.js";
 import { showsSetupBand, useHost, useUiState } from "../host.js";
 import { msg, tr } from "../l10n.js";
@@ -44,13 +45,24 @@ export interface Guide {
   action?: GuideAction | undefined;
   /** 3. ターミナルで行うなら：ボタンと同じことをするコマンド（上から順に打つ） */
   commands?: readonly string[] | undefined;
-  /** 4. 別の道：when の条件（「〜なら」）に当たるときだけ選ぶ */
-  alt?:
-    | { when: string; action?: GuideAction | undefined; commands?: readonly string[] | undefined }
-    | undefined;
+  /** 4. 別の道：when の条件（「〜なら」）に当たるときだけ選ぶ。条件ごとに 1 つ */
+  alts?: readonly GuideAlt[] | undefined;
   /** 判定の断り書き */
   note?: string | undefined;
 }
+
+/** 条件を書いた別の道 1 つ */
+export interface GuideAlt {
+  when: string;
+  action?: GuideAction | undefined;
+  commands?: readonly string[] | undefined;
+}
+
+/**
+ * 新しく作るボードの置き場所。shared はチームで共有する（データのリモートへ push する。dg init の既定）、
+ * local はこのマシンだけに置く（dg init --no-data-remote。config の git.data_remote が none になり、push しない）
+ */
+export type BoardPlace = "shared" | "local";
 
 const RECHECK = msg("もう一度確かめる");
 
@@ -64,7 +76,10 @@ export function initCommandLine(options: {
   dataRemote?: string | undefined;
   dataBranch?: string | undefined;
   newBoard?: boolean | undefined;
+  noDataRemote?: boolean | undefined;
 }): string {
+  // このマシンだけに置く 1 行には、データの置き場所と --new-board を付けない（dg init は --data-remote と一緒に受け付けない）
+  if (options.noDataRemote) return "dg init --no-data-remote";
   const arg = (value: string) =>
     /^[\w@%+:,./-][\w@%+=:,./-]*$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
   return [
@@ -77,10 +92,20 @@ export function initCommandLine(options: {
 
 /**
  * ボードの項目の中身。state は core の BoardState（dg init がすることを先に確かめた結果）。
- * board は人が指定したデータの置き場所で、指定していれば確かめた先はそのリポジトリ（文はデータのリポジトリと言う）
+ * board は人が指定したデータの置き場所で、指定していれば確かめた先はそのリポジトリ（文はデータのリポジトリと言う）。
+ * place は、新しく作る状態（remote_no_board・no_remote）で人が選んだ置き場所。local なら、ボタンとコマンドは dg init --no-data-remote
  */
-export function boardGuide(item: SetupViewItem, board: SetupBoardSource | null = null): Guide {
+export function boardGuide(
+  item: SetupViewItem,
+  board: SetupBoardSource | null = null,
+  place: BoardPlace = "shared",
+): Guide {
   const init: Pick<Guide, "commands"> = { commands: item.fix };
+  // 拡張のボタン localBoard と同じ 1 行（packages/vscode/src/setup.ts の setupCommands）
+  const local: Pick<Guide, "action" | "commands"> = {
+    action: { label: tr("このマシンだけのボードを作る"), act: "localBoard" },
+    commands: [initCommandLine({ noDataRemote: true })],
+  };
   switch (item.state) {
     case "remote_board":
       return {
@@ -91,18 +116,27 @@ export function boardGuide(item: SetupViewItem, board: SetupBoardSource | null =
         action: { label: tr("チームのボードを取り込む"), act: "init" },
         ...init,
       };
-    case "remote_no_board":
+    case "remote_no_board": {
+      const status = board
+        ? tr("データのリポジトリにボードはありません。")
+        : tr("リモートにボードはありません。");
+      if (place === "local")
+        return {
+          short: tr("まだない"),
+          status,
+          todo: tr("このマシンだけのボードを作ります。リモートには push しません。"),
+          ...local,
+        };
       return {
         short: tr("まだない"),
-        status: board
-          ? tr("データのリポジトリにボードはありません。")
-          : tr("リモートにボードはありません。"),
+        status,
         todo: board
           ? tr("新しいボードを作り、データのリポジトリへ push します。")
           : tr("新しいボードを作り、リモートへ push します。"),
         action: { label: tr("新しいボードを作る"), act: "init" },
         ...init,
       };
+    }
     case "remote_unreachable":
       return {
         short: tr("リモートに届かない"),
@@ -114,29 +148,44 @@ export function boardGuide(item: SetupViewItem, board: SetupBoardSource | null =
           "ネットワーク・認証（ssh 鍵や gh auth）・リモートの URL を直してから、確かめ直します。",
         ),
         action: { label: tr(RECHECK), act: "recheck" },
-        alt: {
-          when: tr("チームのボードがないと分かっているなら"),
-          action: { label: tr("手元だけで新しいボードを作る"), act: "newBoard" },
-          // 拡張のボタン newBoard と同じ 1 行（packages/vscode/src/setup.ts の setupCommands）
-          commands: [
-            initCommandLine({
-              dataRemote: board?.dataRemote,
-              dataBranch: board?.dataBranch,
-              newBoard: true,
-            }),
-          ],
-        },
+        alts: [
+          {
+            when: tr("チームのボードがないと分かっているなら"),
+            // --new-board のボードは、リモートに届くようになれば push する。push しない「このマシンだけ」と取り違えない文にする
+            action: { label: tr("新しいボードを先に作る（届いたら push）"), act: "newBoard" },
+            // 拡張のボタン newBoard と同じ 1 行（packages/vscode/src/setup.ts の setupCommands）
+            commands: [
+              initCommandLine({
+                dataRemote: board?.dataRemote,
+                dataBranch: board?.dataBranch,
+                newBoard: true,
+              }),
+            ],
+          },
+          { when: tr("ボードを push するつもりがないなら"), ...local },
+        ],
       };
-    case "no_remote":
+    case "no_remote": {
+      const status = tr(
+        "このリポジトリにはコードのリモートがなく、取り込むチームのボードがありません。",
+      );
+      if (place === "local")
+        return {
+          short: tr("まだない"),
+          status,
+          todo: tr("このマシンだけのボードを作ります。あとでリモートを足しても push しません。"),
+          ...local,
+        };
       return {
         short: tr("まだない"),
-        status: tr(
-          "このリポジトリにはコードのリモートがなく、取り込むチームのボードがありません。",
+        status,
+        todo: tr(
+          "新しいボードを作ります。あとでコードのリモートを足すと、ボードもそのリモートへ push します。",
         ),
-        todo: tr("このマシンだけのボードを作ります。"),
         action: { label: tr("新しいボードを作る"), act: "init" },
         ...init,
       };
+    }
     case "local_branch":
       return {
         short: tr("worktree がない"),
@@ -275,10 +324,12 @@ export function guideOf(
         place: view.cwd ? { label: tr("次のフォルダに作る"), path: view.cwd } : undefined,
         action: { label: tr("このフォルダに git init する"), act: "gitInit" },
         commands: item.fix,
-        alt: {
-          when: tr("別のフォルダで使うつもりなら"),
-          action: { label: tr("フォルダを開き直す"), act: "openFolder" },
-        },
+        alts: [
+          {
+            when: tr("別のフォルダで使うつもりなら"),
+            action: { label: tr("フォルダを開き直す"), act: "openFolder" },
+          },
+        ],
       };
     case "board":
       return boardGuide(item, board);
@@ -353,7 +404,7 @@ function Commands({ commands }: { commands: readonly string[] }) {
 /**
  * 満たさない項目の中身を、状態 → すること → ターミナルで行うなら → 別の道 の順に描く。
  * choose は状態のすぐ後に置く選ぶもの（ボードの選択肢とデータのリポジトリの入力）、after は別の道の代わりに最後に置くもの。
- * board は人が指定したデータの置き場所で、ボタンの dg init（init・newBoard）に渡す
+ * board は人が指定したデータの置き場所で、ボタンの dg init（init・newBoard）に渡す（このマシンだけに置く localBoard には渡さない）
  */
 function ItemGuide({
   guide,
@@ -401,8 +452,14 @@ function ItemGuide({
     );
   };
   const main = guide.action ? button(guide.action, true) : null;
-  const other = guide.alt?.action ? button(guide.alt.action, false) : null;
-  const otherCommands = guide.alt?.commands ?? [];
+  // ボタンしかない別の道は、ボタンを出せない入口（dg serve）では出さない
+  const alts = (guide.alts ?? [])
+    .map((alt) => ({
+      when: alt.when,
+      other: alt.action ? button(alt.action, false) : null,
+      commands: alt.commands ?? [],
+    }))
+    .filter((alt) => alt.other || alt.commands.length > 0);
   return (
     <div className="setup-guide">
       <p className="setup-status">{guide.status}</p>
@@ -425,24 +482,68 @@ function ItemGuide({
           <Commands commands={guide.commands} />
         </>
       ) : null}
-      {guide.alt && (other || otherCommands.length > 0) ? (
-        <div className="setup-alt">
-          <p className="setup-slot">{guide.alt.when}</p>
-          {other}
-          {other && otherCommands.length > 0 ? (
+      {alts.map((alt) => (
+        <div className="setup-alt" key={alt.when}>
+          <p className="setup-slot">{alt.when}</p>
+          {alt.other}
+          {alt.other && alt.commands.length > 0 ? (
             <p className="setup-slot">{tr("ターミナルで行うなら")}</p>
           ) : null}
-          <Commands commands={otherCommands} />
+          <Commands commands={alt.commands} />
         </div>
-      ) : null}
+      ))}
       {after}
       {guide.note ? <p className="muted setup-note">{guide.note}</p> : null}
     </div>
   );
 }
 
-/** 選ばせるボードの状態：リモートにボードがない・コードのリモートがない（新しく作るか、チームのボードが別のリポジトリにあるか） */
-const CHOICE_STATES: ReadonlySet<string | undefined> = new Set(["remote_no_board", "no_remote"]);
+/** 選ばせる道 1 つ。hint は選んだときの影響の 1 行 */
+interface BoardChoice {
+  label: string;
+  hint: string;
+}
+
+const OTHER_REPOSITORY: BoardChoice = {
+  label: msg("チームのボードは別のリポジトリにある"),
+  hint: msg("そのリポジトリとブランチを入れて、ボードがあるかを確かめます。"),
+};
+
+/**
+ * 選ばせるボードの状態と、その道（共有する・このマシンだけに置く・別のリポジトリにある）の文。既定は共有（dg init の既定と同じ）。
+ * 共有の道には、リポジトリを読める人は誰でも読めることを書く（公開のリポジトリで、気づかずにチケットと Run の記録を出さないように）。
+ * コードのリモートがないときは、今はどちらもこのマシンだけに作るので、あとでリモートを足したときにどうなるかで分ける
+ */
+const CHOICES: Record<string, Record<BoardPlace | "other", BoardChoice>> = {
+  remote_no_board: {
+    shared: {
+      label: msg("チームで共有する（リモートへ push）"),
+      hint: msg("チケットと Run の記録がリモートに載り、リポジトリを読める人は誰でも読めます。"),
+    },
+    local: {
+      label: msg("このマシンだけに置く（push しない）"),
+      hint: msg(
+        "公開のリポジトリに記録を出したくないときや、チームで使う前に試すときに選びます。あとで共有に切り替えられます。",
+      ),
+    },
+    other: OTHER_REPOSITORY,
+  },
+  no_remote: {
+    shared: {
+      label: msg("あとでリモートを足したら、ボードも push する"),
+      hint: msg(
+        "コードのリモートを足すと、次の操作からボードもそのリモートに載り、リポジトリを読める人は誰でも読めます。",
+      ),
+    },
+    local: {
+      label: msg("ボードはこのマシンだけに置く"),
+      hint: msg("あとでリモートを足しても push しません。あとで共有に切り替えられます。"),
+    },
+    other: OTHER_REPOSITORY,
+  },
+};
+
+const CHOICE_ORDER = ["shared", "local", "other"] as const;
 
 /**
  * データのリポジトリ（URL か remote 名）とブランチを入れる欄。確かめると、チェックリストがそこを確かめ直す
@@ -517,15 +618,20 @@ function BoardSourceForm({ applied }: { applied: SetupBoardSource | null }) {
 /**
  * ボードの項目の中身。チームのボードが別のリポジトリにあるチームのために、データの置き場所を指定する道を出す
  * （チェックリスト案の UI 案 B・D）：
- * - リモートにボードがない・コードのリモートがない：「新しいボードを作る」と「チームのボードは別のリポジトリにある」を選ばせる
+ * - リモートにボードがない・コードのリモートがない：共有する（既定）・このマシンだけに置く・「チームのボードは別のリポジトリにある」を
+ *   選ばせ、それぞれの下に選んだときの影響を 1 行で書く（CHOICES）
  * - リモートにボードがある：条件を書いた別の道として「データのリポジトリを指定する」を出す
  * - 指定した後：確かめた結果（データのリポジトリを見た状態）と入れた値を出し、ボタンの dg init に --data-remote・--data-branch を付ける
  */
 function BoardItemGuide({ item }: { item: SetupViewItem }) {
   const store = useStore();
   const board = store.setupBoard;
-  const [other, setOther] = useState(false);
-  const guide = boardGuide(item, board);
+  const [chosen, setChosen] = useState<BoardPlace | "other">("shared");
+  const hintId = useId();
+  const other = chosen === "other";
+  const setOther = (on: boolean) => setChosen(on ? "other" : "shared");
+  const guide = boardGuide(item, board, other ? "shared" : chosen);
+  const choices = item.state === undefined ? undefined : CHOICES[item.state];
   if (board)
     return (
       <ItemGuide
@@ -542,23 +648,28 @@ function BoardItemGuide({ item }: { item: SetupViewItem }) {
         }
       />
     );
-  if (CHOICE_STATES.has(item.state)) {
+  if (choices) {
     const choose = (
       <fieldset className="setup-choice">
-        <legend className="setup-slot">{tr("どちらかを選ぶ")}</legend>
-        <label>
-          <input
-            type="radio"
-            name="setup-board"
-            checked={!other}
-            onChange={() => setOther(false)}
-          />
-          {tr("新しいボードを作る")}
-        </label>
-        <label>
-          <input type="radio" name="setup-board" checked={other} onChange={() => setOther(true)} />
-          {tr("チームのボードは別のリポジトリにある")}
-        </label>
+        <legend className="setup-slot">{tr("ボードの置き場所を選ぶ")}</legend>
+        {CHOICE_ORDER.map((place) => (
+          <div className="setup-option" key={place}>
+            <label>
+              <input
+                type="radio"
+                name="setup-board"
+                checked={chosen === place}
+                aria-describedby={`${hintId}-${place}`}
+                onChange={() => setChosen(place)}
+              />
+              {tr(choices[place].label)}
+            </label>
+            {/* 読み上げの名前を道の名前だけにするため、影響の 1 行は label の外に置いて説明として結ぶ */}
+            <p className="setup-hint" id={`${hintId}-${place}`}>
+              {tr(choices[place].hint)}
+            </p>
+          </div>
+        ))}
         {other ? <BoardSourceForm applied={null} /> : null}
       </fieldset>
     );

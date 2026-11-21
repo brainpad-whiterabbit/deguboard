@@ -101,14 +101,23 @@ const unmet = (message: string, fix: string[], extra: Partial<Checked> = {}): Ch
 /**
  * チェックリストが見せて流す dg init の 1 行（ボードの項目の直すコマンド。VS Code 拡張のボタンも同じ行を流す）。
  * 確かめた値（コードのリモート・データのリモートとブランチ）を init にも渡す。値は shellQuote で囲む（ターミナルに 1 行で送り、コピーもされる）。
- * newBoard は、リモートに届かないときに人が選んで手元だけで始める --new-board
+ * newBoard は、リモートに届かないときに人が選んで先に作る --new-board（届くようになれば push する）。
+ * noDataRemote は、人が選んでボードをこのマシンだけに置く --no-data-remote（git.data_remote: none。push しない）。
+ * dg init は --no-data-remote と --data-remote を一緒に受け付けず、リモートを確かめもしないので、データの置き場所と --new-board は付けない
  */
 export function initCommandLine(options: {
   remote?: string | undefined;
   dataRemote?: string | undefined;
   dataBranch?: string | undefined;
   newBoard?: boolean | undefined;
+  noDataRemote?: boolean | undefined;
 }): string {
+  if (options.noDataRemote)
+    return [
+      "dg init",
+      "--no-data-remote",
+      ...(options.remote ? ["--remote", shellQuote(options.remote)] : []),
+    ].join(" ");
   return [
     "dg init",
     ...(options.newBoard ? ["--new-board"] : []),

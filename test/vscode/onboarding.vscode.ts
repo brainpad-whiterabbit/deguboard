@@ -1,6 +1,7 @@
 // VS Code の実機で、左パネルの導入のチェックリスト（UI-12）を確かめる（t737・t1007）。Git リポジトリでない一時フォルダを開いて、
 // - Git リポジトリの項目が満たさず、ボタンとコマンドが出ること。人がターミナルの代わりに外で git init しても、見張りが拾ってボードの項目に進むこと
-// - ボードの項目のボタンを押すと、deguboard のターミナルで起動ファイルの dg が init を実行し、終わるといつもの画面（タブのあるサイドバー）に変わること
+// - ボードの項目でこのマシンだけに置く道を選んでボタンを押すと、deguboard のターミナルで起動ファイルの dg が init --no-data-remote を実行し、
+//   終わるといつもの画面（タブのあるサイドバー）に変わって、カンバンの上に「このマシンだけ」の印が出ること（t1207）
 // - いつもの画面の上に推奨の項目の帯が出て、開くと「Skill と hooks を入れる」でその場で入れられること
 // - タイトル行のセットアップのアイコンでチェックリストと来る前の画面を行き来でき、帯を出さないと決めた後も開けて、帯をまた出せること（t1021）
 // - 項目が欠けている間はそのアイコンが点付きになって件数をツールチップに出し、帯を出さないと決めた後も残り、すべて満たすと元に戻ること（t1084）
@@ -99,18 +100,32 @@ describe("VS Code の実機の導入のチェックリスト", () => {
       .getByText("dg init --data-remote git@github.com:team/kanban.git --data-branch deguboard")
       .waitFor();
     await shoot("setup-board-other");
-    await sidebar.getByRole("radio", { name: "Create a new board" }).check();
+    // このマシンだけに置く道を選ぶと、ボタンとターミナルの 1 行が dg init --no-data-remote に変わる（t1207）
+    await sidebar.getByRole("radio", { name: "Keep the board on this machine only" }).check();
+    await sidebar.getByText("dg init --no-data-remote").waitFor();
+    expect(await sidebar.getByRole("button", { name: "Create a new board" }).count()).toBe(0);
+    await shoot("setup-board-local");
   });
 
-  it("ボードの項目のボタンを押すと deguboard のターミナルで dg init が走り、終わるといつもの画面に変わって、推奨の項目の帯が出る", async () => {
-    await sidebar.getByRole("button", { name: "Create a new board" }).click();
+  // ボタンが流す 1 行は、このマシンだけに置く道の dg init --no-data-remote で確かめる（既定の道の dg init も同じ仕組みで流れ、
+  // 違いは 1 行の中身だけ。中身は packages/vscode/src/setup.test.ts が確かめる）
+  it("ボードの項目のボタンを押すと deguboard のターミナルで dg init --no-data-remote が走り、終わるといつもの画面に変わって、推奨の項目の帯と「このマシンだけ」の印が出る", async () => {
+    await sidebar.getByRole("button", { name: "Create a board on this machine only" }).click();
     // 実行は VS Code の統合ターミナルで行われる。init が済むと見張りが画面を読み直し、チェックリストが消える
     await sidebar
       .locator("h2", { hasText: "Get Started with deguboard" })
       .waitFor({ state: "detached", timeout: 180_000 });
     await sidebar.locator('nav a[href="#/board"]').waitFor({ timeout: 60_000 });
     await sidebar.locator(".setup-band").waitFor({ timeout: 60_000 });
+    // init が config に git.data_remote: none を書いたので、カンバンの上に印が出る
+    const mark = sidebar.locator(".local-only");
+    await mark.waitFor({ timeout: 60_000 });
     await shoot("setup-band");
+    // 印を開くと、共有に戻すコマンドが読める
+    await mark.locator("summary").click();
+    await mark.getByText('dg config set git.data_remote ""').waitFor();
+    await shoot("local-only-mark");
+    await mark.locator("summary").click();
   }, 240_000);
 
   it("帯を開くと推奨の項目が出て、「Skill と hooks を入れる」でその場で入れられる", async () => {

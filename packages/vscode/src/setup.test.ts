@@ -351,6 +351,11 @@ describe("ボタンがターミナルで流すコマンド（setupCommands）", 
     expect(setupCommands("gitInit", undefined, board)).toEqual(["git init"]);
   });
 
+  it("ボードをこのマシンだけに置く（localBoard）は、別のリポジトリを指定していても dg init --no-data-remote だけを流す", () => {
+    expect(setupCommands("localBoard", undefined)).toEqual(["dg init --no-data-remote"]);
+    expect(setupCommands("localBoard", undefined, board)).toEqual(["dg init --no-data-remote"]);
+  });
+
   it("人が入れた値は、シェルにそのまま渡らないように囲む（ターミナルに 1 行で送るので）", () => {
     expect(
       setupCommands("init", undefined, { dataRemote: "/srv/my repo; rm -rf ~", dataBranch: "a'b" }),

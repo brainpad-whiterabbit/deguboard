@@ -65,8 +65,9 @@ export interface SetupView {
 
 /**
  * チェックリストのボタンが拡張ホストに頼む操作（UI-12）。どれも人が押したときだけ動く。
- * openFolder はフォルダを開く。gitInit・init・newBoard・installSkillsHooks は deguboard のターミナルで git init・dg init・dg init --new-board・
- * Skill と hooks を入れるコマンドを実行する（dg は同梱の起動ファイルで呼ぶ）。installDg は ~/.local/bin/dg を起動ファイルへ張る。
+ * openFolder はフォルダを開く。gitInit・init・newBoard・localBoard・installSkillsHooks は deguboard のターミナルで git init・dg init・
+ * dg init --new-board・dg init --no-data-remote（ボードをこのマシンだけに置く）・Skill と hooks を入れるコマンドを実行する
+ * （dg は同梱の起動ファイルで呼ぶ）。installDg は ~/.local/bin/dg を起動ファイルへ張る。
  * 残りは「アンインストール」の節の操作。uninstall・uninstallPersonal は deguboard のターミナルで dg uninstall・dg uninstall --personal を実行し、
  * sync は止める理由（送っていないデータ）を片付けるために同期し、showExtension は拡張の画面を開く（拡張は人が最後に消す）
  */
@@ -75,6 +76,7 @@ export const SETUP_ACTIONS = [
   "gitInit",
   "init",
   "newBoard",
+  "localBoard",
   "installSkillsHooks",
   "installDg",
   "uninstall",

@@ -17,6 +17,11 @@ export const EN: Readonly<Record<string, string>> = {
   "未 push {0}": "{0} unpushed",
   取り込んでいないリモートの更新: "Remote changes not pulled",
   "未取り込み {0}": "{0} to pull",
+  このマシンだけ: "This machine only",
+  "このクローンは、ボードをリモートへ push しません（config の git.data_remote が none）。":
+    "This clone does not push the board to a remote (git.data_remote in the config is none).",
+  "チームで共有するには、次を上から順に実行します。それまでの履歴が、Run の記録を含めてすべて push されます。":
+    "To share it with the team, run the following from the top. The whole history so far is pushed, including the Run records.",
   // client/http.ts
   "サーバーに届かない。dg serve が動いているか確かめる":
     "Cannot reach the server. Check that dg serve is running",
@@ -210,10 +215,18 @@ export const EN: Readonly<Record<string, string>> = {
   "ネットワーク・認証（ssh 鍵や gh auth）・リモートの URL を直してから、確かめ直します。":
     "Fix the network, the credentials (ssh keys or gh auth), or the remote's URL, then check again.",
   チームのボードがないと分かっているなら: "If you know the team has no board",
-  手元だけで新しいボードを作る: "Create a new board on this machine only",
+  "新しいボードを先に作る（届いたら push）":
+    "Create a new board now (pushed once the remote is reached)",
+  "ボードを push するつもりがないなら": "If you do not mean to push the board",
+  このマシンだけのボードを作る: "Create a board on this machine only",
+  "このマシンだけのボードを作ります。リモートには push しません。":
+    "This creates a board that stays on this machine. It is not pushed to the remote.",
   "このリポジトリにはコードのリモートがなく、取り込むチームのボードがありません。":
     "This repository has no remote for the code, so there is no team board to take in.",
-  "このマシンだけのボードを作ります。": "This creates a board that stays on this machine.",
+  "新しいボードを作ります。あとでコードのリモートを足すと、ボードもそのリモートへ push します。":
+    "This creates a new board. When you add a remote for the code later, the board is pushed to it too.",
+  "このマシンだけのボードを作ります。あとでリモートを足しても push しません。":
+    "This creates a board that stays on this machine. It is not pushed even when you add a remote later.",
   "worktree がない": "No worktree",
   "このクローンにはボードのブランチがあり、その worktree がありません。":
     "This clone has the board's branch but no worktree for it.",
@@ -222,8 +235,22 @@ export const EN: Readonly<Record<string, string>> = {
   このリポジトリを確かめる: "Check this repository",
   コードのリモートのボードを使う: "Use the board on the code's remote",
   確かめたデータのリポジトリ: "Data repository checked",
-  どちらかを選ぶ: "Choose one",
+  ボードの置き場所を選ぶ: "Choose where to keep the board",
+  "チームで共有する（リモートへ push）": "Share it with the team (push to the remote)",
+  "チケットと Run の記録がリモートに載り、リポジトリを読める人は誰でも読めます。":
+    "Tickets and Run records go to the remote, and anyone who can read the repository can read them.",
+  "このマシンだけに置く（push しない）": "Keep it on this machine only (no push)",
+  "公開のリポジトリに記録を出したくないときや、チームで使う前に試すときに選びます。あとで共有に切り替えられます。":
+    "Choose this to keep the records out of a public repository, or to try it before the team uses it. You can switch to sharing later.",
+  "あとでリモートを足したら、ボードも push する": "Push the board too once a remote is added",
+  "コードのリモートを足すと、次の操作からボードもそのリモートに載り、リポジトリを読める人は誰でも読めます。":
+    "Once you add a remote for the code, the board goes to it from the next operation, and anyone who can read the repository can read it.",
+  ボードはこのマシンだけに置く: "Keep the board on this machine only",
+  "あとでリモートを足しても push しません。あとで共有に切り替えられます。":
+    "It is not pushed even when you add a remote later. You can switch to sharing later.",
   チームのボードは別のリポジトリにある: "The team's board is in another repository",
+  "そのリポジトリとブランチを入れて、ボードがあるかを確かめます。":
+    "Enter that repository and its branch to check whether it has a board.",
   使うボードが別のリポジトリにあるなら: "If the board to use is in another repository",
   データのリポジトリを指定する: "Specify the data repository",
   リモートがない: "No such remote",

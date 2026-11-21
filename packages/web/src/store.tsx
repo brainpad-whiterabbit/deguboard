@@ -66,6 +66,24 @@ function priorityCriteriaOf(view: ConfigShowView): Record<Priority, string> {
   return { high: shown("high"), medium: shown("medium"), low: shown("low") };
 }
 
+/**
+ * git.data_remote に書くと、データのリモートをなしにする値（core の NO_DATA_REMOTE の写し。web は core から型だけを取り込む。
+ * 同じ値であることは app.test.tsx が確かめる）
+ */
+export const NO_DATA_REMOTE = "none";
+
+/**
+ * ボードをこのマシンだけに置いているか（各コマンドが使う git.data_remote が none。リモートのないリポジトリは含めない）と、
+ * none を書いてある場所。local はこのクローンの個人の設定、team はチームの config.yaml（共有に戻すコマンドが違う）。置いていなければ null
+ */
+export function localOnlyOf(view: {
+  config?: { git?: { data_remote?: string | undefined } | undefined } | undefined;
+  local?: Record<string, unknown> | undefined;
+}): "team" | "local" | null {
+  if (view.config?.git?.data_remote !== NO_DATA_REMOTE) return null;
+  return view.local?.["git.data_remote"] === NO_DATA_REMOTE ? "local" : "team";
+}
+
 /** cache に残す一覧。読み直しが終わるたびに書き換える */
 interface Snapshot {
   tickets: TicketRow[];
@@ -117,6 +135,11 @@ export interface Store {
   status: StatusView | null;
   /** 優先度の値ごとの判断基準（config.yaml の priority、なければ core の既定）。印のツールチップと詳細の選択の説明に使う */
   priorityCriteria: Record<Priority, string>;
+  /**
+   * ボードをこのマシンだけに置いているか（config.show の git.data_remote が none）と、none を書いてある場所（localOnlyOf）。
+   * 置いていないときと、読み終えるまでは null。カンバンの上の「このマシンだけ」の印に使う
+   */
+  localOnly: "team" | "local" | null;
   loading: boolean;
   /** 最初の読み込みが終わったか。終わるまで画面は空状態の文言を出さない */
   loaded: boolean;
@@ -197,6 +220,7 @@ export function StoreProvider({
   const [status, setStatus] = useState<StatusView | null>(null);
   const [priorityCriteria, setPriorityCriteria] =
     useState<Record<Priority, string>>(EMPTY_PRIORITY_CRITERIA);
+  const [localOnly, setLocalOnly] = useState<"team" | "local" | null>(null);
   const [loading, setLoading] = useState(true);
   // 前回の一覧があれば、それを読み終えたものとして先に描く
   const [loaded, setLoaded] = useState(!!cached);
@@ -282,6 +306,7 @@ export function StoreProvider({
       setNeedsSetup(false);
       setMe(whoami.data);
       if (config.data.config?.priority) setPriorityCriteria(priorityCriteriaOf(config.data));
+      setLocalOnly(localOnlyOf(config.data));
       const [t, e, i, p, w, l] = await Promise.all([
         client.run<TicketRow[]>("ticket.list", { include_abandoned: true }),
         client.run<EpicRow[]>("epic.list"),
@@ -433,6 +458,7 @@ export function StoreProvider({
       labelVocabulary,
       status,
       priorityCriteria,
+      localOnly,
       loading,
       loaded,
       setup,
@@ -460,6 +486,7 @@ export function StoreProvider({
       labelVocabulary,
       status,
       priorityCriteria,
+      localOnly,
       loading,
       loaded,
       setup,

@@ -230,6 +230,8 @@ export type TerminalSetupAction = Exclude<
 /**
  * ボタンが deguboard のターミナルで流すコマンド。init・newBoard は、人がボードの項目で別のリポジトリを指定していれば（board）、
  * 確かめたときと同じ値を dg init の --data-remote・--data-branch に渡す（core の initCommandLine。値はシェルに渡せる形に囲む）。
+ * localBoard（ボードをこのマシンだけに置く）は、指定があっても dg init --no-data-remote だけを流す（画面が見せる 1 行と同じ。
+ * dg init は --data-remote と一緒に受け付けない）。
  * uninstall・uninstallPersonal は「アンインストール」の節で選んだ範囲の dg uninstall。--force は画面から流さない
  * （止める理由を越えるのは、ターミナルで自分で打つ人だけ）。ターミナルで打つのは人なので --actor は付けない（dg uninstall は人だけが実行できる）
  */
@@ -246,6 +248,8 @@ export function setupCommands(
       return [initCommandLine(source)];
     case "newBoard":
       return [initCommandLine({ ...source, newBoard: true })];
+    case "localBoard":
+      return [initCommandLine({ noDataRemote: true })];
     case "installSkillsHooks":
       return skillsHooksCommands(view);
     case "uninstall":

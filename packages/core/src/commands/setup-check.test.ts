@@ -96,6 +96,19 @@ describe("チェックリストの dg init の 1 行（initCommandLine）", () =
     );
     expect(initCommandLine({ dataBranch: "a=b" })).toBe("dg init --data-branch a=b");
   });
+
+  it("noDataRemote は --no-data-remote を付け、一緒に受け付けない --data-remote と、確かめないリモートのための --data-branch・--new-board を付けない", () => {
+    expect(initCommandLine({ noDataRemote: true })).toBe("dg init --no-data-remote");
+    expect(
+      initCommandLine({
+        noDataRemote: true,
+        remote: "upstream",
+        dataRemote: "git@github.com:team/kanban.git",
+        dataBranch: "kanban",
+        newBoard: true,
+      }),
+    ).toBe("dg init --no-data-remote --remote upstream");
+  });
 });
 
 describe("checkSetup：git の版", () => {

@@ -114,7 +114,7 @@ dg init --data-remote git@github.com:acme/kanban.git
 
 In VS Code, the board item of the setup checklist does the same: choose that the team's board is in another repository, enter the repository and its branch, and check it. The button then runs `dg init` with `--data-remote` and `--data-branch`.
 
-If dg cannot reach the data remote (the network, the credentials, or the URL is wrong), `dg init` stops without creating a board. Fix the connection and run `dg init` again to take in the team's board. In VS Code, the board item shows the reason and a "Check again" button. Under "If you know the team has no board", a separate button ("Create a new board on this machine only") runs `dg init --new-board`, which creates a board only on this machine. If the remote already has a board, the new one shares no history with it, and `dg sync` then stops with `DATA_HISTORY_UNRELATED`. Use `--new-board` only when you know the team has no board yet, or when you want a separate board on purpose.
+If dg cannot reach the data remote (the network, the credentials, or the URL is wrong), `dg init` stops without creating a board. Fix the connection and run `dg init` again to take in the team's board. In VS Code, the board item shows the reason and a "Check again" button. Under "If you know the team has no board", a separate button ("Create a new board now (pushed once the remote is reached)") runs `dg init --new-board`, which creates the board on this machine first and pushes it once the remote can be reached. If the remote already has a board, the new one shares no history with it, and `dg sync` then stops with `DATA_HISTORY_UNRELATED`. Use `--new-board` only when you know the team has no board yet, or when you want a separate board on purpose. Under "If you do not mean to push the board", another button ("Create a board on this machine only") runs `dg init --no-data-remote` ([Keep the data on this machine only](#keep-the-data-on-this-machine-only)).
 
 To move an existing board to another repository, a person does the following in order:
 
@@ -151,6 +151,8 @@ dg init --no-data-remote
 ```
 
 `dg init --no-data-remote` does not check whether a remote can be reached. It creates the board on this machine and records `git.data_remote: none` in the config.
+
+In VS Code, the board item of the setup checklist does the same. When the remote has no board, it asks where to keep the board: "Share it with the team (push to the remote)" is selected at first and its button ("Create a new board") runs `dg init`; choose "Keep it on this machine only (no push)" and the button ("Create a board on this machine only") runs `dg init --no-data-remote`. In a repository with no remote, the same item asks whether the board is pushed too once you add a remote later (selected at first) or stays on this machine. After setup, while `git.data_remote` is `none`, a "This machine only" mark sits above the board; open it to see the commands that share the board.
 
 - `none` is for one person on one machine: nothing is shared or backed up, and a claim keeps nobody on another machine from claiming the same ticket. To share a board with a team without making it public, do not use `none`; point `git.data_remote` at a private repository ([Keep the data in another repository](#keep-the-data-in-another-repository)).
 - dg does not push the data, but git still can. The local data branch is named `deguboard`, so `git push --all` and `git push --mirror` send it to the remote. Do not use them in this repository.
