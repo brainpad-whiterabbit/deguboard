@@ -26,6 +26,14 @@ export const labelNameSchema = z
   )
   .refine((name) => name === name.toLowerCase(), { message: "A label name is lowercase" });
 
+/**
+ * チケットのラベルを語彙の名前と比べるときの名前（小文字にそろえた名前）。大文字と小文字の違いは同じ名前と読む。
+ * 書くときに小文字にそろえる前に付いた大文字のラベル（`UI`）は、書き直されるまでチケットに残るので、
+ * 絞り込み（hasAnyLabel）・統合（judgeLabelMerge）・語彙を消す判定（judgeLabelRemove）・一覧の件数（labelListView）が
+ * どれもこの関数で比べ、`UI` を語彙の `ui` と同じ名前として扱う
+ */
+export const labelKey = (name: string): string => name.toLowerCase();
+
 /** リリースの手順が付けるラベル（release-<S>）の接頭辞 */
 const RELEASE_LABEL_PREFIX = "release-";
 
@@ -209,7 +217,7 @@ const LISTED_TICKETS = 10;
 
 /**
  * 語彙から消す（dg label remove）。語彙にない名前・統合の記録と、チケットが使っている語彙を拒む
- * （done・abandoned のチケットも数える。label.list の count と同じ数え方）
+ * （done・abandoned のチケットも数える。大文字小文字だけが違うラベル（labelKey）も使っていると読む。label.list の count と同じ数え方）
  */
 export function judgeLabelRemove(
   input: { name: string },
@@ -219,7 +227,7 @@ export function judgeLabelRemove(
   const name = input.name.toLowerCase();
   const found = vocabularyEntry(vocabulary, name);
   if (!found.ok) return found;
-  const users = [...tickets].filter((t) => t.labels.includes(name)).map((t) => t.id);
+  const users = [...tickets].filter((t) => hasAnyLabel(t.labels, [name])).map((t) => t.id);
   if (users.length > 0)
     return rejection(
       "REJECTED",
@@ -254,7 +262,8 @@ export interface LabelMergePlan {
  * - 元（from）：語彙にある名前だけ。語彙にない名前と、ほかの名前への統合の記録は拒む。行き先への統合の記録は受ける
  *   （統合の後に取り込んだチケットに残った名前を、同じ操作をもう一度呼んで書き換えるため。記録は書き換えない）
  * - 元を統合の記録（merged_into・merged_at）にし、行き先が元だった前からの記録は行き先へ付け替える（a → b → c の連鎖を残さない）
- * - チケットは、元を持つものをすべて（done・abandoned も。渡されたものすべて）書き換え、重なった名前は最初の場所に 1 つだけ残す
+ * - チケットは、元を持つものをすべて（done・abandoned も。渡されたものすべて）書き換え、重なった名前は最初の場所に 1 つだけ残す。
+ *   大文字小文字だけが違うラベル（labelKey）も元として書き換え、書き換えるチケットに大文字で付いた行き先も行き先の名前にそろえる
  */
 export function judgeLabelMerge(
   input: {
@@ -342,8 +351,16 @@ export function judgeLabelMerge(
 
   const rewritten: LabelMergePlan["tickets"] = [];
   for (const t of tickets) {
-    if (!t.labels.some((name) => from.includes(name))) continue;
-    const labels = [...new Set(t.labels.map((name) => (from.includes(name) ? to : name)))];
+    if (!hasAnyLabel(t.labels, from)) continue;
+    // 大文字で付いた行き先（`UI` と元の web を ui へ）も to にそろえ、重なりを 1 つにする
+    const labels = [
+      ...new Set(
+        t.labels.map((name) => {
+          const key = labelKey(name);
+          return from.includes(key) || key === to ? to : name;
+        }),
+      ),
+    ];
     rewritten.push({ id: t.id, labels });
   }
   return { ok: true, to, entry, created: !target, merged, repointed, entries, tickets: rewritten };
@@ -400,13 +417,12 @@ export function normalizeLabelNames(
 }
 
 /**
- * チケットのラベルに、絞り込みの名前のどれかがあるか（git もファイルも読まない）。大文字と小文字の違いは同じ名前と読む。
- * 書くときに小文字にそろえる前に付いた大文字のラベルは、書き直されるまでチケットに残るので、小文字の名前で絞ってもそのチケットに当たるようにする。
+ * チケットのラベルに、名前のどれかがあるか（git もファイルも読まない）。大文字と小文字の違いは同じ名前と読む（labelKey）。
  * 画面の絞り込みは web の components/label-vocab.ts に写しを持つ（照らすのは label-vocab.test.ts）
  */
 export function hasAnyLabel(labels: readonly string[], names: readonly string[]): boolean {
-  const wanted = new Set(names.map((name) => name.toLowerCase()));
-  return labels.some((label) => wanted.has(label.toLowerCase()));
+  const wanted = new Set(names.map(labelKey));
+  return labels.some((label) => wanted.has(labelKey(label)));
 }
 
 /** 読み替えの警告の文。use は読み替えた名前で何をしたか（書いた・絞った） */
@@ -467,6 +483,7 @@ const byName = (a: { name: string }, b: { name: string }) =>
  * 軸・語彙・チケットから label.list の出力を決める（git もファイルも読まない）。
  * - 軸は labels.axes の順に並べ、語彙のない軸も出す。labels.axes にない軸を指す語彙は、その後ろに軸の名前の順で出す（description が null）
  * - 語彙は名前の順。統合の記録は語彙に入れず、チケットに付いていれば語彙にない名前として数える
+ * - チケットのラベルは labelKey で比べる（`UI` は語彙の `ui` に数え、語彙にない名前も小文字にそろえて 1 つに数える）
  * - 最後に使われた日は、付いたチケットの起票の時刻の最も新しいもの（ラベルを付けた時刻は記録にないので、起票の時刻で代える）
  */
 export function labelListView(
@@ -477,7 +494,7 @@ export function labelListView(
 ): LabelListView {
   const used = new Map<string, { count: number; last: string }>();
   for (const t of tickets) {
-    for (const name of new Set(t.labels)) {
+    for (const name of new Set(t.labels.map(labelKey))) {
       const u = used.get(name);
       if (!u) used.set(name, { count: 1, last: t.created_at });
       else {
