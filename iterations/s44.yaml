@@ -1,7 +1,7 @@
 id: s44
 name: s44
 goal: s43 の振り返りの Try を進め、計画と見直しの手順を直す（t1203〜t1205）。あわせて、ラベルの大文字小文字の扱いを決めて揃え（t1195）、開発用の依存を上げる（t1200）。コードのリモートがあっても、カンバンのデータを手元だけに置いて使えるようにし、導入の画面でその道を選べるようにする（t1206・t1207）。
-status: active
+status: closed
 checkpoints:
   - name: check
     at: 2026-11-21T08:11:08Z
@@ -39,3 +39,6 @@ checkpoints:
     by: maji/agent
     approved_by: maji
 started_at: 2026-11-21T08:11:31Z
+closed_at: 2026-11-21T10:49:25Z
+completed: 17
+carried_over: 0
