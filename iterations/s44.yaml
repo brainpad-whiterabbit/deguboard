@@ -38,6 +38,10 @@ checkpoints:
     at: 2026-11-21T10:38:21Z
     by: maji/agent
     approved_by: maji
+  - name: retro
+    at: 2026-11-21T11:00:33Z
+    by: maji/agent
+    approved_by: maji
 started_at: 2026-11-21T08:11:31Z
 closed_at: 2026-11-21T10:49:25Z
 completed: 17
