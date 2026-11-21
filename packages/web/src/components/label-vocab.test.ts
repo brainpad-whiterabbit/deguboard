@@ -1,6 +1,7 @@
-// 写しを照らすためだけに core の実行時のコード（isProcedureLabel・mergedLabelTarget・hasAnyLabel・normalizeLabelNames）を取り込む
-// （画面のコードは型だけを取る。ADR-033）
+// 写しを照らすためだけに core の実行時のコード（PROCEDURE_LABEL_PREFIXES・isProcedureLabel・mergedLabelTarget・hasAnyLabel・
+// normalizeLabelNames）を取り込む（画面のコードは型だけを取る。ADR-033）
 import {
+  PROCEDURE_LABEL_PREFIXES as CORE_PROCEDURE_LABEL_PREFIXES,
   hasAnyLabel as coreHasAnyLabel,
   isProcedureLabel as coreIsProcedureLabel,
   mergedLabelTarget as coreMergedLabelTarget,
@@ -18,6 +19,7 @@ import {
   labelLook,
   labelOptionGroups,
   mergedLabelTarget,
+  PROCEDURE_LABEL_PREFIXES,
   resolveLabelFilter,
   rowLabelOrder,
   toggleLabel,
@@ -133,6 +135,16 @@ describe("札の見た目", () => {
     const more = ["release-s9", "pre-release-s1", "ui", "bug", "Audit", ""];
     for (const name of [...names, ...more])
       expect([name, isProcedureLabel(name)]).toEqual([name, coreIsProcedureLabel(name)]);
+  });
+
+  it("接頭辞は core の PROCEDURE_LABEL_PREFIXES と同じで、core のどの接頭辞から作った名前も同じ結果になる", () => {
+    // 代表の名前だけでは、core に足した接頭辞を写し忘れても通るので、core の接頭辞の全件から名前を作って照らす
+    expect([...PROCEDURE_LABEL_PREFIXES]).toEqual([...CORE_PROCEDURE_LABEL_PREFIXES]);
+    for (const prefix of CORE_PROCEDURE_LABEL_PREFIXES) {
+      const bare = prefix.replace(/-$/, "");
+      for (const name of [prefix, `${prefix}s1`, bare, `${bare}s1`, `x-${prefix}s1`])
+        expect([name, isProcedureLabel(name)]).toEqual([name, coreIsProcedureLabel(name)]);
+    }
   });
 });
 

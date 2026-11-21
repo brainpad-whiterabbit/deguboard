@@ -35,6 +35,14 @@ describe("core の写し（web は core の実行時のコードを取り込め�
       { dataRemote: "/srv/my repo; rm -rf ~", dataBranch: "a'b", newBoard: true },
       { dataRemote: "kanban", dataBranch: "=foo" },
       { dataRemote: "kanban", dataBranch: "a=b" },
+      // 引用の処理は core の shellQuote の写し。= で始まる値・空の値・改行を含む値も照らす
+      { remote: "=up", dataRemote: "=kanban", dataBranch: "=" },
+      // 空の値は、どちらも引数ごと省く（空の値を囲む '' までは届かない）
+      { remote: "", dataRemote: "", dataBranch: "" },
+      { remote: "", noDataRemote: true },
+      { dataRemote: "line1\nline2", dataBranch: "a\nb" },
+      { remote: "up\nstream", noDataRemote: true },
+      { dataRemote: "it's\n=x", dataBranch: "\n" },
       { noDataRemote: true },
       { noDataRemote: true, dataRemote: "kanban", dataBranch: "kanban", newBoard: true },
       { remote: "upstream" },
