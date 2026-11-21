@@ -21,6 +21,7 @@ import {
 import { STORE_CACHE_DIR } from "../storage/paths.js";
 import { resolveConfigDataRemote } from "../storage/remote-name.js";
 import { Store } from "../storage/store.js";
+import { initDataRemoteProblem } from "./data-remote-none.js";
 import type { ActorInfo, AnyCommand, CommandContext } from "./define.js";
 
 export interface ContextOptions {
@@ -38,6 +39,11 @@ export interface ContextOptions {
     | {
         remote?: string | undefined;
         dataRemote?: string | undefined;
+        /**
+         * データのリモートなしで始める（init の --no-data-remote）。データのリモートに届くかを確かめず、手元にボードを作る
+         * （手元に deguboard ブランチがあればそれを使う）。repo.dataRemote は config によらず null
+         */
+        noDataRemote?: boolean | undefined;
         dataBranch?: string | undefined;
         /** データのリモートに届かなくても、手元だけで新しいボードを作る（init の --new-board） */
         newBoard?: boolean | undefined;
@@ -122,6 +128,12 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
   const branchProblem =
     initDataBranch === undefined ? undefined : dataBranchProblem(initDataBranch);
   if (branchProblem) throw new OperationError("VALIDATION_FAILED", branchProblem);
+  const noDataRemote = opts.initialize?.noDataRemote === true;
+  const remoteProblem = initDataRemoteProblem({
+    dataRemote: opts.initialize?.dataRemote,
+    noDataRemote,
+  });
+  if (remoteProblem) throw new OperationError("VALIDATION_FAILED", remoteProblem);
   // init が受けたデータのリモート（名前か URL）。URL ならリモートを足し、ない名前ならエラー（黙って同期なしにしない）
   const initDataRemote = opts.initialize?.dataRemote
     ? await ensureDataRemote(paths, opts.initialize.dataRemote)
@@ -130,8 +142,10 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     if (!opts.initialize) {
       throw new OperationError("NOT_INITIALIZED", "deguboard is not initialized. Run dg init");
     }
-    const remote =
-      initDataRemote ?? (await resolveRemote(paths, opts.initialize.remote ?? DEFAULT_REMOTE));
+    // データのリモートなしで始めるときは、リモートを渡さない：届くかを確かめずに、手元にボードを作る
+    const remote = noDataRemote
+      ? null
+      : (initDataRemote ?? (await resolveRemote(paths, opts.initialize.remote ?? DEFAULT_REMOTE)));
     worktree = await ensureDeguboardWorktree(paths, remote, initDataBranch ?? DEFAULT_DATA_BRANCH, {
       newBoard: opts.initialize.newBoard,
     });
@@ -142,17 +156,24 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     localDir: paths.localDir,
     cacheDir: path.join(paths.localDir, STORE_CACHE_DIR),
   });
-  // データのリモートは、init が受けた値 > config の git.data_remote > コードのリモートと同じ、の順に決める。
-  // 後の 2 つは dataRemoteNameOf（ストアを開かない resolveConfigDataRemote と同じ決め方）に、init が受けたコードのリモートを重ねて渡す
+  // データのリモートは、init が受けた値（なし・名前）> config の git.data_remote > コードのリモートと同じ、の順に決める。
+  // 後の 2 つは dataRemoteNameOf（ストアを開かない resolveConfigDataRemote と同じ決め方）に、init が受けたコードのリモートを重ねて渡す。
+  // なし（init の --no-data-remote か、config の none）なら null：コードのリモートがあっても、リモートのないときの経路で動く（SY-6）
   const codeName = opts.initialize?.remote ?? store.config.git.remote;
-  const dataName =
-    initDataRemote ??
-    dataRemoteNameOf({ git: { remote: codeName, data_remote: store.config.git.data_remote } });
+  const dataName = noDataRemote
+    ? null
+    : (initDataRemote ??
+      dataRemoteNameOf({ git: { remote: codeName, data_remote: store.config.git.data_remote } }));
   const codeRemote = await resolveRemote(paths, codeName);
   const repo: GitRepo = {
     ...paths,
     codeRemote,
-    dataRemote: dataName === codeName ? codeRemote : await resolveRemote(paths, dataName),
+    dataRemote:
+      dataName === null
+        ? null
+        : dataName === codeName
+          ? codeRemote
+          : await resolveRemote(paths, dataName),
     // データのブランチ名も、init が受けた値 > config の git.data_branch（省けば deguboard）の順に決める
     dataBranch: initDataBranch ?? store.config.git.data_branch,
     baseBranch: store.config.git.base_branch,

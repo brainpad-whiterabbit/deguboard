@@ -138,7 +138,8 @@ describe("dg", () => {
     expect(init.json()).toMatchObject({
       ok: true,
       data: { worktree: "orphan" },
-      warnings: [],
+      // 新しいボードをリモートへ push したときの知らせ（リモートを読める人なら誰でも読める。t1206）
+      warnings: [expect.stringMatching(/anyone who can read origin.*dg init --no-data-remote/)],
       write: { pushed: true },
     });
     await setTestWorkflow(f);
@@ -217,6 +218,28 @@ describe("dg", () => {
     expect(created.json()).toMatchObject({ ok: true, data: { worktree: "orphan" } });
     const listed = await dg(g.cloneA, ["--json", "ticket", "list"]);
     expect(listed.json()).toMatchObject({ ok: true, data: [] });
+  });
+
+  it("init --no-data-remote は、コードのリモートに届かなくても手元にボードを作り、config に none を書いて、起票を push しない（t1206）", async () => {
+    const f = await fixture();
+    await git(f.cloneA, ["remote", "set-url", "origin", path.join(f.root, "nonexistent.git")]);
+    const made = await dg(f.cloneA, ["--json", "init", "--no-data-remote"]);
+    expect(made.json()).toMatchObject({
+      ok: true,
+      data: { worktree: "orphan", remote: "origin", data_remote: null },
+      write: { committed: true, pushed: false },
+      warnings: [expect.stringMatching(/git push --all and git push --mirror.*then dg sync/)],
+    });
+    const shown = await dg(f.cloneA, ["--json", "config", "show"]);
+    expect(shown.json().data.git).toMatchObject({ remote: "origin", data_remote: "none" });
+    const created = await dg(f.cloneA, ["--json", "ticket", "create", "A"]);
+    expect(created.json()).toMatchObject({ ok: true, write: { committed: true, pushed: false } });
+    // --data-remote は今までどおり値を受ける（否定の形の相方が増えても、値を取りこぼさない）
+    const g = await fixture();
+    const named = await dg(g.cloneA, ["--json", "init", "--data-remote", "origin"]);
+    expect(named.json()).toMatchObject({ ok: true, data: { data_remote: "origin" } });
+    const help = await dg(g.cloneA, ["init", "--help"]);
+    expect(help.out.replace(/\s+/g, " ")).toMatch(/--no-data-remote .*on this machine only/);
   });
 
   it("init --help は --new-board がチームのボードと別のボードになりうることを示す（t1005）", async () => {

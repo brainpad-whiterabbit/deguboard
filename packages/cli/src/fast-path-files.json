@@ -9,6 +9,7 @@
   "core/src/commands/hook-records.ts",
   "core/src/commands/pre-tool-use.ts",
   "core/src/commands/turn-stopped.ts",
+  "core/src/model/data-remote.ts",
   "core/src/model/time.ts",
   "core/src/git/lock.ts",
   "core/src/git/outside.ts",

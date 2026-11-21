@@ -94,6 +94,7 @@ The details are in the [usage guide](https://github.com/brainpad-whiterabbit/deg
 - [Quality gate levels](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#quality-gate-levels): `high` (the default), `low`, or `free` per ticket.
 - [Resolve a sync conflict](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#resolve-a-sync-conflict) when two people change the same field.
 - [Keep the data in another repository](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#keep-the-data-in-another-repository), away from the code.
+- [Keep the data on this machine only](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#keep-the-data-on-this-machine-only), for example to keep tickets out of a public repository.
 - [Keep several kanbans in one repository](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#keep-several-kanbans-in-one-repository), one branch per code repository.
 - [Label axes and vocabulary](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#label-axes-and-vocabulary): decide the axes of labels and a vocabulary with descriptions, merge and rename labels, and let `dg lint` point out the drift.
 - [Approval notifications](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/usage.md#approval-notifications) for Plans awaiting approval and tickets in review.

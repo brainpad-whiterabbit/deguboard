@@ -51,7 +51,7 @@ deguboard は、Agentic-Agile の考え方（[マニフェスト](https://github
 ### 5.1 配置
 
 - データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用 worktree として checkout する。読み書きはすべてここで行い、作業ブランチにはデータを置かない（理由は [ADR-034](adr/ADR-034-storage-and-id.md)）
-- データを fetch・push するリモートは、既定でコードのリモート（`git.remote`）と同じ。`git.data_remote`（5.10）で、コードとは別のリポジトリのリモートにできる。作業ブランチと PR の照合はコードのリモートのままで、手元の置き場所も変わらない（別のリポジトリへ移す手順は [usage.ja.md](usage.ja.md#データを別のリポジトリに置く)）
+- データを fetch・push するリモートは、既定でコードのリモート（`git.remote`）と同じ。`git.data_remote`（5.10）で、コードとは別のリポジトリのリモートにも、なし（データを手元だけに置く）にもできる。作業ブランチと PR の照合はコードのリモートのままで、手元の置き場所も変わらない（別のリポジトリへ移す手順は [usage.ja.md](usage.ja.md#データを別のリポジトリに置く)）
 - データのリモートでのブランチ名は `git.data_branch`（5.10）で変えられ、1 つの専用のリポジトリに、リポジトリごとのブランチで別々のカンバンを置ける。見る権限はリポジトリ単位なので、カンバンごとには分けられない（使い方は [usage.ja.md](usage.ja.md#1-つのリポジトリに複数のカンバンを置く)）
 - Git 管理外のもの（ローカルロック、実行中の Run の記録、流れの止まる判定 `flow/`（EX-8）、マージドライバの属性ファイル、個人の設定 `config.yaml`（5.10）、消してよい読みのキャッシュ `store-cache/`（[ADR-033](adr/ADR-033-architecture.md)））は `<git-common-dir>/deguboard-local/` に置く
 
@@ -183,6 +183,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - チームの `config.yaml` を変える操作は Workflow の `governance.config` で判定し、個人の設定は判定しない（WF-7）。誰がどの操作をしてよいか、`--auto` で聞かずに進めてよい場面、流れから外す段階は config に書かず、Workflow（5.8）に書く
 
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないときは、push する操作は止まって次の手を示し、ほかの操作は警告して続く。push する操作が自分で取り込んだ config でこの値が変わったときは push せずに止まり、画面の自動の取り込みが先に取り込んだときは止まらずに新しいリモートを使う（エラーと戻し方は `dg guide overview`）
+- `git.data_remote` を `none` にすると、データのリモートをなしにして、データを手元だけに置く（SY-6）。データのブランチがデータのリモートにあるボードでは、チームの値を `none` にする変更を拒み、個人の設定だけ通して警告する。空かリモートの名前に戻して同期すると、それまでの履歴を push する（使い方は [usage.ja.md](usage.ja.md#データを手元だけに置く)）
 - `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push する。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく扱い、別のカンバンのブランチを指したときは取り込まずに止まる（エラーと戻し方は `dg guide overview`）
 - `metrics.check_commands`：検査とテストに数えるコマンド（MT-1）に足すコマンド。`actions.test`・`actions.light_test`・`actions.pre_review_test`・`dg gate --only check` は足さなくても数える（見分け方は `packages/core/src/agents/check-commands.test.ts`）
 - `actions.pre_review_test`：`dg gate --only check`（見直しの前と手直しの後）が `actions.test` の代わりに回す検査。通っても `dg pr ready`・`dg pr merge` の検査（EX-6）には数えず、省けば `actions.test` を回す（選び方は `dg gate --help`）
@@ -220,12 +221,12 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 ### 6.3 Git 同期と排他
 
-- SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、config と既定の Workflow を置く。データのリモートに届かなければボードを作らずに止める（手元だけで始めるのは `--new-board`）。データを別のリポジトリに置くとき（5.1）は、`--data-remote <名前か URL>` で取り込む先を、`--data-branch <名前>` でデータのブランチを渡す（細部は `dg init --help`）
+- SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、config と既定の Workflow を置く。データのリモートに届かなければボードを作らずに止める（手元だけで始めるのは `--new-board`）。`--no-data-remote` は届くかを確かめず、手元だけに置くボードを作る（SY-6）。データを別のリポジトリに置くとき（5.1）は、取り込む先とデータのブランチを渡す（細部は `dg init --help`）
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する。取り込み直しがエラーで止まるときは、そのコマンドのコミットを残さない（競合は SY-4）
 - SY-3 claim・作成・`iteration start / reopen` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す。届かなければ（fetch・push の時間切れを含む）コミットを捨てて失敗する（チケットの起票だけは DT-5 の仮番号で残す）
 - SY-4 同期は rebase で取り込み、チケット等の属性はマージドライバがフィールド単位で解く（規則は `git/merge.ts`）。同じ状態で時刻だけ違えば早い方を採り警告に出す。解けない競合は rebase を中止してコミットを残し、競合したフィールドと両側の値を報告して、解くまで push・照合と即時の操作（CL-3）を止める。人が選べば `dg sync --resolve` が競合したフィールドだけその側で揃える（戻し方は `dg guide overview`）
 - SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、同じチケットと step の Run の二重起動も防ぐ。チーム間の排他には使わない。agent の claim は呼んだセッションを `deguboard-local/` に記録し、それが生きている間、別のセッションの agent のもう一度の claim・`unclaim` を拒む（`--take-over` で越える。細部は `dg ticket claim --help`）
-- SY-6 リモートがなくても、同期を除くすべての操作が動く（`git.data_remote` で名指ししたリモートがないときは 5.10）
+- SY-6 リモートがなくても、同期を除くすべての操作が動く。データのリモートをなしにした（`git.data_remote: none`）ときも同じで、コードのリモートがあってもデータを fetch・push せず、作業ブランチと PR の照合はコードのリモートで動く（`git.data_remote` で名指ししたリモートがないときは 5.10）
 - SY-7 データのリポジトリの dg の外の変更（dg を通さない未コミットの変更・dg の印のないコミット・dg のコミットを捨てた・書き換えた履歴）を、dg がコマンドのたびに見つける。書くコマンドはデータに書かずに `OUTSIDE_CHANGES` で止め（sync は取り込み後なら照合を飛ばして警告）、読むだけのコマンドは警告し、どのファイル（とコミット）かと戻し方・取り込み方を示す（理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - SY-8 dg が作るコミットは印を持ち、dg 自身のまとめ待ちの変更、同じマシンで並べて動く dg の書きかけ、リモートから取り込んだコミットは外の変更（SY-7）とみなさない。外の変更は `dg adopt` が `dg validate` と同じ検査を通して取り込み、捨てるのは人が行う（細部は `packages/core/src/git/outside.test.ts`、戻し方は `OUTSIDE_CHANGES` の文と `dg adopt --help`）
 - SY-9 取り込みの rebase は、時間切れや例外で終わっても中止してから失敗する。途中の rebase が残っていれば、書くコマンドは書く前に dg の残したものを取り消し、人が始めたものは書かずに `SYNC_CONFLICT` で止める。どちらも外の変更（SY-7）とは報告しない（細部は `packages/core/src/git/rebase.ts`）

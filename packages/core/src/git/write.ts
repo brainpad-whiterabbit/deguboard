@@ -84,6 +84,13 @@ export function stopIfDataRemoteChanged(
   const branchMoved = now.branch !== before.branch && now.branch !== ctx.repo.dataBranch;
   if (!remoteMoved && !branchMoved) return;
   const from = `${used}/${ctx.repo.dataBranch}`;
+  // 取り込んだ config がデータのリモートをなしにした（git.data_remote: none）：移る先はないので、手元だけに書くようになることを伝える。
+  // 共有しているボードでチームの値を none にする dg config set は拒む（commands/data-remote-none.ts）が、手で書かれた値でもここで止まる
+  if (remoteMoved && now.remote === null)
+    throw new OperationError(
+      "DATA_REMOTE_CHANGED",
+      `The config just fetched from ${from} turned the data remote off (git.data_remote is none: the data is kept on each machine only), so nothing was pushed to ${from}. Run the command again: it writes on this machine only, and nothing is fetched or pushed. Local commits are kept. If the team still shares the board on ${from}, tell the human: dg config set git.data_remote <remote> --local points this clone back at it`,
+    );
   const to = `${remoteMoved ? now.remote : used}/${branchMoved ? now.branch : ctx.repo.dataBranch}`;
   const moved = remoteMoved
     ? branchMoved
@@ -113,6 +120,11 @@ export interface WriteOptions<T> {
   cas?: boolean;
   /** push 先に届かないとき、失敗にせず、作成した対象に provisional を付けてローカルに残す（DT-5。チケットの起票だけ） */
   markProvisional?: (value: T) => Promise<void>;
+  /**
+   * false なら、取り込みとコミットはするが push しない（チームの git.data_remote を none にする dg config set）。
+   * push すると、手元だけに置くと決めたボードが、今のデータのリモートに出てしまう
+   */
+  push?: false;
   maxAttempts?: number;
 }
 
@@ -242,12 +254,10 @@ async function writeLocked<T>(
   const warnings: string[] = [];
   const shouldCommit = opts.immediate === true || config.commit.mode === "each";
   // push する操作は、名指ししたデータのリモートがなければ書く前に止める（リモートを名指ししていなければ、今までどおり手元に書く）
-  if (shouldCommit && (opts.immediate === true || config.push.mode === "auto"))
-    requireDataRemote(ctx);
-  const shouldPush =
-    shouldCommit &&
-    repo.dataRemote !== null &&
-    (opts.immediate === true || config.push.mode === "auto");
+  const wantsPush =
+    opts.push !== false && shouldCommit && (opts.immediate === true || config.push.mode === "auto");
+  if (wantsPush) requireDataRemote(ctx);
+  const shouldPush = wantsPush && repo.dataRemote !== null;
   const maxAttempts = opts.maxAttempts ?? 3;
 
   // やめた Project の残り（projects/）は、書く前に印付きのコミットで一度だけ消す（retire-projects.ts）

@@ -140,7 +140,29 @@ VS Code では、導入のチェックリストのボードの項目で同じこ
    git push origin --delete deguboard
    ```
 
-カンバンのデータのブランチが `deguboard` でないとき（次の節）は、1 で `git push kanban deguboard:<データのブランチ>` と push し、4 で `<データのブランチ>` を消す。
+カンバンのデータのブランチが `deguboard` でないとき（[1 つのリポジトリに複数のカンバンを置く](#1-つのリポジトリに複数のカンバンを置く)）は、1 で `git push kanban deguboard:<データのブランチ>` と push し、4 で `<データのブランチ>` を消す。
+
+## データを手元だけに置く
+
+コードにリモートがあっても、カンバンのデータをどのリモートにも置かないなら、`git.data_remote` を `none` にする。dg はデータのブランチを fetch も push もしなくなり、起票・claim・Iteration の開始は、リモートのないリポジトリと同じく、手元にコミットして成功する。作業ブランチと PR はコードのリモート（`git.remote`）のまま。公開リポジトリにチケットやエージェントの Run の記録を出したくないときと、チームでボードを共有する前に 1 人で試すときに使う。
+
+```sh
+dg init --no-data-remote
+```
+
+`dg init --no-data-remote` は、リモートに届くかを確かめない。手元にボードを作り、config に `git.data_remote: none` を記録する。
+
+- `none` は 1 人が 1 台で使うときのもの。データは共有もバックアップもされず、claim はほかのマシンの人が同じチケットを claim するのを止めない。チームで共有しつつ公開しないなら、`none` にせず、`git.data_remote` で非公開のリポジトリを指す（[データを別のリポジトリに置く](#データを別のリポジトリに置く)）
+- dg はデータを push しないが、git は push できる。手元のデータのブランチの名前は `deguboard` なので、`git push --all` と `git push --mirror` はそれをリモートへ送る。このリポジトリでは使わない
+- 後で共有に戻すと、履歴が丸ごと push される。`git.data_remote` を空（コードのリモート）かリモートの名前に戻して `dg sync` を実行すると、それまでにコミットしたすべてがそのリモートへ送られる。手元だけに置いていた間の Run の記録も含まれる
+
+  ```sh
+  dg config set git.data_remote ""
+  dg sync
+  ```
+
+- リモートにチームのボードがあるのに `none` で始めると、`--new-board` と同じく別のボードができる。2 つは履歴を共有しないので、後で共有に戻すと `dg sync` は `DATA_HISTORY_UNRELATED` で止まる
+- `none` にしても、すでにリモートにあるデータのブランチは消えない。そういうボードでは、チームの値を変える `dg config set git.data_remote none` を dg が拒む（すべてのクローンが黙って同期をやめてしまうため）。1 つのクローンだけ離れるなら `dg config set git.data_remote none --local` を実行する。dg は、そのクローンの claim がほかの人を排他しなくなることを警告する。戻るときは `dg config unset git.data_remote --local` と `dg sync` を実行する。リモートのブランチを消すのは人が行う（`git push origin --delete deguboard`）
 
 ## 1 つのリポジトリに複数のカンバンを置く
 

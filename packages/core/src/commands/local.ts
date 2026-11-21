@@ -215,9 +215,12 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
   }
 }
 
-/** config が決めるコードのリモートとデータのリモートの名前とデータのブランチ名（比べるための 1 つの文字列。改行はリモートとブランチの名前に入らない） */
+/**
+ * config が決めるコードのリモートとデータのリモートの名前とデータのブランチ名（比べるための 1 つの文字列。改行はリモートとブランチの名前に入らない）。
+ * データのリモートなし（none）は空にする（リモートの名前は空にならないので、どの名前ともぶつからない）
+ */
 function remoteNamesOf(config: Config): string {
-  return `${config.git.remote}\n${dataRemoteNameOf(config)}\n${config.git.data_branch}`;
+  return `${config.git.remote}\n${dataRemoteNameOf(config) ?? ""}\n${config.git.data_branch}`;
 }
 
 /** 入口が失敗を data として返すための形（CLI の --json のエラーと同じ） */

@@ -164,7 +164,8 @@ async function inspect(paths: RepoPaths, options: UninstallOptions): Promise<Uni
 
   // データの置き場所（リモートの名前とブランチ名）。config が読めなくても既定で決まる
   const target = await readDataTarget(paths.dataDir, paths.localDir);
-  const remote = await resolveRemote(paths, target.remote);
+  // データのリモートをなしにした（git.data_remote が none）ボードは、リモートがないときと同じく、データが手元にしかない
+  const remote = target.remote === null ? null : await resolveRemote(paths, target.remote);
   const remoteRef = remote
     ? dataRemoteRef({ dataRemote: remote, dataBranch: target.branch })
     : undefined;
@@ -188,7 +189,12 @@ async function inspect(paths: RepoPaths, options: UninstallOptions): Promise<Uni
         message: pushed
           ? `${ahead} commit(s) of the board data are not pushed to ${remote}/${target.branch}, and removing the local data branch loses them.`
           : `The board data is only in this clone (no copy on a data remote is known; ${ahead} commit(s)), and removing the local data branch loses the board.`,
-        next: remote ? ["dg sync"] : [`git remote add ${target.remote} <URL>`, "dg sync"],
+        next: remote
+          ? ["dg sync"]
+          : target.remote === null
+            ? // なしにしたボードを残すには、共有に戻して送る（送ると、それまでの履歴がそのリモートに出る）
+              ["dg config set git.data_remote <remote>", "dg sync"]
+            : [`git remote add ${target.remote} <URL>`, "dg sync"],
       });
   }
   if (initialized) {

@@ -10,6 +10,7 @@ import { z } from "zod";
 import { checkAgentNames, detectableAgentNames } from "../agents/index.js";
 import { GUIDE_TOPICS } from "../guide/topics.js";
 import { isSafeBranchName, slugSchema } from "./common.js";
+import { NO_DATA_REMOTE } from "./data-remote.js";
 
 const COMMIT_MODES = ["each", "batch", "manual"] as const;
 export type CommitMode = (typeof COMMIT_MODES)[number];
@@ -23,21 +24,27 @@ export const ACTIONS_TEST_TIMEOUT_MS = 30 * 60_000;
 /** コードのリモートの名前の既定（git.remote・dg init --remote を省いたとき） */
 export const DEFAULT_REMOTE = "origin";
 
+export { NO_DATA_REMOTE };
+
 /**
- * データ（deguboard ブランチ）を fetch・push するリモートの名前。git.data_remote を省けば（空なら）git.remote と同じ。
+ * データ（deguboard ブランチ）を fetch・push するリモートの名前。git.data_remote を省けば（空なら）git.remote と同じで、
+ * NO_DATA_REMOTE なら null（データのリモートなし。呼び出し側は repo.dataRemote を null にして、リモートのないときの経路に乗せる）。
  * データのリモートの名前の決め方はここだけにする：openContext（init の値を重ねて渡す）と、ストアを開かない
  * storage/remote-name.ts の resolveConfigDataRemote（storelessContext と Stop のフックの速い経路）がここを呼ぶ
  */
-export function dataRemoteNameOf(config: { git: { remote: string; data_remote: string } }): string {
+export function dataRemoteNameOf(config: {
+  git: { remote: string; data_remote: string };
+}): string | null {
+  if (config.git.data_remote === NO_DATA_REMOTE) return null;
   return config.git.data_remote || config.git.remote;
 }
 
 /** データのリモートでのデータのブランチ名の既定（git.data_branch を省いたとき。前からのリポジトリと同じ名前） */
 export const DEFAULT_DATA_BRANCH = "deguboard";
 
-/** config が決めるデータの置き場所：データのリモートの名前とデータのブランチ名 */
+/** config が決めるデータの置き場所：データのリモートの名前（なしにしたときは null）とデータのブランチ名 */
 export interface DataTarget {
-  remote: string;
+  remote: string | null;
   branch: string;
 }
 
@@ -222,8 +229,7 @@ export const configSchema = z.looseObject({
       }),
       data_remote: described(z.string().default(""), {
         summary: "Git remote that the kanban data is fetched from and pushed to",
-        description:
-          "Git remote that the kanban data (the deguboard branch) is fetched from and pushed to, when the data is kept in a repository other than the code's. A remote name, not a URL (dg init --data-remote <URL> adds the remote). Empty uses git.remote. When the named remote is not in a clone, commands that push stop and tell how to add it. A change to the team's value is committed and pushed to the current data remote right away, so that clones still using it learn of the move. For how to move the data to another repository, see dg guide overview",
+        description: `Git remote that the kanban data (the deguboard branch) is fetched from and pushed to, when the data is kept in a repository other than the code's. A remote name, not a URL (dg init --data-remote <URL> adds the remote). Empty uses git.remote. ${NO_DATA_REMOTE} means no data remote: the data stays on this machine and dg never fetches or pushes it, even when the code has a remote, while work branches and pull requests keep using git.remote (dg init --no-data-remote starts a board this way; on a board whose data branch is already on the data remote, only a personal setting (--local) can be ${NO_DATA_REMOTE}). When the named remote is not in a clone, commands that push stop and tell how to add it. A change to the team's value is committed and pushed to the current data remote right away, so that clones still using it learn of the move (a change to ${NO_DATA_REMOTE} is committed and not pushed). For how to move the data to another repository, see dg guide overview`,
         example: "deguboard-data",
         empty: "Uses git.remote",
       }),

@@ -26,12 +26,16 @@ export async function readDataTarget(dataDir: string, localDir: string): Promise
 }
 
 /**
- * config のデータの置き場所を読み、git にそのリモートがあれば名前、なければ null を dataRemote に入れる
+ * config のデータの置き場所を読み、git にそのリモートがあれば名前、なければ（なしにしたときも）null を dataRemote に入れる
  * （openContext の repo.dataRemote・repo.dataBranch と同じ決め方）。ストアを開かずに読む
  */
 export async function resolveConfigDataRemote(
   paths: RepoPaths,
 ): Promise<Pick<GitRepo, "dataRemote" | "dataBranch">> {
   const target = await readDataTarget(paths.dataDir, paths.localDir);
-  return { dataRemote: await resolveRemote(paths, target.remote), dataBranch: target.branch };
+  return {
+    // データのリモートをなしにした（git.data_remote が none）ときは、git に聞かずに null
+    dataRemote: target.remote === null ? null : await resolveRemote(paths, target.remote),
+    dataBranch: target.branch,
+  };
 }

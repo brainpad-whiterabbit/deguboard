@@ -12,7 +12,7 @@
 
 - **入口**：VS Code 拡張・`dg serve`・CLI と MCP・`dg hook` は、Core の同じコマンドを写すだけで、ロジックを持ちません。フックの出来事の判定（Run を開く・閉じる、ツールの呼び出しを拒む）も Core にあり、フックの速い経路も同じ関数を呼びます。画面からの操作も、エージェントの `dg` も、同じ結果になります
 - **Core**：ドメインのモデル・保存・カンバンの Workflow・Git の同期と照合・Run の記録・guide の本文を持ちます。エージェントの製品ごとの違い（フックの入力・会話記録の読み方）は `agents` に閉じ込めます。どのパッケージがどれに依存してよいかの規則は [ADR-033](adr/ADR-033-architecture.md) にあります
-- **データ**：チケット・Epic・Iteration・Plan・Run は、1 件 1 ファイルで、データのリモート（`git.data_remote`。空なら `git.remote`）の orphan ブランチ（既定は `deguboard`。`git.data_branch`）に置き、push すればチームと共有されます。置き場所は変えられます（[データを別のリポジトリに置く](usage.ja.md#データを別のリポジトリに置く)・[1 つのリポジトリに複数のカンバンを置く](usage.ja.md#1-つのリポジトリに複数のカンバンを置く)）。サーバーやデータベースはありません。実行中の Run の記録・チケットを claim したセッションの記録・Plan とチケットの予約・ロックは、このマシンの `deguboard-local/` に置き、Git には入れません
+- **データ**：チケット・Epic・Iteration・Plan・Run は、1 件 1 ファイルで、データのリモート（`git.data_remote`。空なら `git.remote`）の orphan ブランチ（既定は `deguboard`。`git.data_branch`）に置き、push すればチームと共有されます。置き場所は変えられます（[データを別のリポジトリに置く](usage.ja.md#データを別のリポジトリに置く)・[データを手元だけに置く](usage.ja.md#データを手元だけに置く)・[1 つのリポジトリに複数のカンバンを置く](usage.ja.md#1-つのリポジトリに複数のカンバンを置く)）。サーバーやデータベースはありません。実行中の Run の記録・チケットを claim したセッションの記録・Plan とチケットの予約・ロックは、このマシンの `deguboard-local/` に置き、Git には入れません
 - **照合**：`dg sync` が作業ブランチと PR の事実を見て、チケットを進めます（PR が ready になったら review、マージされたら done）
 - **エージェント**：Skill か `dg guide <topic>` で手順を読み、`dg next` が返す次の一手を `dg` で進めます。Run はエージェントでなく、harness のフックが `dg hook` を通して記録します（[Run の記録の範囲](#run-の記録の範囲)と [ADR-025](adr/ADR-025-runs-by-hooks.md)）
 
