@@ -149,6 +149,40 @@ describe("データを手元だけに置く（git.data_remote: none）", () => {
     expect((await git(g.cloneA, ["branch", "--list", "deguboard"])).stdout).toBe("");
   });
 
+  it("新しいボードの init --no-data-remote は、init が受けたデータのブランチ名の追跡 ref で、リモートにあるボードを別のボードとして警告する", async () => {
+    const f = await fixture();
+    // ほかの clone が、既定でないブランチ名でボードを作って push している。A の手元にはその追跡 ref がある
+    const other = await openForInit({
+      cwd: f.cloneB,
+      initialize: { dataBranch: "deguboard-x" },
+      actor,
+    });
+    await runCommand(init, other, { data_branch: "deguboard-x" });
+    await git(f.cloneA, ["fetch", "-q", "origin"]);
+    const tip = await tipOf(f.remoteDir, "deguboard-x");
+    expect(tip).toBeDefined();
+
+    // 既定の置き場所（origin/deguboard）にはボードがないので、既定の名前で始める init は警告しない
+    const g = await fixture();
+    const plain = await initLocalOnly(g.cloneA);
+    expect(notesOf(plain.made.warnings)).toHaveLength(1);
+
+    const first = await openForInit({
+      cwd: f.cloneA,
+      initialize: { noDataRemote: true, dataBranch: "deguboard-x" },
+      actor,
+    });
+    const made = await runCommand(init, first, {
+      no_data_remote: true,
+      data_branch: "deguboard-x",
+    });
+    expect(notesOf(made.warnings)).toEqual([
+      expect.stringContaining("git push --all"),
+      expect.stringMatching(/^origin\/deguboard-x already holds a board.*DATA_HISTORY_UNRELATED/),
+    ]);
+    expect(await tipOf(f.remoteDir, "deguboard-x")).toBe(tip);
+  });
+
   it("付けない init が新しいボードをリモートへ push したら、読める人と --no-data-remote を伝える。push したブランチを消せば、チームの値を none にでき、その変更は push しない", async () => {
     const f = await fixture();
     const first = await openForInit({ cwd: f.cloneA, initialize: {}, actor });

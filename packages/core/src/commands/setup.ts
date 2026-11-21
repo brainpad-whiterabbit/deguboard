@@ -173,8 +173,16 @@ export const init = defineCommand({
         "init with no_data_remote needs a context opened with initialize.noDataRemote, so that nothing is fetched or pushed",
       );
     // データのブランチがデータのリモートにあるボード（チームと共有している）か。--no-data-remote で開いた文脈はリモートを持たないので、
-    // config の決めるデータの置き場所の追跡 ref で見る（新しいボードは config がまだなく、既定の置き場所を見る）
-    const sharedOn = noDataRemote ? await sharedDataTarget(ctx) : null;
+    // config の決めるデータの置き場所の追跡 ref で見る。新しいボードは config がまだなく、チームの config は既定の置き場所を返すので、
+    // init が受けた値（--remote・--data-branch）の決める置き場所を見る
+    const sharedOn = !noDataRemote
+      ? null
+      : (await pathExists(path.join(ctx.store.root, CONFIG_FILE)))
+        ? await sharedDataTarget(ctx)
+        : await sharedDataTarget(ctx, {
+            remote: input.remote ?? DEFAULT_REMOTE,
+            branch: ctx.repo.dataBranch,
+          });
     await ensureMergeDriver(ctx.repo, ctx.mergeDriver);
     let record: ReturnType<typeof initNoneRecord> = null;
     let newConfig = false;
@@ -270,10 +278,14 @@ export const init = defineCommand({
 /**
  * データのブランチがデータのリモートにある（追跡 ref がある）ときの、その場所（<リモート>/<ブランチ>）。なければ null。
  * データのリモートをなしにする判定（data-remote-none.ts）に渡す事実で、fetch はしない（手元の ref を見る）。
- * 見るのは、今の文脈のデータのリモートと、チームの config の決めるデータのリモート（個人の設定でなしにしたクローンは前者が null）
+ * 見るのは、今の文脈のデータのリモートと、チームの config の決めるデータのリモート（個人の設定でなしにしたクローンは前者が null）。
+ * config のまだない新しいボードの init は、チームの config の代わりに、init が受けた値の決める置き場所（configured）を渡す
  */
-async function sharedDataTarget(ctx: CommandContext): Promise<string | null> {
-  const team = dataTargetOf(ctx.store.teamConfig);
+async function sharedDataTarget(
+  ctx: CommandContext,
+  configured?: { remote: string | null; branch: string },
+): Promise<string | null> {
+  const team = configured ?? dataTargetOf(ctx.store.teamConfig);
   const candidates = [
     { dataRemote: ctx.repo.dataRemote, dataBranch: ctx.repo.dataBranch },
     { dataRemote: team.remote, dataBranch: team.branch },
