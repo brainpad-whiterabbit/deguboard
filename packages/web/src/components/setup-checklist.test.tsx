@@ -37,6 +37,11 @@ describe("core の写し（web は core の実行時のコードを取り込め�
       { dataRemote: "kanban", dataBranch: "a=b" },
       { noDataRemote: true },
       { noDataRemote: true, dataRemote: "kanban", dataBranch: "kanban", newBoard: true },
+      { remote: "upstream" },
+      { remote: "upstream", dataRemote: "kanban", dataBranch: "kanban", newBoard: true },
+      { remote: "my remote", newBoard: true },
+      { remote: "upstream", noDataRemote: true },
+      { remote: "it's", noDataRemote: true, dataRemote: "kanban", newBoard: true },
     ])
       expect(initCommandLine(options)).toBe(coreInitCommandLine(options));
   });
