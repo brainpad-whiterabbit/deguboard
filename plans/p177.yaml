@@ -4,7 +4,7 @@ after:
   t1213:
     - t1211
     - t1209
-pending_approval: true
+pending_approval: false
 details:
   t1208:
     scope: SY-1 の括弧書きと dg init --help の new_board の説明だけを直す。usage は今の文が合っているので変えない
@@ -38,3 +38,5 @@ details:
     scope: shell-quote.ts のコメントと web の写しのテストの入力、手順のラベルの接頭辞のテストだけ
     approach: shell-quote.ts の先頭のコメントに web の写しを書き、写しを照らすテストに = ・空文字・改行と core の接頭辞の全件を足す
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-21T09:53:33Z
