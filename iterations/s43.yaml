@@ -32,4 +32,8 @@ checkpoints:
         - t1192
         - t1193
         - t1194
+  - name: release
+    at: 2026-11-21T04:15:00Z
+    by: maji/agent
+    approved_by: maji
 started_at: 2026-11-19T19:42:48Z
