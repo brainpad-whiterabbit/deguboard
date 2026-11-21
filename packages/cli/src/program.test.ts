@@ -190,7 +190,7 @@ describe("dg", () => {
     expect(list.out).toContain("t1  in_progress  high      Login validation");
   });
 
-  it("init は、remote に届かなければボードを作らずに止まり、--new-board なら手元だけで作る。届けばボードの有無で作るか取り込む（t1005）", async () => {
+  it("init は、remote に届かなければボードを作らずに止まり、--new-board なら手元に先に作る（届いたら push する）。届けばボードの有無で作るか取り込む（t1005）", async () => {
     const f = await fixture();
     // 届いてボードがない：orphan を作って送る
     const first = await dg(f.cloneA, ["--json", "init"]);
@@ -213,7 +213,7 @@ describe("dg", () => {
     const worktrees = await git(g.cloneA, ["worktree", "list", "--porcelain"]);
     expect(worktrees.stdout).not.toContain(path.join(".git", "deguboard"));
 
-    // --new-board：届かなくても手元だけで新しいボードを作る
+    // --new-board：届かなくても新しいボードを手元に先に作る（届いたら push する）
     const created = await dg(g.cloneA, ["--json", "init", "--new-board"]);
     expect(created.json()).toMatchObject({ ok: true, data: { worktree: "orphan" } });
     const listed = await dg(g.cloneA, ["--json", "ticket", "list"]);
