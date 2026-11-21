@@ -1,6 +1,3 @@
-For any ticket that changes the data sync and write path (packages/core/src/git/sync.ts and git/write.ts, and the commands that call them), set tier to heavy, and include in the acceptance criteria the case where work stops while re-integrating the remote changes after a rejected push. If such a change is likely to exceed 500 lines, split the change to the path itself and the change to its callers into separate tickets linked with after, and suggest to the human that they re-file them with dg guide import.
-Basis: in s33 all 7 heavy findings clustered on this path (t904: 1258 lines, 8 retries). Drop this rule when, for 3 Iterations in a row, no ticket whose PR changed these files (files of dg metrics sources) has a heavy finding.
-
 If two or more tickets of the plan are likely to change the same section of docs/requirements.md, link them with `after` in the order they should land, instead of running them in parallel, because tickets that edit the same requirement at the same time are likely to conflict.
 Basis: in s36 concurrent-overlap-rate was 11/27. Drop this rule when, for 3 Iterations in a row, no pair counted by concurrent-overlap-rate shares docs/requirements.md.
 
