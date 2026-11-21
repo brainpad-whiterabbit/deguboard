@@ -1,0 +1,36 @@
+{
+  "id": "r20261121-093500-5ac7",
+  "ticket": "t1207",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-21T09:35:00Z",
+  "finished_at": "2026-11-21T09:36:12Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "The no_remote message of setup check still says dg init keeps the board on this machine, which contradicts the screen and does not offer the local-only option",
+    "The LocalOnlyMark comment says its commands match localOnlyNote, but the both case is not in localOnlyNote"
+  ],
+  "usage": {
+    "input": 20,
+    "output": 5429,
+    "cache_read": 435690,
+    "cache_write": 39509
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 6,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 5,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "e99f32f7-4bef-4cde-8edc-f57a401ed99a",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 19
+}
