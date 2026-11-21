@@ -40,6 +40,7 @@ import {
   RowLabelsContext,
 } from "../components/row-labels.js";
 import {
+  hasLabel,
   resolveLabelFilter,
   type LabelFilterValue,
   type LabelVocabulary,
@@ -213,7 +214,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         hideClosedFinished(scoped, store.iterations, store.epics, query.epic)
           .filter((t) => matchesEpic(t, query.epic ?? ""))
           .filter((t) => matchesClaim(t, query.assignee ?? ""))
-          .filter((t) => !label || t.labels.includes(label)),
+          .filter((t) => !label || hasLabel(t.labels, label)),
         sort,
       ),
     [scoped, store.iterations, store.epics, query.epic, query.assignee, label, sort],
@@ -737,13 +738,14 @@ function BoardBandDrop({
 }
 
 /**
- * 範囲のチケットのラベルの候補（名前の順）。絞っているラベル（selected）は、範囲のチケットになくても残す（Iteration を移っても選んだ値を選び直せる）
+ * 範囲のチケットのラベルの候補（名前の順）。絞っているラベル（selected）は、範囲のチケットになくても残す（Iteration を移っても選んだ値を選び直せる）。
+ * 名前は小文字にそろえて重ねない（絞り込みは小文字の名前で当てるので、大文字のラベルが残るチケットの名前も、絞る名前と同じ 1 つの候補にする）
  */
 export function labelOptions(
   tickets: readonly Pick<Ticket, "labels">[],
   selected: string | undefined,
 ): string[] {
-  const names = new Set(tickets.flatMap((t) => t.labels));
+  const names = new Set(tickets.flatMap((t) => t.labels.map((l) => l.toLowerCase())));
   if (selected) names.add(selected);
   return [...names].sort();
 }

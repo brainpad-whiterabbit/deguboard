@@ -30,7 +30,7 @@ import { DetailLink, TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { labelOptions } from "./board.js";
-import { resolveLabelFilter, type LabelFilterValue } from "../components/label-vocab.js";
+import { hasLabel, resolveLabelFilter, type LabelFilterValue } from "../components/label-vocab.js";
 import {
   LabelFilterOptions,
   labelFilterText,
@@ -114,7 +114,7 @@ export function filterBacklog(
     .filter((t) => !f.status || t.status === f.status)
     .filter((t) => !f.priority || t.priority === f.priority)
     .filter((t) => matchesEpic(t, f.epic))
-    .filter((t) => !f.label || t.labels.includes(f.label))
+    .filter((t) => !f.label || hasLabel(t.labels, f.label))
     .filter((t) => matchesClaim(t, f.assignee))
     .filter((t) => !f.mine || (!!t.assignee && isOwnAssignee(me, t.assignee)))
     .filter((t) => ticketMatchesQuery(t, f.query))
