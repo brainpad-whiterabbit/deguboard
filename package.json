@@ -29,15 +29,15 @@
     "audit": "pnpm audit --prod"
   },
   "devDependencies": {
-    "@playwright/mcp": "0.0.85",
+    "@playwright/mcp": "0.0.86",
     "@types/node": "24.19.2",
     "@vscode/test-electron": "3.1.0",
     "gifenc": "1.0.3",
     "oxfmt": "0.79.0",
     "oxlint": "1.94.0",
-    "playwright-core": "1.66.0-alpha-2026-11-09",
+    "playwright-core": "1.66.0-alpha-2026-11-18",
     "typescript": "7.0.2",
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   },
   "engines": {
     "node": ">=24"
