@@ -45,7 +45,7 @@ export interface ContextOptions {
          */
         noDataRemote?: boolean | undefined;
         dataBranch?: string | undefined;
-        /** データのリモートに届かなくても、手元だけで新しいボードを作る（init の --new-board） */
+        /** データのリモートに届かなくても、新しいボードを手元に先に作り、届いたら push する（init の --new-board。手元だけに置くのは noDataRemote） */
         newBoard?: boolean | undefined;
       }
     | undefined;
