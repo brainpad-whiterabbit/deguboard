@@ -17,6 +17,7 @@ import {
   defaultConfig,
   GUIDE_TOPICS,
   LABEL_AXIS_CANDIDATES,
+  labelAxesState,
 } from "@deguboard/core";
 import {
   CONFIRM_KEYS,
@@ -1763,15 +1764,18 @@ describe("設定画面のラベルの節（labels.axes を読むだけで出す�
     { name: "kind", description: "What the change does" },
     { name: "team", description: "担当のチーム" },
   ];
-  /** axes を渡さなければ labels.axes を書いていないチームの config。core と同じく候補を label_axis_candidates で返す */
-  const labelsClient = (axes?: LabelAxis[]) => {
+  /**
+   * axes を渡さなければ labels.axes を書いていないチームの config。core と同じく軸の状態を label_axes_state で
+   * （core の labelAxesState で決めて）、候補を label_axis_candidates で返す。state を渡すと、軸と食い違う状態を返す
+   */
+  const labelsClient = (axes?: LabelAxis[], state = labelAxesState(axes)) => {
     const { client, config } = configClient();
     Object.assign(config, { labels: axes === undefined ? {} : { axes: structuredClone(axes) } });
     const show = client.handlers["config.show"]!;
     client.handlers["config.show"] = (input) => {
       const out = show(input) as object;
       return (input as { fields?: boolean }).fields
-        ? { ...out, label_axis_candidates: LABEL_AXIS_CANDIDATES }
+        ? { ...out, label_axes_state: state, label_axis_candidates: LABEL_AXIS_CANDIDATES }
         : out;
     };
     return client;
@@ -1815,6 +1819,14 @@ describe("設定画面のラベルの節（labels.axes を読むだけで出す�
     expect(rows()).toEqual([]);
   });
 
+  it("軸の状態は config.show の label_axes_state を出すだけで、labels.axes から自分で見分けない", async () => {
+    // labels.axes は書いていないが、core が off と返せば「使わないと決めている」を出す
+    mount(labelsClient(undefined, "off"));
+    await screen.findByText("コミットの仕方");
+    expect(within(section()!).getByText(/軸を使わないと決めている/)).toBeTruthy();
+    expect(within(section()!).queryByText(/軸をまだ決めていない/)).toBeNull();
+  });
+
   it("検索は軸の名前と出している説明（訳）に当たり、当たらなければ節ごと出さない", async () => {
     mount(labelsClient(AXES));
     await screen.findByText("コミットの仕方");
@@ -1846,7 +1858,7 @@ describe("設定画面のラベルの節（labels.axes を読むだけで出す�
     }
   });
 
-  it("候補を返さない応答（軸を知らない版）では節を出さない", async () => {
+  it("軸の状態と候補を返さない応答（軸を知らない版）では節を出さない", async () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");

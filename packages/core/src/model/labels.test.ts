@@ -12,6 +12,7 @@ import {
   mergedLabelTarget,
   normalizeLabelNames,
   parseVocabulary,
+  releaseLabeled,
   type LabelEntry,
 } from "./labels.js";
 
@@ -276,6 +277,14 @@ describe("語彙を書く操作の判定（judgeLabelAdd・judgeLabelUpdate・ju
       expect(isProcedureLabel(name)).toBe(true);
     for (const name of ["auditor", "retro", "release", "pre-release-s1"])
       expect(isProcedureLabel(name)).toBe(false);
+  });
+
+  it("リリースの手順のチケットは、その Iteration の release-<S> を持つものだけ。Iteration がなければどれも違う（releaseLabeled）", () => {
+    const of = (...labels: string[]) => ({ labels });
+    expect(releaseLabeled("s3")(of("core", "release-s3"))).toBe(true);
+    for (const t of [of("release-s30"), of("release-s2"), of("release"), of("audit-s3"), of()])
+      expect(releaseLabeled("s3")(t)).toBe(false);
+    expect(releaseLabeled(null)(of("release-s3"))).toBe(false);
   });
 
   it("add は、空白・カンマ・_ を含む名前、先頭が - の名前、手順のラベルの名前（点検と同じ isProcedureLabel）、説明のない語彙を拒む", () => {

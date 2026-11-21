@@ -58,7 +58,12 @@ import {
   type Config,
   type ConfigField,
 } from "../model/config.js";
-import { LABEL_AXIS_CANDIDATES, type LabelAxisCandidate } from "../model/label-axes.js";
+import {
+  LABEL_AXIS_CANDIDATES,
+  labelAxesState,
+  type LabelAxesState,
+  type LabelAxisCandidate,
+} from "../model/label-axes.js";
 import { labelLintFindings } from "../model/label-lint.js";
 import {
   OPENED_STEPS,
@@ -1187,7 +1192,7 @@ export const configShow = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Also show, with the values, each leaf item's key, type, default, summary, description, example, empty (what an empty value does), option_descriptions, and scope (scope: team is team-only, local can be overridden personally), plus the team values, personal overrides, and the defaults of every item (in the form { config, team, local, defaults, fields }; used by the settings screen). fields leaves out the perspectives of the retrospective (retro.perspectives), which are nested by perspective and written with dg retro; their default is in defaults. fields also leaves out the axes of the labels (labels.axes), written with dg label axis; label_axis_candidates has the candidate axes that dg holds",
+        "Also show, with the values, each leaf item's key, type, default, summary, description, example, empty (what an empty value does), option_descriptions, and scope (scope: team is team-only, local can be overridden personally), plus the team values, personal overrides, and the defaults of every item (in the form { config, team, local, defaults, fields }; used by the settings screen). fields leaves out the perspectives of the retrospective (retro.perspectives), which are nested by perspective and written with dg retro; their default is in defaults. fields also leaves out the axes of the labels (labels.axes), written with dg label axis; label_axes_state has their state (undecided, off, or on, as in dg label axis list) and label_axis_candidates has the candidate axes that dg holds",
       ),
   }),
   write: false,
@@ -1202,6 +1207,7 @@ export const configShow = defineCommand({
         local: ctx.store.localConfig,
         defaults: defaultConfig(),
         fields: configFields(),
+        label_axes_state: labelAxesState(ctx.store.teamConfig.labels.axes),
         label_axis_candidates: LABEL_AXIS_CANDIDATES,
       });
     }
@@ -1223,6 +1229,11 @@ export interface ConfigShowView {
    */
   defaults: Config;
   fields: ConfigField[];
+  /**
+   * チームのラベルの軸（labels.axes）の状態（model/label-axes.ts の labelAxesState。dg label axis list の state と同じ）。
+   * 画面は書いていない（undecided）と `[]`（off）を自分で見分けず、これを出す
+   */
+  label_axes_state: LabelAxesState;
   /**
    * dg が持つラベルの軸の候補（model/label-axes.ts）。fields に入らないラベルの軸（labels.axes）は既定を持たないので、
    * 画面は軸の名前と説明がこの候補と同じときだけ、候補のままとして説明を表示言語に訳す（UI-11）
