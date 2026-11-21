@@ -1,0 +1,33 @@
+{
+  "id": "r20261121-081257-a580",
+  "ticket": "t1195",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-21T08:12:57Z",
+  "finished_at": "2026-11-21T08:21:28Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 60,
+    "output": 32019,
+    "cache_read": 3231005,
+    "cache_write": 151198
+  },
+  "tools": {
+    "read": 20,
+    "search": 0,
+    "write": 32,
+    "bash": 25,
+    "other": 0,
+    "read_before_write": 5,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "e99f32f7-4bef-4cde-8edc-f57a401ed99a",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 42
+}
