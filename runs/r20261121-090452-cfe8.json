@@ -1,0 +1,36 @@
+{
+  "id": "r20261121-090452-cfe8",
+  "ticket": "t1206",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-21T09:04:52Z",
+  "finished_at": "2026-11-21T09:06:25Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "dg init --no-data-remote on a new board checks the default data target instead of the remote and data branch given to init, so the separate-board warning can be missed or name the wrong place",
+    "ADR-034 does not record that git.data_remote can be none and that a team value of none is rejected on a board whose data branch is on the remote"
+  ],
+  "usage": {
+    "input": 20,
+    "output": 6443,
+    "cache_read": 498552,
+    "cache_write": 50171
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 5,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0,
+    "errors": 0
+  },
+  "session": "e99f32f7-4bef-4cde-8edc-f57a401ed99a",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 23
+}
