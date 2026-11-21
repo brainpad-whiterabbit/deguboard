@@ -73,18 +73,21 @@ export const DEFAULT_DATA_BRANCH = "deguboard";
 
 /** 拡張のボタンが流す dg init の 1 行（core の initCommandLine の写し。値はシェルにそのまま渡せる形に囲む） */
 export function initCommandLine(options: {
+  remote?: string | undefined;
   dataRemote?: string | undefined;
   dataBranch?: string | undefined;
   newBoard?: boolean | undefined;
   noDataRemote?: boolean | undefined;
 }): string {
-  // このマシンだけに置く 1 行には、データの置き場所と --new-board を付けない（dg init は --data-remote と一緒に受け付けない）
-  if (options.noDataRemote) return "dg init --no-data-remote";
   const arg = (value: string) =>
     /^[\w@%+:,./-][\w@%+=:,./-]*$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
+  const remote = options.remote ? ["--remote", arg(options.remote)] : [];
+  // このマシンだけに置く 1 行には、データの置き場所と --new-board を付けない（dg init は --data-remote と一緒に受け付けない）。コードのリモートは付ける
+  if (options.noDataRemote) return ["dg init", "--no-data-remote", ...remote].join(" ");
   return [
     "dg init",
     ...(options.newBoard ? ["--new-board"] : []),
+    ...remote,
     ...(options.dataRemote ? ["--data-remote", arg(options.dataRemote)] : []),
     ...(options.dataBranch ? ["--data-branch", arg(options.dataBranch)] : []),
   ].join(" ");
