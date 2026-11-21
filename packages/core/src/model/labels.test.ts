@@ -245,6 +245,31 @@ describe("語彙の一覧（labelListView）", () => {
     ).toEqual([{ name: "a", count: 1 }]);
     expect(labelListView(axes, vocabulary, [], { undefined: true }).undefined).toEqual([]);
   });
+
+  it("大文字小文字だけが違うチケットのラベルは同じ名前に数える。`UI` は語彙の ui の count に入り、語彙にない名前にならない。1 つのチケットの UI と ui は 1 件", () => {
+    const vocabulary = new Map([["ui", entry("area", "The UI")]]);
+    const view = labelListView(
+      axes,
+      vocabulary,
+      [
+        ticket(["UI"], "2026-11-03T00:00:00Z"),
+        ticket(["ui", "Ui"], "2026-11-02T00:00:00Z"),
+        ticket(["Tooling"], at),
+        ticket(["tooling"], at),
+      ],
+      { undefined: true },
+    );
+    expect(view.axes[0]?.labels).toEqual([
+      {
+        name: "ui",
+        description: "The UI",
+        created_at: at,
+        count: 2,
+        last_used_at: "2026-11-03T00:00:00Z",
+      },
+    ]);
+    expect(view.undefined).toEqual([{ name: "tooling", count: 2 }]);
+  });
 });
 
 describe("語彙を書く操作の判定（judgeLabelAdd・judgeLabelUpdate・judgeLabelRemove）", () => {
@@ -381,6 +406,23 @@ describe("語彙を書く操作の判定（judgeLabelAdd・judgeLabelUpdate・ju
       ok: false,
       code: "REJECTED",
     });
+  });
+
+  it("remove は、大文字小文字だけが違うラベル（UI）を持つチケットも使っていると読んで拒む", () => {
+    for (const labels of [["UI"], ["Ui", "tooling"]])
+      expect(judgeLabelRemove({ name: "ui" }, vocabulary, [{ id: "t7", labels }])).toMatchObject({
+        ok: false,
+        code: "REJECTED",
+        message: "1 ticket carries the label ui, so it cannot be removed",
+        detail: expect.stringContaining("t7"),
+      });
+    expect(
+      judgeLabelRemove({ name: "Bug" }, vocabulary, [{ id: "t8", labels: ["BUG"] }]),
+    ).toMatchObject({ ok: false, code: "REJECTED" });
+    // 部分一致では当たらない
+    expect(
+      judgeLabelRemove({ name: "ui" }, vocabulary, [{ id: "t9", labels: ["search-UI"] }]),
+    ).toMatchObject({ ok: true, name: "ui" });
   });
 });
 
@@ -520,6 +562,31 @@ describe("統合の判定（judgeLabelMerge）", () => {
       tickets: [{ id: "t1", labels: ["ui"] }],
     });
     expect(merge(["gone", "ui"], {}, [])).toMatchObject({ ok: true, entries: [], tickets: [] });
+  });
+
+  it("大文字小文字だけが違うラベル（UI）を持つチケットも元として書き換え、重なった名前は 1 つにする。書き換えるチケットに大文字で付いた行き先も行き先の名前にそろえる", () => {
+    const cased = [
+      { id: "t1", labels: ["UI", "bug"] },
+      { id: "t2", labels: ["Ui", "ui", "web"] },
+      { id: "t3", labels: ["search-UI"] },
+      { id: "t4", labels: ["Bug"] },
+    ];
+    expect(merge(["ui", "web"], {}, cased)).toMatchObject({
+      ok: true,
+      to: "web",
+      merged: ["ui"],
+      tickets: [
+        { id: "t1", labels: ["web", "bug"] },
+        { id: "t2", labels: ["web"] },
+      ],
+    });
+    // 行き先の側が大文字で付いていても、元を持つチケットでは行き先の名前に 1 つにそろえる。元を持たないチケットは書き換えない
+    expect(
+      merge(["web", "ui"], {}, [
+        { id: "t5", labels: ["UI", "Web"] },
+        { id: "t6", labels: ["UI"] },
+      ]),
+    ).toMatchObject({ ok: true, tickets: [{ id: "t5", labels: ["ui"] }] });
   });
 });
 

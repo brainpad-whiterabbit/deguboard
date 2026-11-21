@@ -183,7 +183,7 @@ export const labelList = defineCommand({
   name: "label.list",
   group: "label",
   summary:
-    "Show the vocabulary of the labels (labels.yaml on the data branch) by axis. Write it with dg label add, update, remove, and merge. state is the state of the axes (see dg label axis list). axes lists the axes in the order of labels.axes, each with its labels (name, description, created_at), the number of tickets that carry the label (count: done and abandoned tickets count too), and when it was last used (last_used_at: the created_at of the newest ticket that carries it, or null when no ticket does). An axis whose description is null is not in labels.axes: only labels point to it. Labels recorded as merged into another are not vocabulary and are left out. Entries of labels.yaml that cannot be read are left out too: dg validate reports them",
+    "Show the vocabulary of the labels (labels.yaml on the data branch) by axis. Write it with dg label add, update, remove, and merge. state is the state of the axes (see dg label axis list). axes lists the axes in the order of labels.axes, each with its labels (name, description, created_at), the number of tickets that carry the label (count: done and abandoned tickets count too, and a label written in other case, such as UI, counts as ui), and when it was last used (last_used_at: the created_at of the newest ticket that carries it, or null when no ticket does). An axis whose description is null is not in labels.axes: only labels point to it. Labels recorded as merged into another are not vocabulary and are left out. Entries of labels.yaml that cannot be read are left out too: dg validate reports them",
   input: z.object({
     merged: z
       .boolean()
@@ -195,7 +195,7 @@ export const labelList = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Also show the names that tickets carry but the vocabulary does not have, with the number of tickets (undefined: name, count). A name recorded as merged counts as not in the vocabulary",
+        "Also show the names that tickets carry but the vocabulary does not have, with the number of tickets (undefined: name, count). Names are lowered, so names that differ only in case count as one. A name recorded as merged counts as not in the vocabulary",
       ),
   }),
   write: false,
@@ -300,7 +300,7 @@ export const labelRemove = defineCommand({
   positionals: ["name"],
   group: "label",
   summary:
-    "Remove a label from the vocabulary, and return the removed label. A label that a ticket carries is rejected (done and abandoned tickets count too): take it off the tickets first (dg ticket list --label <name> shows them). A name that is not in the vocabulary, or that is recorded as merged into another, is rejected. " +
+    "Remove a label from the vocabulary, and return the removed label. A label that a ticket carries is rejected (done and abandoned tickets count too, and so does a label written in other case, such as UI for ui): take it off the tickets first (dg ticket list --label <name> shows them). A name that is not in the vocabulary, or that is recorded as merged into another, is rejected. " +
     VOCABULARY_NOTE,
   input: z.object({ name: labelName, ...permissionFields }),
   write: true,
@@ -337,7 +337,7 @@ export const labelMerge = defineCommand({
   positionals: ["names"],
   group: "label",
   summary:
-    "Merge labels of the vocabulary into one: dg label merge <from>... <to>. The last name is the label to merge into, and the names before it are merged. Every ticket that carries a merged name is rewritten to carry the last name instead, once (done and abandoned tickets too), in one write, and updated_at of the tickets stays (the content of a ticket does not change). The merged names stay in labels.yaml as records of the merge (merged_into, merged_at; dg label list --merged shows them) and are no longer vocabulary, and the records of earlier merges into them now point to the last name. When the last name is not in the vocabulary, --axis and --description create it, so a rename is a merge of one name into a new name; the rules of dg label add apply to the new name. Rejected: a merged name that is not in the vocabulary, or that is a record of a merge into another label; a last name that is a record of a merge; a last name that is not in the vocabulary without both --axis and --description; and --axis or --description with a last name that exists. A name already recorded as merged into the last name is accepted, to rewrite the tickets that still carry it (dg lint reports them). The result gives the number of rewritten tickets (count) and their IDs (tickets). " +
+    "Merge labels of the vocabulary into one: dg label merge <from>... <to>. The last name is the label to merge into, and the names before it are merged. Every ticket that carries a merged name, also written in other case (such as UI for ui), is rewritten to carry the last name instead, once (done and abandoned tickets too), in one write (on those tickets, the last name written in other case, such as UI, also becomes the last name), and updated_at of the tickets stays (the content of a ticket does not change). The merged names stay in labels.yaml as records of the merge (merged_into, merged_at; dg label list --merged shows them) and are no longer vocabulary, and the records of earlier merges into them now point to the last name. When the last name is not in the vocabulary, --axis and --description create it, so a rename is a merge of one name into a new name; the rules of dg label add apply to the new name. Rejected: a merged name that is not in the vocabulary, or that is a record of a merge into another label; a last name that is a record of a merge; a last name that is not in the vocabulary without both --axis and --description; and --axis or --description with a last name that exists. A name already recorded as merged into the last name is accepted, to rewrite the tickets that still carry it (dg lint reports them). The result gives the number of rewritten tickets (count) and their IDs (tickets). " +
     VOCABULARY_NOTE,
   input: z.object({
     names: z

@@ -2,7 +2,7 @@
 // 意味が重なるかはエージェントが点検で判断するので、ここは数えて指摘するだけにする。git もファイルも読まない（読むのは commands/setup.ts の lint）
 
 import type { LabelAxis } from "./config.js";
-import { isProcedureLabel, labelListView, type Vocabulary } from "./labels.js";
+import { isProcedureLabel, labelKey, labelListView, type Vocabulary } from "./labels.js";
 
 /** ラベルの指摘の 1 件。ticket があるものはそのチケットの指摘、ないものは語彙（labels.yaml）の指摘 */
 export interface LabelFinding {
@@ -23,7 +23,8 @@ const OPEN_STATUSES = new Set(["todo", "in_progress", "review"]);
 /**
  * 軸・語彙・チケット・Iteration から、ラベルのずれの指摘を出す。軸が書いていない・`[]` のボードは仕組みがオフなので何も出さない。
  * - 語彙にない名前は、名前ごとに 1 件、付いたチケットの数を添える（軸を初めて書いた直後に、チケットごとの指摘で膨らまないように）。
- *   手順が付けるラベルと、統合済みの名前（別の指摘で出す）は除く
+ *   手順が付けるラベルと、統合済みの名前（別の指摘で出す）は除く。名前は小文字にそろえて数える（label.list の undefined と同じ）ので、
+ *   どのチケットも `Tooling` と書いていても `tooling` と出す（dg ticket list --label tooling で同じチケットが引ける）
  * - 使われていない語彙：付いたチケットがないもの。1 件にしか付いていないものは、語彙の created_at より後に閉じた Iteration が
  *   1 つ以上あるものだけ（足したばかりで育つ途中の語彙は指摘しない）
  * - 大文字と小文字だけが違う名前（語彙と、チケットに付いた名前をあわせて見る。統合の記録は除く）
@@ -41,7 +42,8 @@ export function labelLintFindings(
   const list = [...tickets];
   const view = labelListView(axes, vocabulary, list, { undefined: true });
   const findings: LabelFinding[] = [];
-  const mergedInto = (name: string) => vocabulary.get(name)?.merged_into;
+  // 語彙の名前は小文字なので labelKey で引く。チケットに `Web` が残っていても、統合済みの `web` として指摘できるように
+  const mergedInto = (name: string) => vocabulary.get(labelKey(name))?.merged_into;
 
   for (const u of view.undefined ?? []) {
     if (isProcedureLabel(u.name) || mergedInto(u.name) !== undefined) continue;

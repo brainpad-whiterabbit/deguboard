@@ -186,4 +186,24 @@ describe("ラベルの指摘（labelLintFindings）", () => {
       ["t2", "Carries the label web, which was merged into ui"],
     ]);
   });
+
+  it("統合済みの名前を大文字で書いたラベルも、統合済みの名前として指摘する（語彙にない名前の指摘にはしない）", () => {
+    const vocabulary = new Map([
+      ["ui", entry("area")],
+      ["web", merged("area", "ui")],
+    ]);
+    const findings = labelLintFindings(
+      axes,
+      vocabulary,
+      [ticket(["Web"], "todo", "t1"), ticket(["ui"], "todo", "t2"), ticket(["ui"], "todo", "t3")],
+      [],
+    );
+    expect(findings).toEqual([
+      {
+        code: "lint_label_merged",
+        ticket: "t1",
+        message: "Carries the label Web, which was merged into ui",
+      },
+    ]);
+  });
 });
