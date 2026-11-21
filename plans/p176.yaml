@@ -7,7 +7,7 @@ after:
     - t1195
   t1207:
     - t1206
-pending_approval: true
+pending_approval: false
 details:
   t1195:
     scope: ticket create・update・import の --label と ticket list --label・画面の絞り込みを小文字にそろえる。既存の大文字のラベルの書き換えは含まない
@@ -37,3 +37,5 @@ details:
     scope: 導入のチェックリストのボードの項目の 3 つの状態と、導入後の「このマシンだけ」の印、usage の画面の記述
     approach: boardGuide と BoardItemGuide に道を足し、拡張の setupCommands は initCommandLine の同じ 1 行を流し、印は config.show の値で出す
     tier: heavy
+approved_by: maji
+approved_at: 2026-11-21T08:10:14Z
