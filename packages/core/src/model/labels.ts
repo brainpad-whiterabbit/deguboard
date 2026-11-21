@@ -376,22 +376,37 @@ export interface LabelRename {
 }
 
 /**
- * ラベルの名前の並びの、統合済みの名前を統合先へ読み替える（git もファイルも読まない）。チケットに書く値（ticket create・update・import）と、
- * 絞り込みの値（ticket list --label）が同じ関数を通る。読み替えたときだけ、重なった名前を最初の場所に 1 つ残す（judgeLabelMerge と同じ）。
- * 語彙にない名前・語彙の名前はそのまま
+ * ラベルの名前の並びを小文字にそろえ、そろえた後に統合済みの名前を統合先へ読み替える（git もファイルも読まない）。
+ * チケットに書く値（ticket create・update・import）と、絞り込みの値（ticket list --label）が同じ関数を通る。
+ * - 小文字にそろえるのは、軸や語彙の有無によらない（語彙を書く操作 judgeLabelAdd などと同じ規則。`UI` は語彙の `ui` に当たり、
+ *   統合済みの名前を大文字で書いても統合先になる）。そろえたことは警告にしない（renamed の from もそろえた後の名前）
+ * - そろえるか読み替えるかで名前が変わったときだけ、重なった名前を最初の場所に 1 つ残す（judgeLabelMerge と同じ）。
+ *   変わらなければ、渡された並びのまま
  */
 export function normalizeLabelNames(
   names: readonly string[],
   vocabulary: Vocabulary,
 ): { labels: string[]; renamed: LabelRename[] } {
   const renamed: LabelRename[] = [];
-  const mapped = names.map((name) => {
+  const mapped = names.map((written) => {
+    const name = written.toLowerCase();
     const to = mergedLabelTarget(name, (n) => vocabulary.get(n)?.merged_into);
     if (to === undefined) return name;
     if (!renamed.some((r) => r.from === name)) renamed.push({ from: name, to });
     return to;
   });
-  return { labels: renamed.length > 0 ? [...new Set(mapped)] : [...names], renamed };
+  const changed = mapped.some((name, i) => name !== names[i]);
+  return { labels: changed ? [...new Set(mapped)] : [...names], renamed };
+}
+
+/**
+ * チケットのラベルに、絞り込みの名前のどれかがあるか（git もファイルも読まない）。大文字と小文字の違いは同じ名前と読む。
+ * 書くときに小文字にそろえる前に付いた大文字のラベルは、書き直されるまでチケットに残るので、小文字の名前で絞ってもそのチケットに当たるようにする。
+ * 画面の絞り込みは web の components/label-vocab.ts に写しを持つ（照らすのは label-vocab.test.ts）
+ */
+export function hasAnyLabel(labels: readonly string[], names: readonly string[]): boolean {
+  const wanted = new Set(names.map((name) => name.toLowerCase()));
+  return labels.some((label) => wanted.has(label.toLowerCase()));
 }
 
 /** 読み替えの警告の文。use は読み替えた名前で何をしたか（書いた・絞った） */

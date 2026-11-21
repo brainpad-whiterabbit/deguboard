@@ -873,3 +873,101 @@ describe("統合済みの名前を統合先へ読み替える（ticket create・
     expect((await runCommand(ticketList, again, { label: ["bug"] })).warnings).toEqual([]);
   });
 });
+
+// そろえ方の組み合わせは model/labels.test.ts（normalizeLabelNames・hasAnyLabel）。ここは入口ごとの経路の代表だけ
+describe("ラベルの名前を小文字にそろえる（ticket create・update・import・list）", () => {
+  const vocabularyLines = [
+    "ui:",
+    "  axis: area",
+    "  description: The board",
+    "  created_at: 2026-11-01T00:00:00Z",
+    "web:",
+    "  axis: area",
+    "  description: Old name",
+    "  created_at: 2026-11-01T00:00:00Z",
+    "  merged_into: ui",
+    "  merged_at: 2026-11-02T00:00:00Z",
+  ];
+  const mergedWarning =
+    "The label web was merged into ui, so ui is written instead. Use ui from now on";
+  const caseIssues = async (ctx: CommandContext) =>
+    (await runCommand(lint, ctx, {})).data.issues
+      .filter((i) => i.code === "lint_label_case")
+      .map((i) => i.message);
+
+  it("書くときは小文字にそろえてから統合済みの名前を読み替え、軸も語彙もないボードでもそろえる", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    // 軸も語彙もないボード
+    const bare = await runCommand(ticketCreate, ctx, { title: "一", labels: ["UI", "Bug"] });
+    expect(bare.data.labels).toEqual(["ui", "bug"]);
+    expect(bare.warnings).toEqual([]);
+
+    await runCommand(labelAxisSet, ctx, area);
+    await writeLabels(ctx, vocabularyLines);
+    const created = await runCommand(ticketCreate, ctx, { title: "二", labels: ["UI", "WEB"] });
+    expect(created.data.labels).toEqual(["ui"]);
+    expect(created.warnings).toContain(mergedWarning);
+    const updated = await runCommand(ticketUpdate, ctx, {
+      ticket: bare.data.id,
+      labels: ["Web", "Docs"],
+    });
+    expect(updated.data.labels).toEqual(["ui", "docs"]);
+    expect(updated.warnings).toContain(mergedWarning);
+    const imported = await runCommand(ticketImport, ctx, {
+      source: "- title: 三\n  labels: [UI, Bug]\n- title: 四\n  labels: [WEB]\n",
+    });
+    expect(imported.data.map((t) => t.labels)).toEqual([["ui", "bug"], ["ui"]]);
+    expect(imported.warnings.filter((w) => w === mergedWarning)).toHaveLength(1);
+
+    // 開き直して、ファイルに書かれた値を読む。どれも小文字なので、大文字小文字だけが違う組はない
+    const again = await reopenInitialized(f);
+    expect([...again.store.tickets.values()].map((d) => d.data.labels)).toEqual([
+      ["ui", "docs"],
+      ["ui"],
+      ["ui", "bug"],
+      ["ui"],
+    ]);
+    expect(await caseIssues(again)).toEqual([]);
+  });
+
+  it("大文字のラベルが残る前からのチケットは、読み込みも dg validate も通り、書き直されるまでそのまま残る。--label は大文字小文字の違う名前でも同じチケットに当たり、lint は今までどおり大文字小文字だけが違う組を指摘する", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    await runCommand(labelAxisSet, ctx, area);
+    await writeLabels(ctx, vocabularyLines);
+    const legacy = await runCommand(ticketCreate, ctx, { title: "前からのチケット" });
+    const lower = await runCommand(ticketCreate, ctx, { title: "小文字", labels: ["ui"] });
+    await runCommand(ticketCreate, ctx, { title: "ほかのラベル", labels: ["search-ui"] });
+    // 書くコマンドは小文字にそろえるので、そろえる前に付いた大文字のラベルは dg の書き込みとして直に書く
+    await withWrite(ctx, () => ctx.store.update("ticket", legacy.data.id, { labels: ["UI"] }), {
+      message: "大文字のラベルを書く",
+    });
+
+    // 開き直して、ファイルから読む
+    const again = await reopenInitialized(f);
+    expect(again.store.tickets.get(legacy.data.id)?.data.labels).toEqual(["UI"]);
+    expect((await runCommand(validate, again, {})).data).toEqual({ ok: true, issues: [] });
+    expect(await caseIssues(again)).toEqual(["The labels UI, ui differ only in case"]);
+
+    const both = [legacy.data.id, lower.data.id];
+    for (const label of ["ui", "UI", "Ui"]) {
+      const listed = await runCommand(ticketList, again, { label: [label] });
+      expect([label, listed.data.map((t) => t.id)]).toEqual([label, both]);
+      expect(listed.warnings).toEqual([]);
+    }
+    // 大文字で書いた統合済みの名前も統合先で探し、大文字のラベルのチケットにも当たる
+    const merged = await runCommand(ticketList, again, { label: ["WEB"] });
+    expect(merged.data.map((t) => t.id)).toEqual(both);
+    expect(merged.warnings).toEqual([
+      "The label web was merged into ui, so ui is used for the filter instead. Use ui from now on",
+    ]);
+
+    // ほかの属性を書き換えても、ラベルは書き直されるまでそのまま
+    const retitled = await runCommand(ticketUpdate, again, {
+      ticket: legacy.data.id,
+      title: "前からのチケット（改）",
+    });
+    expect(retitled.data.labels).toEqual(["UI"]);
+  });
+});

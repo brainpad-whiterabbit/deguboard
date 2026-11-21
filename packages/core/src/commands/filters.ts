@@ -3,7 +3,12 @@
 
 import { z } from "zod";
 import { STATUSES } from "../model/common.js";
-import { labelRenameWarnings, normalizeLabelNames, type Vocabulary } from "../model/labels.js";
+import {
+  hasAnyLabel,
+  labelRenameWarnings,
+  normalizeLabelNames,
+  type Vocabulary,
+} from "../model/labels.js";
 import { PRIORITIES, type Ticket } from "../model/ticket.js";
 import type { Store } from "../storage/store.js";
 
@@ -16,7 +21,7 @@ export const ticketFilterSchema = z.object({
     .array(z.string())
     .optional()
     .describe(
-      "Has any of these labels. A name recorded as merged into another label (dg label merge) is read as that label, with a warning",
+      "Has any of these labels. Names are read in lowercase (UI is read as ui), and a label written in uppercase on a ticket matches too. A name recorded as merged into another label (dg label merge) is read as that label, with a warning",
     ),
   assignee: z
     .string()
@@ -41,8 +46,8 @@ export const ticketFilterSchema = z.object({
 export type TicketFilter = z.output<typeof ticketFilterSchema>;
 
 /**
- * 絞り込みのラベルの統合済みの名前を統合先へ読み替え、読み替えたことを警告にする（書くときの置き換えと同じ normalizeLabelNames）。
- * 統合の後も古い名前で探す習慣を、0 件にせずに受け止めて直させる
+ * 絞り込みのラベルを小文字にそろえ、統合済みの名前を統合先へ読み替えて、読み替えたことを警告にする（書くときの置き換えと同じ normalizeLabelNames）。
+ * 統合の後も古い名前で探す習慣を、0 件にせずに受け止めて直させる。チケットの側の大文字のラベルは matchesFilter（hasAnyLabel）が同じ名前と読む
  */
 export function resolveLabelFilter(
   f: TicketFilter,
@@ -67,7 +72,7 @@ export function matchesFilter(store: Store, t: Ticket, f: TicketFilter): boolean
   if (f.priority && !f.priority.includes(t.priority)) return false;
   if (f.iteration && t.iteration !== f.iteration) return false;
   if (f.epic && t.epic !== f.epic) return false;
-  if (f.label && !f.label.some((l) => t.labels.includes(l))) return false;
+  if (f.label && !hasAnyLabel(t.labels, f.label)) return false;
   if (f.assignee && t.assignee !== f.assignee) return false;
   if (f.created_by && t.created_by !== f.created_by) return false;
   if (f.ready && !isReady(store, t)) return false;

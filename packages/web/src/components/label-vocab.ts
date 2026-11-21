@@ -4,7 +4,8 @@
 // - 語彙が 1 つもないボード（軸を決めていない・labels.yaml がない）は、前と同じく名前から色を決め、印は付けない（すべてに印が付くだけになるため）
 // - 手順が付けるラベル（isProcedureLabel）は、語彙にあってもなくても目立たない見た目にし、行の札の後ろへ回す。
 //   判定は core の model/labels.ts の写し（画面は core の型だけを取る。ADR-033）。ずれは label-vocab.test.ts が core と照らして見る
-// - 絞り込みの統合済みの名前は統合先へ読み替える（resolveLabelFilter。統合先をたどる mergedLabelTarget も core の写し）
+// - 絞り込みの名前は小文字にそろえ、統合済みの名前は統合先へ読み替える（resolveLabelFilter。統合先をたどる mergedLabelTarget も core の写し）。
+//   チケットの側の大文字のラベルは同じ名前と読む（hasLabel）
 
 import type { LabelListView } from "../types.js";
 
@@ -87,16 +88,32 @@ export function mergedLabelTarget(
   return to === name ? undefined : to;
 }
 
-/** ラベルの絞り込みの値。name は絞る名前で、統合済みの名前を選んだ（URL・行の札）ときは統合先にし、mergedFrom に元の名前を残す */
+/**
+ * ラベルの絞り込みの値。name は絞る名前（小文字にそろえたもの）で、統合済みの名前を選んだ（URL・行の札）ときは統合先にし、
+ * mergedFrom に元の名前（小文字にそろえたもの）を残す
+ */
 export interface LabelFilterValue {
   name: string;
   mergedFrom: string | undefined;
 }
 
-/** 絞り込みのラベルを読み替える（ticket list --label と同じ規則）。空の値は空のまま */
-export function resolveLabelFilter(name: string, vocabulary: LabelVocabulary): LabelFilterValue {
+/**
+ * 絞り込みのラベルを小文字にそろえ、そろえた後に統合済みの名前を読み替える（ticket list --label と同じ規則。core の normalizeLabelNames）。
+ * 大文字のラベルが残るチケットの札を押しても、URL に大文字で書いても、小文字の名前で絞る。空の値は空のまま
+ */
+export function resolveLabelFilter(written: string, vocabulary: LabelVocabulary): LabelFilterValue {
+  const name = written.toLowerCase();
   const to = name ? mergedLabelTarget(name, (n) => vocabulary.mergedInto.get(n)) : undefined;
   return to === undefined ? { name, mergedFrom: undefined } : { name: to, mergedFrom: name };
+}
+
+/**
+ * チケットのラベルに絞り込みの名前があるか。大文字と小文字の違いは同じ名前と読む（小文字にそろえる前に付いた大文字のラベルにも当たる）。
+ * core の model/labels.ts の hasAnyLabel の写し（画面は名前を 1 つだけ選ぶ）。ずれは label-vocab.test.ts が core と照らして見る
+ */
+export function hasLabel(labels: readonly string[], name: string): boolean {
+  const wanted = name.toLowerCase();
+  return labels.some((label) => label.toLowerCase() === wanted);
 }
 
 /**

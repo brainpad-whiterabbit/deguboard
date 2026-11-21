@@ -24,6 +24,16 @@ describe("カンバンのラベルの絞り込みの候補", () => {
     expect(labelOptions(tickets, "cli")).toEqual(["cli", "docs", "web"]);
     expect(labelOptions([], undefined)).toEqual([]);
   });
+
+  it("大文字のラベルが残るチケットの名前は小文字にそろえ、大文字小文字だけが違う名前を 1 つの候補にする", () => {
+    const tickets = [
+      ticket({ id: "t1", labels: ["UI", "Docs"] }),
+      ticket({ id: "t2", labels: ["ui"] }),
+    ];
+    expect(labelOptions(tickets, undefined)).toEqual(["docs", "ui"]);
+    // 絞っている名前（resolveLabelFilter が小文字にそろえたもの）は、そろえた候補と重ならない
+    expect(labelOptions(tickets, "ui")).toEqual(["docs", "ui"]);
+  });
 });
 
 const iterations: Pick<Iteration, "id" | "status">[] = [

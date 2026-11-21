@@ -1,13 +1,18 @@
-// 写しを照らすためだけに core の実行時のコード（isProcedureLabel・mergedLabelTarget）を取り込む（画面のコードは型だけを取る。ADR-033）
+// 写しを照らすためだけに core の実行時のコード（isProcedureLabel・mergedLabelTarget・hasAnyLabel・normalizeLabelNames）を取り込む
+// （画面のコードは型だけを取る。ADR-033）
 import {
+  hasAnyLabel as coreHasAnyLabel,
   isProcedureLabel as coreIsProcedureLabel,
   mergedLabelTarget as coreMergedLabelTarget,
+  normalizeLabelNames,
+  type LabelEntry,
 } from "@deguboard/core";
 import { describe, expect, it } from "vitest";
 import type { LabelListView } from "../types.js";
 import {
   EMPTY_VOCABULARY,
   LABEL_COLOR_COUNT,
+  hasLabel,
   isProcedureLabel,
   labelColorIndex,
   labelLook,
@@ -132,12 +137,13 @@ describe("札の見た目", () => {
 });
 
 describe("絞り込みの統合済みの名前の読み替え", () => {
+  const at = "2026-01-02T00:00:00Z";
   const merged = (name: string, into: string) => ({
     name,
     axis: "area",
     description: "Old name",
     merged_into: into,
-    merged_at: "2026-01-02T00:00:00Z",
+    merged_at: at,
   });
   const v = vocabularyOf({ ...VIEW, merged: [merged("web", "ui"), merged("frontend", "ui")] });
 
@@ -151,6 +157,50 @@ describe("絞り込みの統合済みの名前の読み替え", () => {
       mergedFrom: undefined,
     });
     expect(resolveLabelFilter("web", EMPTY_VOCABULARY).mergedFrom).toBeUndefined();
+  });
+
+  it("名前を小文字にそろえてから読み替える。大文字で書いた語彙の名前は語彙の名前で、大文字で書いた統合済みの名前は統合先で絞る", () => {
+    expect(resolveLabelFilter("UI", v)).toEqual({ name: "ui", mergedFrom: undefined });
+    expect(resolveLabelFilter("Web", v)).toEqual({ name: "ui", mergedFrom: "web" });
+    // 語彙にない名前も、語彙のないボードでもそろえる
+    expect(resolveLabelFilter("Misc", v)).toEqual({ name: "misc", mergedFrom: undefined });
+    expect(resolveLabelFilter("UI", EMPTY_VOCABULARY)).toEqual({
+      name: "ui",
+      mergedFrom: undefined,
+    });
+    // ticket list --label と同じ規則（core の normalizeLabelNames）
+    const vocabulary = new Map(
+      [...v.mergedInto].map(([name, to]): [string, LabelEntry] => [
+        name,
+        { axis: "area", description: "Old name", created_at: at, merged_into: to, merged_at: at },
+      ]),
+    );
+    for (const name of ["UI", "Web", "FRONTEND", "Misc", "ui"])
+      expect([name, resolveLabelFilter(name, v).name]).toEqual([
+        name,
+        normalizeLabelNames([name], vocabulary).labels[0],
+      ]);
+  });
+
+  it("絞る名前は、大文字小文字の違うチケットのラベルにも当たる（hasLabel）。core の hasAnyLabel の写しで、同じ結果になる", () => {
+    // 小文字にそろえる前に付いた大文字のラベルが残るチケットに、小文字の名前で当たる
+    expect(hasLabel(["UI", "bug"], "ui")).toBe(true);
+    expect(hasLabel(["search-ui"], "ui")).toBe(false);
+    const cases: Array<[string[], string]> = [
+      [["UI", "bug"], "ui"],
+      [["ui"], "UI"],
+      [["Ui"], "uI"],
+      [["search-ui"], "ui"],
+      [["ui"], "docs"],
+      [[], "ui"],
+      [["画面"], "画面"],
+    ];
+    for (const [labels, name] of cases)
+      expect([labels, name, hasLabel(labels, name)]).toEqual([
+        labels,
+        name,
+        coreHasAnyLabel(labels, [name]),
+      ]);
   });
 
   it("core の mergedLabelTarget の写しで、連鎖と循環も同じ結果になる", () => {

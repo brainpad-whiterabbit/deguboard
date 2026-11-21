@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  hasAnyLabel,
   isProcedureLabel,
   judgeLabelAdd,
   judgeLabelMerge,
@@ -551,6 +552,47 @@ describe("統合済みの名前の読み替え（mergedLabelTarget・normalizeLa
       renamed: [],
     });
     expect(normalizeLabelNames([], new Map())).toEqual({ labels: [], renamed: [] });
+  });
+
+  it("名前を小文字にそろえてから読み替える。大文字で書いた語彙の名前は語彙に当たり、大文字で書いた統合済みの名前も統合先になる。そろえたことは renamed に入れない", () => {
+    // UI は語彙の ui になり、読み替えではないので警告のもと（renamed）はない
+    expect(normalizeLabelNames(["UI", "Docs"], vocabulary)).toEqual({
+      labels: ["ui", "docs"],
+      renamed: [],
+    });
+    // 統合済みの名前は、そろえた後の名前で 1 回だけ返す
+    expect(normalizeLabelNames(["Frontend", "FRONTEND", "docs"], vocabulary)).toEqual({
+      labels: ["ui", "docs"],
+      renamed: [{ from: "frontend", to: "ui" }],
+    });
+    // そろえて重なった名前は最初の場所に 1 つ残す（読み替えて重なったときと同じ）
+    expect(normalizeLabelNames(["Docs", "ui", "docs", "WEB"], vocabulary)).toEqual({
+      labels: ["docs", "ui"],
+      renamed: [{ from: "web", to: "ui" }],
+    });
+  });
+
+  it("軸も語彙もないボードでも小文字にそろえ、語彙にない名前・日本語の名前もそろえる（日本語は変わらない）", () => {
+    expect(normalizeLabelNames(["Stray", "画面", "API-v2"], new Map())).toEqual({
+      labels: ["stray", "画面", "api-v2"],
+      renamed: [],
+    });
+    expect(normalizeLabelNames(["Stray", "stray"], vocabulary)).toEqual({
+      labels: ["stray"],
+      renamed: [],
+    });
+  });
+
+  it("絞り込みの名前は、大文字小文字の違うチケットのラベルにも当たる（hasAnyLabel）。部分一致では当たらない", () => {
+    // 小文字にそろえる前に付いた大文字のラベルが残るチケットに、小文字の名前で当たる
+    expect(hasAnyLabel(["UI", "bug"], ["ui"])).toBe(true);
+    expect(hasAnyLabel(["ui"], ["UI"])).toBe(true);
+    expect(hasAnyLabel(["Ui"], ["docs", "uI"])).toBe(true);
+    expect(hasAnyLabel(["ui"], ["ui"])).toBe(true);
+    expect(hasAnyLabel(["search-ui"], ["ui"])).toBe(false);
+    expect(hasAnyLabel(["ui"], ["docs"])).toBe(false);
+    expect(hasAnyLabel([], ["ui"])).toBe(false);
+    expect(hasAnyLabel(["ui"], [])).toBe(false);
   });
 
   it("手で書き換えた記録の連鎖は記録でない名前までたどり、循環は元の名前に戻れば読み替えない", () => {

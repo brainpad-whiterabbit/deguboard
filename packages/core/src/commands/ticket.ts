@@ -159,9 +159,9 @@ function resolveOrigin(store: Store, refs: readonly string[], self?: TicketId): 
   return ids;
 }
 
-/** ラベルの欄の説明に足す、統合済みの名前の扱い（create・import・update で同じ文） */
+/** ラベルの欄の説明に足す、小文字にそろえることと統合済みの名前の扱い（create・import・update で同じ文） */
 const MERGED_LABEL_HELP =
-  "A name recorded as merged into another label (dg label merge) is written as that label, with a warning";
+  "Names are written in lowercase (UI becomes ui). A name recorded as merged into another label (dg label merge) is written as that label, with a warning";
 
 const ticketAttributes = {
   priority: z.enum(PRIORITIES).optional().describe("Priority"),
@@ -226,8 +226,8 @@ const createInput = z.object({
 type CreateInput = z.output<typeof createInput>;
 
 /**
- * チケットに書くラベル。統合済みの名前は統合先に置き換え、置き換えたことを warnings に入れる（create・import・update の入口がここだけを通る）。
- * 置き換えの判定は model/labels.ts の normalizeLabelNames（ticket list --label の読み替えと同じ関数）
+ * チケットに書くラベル。名前を小文字にそろえ、統合済みの名前は統合先に置き換えて、置き換えたことを warnings に入れる（create・import・update の入口がここだけを通る）。
+ * 判定は model/labels.ts の normalizeLabelNames（ticket list --label の読み替えと同じ関数）
  */
 function labelsToWrite(store: Store, labels: readonly string[], warnings: string[]): string[] {
   const normalized = normalizeLabelNames(labels, store.labels);

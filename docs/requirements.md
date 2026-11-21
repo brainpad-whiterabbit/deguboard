@@ -117,7 +117,7 @@ updated_at: 2026-10-31T05:10:00Z
 - TK-10 `branch_base` は claim が作業ブランチを切った起点のコミットの SHA で、照合が作業のないブランチを見分けるのに使う（ST-4）。`branch` を変えるか消すと消え、古いチケットにはない
 - TK-11 `lines`（`additions`・`deletions`）はマージされた `pr` の追加・削除の行数で、照合と `dg metrics lines` が記録する（MT-6）。`pr` を消すか変えると消え、PR の要らない作業とマージ前のチケットにはない
 - TK-12 不具合を直すチケットは、`origin`（不具合を生んだ変更のチケット ID の配列）と `origin_cause`（見直しの指摘と同じ原因の種類）を持てる。`create`・`import`・`update` で付け、ないチケットと自身の ID、`origin` のない `origin_cause` は拒む（細部は `dg ticket update --help`、理由は [ADR-036](adr/ADR-036-rework-causes-and-origin.md)）
-- TK-13 `labels` は文字列の配列。`dg label merge` はラベルを統合先にまとめ、元の名前を持つチケットも 1 回の書き込みで書き換える。統合済みの名前は、`create`・`import`・`update` が書くときと、`ticket list --label` と画面で絞るときに統合先へ読み替え、警告を返す（細部は `dg label merge --help`、理由は [ADR-037](adr/ADR-037-label-axes.md)）
+- TK-13 `labels` は文字列の配列。`dg label merge` はラベルを統合先にまとめ、元の名前のチケットも 1 回の書き込みで書き換える。`create`・`import`・`update` が書くときと `ticket list --label` と画面で絞るときは、名前を小文字にそろえ、統合済みの名前を統合先へ読み替えて警告する（細部は `dg label merge --help`、理由は [ADR-037](adr/ADR-037-label-axes.md)）
 
 ### 5.5 Epic（`epics/e3.md`）
 

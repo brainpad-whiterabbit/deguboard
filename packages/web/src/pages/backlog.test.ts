@@ -86,6 +86,19 @@ describe("バックログの絞り込み", () => {
       "t5",
     ]);
   });
+
+  it("ラベルは大文字小文字の違う名前でも同じチケットに当たる。大文字のラベルが残るチケットにも当たり、部分一致では当たらない", () => {
+    const mixed = [
+      ticket({ id: "t1", labels: ["UI"] }),
+      ticket({ id: "t2", labels: ["ui", "bug"] }),
+      ticket({ id: "t3", labels: ["search-ui"] }),
+    ];
+    for (const label of ["ui", "UI", "Ui"])
+      expect([label, filterBacklog(mixed, { ...EMPTY_FILTER, label }).map((t) => t.id)]).toEqual([
+        label,
+        ["t1", "t2"],
+      ]);
+  });
 });
 
 describe("バックログの区画", () => {
