@@ -1,0 +1,40 @@
+id: p177
+tickets: [t1208, t1209, t1210, t1211, t1212, t1214, t1215, t1213]
+after:
+  t1213:
+    - t1211
+    - t1209
+pending_approval: true
+details:
+  t1208:
+    scope: SY-1 の括弧書きと dg init --help の new_board の説明だけを直す。usage は今の文が合っているので変えない
+    approach: SY-1 を 250 字に収めて --new-board と --no-data-remote を分けて書き、help の文に届いたら push することを足す
+    tier: standard
+  t1209:
+    scope: label merge・remove・list のチケットとの比べ方だけを大文字小文字を区別しない判定にそろえる
+    approach: labels.ts に比べる関数を 1 つ置いて 3 か所で使い、純粋な関数のテストで大文字のチケットの場合を網羅する
+    tier: standard
+  t1210:
+    scope: guide-overview.md の No data remote の項の警告の文だけ
+    approach: sharedBoardLeftWarning が出る場合を 1 文で足し、guide のスナップショットを更新する
+    tier: standard
+  t1211:
+    scope: 画面の initCommandLine の写しに remote を足し、照らすテストの入力を足す
+    approach: core の initCommandLine と同じ引数の形にそろえ、setup-checklist.test.tsx の比べる入力に remote と noDataRemote の組を足す
+    tier: standard
+  t1212:
+    scope: usage.md と usage.ja.md の品質ゲートの段の表の low と free の行だけ
+    approach: dg gate --help の条件を読み、英語版と日本語版の同じ行を直す
+    tier: standard
+  t1214:
+    scope: commands-no-data-remote.test.ts の対照のケースとそのコメントだけ
+    approach: 同じ fixture のリモートの状態で既定の名前の init を試し、別のボードの警告が出ないことを確かめる
+    tier: standard
+  t1215:
+    scope: VSIX に THIRD_PARTY_LICENSES.md が入ることを確かめる検査を 1 つ足す
+    approach: ビルド済みの dist/ があるときに 3 つのファイルがあることを vsix-files.test.ts で確かめる
+    tier: standard
+  t1213:
+    scope: shell-quote.ts のコメントと web の写しのテストの入力、手順のラベルの接頭辞のテストだけ
+    approach: shell-quote.ts の先頭のコメントに web の写しを書き、写しを照らすテストに = ・空文字・改行と core の接頭辞の全件を足す
+    tier: standard
