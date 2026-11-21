@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { OperationError } from "../errors.js";
 import type { UserSource } from "../model/actor.js";
+import { NO_DATA_REMOTE } from "../model/config.js";
 import { pathExists } from "../storage/exists.js";
 import { GitError, runGit } from "./run.js";
 
@@ -21,7 +22,7 @@ export interface GitRepo {
   codeRemote: string | null;
   /**
    * データ（deguboard ブランチ）を fetch・push するリモート（config の git.data_remote。省けば git.remote と同じ）。
-   * なければ null（同期なしで動く。SY-6。git.data_remote を設定したのにないときの扱いは missingDataRemote）
+   * なければ、またはなしにした（git.data_remote が none）なら null（同期なしで動く。SY-6。git.data_remote を設定したのにないときの扱いは missingDataRemote）
    */
   dataRemote: string | null;
   /**
@@ -38,6 +39,24 @@ export type RepoPaths = Omit<GitRepo, "codeRemote" | "dataRemote" | "dataBranch"
 /** データのリモートの追跡 ref（refs/remotes/<データのリモート>/<データのブランチ名>）。データの追跡 ref の名前はここだけで作る */
 export function dataRemoteRef(repo: Pick<GitRepo, "dataRemote" | "dataBranch">): string {
   return `refs/remotes/${repo.dataRemote}/${repo.dataBranch}`;
+}
+
+/**
+ * データのブランチがデータのリモートにあると、このクローンが知っているか（追跡 ref があるか）。fetch はせず、手元の ref だけを見る。
+ * データのリモートをなしにする判定（commands/data-remote-none.ts）に渡す事実。データのリモートがなければ false
+ */
+export async function hasDataRemoteRef(
+  repo: Pick<GitRepo, "topLevel" | "dataRemote" | "dataBranch">,
+): Promise<boolean> {
+  if (repo.dataRemote === null) return false;
+  const found = await runGit(
+    repo.topLevel,
+    ["show-ref", "--verify", "--quiet", dataRemoteRef(repo)],
+    {
+      allowFailure: true,
+    },
+  );
+  return found.code === 0;
 }
 
 export async function resolveRepoPaths(cwd: string): Promise<RepoPaths> {
@@ -93,13 +112,15 @@ export function dataRemoteMissingError(name: string): OperationError {
 
 /**
  * config が git.data_remote で名指ししたデータのリモートが、このクローンにないときのその名前。あるか、名指ししていなければ undefined。
- * git.data_remote を省いたリポジトリは、リモートがなくても今までどおり同期なしで動く（SY-6）
+ * git.data_remote を省いたリポジトリは、リモートがなくても今までどおり同期なしで動く（SY-6）。
+ * データのリモートをなしにした（NO_DATA_REMOTE）ときも、名指しではないので同じく同期なしで動く
  */
 export function missingDataRemote(
   repo: Pick<GitRepo, "dataRemote">,
   config: { git: { data_remote: string } },
 ): string | undefined {
-  return repo.dataRemote === null && config.git.data_remote ? config.git.data_remote : undefined;
+  const named = config.git.data_remote;
+  return repo.dataRemote === null && named && named !== NO_DATA_REMOTE ? named : undefined;
 }
 
 /**

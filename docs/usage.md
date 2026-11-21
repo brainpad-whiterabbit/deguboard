@@ -140,7 +140,29 @@ To move an existing board to another repository, a person does the following in 
    git push origin --delete deguboard
    ```
 
-If the board's data branch is not `deguboard` (see the next section), push with `git push kanban deguboard:<data branch>` in step 1 and delete `<data branch>` in step 4.
+If the board's data branch is not `deguboard` (see [Keep several kanbans in one repository](#keep-several-kanbans-in-one-repository)), push with `git push kanban deguboard:<data branch>` in step 1 and delete `<data branch>` in step 4.
+
+## Keep the data on this machine only
+
+To keep the kanban data off every remote even though the code has one, set `git.data_remote` to `none`. dg then never fetches or pushes the data branch: filing, claims, and starting an Iteration commit on this machine and succeed, as they do in a repository with no remote. Work branches and pull requests still use the code's remote (`git.remote`). Use it to keep tickets and the agents' Run records out of a public repository, or to try dg on your own before the team shares a board.
+
+```sh
+dg init --no-data-remote
+```
+
+`dg init --no-data-remote` does not check whether a remote can be reached. It creates the board on this machine and records `git.data_remote: none` in the config.
+
+- `none` is for one person on one machine: nothing is shared or backed up, and a claim keeps nobody on another machine from claiming the same ticket. To share a board with a team without making it public, do not use `none`; point `git.data_remote` at a private repository ([Keep the data in another repository](#keep-the-data-in-another-repository)).
+- dg does not push the data, but git still can. The local data branch is named `deguboard`, so `git push --all` and `git push --mirror` send it to the remote. Do not use them in this repository.
+- Sharing later pushes the whole history. Set `git.data_remote` back to empty (the code's remote) or to a remote's name, then run `dg sync`: everything committed so far goes to that remote, including the Run records from the time you kept it to yourself.
+
+  ```sh
+  dg config set git.data_remote ""
+  dg sync
+  ```
+
+- Starting with `none` where the remote already has the team's board creates a separate board, as `--new-board` does. The two share no history, so sharing it later stops `dg sync` with `DATA_HISTORY_UNRELATED`.
+- Setting `none` does not delete a data branch that is already on the remote. On such a board, dg rejects `dg config set git.data_remote none` for the team, because every clone would stop syncing without a word. One clone can still leave with `dg config set git.data_remote none --local`; dg warns that its claims no longer keep the others from claiming the same ticket. Run `dg config unset git.data_remote --local` and `dg sync` to come back. Deleting the branch from the remote is a person's step (`git push origin --delete deguboard`).
 
 ## Keep several kanbans in one repository
 

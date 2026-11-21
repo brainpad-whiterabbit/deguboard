@@ -15,7 +15,7 @@ import {
 import { withLock } from "../git/lock.js";
 import { checkOutside, describeOutside, dirtyFiles, recordBaseline } from "../git/outside.js";
 import { settleRebase } from "../git/rebase.js";
-import { DATA_REMOTE_NAME } from "../git/repo.js";
+import { DATA_REMOTE_NAME, hasDataRemoteRef } from "../git/repo.js";
 import { retireProjects } from "../git/retire-projects.js";
 import { renumberCollisions, renumberProvisional, type Renumbered } from "../git/renumber.js";
 import { ensureGitattributes, ensureMergeDriver, mergeDriverProblem } from "../git/merge.js";
@@ -55,6 +55,7 @@ import {
   DEFAULT_REMOTE,
   defaultConfig,
   nestedConfigValue,
+  NO_DATA_REMOTE,
   type Config,
   type ConfigField,
 } from "../model/config.js";
@@ -83,6 +84,12 @@ import { CONFIG_FILE, LABELS_FILE, WORKFLOW_FILE } from "../storage/paths.js";
 import { cyclePath, findCrossingCycle } from "../storage/wait-cycle.js";
 import { defaultWorkflowFile } from "../workflow/resolve.js";
 import { removeMergedWork, type MergedWork, type RemovedWork } from "./branch-cleanup.js";
+import {
+  decideDataRemoteNone,
+  initDataRemoteProblem,
+  initNoneRecord,
+  initNotes,
+} from "./data-remote-none.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { closeStoppedRuns, type HookView } from "./hook.js";
 import { nowIso, sortedDocs } from "./helpers.js";
@@ -128,6 +135,12 @@ export const init = defineCommand({
       .describe(
         `Remote that the kanban data (the data branch, deguboard by default) is fetched from and pushed to, when the data is kept in a repository other than the code's. A remote name or a URL: for a URL, dg uses the remote that already has that URL, or adds it as ${DATA_REMOTE_NAME}, and then takes the data in from it. A new board records the name in config's git.data_remote; when the board already exists and its config names another remote, the name is recorded in this clone's personal settings. Every clone passes this on its first init (the config is inside the data, so it cannot be read before the data is fetched)`,
       ),
+    no_data_remote: z
+      .boolean()
+      .optional()
+      .describe(
+        `Keep the kanban data on this machine only, even when the code has a remote: dg never fetches or pushes the data branch, while work branches and pull requests still use the code's remote. dg init does not check whether a data remote can be reached, and creates the board here (from the local deguboard branch when one is left). A new board records ${NO_DATA_REMOTE} in config's git.data_remote; when the board already exists, ${NO_DATA_REMOTE} is recorded in this clone's personal settings. Use it to keep tickets and Run records out of a public repository, or to try dg before sharing a board. If the remote already has the team's board, the new one is a separate board that shares no history with it (sharing it later stops with DATA_HISTORY_UNRELATED). Do not give it with --data-remote (on the command line, the later of the two wins)`,
+      ),
     data_branch: z
       .string()
       .min(1)
@@ -149,20 +162,43 @@ export const init = defineCommand({
   write: true,
   needs: "repo",
   async run(ctx, input) {
+    const noDataRemote = input.no_data_remote === true;
+    const problem = initDataRemoteProblem({ dataRemote: input.data_remote, noDataRemote });
+    if (problem) throw new OperationError("VALIDATION_FAILED", problem);
+    // 文脈は入口が init の値で開く（openContext の initialize）。--no-data-remote を文脈に渡さない入口から呼ばれると、
+    // 下の書き込みがデータのリモートへ push してしまうので、書く前に止める
+    if (noDataRemote && ctx.repo.dataRemote !== null)
+      throw new OperationError(
+        "VALIDATION_FAILED",
+        "init with no_data_remote needs a context opened with initialize.noDataRemote, so that nothing is fetched or pushed",
+      );
+    // データのブランチがデータのリモートにあるボード（チームと共有している）か。--no-data-remote で開いた文脈はリモートを持たないので、
+    // config の決めるデータの置き場所の追跡 ref で見る（新しいボードは config がまだなく、既定の置き場所を見る）
+    const sharedOn = noDataRemote ? await sharedDataTarget(ctx) : null;
     await ensureMergeDriver(ctx.repo, ctx.mergeDriver);
+    let record: ReturnType<typeof initNoneRecord> = null;
+    let newConfig = false;
     const result = await withWrite(
       ctx,
       async () => {
         const store = ctx.store;
         const created: string[] = [];
         const configPath = path.join(store.root, CONFIG_FILE);
-        if (!(await pathExists(configPath))) {
+        newConfig = !(await pathExists(configPath));
+        record = initNoneRecord({
+          noDataRemote,
+          newConfig,
+          configuredNone: dataRemoteNameOf(store.config) === null,
+        });
+        if (newConfig) {
           await store.writeConfig({
             git: {
               remote: input.remote ?? DEFAULT_REMOTE,
-              ...(input.data_remote && ctx.repo.dataRemote
-                ? { data_remote: ctx.repo.dataRemote }
-                : {}),
+              ...(record === "team"
+                ? { data_remote: NO_DATA_REMOTE }
+                : input.data_remote && ctx.repo.dataRemote
+                  ? { data_remote: ctx.repo.dataRemote }
+                  : {}),
               ...(input.data_branch && input.data_branch !== DEFAULT_DATA_BRANCH
                 ? { data_branch: input.data_branch }
                 : {}),
@@ -199,9 +235,21 @@ export const init = defineCommand({
       dataRemoteNameOf(ctx.store.config) !== ctx.repo.dataRemote
     )
       await ctx.store.writeLocalConfig("git.data_remote", ctx.repo.dataRemote);
+    // --no-data-remote も同じ：既にあるボードの config がなしでなければ、このクローンの個人の設定に none を書く（チームの値は書き換えない）
+    if (record === "local") await ctx.store.writeLocalConfig("git.data_remote", NO_DATA_REMOTE);
     // データのブランチ名も同じ：取り込んだ config が別の名前を指すときは、--data-branch の名前をこのクローンの個人の設定に書く
     if (input.data_branch && ctx.store.config.git.data_branch !== ctx.repo.dataBranch)
       await ctx.store.writeLocalConfig("git.data_branch", ctx.repo.dataBranch);
+    const notes = initNotes({
+      noDataRemote,
+      teamNone: ctx.store.teamConfig.git.data_remote === NO_DATA_REMOTE,
+      newConfig,
+      pushedTo:
+        result.write.pushed && ctx.repo.dataRemote !== null
+          ? { remote: ctx.repo.dataRemote, branch: ctx.repo.dataBranch }
+          : null,
+      sharedOn,
+    });
     return ok(
       {
         data_dir: ctx.repo.dataDir,
@@ -214,10 +262,27 @@ export const init = defineCommand({
       // 何も書かなかった init（2 回目や、リモートから取り込んだ 2 人目の clone）は書き込みの結果を返さない。
       // committed: false を返すと入口が「作業ツリーに残した」と案内してしまう。取り込みの警告は残す
       result.write.committed ? result.write : undefined,
-      result.write.committed ? [] : result.write.warnings,
+      [...(result.write.committed ? [] : result.write.warnings), ...notes],
     );
   },
 });
+
+/**
+ * データのブランチがデータのリモートにある（追跡 ref がある）ときの、その場所（<リモート>/<ブランチ>）。なければ null。
+ * データのリモートをなしにする判定（data-remote-none.ts）に渡す事実で、fetch はしない（手元の ref を見る）。
+ * 見るのは、今の文脈のデータのリモートと、チームの config の決めるデータのリモート（個人の設定でなしにしたクローンは前者が null）
+ */
+async function sharedDataTarget(ctx: CommandContext): Promise<string | null> {
+  const team = dataTargetOf(ctx.store.teamConfig);
+  const candidates = [
+    { dataRemote: ctx.repo.dataRemote, dataBranch: ctx.repo.dataBranch },
+    { dataRemote: team.remote, dataBranch: team.branch },
+  ];
+  for (const target of candidates)
+    if (await hasDataRemoteRef({ topLevel: ctx.repo.topLevel, ...target }))
+      return `${target.dataRemote}/${target.dataBranch}`;
+  return null;
+}
 
 export interface ReconciledTicket {
   id: string;
@@ -538,7 +603,7 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches (reconcile). The triggers of reconcile are fixed: a work branch exists → in_progress, a PR that is not a draft is open → review, the PR or the work branch is merged → done. Reconcile counts as an agent and advances a ticket only when the requires of the boundaries it crosses are met (for a ticket with no PR, or whose PR facts could not be read because gh is unavailable, the conditions on PR facts are not applied, so a merged branch reaches done) and no decide of them is human_only; a value that asks for a person's approval does not stop it, because the operation that made the fact (pr ready, pr merge) was already judged. A ticket it does not advance is named in warnings with the reason. The data is fetched from and pushed to the data branch (config's git.data_branch, deguboard by default) of the data remote (config's git.data_remote, or git.remote when it is empty); other branches of that remote, such as other repositories' kanbans, are not taken in. The work branches are fetched from git.remote. When the config names a data remote that this clone does not have, sync fails with DATA_REMOTE_MISSING and tells how to add it; when the config just fetched changed the data remote or the data branch, sync stops with DATA_REMOTE_CHANGED before pushing, and running it again uses the new one; when the data branch on the data remote shares no history with the local kanban and both hold data (it holds another kanban), sync stops with DATA_HISTORY_UNRELATED before taking anything in and tells how to give this kanban its own branch. When config's merge.delete_branch is true and a ticket becomes done, the worktree and the local and remote work branch that remain are deleted, and each data.reconciled entry gets removed: { worktree, local_branch, remote_branch } (null for what was not deleted or did not exist). Nothing is deleted when the worktree has uncommitted changes, when sync is called from that worktree, or when a branch tip is neither the head of the merged PR nor in the base branch; the reason and the commands to delete by hand are in warnings. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). When the PR is merged, its added and deleted lines are recorded on the ticket as lines (data.lines_recorded; a ticket that already has lines is not rewritten; done tickets with no lines are filled by dg metrics lines). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
+    "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches (reconcile). The triggers of reconcile are fixed: a work branch exists → in_progress, a PR that is not a draft is open → review, the PR or the work branch is merged → done. Reconcile counts as an agent and advances a ticket only when the requires of the boundaries it crosses are met (for a ticket with no PR, or whose PR facts could not be read because gh is unavailable, the conditions on PR facts are not applied, so a merged branch reaches done) and no decide of them is human_only; a value that asks for a person's approval does not stop it, because the operation that made the fact (pr ready, pr merge) was already judged. A ticket it does not advance is named in warnings with the reason. The data is fetched from and pushed to the data branch (config's git.data_branch, deguboard by default) of the data remote (config's git.data_remote, or git.remote when it is empty; when it is none there is no data remote, so the data is neither fetched nor pushed and only the work branches are reconciled); other branches of that remote, such as other repositories' kanbans, are not taken in. The work branches are fetched from git.remote. When the config names a data remote that this clone does not have, sync fails with DATA_REMOTE_MISSING and tells how to add it; when the config just fetched changed the data remote or the data branch, sync stops with DATA_REMOTE_CHANGED before pushing, and running it again uses the new one; when the data branch on the data remote shares no history with the local kanban and both hold data (it holds another kanban), sync stops with DATA_HISTORY_UNRELATED before taking anything in and tells how to give this kanban its own branch. When config's merge.delete_branch is true and a ticket becomes done, the worktree and the local and remote work branch that remain are deleted, and each data.reconciled entry gets removed: { worktree, local_branch, remote_branch } (null for what was not deleted or did not exist). Nothing is deleted when the worktree has uncommitted changes, when sync is called from that worktree, or when a branch tip is neither the head of the merged PR nor in the base branch; the reason and the commands to delete by hand are in warnings. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). When the PR is merged, its added and deleted lines are recorded on the ticket as lines (data.lines_recorded; a ticket that already has lines is not rewritten; done tickets with no lines are filled by dg metrics lines). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
     "A review result held with no Run (run review-result with no review Run, left by an environment the hook does not reach) that dg next and dg gate count as a review is written as a closed review Run marked capture: none (started and finished at the time the result was written, usage null), and the held result is linked to it (data.reviews_recorded). " +
     "A sub-agent Run left open because its record was not finished being written (one with a settling_since mark) is also closed once it has finished writing. Review Runs from a session other than the sync's are not closed; the next review start closes them. " +
     "When the import stops on a conflict, data.conflicts lists the files and data.conflict_fields lists each conflicting field as { file, field, base, local, remote }, found by running the merge driver's rule on the fork point, the local head, and the remote head (so it includes conflicts in commits after the one the rebase stopped at). For a body, field is body and each colliding block of lines is one entry. Files outside the merge driver (config.yaml and workflow.yaml) appear only in data.conflicts." +
@@ -1422,13 +1487,16 @@ export const configSet = defineCommand({
     if (input.local) {
       rejectUnjudgedAuto(ctx, input, "changing a personal setting");
       // 個人の設定は Git 管理外なので withWrite（取り込み・コミット・push）を通さず、同じマシンの書き込みの排他だけ取る
-      const config = await withLock(ctx.repo.localDir, "write", async () => {
+      const written = await withLock(ctx.repo.localDir, "write", async () => {
         const { rest, field } = splitKey(input.key, true);
         const leaf = resolveLeaf(input.key, input.value, field, rest, ctx.store.config);
-        return ctx.store.writeLocalConfig(input.key, leaf);
+        const notes = await requireDataRemoteNoneAllowed(ctx, input.key, leaf, "local");
+        return { config: await ctx.store.writeLocalConfig(input.key, leaf), notes };
       });
-      return ok(config);
+      return ok(written.config, undefined, written.notes);
     }
+    // 変更からやり直すと mutate がもう一度走るので、知らせは最後に通った回のものを使う
+    let notes: string[] = [];
     const result = await withWrite(
       ctx,
       async () => {
@@ -1438,17 +1506,46 @@ export const configSet = defineCommand({
         const team = ctx.store.teamConfig;
         const leaf = resolveLeaf(input.key, input.value, field, rest, team);
         requireTeamConfig(ctx, "config.set", input);
+        // 取り込んだ後（即時の書き込みは mutate の前に fetch する）の追跡 ref で、データのブランチがリモートにあるかを見る
+        notes = await requireDataRemoteNoneAllowed(ctx, input.key, leaf, "team");
         const value = nestedConfigValue((team as Record<string, unknown>)[top], rest, leaf);
         return ctx.store.writeConfig({ [top]: value });
       },
       {
         message: `Change config ${input.key}${recordNote(ctx, input)}`,
         ...teamWriteOptions(input),
+        // データのリモートをなしにする変更は、今のデータのリモートへ push しない：通るのはデータのブランチがリモートにないボードだけで、
+        // push すると、手元だけに置くと決めたボードをリモートに出してしまう（知らせる相手のクローンもない）
+        ...(input.key === "git.data_remote" && input.value === NO_DATA_REMOTE
+          ? { push: false as const }
+          : {}),
       },
     );
-    return ok(result.value, result.write);
+    return ok(result.value, result.write, notes);
   },
 });
+
+/**
+ * git.data_remote を none にする dg config set を、判定（data-remote-none.ts の decideDataRemoteNone）に通す。
+ * 拒むときは VALIDATION_FAILED で次の手を案内し、通すときは結果に足す知らせを返す。ほかの項目と値では何もしない
+ */
+async function requireDataRemoteNoneAllowed(
+  ctx: CommandContext,
+  key: string,
+  value: unknown,
+  scope: "team" | "local",
+): Promise<string[]> {
+  const decision = decideDataRemoteNone({
+    key,
+    value,
+    scope,
+    // 事実を読むのは git.data_remote を書くときだけ（ほかの項目の書き込みに git の起動を足さない）
+    sharedOn: key === "git.data_remote" ? await sharedDataTarget(ctx) : null,
+  });
+  if (decision.kind === "reject")
+    throw new OperationError("VALIDATION_FAILED", decision.message, decision.hint);
+  return decision.kind === "allow" ? decision.warnings : [];
+}
 
 export const configUnset = defineCommand({
   name: "config.unset",

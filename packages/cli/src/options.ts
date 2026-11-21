@@ -303,6 +303,9 @@ export function collectInput(
     const name = shape.kind === "array" || shape.kind === "record" ? singular(camel) : camel;
     const value = opts[name];
     if (value === undefined) continue;
+    // 値を取るオプションに否定の形の相方があるとき（init の --data-remote と --no-data-remote）、commander は否定を同じ名前の false にする。
+    // それは相方（上の分岐）が読むので、値としては渡さない
+    if (value === false && shape.kind !== "boolean") continue;
     input[shape.key] = shape.nullable && value === NONE ? null : value;
   }
   for (const { key, flag } of bound.retired) {

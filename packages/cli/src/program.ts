@@ -641,6 +641,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           ? {
               remote: input["remote"] as string | undefined,
               dataRemote: input["data_remote"] as string | undefined,
+              noDataRemote: input["no_data_remote"] as boolean | undefined,
               dataBranch: input["data_branch"] as string | undefined,
               newBoard: input["new_board"] as boolean | undefined,
             }
