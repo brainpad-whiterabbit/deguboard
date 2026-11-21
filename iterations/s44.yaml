@@ -28,4 +28,10 @@ checkpoints:
         - t1205
         - t1206
         - t1207
+  - name: check
+    at: 2026-11-21T09:53:03Z
+    by: maji/agent
+    approved_by: maji/agent
+    basis:
+      facts: 57e0a236c4785627
 started_at: 2026-11-21T08:11:31Z
