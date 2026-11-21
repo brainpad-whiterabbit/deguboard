@@ -220,7 +220,10 @@ describe("checkSetup：ボード", () => {
     expect(lost.board).toMatchObject({
       status: "unmet",
       state: "remote_unreachable",
-      message: expect.stringMatching(/Cannot reach origin.*dg init --new-board/),
+      // --new-board は届いたら push する道、--no-data-remote はこのマシンだけに置く道として、取り違えない文で示す
+      message: expect.stringMatching(
+        /Cannot reach origin.*dg init --new-board starts a board now and pushes it once origin can be reached.*dg init --no-data-remote/,
+      ),
       fix: [],
     });
     expect(lost.board.detail).toBeTruthy();

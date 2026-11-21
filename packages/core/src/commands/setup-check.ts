@@ -214,7 +214,7 @@ async function checkBoard(paths: RepoPaths, options: SetupCheckOptions): Promise
     );
   // 届かないときは直すコマンドを返さない：直すのは接続で、dg init --new-board はチームのボードと別のボードを作りうるので、人が選んだときだけにする（SY-1）
   return unmet(
-    `Cannot reach ${remote}, so whether the team has a board is unknown, and no board was created. Fix the connection (network, credentials, or the remote's URL) and check again. Only if you know the team has no board, ${initCommandLine({ ...options, newBoard: true })} starts one on this machine`,
+    `Cannot reach ${remote}, so whether the team has a board is unknown, and no board was created. Fix the connection (network, credentials, or the remote's URL) and check again. Only if you know the team has no board, ${initCommandLine({ ...options, newBoard: true })} starts a board now and pushes it once ${remote} can be reached. To keep the board on this machine only and never push it, run ${initCommandLine({ remote: options.remote, noDataRemote: true })}`,
     [],
     { state: "remote_unreachable", ...(found.detail ? { detail: found.detail } : {}) },
   );

@@ -239,10 +239,11 @@ function SyncMark() {
   );
 }
 
-/** ボードを共有に戻すコマンド（上から順に打つ）。none を書いてある場所で変わる：チームの値は空にし、個人の設定は上書きを消す */
+/** ボードを共有に戻すコマンド（上から順に打つ）。none を書いてある場所で変わる：チームの値は空にし、個人の設定は上書きを消す（両方にあれば両方） */
 const SHARE_COMMANDS = {
   team: ['dg config set git.data_remote ""', "dg sync"],
   local: ["dg config unset git.data_remote --local", "dg sync"],
+  both: ["dg config unset git.data_remote --local", 'dg config set git.data_remote ""', "dg sync"],
 } as const;
 
 /**

@@ -74,15 +74,21 @@ export const NO_DATA_REMOTE = "none";
 
 /**
  * ボードをこのマシンだけに置いているか（各コマンドが使う git.data_remote が none。リモートのないリポジトリは含めない）と、
- * none を書いてある場所。local はこのクローンの個人の設定、team はチームの config.yaml（共有に戻すコマンドが違う）。置いていなければ null
+ * none を書いてある場所。local はこのクローンの個人の設定、team はチームの config.yaml、both はその両方（共有に戻すコマンドが違う：
+ * 両方にあるときは、個人の上書きを消すだけではチームの none が残り、共有にならない）。置いていなければ null
  */
 export function localOnlyOf(view: {
   config?: { git?: { data_remote?: string | undefined } | undefined } | undefined;
+  team?: { git?: { data_remote?: string | undefined } | undefined } | undefined;
   local?: Record<string, unknown> | undefined;
-}): "team" | "local" | null {
+}): LocalOnly | null {
   if (view.config?.git?.data_remote !== NO_DATA_REMOTE) return null;
-  return view.local?.["git.data_remote"] === NO_DATA_REMOTE ? "local" : "team";
+  if (view.local?.["git.data_remote"] !== NO_DATA_REMOTE) return "team";
+  return view.team?.git?.data_remote === NO_DATA_REMOTE ? "both" : "local";
 }
+
+/** ボードをこのマシンだけに置く none を書いてある場所（localOnlyOf） */
+export type LocalOnly = "team" | "local" | "both";
 
 /** cache に残す一覧。読み直しが終わるたびに書き換える */
 interface Snapshot {
@@ -139,7 +145,7 @@ export interface Store {
    * ボードをこのマシンだけに置いているか（config.show の git.data_remote が none）と、none を書いてある場所（localOnlyOf）。
    * 置いていないときと、読み終えるまでは null。カンバンの上の「このマシンだけ」の印に使う
    */
-  localOnly: "team" | "local" | null;
+  localOnly: LocalOnly | null;
   loading: boolean;
   /** 最初の読み込みが終わったか。終わるまで画面は空状態の文言を出さない */
   loaded: boolean;
@@ -220,7 +226,7 @@ export function StoreProvider({
   const [status, setStatus] = useState<StatusView | null>(null);
   const [priorityCriteria, setPriorityCriteria] =
     useState<Record<Priority, string>>(EMPTY_PRIORITY_CRITERIA);
-  const [localOnly, setLocalOnly] = useState<"team" | "local" | null>(null);
+  const [localOnly, setLocalOnly] = useState<LocalOnly | null>(null);
   const [loading, setLoading] = useState(true);
   // 前回の一覧があれば、それを読み終えたものとして先に描く
   const [loaded, setLoaded] = useState(!!cached);
