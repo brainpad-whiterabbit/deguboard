@@ -10,6 +10,7 @@ import { z } from "zod";
 import { checkAgentNames, detectableAgentNames } from "../agents/index.js";
 import { GUIDE_TOPICS } from "../guide/topics.js";
 import { isSafeBranchName, slugSchema } from "./common.js";
+import { NO_DATA_REMOTE } from "./data-remote.js";
 
 const COMMIT_MODES = ["each", "batch", "manual"] as const;
 export type CommitMode = (typeof COMMIT_MODES)[number];
@@ -23,11 +24,7 @@ export const ACTIONS_TEST_TIMEOUT_MS = 30 * 60_000;
 /** コードのリモートの名前の既定（git.remote・dg init --remote を省いたとき） */
 export const DEFAULT_REMOTE = "origin";
 
-/**
- * git.data_remote に書くと、データのリモートをなしにする値（dg init --no-data-remote が書く）。コードのリモートがあっても
- * データは手元だけに置き、リモートのないリポジトリと同じ経路（SY-6）で動く。この名前のリモートはデータのリモートにできない
- */
-export const NO_DATA_REMOTE = "none";
+export { NO_DATA_REMOTE };
 
 /**
  * データ（deguboard ブランチ）を fetch・push するリモートの名前。git.data_remote を省けば（空なら）git.remote と同じで、

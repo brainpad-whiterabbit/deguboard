@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { OperationError } from "../errors.js";
 import type { UserSource } from "../model/actor.js";
-import { NO_DATA_REMOTE } from "../model/config.js";
+import { NO_DATA_REMOTE } from "../model/data-remote.js";
 import { pathExists } from "../storage/exists.js";
 import { GitError, runGit } from "./run.js";
 
