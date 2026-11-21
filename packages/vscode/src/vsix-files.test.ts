@@ -74,6 +74,15 @@ describe("VSIX に入るファイル", () => {
       expect(files).toEqual(expect.arrayContaining(["dist/cli/dg.mjs", "dist/guide-overview.md"]));
       // 入口の dg.mjs が読む本体の chunk も入っている（t767）
       expect(files.some((f) => /^dist\/cli\/dg-main-[\w-]+\.mjs$/.test(f))).toBe(true);
+      // 束ねた依存のライセンス表示（Vite の build.license が拡張・同梱の dg・Web の画面のビルドごとに作る）も入っている。
+      // 許可リストは入っていないことを見逃すので、生成が止まったときにここで落とす（t1215）
+      expect(files).toEqual(
+        expect.arrayContaining([
+          "dist/THIRD_PARTY_LICENSES.md",
+          "dist/cli/THIRD_PARTY_LICENSES.md",
+          "dist/web/THIRD_PARTY_LICENSES.md",
+        ]),
+      );
     }
   });
 
