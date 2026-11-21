@@ -162,10 +162,17 @@ describe("データを手元だけに置く（git.data_remote: none）", () => {
     const tip = await tipOf(f.remoteDir, "deguboard-x");
     expect(tip).toBeDefined();
 
-    // 既定の置き場所（origin/deguboard）にはボードがないので、既定の名前で始める init は警告しない
-    const g = await fixture();
-    const plain = await initLocalOnly(g.cloneA);
-    expect(notesOf(plain.made.warnings)).toHaveLength(1);
+    // 対照：同じリモートの状態（origin/deguboard-x にボードがあり、既定の置き場所 origin/deguboard にはない）を取り込んだ
+    // 別の clone で、既定の名前で始める init は警告しない。A は後で deguboard-x の init に使うので、もう 1 つ clone する
+    const cloneC = path.join(f.root, "c");
+    await git(f.root, ["clone", "-q", f.remoteDir, cloneC]);
+    await git(cloneC, ["config", "user.name", "テスト"]);
+    await git(cloneC, ["config", "user.email", "test@example.com"]);
+    expect((await git(cloneC, ["branch", "-r", "--list", "origin/deguboard*"])).stdout.trim()).toBe(
+      "origin/deguboard-x",
+    );
+    const plain = await initLocalOnly(cloneC);
+    expect(notesOf(plain.made.warnings)).toEqual([expect.stringContaining("git push --all")]);
 
     const first = await openForInit({
       cwd: f.cloneA,

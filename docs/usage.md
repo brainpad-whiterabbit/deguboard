@@ -39,11 +39,11 @@ In Claude Code, pass an Iteration or tickets such as `/dgall s3 --auto`, and the
 
 The conditions checked before a PR becomes ready or is merged depend on the ticket's gate level (`gate`).
 
-| Gate level       | Conditions checked                              |
-| ---------------- | ----------------------------------------------- |
-| `high` (default) | Everything, including an independent review     |
-| `low`            | Everything except the review (checks still run) |
-| `free`           | Only that the PR is open and does not conflict  |
+| Gate level       | Conditions checked                                                          |
+| ---------------- | --------------------------------------------------------------------------- |
+| `high` (default) | Everything, including an independent review                                 |
+| `low`            | Everything except the review and the limit on fix rounds (checks still run) |
+| `free`           | Only that the PR is open (and, at merge, that it does not conflict)         |
 
 Set the level in the ticket details or with `dg ticket update <id> --gate <level>`. Passing `--gate-high`, `--gate-low`, or `--gate-free` to `/dgall` or `/dgwork` gives the level for the target tickets (without them, each ticket keeps its own level). Raising a level is applied at once. Lowering a level (high → low → free) can only be done by a person: dg rejects an agent's call, so the flow asks you to run `dg ticket update <id> --gate <level>` for each ticket and waits. The details of the conditions are in `dg gate --help`.
 

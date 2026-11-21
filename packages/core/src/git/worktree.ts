@@ -136,7 +136,7 @@ export async function ensureDeguboardWorktree(
   if (remote) {
     const found = await probeRemoteBoard(paths.topLevel, remote, dataBranch);
     // なぜ止める：届かないまま orphan を作ると、チームのボードと履歴を共有しない別のボードができ、後の sync が
-    // DATA_HISTORY_UNRELATED で止まるまで気づけない（SY-1）。手元だけで始めるのは newBoard で人が選ぶ
+    // DATA_HISTORY_UNRELATED で止まるまで気づけない（SY-1）。届かないまま手元に先に作り、届いたら push するのは newBoard で人が選ぶ（手元だけに置くのは noDataRemote）
     if (found.state === "unreachable" && !options.newBoard)
       throw remoteUnreachableError(remote, dataBranch, found.detail);
     if (found.state === "board") {
