@@ -325,6 +325,37 @@ const SCENES: Scene[] = [
       ),
   },
   {
+    name: "リモートにボードがないときの導入のチェックリスト（ボードの置き場所を選ぶ）",
+    surface: "sidebar",
+    hash: "#/board",
+    client: () =>
+      setupClient(
+        setupView({ board: { status: "unmet", state: "remote_no_board", fix: ["dg init"] } }),
+      ),
+  },
+  {
+    name: "コードのリモートがないときの導入のチェックリストで、このマシンだけに置く道を選んだ",
+    surface: "sidebar",
+    hash: "#/board",
+    client: () =>
+      setupClient(setupView({ board: { status: "unmet", state: "no_remote", fix: ["dg init"] } })),
+    act: () => {
+      fireEvent.click(document.querySelectorAll<HTMLElement>(".setup-choice input")[1]!);
+    },
+  },
+  {
+    // 印の中の共有への切り替え方も、閉じたまま書き出す
+    name: "ボードをこのマシンだけに置いているカンバンの印",
+    surface: "sidebar",
+    hash: "#/board",
+    client: () => {
+      const client = richClient();
+      const config = { git: { remote: "origin", data_remote: "none" } };
+      client.handlers["config.show"] = () => ({ config, team: config, local: {}, fields: [] });
+      return client;
+    },
+  },
+  {
     name: "推奨の項目が欠けているときの帯",
     surface: "sidebar",
     hash: "#/board",

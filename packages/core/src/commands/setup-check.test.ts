@@ -96,6 +96,19 @@ describe("チェックリストの dg init の 1 行（initCommandLine）", () =
     );
     expect(initCommandLine({ dataBranch: "a=b" })).toBe("dg init --data-branch a=b");
   });
+
+  it("noDataRemote は --no-data-remote を付け、一緒に受け付けない --data-remote と、確かめないリモートのための --data-branch・--new-board を付けない", () => {
+    expect(initCommandLine({ noDataRemote: true })).toBe("dg init --no-data-remote");
+    expect(
+      initCommandLine({
+        noDataRemote: true,
+        remote: "upstream",
+        dataRemote: "git@github.com:team/kanban.git",
+        dataBranch: "kanban",
+        newBoard: true,
+      }),
+    ).toBe("dg init --no-data-remote --remote upstream");
+  });
 });
 
 describe("checkSetup：git の版", () => {
@@ -173,7 +186,7 @@ describe("checkSetup：Git リポジトリ", () => {
     await runProcess(dir, "sh", ["-c", "git init"]);
     const items = byId(await checkSetup({ cwd: dir, env: await emptyEnv() }));
     expect(items.repository).toMatchObject({ status: "ok", fix: [] });
-    // リモートのないリポジトリ：ボードは手元だけに作ることになる
+    // リモートのないリポジトリ：ボードは手元に作ることになる（リモートを足せば push する）
     expect(items.board).toMatchObject({ status: "unmet", state: "no_remote", fix: ["dg init"] });
   });
 });
@@ -207,7 +220,10 @@ describe("checkSetup：ボード", () => {
     expect(lost.board).toMatchObject({
       status: "unmet",
       state: "remote_unreachable",
-      message: expect.stringMatching(/Cannot reach origin.*dg init --new-board/),
+      // --new-board は届いたら push する道、--no-data-remote はこのマシンだけに置く道として、取り違えない文で示す
+      message: expect.stringMatching(
+        /Cannot reach origin.*dg init --new-board starts a board now and pushes it once origin can be reached.*dg init --no-data-remote/,
+      ),
       fix: [],
     });
     expect(lost.board.detail).toBeTruthy();
@@ -242,7 +258,15 @@ describe("checkSetup：ボード", () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);
     const items = byId(await checkSetup({ cwd: local.dir, env: await emptyEnv() }));
-    expect(items.board).toMatchObject({ status: "unmet", state: "no_remote", fix: ["dg init"] });
+    expect(items.board).toMatchObject({
+      status: "unmet",
+      state: "no_remote",
+      // 既定の dg init はリモートを足せば push する道、--no-data-remote はこのマシンだけに置く道として、取り違えない文で示す
+      message: expect.stringMatching(
+        /dg init creates a board here and pushes it to the code's remote once one is added.*To keep the board on this machine only and never push it, run dg init --no-data-remote/,
+      ),
+      fix: ["dg init"],
+    });
   });
 
   it("データのリモートとブランチを渡すと、その先を確かめ、直すコマンドにも同じ引数を付ける", async () => {

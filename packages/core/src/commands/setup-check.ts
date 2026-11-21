@@ -33,7 +33,7 @@ export type SetupItemId = "git" | "repository" | "board" | "skills_hooks" | "git
 /**
  * ボードの項目の細かい状態。ready は init 済み。local_branch は手元に deguboard ブランチだけが残っている（init はリモートを見ずにそれを使う）。
  * remote_board・remote_no_board・remote_unreachable は init 前にデータのリモートを確かめた結果（届いてボードがある・届いてボードがない・届かない）。
- * no_remote は確かめるリモートがない（init は手元だけのボードを作る）。
+ * no_remote は確かめるリモートがない（init は手元にボードを作り、コードのリモートを足せば push する）。
  * data_branch_invalid・data_remote_missing は、渡したデータのブランチ名・データのリモートの名前を dg init が受け付けない（init は何も作らずに止まる）
  */
 export type BoardState =
@@ -101,14 +101,23 @@ const unmet = (message: string, fix: string[], extra: Partial<Checked> = {}): Ch
 /**
  * チェックリストが見せて流す dg init の 1 行（ボードの項目の直すコマンド。VS Code 拡張のボタンも同じ行を流す）。
  * 確かめた値（コードのリモート・データのリモートとブランチ）を init にも渡す。値は shellQuote で囲む（ターミナルに 1 行で送り、コピーもされる）。
- * newBoard は、リモートに届かないときに人が選んで手元だけで始める --new-board
+ * newBoard は、リモートに届かないときに人が選んで先に作る --new-board（届くようになれば push する）。
+ * noDataRemote は、人が選んでボードをこのマシンだけに置く --no-data-remote（git.data_remote: none。push しない）。
+ * dg init は --no-data-remote と --data-remote を一緒に受け付けず、リモートを確かめもしないので、データの置き場所と --new-board は付けない
  */
 export function initCommandLine(options: {
   remote?: string | undefined;
   dataRemote?: string | undefined;
   dataBranch?: string | undefined;
   newBoard?: boolean | undefined;
+  noDataRemote?: boolean | undefined;
 }): string {
+  if (options.noDataRemote)
+    return [
+      "dg init",
+      "--no-data-remote",
+      ...(options.remote ? ["--remote", shellQuote(options.remote)] : []),
+    ].join(" ");
   return [
     "dg init",
     ...(options.newBoard ? ["--new-board"] : []),
@@ -186,7 +195,7 @@ async function checkBoard(paths: RepoPaths, options: SetupCheckOptions): Promise
   const branch = options.dataBranch ?? DEFAULT_DATA_BRANCH;
   if (remote === undefined)
     return unmet(
-      `This repository has no remote named ${codeRemote}, so there is no team board to take in. dg init creates a board that stays on this machine. If the code's remote has another name, pass it with --remote <name>. If the team's board is in another repository, pass it with dg init --data-remote <name or URL>`,
+      `This repository has no remote named ${codeRemote}, so there is no team board to take in. dg init creates a board here and pushes it to the code's remote once one is added. To keep the board on this machine only and never push it, run ${initCommandLine({ remote: options.remote, noDataRemote: true })}. If the code's remote has another name, pass it with --remote <name>. If the team's board is in another repository, pass it with dg init --data-remote <name or URL>`,
       [init],
       { state: "no_remote" },
     );
@@ -205,7 +214,7 @@ async function checkBoard(paths: RepoPaths, options: SetupCheckOptions): Promise
     );
   // 届かないときは直すコマンドを返さない：直すのは接続で、dg init --new-board はチームのボードと別のボードを作りうるので、人が選んだときだけにする（SY-1）
   return unmet(
-    `Cannot reach ${remote}, so whether the team has a board is unknown, and no board was created. Fix the connection (network, credentials, or the remote's URL) and check again. Only if you know the team has no board, ${initCommandLine({ ...options, newBoard: true })} starts one on this machine`,
+    `Cannot reach ${remote}, so whether the team has a board is unknown, and no board was created. Fix the connection (network, credentials, or the remote's URL) and check again. Only if you know the team has no board, ${initCommandLine({ ...options, newBoard: true })} starts a board now and pushes it once ${remote} can be reached. To keep the board on this machine only and never push it, run ${initCommandLine({ remote: options.remote, noDataRemote: true })}`,
     [],
     { state: "remote_unreachable", ...(found.detail ? { detail: found.detail } : {}) },
   );

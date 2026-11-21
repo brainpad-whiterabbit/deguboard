@@ -16,6 +16,7 @@ import { StoreProvider, useStore } from "../store.js";
 import { mockClient, setupView } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
 import {
+  boardGuide,
   DEFAULT_DATA_BRANCH,
   guideOf,
   initCommandLine,
@@ -34,6 +35,8 @@ describe("core の写し（web は core の実行時のコードを取り込め�
       { dataRemote: "/srv/my repo; rm -rf ~", dataBranch: "a'b", newBoard: true },
       { dataRemote: "kanban", dataBranch: "=foo" },
       { dataRemote: "kanban", dataBranch: "a=b" },
+      { noDataRemote: true },
+      { noDataRemote: true, dataRemote: "kanban", dataBranch: "kanban", newBoard: true },
     ])
       expect(initCommandLine(options)).toBe(coreInitCommandLine(options));
   });
@@ -212,7 +215,7 @@ describe("ボードの項目（dg init がすることを先に確かめた結�
     expect(screen.getByText("dg init")).toBeTruthy();
   });
 
-  it("remote に届かないときは、ボードを作るボタンを主にせず、git の出力と確かめ直すボタンを出す。新しく作るのは条件を書いた別の道だけ", () => {
+  it("remote に届かないときは、ボードを作るボタンを主にせず、git の出力と確かめ直すボタンを出す。新しく作るのは条件を書いた別の道だけで、届いたら push する道と、このマシンだけに置く道を分ける", () => {
     const acts: SetupAction[] = [];
     mount(
       board("remote_unreachable", {
@@ -224,13 +227,107 @@ describe("ボードの項目（dg init がすることを先に確かめた結�
     const item = within(row("ボード"));
     expect(item.getByText("fatal: Could not read from remote repository.")).toBeTruthy();
     expect(item.getByRole("button", { name: "もう一度確かめる" }).className).toBe("primary");
-    const alt = within(row("ボード").querySelector<HTMLElement>(".setup-alt")!);
-    expect(alt.getByText("チームのボードがないと分かっているなら")).toBeTruthy();
-    expect(alt.getByText("dg init --new-board")).toBeTruthy();
-    const local = alt.getByRole("button", { name: "手元だけで新しいボードを作る" });
-    expect(local.className).toBe("");
-    fireEvent.click(local);
-    expect(acts).toEqual(["newBoard"]);
+    const alts = [...row("ボード").querySelectorAll<HTMLElement>(".setup-alt")].map((el) =>
+      within(el),
+    );
+    expect(alts).toHaveLength(2);
+    const [first, local] = alts as [(typeof alts)[number], (typeof alts)[number]];
+    expect(first.getByText("チームのボードがないと分かっているなら")).toBeTruthy();
+    expect(first.getByText("dg init --new-board")).toBeTruthy();
+    // --new-board のボードは届いたら push するので、「手元だけ」と言わない
+    const now = first.getByRole("button", { name: "新しいボードを先に作る（届いたら push）" });
+    expect(now.className).toBe("");
+    expect(item.queryByRole("button", { name: "手元だけで新しいボードを作る" })).toBeNull();
+    expect(local.getByText("ボードを push するつもりがないなら")).toBeTruthy();
+    expect(local.getByText("dg init --no-data-remote")).toBeTruthy();
+    fireEvent.click(now);
+    fireEvent.click(local.getByRole("button", { name: "このマシンだけのボードを作る" }));
+    expect(acts).toEqual(["newBoard", "localBoard"]);
+  });
+
+  it("remote にボードがないときは、共有する（既定）・このマシンだけに置く・別のリポジトリにある、から選ばせ、それぞれの下に影響を 1 行で書く。共有の道には誰でも読めることを書く", () => {
+    mount(board("remote_no_board"));
+    const item = within(row("ボード"));
+    expect(item.getByText("ボードの置き場所を選ぶ")).toBeTruthy();
+    const radios = item.getAllByRole("radio");
+    expect(radios.map((r) => r.closest("label")!.textContent)).toEqual([
+      "チームで共有する（リモートへ push）",
+      "このマシンだけに置く（push しない）",
+      "チームのボードは別のリポジトリにある",
+    ]);
+    expect(radios.map((r) => (r as HTMLInputElement).checked)).toEqual([true, false, false]);
+    // 影響の 1 行は、道の読み上げの名前に混ぜず、説明として結ぶ
+    const hints = radios.map(
+      (r) => document.getElementById(r.getAttribute("aria-describedby")!)!.textContent,
+    );
+    expect(hints).toEqual([
+      "チケットと Run の記録がリモートに載り、リポジトリを読める人は誰でも読めます。",
+      "公開のリポジトリに記録を出したくないときや、チームで使う前に試すときに選びます。あとで共有に切り替えられます。",
+      "そのリポジトリとブランチを入れて、ボードがあるかを確かめます。",
+    ]);
+  });
+
+  it.each([
+    [
+      "remote_no_board",
+      "このマシンだけに置く（push しない）",
+      "このマシンだけのボードを作ります。リモートには push しません。",
+    ],
+    [
+      "no_remote",
+      "ボードはこのマシンだけに置く",
+      "このマシンだけのボードを作ります。あとでリモートを足しても push しません。",
+    ],
+  ])(
+    "%s で「このマシンだけ」を選ぶと、ボタンとターミナルの 1 行が dg init --no-data-remote に変わり、共有に戻すと dg init に戻る",
+    (state, radio, todo) => {
+      const acts: SetupAction[] = [];
+      mount(board(state), vscodeHost(acts));
+      const item = within(row("ボード"));
+      expect(item.getByText("dg init")).toBeTruthy();
+      fireEvent.click(item.getByRole("radio", { name: radio }));
+      expect(item.getByText(todo)).toBeTruthy();
+      expect(item.getByText("dg init --no-data-remote")).toBeTruthy();
+      expect(item.queryByText("dg init")).toBeNull();
+      expect(item.queryByRole("button", { name: "新しいボードを作る" })).toBeNull();
+      const button = item.getByRole("button", { name: "このマシンだけのボードを作る" });
+      expect(button.className).toBe("primary");
+      fireEvent.click(button);
+      expect(acts).toEqual(["localBoard"]);
+      fireEvent.click(item.getAllByRole("radio")[0]!);
+      expect(item.getByText("dg init")).toBeTruthy();
+      expect(item.queryByText("dg init --no-data-remote")).toBeNull();
+    },
+  );
+
+  it("コードのリモートがないときは、あとでリモートを足したらボードも push するか（既定）、このマシンだけに置くかを選ばせる", () => {
+    mount(board("no_remote"));
+    const item = within(row("ボード"));
+    const radios = item.getAllByRole("radio");
+    expect(radios.map((r) => r.closest("label")!.textContent)).toEqual([
+      "あとでリモートを足したら、ボードも push する",
+      "ボードはこのマシンだけに置く",
+      "チームのボードは別のリポジトリにある",
+    ]);
+    expect(radios.map((r) => (r as HTMLInputElement).checked)).toEqual([true, false, false]);
+    expect(document.getElementById(radios[0]!.getAttribute("aria-describedby")!)!.textContent).toBe(
+      "コードのリモートを足すと、次の操作からボードもそのリモートに載り、リポジトリを読める人は誰でも読めます。",
+    );
+    // 既定の道は、あとで push することを書く（「このマシンだけ」と言わない）
+    expect(
+      item.getByText(
+        "新しいボードを作ります。あとでコードのリモートを足すと、ボードもそのリモートへ push します。",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("dg serve のブラウザでは、このマシンだけに置く道もコマンドだけを出す", () => {
+    mount(board("remote_no_board"), browserHost());
+    const item = within(row("ボード"));
+    fireEvent.click(item.getByRole("radio", { name: "このマシンだけに置く（push しない）" }));
+    expect(item.queryByRole("button", { name: "このマシンだけのボードを作る" })).toBeNull();
+    expect(item.getByText("ターミナルで実行する")).toBeTruthy();
+    expect(item.getByText("dg init --no-data-remote")).toBeTruthy();
   });
 
   it.each([
@@ -301,8 +398,11 @@ describe("ボードの項目で別のリポジトリのボードを指定する"
     const fix = [`dg init --data-remote ${SOURCE.dataRemote} --data-branch deguboard`];
     const { acts, setup } = mountLive(board("remote_no_board"), board("remote_board", { fix }));
     const item = within(row("ボード"));
-    // 既定は新しく作る道で、そのボタンを出す
-    expect(item.getByRole("radio", { name: "新しいボードを作る" })).toHaveProperty("checked", true);
+    // 既定は共有する道で、新しく作るボタンを出す
+    expect(item.getByRole("radio", { name: "チームで共有する（リモートへ push）" })).toHaveProperty(
+      "checked",
+      true,
+    );
     expect(item.getByRole("button", { name: "新しいボードを作る" })).toBeTruthy();
     fireEvent.click(item.getByRole("radio", { name: "チームのボードは別のリポジトリにある" }));
     // 別のリポジトリを選んだ間は、新しく作るボタンを出さない
@@ -629,8 +729,16 @@ describe("満たさない項目の文言の決まり", () => {
         // 文の終わり（。）は末尾の 1 つだけで、問いかけ（？・か。）で終わらない
         expect(guide.status.match(/。/g)).toHaveLength(1);
         expect(guide.status).toMatch(/[^か？?]。$/);
-        if (guide.alt) expect(guide.alt.when).toMatch(/なら$/);
+        for (const alt of guide.alts ?? []) expect(alt.when).toMatch(/なら$/);
       }
+    }
+  });
+
+  it("新しく作る状態でこのマシンだけに置く道を選んだときも、状態は同じ事実の 1 文", () => {
+    for (const state of ["remote_no_board", "no_remote"]) {
+      const view = setupView({ board: { status: "unmet", state, fix: ["dg init"] } });
+      const item = view.items.find((i) => i.id === "board")!;
+      expect(boardGuide(item, null, "local").status).toBe(boardGuide(item).status);
     }
   });
 });

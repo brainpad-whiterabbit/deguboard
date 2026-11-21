@@ -183,7 +183,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 - チームの `config.yaml` を変える操作は Workflow の `governance.config` で判定し、個人の設定は判定しない（WF-7）。誰がどの操作をしてよいか、`--auto` で聞かずに進めてよい場面、流れから外す段階は config に書かず、Workflow（5.8）に書く
 
 - `git.data_remote`：データを fetch・push するリモートの名前（省けば `git.remote`。5.1）。名指ししたリモートがクローンにないときは、push する操作は止まって次の手を示し、ほかの操作は警告して続く。push する操作が自分で取り込んだ config でこの値が変わったときは push せずに止まり、画面の自動の取り込みが先に取り込んだときは止まらずに新しいリモートを使う（エラーと戻し方は `dg guide overview`）
-- `git.data_remote` を `none` にすると、データのリモートをなしにして、データを手元だけに置く（SY-6）。データのブランチがデータのリモートにあるボードでは、チームの値を `none` にする変更を拒み、個人の設定だけ通して警告する。空かリモートの名前に戻して同期すると、それまでの履歴を push する（使い方は [usage.ja.md](usage.ja.md#データを手元だけに置く)）
+- `git.data_remote` を `none` にすると、データのリモートをなしにして、データを手元だけに置く（SY-6）。データのブランチがデータのリモートにあるボードでは、チームの値を `none` にする変更を拒み、個人の設定だけ通して警告する。空かリモートの名前に戻して同期すると、それまでの履歴を push する。画面は `none` の間、カンバンの上の印で知らせる（使い方は [usage.ja.md](usage.ja.md#データを手元だけに置く)）
 - `git.data_branch`：データのリモートでのデータのブランチ名（省けば `deguboard`。5.1）。このブランチだけを取り込み・push する。取り込んだ config でこの値が変わったときは `git.data_remote` と同じく扱い、別のカンバンのブランチを指したときは取り込まずに止まる（エラーと戻し方は `dg guide overview`）
 - `metrics.check_commands`：検査とテストに数えるコマンド（MT-1）に足すコマンド。`actions.test`・`actions.light_test`・`actions.pre_review_test`・`dg gate --only check` は足さなくても数える（見分け方は `packages/core/src/agents/check-commands.test.ts`）
 - `actions.pre_review_test`：`dg gate --only check`（見直しの前と手直しの後）が `actions.test` の代わりに回す検査。通っても `dg pr ready`・`dg pr merge` の検査（EX-6）には数えず、省けば `actions.test` を回す（選び方は `dg gate --help`）

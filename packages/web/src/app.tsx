@@ -6,11 +6,13 @@
 // エディタのパネルは詳細だけを出し、上のバーを出さない。
 // 導入の必須の項目を満たさない間は、ページの代わりにチェックリストを出し、推奨の項目が欠けている間は左パネルのページの上に帯を出す（UI-12。components/setup-checklist.tsx）。
 // 左パネルでは、タイトル行のセットアップのアイコン（とコマンドパレット）からいつでもチェックリストを開ける（ハッシュは #/setup。タブはどれも選ばない）。
+// ボードをこのマシンだけに置いている間（config の git.data_remote が none）は、カンバンの上に「このマシンだけ」の印を出す（LocalOnlyMark）。
 // エージェントに頼む入力欄（UI-15）は、開いていればページの下に出す。左パネルでは初めて開いたときに 1 度だけ、行の吹き出しの案内を出す
 
 import { useEffect, useRef, type MouseEvent } from "react";
 import { AskComposer } from "./components/ask-composer.js";
 import { AskHint, AskMenuProvider, SelectionBar } from "./components/ask-menu.js";
+import { CopyableCode } from "./components/copyable-code.js";
 import { useRowNav } from "./components/row-nav.js";
 import { SelectionProvider } from "./components/selection.js";
 import { SetupBand, SetupChecklist } from "./components/setup-checklist.js";
@@ -189,6 +191,7 @@ export function App() {
                 {band && store.setup ? <SetupBand view={store.setup} onOpen={toggleSetup} /> : null}
                 {/* 案内は頼める場所のある画面（カンバン・バックログ・履歴）にだけ出す */}
                 {sidebar && ASK_HINT_PAGES.has(shown.page) ? <AskHint /> : null}
+                {shown.page === "board" ? <LocalOnlyMark /> : null}
                 <Page route={shown} />
               </>
             )}
@@ -233,6 +236,47 @@ function SyncMark() {
         </span>
       ) : null}
     </span>
+  );
+}
+
+/** ボードを共有に戻すコマンド（上から順に打つ）。none を書いてある場所で変わる：チームの値は空にし、個人の設定は上書きを消す（両方にあれば両方） */
+const SHARE_COMMANDS = {
+  team: ['dg config set git.data_remote ""', "dg sync"],
+  local: ["dg config unset git.data_remote --local", "dg sync"],
+  both: ["dg config unset git.data_remote --local", 'dg config set git.data_remote ""', "dg sync"],
+} as const;
+
+/**
+ * カンバンの上の「このマシンだけ」の印。ボードをこのマシンだけに置いている（config の git.data_remote が none。store.localOnly）ときだけ出す。
+ * リモートのないリポジトリには出さない（足せば push する設定のままなので）。未 push の印（UI-6）は none では出ないので、
+ * push しない設定で動いていることをここで知らせ、開くと共有への切り替え方を示す
+ * （team と local は core の localOnlyNote と同じコマンド。both は、個人の上書きを消すだけではチームの none が残るので、その 2 つを順に打つ）。
+ * カーソルを当てたときだけの表示にしない（キーボードとタッチでも開ける details にする）
+ */
+function LocalOnlyMark() {
+  const { localOnly } = useStore();
+  if (!localOnly) return null;
+  return (
+    <details className="local-only">
+      <summary>
+        <span className="badge">{tr("このマシンだけ")}</span>
+      </summary>
+      <div className="local-only-body">
+        <p>
+          {tr(
+            "このクローンは、ボードをリモートへ push しません（config の git.data_remote が none）。",
+          )}
+        </p>
+        <p>
+          {tr(
+            "チームで共有するには、次を上から順に実行します。それまでの履歴が、Run の記録を含めてすべて push されます。",
+          )}
+        </p>
+        {SHARE_COMMANDS[localOnly].map((command) => (
+          <CopyableCode key={command} text={command} label={tr("{0} をコピー", command)} />
+        ))}
+      </div>
+    </details>
   );
 }
 

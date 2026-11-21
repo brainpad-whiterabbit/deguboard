@@ -8,10 +8,14 @@ import { ClientError, type SetupOptions } from "./client/http.js";
 import { formatShortTime } from "./components/date-time.js";
 import { formatTime } from "./components/timeline.js";
 import type { WebviewClient } from "./client/webview.js";
-import type { SetupBoardSource, WebviewEvent } from "@deguboard/core";
+import {
+  NO_DATA_REMOTE as CORE_NO_DATA_REMOTE,
+  type SetupBoardSource,
+  type WebviewEvent,
+} from "@deguboard/core";
 import { HostBridge, HostProvider, showsSetupBand, type Host } from "./host.js";
 import { parseRoute, type Route } from "./router.js";
-import { STATUS_POLL_MS, StoreProvider } from "./store.js";
+import { localOnlyOf, NO_DATA_REMOTE, STATUS_POLL_MS, StoreProvider } from "./store.js";
 import {
   boardFixture,
   fixture,
@@ -3112,6 +3116,117 @@ describe("画面", () => {
     mount(client, { ...hostOf("sidebar"), extension: true });
     await screen.findByText("ログイン");
     expect(document.querySelector(".sync-mark")).toBeNull();
+  });
+
+  describe("カンバンの上の「このマシンだけ」の印", () => {
+    /** config.show が git.data_remote（使う値とチームの値）と個人の上書きを返す client */
+    const clientOf = (
+      dataRemote: string,
+      local: Record<string, unknown> = {},
+      teamRemote = dataRemote,
+    ) => {
+      const client = boardClient();
+      const config = { git: { remote: "origin", data_remote: dataRemote } };
+      client.handlers["config.show"] = () => ({
+        config,
+        team: { git: { remote: "origin", data_remote: teamRemote } },
+        local,
+        defaults: config,
+        fields: [],
+      });
+      return client;
+    };
+
+    it("web の none の写しが core の NO_DATA_REMOTE と同じ", () => {
+      expect(NO_DATA_REMOTE).toBe(CORE_NO_DATA_REMOTE);
+    });
+
+    it("none を書いてある場所は、個人の上書きだけなら local、チームの値だけなら team、両方なら both。none でなければ null", () => {
+      const view = (
+        dataRemote: string | undefined,
+        local: Record<string, unknown> = {},
+        teamRemote = dataRemote,
+      ) => ({
+        config: { git: { data_remote: dataRemote } },
+        team: { git: { data_remote: teamRemote } },
+        local,
+      });
+      expect(localOnlyOf(view("none"))).toBe("team");
+      expect(localOnlyOf(view("none", { "git.data_remote": "none" }, ""))).toBe("local");
+      expect(localOnlyOf(view("none", { "git.data_remote": "none" }, "kanban"))).toBe("local");
+      // 個人の上書きを消すだけではチームの none が残るので、local にしない
+      expect(localOnlyOf(view("none", { "git.data_remote": "none" }, "none"))).toBe("both");
+      // チームの値のない応答（前の版の core）は、個人の上書きだけとして扱う
+      expect(
+        localOnlyOf({
+          config: { git: { data_remote: "none" } },
+          local: { "git.data_remote": "none" },
+        }),
+      ).toBe("local");
+      expect(localOnlyOf(view(""))).toBeNull();
+      expect(localOnlyOf(view("kanban", { "git.data_remote": "kanban" }))).toBeNull();
+      expect(localOnlyOf(view(undefined))).toBeNull();
+      expect(localOnlyOf({})).toBeNull();
+    });
+
+    it("git.data_remote が none のときだけ出し、開くと共有に戻すコマンドを示す", async () => {
+      mount(clientOf("none"), hostOf("sidebar"));
+      await screen.findByText("ログイン");
+      const mark = await screen.findByText("このマシンだけ");
+      const details = mark.closest("details")!;
+      // 印だけを出しておき、切り替え方は開いたときに読む
+      expect(details.open).toBe(false);
+      expect(
+        within(details).getByText(
+          "このクローンは、ボードをリモートへ push しません（config の git.data_remote が none）。",
+        ),
+      ).toBeTruthy();
+      expect(
+        [...details.querySelectorAll(".copyable code")].map((code) => code.textContent),
+      ).toEqual(['dg config set git.data_remote ""', "dg sync"]);
+    });
+
+    it("none がこのクローンの個人の設定にあるときは、上書きを消すコマンドを示す", async () => {
+      mount(clientOf("none", { "git.data_remote": "none" }, ""), hostOf("sidebar"));
+      const mark = await screen.findByText("このマシンだけ");
+      expect(
+        [...mark.closest("details")!.querySelectorAll(".copyable code")].map(
+          (code) => code.textContent,
+        ),
+      ).toEqual(["dg config unset git.data_remote --local", "dg sync"]);
+    });
+
+    it("none が個人の設定とチームの値の両方にあるときは、上書きを消してチームの値も空にするコマンドを示す", async () => {
+      mount(clientOf("none", { "git.data_remote": "none" }), hostOf("sidebar"));
+      const mark = await screen.findByText("このマシンだけ");
+      expect(
+        [...mark.closest("details")!.querySelectorAll(".copyable code")].map(
+          (code) => code.textContent,
+        ),
+      ).toEqual([
+        "dg config unset git.data_remote --local",
+        'dg config set git.data_remote ""',
+        "dg sync",
+      ]);
+    });
+
+    it.each([
+      ["空（コードのリモート）", ""],
+      ["リモートの名前", "kanban"],
+    ])("git.data_remote が%sのときは出さない", async (_name, dataRemote) => {
+      mount(clientOf(dataRemote), hostOf("sidebar"));
+      await screen.findByText("ログイン");
+      await act(async () => {});
+      expect(screen.queryByText("このマシンだけ")).toBeNull();
+    });
+
+    it("カンバンのほかの画面（バックログ）には出さない", async () => {
+      window.location.hash = "#/backlog";
+      mount(clientOf("none"), hostOf("sidebar"));
+      await screen.findByLabelText("検索");
+      await act(async () => {});
+      expect(screen.queryByText("このマシンだけ")).toBeNull();
+    });
   });
 
   it("info の通知（コマンドの警告）は数秒で消える", async () => {
