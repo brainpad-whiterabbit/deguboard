@@ -33,7 +33,7 @@ export type SetupItemId = "git" | "repository" | "board" | "skills_hooks" | "git
 /**
  * ボードの項目の細かい状態。ready は init 済み。local_branch は手元に deguboard ブランチだけが残っている（init はリモートを見ずにそれを使う）。
  * remote_board・remote_no_board・remote_unreachable は init 前にデータのリモートを確かめた結果（届いてボードがある・届いてボードがない・届かない）。
- * no_remote は確かめるリモートがない（init は手元だけのボードを作る）。
+ * no_remote は確かめるリモートがない（init は手元にボードを作り、コードのリモートを足せば push する）。
  * data_branch_invalid・data_remote_missing は、渡したデータのブランチ名・データのリモートの名前を dg init が受け付けない（init は何も作らずに止まる）
  */
 export type BoardState =
@@ -195,7 +195,7 @@ async function checkBoard(paths: RepoPaths, options: SetupCheckOptions): Promise
   const branch = options.dataBranch ?? DEFAULT_DATA_BRANCH;
   if (remote === undefined)
     return unmet(
-      `This repository has no remote named ${codeRemote}, so there is no team board to take in. dg init creates a board that stays on this machine. If the code's remote has another name, pass it with --remote <name>. If the team's board is in another repository, pass it with dg init --data-remote <name or URL>`,
+      `This repository has no remote named ${codeRemote}, so there is no team board to take in. dg init creates a board here and pushes it to the code's remote once one is added. To keep the board on this machine only and never push it, run ${initCommandLine({ remote: options.remote, noDataRemote: true })}. If the code's remote has another name, pass it with --remote <name>. If the team's board is in another repository, pass it with dg init --data-remote <name or URL>`,
       [init],
       { state: "no_remote" },
     );

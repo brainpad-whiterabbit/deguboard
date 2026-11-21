@@ -249,7 +249,8 @@ const SHARE_COMMANDS = {
 /**
  * カンバンの上の「このマシンだけ」の印。ボードをこのマシンだけに置いている（config の git.data_remote が none。store.localOnly）ときだけ出す。
  * リモートのないリポジトリには出さない（足せば push する設定のままなので）。未 push の印（UI-6）は none では出ないので、
- * push しない設定で動いていることをここで知らせ、開くと共有への切り替え方（core の localOnlyNote と同じコマンド）を示す。
+ * push しない設定で動いていることをここで知らせ、開くと共有への切り替え方を示す
+ * （team と local は core の localOnlyNote と同じコマンド。both は、個人の上書きを消すだけではチームの none が残るので、その 2 つを順に打つ）。
  * カーソルを当てたときだけの表示にしない（キーボードとタッチでも開ける details にする）
  */
 function LocalOnlyMark() {
