@@ -156,7 +156,7 @@ export const init = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Create a new board on this machine even when the data remote cannot be reached. Without it, dg init stops without creating a board when it cannot reach the data remote, so that a clone does not start a board apart from the team's. If the remote already has a board, the new one is a separate board that shares no history with it (dg sync then stops with DATA_HISTORY_UNRELATED). Has no effect when the board already exists here or the remote can be reached",
+        "Create a new board on this machine even when the data remote cannot be reached, and push it once the remote can be reached. To keep a board that is never pushed, use --no-data-remote instead. Without it, dg init stops without creating a board when it cannot reach the data remote, so that a clone does not start a board apart from the team's. If the remote already has a board, the new one is a separate board that shares no history with it (dg sync then stops with DATA_HISTORY_UNRELATED). Has no effect when the board already exists here or the remote can be reached",
       ),
   }),
   write: true,
