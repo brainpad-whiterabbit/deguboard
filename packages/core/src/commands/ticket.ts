@@ -1515,7 +1515,7 @@ export const ticketUnclaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "Remove the claim and return to todo. Also removes branch, branch_at, branch_base, and pr (the PR record of the earlier work). Only your own claim (same user, human or AI) or a claim with no record; others' claims need force, and the Workflow's governance.reassign also judges removing them (when the value asks for a person's approval, an agent passes --approved-by after a person approved it). It is a move back, so the Workflow's exceptions.back judges it as for ticket move (see dg ticket move --help). dg workflow show gives both values. Implementation and fix Runs running on this machine are closed with failure (to keep a reason, close them first with run finish --result failure --error). An agent cannot unclaim a ticket that another live session of the same user claimed on this machine (REJECTED; --take-over passes it; see dg ticket claim --help). The record of the session that claimed the ticket and the reservation of the ticket are removed",
+    "Remove the claim and return to todo. Also removes branch, branch_at, branch_base, and pr (the PR record of the earlier work). Only your own claim (same user, human or AI) or a claim with no record; others' claims need force, and the Workflow's governance.reassign also judges removing them (when the value asks for a person's approval, an agent passes --approved-by after a person approved it). It is a move back, so the Workflow's exceptions.back judges it as for ticket move (see dg ticket move --help). dg workflow show gives both values. Implementation and fix Runs running on this machine are closed with failure (to keep a reason, close them first with run finish --result failure --error). An agent cannot unclaim a ticket that another live session of the same user claimed on this machine (REJECTED; --take-over passes it; see dg ticket claim --help). The record of the session that claimed the ticket and the reservation of the ticket are removed. As for ticket move to todo, a ticket whose Iteration is closed is taken out of that Iteration, and the warnings say how to add it to another Iteration",
   input: z.object({
     ticket: ticketRef,
     force: z.boolean().optional().describe("Also remove other people's claims"),
@@ -1579,8 +1579,14 @@ export const ticketUnclaim = defineCommand({
           { result: "failure", error: UNCLAIMED_ERROR },
           warnings,
         );
+        // todo に戻すので、ticket move と同じく閉じた Iteration に終わっていないチケットを残さない（IT-2）
+        const left = leftClosedIteration(
+          "todo",
+          doc.data.iteration ? ctx.store.iterations.get(doc.data.iteration)?.data : undefined,
+        );
         const updated = await ctx.store.update("ticket", doc.id, {
           status: "todo",
+          ...(left ? { iteration: undefined } : {}),
           assignee: undefined,
           claimed_by: undefined,
           // 前の作業の PR も外す。次の claim は手直しではなく新しい作業になる（ST-7）
@@ -1591,7 +1597,7 @@ export const ticketUnclaim = defineCommand({
           branch_base: undefined,
           updated_at: nowIso(ctx),
         });
-        return { doc: updated, closed, granted };
+        return { doc: updated, closed, granted, left };
       },
       {
         message: ({ doc, closed, granted }) =>
@@ -1603,6 +1609,9 @@ export const ticketUnclaim = defineCommand({
     await dropSessionClaim(ctx, result.value.doc.id);
     // チケットの予約も消す（進めるのをやめたチケットを、別のセッションが取れるようにする）。Plan の予約は残る
     await dropReservation(ctx, result.value.doc.id);
+    // 書き込みのやり直しで外れるかが変わりうるので、最後の 1 回の値で知らせる
+    if (result.value.left)
+      warnings.push(leftClosedIterationWarning(result.value.doc.id, result.value.left));
     warnings.push(...sessionWarnings);
     return ok(withBody(result.value.doc), result.write, warnings);
   },
