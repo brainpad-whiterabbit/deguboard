@@ -4,7 +4,7 @@
 
 ## 要約
 
-claim は排他を得た後に、`lint.require_iteration` が true なら Iteration への追加と planned の開始を同じ書き込みで行い、作業ブランチを base から切って worktree を作る。入れ先が決まらない・worktree を作れないときは claim を失敗させず、warnings で人への頼みを返す。チケットの Iteration を active にできないときだけは claim を拒否する。
+claim は排他を得た後に、`lint.require_iteration` が true なら Iteration への追加を、設定によらず planned の開始（ほかに active がないとき）を、同じ書き込みで行い、作業ブランチを base から切って worktree を作る。入れ先が決まらない・worktree を作れないときは claim を失敗させず、warnings で人への頼みを返す。チケットの Iteration を active にできないときだけは claim を拒否する。
 
 ## 背景
 
@@ -12,7 +12,7 @@ claim は `branch` を記録するだけでブランチも worktree も作らな
 
 ## 決定
 
-- claim は、`lint.require_iteration` が true なら Iteration の空いたチケットを Iteration に入れ、チケットの Iteration が planned なら開始する。どちらも claim と同じ書き込みに入れ、claim の push で一緒に決まる
+- claim は、`lint.require_iteration` が true なら Iteration の空いたチケットを Iteration に入れる。設定によらず、チケットの Iteration が planned でほかに active がなければ開始する。どちらも claim と同じ書き込みに入れ、claim の push で一緒に決まる
 - claim は push で排他を得た後、作業ブランチを base から切って worktree を作り、場所を返す。作らない指定もできる
 - 入れ先がない・active がなく planned が複数で決まらない（ADR-009）・worktree を作れないときは、claim を失敗させず warnings で人への頼みを返す
 - チケットの Iteration を active にできないとき（planned でほかに active がある・closed）は、claim を拒否する。作業中のチケットの Iteration は active、という固定の規則（[ADR-009](ADR-009-epic-and-iteration.md)）で、`ticket move` の todo からの前進も同じ開始と拒否を行う
