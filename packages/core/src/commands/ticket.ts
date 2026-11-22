@@ -614,7 +614,7 @@ export const ticketUpdate = defineCommand({
       .nullable()
       .optional()
       .describe(
-        "Iteration ID. A closed Iteration is rejected, and so is an Iteration that is not active for a ticket in progress or in review (a ticket at work must be in the active Iteration; --override does not pass this)",
+        "Iteration ID. A closed Iteration is rejected, and so is an Iteration that is not active for a ticket in progress or in review: a ticket at work must be in the active Iteration, and --override does not pass this",
       ),
     epic: z.string().nullable().optional().describe("Epic ID"),
     pr: z
