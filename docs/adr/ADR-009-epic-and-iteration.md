@@ -27,7 +27,7 @@ Epic は目的ごとにチケットを束ねる独立したエンティティで
 ### active の Iteration はカンバンに 1 つ
 
 - active の Iteration はカンバンに 1 つに限り（カンバンの中を分ける単位は持たない。[ADR-034](ADR-034-storage-and-id.md)）、`start`・`reopen` はほかに active があれば拒否する。claim と同じく即座に push して排他にし、それでも 2 つになったもの（直接の編集・マージ）は `lint` が指摘する（IT-1）
-- 作業中（`in_progress`・`review`）のチケットの Iteration は active でなければならない。チケットを作業中にする操作が守る Core の固定の規則で、Workflow では変えられず、`--override` でも越えられない（どちらの Iteration で進めるかは人が決める）。操作ごとの開始と拒否の場合は IT-4 と `ticket claim / move --help`
+- 作業中（`in_progress`・`review`）のチケットの Iteration は active でなければならない。チケットを作業中にする操作・作業中のチケットを Iteration に入れる操作・照合が守る Core の固定の規則で、Workflow では変えられず、`--override` でも越えられない（どちらの Iteration で進めるかは人が決める）。操作ごとの開始と拒否の場合は IT-4 と各コマンドの `--help`
 
 ### 期間は実績だけを記録する
 

@@ -20,6 +20,7 @@ import { plansContaining, type PlanBrief } from "./plan.js";
 import type { AskAction } from "./ask.js";
 import { iterationRef, nowIso, sortedDocs, ticketRef, ticketsInIteration } from "./helpers.js";
 import { ASSIGN_NOTE, hasRecord, permissionFields, recordNote } from "./permission.js";
+import { requireWorkAssignment } from "./claim-setup.js";
 
 /** active の Iteration はカンバンに 1 つ（IT-1）。ほかに active があれば拒否する */
 function rejectIfOtherActive(store: Store, it: Doc<Iteration>, verb: string): void {
@@ -238,7 +239,8 @@ export const iterationAdd = defineCommand({
   positionals: ["iteration", "tickets"],
   group: "iteration",
   summary:
-    "Add tickets to an Iteration. Tickets cannot be added to a closed Iteration. " + ASSIGN_NOTE,
+    "Add tickets to an Iteration. Tickets cannot be added to a closed Iteration, and a ticket in progress or in review cannot be added to an Iteration that is not active (a ticket at work must be in the active Iteration; --override does not pass this, and nothing is added if any ticket is rejected). " +
+    ASSIGN_NOTE,
   input: membership,
   write: true,
   needs: "store",
@@ -248,9 +250,11 @@ export const iterationAdd = defineCommand({
       async () => {
         const it = ctx.store.require("iteration", input.iteration);
         if (it.data.status === "closed") throw new OperationError("REJECTED", `${it.id} is closed`);
+        // 作業中のチケットは active でない Iteration に入れない（IT-4）。1 件でも拒否なら何も書かないよう、書く前にすべて確かめる
+        const tickets = input.tickets.map((ref) => ctx.store.require("ticket", ref));
+        for (const t of tickets) requireWorkAssignment(ctx, t.data, it.data);
         const ids: string[] = [];
-        for (const ref of input.tickets) {
-          const t = ctx.store.require("ticket", ref);
+        for (const t of tickets) {
           await ctx.store.update("ticket", t.id, { iteration: it.id, updated_at: nowIso(ctx) });
           ids.push(t.id);
         }

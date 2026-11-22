@@ -1,11 +1,14 @@
 // 作業中のチケットの Iteration は active、という規則の決定の組み合わせ（経路 claim・move・戻し × Iteration の状態
-// active・planned でほかに active あり／なし・closed・Iteration なし）を、git・ファイルなしで確かめる。
+// active・planned でほかに active あり／なし・closed・Iteration なし）と、作業中のチケットを Iteration に入れてよいか
+// （Status × 入れ先の状態）を、git・ファイルなしで確かめる。
 // 事実を集めて開始と拒否を行う経路は commands-claim-setup.test.ts の代表の件が見る
 import { describe, expect, it } from "vitest";
 import { STATUSES, type Status } from "../model/common.js";
 import {
+  decideWorkAssignment,
   decideWorkIteration,
   workRouteOfMove,
+  type WorkAssignmentFacts,
   type WorkIterationFacts,
   type WorkRoute,
 } from "./work-iteration-judge.js";
@@ -152,5 +155,50 @@ describe("workRouteOfMove", () => {
       ["in_progress", "abandoned"],
     ];
     for (const [from, to] of outside) expect(workRouteOfMove(from, to)).toBeUndefined();
+  });
+});
+
+describe("decideWorkAssignment", () => {
+  const assign = (over: Partial<WorkAssignmentFacts>) =>
+    decideWorkAssignment({
+      ticket: "t7",
+      status: "in_progress",
+      target: { id: "s2", status: "planned" },
+      otherActive: undefined,
+      ...over,
+    });
+
+  it("作業中でないチケットは、どの状態の Iteration にも入れてよい", () => {
+    for (const status of ["todo", "done", "abandoned"] as const)
+      for (const target of [
+        { id: "s2", status: "planned" },
+        { id: "s2", status: "active" },
+      ] as const)
+        expect(assign({ status, target, otherActive: "s1" })).toBeUndefined();
+  });
+
+  it.each(["in_progress", "review"] as const)(
+    "%s：active の Iteration には入れてよい",
+    (status) => {
+      expect(assign({ status, target: { id: "s2", status: "active" } })).toBeUndefined();
+    },
+  );
+
+  it.each(["in_progress", "review"] as const)(
+    "%s：planned でほかに active がなければ拒否し、開始してから入れるよう案内する（入れる操作は開始しない）",
+    (status) => {
+      expect(assign({ status })).toBe(
+        `t7 is ${status} and s2 is planned, so t7 cannot be added to s2 (a ticket in progress or in review must be in the active Iteration, and --override does not pass this). Ask a person which to do: start s2 first (dg iteration start s2), and then try again`,
+      );
+    },
+  );
+
+  it("planned でほかに active があれば拒否し、active に入れるか、active を閉じて開始するよう案内する", () => {
+    const message = assign({ status: "review", otherActive: "s1" });
+    expect(message).toContain("t7 is review and s2 is planned, so t7 cannot be added to s2");
+    expect(message).toContain("add it to s1, the active Iteration (dg iteration add s1 t7)");
+    expect(message).toContain(
+      "close s1 (dg iteration close s1) and start s2 (dg iteration start s2)",
+    );
   });
 });

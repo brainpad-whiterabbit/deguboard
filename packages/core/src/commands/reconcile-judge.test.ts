@@ -96,6 +96,8 @@ const decide = (
     recorded: [],
     lastPush: { at: undefined },
     deleteBranch: false,
+    iteration: undefined,
+    otherActive: undefined,
     ...over,
     ticket: { id: "t1", status: "in_progress", branch: "t1-work", ...over.ticket },
   });
@@ -326,6 +328,88 @@ describe("前進と止められた遷移（ST-4）", () => {
       {
         kind: "update_ticket",
         advance: { from: "todo", to: "in_progress", when: ["branch_exists"] },
+      },
+      REVIEWS,
+    ]);
+  });
+});
+
+describe("todo を作業中へ進めるきっかけと Iteration の状態（IT-4）", () => {
+  const todo = { status: "todo" } as const;
+  const planned = { id: "s2", status: "planned" } as const;
+  const RULE =
+    "a ticket in progress or in review must be in the active Iteration, and --override does not pass this";
+  const toWork = { from: "todo", to: "in_progress", when: ["branch_exists"] };
+
+  it("Iteration が active なら進める。Iteration のないチケットも進める", () => {
+    for (const iteration of [{ id: "s2", status: "active" } as const, undefined])
+      expect(decide({ ticket: todo, iteration })).toEqual([
+        { kind: "update_ticket", advance: toWork },
+        REVIEWS,
+      ]);
+  });
+
+  it("planned でほかに active がなくても開始せずに止め、条件を満たさない境目と同じ形で、開始するか ticket move で着手するよう知らせる", () => {
+    expect(decide({ ticket: todo, iteration: planned })).toEqual([
+      warning(
+        `t1: the facts (branch_exists) point from todo to in_progress, but reconcile does not advance it, because t1 is in s2 (planned), and ${RULE}. It advances at a sync after its Iteration is active; ask a person which to do: start s2 (dg iteration start s2), or move t1 with ticket move t1 in_progress, which starts s2`,
+      ),
+      REVIEWS,
+    ]);
+  });
+
+  it("planned でほかに active がある・closed なら、着手の拒否と同じ出口を知らせる", () => {
+    expect(decide({ ticket: todo, iteration: planned, otherActive: "s1" })).toEqual([
+      warning(
+        `t1: the facts (branch_exists) point from todo to in_progress, but reconcile does not advance it, because t1 is in s2 (planned, and s1 is active), and ${RULE}. It advances at a sync after its Iteration is active; ask a person which to do: move t1 into s1 (dg iteration add s1 t1), or close s1 (dg iteration close s1)`,
+      ),
+      REVIEWS,
+    ]);
+    expect(decide({ ticket: todo, iteration: { id: "s2", status: "closed" } })).toEqual([
+      warning(
+        `t1: the facts (branch_exists) point from todo to in_progress, but reconcile does not advance it, because t1 is in s2 (closed), and ${RULE}. It advances at a sync after its Iteration is active; ask a person which to do: move t1 into the Iteration to work in (dg iteration add <iteration> t1), or reopen s2 (dg iteration reopen s2)`,
+      ),
+      REVIEWS,
+    ]);
+  });
+
+  it("todo から review へのきっかけも止め、見つけた PR の番号は記録する", () => {
+    const [first, ...rest] = decide({ ticket: todo, iteration: planned, branch: withPr("open") });
+    expect(first).toMatchObject({
+      kind: "warn",
+      message: expect.stringContaining(
+        "point from todo to review, but reconcile does not advance it, because t1 is in s2 (planned)",
+      ),
+    });
+    expect(rest).toEqual([recordPr, REVIEWS]);
+  });
+
+  it("境目の条件も満たさなければ、両方の理由を並べ、Iteration の出口の後に境目の進め方を知らせる", () => {
+    expect(decide({ ticket: todo, iteration: planned, depsDone: false })).toEqual([
+      warning(
+        `t1: the facts (branch_exists) point from todo to in_progress, but reconcile does not advance it, because the conditions are not met: deps_done (boundaries todo → in_progress), and t1 is in s2 (planned), and ${RULE}. It advances at a sync after its Iteration is active; ask a person which to do: start s2 (dg iteration start s2), or move t1 with ticket move t1 in_progress, which starts s2. Then: It advances at a sync after the conditions are met; a person can go ahead without them with ticket move t1 in_progress --override "reason"`,
+      ),
+      REVIEWS,
+    ]);
+  });
+
+  it("作業中へ入らない前進（todo から done）と、作業中のチケットの前進は Iteration で止めない", () => {
+    expect(
+      decide({
+        ticket: todo,
+        iteration: planned,
+        branch: withPr("merged"),
+      }),
+    ).toContainEqual(
+      expect.objectContaining({
+        kind: "update_ticket",
+        advance: { from: "todo", to: "done", when: ["pr_merged"] },
+      }),
+    );
+    expect(decide({ iteration: planned, ticket: { pr: 42 }, branch: withPr("open") })).toEqual([
+      {
+        kind: "update_ticket",
+        advance: { from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
       },
       REVIEWS,
     ]);

@@ -1,5 +1,5 @@
 // claim に付く準備（Iteration への追加と開始・作業ブランチの worktree の作成）と、作業中のチケットの Iteration を active に保つ規則の
-// 経路の代表（claim・ticket move・done / abandoned からの戻し。IT-4）を、bare リモート付きの一時リポジトリで確かめる（ST-3）
+// 経路の代表（claim・ticket move・done / abandoned からの戻し・iteration add と ticket update --iteration・照合。IT-4）を、bare リモート付きの一時リポジトリで確かめる（ST-3）
 
 import { existsSync } from "node:fs";
 import { realpath } from "node:fs/promises";
@@ -23,8 +23,15 @@ import {
   iterationStart,
 } from "./iteration.js";
 import { planCreate } from "./plan.js";
-import { configSet } from "./setup.js";
-import { ticketClaim, ticketCreate, ticketMove, ticketShow, ticketUnclaim } from "./ticket.js";
+import { configSet, sync } from "./setup.js";
+import {
+  ticketClaim,
+  ticketCreate,
+  ticketMove,
+  ticketShow,
+  ticketUnclaim,
+  ticketUpdate,
+} from "./ticket.js";
 
 afterEach(runCleanups);
 
@@ -297,6 +304,55 @@ describe("claim の Iteration の準備", () => {
     // todo へ戻すのは作業中に入らないので、規則の外
     const todo = await runCommand(ticketMove, ctx, { ticket: "t2", status: "todo" });
     expect(todo.data.status).toBe("todo");
+  });
+
+  it("iteration add と ticket update --iteration は、作業中のチケットを active でない Iteration に入れるのを拒否し、何も書かない", async () => {
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f, { now: () => NOW });
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(iterationCreate, ctx, { name: "S2" });
+    await runCommand(ticketCreate, ctx, { title: "A", iteration: "s1" });
+    await runCommand(ticketCreate, ctx, { title: "B", iteration: "s1" });
+    await runCommand(ticketClaim, ctx, { ticket: "t1", without_branch: true });
+    // 1 件でも拒否なら、todo の t2 も入れない（書く前にすべて確かめる）。組み合わせは work-iteration-judge.test.ts
+    const added = await runCommand(iterationAdd, ctx, {
+      iteration: "s2",
+      tickets: ["t2", "t1"],
+    }).catch((e: unknown) => e);
+    expect(added).toMatchObject({ code: "REJECTED" });
+    expect((added as Error).message).toContain(
+      "t1 is in_progress and s2 is planned, so t1 cannot be added to s2",
+    );
+    const updated = await runCommand(ticketUpdate, ctx, { ticket: "t1", iteration: "s2" }).catch(
+      (e: unknown) => e,
+    );
+    expect(updated).toMatchObject({ code: "REJECTED" });
+    expect((updated as Error).message).toContain("add it to s1, the active Iteration");
+    for (const ticket of ["t1", "t2"])
+      expect((await runCommand(ticketShow, ctx, { ticket })).data.iteration).toBe("s1");
+    // todo のチケットは planned の Iteration にも入れられ、作業中のチケットも Iteration から外すのは規則の外
+    await runCommand(iterationAdd, ctx, { iteration: "s2", tickets: ["t2"] });
+    const removed = await runCommand(ticketUpdate, ctx, { ticket: "t1", iteration: null });
+    expect(removed.data.iteration).toBeUndefined();
+  });
+
+  it("照合は、Iteration が active でない todo のチケットを、作業ブランチがあっても in_progress に進めず warnings で知らせる", async () => {
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f, { now: () => NOW });
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(ticketCreate, ctx, { title: "A", iteration: "s1" });
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "wip" });
+    await git(f.cloneA, ["branch", "t1-wip"]);
+    const synced = await runCommand(sync, ctx, {});
+    expect(synced.warnings.join("\n")).toContain(
+      "t1: the facts (branch_exists) point from todo to in_progress, but reconcile does not advance it, because t1 is in s1 (planned)",
+    );
+    expect((await runCommand(ticketShow, ctx, { ticket: "t1" })).data.status).toBe("todo");
+    expect((await runCommand(iterationShow, ctx, { iteration: "s1" })).data.status).toBe("planned");
+    // Iteration を開始すれば、次の照合で進む
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    await runCommand(sync, ctx, {});
+    expect((await runCommand(ticketShow, ctx, { ticket: "t1" })).data.status).toBe("in_progress");
   });
 
   it("agent の claim も Iteration への追加と開始を行う", async () => {
