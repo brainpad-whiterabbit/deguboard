@@ -50,7 +50,7 @@ In Claude Code, you can also just say what you want in plain words, such as "Pla
 
 The Board shows the tickets of an Iteration in columns by status, and the band above it shows the Iteration's plans (Plan).
 
-1. **Assign**: In the Backlog, select tickets by the left edge of their rows, then choose **Ask** → **Assign** at the bottom (for a single ticket, use **Ask Agent** on its row). The agent proposes the Iteration or Epic to put them into. Approve it, and they appear in Todo on the Board.
+1. **Assign**: In the Backlog, select tickets by the left edge of their rows, then choose **Assign** at the bottom (the button shows the recommended request, and **▾** lists the others; for a single ticket, use **Ask Agent** on its row). The agent proposes the Iteration or Epic to put them into. Approve it, and they appear in Todo on the Board.
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/assign.gif" alt="Assigning tickets to an Iteration and an Epic" width="560">
 

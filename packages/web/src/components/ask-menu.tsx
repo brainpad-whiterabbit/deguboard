@@ -12,7 +12,7 @@
 // 場所で変わる候補（閉じた Iteration の見出しの「振り返る」）を出す。場所は core が決め、画面は鍵に写して渡すだけ。
 // 設定画面の項目の行は対象を持たず、設定の項目（item）を渡す（候補はその項目の説明と変更、振り返りの観点なら振り返る。これも core が決める）。
 // 一覧の行は select で複数選べ（selection.tsx）、選んだ行の吹き出しは選んだ全件を対象にする。選んでいる間は
-// 画面の下に「n 件を選択 頼む ID をコピー」の帯（SelectionBar）を出す。
+// 画面の下に「n 件を選択 [おすすめ ▾] [コピー ▾] ×」の帯（SelectionBar）を出す。主ボタンはおすすめの候補で入力欄を直接開き、▾ で一覧を出す。
 // 選べる行はキーでも操作できる（リンクにフォーカスがあるとき）：Space で選びに足し外しし、a か Shift+F10 で頼む一覧を開く。↑↓・Enter は row-nav.tsx
 
 import {
@@ -216,8 +216,15 @@ export interface AskSpot {
   };
   /** 要素の中に描くもの：吹き出しのボタンと、開いているときの一覧（body に出す） */
   overlay: ReactNode;
-  /** 頼むことの一覧を from の下に開く（選択の帯の「頼む」） */
+  /** 頼むことの一覧を from の下に開く（選択の帯の ▾ と、候補のないときの「頼む」） */
   open(from: HTMLElement): void;
+  /**
+   * 引いた候補（届く前は undefined。Provider の外では一覧を開くまで引かない）。選択の帯が先頭の候補を主ボタンに出す。
+   * 引き直しは足さない（Provider が組ごとに引いた分をそのまま返す）
+   */
+  menu: AskMenu | undefined;
+  /** 候補を選んだのと同じく、その候補で入力欄を開く（選択の帯の主ボタン） */
+  pick(candidate: AskCandidate): void;
 }
 
 /** 選択のクリックとして扱わない場所（吹き出し・頼むことの一覧・行の中のボタンや入力・行の番号の下の PR のリンク・タイトルの下のラベル） */
@@ -272,6 +279,11 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
     if (refocus) (returnTo.current ?? anchor)?.focus();
     returnTo.current = null;
   };
+  const pick = (c: AskCandidate) => {
+    setOpen(false);
+    returnTo.current = null;
+    ask.open(targets, c.action, within, place, item);
+  };
 
   const overlay = options ? (
     <>
@@ -293,23 +305,11 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
             else show(e.currentTarget);
           }}
         >
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-            <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />
-          </svg>
+          <AskIcon size={14} />
         </button>
       )}
       {open && anchor ? (
-        <AskMenuList
-          anchor={anchor}
-          label={label}
-          menu={menu}
-          onPick={(c) => {
-            setOpen(false);
-            returnTo.current = null;
-            ask.open(targets, c.action, within, place, item);
-          }}
-          onClose={close}
-        />
+        <AskMenuList anchor={anchor} label={label} menu={menu} onPick={pick} onClose={close} />
       ) : null}
     </>
   ) : null;
@@ -413,6 +413,8 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
     },
     overlay,
     open: show,
+    menu,
+    pick,
   };
 }
 
@@ -438,9 +440,14 @@ export function isCopyIdsKey(
 }
 
 /**
- * 行を選んでいる間に画面の下に出す帯：「n 件を選択 頼む ID をコピー ▾」と「選択を外す」（× のアイコン）。
- * 左パネルの幅で 1 行に収めるため、件数と「頼む」の間の区切り（・）は置かない。
- * 「頼む」で選んだ全件の頼むことの一覧を出す。「ID をコピー」で選んだ ID を一覧に見えている順に空白で区切ってコピーし（host.copy）、
+ * 行を選んでいる間に画面の下に出す帯：「n 件を選択 [吹き出し おすすめ ▾] [コピー ▾]」と「選択を外す」（× のアイコン）。
+ * 既定の幅の左パネル（帯は 257px ほど）でも主ボタンの名前が省略されずに見えるよう、件数と主ボタンの間の区切り（・）は置かず、
+ * ID のコピーと選択を外すはアイコンだけにする（名前は title と aria-label）。
+ * 主ボタンには行の吹き出しと同じアイコンと、選んだ全件の候補の先頭（おすすめ。core の ask-menu が決める）の名前を出し、
+ * 押すと一覧を通らずにその候補で入力欄を開く（一覧を開いてから選ぶと 2 回押す）。候補は AskMenuProvider が選択の組ごとに
+ * 引いた分を useAskSpot から受け、ここでは引き直さない。届く前・引けなかった・空のときは主ボタンを「頼む」にして一覧を開く。
+ * 横の ▾ で、選んだ全件の頼むことの一覧を出す。長い名前は帯を 2 行に崩さず省略し、全文は title で読む（styles.css の .selection-ask-group）。
+ * コピーのアイコンで選んだ ID を一覧に見えている順に空白で区切ってコピーし（host.copy）、
  * ▾ のメニューで形（ID・ID とタイトル・Markdown のリスト。copy-ids.ts）を選べる。文字を選んでいないときの Ctrl/⌘+C も ID をコピーする。
  * コピーしても選択は外さず、帯のボタンの下の行に何件の何をコピーしたか（だめならそのこと）を少しの間出す
  * （件数の場所に出すと、左パネルの幅では文言が切れる）。
@@ -496,6 +503,9 @@ export function SelectionBar() {
       : null,
   );
   if (!selection || !shown) return null;
+  // 主ボタンに出すおすすめ（core の候補の先頭）。届く前・引けなかった・空のときは「頼む」で一覧を開く
+  const rec =
+    spot.menu && !spot.menu.error ? spot.menu.candidates.find((c) => c.recommended) : undefined;
   const sampleItems = formatsAt ? itemsInView() : [];
   const closeFormats = (refocus: boolean) => {
     if (refocus) formatsAt?.focus();
@@ -506,19 +516,45 @@ export function SelectionBar() {
       <span className="selection-count" aria-live="polite">
         {trNode("{0} 件を選択", ids.length)}
       </span>
-      <button
-        type="button"
-        className="primary selection-ask"
-        aria-haspopup="menu"
-        title={tr("選んだ行をまとめてエージェントに頼む")}
-        onClick={(e) => spot.open(e.currentTarget)}
-      >
-        {tr("頼む")}
-      </button>
+      <span className="selection-ask-group">
+        {rec ? (
+          <button
+            type="button"
+            className="primary selection-ask"
+            title={tr("選んだ行をまとめてエージェントに頼む：{0}", trCore(rec.label))}
+            onClick={() => spot.pick(rec)}
+          >
+            <AskIcon size={12} />
+            <span className="selection-ask-name">{trCore(rec.label)}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="primary selection-ask"
+            aria-haspopup="menu"
+            title={tr("選んだ行をまとめてエージェントに頼む")}
+            onClick={(e) => spot.open(e.currentTarget)}
+          >
+            <AskIcon size={12} />
+            <span className="selection-ask-name">{tr("頼む")}</span>
+          </button>
+        )}
+        <button
+          type="button"
+          className="primary selection-ask-more"
+          aria-label={tr("ほかの頼むことを選ぶ")}
+          title={tr("ほかの頼むことを選ぶ")}
+          aria-haspopup="menu"
+          onClick={(e) => spot.open(e.currentTarget)}
+        >
+          <span aria-hidden="true">▾</span>
+        </button>
+      </span>
       <span className="selection-copy">
         <button
           type="button"
           className="selection-copy-ids"
+          aria-label={tr("選んだ {0} 件の ID をコピー（Ctrl/⌘+C）", ids.length)}
           title={tr("選んだ {0} 件の ID をコピー（Ctrl/⌘+C）", ids.length)}
           onClick={() => copy("ids")}
         >
@@ -526,7 +562,6 @@ export function SelectionBar() {
             <rect x="5.5" y="5.5" width="8" height="8" rx="1" />
             <path d="M3.5 10.5h-1v-8h8v1" />
           </svg>
-          {tr("ID をコピー")}
         </button>
         <button
           type="button"
@@ -664,6 +699,15 @@ function AskMenuList({
   );
 }
 
+/** 頼む入口の吹き出しのアイコン（行の吹き出し・初めての案内・選択の帯の主ボタンで同じ形にする） */
+function AskIcon({ size }: { size: number }) {
+  return (
+    <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true">
+      <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />
+    </svg>
+  );
+}
+
 /**
  * おすすめの印（青い点。styles.css の .ask-rec）。入力欄の候補の札（ask-composer.tsx）と頼むことの一覧で同じ印にする。
  * 点だけでは意味が伝わらないので、「おすすめ」の文字をツールチップ（title）と読み上げ（role="img" の名前）に持つ
@@ -780,9 +824,7 @@ export function AskHint() {
   if (dismissed) return null;
   return (
     <p className="ask-hint" role="note">
-      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
-        <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />
-      </svg>
+      <AskIcon size={13} />
       <span>{tr(ASK_HINT)}</span>
       <button
         type="button"

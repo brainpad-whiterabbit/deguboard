@@ -4106,8 +4106,9 @@ button.ask-copy svg {
   opacity: 1;
 }
 /*
- * 選んでいる間に画面の下に出す「n 件を選択 頼む ID をコピー ▾ … ×」の帯。入力欄と同じ場所に出し、入力欄を開いている間は出さない。
- * 左パネルの幅（300px ほど）で 1 行に収まるよう、間とボタンの余白を詰める（test/vscode/sidebar.vscode.ts が実機で確かめる）
+ * 選んでいる間に画面の下に出す「n 件を選択 [吹き出し おすすめ ▾] [コピー ▾] … ×」の帯。入力欄と同じ場所に出し、入力欄を開いている間は出さない。
+ * 既定の幅の左パネル（帯は 257px ほど）で 1 行に収まり、主ボタンの名前が省略されずに見えるよう、間とボタンの余白を詰め、
+ * ID のコピーと選択を外すはアイコンだけにする（test/layout/ask-menu.layout.ts と test/vscode/sidebar.vscode.ts が確かめる）
  */
 .selection-bar {
   flex: none;
@@ -4147,7 +4148,45 @@ button.ask-copy svg {
   font-size: 12px;
   white-space: nowrap;
 }
-/* 「ID をコピー」と ▾ を 1 つのボタンのようにつなげる */
+/*
+ * 主ボタン（吹き出しとおすすめの名前）と ▾ を 1 つのボタンのようにつなげる。名前は長いことがあるので、
+ * 帯の折り返しを決める大きさを 0 にして（flex-basis: 0）中身の幅まで伸ばし（max-width: max-content）、
+ * 入らなければ名前を省略する。これで狭い左パネルでも帯を 2 行に崩さない（全文は主ボタンの title）。
+ * 伸びる割合は .selection-gap（1）よりずっと大きくし、空きは先に名前に回す（同じ割合だと、空きが残っていても名前が切れる）
+ */
+.selection-ask-group {
+  flex: 1000 1 0;
+  display: inline-flex;
+  min-width: 0;
+  max-width: max-content;
+}
+.selection-bar .selection-ask {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  border-radius: 2px 0 0 2px;
+}
+.selection-ask svg {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.selection-ask-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.selection-bar .selection-ask-more {
+  padding: 0.15em 0.35em;
+  border-left: 1px solid color-mix(in srgb, var(--vscode-button-foreground) 25%, transparent);
+  border-radius: 0 2px 2px 0;
+}
+/*
+ * ID のコピー（アイコンだけ。名前は title と aria-label）と ▾ を 1 つのボタンのようにつなげる。
+ * 余白は × と同じに詰める（既定の幅の帯で日本語の「割り当てる」が入る空きは数 px しかない）
+ */
 .selection-copy {
   flex: none;
   display: inline-flex;
@@ -4155,7 +4194,7 @@ button.ask-copy svg {
 .selection-bar .selection-copy-ids {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  padding: 0.15em 0.3em;
   border-radius: 2px 0 0 2px;
 }
 .selection-bar .selection-copy-formats {
