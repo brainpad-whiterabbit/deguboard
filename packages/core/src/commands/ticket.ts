@@ -35,11 +35,13 @@ import { claimRejectionError, decideClaim, decideReclaim, workBranchName } from 
 import {
   prepareIterationForClaim,
   prepareWorktreeForClaim,
-  requireWorkAssignment,
   runSetupInWorktree,
+} from "./claim-setup.js";
+import {
+  requireWorkAssignment,
   startIterationForWork,
   workIterationDecision,
-} from "./claim-setup.js";
+} from "./work-iteration.js";
 import {
   leftClosedIteration,
   leftClosedIterationWarning,
@@ -1029,15 +1031,18 @@ export const ticketMove = defineCommand({
         { facts: await factsFor(ctx, doc, policy.requires) },
       );
       // 作業中のチケットの Iteration は active（IT-4）。Workflow の判定を通った後でも守る Core の固定の規則で、--override でも
-      // 越えられない。todo からの着手は claim と同じく planned を開始し、done・abandoned からの戻しは開始しない
+      // 越えられない。todo からの着手は claim と同じく planned を開始し、done・abandoned からの戻しは開始しない。
+      // 排他でない書き込みで開始が要るなら、何も書かずに ExclusiveWriteNeeded で抜ける
       const route = workRouteOfMove(from, input.status);
-      if (
-        route &&
-        !exclusive &&
-        workIterationDecision(ctx, route, doc.id, doc.data.iteration).kind === "start"
-      )
-        throw new ExclusiveWriteNeeded();
-      if (route) await startIterationForWork(ctx, route, doc.id, doc.data.iteration, warnings);
+      if (route)
+        await startIterationForWork(
+          ctx,
+          route,
+          doc.id,
+          doc.data.iteration,
+          warnings,
+          exclusive ? undefined : () => new ExclusiveWriteNeeded(),
+        );
       // PR の要らない作業（branch なし）は照合が進めないので、review・done にしたときが実装の終わり（RN-6）。
       // branch のあるチケットの実装の Run は PR の記録・発見が PR の作成時刻で閉じる
       const endRuns = runsClosedByMove(doc.data, input.status);

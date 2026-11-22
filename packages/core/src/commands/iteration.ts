@@ -6,12 +6,7 @@ import { readHistory, type HistoryEvent, type HistoryReader } from "../git/histo
 import { withWrite } from "../git/write.js";
 import { isFinishedSet, isTerminal, type Status } from "../model/common.js";
 import type { TicketId } from "../model/id.js";
-import {
-  ITERATION_STATUSES,
-  otherActiveMessage,
-  otherActiveOf,
-  type Iteration,
-} from "../model/iteration.js";
+import { ITERATION_STATUSES, otherActiveMessage, type Iteration } from "../model/iteration.js";
 import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
@@ -20,14 +15,11 @@ import { plansContaining, type PlanBrief } from "./plan.js";
 import type { AskAction } from "./ask.js";
 import { iterationRef, nowIso, sortedDocs, ticketRef, ticketsInIteration } from "./helpers.js";
 import { ASSIGN_NOTE, hasRecord, permissionFields, recordNote } from "./permission.js";
-import { requireWorkAssignment } from "./claim-setup.js";
+import { otherActiveIn, requireWorkAssignment } from "./work-iteration.js";
 
 /** active の Iteration はカンバンに 1 つ（IT-1）。ほかに active があれば拒否する */
 function rejectIfOtherActive(store: Store, it: Doc<Iteration>, verb: string): void {
-  const other = otherActiveOf(
-    [...store.iterations.values()].map((i) => i.data),
-    it.data,
-  );
+  const other = otherActiveIn(store, it.data);
   if (other) throw new OperationError("REJECTED", otherActiveMessage(other.id, it.id, verb));
 }
 

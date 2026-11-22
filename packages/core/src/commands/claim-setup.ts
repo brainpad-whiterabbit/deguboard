@@ -2,24 +2,17 @@
 // 親のエージェントが claim の前後に文で打っていた手を claim の中に入れ、規則を毎回同じに守る（ADR-031）。
 // Iteration への追加と worktree は claim の排他（push）の成否とは別の都合なので、できなくても claim は失敗させず warnings で伝える。
 // 例外は、チケットの Iteration を active にできないとき：作業中のチケットの Iteration は active、という固定の規則で claim を拒否する
-// （決定は work-iteration-judge.ts。ticket move も startIterationForWork で同じ規則を守る）
+// （規則を行うのは work-iteration.ts の startIterationForWork で、ticket move も同じ関数で同じ規則を守る）
 
 import path from "node:path";
-import { OperationError } from "../errors.js";
 import { defaultWorktreePath, ensureBranchWorktree } from "../git/branch-worktree.js";
 import { runProcess } from "../git/run.js";
 import { compareIds } from "../model/id.js";
-import { otherActiveOf, type Iteration } from "../model/iteration.js";
+import type { Iteration } from "../model/iteration.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { CommandContext } from "./define.js";
-import { nowIso } from "./helpers.js";
-import {
-  decideWorkAssignment,
-  decideWorkIteration,
-  type WorkIterationDecision,
-  type WorkRoute,
-} from "./work-iteration-judge.js";
+import { startIterationForWork } from "./work-iteration.js";
 
 /**
  * Iteration の空いたチケットを入れる先：active の Iteration、なければ planned がただ 1 つのときのそれ。
@@ -36,82 +29,6 @@ export function iterationTargetFor(
     .sort((a, b) => compareIds(a.id, b.id));
   const [only] = planned;
   return planned.length === 1 && only ? { target: only } : { candidates: planned };
-}
-
-/**
- * チケットを作業中にしてよいかの決定に要る Iteration の事実（work-iteration-judge.ts の WorkIterationFacts の iteration と
- * otherActive）を、索引の今の Iteration で求める。照合（setup.ts）も同じ事実を決定に渡す
- */
-export function workIterationFactsOf(
-  ctx: CommandContext,
-  iterationId: Ticket["iteration"],
-): { iteration: Iteration | undefined; otherActive: string | undefined } {
-  const it = iterationId ? ctx.store.iterations.get(iterationId) : undefined;
-  const other = it
-    ? otherActiveOf(
-        [...ctx.store.iterations.values()].map((i) => i.data),
-        it.data,
-      )
-    : undefined;
-  return { iteration: it?.data, otherActive: other?.id };
-}
-
-/** チケットを作業中にしてよいかの決定（work-iteration-judge.ts）を、索引の今の Iteration で求める。何も書かない */
-export function workIterationDecision(
-  ctx: CommandContext,
-  route: WorkRoute,
-  ticketId: string,
-  iterationId: Ticket["iteration"],
-): WorkIterationDecision {
-  return decideWorkIteration({
-    route,
-    ticket: ticketId,
-    ...workIterationFactsOf(ctx, iterationId),
-  });
-}
-
-/**
- * 作業中のチケットを Iteration に入れる書き込み（iteration add・ticket update --iteration）の中で、入れ先が active でなければ
- * REJECTED を投げる（IT-4。決定は work-iteration-judge.ts の decideWorkAssignment）。今と同じ Iteration は出し入れでないので見ない
- */
-export function requireWorkAssignment(
-  ctx: CommandContext,
-  ticket: Pick<Ticket, "id" | "status" | "iteration">,
-  target: Iteration,
-): void {
-  if (ticket.iteration === target.id) return;
-  const message = decideWorkAssignment({
-    ticket: ticket.id,
-    status: ticket.status,
-    target,
-    otherActive: otherActiveOf(
-      [...ctx.store.iterations.values()].map((i) => i.data),
-      target,
-    )?.id,
-  });
-  if (message) throw new OperationError("REJECTED", message);
-}
-
-/**
- * チケットを作業中にする書き込みの中で、その Iteration が active であることを守る（IT-4。claim と ticket move が共有する）。
- * 決定が開始なら planned の Iteration を開始して warnings に書き、拒否なら REJECTED を投げる（何も書く前に呼ぶ）
- */
-export async function startIterationForWork(
-  ctx: CommandContext,
-  route: WorkRoute,
-  ticketId: string,
-  iterationId: Ticket["iteration"],
-  warnings: string[],
-): Promise<void> {
-  const decision = workIterationDecision(ctx, route, ticketId, iterationId);
-  if (decision.kind === "reject") throw new OperationError("REJECTED", decision.message);
-  if (decision.kind !== "start") return;
-  // iteration.start と同じく、実績の期間の始まり started_at を書く（IT-1）
-  await ctx.store.update("iteration", decision.iteration, {
-    status: "active",
-    started_at: nowIso(ctx),
-  });
-  warnings.push(`Started ${decision.iteration} (active)`);
 }
 
 /**

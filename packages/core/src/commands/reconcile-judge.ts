@@ -31,7 +31,8 @@ import {
 } from "./run-close-judge.js";
 import {
   decideWorkIteration,
-  WORK_ITERATION_RULE,
+  unstartedWays,
+  WORK_ITERATION_RULE_NO_OVERRIDE,
   workRouteOfMove,
 } from "./work-iteration-judge.js";
 
@@ -252,11 +253,7 @@ function iterationBlockOf(f: TicketReconcileFacts, to: Status): IterationBlock |
   if (decision.kind === "go") return undefined;
   if (decision.kind === "reject")
     return { iteration: it.id, state: decision.state, ways: decision.ways };
-  return {
-    iteration: it.id,
-    state: "planned",
-    ways: `start ${it.id} (dg iteration start ${it.id}), or move ${ticket.id} with ticket move ${ticket.id} ${to}, which starts ${it.id}`,
-  };
+  return { iteration: it.id, state: "planned", ways: unstartedWays(ticket.id, it.id, to) };
 }
 
 /** 照合が止めた前進（境目の方針か、チケットの Iteration が止めたもの） */
@@ -281,7 +278,9 @@ function blockedWarning(
   const it = outcome.iteration;
   const why = [
     ...(policyWhy ? [`${policyWhy} (${outcome.policy})`] : []),
-    ...(it ? [`${ticket.id} is in ${it.iteration} (${it.state}), and ${WORK_ITERATION_RULE}`] : []),
+    ...(it
+      ? [`${ticket.id} is in ${it.iteration} (${it.state}), and ${WORK_ITERATION_RULE_NO_OVERRIDE}`]
+      : []),
   ].join(", and ");
   const move = `ticket move ${ticket.id} ${outcome.to}`;
   const policyHow = outcome.humanOnly

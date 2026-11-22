@@ -114,7 +114,7 @@ import {
   type LastPushFact,
   type RunAction,
 } from "./reconcile-judge.js";
-import { workIterationDecision, workIterationFactsOf } from "./claim-setup.js";
+import { workIterationDecision, workIterationFactsOf } from "./work-iteration.js";
 import { WORK_ITERATION_RULE, WORK_STATUSES } from "./work-iteration-judge.js";
 import { closeOpenedRunUnlessClosed, describeClosedRuns, sessionOf } from "./run.js";
 
