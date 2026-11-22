@@ -22,6 +22,7 @@ import { autoApplies, judgeDecisions } from "../workflow/conditions.js";
 import { DEFAULT_WORKFLOW, operationPolicy } from "../workflow/resolve.js";
 import { wipAdvanceStepOf, wipOverOf, wipWarningsOf } from "../workflow/wip.js";
 import { briefOf, type BriefRole } from "./brief.js";
+import { workIterationDecision } from "./claim-setup.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { FIX_ROUNDS_LIMIT, gateReads, heavyReviewRounds, reviewedTip } from "./gate-judge.js";
 import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";
@@ -605,7 +606,16 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
             `${st.reason}. Ask a person whether to keep fixing, mark it ready (a person runs gh pr ready), or stop`,
           );
     }
-    case "todo":
+    case "todo": {
+      // 作業中のチケットの Iteration は active（IT-4）。claim が拒否する todo（Iteration が planned でほかに active がある・closed）には、
+      // 着手の手でなく人に出口を聞く手を返す。決定は claim と同じ（work-iteration-judge.ts）。planned でほかに active がなければ claim が開始する
+      const work = workIterationDecision(
+        ctx,
+        "claim",
+        id,
+        ctx.store.tickets.get(id)?.data.iteration,
+      );
+      if (work.kind === "reject") return make("wait_human", null, [], work.message);
       return make("implement", facts.implementStep, [
         ...delegate("implement it"),
         ...claimCommandsOf(ctx, id, `ticket claim ${id} --branch <short-english-words> --no-run`),
@@ -616,6 +626,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
         `After claim, rebuild the text with ${dg(`brief ${id} --role implement`)} and pass that text (it then has the branch and worktree)`,
         dg(`ticket update ${id} --pr <number>`),
       ]);
+    }
     case "claimed":
       return make("implement", facts.implementStep, [
         ...delegate("implement it"),
@@ -715,6 +726,7 @@ export const next = defineCommand({
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.<agent>.<tier> of the agent that called dg, detected from the environment, and when that is empty or the agent cannot be detected, to models.<tier>; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
     "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. A ticket in the awaiting_approval stage is wait_human too (a person approves its Plan). " +
+    "A todo ticket that claim would refuse because of its Iteration (planned while another is active, or closed; a ticket in progress or in review must be in the active Iteration) is wait_human too, and ask_human gives the reason and the ways out. " +
     "When a column has more tickets than its WIP limit (wip in workflow.yaml; dg workflow show), it warns, and the step that starts a todo ticket puts first in commands a step to advance tickets in the columns further along (for that step, in_progress at its limit counts as over, since claiming adds one). Starting is not refused, and config's work.parallel is a separate setting. " +
     "It also warns with the dg hook warnings not reported yet (see dg hook --help), and with the installed dg Skills that are older than this dg, or that a dg of the same version wrote with different contents (update them with dg skill install; Skills written by a newer dg are not reported). " +
     "With --reserve, the calling session reserves the ticket before advancing it (pass it when you advance the ticket, as the steps of dg guide work do; not when you only look). When another live session of the same user has reserved the ticket, or the open Plan that includes it (dg plan show <p> --reserve), an agent gets kind wait_session with no step to advance: commands has one sentence that names that session and says how to take the work over (--reserve --take-over moves the reservation of the ticket to the calling session), and model and brief are null. A person's call and a call whose session is unknown get the usual step with a warning. A done or abandoned ticket is not reserved. " +

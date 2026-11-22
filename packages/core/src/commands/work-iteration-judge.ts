@@ -3,7 +3,8 @@
 // ほかの active を受け取って決めるだけで、git・ファイルを読まない（import は型だけ）。Workflow の requires ではないので、
 // --override では越えられない。事実を集めて決定を行う（開始を書く・拒否を投げる）のは claim-setup.ts の startIterationForWork。
 // 作業中のチケットを Iteration に入れる操作（iteration add・ticket update --iteration）は decideWorkAssignment で、照合（dg sync）が
-// todo を作業中へ進めるのは reconcile-judge.ts が decideWorkIteration で同じ規則を守る。
+// todo を作業中へ進めるのは reconcile-judge.ts が decideWorkIteration で同じ規則を守る。dg next（next.ts）は claim が拒否する todo に
+// 着手の手でなく人に聞く手を返し、lint（setup.ts）は規則から外れた作業中のチケットを戻しの出口とともに指摘する。
 // 組み合わせは work-iteration-judge.test.ts が確かめ、git を通すテストは経路の代表だけを見る
 
 import type { Iteration } from "../model/iteration.js";
