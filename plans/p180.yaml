@@ -1,0 +1,29 @@
+id: p180
+tickets: [t1227, t1228, t1230, t1229, t1231]
+after:
+  t1229:
+    - t1227
+  t1231:
+    - t1227
+pending_approval: true
+details:
+  t1227:
+    scope: 閉じた Iteration の作業中のチケットを unclaim で todo に戻すときの iteration の扱いを IT-2 と揃える
+    approach: unclaim でも leftClosedIteration を通して外し、ticket move と同じ警告を出す。IT-2 を狭める案は採らない
+    tier: standard
+  t1228:
+    scope: program.test.ts の (none to clear) を数えるテストだけを直す。ヘルプの文は変えない
+    approach: 空白を詰めてから数え、期待する数を ticket update の外せるオプションから求めるか、origin-cause を含む 7 に直す
+    tier: standard
+  t1230:
+    scope: docs/usage.md と usage.ja.md の Core の固定の節とエージェントへの指示の例
+    approach: 英語版と日本語版を同じ構成で 1 文ずつ足す
+    tier: light
+  t1229:
+    scope: ADR-031・guide-work・guide-plan・guide-check と ST-3 の文の直し。コードは変えない
+    approach: 各文書の該当の行だけを直し、guide のスナップショットを更新する
+    tier: light
+  t1231:
+    scope: 作業中の Iteration の規則の関数の置き場所と重複の整理と、lint の文から --override を外すこと。振る舞いは変えない
+    approach: 新しいモジュールに規則の実行の関数を移し、ほかの active の求め方と出口の文を 1 か所にまとめる
+    tier: standard
