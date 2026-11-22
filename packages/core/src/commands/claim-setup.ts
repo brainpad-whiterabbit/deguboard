@@ -15,6 +15,7 @@ import type { Doc } from "../storage/documents.js";
 import type { CommandContext } from "./define.js";
 import { nowIso } from "./helpers.js";
 import {
+  decideWorkAssignment,
   decideWorkIteration,
   type WorkIterationDecision,
   type WorkRoute,
@@ -37,13 +38,14 @@ export function iterationTargetFor(
   return planned.length === 1 && only ? { target: only } : { candidates: planned };
 }
 
-/** チケットを作業中にしてよいかの決定（work-iteration-judge.ts）を、索引の今の Iteration で求める。何も書かない */
-export function workIterationDecision(
+/**
+ * チケットを作業中にしてよいかの決定に要る Iteration の事実（work-iteration-judge.ts の WorkIterationFacts の iteration と
+ * otherActive）を、索引の今の Iteration で求める。照合（setup.ts）も同じ事実を決定に渡す
+ */
+export function workIterationFactsOf(
   ctx: CommandContext,
-  route: WorkRoute,
-  ticketId: string,
   iterationId: Ticket["iteration"],
-): WorkIterationDecision {
+): { iteration: Iteration | undefined; otherActive: string | undefined } {
   const it = iterationId ? ctx.store.iterations.get(iterationId) : undefined;
   const other = it
     ? otherActiveOf(
@@ -51,12 +53,43 @@ export function workIterationDecision(
         it.data,
       )
     : undefined;
+  return { iteration: it?.data, otherActive: other?.id };
+}
+
+/** チケットを作業中にしてよいかの決定（work-iteration-judge.ts）を、索引の今の Iteration で求める。何も書かない */
+export function workIterationDecision(
+  ctx: CommandContext,
+  route: WorkRoute,
+  ticketId: string,
+  iterationId: Ticket["iteration"],
+): WorkIterationDecision {
   return decideWorkIteration({
     route,
     ticket: ticketId,
-    iteration: it?.data,
-    otherActive: other?.id,
+    ...workIterationFactsOf(ctx, iterationId),
   });
+}
+
+/**
+ * 作業中のチケットを Iteration に入れる書き込み（iteration add・ticket update --iteration）の中で、入れ先が active でなければ
+ * REJECTED を投げる（IT-4。決定は work-iteration-judge.ts の decideWorkAssignment）。今と同じ Iteration は出し入れでないので見ない
+ */
+export function requireWorkAssignment(
+  ctx: CommandContext,
+  ticket: Pick<Ticket, "id" | "status" | "iteration">,
+  target: Iteration,
+): void {
+  if (ticket.iteration === target.id) return;
+  const message = decideWorkAssignment({
+    ticket: ticket.id,
+    status: ticket.status,
+    target,
+    otherActive: otherActiveOf(
+      [...ctx.store.iterations.values()].map((i) => i.data),
+      target,
+    )?.id,
+  });
+  if (message) throw new OperationError("REJECTED", message);
 }
 
 /**

@@ -35,6 +35,7 @@ import { claimRejectionError, decideClaim, decideReclaim, workBranchName } from 
 import {
   prepareIterationForClaim,
   prepareWorktreeForClaim,
+  requireWorkAssignment,
   runSetupInWorktree,
   startIterationForWork,
   workIterationDecision,
@@ -608,7 +609,13 @@ export const ticketUpdate = defineCommand({
       .describe(
         "Quality gate level: high, low, or free. Removing it returns to high (see dg gate --help). Only a person can lower it",
       ),
-    iteration: z.string().nullable().optional().describe("Iteration ID"),
+    iteration: z
+      .string()
+      .nullable()
+      .optional()
+      .describe(
+        "Iteration ID. A closed Iteration is rejected, and so is an Iteration that is not active for a ticket in progress or in review (a ticket at work must be in the active Iteration; --override does not pass this)",
+      ),
     epic: z.string().nullable().optional().describe("Epic ID"),
     pr: z
       .number()
@@ -724,6 +731,8 @@ export const ticketUpdate = defineCommand({
             input.iteration === null ? undefined : requireIteration(store, input.iteration);
           if (iteration !== t.iteration)
             judge({ stage: "assign" }, `moving ${t.id} into or out of an Iteration`);
+          // 作業中のチケットは active でない Iteration に入れない（IT-4。iteration add と同じ）。外すのは規則の外
+          if (iteration) requireWorkAssignment(ctx, t, store.require("iteration", iteration).data);
           patch["iteration"] = iteration;
         }
         if (input.depends_on !== undefined) {

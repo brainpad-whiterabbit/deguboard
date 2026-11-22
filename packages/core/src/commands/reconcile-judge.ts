@@ -1,4 +1,4 @@
-// 照合（dg sync）が行うことの決定（ST-4〜ST-6・RN-6・MT-6、ADR-028）。事実を受け取って行うことの列（ReconcileAction）を
+// 照合（dg sync）が行うことの決定（ST-4〜ST-6・IT-4・RN-6・MT-6、ADR-028）。事実を受け取って行うことの列（ReconcileAction）を
 // 返すだけで、git・gh・ファイルを読まない（import は型と定数と純粋な関数だけ）。決めるのは 2 つ：
 //   - decideTicketReconcile：対象のチケット（作業ブランチを持ち、終わっていない）ごとに行うこと
 //   - decideOpenRunReconcile：その後も開いたままの実行中の Run（対象にならなかったチケットの Run と、上で閉じなかった Run）を
@@ -14,6 +14,7 @@ import type { BranchFacts, PrLines } from "../git/facts.js";
 import { sameUser } from "../model/actor.js";
 import { isTerminal, type Status } from "../model/common.js";
 import { OPENED_STEPS, type Run, type RunId } from "../model/run.js";
+import type { Iteration } from "../model/iteration.js";
 import type { Ticket } from "../model/ticket.js";
 import {
   reconcileStatus,
@@ -28,6 +29,11 @@ import {
   RECONCILE_TODO_ERROR,
   runsClosedByMove,
 } from "./run-close-judge.js";
+import {
+  decideWorkIteration,
+  WORK_ITERATION_RULE,
+  workRouteOfMove,
+} from "./work-iteration-judge.js";
 
 /** 決定が読む Run の項目（実行中の Run と、索引にある記録済みの Run） */
 export type ReconcileRunFact = Pick<Run, "id" | "ticket" | "step" | "started_at">;
@@ -66,6 +72,10 @@ export interface TicketReconcileFacts extends FixRunFacts {
   branch: BranchFacts;
   /** config の merge.delete_branch（done にしたチケットの残りの worktree とブランチを消すか） */
   deleteBranch: boolean;
+  /** チケットの Iteration の今の値（なければ undefined）。todo を作業中へ進めてよいかを見る（IT-4） */
+  iteration: Pick<Iteration, "id" | "status"> | undefined;
+  /** チケットの Iteration のほかに active の Iteration の ID（model/iteration.ts の otherActiveOf）。なければ undefined */
+  otherActive: string | undefined;
 }
 
 /** ロックの外で読んだ PR の作成時刻（git/facts.ts の fetchPrCreatedAt。読めなければ理由） */
@@ -218,23 +228,72 @@ function implementationRunActions(f: TicketReconcileFacts): ReconcileAction[] {
   ];
 }
 
-/** きっかけは当てはまったが境目の方針が止めたチケットの、止めた理由と人の進め方（ST-4） */
+/** 照合が todo を作業中へ進めるのを、チケットの Iteration が止めたときの、Iteration の状態と人の出口（IT-4） */
+interface IterationBlock {
+  iteration: string;
+  state: string;
+  ways: string;
+}
+
+/**
+ * todo から作業中（in_progress・review）への前進を、チケットの Iteration が止めるか（IT-4。決定は work-iteration-judge.ts）。
+ * 着手の操作（claim・ticket move）と違い、照合は planned の Iteration を開始しない：Iteration を始めるのは人か着手の操作が決めることで、
+ * 作業ブランチが見えただけで始めない。Iteration のないチケットと、作業中へ入らない前進（todo から done）は止めない
+ */
+function iterationBlockOf(f: TicketReconcileFacts, to: Status): IterationBlock | undefined {
+  const { ticket, iteration: it } = f;
+  if (!it || workRouteOfMove(ticket.status, to) !== "move") return undefined;
+  const decision = decideWorkIteration({
+    route: "move",
+    ticket: ticket.id,
+    iteration: it,
+    otherActive: f.otherActive,
+  });
+  if (decision.kind === "go") return undefined;
+  if (decision.kind === "reject")
+    return { iteration: it.id, state: decision.state, ways: decision.ways };
+  return {
+    iteration: it.id,
+    state: "planned",
+    ways: `start ${it.id} (dg iteration start ${it.id}), or move ${ticket.id} with ticket move ${ticket.id} ${to}, which starts ${it.id}`,
+  };
+}
+
+/** 照合が止めた前進（境目の方針か、チケットの Iteration が止めたもの） */
+type BlockedAdvance = Pick<
+  Extract<ReconcileOutcome, { kind: "blocked" }>,
+  "to" | "trigger" | "policy" | "unmet" | "humanOnly"
+> & { iteration?: IterationBlock | undefined };
+
+/**
+ * きっかけは当てはまったが、境目の方針かチケットの Iteration（IT-4）が止めたチケットの、止めた理由と人の進め方（ST-4）。
+ * Iteration が止めたときは、Iteration を active にする出口を先に案内する（それまでは ticket move も拒否されるため）
+ */
 function blockedWarning(
   ticket: TicketReconcileFacts["ticket"],
-  outcome: Extract<ReconcileOutcome, { kind: "blocked" }>,
+  outcome: BlockedAdvance,
 ): ReconcileAction {
   const unmet = outcome.unmet.length > 0;
-  const why = [
+  const policyWhy = [
     ...(unmet ? [`the conditions are not met: ${outcome.unmet.join(", ")}`] : []),
     ...(outcome.humanOnly ? ["the Workflow limits the move to a person (human_only)"] : []),
   ].join(", and ");
+  const it = outcome.iteration;
+  const why = [
+    ...(policyWhy ? [`${policyWhy} (${outcome.policy})`] : []),
+    ...(it ? [`${ticket.id} is in ${it.iteration} (${it.state}), and ${WORK_ITERATION_RULE}`] : []),
+  ].join(", and ");
   const move = `ticket move ${ticket.id} ${outcome.to}`;
+  const policyHow = outcome.humanOnly
+    ? `A person moves it with ${move}${unmet ? ' --override "reason"' : ""}`
+    : `It advances at a sync after the conditions are met; a person can go ahead without them with ${move} --override "reason"`;
+  const how = it
+    ? `It advances at a sync after its Iteration is active; ask a person which to do: ${it.ways}` +
+      (policyWhy ? `. Then: ${policyHow}` : "")
+    : policyHow;
   return warn(
     ticket.id,
-    `the facts (${outcome.trigger.when.join(", ")}) point from ${ticket.status} to ${outcome.to}, but reconcile does not advance it, because ${why} (${outcome.policy}). ` +
-      (outcome.humanOnly
-        ? `A person moves it with ${move}${unmet ? ' --override "reason"' : ""}`
-        : `It advances at a sync after the conditions are met; a person can go ahead without them with ${move} --override "reason"`),
+    `the facts (${outcome.trigger.when.join(", ")}) point from ${ticket.status} to ${outcome.to}, but reconcile does not advance it, because ${why}. ${how}`,
   );
 }
 
@@ -259,10 +318,26 @@ export function decideTicketReconcile(f: TicketReconcileFacts): ReconcileAction[
       ),
     );
   const outcome = reconcileStatus(f.workflow, ticket.status, facts, { pr: ticket.pr ?? pr });
-  // きっかけは当てはまったが境目の方針が止めたチケットは、書き換えずに知らせる
-  if (outcome.kind === "blocked") actions.push(blockedWarning(ticket, outcome));
+  // todo を作業中へ進めるきっかけは、チケットの Iteration が active でなければ止める（IT-4）
+  const iteration =
+    outcome.kind === "advance" || outcome.kind === "blocked"
+      ? iterationBlockOf(f, outcome.to)
+      : undefined;
+  // きっかけは当てはまったが境目の方針か Iteration が止めたチケットは、書き換えずに同じ形で知らせる
+  if (outcome.kind === "blocked") actions.push(blockedWarning(ticket, { ...outcome, iteration }));
+  else if (outcome.kind === "advance" && iteration)
+    actions.push(
+      blockedWarning(ticket, {
+        to: outcome.to,
+        trigger: outcome.trigger,
+        policy: "",
+        unmet: [],
+        humanOnly: false,
+        iteration,
+      }),
+    );
   const advance: ReconcileAdvance | undefined =
-    outcome.kind === "advance"
+    outcome.kind === "advance" && !iteration
       ? { from: ticket.status, to: outcome.to, when: [...outcome.trigger.when] }
       : undefined;
   // done に進むなら、消えたブランチは正常（マージ後に消した）なので警告しない

@@ -2,6 +2,8 @@
 // チケットを作業中にする 3 つの経路（claim・ticket move の todo からの前進・done / abandoned からの戻し）が、Iteration の今の状態と
 // ほかの active を受け取って決めるだけで、git・ファイルを読まない（import は型だけ）。Workflow の requires ではないので、
 // --override では越えられない。事実を集めて決定を行う（開始を書く・拒否を投げる）のは claim-setup.ts の startIterationForWork。
+// 作業中のチケットを Iteration に入れる操作（iteration add・ticket update --iteration）は decideWorkAssignment で、照合（dg sync）が
+// todo を作業中へ進めるのは reconcile-judge.ts が decideWorkIteration で同じ規則を守る。
 // 組み合わせは work-iteration-judge.test.ts が確かめ、git を通すテストは経路の代表だけを見る
 
 import type { Iteration } from "../model/iteration.js";
@@ -28,10 +30,14 @@ export type WorkIterationDecision =
   | { kind: "go" }
   /** planned の Iteration を開始してから進める */
   | { kind: "start"; iteration: string }
-  /** 拒否する。message は出口（チケットを active に移す・今の active を閉じる）を案内する */
-  | { kind: "reject"; message: string };
+  /**
+   * 拒否する。message は出口（チケットを active に移す・今の active を閉じる）を案内する。
+   * state は Iteration の状態の言い方、ways は人が選ぶ出口で、照合の知らせ（reconcile-judge.ts）が同じ出口を案内するのに使う
+   */
+  | { kind: "reject"; message: string; state: string; ways: string };
 
-const WORK_STATUSES: readonly Status[] = ["in_progress", "review"];
+/** 作業中の Status（この規則が見るもの） */
+export const WORK_STATUSES: readonly Status[] = ["in_progress", "review"];
 
 /**
  * ticket move が作業中へ入る経路。todo から作業中へは着手（move）、done・abandoned から作業中へは戻し（return）。
@@ -44,8 +50,10 @@ export function workRouteOfMove(from: Status, to: Status): "move" | "return" | u
   return undefined;
 }
 
-const RULE =
+/** 規則の文。拒否の文と、照合が前進を止めた知らせ（reconcile-judge.ts）が添える */
+export const WORK_ITERATION_RULE =
   "a ticket in progress or in review must be in the active Iteration, and --override does not pass this";
+const RULE = WORK_ITERATION_RULE;
 
 /** Iteration にチケットを入れるコマンド */
 const addTo = (iteration: string, ticket: string) => `dg iteration add ${iteration} ${ticket}`;
@@ -64,6 +72,8 @@ export function decideWorkIteration(facts: WorkIterationFacts): WorkIterationDec
   const reject = (state: string, ways: string): WorkIterationDecision => ({
     kind: "reject",
     message: `${ticket} is in ${it.id} (${state}), so ${what} (${RULE}). Ask a person which to do: ${ways}, and then try again`,
+    state,
+    ways,
   });
   if (it.status === "planned") {
     if (other) {
@@ -90,4 +100,30 @@ export function decideWorkIteration(facts: WorkIterationFacts): WorkIterationDec
     "closed",
     `move ${ticket} into the Iteration to work in (${addTo("<iteration>", ticket)}), or reopen ${it.id} (dg iteration reopen ${it.id})`,
   );
+}
+
+/** decideWorkAssignment に要る事実 */
+export interface WorkAssignmentFacts {
+  ticket: string;
+  /** チケットの今の Status */
+  status: Status;
+  /** 入れ先の Iteration（閉じた Iteration は呼ぶ側が先に拒否する） */
+  target: Pick<Iteration, "id" | "status">;
+  /** 入れ先のほかに active の Iteration の ID（model/iteration.ts の otherActiveOf）。なければ undefined */
+  otherActive: string | undefined;
+}
+
+/**
+ * 作業中のチケットを Iteration に入れてよいかを決める（iteration add・ticket update --iteration）。
+ * 入れると作業中のチケットが active でない Iteration に入るなら、拒否の文を返す。入れてよければ undefined。
+ * todo・done・abandoned のチケットと、active の Iteration への出し入れは規則の外。Iteration から外す（なしにする）のも規則の外
+ * （Iteration のないチケットは decideWorkIteration と同じく対象にしない）。着手と違い、入れる操作は Iteration を開始しない
+ */
+export function decideWorkAssignment(facts: WorkAssignmentFacts): string | undefined {
+  const { ticket, status, target, otherActive: other } = facts;
+  if (!WORK_STATUSES.includes(status) || target.status === "active") return undefined;
+  const ways = other
+    ? `add it to ${other}, the active Iteration (${addTo(other, ticket)}), or close ${other} (dg iteration close ${other}) and start ${target.id} (dg iteration start ${target.id})`
+    : `start ${target.id} first (dg iteration start ${target.id})`;
+  return `${ticket} is ${status} and ${target.id} is ${target.status}, so ${ticket} cannot be added to ${target.id} (${RULE}). Ask a person which to do: ${ways}, and then try again`;
 }
