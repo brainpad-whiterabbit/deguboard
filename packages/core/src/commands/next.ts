@@ -22,7 +22,7 @@ import { autoApplies, judgeDecisions } from "../workflow/conditions.js";
 import { DEFAULT_WORKFLOW, operationPolicy } from "../workflow/resolve.js";
 import { wipAdvanceStepOf, wipOverOf, wipWarningsOf } from "../workflow/wip.js";
 import { briefOf, type BriefRole } from "./brief.js";
-import { workIterationDecision } from "./claim-setup.js";
+import { workIterationDecision } from "./work-iteration.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { FIX_ROUNDS_LIMIT, gateReads, heavyReviewRounds, reviewedTip } from "./gate-judge.js";
 import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";

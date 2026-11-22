@@ -81,7 +81,8 @@ type ActiveCheck = Pick<Iteration, "id" | "status">;
 
 /**
  * ほかに active の Iteration（IT-1。active はカンバンに 1 つ）。自分自身は数えない。
- * いくつもあれば番号の小さいもの。開始・再開の拒否（iteration.start・reopen）に使う
+ * いくつもあれば番号の小さいもの。開始・再開の拒否（iteration.start・reopen）と、作業中のチケットの Iteration の規則（IT-4）の
+ * 決定（着手で開始できるか・案内する出口）に使う。索引の Iteration から求めるのは commands/work-iteration.ts の otherActiveIn
  */
 export function otherActiveOf<T extends ActiveCheck>(
   iterations: Iterable<T>,

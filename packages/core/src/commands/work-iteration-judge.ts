@@ -1,7 +1,7 @@
 // 作業中（in_progress・review）のチケットの Iteration は active でなければならない、という Core の固定の規則の決定（IT-4、ADR-009）。
 // チケットを作業中にする 3 つの経路（claim・ticket move の todo からの前進・done / abandoned からの戻し）が、Iteration の今の状態と
 // ほかの active を受け取って決めるだけで、git・ファイルを読まない（import は型だけ）。Workflow の requires ではないので、
-// --override では越えられない。事実を集めて決定を行う（開始を書く・拒否を投げる）のは claim-setup.ts の startIterationForWork。
+// --override では越えられない。事実を集めて決定を行う（開始を書く・拒否を投げる）のは work-iteration.ts の startIterationForWork。
 // 作業中のチケットを Iteration に入れる操作（iteration add・ticket update --iteration）は decideWorkAssignment で、照合（dg sync）が
 // todo を作業中へ進めるのは reconcile-judge.ts が decideWorkIteration で同じ規則を守る。dg next（next.ts）は claim が拒否する todo に
 // 着手の手でなく人に聞く手を返し、lint（setup.ts）は規則から外れた作業中のチケットを戻しの出口とともに指摘する。
@@ -52,10 +52,15 @@ export function workRouteOfMove(from: Status, to: Status): "move" | "return" | u
   return undefined;
 }
 
-/** 規則の文。拒否の文と、照合が前進を止めた知らせ（reconcile-judge.ts）が添える */
+/** 規則の文。lint（setup.ts）は、--override を受け付けない指摘なのでこれだけを添える */
 export const WORK_ITERATION_RULE =
-  "a ticket in progress or in review must be in the active Iteration, and --override does not pass this";
-const RULE = WORK_ITERATION_RULE;
+  "a ticket in progress or in review must be in the active Iteration";
+/**
+ * --override では越えられないことを添えた規則の文。--override を持つ操作の拒否の文と、--override での進め方を案内する
+ * 照合の知らせ（reconcile-judge.ts）が添える
+ */
+export const WORK_ITERATION_RULE_WITH_OVERRIDE_NOTE = `${WORK_ITERATION_RULE}, and --override does not pass this`;
+const RULE = WORK_ITERATION_RULE_WITH_OVERRIDE_NOTE;
 
 /** Iteration にチケットを入れるコマンド */
 const addTo = (iteration: string, ticket: string) => `dg iteration add ${iteration} ${ticket}`;
@@ -102,6 +107,15 @@ export function decideWorkIteration(facts: WorkIterationFacts): WorkIterationDec
     "closed",
     `move ${ticket} into the Iteration to work in (${addTo("<iteration>", ticket)}), or reopen ${it.id} (dg iteration reopen ${it.id})`,
   );
+}
+
+/**
+ * 照合が todo を作業中（to）へ進めるのを、planned の Iteration が止めたときの人の出口（決定が開始のとき）。照合は Iteration を開始しない
+ * （reconcile-judge.ts）ので、Iteration を開始するか、開始する着手の操作（ticket move）で進めるかを人が選ぶ。拒否のときの出口は
+ * decideWorkIteration の ways
+ */
+export function unstartedWays(ticket: string, iteration: string, to: Status): string {
+  return `start ${iteration} (dg iteration start ${iteration}), or move ${ticket} with ticket move ${ticket} ${to}, which starts ${iteration}`;
 }
 
 /**
