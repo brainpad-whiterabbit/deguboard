@@ -80,7 +80,6 @@ export const EN: Readonly<Record<string, string>> = {
   頼む: "Ask",
   "選択を外す（Esc）": "Clear selection (Esc)",
   選択を外す: "Clear selection",
-  "ID をコピー": "Copy IDs",
   "選んだ {0} 件の ID をコピー（Ctrl/⌘+C）": "Copy the IDs of {0} selected tickets (Ctrl/⌘+C)",
   コピーの形を選ぶ: "Choose what to copy",
   コピーの形: "Copy as",

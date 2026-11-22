@@ -583,7 +583,7 @@ describe("選んだ行の ID をコピーする（UI-15）", () => {
     for (const title of titles) fireEvent.click(linkOf(title), { ctrlKey: true });
   }
 
-  it("帯の頼む主ボタンと ▾ の右の「ID をコピー」で、選んだ ID を見えている順に空白で区切ってコピーし、選択は外さず、何件の何をコピーしたかを少しの間出す", async () => {
+  it("帯の頼む主ボタンと ▾ の右のコピーのアイコンで、選んだ ID を見えている順に空白で区切ってコピーし、選択は外さず、何件の何をコピーしたかを少しの間出す", async () => {
     const copy = vi.fn<Host["copy"]>(async () => {});
     // 選んだ順（五つ目 → 画面）ではなく、見えている順（画面 → 五つ目）でコピーする
     await selectRows(["五つ目", "画面"], copy);
@@ -594,12 +594,16 @@ describe("選んだ行の ID をコピーする（UI-15）", () => {
     expect(buttons).toEqual([
       "割り当てる",
       "ほかの頼むことを選ぶ",
-      "ID をコピー",
+      "選んだ 2 件の ID をコピー（Ctrl/⌘+C）",
       "コピーの形を選ぶ",
       "選択を外す",
     ]);
-    const copyIds = within(bar()!).getByRole("button", { name: "ID をコピー" });
+    // 既定の幅の左パネルで主ボタンの名前に幅を回すため、コピーはアイコンだけにし、名前は title と aria-label に置く
+    const copyIds = within(bar()!).getByRole("button", {
+      name: "選んだ 2 件の ID をコピー（Ctrl/⌘+C）",
+    });
     expect(copyIds.title).toBe("選んだ 2 件の ID をコピー（Ctrl/⌘+C）");
+    expect(copyIds.textContent).toBe("");
     fireEvent.click(copyIds);
     expect(copy).toHaveBeenCalledWith("t3 t5");
     const status = within(bar()!).getByRole("status");
@@ -615,7 +619,7 @@ describe("選んだ行の ID をコピーする（UI-15）", () => {
       throw new Error("clipboard");
     });
     await selectRows(["画面"], copy);
-    fireEvent.click(within(bar()!).getByRole("button", { name: "ID をコピー" }));
+    fireEvent.click(within(bar()!).getByRole("button", { name: /の ID をコピー/ }));
     expect(await within(bar()!).findByText("コピーできませんでした")).toBeTruthy();
     expect(selected()).toEqual(["t3"]);
   });
@@ -671,7 +675,7 @@ describe("選んだ行の ID をコピーする（UI-15）", () => {
     // 選んでいる基準をもう一度押すと向きが入れ替わる（番号 ↓：五つ目 → 四つ目 → 画面 → API）
     fireEvent.click(within(group).getByRole("menuitemradio", { name: "番号 ↑" }));
     expect(selected()).toEqual(["t4", "t3"]);
-    fireEvent.click(within(bar()!).getByRole("button", { name: "ID をコピー" }));
+    fireEvent.click(within(bar()!).getByRole("button", { name: /の ID をコピー/ }));
     expect(copy).toHaveBeenLastCalledWith("t4 t3");
   });
 

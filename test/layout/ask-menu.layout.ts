@@ -1,7 +1,7 @@
 // 吹き出しの一覧（UI-15）。dg serve の画面を Chromium で開き、
 // カンバンとバックログの行・区画の見出し、Iteration の詳細の行の吹き出しを押すと頼むことの一覧が画面の中に出て、
 // おすすめが青い点（aria-label と title が「おすすめ」）で出て、選ぶと入力欄が開くことと、入力欄の頼むことの札がおすすめ・選んだ候補・「ほか N」の 3 つまでで幅に収まり、
-// 「ほか N」の一覧も幅の中に出て、閉じるボタンが残ること、選択の帯の主ボタンがおすすめの名前を出し、長い名前でも帯を 2 行に崩さず省略すること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-027）を確かめる。
+// 「ほか N」の一覧も幅の中に出て、閉じるボタンが残ること、選択の帯の主ボタンがおすすめの名前を既定の幅の左パネル（英語と日本語）で省略せずに出し、長い名前でも帯を 2 行に崩さず省略すること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-027）を確かめる。
 // 行の左端の帯（styles.css の [data-select-id]::before）は、押すと 1 件を選ぶ・外すになり、足しても行の配置は変わらず、hover で薄く、hover のない画面では常に薄く出ることを確かめる。
 // 帯の幅は 12px（STRIP_PX と同じ）で、内側の端（11px）は選び、外側の端（13px）は詳細を開くことも確かめる。
 // 帯を押したままなぞると通った行をまとめて選ぶ（マウスとペン。タッチは選ばずスクロール）、帯の外から始めたなぞりは選ばず、一覧の端では画面の外の行まで続けて選べることも確かめる。
@@ -14,11 +14,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { findCommand, init, openContext, runCommand } from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
+import { useLanguage } from "./language.js";
 import { SETUP_OVERRIDE } from "./setup-override.js";
 
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 /** 左パネルの幅 */
 const WIDTH = 300;
+/** 実機の既定の幅の左パネルで、選択の帯が使える幅（test:vscode の左パネルで測った値） */
+const DEFAULT_SIDEBAR_WIDTH = 257;
 /** 入力欄の札と「ほか N」の一覧が幅に収まるかを見る狭い幅 */
 const NARROW_WIDTH = 200;
 /** エディタのパネルの幅（Iteration の詳細は段分けの一覧で出す） */
@@ -264,10 +267,8 @@ describe("吹き出しの一覧（UI-15）", () => {
     },
   );
 
-  it("左パネルの選択の帯は、主ボタンにおすすめの名前を出し、長い名前は帯を 2 行に崩さず省略して title で全文を出す", async () => {
-    // 帯の件数・コピー・× は縮まないので、NARROW_WIDTH（200px）では名前によらず 2 行になる。名前の省略は WIDTH で見る。
-    // 日本語の画面の WIDTH では「割り当てる」も入りきらないので、名前を省略しないことは空きのある幅で見る
-    const wide = 400;
+  it("左パネルの選択の帯は、既定の幅で主ボタンにおすすめの名前を省略せずに出し（英語と日本語）、長い名前は帯を 2 行に崩さず省略して title で全文を出す", async () => {
+    // 帯の件数・コピー・× は縮まないので、NARROW_WIDTH（200px）では名前によらず 2 行になる。名前の省略は WIDTH で見る
     /** 行を 1 件選んで帯を出し、主ボタン（吹き出しとおすすめの名前）が名前を出すまで待つ */
     const selectRow = async (page: Page, name: string) => {
       await page.goto(`${server.url}?surface=sidebar#/backlog`, { waitUntil: "networkidle" });
@@ -291,14 +292,25 @@ describe("吹き出しの一覧（UI-15）", () => {
     const nameOverflows = (main: Locator) =>
       main.locator(".selection-ask-name").evaluate((el) => el.scrollWidth > el.clientWidth);
 
-    // 実際の候補の名前（t3 は todo で Iteration がなく、おすすめは「割り当てる」）は省略しない。
-    // 帯の空きは先に名前に回す（styles.css の .selection-ask-group）
-    const real = await browser.newPage({ viewport: { width: wide, height: 800 } });
-    const shown = await selectRow(real, "割り当てる");
-    await expectOneLine(shown.bar, wide);
-    expect(await nameOverflows(shown.main), "短い名前は省略しない").toBe(false);
-    expect(await shown.main.locator("svg").count(), "吹き出しのアイコン").toBe(1);
-    await real.close();
+    // 実際の候補の名前（t3 は todo で Iteration がなく、おすすめは Assign・割り当てる）は、既定の幅の左パネルでも省略しない。
+    // 帯の空きは先に名前に回し（styles.css の .selection-ask-group）、コピーと × はアイコンだけにして幅を空ける
+    for (const [language, name] of [
+      ["en", "Assign"],
+      ["ja", "割り当てる"],
+    ] as const) {
+      const context = await browser.newContext({
+        viewport: { width: DEFAULT_SIDEBAR_WIDTH, height: 800 },
+      });
+      await useLanguage(context, language);
+      const real = await context.newPage();
+      const shown = await selectRow(real, name);
+      const barBox = (await shown.bar.boundingBox())!;
+      expect(barBox.width, `${language}: 帯の幅`).toBeLessThanOrEqual(DEFAULT_SIDEBAR_WIDTH);
+      await expectOneLine(shown.bar, DEFAULT_SIDEBAR_WIDTH);
+      expect(await nameOverflows(shown.main), `${language}: 短い名前は省略しない`).toBe(false);
+      expect(await shown.main.locator("svg").count(), `${language}: 吹き出しのアイコン`).toBe(1);
+      await context.close();
+    }
 
     // 長い名前は、ask-menu の応答を差し替えて出す
     const long = "とても長い名前の頼むことで、狭い左パネルの帯には入りきらない";

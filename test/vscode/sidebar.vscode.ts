@@ -369,7 +369,7 @@ describe("VS Code の実機の左パネル", () => {
     await sidebar.locator(".ticket-row", { hasText: TITLES[0] }).waitFor();
   });
 
-  it("カンバンで行を 2 件選ぶと、帯におすすめの主ボタンと ▾、「ID をコピー」と ▾ と × が 1 行に並び、▾ のメニューとコピーした後の帯をライトとダークで撮る", async () => {
+  it("カンバンで行を 2 件選ぶと、帯におすすめの主ボタンと ▾、コピーのアイコンと ▾ と × が 1 行に並び、主ボタンの名前は省略されず、▾ のメニューとコピーした後の帯をライトとダークで撮る", async () => {
     // 実機の画面は英語なので、名前は英語の訳（l10n-en.ts）で引く
     await sidebar.locator('nav a[href="#/board"]').click();
     for (const title of [TITLES[0], TITLES[2]]) {
@@ -383,7 +383,8 @@ describe("VS Code の実機の左パネル", () => {
     const ask = bar.locator(".selection-ask");
     await expect.poll(() => ask.textContent()).not.toBe("Ask");
     const askMore = bar.getByRole("button", { name: "Choose another request" });
-    const copyIds = bar.getByRole("button", { name: "Copy IDs" });
+    // コピーはアイコンだけ（名前は aria-label と title）
+    const copyIds = bar.getByRole("button", { name: /^Copy the IDs of 2 selected tickets/ });
     const formats = bar.getByRole("button", { name: "Choose what to copy" });
     const clear = bar.getByRole("button", { name: "Clear selection" });
     // 左パネルの幅で 1 行に収まる（ボタンの縦の位置がそろう）
@@ -397,6 +398,9 @@ describe("VS Code の実機の左パネル", () => {
     expect(clearBox.x + clearBox.width).toBeLessThanOrEqual(barBox.x + barBox.width);
     const count = bar.getByText("2 selected");
     expect(await count.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    // 既定の幅の左パネルでも、主ボタンのおすすめの名前は省略されない
+    const askName = ask.locator(".selection-ask-name");
+    expect(await askName.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     for (const theme of ["dark", "light"] as const) {
       await host.setTheme(theme);
       const shot = await host.screenshot("selection-bar", theme);
