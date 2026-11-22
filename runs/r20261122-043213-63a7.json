@@ -1,0 +1,38 @@
+{
+  "id": "r20261122-043213-63a7",
+  "ticket": "t1223",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-2",
+  "started_at": "2026-11-22T04:32:13Z",
+  "finished_at": "2026-11-22T04:35:55Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "ST-3 still says claim warns and succeeds when the Iteration cannot be started, against IT-4",
+    "ticket move decides the immediate and exclusive write from the local index before the fetch, so a start found after the fetch is not exclusive",
+    "CL-3 does not name the Iteration start by ticket move among the writes pushed at once",
+    "The ADR-009 bullet repeats the cases already in IT-4 and the help instead of the decision and reason"
+  ],
+  "usage": {
+    "input": 44,
+    "output": 19020,
+    "cache_read": 1652394,
+    "cache_write": 87197
+  },
+  "tools": {
+    "read": 9,
+    "search": 0,
+    "write": 15,
+    "bash": 17,
+    "other": 1,
+    "read_before_write": 6,
+    "search_before_write": 0,
+    "errors": 3
+  },
+  "session": "9b57c31f-972a-40d2-8cb4-38b97e20d87e",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 21
+}
