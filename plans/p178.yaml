@@ -3,7 +3,7 @@ tickets: [t1220, t1219, t1222, t1218, t1221]
 after:
   t1221:
     - t1219
-pending_approval: true
+pending_approval: false
 details:
   t1220:
     scope: docs/guide-notes/review.md に、振る舞いを変えた PR が packages/core/src/guide/*.md の該当箇所も直したかを確かめる規則を足す。usage・requirements の規則は変えない
@@ -25,3 +25,5 @@ details:
     scope: docs/guide-notes/import.md に、画面のいくつもの状態に触れるチケットを状態ごとに分けて起票する規則を足す
     approach: t1219 の後に同じファイルに足す。分け方の基準は状態の数とし、t1207 を Basis に、外す条件は画面のチケットの見直しが 3 回続けて 2 回以下とする
     tier: standard
+approved_by: maji
+approved_at: 2026-11-22T01:30:56Z
