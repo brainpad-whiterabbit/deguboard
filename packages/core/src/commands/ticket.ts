@@ -998,7 +998,7 @@ export const ticketMove = defineCommand({
           `moving ${doc.id} from ${from} to ${input.status}`,
           { facts: await factsFor(ctx, doc, policy.requires) },
         );
-        // 作業中のチケットの Iteration は active（IT-1）。Workflow の判定を通った後でも守る Core の固定の規則で、--override でも
+        // 作業中のチケットの Iteration は active（IT-4）。Workflow の判定を通った後でも守る Core の固定の規則で、--override でも
         // 越えられない。todo からの着手は claim と同じく planned を開始し、done・abandoned からの戻しは開始しない
         const route = workRouteOfMove(from, input.status);
         if (route) await startIterationForWork(ctx, route, doc.id, doc.data.iteration, warnings);

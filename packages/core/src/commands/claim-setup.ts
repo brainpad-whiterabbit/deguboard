@@ -60,7 +60,7 @@ export function workIterationDecision(
 }
 
 /**
- * チケットを作業中にする書き込みの中で、その Iteration が active であることを守る（IT-1。claim と ticket move が共有する）。
+ * チケットを作業中にする書き込みの中で、その Iteration が active であることを守る（IT-4。claim と ticket move が共有する）。
  * 決定が開始なら planned の Iteration を開始して warnings に書き、拒否なら REJECTED を投げる（何も書く前に呼ぶ）
  */
 export async function startIterationForWork(

@@ -1,5 +1,5 @@
 // claim に付く準備（Iteration への追加と開始・作業ブランチの worktree の作成）と、作業中のチケットの Iteration を active に保つ規則の
-// 経路の代表（claim・ticket move・done / abandoned からの戻し。IT-1）を、bare リモート付きの一時リポジトリで確かめる（ST-3）
+// 経路の代表（claim・ticket move・done / abandoned からの戻し。IT-4）を、bare リモート付きの一時リポジトリで確かめる（ST-3）
 
 import { existsSync } from "node:fs";
 import { realpath } from "node:fs/promises";

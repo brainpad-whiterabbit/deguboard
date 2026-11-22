@@ -27,7 +27,7 @@ Epic は目的ごとにチケットを束ねる独立したエンティティで
 ### active の Iteration はカンバンに 1 つ
 
 - active の Iteration はカンバンに 1 つに限り（カンバンの中を分ける単位は持たない。[ADR-034](ADR-034-storage-and-id.md)）、`start`・`reopen` はほかに active があれば拒否する。claim と同じく即座に push して排他にし、それでも 2 つになったもの（直接の編集・マージ）は `lint` が指摘する（IT-1）
-- 作業中（`in_progress`・`review`）のチケットの Iteration は active でなければならない。チケットを作業中にする操作（claim・`ticket move` の todo からの前進・done / abandoned からの戻し）で守る Core の固定の規則で、Workflow では変えられず、`--override` でも越えられない。着手（claim・todo からの前進）は、チケットの Iteration が planned でほかに active がなければ開始し、ほかに active があるか closed なら拒否する。戻しは active でなければ拒否する。出口は、チケットを active の Iteration に移す（`flow.assign`）か、今の active を閉じる（`flow.release`）で、どちらにするかは人が決める。Iteration のないチケットは対象にしない（`lint.require_iteration` が見る）
+- 作業中（`in_progress`・`review`）のチケットの Iteration は active でなければならない。チケットを作業中にする操作（claim・`ticket move` の todo からの前進・done / abandoned からの戻し）で守る Core の固定の規則で、Workflow では変えられず、`--override` でも越えられない。着手（claim・todo からの前進）は、チケットの Iteration が planned でほかに active がなければ開始し、ほかに active があるか closed なら拒否する。戻しは active でなければ拒否する。出口は、チケットを active の Iteration に移す（`flow.assign`）か、今の active を閉じる（`flow.release`）で、どちらにするかは人が決める。Iteration のないチケットは対象にしない（`lint.require_iteration` が見る）。細部は IT-4
 
 ### 期間は実績だけを記録する
 

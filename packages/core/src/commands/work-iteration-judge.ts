@@ -1,4 +1,4 @@
-// 作業中（in_progress・review）のチケットの Iteration は active でなければならない、という Core の固定の規則の決定（IT-1、ADR-009）。
+// 作業中（in_progress・review）のチケットの Iteration は active でなければならない、という Core の固定の規則の決定（IT-4、ADR-009）。
 // チケットを作業中にする 3 つの経路（claim・ticket move の todo からの前進・done / abandoned からの戻し）が、Iteration の今の状態と
 // ほかの active を受け取って決めるだけで、git・ファイルを読まない（import は型だけ）。Workflow の requires ではないので、
 // --override では越えられない。事実を集めて決定を行う（開始を書く・拒否を投げる）のは claim-setup.ts の startIterationForWork。

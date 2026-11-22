@@ -131,9 +131,10 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `status` は `planned` / `active` / `closed` で、予定の期間は持たず、実績として `started_at`・`closed_at`・完了と持ち越しの件数を書く。関所を通った記録は `checkpoints` に消さずに足す（EX-8）。閉じる・再開は `flow.release` で判定する（WF-9）。active はカンバンに 1 つに保ち、チケットを作業中（`in_progress`・`review`）にできるのは Iteration が active のときに限る（細部は `iteration start / close / reopen --help` と `ticket claim / move --help`）
+- IT-1 `status` は `planned` / `active` / `closed` で、予定の期間は持たず、実績として `started_at`・`closed_at`・完了と持ち越しの件数を書く。関所を通った記録は `checkpoints` に消さずに足す（EX-8）。閉じる・再開は `flow.release` で判定する（WF-9）。active はカンバンに 1 つに保つ（細部は `iteration start / close / reopen --help`）
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。閉じた Iteration には入れられない。閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）
 - IT-3 `iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形は `packages/core/src/commands/iteration.ts`、並びは `commands/helpers.ts` の `ticketsInIteration`）
+- IT-4 チケットを作業中（`in_progress`・`review`）にできるのは、その Iteration が active のときに限る（IT-1）。着手は planned の Iteration を開始し、開始できなければ拒否する。`--override` では越えられない。Iteration のないチケットは対象にしない（細部は `ticket claim / move --help`）
 
 ### 5.7 Plan（`plans/p7.yaml`）
 
