@@ -36,7 +36,10 @@ import {
   prepareIterationForClaim,
   prepareWorktreeForClaim,
   runSetupInWorktree,
+  startIterationForWork,
+  workIterationDecision,
 } from "./claim-setup.js";
+import { workRouteOfMove } from "./work-iteration-judge.js";
 import { dropSessionClaim, guardSessionClaim, recordSessionClaim } from "./claim-sessions.js";
 import {
   dropReservation,
@@ -955,7 +958,7 @@ export const ticketMove = defineCommand({
   positionals: ["ticket", "status"],
   group: "ticket",
   summary:
-    "Change the Status. The Workflow (dg workflow show) judges the move: a move forward by the boundaries it crosses (every boundary in between when it skips one; the stricter value applies, and the requires of all of them must be met), a move to abandoned by exceptions.abandon, a move back from done or abandoned by exceptions.reopen, and any other move back by exceptions.back. By the value, an agent goes ahead, needs a person's approval (--approved-by), or is rejected (human_only); a person goes ahead, except for agent_only, which needs --override. A move forward whose requires are not met is rejected, and only a person can pass it with --override. The requires on branch and PR facts (branch_* and pr_*) do not apply to a ticket started with no branch (claim --without-branch; in_progress or review), so work with no PR reaches done by the decide value alone. A rejected move returns TRANSITION_REJECTED, and so does a move to the same Status. Closes Runs running on this machine: abandoned closes implementation and fix Runs with failure; review and done for a ticket with no branch, and done with no PR, close the implementation Run with success",
+    "Change the Status. The Workflow (dg workflow show) judges the move: a move forward by the boundaries it crosses (every boundary in between when it skips one; the stricter value applies, and the requires of all of them must be met), a move to abandoned by exceptions.abandon, a move back from done or abandoned by exceptions.reopen, and any other move back by exceptions.back. By the value, an agent goes ahead, needs a person's approval (--approved-by), or is rejected (human_only); a person goes ahead, except for agent_only, which needs --override. A move forward whose requires are not met is rejected, and only a person can pass it with --override. The requires on branch and PR facts (branch_* and pr_*) do not apply to a ticket started with no branch (claim --without-branch; in_progress or review), so work with no PR reaches done by the decide value alone. A rejected move returns TRANSITION_REJECTED, and so does a move to the same Status. A ticket in progress or in review must be in the active Iteration, which is fixed in Core (workflow.yaml cannot change it, and --override does not pass it; a ticket with no Iteration is not judged): a move from todo to in_progress or review starts the ticket's planned Iteration when no other Iteration is active, as claim does (pushed at once), and is rejected (REJECTED) when another is active or the ticket's Iteration is closed; a move back from done or abandoned to in_progress or review is rejected unless the ticket's Iteration is active. The message gives the ways out (move the ticket into the active Iteration, or close the active one), which a person chooses. Closes Runs running on this machine: abandoned closes implementation and fix Runs with failure; review and done for a ticket with no branch, and done with no PR, close the implementation Run with success",
   input: z.object({
     ticket: ticketRef,
     status: statusSchema.describe(`Next Status (${STATUSES.join(" / ")})`),
@@ -965,9 +968,20 @@ export const ticketMove = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const warnings: string[] = [];
+    // 着手で planned の Iteration を開始する移動は、active を 1 つに保つ排他なので、iteration start と同じく即座に push し、
+    // 拒否されたら判定からやり直す。書き込みのオプションは書き込みの前に決めるので、今の索引で見込みを立てる
+    // （取り込んだ後に開始が要るとわかったときは、下の判定が開始し、この書き込みの普通の経路で送る）
+    const ahead = ctx.store.resolve("ticket", input.ticket)?.data;
+    const aheadRoute = ahead ? workRouteOfMove(ahead.status, input.status) : undefined;
+    const startsIteration =
+      ahead !== undefined &&
+      aheadRoute !== undefined &&
+      workIterationDecision(ctx, aheadRoute, ahead.id, ahead.iteration).kind === "start";
     const result = await withWrite(
       ctx,
       async () => {
+        // 書き込みのやり直し（cas）ごとに作り直す
+        warnings.length = 0;
         const doc = ctx.store.require("ticket", input.ticket);
         const from = doc.data.status;
         if (from === input.status)
@@ -984,6 +998,10 @@ export const ticketMove = defineCommand({
           `moving ${doc.id} from ${from} to ${input.status}`,
           { facts: await factsFor(ctx, doc, policy.requires) },
         );
+        // 作業中のチケットの Iteration は active（IT-1）。Workflow の判定を通った後でも守る Core の固定の規則で、--override でも
+        // 越えられない。todo からの着手は claim と同じく planned を開始し、done・abandoned からの戻しは開始しない
+        const route = workRouteOfMove(from, input.status);
+        if (route) await startIterationForWork(ctx, route, doc.id, doc.data.iteration, warnings);
         // PR の要らない作業（branch なし）は照合が進めないので、review・done にしたときが実装の終わり（RN-6）。
         // branch のあるチケットの実装の Run は PR の記録・発見が PR の作成時刻で閉じる
         const endRuns = runsClosedByMove(doc.data, input.status);
@@ -1010,7 +1028,8 @@ export const ticketMove = defineCommand({
             closed,
           ),
         // 承認者と強制の理由はこの操作のコミットに残す（まとめ待ちにすると、まとめのコミットの文に埋もれる）
-        immediate: hasRecord(input),
+        immediate: hasRecord(input) || startsIteration,
+        cas: startsIteration,
       },
     );
     await dropClosed(ctx, result.value.closed);
@@ -1197,7 +1216,7 @@ export const ticketClaim = defineCommand({
   group: "ticket",
   summary:
     "Start work on a ticket. Sets the assignee to yourself, records the branch and its start commit (branch_base: the tip of base, so that reconcile does not treat a branch with no commits as merged), and sets in_progress. Winning the push gives exclusive access. The Workflow's todo → in_progress boundary judges it, as for ticket move (see dg ticket move --help; dg workflow show gives its requires and decide): unmet requires reject it, and by the decide value an agent needs --approved-by or is rejected (when the value asks for a person's approval, an agent passes --approved-by after a person instructed or approved starting the ticket, where a person's approval of the Plan that includes it counts, or --auto in a flow that a person started with --auto, only when the value is ask_unless_auto; a person's claim is not asked). Claiming again (below) is not judged. Claiming a todo ticket assigned to another user changes the assignee with a warning, and the Workflow's governance.reassign judges it (dg workflow show gives its value). If the ticket is in a Plan awaiting approval, claim still succeeds and the warnings say to ask a person to approve it first. " +
-    "If lint.require_iteration is true and the ticket has no Iteration, it goes into the active Iteration (or else the planned one, if there is only one). If there is no target, or there is no active one and several are planned, it goes into none and the warnings say to ask a person. If the ticket's Iteration is planned, it becomes active; if that fails (another active one), the failure goes into the warnings and claim still succeeds. Both are pushed in the same write as the claim. " +
+    "If lint.require_iteration is true and the ticket has no Iteration, it goes into the active Iteration (or else the planned one, if there is only one). If there is no target, or there is no active one and several are planned, it goes into none and the warnings say to ask a person. A ticket in progress or in review must be in the active Iteration, which is fixed in Core (workflow.yaml cannot change it, and --override does not pass it): if the ticket's Iteration is planned and no other Iteration is active, it becomes active; if another Iteration is active, or the ticket's Iteration is closed, claim is rejected (REJECTED, also with --without-branch), and the message gives the ways out (move the ticket into the active Iteration, or close the active one), which a person chooses. A ticket with no Iteration is not judged. Adding and starting are pushed in the same write as the claim. " +
     "After the push, it creates the work branch's worktree at worktree.root/<branch name> (change with --worktree-path) from that start commit, and puts its path in worktree. If a worktree for that branch already exists, it uses that; if only the local branch exists, it checks it out. If it cannot be created, the failure goes into the warnings and claim still succeeds. In a worktree it created (not an existing one), it runs config's worktree.setup commands; a failure goes into the warnings and claim still succeeds. That setup can take several minutes, such as pnpm install (limit 10 minutes), and claim does not return until it finishes. It creates no worktree with --no-worktree or --without-branch. " +
     "For an agent, it then opens an implementation Run (step implement) and prints its ID as run (on the last line of stdout in human output). The Run opens before the setup commands run. If it cannot be opened, only a warning is given and claim still succeeds. " +
     "In a session that dg hooks have reached, an agent's claim without --no-run (other than --without-branch, and including claiming again) still opens the Run, and warns to ask a sub-agent to implement or fix with the marker instead. " +
