@@ -7,7 +7,7 @@ after:
     - t1224
   t1226:
     - t1225
-pending_approval: true
+pending_approval: false
 details:
   t1223:
     scope: claim・ticket move・done/abandoned からの作業中への戻しで、作業中のチケットの Iteration が active であることを守り、ADR-031・ADR-009・IT-1・ヘルプ・guide-work を書き換える。Iteration への追加・照合・lint・next は含まない
@@ -25,3 +25,5 @@ details:
     scope: 閉じた Iteration の done・abandoned を todo に戻したときに iteration を外すこと
     approach: ticket move の遷移に伴う扱いで、戻す先が todo で Iteration が閉じているときに iteration を外す
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-22T04:19:56Z
