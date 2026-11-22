@@ -58,4 +58,8 @@ checkpoints:
         - t1225
         - t1226
         - t1235
+  - name: release
+    at: 2026-11-22T06:30:35Z
+    by: maji/agent
+    approved_by: maji
 started_at: 2026-11-22T01:40:41Z
