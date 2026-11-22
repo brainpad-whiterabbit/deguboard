@@ -4,7 +4,7 @@
 
 ## 要約
 
-Epic は目的ごとにチケットを束ねる独立したエンティティで、期間の目標は Milestone を置かず Iteration で表す。Epic の閉じる・再開は Workflow の `governance.epic` で、Iteration の閉じる・再開は `flow.release` で判定する。既定はどちらも、`--auto` でもエージェントに人の承認を求める（値の正本は `core/workflow/resolve.ts`）。active な Iteration はカンバンに 1 つに限る。Iteration の期間は予定を持たず、実績（始めた日時と閉じた日時）だけを記録する。
+Epic は目的ごとにチケットを束ねる独立したエンティティで、期間の目標は Milestone を置かず Iteration で表す。Epic の閉じる・再開は Workflow の `governance.epic` で、Iteration の閉じる・再開は `flow.release` で判定する。既定はどちらも、`--auto` でもエージェントに人の承認を求める（値の正本は `core/workflow/resolve.ts`）。active な Iteration はカンバンに 1 つに限り、作業中のチケットの Iteration は active に限る。Iteration の期間は予定を持たず、実績（始めた日時と閉じた日時）だけを記録する。
 
 ## 背景
 
@@ -27,6 +27,7 @@ Epic は目的ごとにチケットを束ねる独立したエンティティで
 ### active の Iteration はカンバンに 1 つ
 
 - active の Iteration はカンバンに 1 つに限り（カンバンの中を分ける単位は持たない。[ADR-034](ADR-034-storage-and-id.md)）、`start`・`reopen` はほかに active があれば拒否する。claim と同じく即座に push して排他にし、それでも 2 つになったもの（直接の編集・マージ）は `lint` が指摘する（IT-1）
+- 作業中（`in_progress`・`review`）のチケットの Iteration は active でなければならない。チケットを作業中にする操作が守る Core の固定の規則で、Workflow では変えられず、`--override` でも越えられない（どちらの Iteration で進めるかは人が決める）。操作ごとの開始と拒否の場合は IT-4 と `ticket claim / move --help`
 
 ### 期間は実績だけを記録する
 
@@ -44,6 +45,7 @@ Epic は目的ごとにチケットを束ねる独立したエンティティで
 - Iteration を閉じる・再開するのを規約でなく `flow.release` で判定するのは、規約は LLM が読んで守るので、指示のないまま閉じる誤りを止められないため。Epic と同じ 5 つの値で書けば、人に限りたいカンバンは値を書き換えるだけで済む
 - 期間を実績だけにするのは、Iteration を閉じるのは「中のチケットが終わったとき」で、日付は運用の目安にとどまるため。予定の日付は始める日・閉じる日とずれ、ずれたまま残ると画面の期間と履歴が実際と食い違う。超過の案内は、閉じる判断を日付で促すことになり、閉じる・持ち越すは人が中身を見て決めるという扱いと合わない
 - active を 1 つに限るのは、「今の Iteration」を手順（チケットを入れる先・既定の勧め）とカンバンの既定の選択が同じ 1 つに決められるようにするため。複数を許すと、前の Iteration を閉じ忘れたまま次を始めたときに古い方が既定になる。閉じ忘れは拒否で気づかせ、どちらを閉じるかは人が決める
+- 作業中のチケットの Iteration を active に限るのは、active でない Iteration で作業が進むと、「今の Iteration」の外に作業中のチケットができ、active を 1 つに限る意味がなくなるため。Workflow の `requires` でなく Core の固定にするのは、既存の workflow.yaml は境目を明示して書いていて新しい既定が届かず、カンバンごとに変える理由もないため。`--override` を置かないのは、チケットを移すか active を閉じれば進められ、規則を越える必要がないため
 
 ## 採らなかった案
 
@@ -52,6 +54,7 @@ Epic は目的ごとにチケットを束ねる独立したエンティティで
 - **ラベルで Epic を代用する**：目的の本文・進捗・閉じる操作を表せない
 - **Milestone を置く**：Iteration と役割が重なり、データモデルが増えるだけ
 - **active を複数許し、画面と手順が選ぶ**：「今の Iteration」が人と画面と手順で食い違う。並行の作業は 1 つの Iteration の中で表せる
+- **作業中のチケットの Iteration の規則を Workflow の `requires` の事実にする**：境目を明示して書いた既存の workflow.yaml には新しい既定が届かず、規則が効かないカンバンが残る
 - **Epic と Iteration の閉じる・再開の既定を `human_only` にする**：人が頼んだ操作をエージェントが実行できない。人に限りたいカンバンは値を書き換える
 - **閉じる・再開する制限を config のコマンド名の一覧（`actor.human_only`）に置く**：拒否の 2 値しか書けず、Status の動きの権限と書く場所が分かれる
 - **Iteration を閉じる・再開するのを dg では判定せず、人の指示があるときだけ行う規約にとどめる**：守るかが LLM 次第で、人の承認で任せる形も書けない

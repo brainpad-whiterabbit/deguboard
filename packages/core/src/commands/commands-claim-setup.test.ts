@@ -1,4 +1,5 @@
-// claim に付く準備（Iteration への追加と開始・作業ブランチの worktree の作成）を、bare リモート付きの一時リポジトリで確かめる（ST-3）
+// claim に付く準備（Iteration への追加と開始・作業ブランチの worktree の作成）と、作業中のチケットの Iteration を active に保つ規則の
+// 経路の代表（claim・ticket move・done / abandoned からの戻し。IT-4）を、bare リモート付きの一時リポジトリで確かめる（ST-3）
 
 import { existsSync } from "node:fs";
 import { realpath } from "node:fs/promises";
@@ -14,10 +15,16 @@ import {
 import { iterationTargetFor } from "./claim-setup.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { iterationCreate, iterationShow, iterationStart } from "./iteration.js";
+import {
+  iterationAdd,
+  iterationClose,
+  iterationCreate,
+  iterationShow,
+  iterationStart,
+} from "./iteration.js";
 import { planCreate } from "./plan.js";
 import { configSet } from "./setup.js";
-import { ticketClaim, ticketCreate, ticketShow, ticketUnclaim } from "./ticket.js";
+import { ticketClaim, ticketCreate, ticketMove, ticketShow, ticketUnclaim } from "./ticket.js";
 
 afterEach(runCleanups);
 
@@ -137,7 +144,7 @@ describe("claim の Iteration の準備", () => {
     );
   });
 
-  it("チケットの Iteration が planned なら開始し、ほかに active があれば開始せず warnings に出して claim は成功する", async () => {
+  it("チケットの Iteration が planned なら開始し、ほかに active があれば claim を拒否する（--without-branch も、--override でも）", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f, { now: () => NOW });
     await runCommand(iterationCreate, ctx, { name: "S1" });
@@ -147,10 +154,149 @@ describe("claim の Iteration の準備", () => {
     const first = await runCommand(ticketClaim, ctx, { ticket: "t1", no_worktree: true });
     expect(first.warnings).toContain("Started s1 (active)");
     expect((await runCommand(iterationShow, ctx, { iteration: "s1" })).data.status).toBe("active");
-    const second = await runCommand(ticketClaim, ctx, { ticket: "t2", no_worktree: true });
-    expect(second.data.status).toBe("in_progress");
-    expect(second.warnings.join("\n")).toContain("Cannot start s2 (s1 is active)");
+    // 出口の 2 つ（チケットを active に移す・今の active を閉じる）を案内して拒否する。組み合わせは work-iteration-judge.test.ts
+    for (const extra of [
+      { no_worktree: true },
+      { without_branch: true },
+      { no_worktree: true, override: "急ぎ" },
+    ]) {
+      const error = await runCommand(ticketClaim, ctx, { ticket: "t2", ...extra }).catch(
+        (e: unknown) => e,
+      );
+      expect(error).toMatchObject({ code: "REJECTED" });
+      expect((error as Error).message).toContain("t2 is in s2 (planned, and s1 is active)");
+      expect((error as Error).message).toContain("move t2 into s1 (dg iteration add s1 t2)");
+      expect((error as Error).message).toContain("close s1 (dg iteration close s1)");
+    }
+    // 拒否した claim は何も書かない
+    expect((await runCommand(ticketShow, ctx, { ticket: "t2" })).data).toMatchObject({
+      status: "todo",
+      iteration: "s2",
+    });
     expect((await runCommand(iterationShow, ctx, { iteration: "s2" })).data.status).toBe("planned");
+    // 出口：チケットを active の Iteration に移せば claim できる
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t2"] });
+    const moved = await runCommand(ticketClaim, ctx, { ticket: "t2", no_worktree: true });
+    expect(moved.data).toMatchObject({ status: "in_progress", iteration: "s1" });
+  });
+
+  it("ticket move で todo から前へ進めるとき、planned の Iteration を開始して別の clone からも見え、ほかに active があれば拒否する", async () => {
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f, { now: () => NOW });
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(iterationCreate, ctx, { name: "S2" });
+    await runCommand(ticketCreate, ctx, { title: "A", iteration: "s1" });
+    await runCommand(ticketCreate, ctx, { title: "B", iteration: "s2" });
+    const first = await runCommand(ticketMove, ctx, { ticket: "t1", status: "in_progress" });
+    expect(first.data.status).toBe("in_progress");
+    expect(first.warnings).toContain("Started s1 (active)");
+    // 開始は iteration start と同じく即座に push する（active を 1 つに保つ排他）
+    expect(first.write).toMatchObject({ committed: true, pushed: true });
+    const other = await openContext({
+      cwd: f.cloneB,
+      initialize: {},
+      actor: { kind: "human", user: "b" },
+    });
+    expect((await runCommand(iterationShow, other, { iteration: "s1" })).data).toMatchObject({
+      status: "active",
+      started_at: "2026-11-09T03:00:00Z",
+    });
+    for (const status of ["in_progress", "review"] as const) {
+      const error = await runCommand(ticketMove, ctx, {
+        ticket: "t2",
+        status,
+        override: "急ぎ",
+      }).catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: "REJECTED" });
+      expect((error as Error).message).toContain("t2 is in s2 (planned, and s1 is active)");
+    }
+    expect((await runCommand(ticketShow, ctx, { ticket: "t2" })).data.status).toBe("todo");
+    expect((await runCommand(iterationShow, ctx, { iteration: "s2" })).data.status).toBe("planned");
+  });
+
+  it("ticket move の前にほかの active が別の clone で閉じられていても、開始は排他の書き込みで行い、同時の start に負けたら判定し直して拒否する", async () => {
+    const f = await initializedFixture();
+    // commit.mode each：排他でない書き込みも取り込むので、手元の索引の見込み（拒否）と取り込んだ後の判定（開始）が食い違う
+    await runCommand(configSet, await reopenInitialized(f, { now: () => NOW }), {
+      key: "commit.mode",
+      value: "each",
+    });
+    const a = await reopenInitialized(f, { now: () => NOW });
+    for (const name of ["S1", "S2", "S3"]) await runCommand(iterationCreate, a, { name });
+    await runCommand(ticketCreate, a, { title: "A", iteration: "s2" });
+    await runCommand(iterationStart, a, { iteration: "s1" });
+    // b の手元の索引では s1 が active。この後に a が s1 を閉じる
+    const hooks = {
+      beforePush: async () => {
+        hooks.beforePush = async () => {};
+        // b が s2 の開始を push する直前に、a が s3 を開始して push する
+        await runCommand(iterationStart, a, { iteration: "s3" });
+      },
+    };
+    const b = await openContext({
+      cwd: f.cloneB,
+      initialize: {},
+      actor: { kind: "human", user: "b" },
+      now: () => NOW,
+      hooks,
+    });
+    expect((await runCommand(iterationShow, b, { iteration: "s1" })).data.status).toBe("active");
+    const closed = await runCommand(iterationClose, a, { iteration: "s1" });
+    expect(closed.write).toMatchObject({ pushed: true });
+    // 取り込んだ後は s2 を開始できるが、push が a の s3 の開始に負けるので、判定からやり直して拒否する（active は 1 つのまま）
+    const error = await runCommand(ticketMove, b, { ticket: "t1", status: "in_progress" }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toMatchObject({ code: "REJECTED" });
+    expect((error as Error).message).toContain("t1 is in s2 (planned, and s3 is active)");
+    const fresh = await reopenInitialized(f, { cwd: f.cloneB, now: () => NOW });
+    expect((await runCommand(iterationShow, fresh, { iteration: "s2" })).data.status).toBe(
+      "planned",
+    );
+    expect((await runCommand(iterationShow, fresh, { iteration: "s3" })).data.status).toBe(
+      "active",
+    );
+    expect((await runCommand(ticketShow, fresh, { ticket: "t1" })).data.status).toBe("todo");
+    expect((await git(b.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+    // 競合がなければ、同じ食い違いからの移動は s2 を開始して即座に push する
+    await runCommand(iterationClose, a, { iteration: "s3" });
+    const moved = await runCommand(ticketMove, b, { ticket: "t1", status: "in_progress" });
+    expect(moved.warnings).toContain("Started s2 (active)");
+    expect(moved.write).toMatchObject({ committed: true, pushed: true });
+  });
+
+  it("done・abandoned から作業中へ戻すとき、チケットの Iteration が active でなければ拒否し、active なら戻せる", async () => {
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f, { now: () => NOW });
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(ticketCreate, ctx, { title: "A", iteration: "s1" });
+    await runCommand(ticketCreate, ctx, { title: "B", iteration: "s1" });
+    await runCommand(ticketClaim, ctx, { ticket: "t1", without_branch: true });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "テスト" });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "abandoned", override: "テスト" });
+    // active のうちは戻せる
+    const back = await runCommand(ticketMove, ctx, { ticket: "t1", status: "review" });
+    expect(back.data.status).toBe("review");
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done", override: "テスト" });
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    for (const [ticket, status] of [
+      ["t1", "in_progress"],
+      ["t1", "review"],
+      ["t2", "in_progress"],
+    ] as const) {
+      const error = await runCommand(ticketMove, ctx, {
+        ticket,
+        status,
+        override: "急ぎ",
+      }).catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: "REJECTED" });
+      expect((error as Error).message).toContain(
+        `${ticket} is in s1 (closed), so it cannot go back to work`,
+      );
+    }
+    // todo へ戻すのは作業中に入らないので、規則の外
+    const todo = await runCommand(ticketMove, ctx, { ticket: "t2", status: "todo" });
+    expect(todo.data.status).toBe("todo");
   });
 
   it("agent の claim も Iteration への追加と開始を行う", async () => {

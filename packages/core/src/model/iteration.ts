@@ -41,7 +41,7 @@ const iterationFields = z.looseObject({
   name: z.string().min(1),
   goal: z.string().default(""),
   status: z.enum(ITERATION_STATUSES).default("planned"),
-  // 期間は実績だけを持つ：active になった日時（iteration start と claim の自動の開始で書き、reopen では変えない）と閉じた日時。
+  // 期間は実績だけを持つ：active になった日時（iteration start と、着手（claim・ticket move）の自動の開始で書き、reopen では変えない）と閉じた日時。
   // started_at を書く前に始めた Iteration にはない
   started_at: isoDateTime.optional(),
   closed_at: isoDateTime.optional(),
