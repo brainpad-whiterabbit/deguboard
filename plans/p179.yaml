@@ -1,0 +1,27 @@
+id: p179
+tickets: [t1223, t1224, t1225, t1226]
+after:
+  t1224:
+    - t1223
+  t1225:
+    - t1224
+  t1226:
+    - t1225
+pending_approval: true
+details:
+  t1223:
+    scope: claim・ticket move・done/abandoned からの作業中への戻しで、作業中のチケットの Iteration が active であることを守り、ADR-031・ADR-009・IT-1・ヘルプ・guide-work を書き換える。Iteration への追加・照合・lint・next は含まない
+    approach: 判定を git を読まない関数にまとめて経路と状態の組み合わせをテストで網羅し、claim と move は prepareIterationForClaim の開始の扱いを共有して、開始できないときは拒否に変える
+    tier: heavy
+  t1224:
+    scope: iteration add・ticket update --iteration の作業中のチケットの拒否と、照合が active でない Iteration の todo を進めない扱い
+    approach: t1223 の判定の関数を再利用し、照合は条件を満たさない境目と同じ報告の形に載せる
+    tier: standard
+  t1225:
+    scope: lint の新しい指摘と、dg next が planned の Iteration の todo に wait_human を返すこと。Plan の ready・waiting の形は変えない
+    approach: lint は lint_iteration_multiple_active の並びに足し、next は t1223 の判定の関数で着手できるかを見る
+    tier: standard
+  t1226:
+    scope: 閉じた Iteration の done・abandoned を todo に戻したときに iteration を外すこと
+    approach: ticket move の遷移に伴う扱いで、戻す先が todo で Iteration が閉じているときに iteration を外す
+    tier: standard
