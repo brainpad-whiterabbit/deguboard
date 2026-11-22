@@ -7,6 +7,7 @@ import { commands, setBundleLayout } from "@deguboard/core";
 import { createFixture, git, type Fixture } from "../../core/test/helpers/git-fixture.js";
 import { TEST_WORKFLOW_FILE } from "../../core/test/helpers/workflow.js";
 import { selfCommand, selfMergeDriver } from "./hooks.js";
+import { shapesOf } from "./options.js";
 import { run } from "./program.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -1097,9 +1098,31 @@ describe("dg", () => {
 
   it("外せるオプションのヘルプは外し方を none の 1 つだけ示す", async () => {
     const f = await fixture();
-    const help = (await dg(f.cloneA, ["ticket", "update", "--help"])).out;
-    // iteration・epic・pr・branch・assignee・gate
-    expect(help.match(/\(none to clear\)/g)).toHaveLength(6);
+    // 折り返しで「(none to clear)」が 2 行に割れても数えられるように、空白を 1 つに詰めてから数える
+    const help = (await dg(f.cloneA, ["ticket", "update", "--help"])).out.replace(/\s+/g, " ");
+    // 期待する数は ticket.update の入力の外せる（nullable の）オプションから求める。外せるオプションを
+    // 足せば期待も増えて追従する。説明を延ばすと折り返しの位置が動くが、空白を詰めるので数は変わらない。
+    // それでも数が合わないなら、外し方の示し方（options.ts の bindInputs）が変わったか、none 以外の
+    // 外し方を示すオプションが混じったことを表す
+    const update = commands.find((c) => c.name === "ticket.update")!;
+    const positionals = update.positionals ?? [];
+    const clearable = shapesOf(update)
+      .filter((s) => s.nullable && !positionals.includes(s.key))
+      .map((s) => s.flag);
+    // 求め方が壊れて 0 件どうしで通らないように、今の外せるオプションが入ることも確かめる
+    expect(clearable).toEqual(
+      expect.arrayContaining([
+        "iteration",
+        "epic",
+        "pr",
+        "branch",
+        "assignee",
+        "gate",
+        "origin-cause",
+      ]),
+    );
+    expect(help.match(/\(none to clear\)/g)).toHaveLength(clearable.length);
+    for (const flag of clearable) expect(help, flag).toContain(`--${flag} `);
     expect(help).not.toContain("null");
   });
 
