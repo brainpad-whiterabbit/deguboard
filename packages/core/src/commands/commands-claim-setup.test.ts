@@ -6,6 +6,7 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { git, type Fixture } from "../../test/helpers/git-fixture.js";
+import { recordBaseline } from "../git/outside.js";
 import { runGit } from "../git/run.js";
 import {
   initializedFixture,
@@ -309,6 +310,30 @@ describe("claim の Iteration の準備", () => {
       expect.stringContaining("t2 left s1, because s1 is closed"),
     );
     expect((await runCommand(ticketShow, ctx, { ticket: "t1" })).data.iteration).toBe("s1");
+  });
+
+  it("閉じた Iteration の作業中のチケットを unclaim で todo に戻すと、ticket move と同じく Iteration から外して知らせる。active の Iteration には残す（IT-2）", async () => {
+    const f = await initializedFixture();
+    const ctx = await reopenInitialized(f, { now: () => NOW });
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(ticketCreate, ctx, { title: "A", iteration: "s1" });
+    await runCommand(ticketCreate, ctx, { title: "B", iteration: "s1" });
+    await runCommand(ticketClaim, ctx, { ticket: "t1", no_worktree: true });
+    await runCommand(ticketClaim, ctx, { ticket: "t2", no_worktree: true });
+    // active の Iteration のチケットは、unclaim しても Iteration に残る
+    const kept = await runCommand(ticketUnclaim, ctx, { ticket: "t2" });
+    expect(kept.data).toMatchObject({ status: "todo", iteration: "s1" });
+    expect(kept.warnings.join("\n")).not.toContain("left s1");
+    // 規則より前のデータのように、閉じた Iteration に作業中のチケットが残った状態を作る
+    await ctx.store.update("iteration", "s1", { status: "closed" });
+    await recordBaseline(ctx.repo);
+    const left = await runCommand(ticketUnclaim, ctx, { ticket: "t1" });
+    expect(left.data.status).toBe("todo");
+    expect(left.data.iteration).toBeUndefined();
+    expect(left.warnings).toContainEqual(
+      expect.stringContaining("t1 left s1, because s1 is closed"),
+    );
+    expect((await runCommand(ticketShow, ctx, { ticket: "t1" })).data.iteration).toBeUndefined();
   });
 
   it("iteration add と ticket update --iteration は、作業中のチケットを active でない Iteration に入れるのを拒否し、何も書かない", async () => {

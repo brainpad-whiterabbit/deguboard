@@ -5,7 +5,7 @@
 // 作業中のチケットを Iteration に入れる操作（iteration add・ticket update --iteration）は decideWorkAssignment で、照合（dg sync）が
 // todo を作業中へ進めるのは reconcile-judge.ts が decideWorkIteration で同じ規則を守る。dg next（next.ts）は claim が拒否する todo に
 // 着手の手でなく人に聞く手を返し、lint（setup.ts）は規則から外れた作業中のチケットを戻しの出口とともに指摘する。
-// ticket move で閉じた Iteration のチケットを todo に戻すと Iteration から外すのは leftClosedIteration（IT-2）。
+// todo に戻す経路（ticket move・ticket unclaim）で、閉じた Iteration のチケットを Iteration から外すのは leftClosedIteration（IT-2）。
 // 組み合わせは work-iteration-judge.test.ts が確かめ、git を通すテストは経路の代表だけを見る
 
 import type { Iteration } from "../model/iteration.js";
@@ -105,9 +105,11 @@ export function decideWorkIteration(facts: WorkIterationFacts): WorkIterationDec
 }
 
 /**
- * ticket move で todo に戻すチケットが、閉じた Iteration から外れるか。外れるならその Iteration の ID を返す。
+ * ticket move・ticket unclaim で todo に戻すチケットが、閉じた Iteration から外れるか。外れるならその Iteration の ID を返す。
  * 閉じた Iteration には終わっていないチケットを残さない（IT-2。iteration close が done・abandoned 以外の iteration を外すのと揃える）。
- * done・abandoned から作業中への戻しは decideWorkIteration が拒否するので、閉じた Iteration から終わっていない状態へ出られるのは todo だけ
+ * done・abandoned から作業中への戻しは decideWorkIteration が拒否するので、閉じた Iteration から終わっていない状態へ出られるのは todo だけ。
+ * unclaim は in_progress のチケットだけを戻す。閉じた Iteration に作業中のチケットが残るのは規則より前のデータなど（lint が指摘する）で、
+ * unclaim はそこから出る出口の 1 つになる
  */
 export function leftClosedIteration(
   to: Status,
@@ -116,7 +118,7 @@ export function leftClosedIteration(
   return to === "todo" && iteration?.status === "closed" ? iteration.id : undefined;
 }
 
-/** ticket move が閉じた Iteration から外したことの知らせ。人が別の Iteration に入れられるように、入れ方を添える */
+/** ticket move・ticket unclaim が閉じた Iteration から外したことの知らせ。人が別の Iteration に入れられるように、入れ方を添える */
 export function leftClosedIterationWarning(ticket: string, iteration: string): string {
   return `${ticket} left ${iteration}, because ${iteration} is closed and a closed Iteration keeps only done and abandoned tickets. To plan it again, add it to another Iteration (${addTo("<iteration>", ticket)})`;
 }
