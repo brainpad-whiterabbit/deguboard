@@ -272,7 +272,7 @@ describe("claim の Iteration の準備", () => {
     expect(moved.write).toMatchObject({ committed: true, pushed: true });
   });
 
-  it("done・abandoned から作業中へ戻すとき、チケットの Iteration が active でなければ拒否し、active なら戻せる", async () => {
+  it("done・abandoned から作業中へ戻すとき、チケットの Iteration が active でなければ拒否し、active なら戻せる。閉じた Iteration から todo へ戻すと Iteration から外す", async () => {
     const f = await initializedFixture();
     const ctx = await reopenInitialized(f, { now: () => NOW });
     await runCommand(iterationCreate, ctx, { name: "S1" });
@@ -301,9 +301,14 @@ describe("claim の Iteration の準備", () => {
         `${ticket} is in s1 (closed), so it cannot go back to work`,
       );
     }
-    // todo へ戻すのは作業中に入らないので、規則の外
+    // todo へ戻すのは作業中に入らないので拒否しないが、閉じた Iteration からは外す（IT-2）。done の t1 は s1 に残る
     const todo = await runCommand(ticketMove, ctx, { ticket: "t2", status: "todo" });
     expect(todo.data.status).toBe("todo");
+    expect(todo.data.iteration).toBeUndefined();
+    expect(todo.warnings).toContainEqual(
+      expect.stringContaining("t2 left s1, because s1 is closed"),
+    );
+    expect((await runCommand(ticketShow, ctx, { ticket: "t1" })).data.iteration).toBe("s1");
   });
 
   it("iteration add と ticket update --iteration は、作業中のチケットを active でない Iteration に入れるのを拒否し、何も書かない", async () => {

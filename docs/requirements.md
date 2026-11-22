@@ -132,7 +132,7 @@ updated_at: 2026-10-31T05:10:00Z
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
 - IT-1 `status` は `planned` / `active` / `closed` で、予定の期間は持たず、実績として `started_at`・`closed_at`・完了と持ち越しの件数を書く。関所を通った記録は `checkpoints` に消さずに足す（EX-8）。閉じる・再開は `flow.release` で判定する（WF-9）。active はカンバンに 1 つに保つ（細部は `iteration start / close / reopen --help`）
-- IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。閉じた Iteration には入れられない。閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）
+- IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。閉じた Iteration には入れられない。閉じるときに done・abandoned 以外のチケットの `iteration` を外し、閉じた後に todo に戻したチケットも外す。進捗は都度求める（EP-3）
 - IT-3 `iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形は `packages/core/src/commands/iteration.ts`、並びは `commands/helpers.ts` の `ticketsInIteration`）
 - IT-4 作業中（`in_progress`・`review`）のチケットの Iteration は active に限る（IT-1）。着手は planned の Iteration を開始し、できなければ拒む。active でない Iteration に作業中のチケットを入れる操作は拒み、照合は進めずに警告し、外れたものは lint が指摘し、`dg next` は拒まれる着手を人に問う。`--override` で越えられず、Iteration のないチケットは対象外（細部は各ヘルプ）
 
