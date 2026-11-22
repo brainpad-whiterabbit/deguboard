@@ -5,7 +5,7 @@ after:
     - t1227
   t1231:
     - t1227
-pending_approval: true
+pending_approval: false
 details:
   t1227:
     scope: 閉じた Iteration の作業中のチケットを unclaim で todo に戻すときの iteration の扱いを IT-2 と揃える
@@ -27,3 +27,5 @@ details:
     scope: 作業中の Iteration の規則の関数の置き場所と重複の整理と、lint の文から --override を外すこと。振る舞いは変えない
     approach: 新しいモジュールに規則の実行の関数を移し、ほかの active の求め方と出口の文を 1 か所にまとめる
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-22T05:23:52Z
