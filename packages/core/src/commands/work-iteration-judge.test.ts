@@ -1,12 +1,14 @@
 // 作業中のチケットの Iteration は active、という規則の決定の組み合わせ（経路 claim・move・戻し × Iteration の状態
 // active・planned でほかに active あり／なし・closed・Iteration なし）と、作業中のチケットを Iteration に入れてよいか
-// （Status × 入れ先の状態）を、git・ファイルなしで確かめる。
+// （Status × 入れ先の状態）と、todo に戻すときに閉じた Iteration から外すか（移動先 × Iteration の状態）を、git・ファイルなしで確かめる。
 // 事実を集めて開始と拒否を行う経路は commands-claim-setup.test.ts の代表の件が見る
 import { describe, expect, it } from "vitest";
 import { STATUSES, type Status } from "../model/common.js";
 import {
   decideWorkAssignment,
   decideWorkIteration,
+  leftClosedIteration,
+  leftClosedIterationWarning,
   workRouteOfMove,
   type WorkAssignmentFacts,
   type WorkIterationFacts,
@@ -155,6 +157,26 @@ describe("workRouteOfMove", () => {
       ["in_progress", "abandoned"],
     ];
     for (const [from, to] of outside) expect(workRouteOfMove(from, to)).toBeUndefined();
+  });
+});
+
+describe("leftClosedIteration", () => {
+  it("todo に戻すチケットは、Iteration が閉じていればそこから外れ、ほかの状態の Iteration と Iteration なしは外れない", () => {
+    expect(leftClosedIteration("todo", { id: "s2", status: "closed" })).toBe("s2");
+    for (const status of ["planned", "active"] as const)
+      expect(leftClosedIteration("todo", { id: "s2", status })).toBeUndefined();
+    expect(leftClosedIteration("todo", undefined)).toBeUndefined();
+  });
+
+  it("todo 以外への移動では、閉じた Iteration からも外れない（作業中への戻しは decideWorkIteration が拒否する）", () => {
+    for (const to of STATUSES.filter((s) => s !== "todo"))
+      expect(leftClosedIteration(to, { id: "s2", status: "closed" })).toBeUndefined();
+  });
+
+  it("知らせは外れた Iteration と、別の Iteration への入れ方を書く", () => {
+    const warning = leftClosedIterationWarning("t7", "s2");
+    expect(warning).toContain("t7 left s2, because s2 is closed");
+    expect(warning).toContain("dg iteration add <iteration> t7");
   });
 });
 

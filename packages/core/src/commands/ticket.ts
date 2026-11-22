@@ -40,7 +40,11 @@ import {
   startIterationForWork,
   workIterationDecision,
 } from "./claim-setup.js";
-import { workRouteOfMove } from "./work-iteration-judge.js";
+import {
+  leftClosedIteration,
+  leftClosedIterationWarning,
+  workRouteOfMove,
+} from "./work-iteration-judge.js";
 import { dropSessionClaim, guardSessionClaim, recordSessionClaim } from "./claim-sessions.js";
 import {
   dropReservation,
@@ -973,7 +977,7 @@ export const ticketMove = defineCommand({
   positionals: ["ticket", "status"],
   group: "ticket",
   summary:
-    "Change the Status. The Workflow (dg workflow show) judges the move: a move forward by the boundaries it crosses (every boundary in between when it skips one; the stricter value applies, and the requires of all of them must be met), a move to abandoned by exceptions.abandon, a move back from done or abandoned by exceptions.reopen, and any other move back by exceptions.back. By the value, an agent goes ahead, needs a person's approval (--approved-by), or is rejected (human_only); a person goes ahead, except for agent_only, which needs --override. A move forward whose requires are not met is rejected, and only a person can pass it with --override. The requires on branch and PR facts (branch_* and pr_*) do not apply to a ticket started with no branch (claim --without-branch; in_progress or review), so work with no PR reaches done by the decide value alone. A rejected move returns TRANSITION_REJECTED, and so does a move to the same Status. A ticket in progress or in review must be in the active Iteration, which is fixed in Core (workflow.yaml cannot change it, and --override does not pass it; a ticket with no Iteration is not judged): a move from todo to in_progress or review starts the ticket's planned Iteration when no other Iteration is active, as claim does (pushed at once), and is rejected (REJECTED) when another is active or the ticket's Iteration is closed; a move back from done or abandoned to in_progress or review is rejected unless the ticket's Iteration is active. The message gives the ways out (move the ticket into the active Iteration, or close the active one), which a person chooses. Closes Runs running on this machine: abandoned closes implementation and fix Runs with failure; review and done for a ticket with no branch, and done with no PR, close the implementation Run with success",
+    "Change the Status. The Workflow (dg workflow show) judges the move: a move forward by the boundaries it crosses (every boundary in between when it skips one; the stricter value applies, and the requires of all of them must be met), a move to abandoned by exceptions.abandon, a move back from done or abandoned by exceptions.reopen, and any other move back by exceptions.back. By the value, an agent goes ahead, needs a person's approval (--approved-by), or is rejected (human_only); a person goes ahead, except for agent_only, which needs --override. A move forward whose requires are not met is rejected, and only a person can pass it with --override. The requires on branch and PR facts (branch_* and pr_*) do not apply to a ticket started with no branch (claim --without-branch; in_progress or review), so work with no PR reaches done by the decide value alone. A rejected move returns TRANSITION_REJECTED, and so does a move to the same Status. A ticket in progress or in review must be in the active Iteration, which is fixed in Core (workflow.yaml cannot change it, and --override does not pass it; a ticket with no Iteration is not judged): a move from todo to in_progress or review starts the ticket's planned Iteration when no other Iteration is active, as claim does (pushed at once), and is rejected (REJECTED) when another is active or the ticket's Iteration is closed; a move back from done or abandoned to in_progress or review is rejected unless the ticket's Iteration is active. The message gives the ways out (move the ticket into the active Iteration, or close the active one), which a person chooses. A move to todo of a ticket whose Iteration is closed takes the ticket out of that Iteration (a closed Iteration keeps only done and abandoned tickets, as iteration close leaves them), and the warnings say how to add it to another Iteration. Closes Runs running on this machine: abandoned closes implementation and fix Runs with failure; review and done for a ticket with no branch, and done with no PR, close the implementation Run with success",
   input: z.object({
     ticket: ticketRef,
     status: statusSchema.describe(`Next Status (${STATUSES.join(" / ")})`),
@@ -1040,9 +1044,16 @@ export const ticketMove = defineCommand({
       const closed = endRuns
         ? await closeRunsWith(ctx, doc.data, endRuns.openers, { result: endRuns.result }, warnings)
         : [];
+      // 閉じた Iteration に終わっていないチケットを残さない（IT-2）
+      const left = leftClosedIteration(
+        input.status,
+        doc.data.iteration ? ctx.store.iterations.get(doc.data.iteration)?.data : undefined,
+      );
+      if (left) warnings.push(leftClosedIterationWarning(doc.id, left));
       const updated = await ctx.store.update("ticket", doc.id, {
         status: input.status,
         ...transitionSideEffects(input.status),
+        ...(left ? { iteration: undefined } : {}),
         updated_at: nowIso(ctx),
       });
       return { doc: updated, from, closed, granted };
