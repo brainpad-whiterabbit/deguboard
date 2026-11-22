@@ -76,6 +76,7 @@ export const EN: Readonly<Record<string, string>> = {
   選んだ行: "Selected rows",
   "{0} 件を選択": "{0} selected",
   選んだ行をまとめてエージェントに頼む: "Ask an agent about the selected rows together",
+  "選んだ行をまとめてエージェントに頼む：{0}": "Ask an agent about the selected rows together: {0}",
   頼む: "Ask",
   "選択を外す（Esc）": "Clear selection (Esc)",
   選択を外す: "Clear selection",

@@ -369,7 +369,7 @@ describe("VS Code の実機の左パネル", () => {
     await sidebar.locator(".ticket-row", { hasText: TITLES[0] }).waitFor();
   });
 
-  it("カンバンで行を 2 件選ぶと、帯に「ID をコピー」と ▾ と × が 1 行に並び、▾ のメニューとコピーした後の帯をライトとダークで撮る", async () => {
+  it("カンバンで行を 2 件選ぶと、帯におすすめの主ボタンと ▾、「ID をコピー」と ▾ と × が 1 行に並び、▾ のメニューとコピーした後の帯をライトとダークで撮る", async () => {
     // 実機の画面は英語なので、名前は英語の訳（l10n-en.ts）で引く
     await sidebar.locator('nav a[href="#/board"]').click();
     for (const title of [TITLES[0], TITLES[2]]) {
@@ -379,14 +379,16 @@ describe("VS Code の実機の左パネル", () => {
     }
     const bar = sidebar.getByRole("region", { name: "Selected rows" });
     await bar.getByText("2 selected").waitFor();
+    // 主ボタンは候補が届くと「Ask」からおすすめの名前に替わる。替わってから並びを測って撮る
+    const ask = bar.locator(".selection-ask");
+    await expect.poll(() => ask.textContent()).not.toBe("Ask");
+    const askMore = bar.getByRole("button", { name: "Choose another request" });
     const copyIds = bar.getByRole("button", { name: "Copy IDs" });
     const formats = bar.getByRole("button", { name: "Choose what to copy" });
     const clear = bar.getByRole("button", { name: "Clear selection" });
     // 左パネルの幅で 1 行に収まる（ボタンの縦の位置がそろう）
     const tops = await Promise.all(
-      [bar.getByRole("button", { name: "Ask" }), copyIds, formats, clear].map(
-        async (b) => (await b.boundingBox())!.y,
-      ),
+      [ask, askMore, copyIds, formats, clear].map(async (b) => (await b.boundingBox())!.y),
     );
     expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(4);
     // × は帯の中に収まり、件数（2 selected）も切れない

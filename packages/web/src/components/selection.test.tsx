@@ -121,7 +121,7 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
     expect(selected()).toEqual([]);
   });
 
-  it("選ぶと「n 件を選択 頼む」の帯が出て、「選択を外す」と Esc で外せる", async () => {
+  it("選ぶと「n 件を選択」と頼む主ボタンの帯が出て、「選択を外す」と Esc で外せる", async () => {
     window.location.hash = "#/backlog";
     mount(backlogClient());
     await screen.findByText("四つ目");
@@ -129,7 +129,7 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
     fireEvent.click(linkOf("画面"), { ctrlKey: true });
     fireEvent.click(linkOf("四つ目"), { ctrlKey: true });
     expect(bar()!.textContent).toContain("2 件を選択");
-    expect(within(bar()!).getByRole("button", { name: "頼む" })).toBeTruthy();
+    expect(await within(bar()!).findByRole("button", { name: "割り当てる" })).toBeTruthy();
     fireEvent.click(within(bar()!).getByRole("button", { name: "選択を外す" }));
     expect(bar()).toBeNull();
     expect(selected()).toEqual([]);
@@ -165,8 +165,8 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
     await escapeMenu();
     // 帯の右クリックの文脈には、押しても動かない「詳細を開く」「ID をコピー」の webviewSection を載せない
     expect(contextOf(bar()!)).toEqual({ preventDefaultContextMenuItems: true });
-    // 帯の「頼む」
-    fireEvent.click(within(bar()!).getByRole("button", { name: "頼む" }));
+    // 帯の主ボタンの横の ▾
+    fireEvent.click(within(bar()!).getByRole("button", { name: "ほかの頼むことを選ぶ" }));
     await waitFor(() => expect(items()[0]).toBe("割り当てるおすすめ"));
     fireEvent.click(within(menu()).getByRole("menuitem", { name: "点検する" }));
     await waitFor(() =>
@@ -196,6 +196,82 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
   });
 });
 
+describe("選択の帯の主ボタンでおすすめを頼む（UI-15）", () => {
+  const main = () => bar()!.querySelector<HTMLButtonElement>(".selection-ask")!;
+
+  it("主ボタンは吹き出しのアイコンと候補の先頭の名前を出し、押すと一覧を通らずにその候補で入力欄を開く", async () => {
+    window.location.hash = "#/backlog";
+    const client = backlogClient();
+    mount(client);
+    await screen.findByText("四つ目");
+    fireEvent.click(linkOf("画面"), { ctrlKey: true });
+    fireEvent.click(linkOf("四つ目"), { ctrlKey: true });
+    const button = await within(bar()!).findByRole("button", { name: "割り当てる" });
+    expect(button.querySelector("svg")).toBeTruthy();
+    expect(button.title).toBe("選んだ行をまとめてエージェントに頼む：割り当てる");
+    expect(button.hasAttribute("aria-haspopup")).toBe(false);
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(askInputs(client).at(-1)).toMatchObject({ targets: ["t3", "t4"], action: "assign" }),
+    );
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(bar()).toBeNull();
+  });
+
+  it("選択を変えると、主ボタンの名前がその選択の先頭の候補に変わる", async () => {
+    window.location.hash = "#/backlog";
+    mount(backlogClient());
+    await screen.findByText("四つ目");
+    fireEvent.click(linkOf("画面"), { ctrlKey: true });
+    await within(bar()!).findByRole("button", { name: "割り当てる" });
+    // t3（todo）を外して t2（in_progress）を選ぶ
+    fireEvent.click(linkOf("API"), { ctrlKey: true });
+    fireEvent.click(linkOf("画面"), { ctrlKey: true });
+    expect(selected()).toEqual(["t2"]);
+    await waitFor(() => expect(main().textContent).toBe("再開する"));
+    expect(main().title).toBe("選んだ行をまとめてエージェントに頼む：再開する");
+  });
+
+  it("候補が届く前・引けなかったとき・空のときは、主ボタンを「頼む」にして一覧を開く", async () => {
+    window.location.hash = "#/backlog";
+    const client = backlogClient();
+    let reply: (sets: string[]) => unknown = () => {
+      throw new Error("拡張ホストに届かない");
+    };
+    let release = (): void => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    client.handlers["ask-menu"] = async (input) => {
+      await held;
+      return reply((input as { sets: string[] }).sets);
+    };
+    mount(client);
+    await screen.findByText("四つ目");
+    fireEvent.click(linkOf("画面"), { ctrlKey: true });
+    // 届く前
+    expect(main().textContent).toBe("頼む");
+    expect(main().getAttribute("aria-haspopup")).toBe("menu");
+    fireEvent.click(main());
+    expect(within(menu()).getByText("読み込み中…")).toBeTruthy();
+    // 項目がないのでフォーカスは一覧に移らない。一覧の上の Esc で閉じる
+    fireEvent.keyDown(menu(), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    // 引けなかったとき（呼び出しが丸ごと失敗した）
+    release();
+    fireEvent.click(main());
+    await waitFor(() => expect(within(menu()).getByText(/拡張ホストに届かない/)).toBeTruthy());
+    expect(main().textContent).toBe("頼む");
+    fireEvent.keyDown(menu(), { key: "Escape" });
+    // 候補が空のとき（別の選択の組を引く）
+    reply = (sets) => sets.map((key) => ({ key, candidates: [], error: null }));
+    fireEvent.click(linkOf("四つ目"), { ctrlKey: true });
+    fireEvent.click(main());
+    await waitFor(() => expect(within(menu()).queryByText("読み込み中…")).toBeNull());
+    expect(within(menu()).queryByText(/拡張ホストに届かない/)).toBeNull();
+    expect(within(menu()).queryAllByRole("menuitem")).toHaveLength(0);
+    expect(main().textContent).toBe("頼む");
+  });
+});
+
 describe("見直しの指摘（UI-15）", () => {
   it("Shift+クリックの範囲が畳んだ節をまたいでも、見えない行は選ばない", async () => {
     const client = mockClient(boardFixture());
@@ -217,7 +293,7 @@ describe("見直しの指摘（UI-15）", () => {
     await screen.findByText("四つ目");
     fireEvent.click(linkOf("画面"), { ctrlKey: true });
     fireEvent.click(linkOf("四つ目"), { ctrlKey: true });
-    fireEvent.click(within(bar()!).getByRole("button", { name: "頼む" }));
+    fireEvent.click(within(bar()!).getByRole("button", { name: "ほかの頼むことを選ぶ" }));
     await waitFor(() => expect(items()[0]).toBe("割り当てるおすすめ"));
     await escapeMenu();
     expect(screen.queryByRole("menu")).toBeNull();
@@ -507,14 +583,21 @@ describe("選んだ行の ID をコピーする（UI-15）", () => {
     for (const title of titles) fireEvent.click(linkOf(title), { ctrlKey: true });
   }
 
-  it("帯の「頼む」の右の「ID をコピー」で、選んだ ID を見えている順に空白で区切ってコピーし、選択は外さず、何件の何をコピーしたかを少しの間出す", async () => {
+  it("帯の頼む主ボタンと ▾ の右の「ID をコピー」で、選んだ ID を見えている順に空白で区切ってコピーし、選択は外さず、何件の何をコピーしたかを少しの間出す", async () => {
     const copy = vi.fn<Host["copy"]>(async () => {});
     // 選んだ順（五つ目 → 画面）ではなく、見えている順（画面 → 五つ目）でコピーする
     await selectRows(["五つ目", "画面"], copy);
+    await within(bar()!).findByRole("button", { name: "割り当てる" });
     const buttons = within(bar()!)
       .getAllByRole("button")
       .map((b) => b.getAttribute("aria-label") ?? b.textContent);
-    expect(buttons).toEqual(["頼む", "ID をコピー", "コピーの形を選ぶ", "選択を外す"]);
+    expect(buttons).toEqual([
+      "割り当てる",
+      "ほかの頼むことを選ぶ",
+      "ID をコピー",
+      "コピーの形を選ぶ",
+      "選択を外す",
+    ]);
     const copyIds = within(bar()!).getByRole("button", { name: "ID をコピー" });
     expect(copyIds.title).toBe("選んだ 2 件の ID をコピー（Ctrl/⌘+C）");
     fireEvent.click(copyIds);

@@ -52,7 +52,7 @@ Claude Code では、「s3 を計画して」のように普通の言葉で言�
 
 カンバンは Iteration のチケットを Status ごとの列に出し、上の帯にその Iteration の計画（Plan）を出します。
 
-1. **割り当てる**：バックログで行の左端を押してチケットを選び、下の **頼む** → **割り当てる** を選びます（1 件なら行の **エージェントに頼む** から）。エージェントが Iteration や Epic に入れる案を出し、承認するとカンバンの Todo に並びます。
+1. **割り当てる**：バックログで行の左端を押してチケットを選び、下の **割り当てる** を押します（ボタンはおすすめの頼むことで、ほかは **▾** から選べます。1 件なら行の **エージェントに頼む** から）。エージェントが Iteration や Epic に入れる案を出し、承認するとカンバンの Todo に並びます。
 
    <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/assign.ja.gif" alt="チケットを Iteration と Epic に割り当てる" width="560">
 

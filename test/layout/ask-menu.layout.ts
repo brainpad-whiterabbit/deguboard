@@ -1,7 +1,7 @@
 // 吹き出しの一覧（UI-15）。dg serve の画面を Chromium で開き、
 // カンバンとバックログの行・区画の見出し、Iteration の詳細の行の吹き出しを押すと頼むことの一覧が画面の中に出て、
 // おすすめが青い点（aria-label と title が「おすすめ」）で出て、選ぶと入力欄が開くことと、入力欄の頼むことの札がおすすめ・選んだ候補・「ほか N」の 3 つまでで幅に収まり、
-// 「ほか N」の一覧も幅の中に出て、閉じるボタンが残ること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-027）を確かめる。
+// 「ほか N」の一覧も幅の中に出て、閉じるボタンが残ること、選択の帯の主ボタンがおすすめの名前を出し、長い名前でも帯を 2 行に崩さず省略すること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-027）を確かめる。
 // 行の左端の帯（styles.css の [data-select-id]::before）は、押すと 1 件を選ぶ・外すになり、足しても行の配置は変わらず、hover で薄く、hover のない画面では常に薄く出ることを確かめる。
 // 帯の幅は 12px（STRIP_PX と同じ）で、内側の端（11px）は選び、外側の端（13px）は詳細を開くことも確かめる。
 // 帯を押したままなぞると通った行をまとめて選ぶ（マウスとペン。タッチは選ばずスクロール）、帯の外から始めたなぞりは選ばず、一覧の端では画面の外の行まで続けて選べることも確かめる。
@@ -263,6 +263,68 @@ describe("吹き出しの一覧（UI-15）", () => {
       await page.close();
     },
   );
+
+  it("左パネルの選択の帯は、主ボタンにおすすめの名前を出し、長い名前は帯を 2 行に崩さず省略して title で全文を出す", async () => {
+    // 帯の件数・コピー・× は縮まないので、NARROW_WIDTH（200px）では名前によらず 2 行になる。名前の省略は WIDTH で見る。
+    // 日本語の画面の WIDTH では「割り当てる」も入りきらないので、名前を省略しないことは空きのある幅で見る
+    const wide = 400;
+    /** 行を 1 件選んで帯を出し、主ボタン（吹き出しとおすすめの名前）が名前を出すまで待つ */
+    const selectRow = async (page: Page, name: string) => {
+      await page.goto(`${server.url}?surface=sidebar#/backlog`, { waitUntil: "networkidle" });
+      const link = page.locator('.backlog-rows a[href="#/tickets/t3"]');
+      await link.waitFor();
+      await link.click({ modifiers: ["ControlOrMeta"] });
+      const bar = page.locator(".selection-bar");
+      const main = bar.locator(".selection-ask");
+      await expect.poll(() => main.locator(".selection-ask-name").textContent()).toBe(name);
+      return { bar, main };
+    };
+    /** 帯の中のボタンが 1 行に並び（縦の位置がそろう）、帯の幅をはみ出さない */
+    const expectOneLine = async (bar: Locator, width: number) => {
+      const boxes = await Promise.all(
+        (await bar.locator("button").all()).map(async (b) => (await b.boundingBox())!),
+      );
+      const tops = boxes.map((b) => b.y);
+      expect(Math.max(...tops) - Math.min(...tops), "ボタンの縦の位置の差").toBeLessThan(4);
+      for (const b of boxes) expect(b.x + b.width, "ボタンの右端").toBeLessThanOrEqual(width);
+    };
+    const nameOverflows = (main: Locator) =>
+      main.locator(".selection-ask-name").evaluate((el) => el.scrollWidth > el.clientWidth);
+
+    // 実際の候補の名前（t3 は todo で Iteration がなく、おすすめは「割り当てる」）は省略しない。
+    // 帯の空きは先に名前に回す（styles.css の .selection-ask-group）
+    const real = await browser.newPage({ viewport: { width: wide, height: 800 } });
+    const shown = await selectRow(real, "割り当てる");
+    await expectOneLine(shown.bar, wide);
+    expect(await nameOverflows(shown.main), "短い名前は省略しない").toBe(false);
+    expect(await shown.main.locator("svg").count(), "吹き出しのアイコン").toBe(1);
+    await real.close();
+
+    // 長い名前は、ask-menu の応答を差し替えて出す
+    const long = "とても長い名前の頼むことで、狭い左パネルの帯には入りきらない";
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 800 } });
+    await page.route("**/api/commands/ask-menu", async (route) => {
+      const { input } = route.request().postDataJSON() as { input: { sets: string[] } };
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          data: input.sets.map((key) => ({
+            key,
+            candidates: [
+              { action: "check", label: long, skill: null, recommended: true, meaning: "" },
+            ],
+            error: null,
+          })),
+        }),
+      });
+    });
+    const { bar, main } = await selectRow(page, long);
+    await expectOneLine(bar, WIDTH);
+    expect(await nameOverflows(main), "長い名前は省略する").toBe(true);
+    expect(await main.getAttribute("title")).toContain(long);
+    await page.close();
+  });
 });
 
 describe("行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
