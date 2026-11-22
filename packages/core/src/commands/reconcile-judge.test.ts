@@ -398,7 +398,7 @@ describe("todo を作業中へ進めるきっかけと Iteration の状態（IT-
       decide({
         ticket: todo,
         iteration: planned,
-        branch: withPr("merged", { prLines: undefined }),
+        branch: withPr("merged"),
       }),
     ).toContainEqual(
       expect.objectContaining({
