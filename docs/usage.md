@@ -82,7 +82,7 @@ The defaults follow the weight of each operation. An agent makes the moves that 
 
 ### Fixed in Core
 
-Some operations are fixed in Core, and `workflow.yaml` cannot loosen them: changing the Workflow itself (`dg workflow set`) always needs a person's approval, uninstalling the hooks, removing deguboard from the clone (`dg uninstall`), and lowering a ticket's gate level can only be done by a person, and merging a PR that does not meet the quality gate always needs a person's approval. A ticket in progress or in review must be in the active Iteration: `claim`, `ticket move`, `iteration add`, and `ticket update --iteration` are refused otherwise (`REJECTED`), and `--override` does not pass this. The ways out are in `dg ticket claim --help` and `dg ticket move --help`.
+Some operations are fixed in Core, and `workflow.yaml` cannot loosen them: changing the Workflow itself (`dg workflow set`) always needs a person's approval, uninstalling the hooks, removing deguboard from the clone (`dg uninstall`), and lowering a ticket's gate level can only be done by a person, and merging a PR that does not meet the quality gate always needs a person's approval. A ticket in progress or in review must be in the active Iteration. `claim` and `ticket move` start the ticket's planned Iteration when no other Iteration is active. They are refused (`REJECTED`) when another Iteration is active or the ticket's Iteration is closed, and `iteration add` and `ticket update --iteration` are refused when they would put such a ticket into an Iteration that is not active. `--override` does not pass this. The ways out are in `dg ticket claim --help` and `dg ticket move --help`.
 
 ### See and change it
 

@@ -82,7 +82,7 @@ PR を ready にする・マージするときに判定する条件は、チケ�
 
 ### Core の固定
 
-次の操作は Core が固定し、`workflow.yaml` では緩められない：Workflow 自体の変更（`dg workflow set`）にはいつも人の承認が要る。フックを外す・このクローンから deguboard を外す（`dg uninstall`）・チケットの段を下げる操作は人だけが行える。品質ゲートを満たさない PR のマージにはいつも人の承認が要る。作業中（`in_progress`・`review`）のチケットは active な Iteration に入っていなければならず、外れる `claim`・`ticket move`・`iteration add`・`ticket update --iteration` は拒まれ（`REJECTED`）、`--override` でも越えられない。出口は `dg ticket claim --help` と `dg ticket move --help` にある。
+次の操作は Core が固定し、`workflow.yaml` では緩められない：Workflow 自体の変更（`dg workflow set`）にはいつも人の承認が要る。フックを外す・このクローンから deguboard を外す（`dg uninstall`）・チケットの段を下げる操作は人だけが行える。品質ゲートを満たさない PR のマージにはいつも人の承認が要る。作業中（`in_progress`・`review`）のチケットは active な Iteration に入っていなければならない。`claim` と `ticket move` は、チケットの Iteration が planned でほかに active がなければ、その Iteration を開始して通る。ほかの Iteration が active のとき、またはチケットの Iteration が閉じているときは拒まれ（`REJECTED`）、作業中のチケットを active でない Iteration に入れる `iteration add`・`ticket update --iteration` も拒まれる。`--override` でも越えられない。出口は `dg ticket claim --help` と `dg ticket move --help` にある。
 
 ### 見る・変える
 
@@ -274,7 +274,7 @@ dg はエージェントへの指示（`CLAUDE.md`・`AGENTS.md`）を書かず�
 
 - チケットは `dg` で読み書きする。`.git/deguboard/` を直接編集しない
 - 作業は `dg ticket claim <id>` から始め、PR の本文にチケットの ID（`t12` など）を書く
-- dg が操作を拒否したら（`TRANSITION_REJECTED` や `REJECTED`）、人に頼む。`REJECTED` の出口は人が選ぶ
+- dg が操作を拒否したら（`TRANSITION_REJECTED` や `REJECTED`）、人に実行か出口の選択を頼む
 - リリース：<リリースの手順>
 ```
 
