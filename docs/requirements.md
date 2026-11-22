@@ -198,7 +198,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 - CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。成功は `{ ok: true, data, warnings, write }`、失敗は `{ ok: false, error: { code, message, detail } }`。終了コードは 0（成功）/ 1（失敗。`validate`・`lint` は指摘があるとき）/ 2（使い方の誤り）。`error.code` の語彙は `packages/core/src/errors.ts` が正本
 - CL-2 コマンドの一覧とオプションは `dg --help`（各コマンドは `dg <コマンド> --help`）が正本
-- CL-3 書き込みを伴うコマンドは `commit.mode` に従ってコミットする。作成・`ticket claim`・`iteration start / reopen` は採番と排他のため即座にコミットして push する
+- CL-3 書き込みを伴うコマンドは `commit.mode` に従ってコミットする。作成・`ticket claim`・`iteration start / reopen`・Iteration を開始する `ticket move`（IT-4）は採番と排他のため即座にコミットして push する
 - CL-4 `ticket import` は下書きの配列を 1 コミットで取り込み、取り込めない下書きがあれば起票せずに拒む（形と条件は `guide import`）
 - CL-5 `dg guide <topic>` は、各手のやり方を `config.yaml` の値で埋めて出す。`guide.notes.<topic>` の文書は題名の直後（節なら見出しの直後）に差し込み、読めなければ警告を出す。`--section <節>` は節だけを出し（重ねると順につなぐ）、ない節は使い方の誤りとして一覧を添えて失敗する。段階・次の手は Core が返す（EX-3。[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
@@ -211,7 +211,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 Status を変える操作は Workflow で判定する。前へ進む操作は越える境目すべての `requires` と `decide`、ほかの動きは `exceptions` に従う。エージェントは値により人の承認（`--approved-by`）が要るか拒否され、人は `agent_only` と満たさない `requires` を `--override` の理由で越える。同じ Status への move は拒否する（細部は `dg ticket move --help`）
-- ST-3 `claim` は todo のチケットの `assignee` を自分にし、`branch` を記録して in_progress に進める（Run は RN-5）。ブランチ名は dg が `<id>-<英語の内容>`、内容がなければ `<id>` にする。Iteration の追加と開始・worktree の作成と準備ができなければ警告して成功する。todo 以外と使えないブランチ名は拒み、別のユーザの担当は上書きして警告する（細部は `ticket claim --help`）
+- ST-3 `claim` は todo のチケットの `assignee` を自分にし、`branch` を記録して in_progress に進める（Run は RN-5）。ブランチ名は dg が `<id>-<英語の内容>`、内容がなければ `<id>` にする。Iteration への追加・worktree の作成と準備ができなければ警告して成功し、チケットの Iteration を active にできなければ拒否する（IT-4）。todo 以外と使えないブランチ名は拒み、別のユーザの担当は上書きして警告する（細部は `ticket claim --help`）
 - ST-4 照合は `dg sync` と画面の同期で、`branch` のあるチケットを固定のきっかけで進める。越える境目の `requires` と `decide` はエージェント側で判定する（PR がないか読めないチケットに `pr_*` は当てず、終端には触れない）。先端が起点（TK-10）のままのブランチはマージ済みにしない。`merge.delete_branch` が true なら done にしたチケットの worktree とブランチを消す（作業が残れば消さず警告する）
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む。結果（`reconciled`）には根拠の条件（`when`）を含める。細部は `packages/core/src/git/facts.ts`・`workflow/reconcile.ts`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)
 - ST-6 PR の事実は `gh` が使えるときだけ取る（なくても照合は Git の事実で成り立つ）。ブランチ名で見つけた PR の番号を `pr` に記録し（記録済みは書き換えない）、実装の Run を閉じる（RN-6）。`branch_at` より前に作られた、開いていない（マージ済みか閉じた）PR は前の作業のものとして使わず警告する（細部は `packages/core/src/git/facts-judge.ts`）
@@ -224,7 +224,7 @@ Workflow はカンバンに 1 つで、チケットごとには選ばない。�
 
 - SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、config と既定の Workflow を置く。データのリモートに届かなければ止める（`--new-board` は手元に先に作り、届いたら push する）。`--no-data-remote` は届くかを見ず、push しないボードを作る（SY-6）。データを別のリポジトリに置くとき（5.1）は、取り込む先とデータのブランチを渡す（細部は `dg init --help`）
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する。取り込み直しがエラーで止まるときは、そのコマンドのコミットを残さない（競合は SY-4）
-- SY-3 claim・作成・`iteration start / reopen` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す。届かなければ（fetch・push の時間切れを含む）コミットを捨てて失敗する（チケットの起票だけは DT-5 の仮番号で残す）
+- SY-3 claim・作成・`iteration start / reopen`・Iteration を開始する `ticket move` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す。届かなければ（fetch・push の時間切れを含む）コミットを捨てて失敗する（チケットの起票だけは DT-5 の仮番号で残す）
 - SY-4 同期は rebase で取り込み、チケット等の属性はマージドライバがフィールド単位で解く（規則は `git/merge.ts`）。同じ状態で時刻だけ違えば早い方を採り警告に出す。解けない競合は rebase を中止してコミットを残し、競合したフィールドと両側の値を報告して、解くまで push・照合と即時の操作（CL-3）を止める。人が選べば `dg sync --resolve` が競合したフィールドだけその側で揃える（戻し方は `dg guide overview`）
 - SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、同じチケットと step の Run の二重起動も防ぐ。チーム間の排他には使わない。agent の claim は呼んだセッションを `deguboard-local/` に記録し、それが生きている間、別のセッションの agent のもう一度の claim・`unclaim` を拒む（`--take-over` で越える。細部は `dg ticket claim --help`）
 - SY-6 リモートがなくても、同期を除くすべての操作が動く。データのリモートをなしにした（`git.data_remote: none`）ときも同じで、コードのリモートがあってもデータを fetch・push せず、作業ブランチと PR の照合はコードのリモートで動く（`git.data_remote` で名指ししたリモートがないときは 5.10）

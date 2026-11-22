@@ -952,6 +952,12 @@ function transitionSideEffects(to: Status): Record<string, unknown> {
   return {};
 }
 
+/**
+ * ticket move の排他でない書き込みの中（取り込みと索引の読み直しの後）で、planned の Iteration の開始が要ると分かったときに抜けるための印。
+ * 何も書く前に投げ、外で排他の書き込み（即座に push し、拒否されたら判定からやり直す）に回す
+ */
+class ExclusiveWriteNeeded extends AbortWrite {}
+
 // 要件 RN-6（状態の移動で、この機械で動いている Run を閉じる）
 export const ticketMove = defineCommand({
   name: "ticket.move",
@@ -969,69 +975,76 @@ export const ticketMove = defineCommand({
   async run(ctx, input) {
     const warnings: string[] = [];
     // 着手で planned の Iteration を開始する移動は、active を 1 つに保つ排他なので、iteration start と同じく即座に push し、
-    // 拒否されたら判定からやり直す。書き込みのオプションは書き込みの前に決めるので、今の索引で見込みを立てる
-    // （取り込んだ後に開始が要るとわかったときは、下の判定が開始し、この書き込みの普通の経路で送る）
+    // 拒否されたら判定からやり直す（exclusive）。書き込みのオプションは書き込みの前に決めるので、今の索引で見込みを立てる。
+    // 見込みが外れて、取り込んだ後に開始が要るとわかったとき（ほかの active が別のマシンで閉じられていたなど）は、排他でない
+    // 書き込みのまま開始しない：push が拒否されても判定し直さず、push.mode manual では送りもしないので、active が 2 つに
+    // なりうる。何も書く前に ExclusiveWriteNeeded で抜け、排他の書き込みでやり直す
     const ahead = ctx.store.resolve("ticket", input.ticket)?.data;
     const aheadRoute = ahead ? workRouteOfMove(ahead.status, input.status) : undefined;
     const startsIteration =
       ahead !== undefined &&
       aheadRoute !== undefined &&
       workIterationDecision(ctx, aheadRoute, ahead.id, ahead.iteration).kind === "start";
-    const result = await withWrite(
-      ctx,
-      async () => {
-        // 書き込みのやり直し（cas）ごとに作り直す
-        warnings.length = 0;
-        const doc = ctx.store.require("ticket", input.ticket);
-        const from = doc.data.status;
-        if (from === input.status)
-          throw new OperationError("REJECTED", `${doc.id} is already ${from}`);
-        const crossed = operationPolicy(ctx.store.requireWorkflow().resolved, {
-          command: "ticket.move",
-          move: { from, to: input.status },
-        });
-        const policy = { ...crossed, requires: requiresForTicket(crossed.requires, doc.data) };
-        const granted = requirePermission(
-          ctx,
-          policy,
-          input,
-          `moving ${doc.id} from ${from} to ${input.status}`,
-          { facts: await factsFor(ctx, doc, policy.requires) },
-        );
-        // 作業中のチケットの Iteration は active（IT-4）。Workflow の判定を通った後でも守る Core の固定の規則で、--override でも
-        // 越えられない。todo からの着手は claim と同じく planned を開始し、done・abandoned からの戻しは開始しない
-        const route = workRouteOfMove(from, input.status);
-        if (route) await startIterationForWork(ctx, route, doc.id, doc.data.iteration, warnings);
-        // PR の要らない作業（branch なし）は照合が進めないので、review・done にしたときが実装の終わり（RN-6）。
-        // branch のあるチケットの実装の Run は PR の記録・発見が PR の作成時刻で閉じる
-        const endRuns = runsClosedByMove(doc.data, input.status);
-        const closed = endRuns
-          ? await closeRunsWith(
-              ctx,
-              doc.data,
-              endRuns.openers,
-              { result: endRuns.result },
-              warnings,
-            )
-          : [];
-        const updated = await ctx.store.update("ticket", doc.id, {
-          status: input.status,
-          ...transitionSideEffects(input.status),
-          updated_at: nowIso(ctx),
-        });
-        return { doc: updated, from, closed, granted };
-      },
-      {
+    const write = (exclusive: boolean) =>
+      withWrite(ctx, () => mutate(exclusive), {
         message: ({ doc, from, closed, granted }) =>
           withClosedRun(
             `Move ${doc.id} from ${from} to ${doc.data.status}${grantedNote(ctx, granted)}`,
             closed,
           ),
         // 承認者と強制の理由はこの操作のコミットに残す（まとめ待ちにすると、まとめのコミットの文に埋もれる）
-        immediate: hasRecord(input) || startsIteration,
-        cas: startsIteration,
-      },
-    );
+        immediate: hasRecord(input) || exclusive,
+        cas: exclusive,
+      });
+    const mutate = async (exclusive: boolean) => {
+      // 書き込みのやり直し（cas）ごとに作り直す
+      warnings.length = 0;
+      const doc = ctx.store.require("ticket", input.ticket);
+      const from = doc.data.status;
+      if (from === input.status)
+        throw new OperationError("REJECTED", `${doc.id} is already ${from}`);
+      const crossed = operationPolicy(ctx.store.requireWorkflow().resolved, {
+        command: "ticket.move",
+        move: { from, to: input.status },
+      });
+      const policy = { ...crossed, requires: requiresForTicket(crossed.requires, doc.data) };
+      const granted = requirePermission(
+        ctx,
+        policy,
+        input,
+        `moving ${doc.id} from ${from} to ${input.status}`,
+        { facts: await factsFor(ctx, doc, policy.requires) },
+      );
+      // 作業中のチケットの Iteration は active（IT-4）。Workflow の判定を通った後でも守る Core の固定の規則で、--override でも
+      // 越えられない。todo からの着手は claim と同じく planned を開始し、done・abandoned からの戻しは開始しない
+      const route = workRouteOfMove(from, input.status);
+      if (
+        route &&
+        !exclusive &&
+        workIterationDecision(ctx, route, doc.id, doc.data.iteration).kind === "start"
+      )
+        throw new ExclusiveWriteNeeded();
+      if (route) await startIterationForWork(ctx, route, doc.id, doc.data.iteration, warnings);
+      // PR の要らない作業（branch なし）は照合が進めないので、review・done にしたときが実装の終わり（RN-6）。
+      // branch のあるチケットの実装の Run は PR の記録・発見が PR の作成時刻で閉じる
+      const endRuns = runsClosedByMove(doc.data, input.status);
+      const closed = endRuns
+        ? await closeRunsWith(ctx, doc.data, endRuns.openers, { result: endRuns.result }, warnings)
+        : [];
+      const updated = await ctx.store.update("ticket", doc.id, {
+        status: input.status,
+        ...transitionSideEffects(input.status),
+        updated_at: nowIso(ctx),
+      });
+      return { doc: updated, from, closed, granted };
+    };
+    const result = await write(startsIteration).catch(async (e: unknown) => {
+      if (!(e instanceof ExclusiveWriteNeeded)) throw e;
+      // 抜けた書き込みの取り込みの警告（まとめ待ちのコミット・自動で解いた競合）は、やり直しの結果に載せる
+      const again = await write(true);
+      again.write.warnings.unshift(...e.warnings);
+      return again;
+    });
     await dropClosed(ctx, result.value.closed);
     return ok({ ...withBody(result.value.doc), from: result.value.from }, result.write, warnings);
   },
