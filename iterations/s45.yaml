@@ -42,4 +42,20 @@ checkpoints:
     approved_by: maji/agent
     basis:
       facts: c5793507fe9f27d3
+  - name: audit
+    at: 2026-11-22T06:30:27Z
+    by: maji/agent
+    approved_by: maji
+    basis:
+      done:
+        - t1218
+        - t1219
+        - t1220
+        - t1221
+        - t1222
+        - t1223
+        - t1224
+        - t1225
+        - t1226
+        - t1235
 started_at: 2026-11-22T01:40:41Z
