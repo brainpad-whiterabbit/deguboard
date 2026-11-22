@@ -1,0 +1,36 @@
+{
+  "id": "r20261122-020645-608d",
+  "ticket": "t1222",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-22T02:06:45Z",
+  "finished_at": "2026-11-22T02:10:03Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "選択の帯の見た目を変えたのに PR の本文にスクリーンショットがない",
+    "README の割り当てる の文と動画が新しい帯と食い違う"
+  ],
+  "usage": {
+    "input": 32,
+    "output": 7647,
+    "cache_read": 754173,
+    "cache_write": 44277
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 1,
+    "bash": 13,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0,
+    "errors": 1
+  },
+  "session": "603d25be-c285-41f4-8676-4e0131eebd75",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 1
+}
