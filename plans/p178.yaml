@@ -1,0 +1,27 @@
+id: p178
+tickets: [t1220, t1219, t1222, t1218, t1221]
+after:
+  t1221:
+    - t1219
+pending_approval: true
+details:
+  t1220:
+    scope: docs/guide-notes/review.md に、振る舞いを変えた PR が packages/core/src/guide/*.md の該当箇所も直したかを確かめる規則を足す。usage・requirements の規則は変えない
+    approach: 今の usage の規則とは外す条件が違う（guide の直し忘れの escaped defect）ので、広げずに別の規則として 1〜2 文と Basis の 1 行を足す
+    tier: standard
+  t1219:
+    scope: docs/guide-notes/import.md に、言い回しや比べ方を変えるチケットで、同じものが残る場所を探して範囲か参考の節に書く規則を足す
+    approach: s44 の 6 件の事例を Basis にし、外す条件は reviews.causes.light.ticket が 3 回続けて 3 件以下とする。guide-import.md の本文は変えない
+    tier: standard
+  t1222:
+    scope: 選択の帯の主ボタンに、吹き出しのアイコンと候補の先頭の名前を出し、押すとその候補で入力欄が開く。▾ で今の一覧。案 A・D は入れない
+    approach: useAskSpot が引いた候補を返し、SelectionBar が先頭の候補を選ぶ処理を主ボタンから呼ぶ。候補は AskMenuProvider が選択の組ごとに引いているので、引き直しは足さない
+    tier: standard
+  t1218:
+    scope: docs/guide-notes/plan.md から tier light の規則とその Basis の行を外す。requirements.md の規則は残す
+    approach: 段落を削るだけ。guide plan の出力に出ないことを確かめる
+    tier: standard
+  t1221:
+    scope: docs/guide-notes/import.md に、画面のいくつもの状態に触れるチケットを状態ごとに分けて起票する規則を足す
+    approach: t1219 の後に同じファイルに足す。分け方の基準は状態の数とし、t1207 を Basis に、外す条件は画面のチケットの見直しが 3 回続けて 2 回以下とする
+    tier: standard
