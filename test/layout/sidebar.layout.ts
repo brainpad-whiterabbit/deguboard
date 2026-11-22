@@ -112,7 +112,12 @@ beforeAll(async () => {
   await call("iteration.create", { name: "終わった週" });
   await call("iteration.start", { iteration: "s1" });
   await call("iteration.close", { iteration: "s1" });
-  // s2 は作るだけにし、s8 を閉じた後に始める（active の Iteration はカンバンに 1 つ。IT-1）。
+  // s2 は作るだけにし、s8・s9 を閉じた後に始める（active の Iteration はカンバンに 1 つ。IT-1）。
+  // s2 のチケットを作業中（in_progress・review）へ進める ticket.move と ticket.claim は、ほかに active がなければ s2 を始める（IT-4）ので、
+  // それらは s2 を始めた後に回す。先に進めると s2 が active になり、s8 の開始が IT-1 で拒否される。
+  // done・abandoned への move は s2 を始めないので前に置く。履歴のチケットの見方は終えた新しい順で、t3・t4 を s8・s9 のチケットより先に
+  // 終えておかないと、s2 の区切りが一番上に来て s8 の区切りが一覧の末尾に押され、貼り付くまでスクロールできない。
+  // チケット・Iteration・Plan の番号を変えないよう、作る順は前のまま（t1〜t12、s3〜s9、t13〜t17）にする。
   // 目標はサイドバーの幅で 3 行を超える長さにし、カンバンの見出しが 3 行で切るかを確かめる
   await call("iteration.create", {
     name: "今週",
@@ -131,7 +136,6 @@ beforeAll(async () => {
       labels: ["ui", "web"],
     });
   }
-  await call("ticket.move", { ticket: "t2", status: "review" });
   await call("ticket.move", { ticket: "t3", status: "done", override: SETUP_OVERRIDE });
   await call("ticket.move", { ticket: "t4", status: "abandoned" });
   const done = (await call("run.start", {
@@ -142,26 +146,10 @@ beforeAll(async () => {
     id: string;
   };
   await call("run.finish", { run: done.id, result: "success" });
-  // 作業中の多い Plan（実行計画の帯の 2 行目が長くなる）：t1・t7〜t11 が作業中、t12 が t7・t8・t9 を待つ
+  // 作業中の多い Plan（実行計画の帯の 2 行目が長くなる）のチケット。作業中へ進めるのと Plan は s2 を始めた後に作る
   for (let i = 7; i <= 12; i++) {
     await call("ticket.create", { title: `計画のチケット ${i}`, iteration: "s2" });
   }
-  for (const id of ["t7", "t8", "t9", "t10", "t11"]) {
-    await call("ticket.move", { ticket: id, status: "in_progress" });
-  }
-  await call("plan.create", {
-    tickets: ["t1", "t7", "t8", "t9", "t10", "t11", "t12"],
-    after: { t12: ["t7", "t8", "t9"] },
-  });
-  await call("plan.approve", { plan: "p1" });
-  // Plan の中の depends_on（t11 が t10 を待つ）。グラフの凡例に depends_on の 2 項目が出る
-  await call("ticket.update", { ticket: "t11", depends_on: ["t10"] });
-  // 担当の印（t1 は人、t7 は Codex の Run の agent、t8 は Run のない agent、t10 は汎用の agent）
-  await call("ticket.update", { ticket: "t7", assignee: "agent" });
-  await call("run.start", { ticket: "t7", step: "implement", agent: "codex" });
-  await call("ticket.update", { ticket: "t8", assignee: "agent" });
-  await call("ticket.update", { ticket: "t10", assignee: "agent" });
-  await call("run.start", { ticket: "t10", step: "implement", agent: "my-bot" });
   // 予定の Iteration を足し、見出しの札の列が幅に入らず横にスクロールするようにする（s3〜s7）
   for (let i = 3; i <= 7; i++) await call("iteration.create", { name: `予定の週 ${i}` });
   // 目標の長い閉じた Iteration（s8）：完了・中止・持ち越しのチップがすべて出る履歴の行
@@ -185,8 +173,24 @@ beforeAll(async () => {
   await call("ticket.move", { ticket: "t17", status: "abandoned" });
   await atTime(LONG_PERIOD.end, iterationClose, { iteration: "s9" });
   await call("iteration.start", { iteration: "s2" });
-  // t1 の claim は planned の Iteration を開始する（ticket.claim は s2 を始める。t594）ので、s2 を始めた後に claim する。
-  // 先に claim すると s2 が active になり、s8 の開始が IT-1 で拒否される
+  await call("ticket.move", { ticket: "t2", status: "review" });
+  // 作業中の多い Plan：t1・t7〜t11 が作業中、t12 が t7・t8・t9 を待つ
+  for (const id of ["t7", "t8", "t9", "t10", "t11"]) {
+    await call("ticket.move", { ticket: id, status: "in_progress" });
+  }
+  await call("plan.create", {
+    tickets: ["t1", "t7", "t8", "t9", "t10", "t11", "t12"],
+    after: { t12: ["t7", "t8", "t9"] },
+  });
+  await call("plan.approve", { plan: "p1" });
+  // Plan の中の depends_on（t11 が t10 を待つ）。グラフの凡例に depends_on の 2 項目が出る
+  await call("ticket.update", { ticket: "t11", depends_on: ["t10"] });
+  // 担当の印（t1 は人、t7 は Codex の Run の agent、t8 は Run のない agent、t10 は汎用の agent）
+  await call("ticket.update", { ticket: "t7", assignee: "agent" });
+  await call("run.start", { ticket: "t7", step: "implement", agent: "codex" });
+  await call("ticket.update", { ticket: "t8", assignee: "agent" });
+  await call("ticket.update", { ticket: "t10", assignee: "agent" });
+  await call("run.start", { ticket: "t10", step: "implement", agent: "my-bot" });
   await call("ticket.claim", { ticket: "t1", without_branch: true });
   await call("run.start", { ticket: "t1", step: "implement", agent: "claude-code" });
   // 4 回の Run：最後の失敗・中断（2 時間前）と返事待ち（59 分）を、長いタイトルと一緒に測る（t888）。
