@@ -1,0 +1,36 @@
+{
+  "id": "r20261122-052809-d10f",
+  "ticket": "t1230",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-22T05:28:09Z",
+  "finished_at": "2026-11-22T05:28:58Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "usage の Core の固定の節で、作業中のチケットが拒まれる条件が一律に読める（planned の Iteration は開始して通る）",
+    "日本語版のエージェントへの指示の例で、REJECTED の出口の選び手が英語版と揃っていない"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 6592,
+    "cache_read": 351822,
+    "cache_write": 40309
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 5,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0,
+    "errors": 2
+  },
+  "session": "9b57c31f-972a-40d2-8cb4-38b97e20d87e",
+  "review": null,
+  "waited_seconds": 0,
+  "check_seconds": 11
+}
