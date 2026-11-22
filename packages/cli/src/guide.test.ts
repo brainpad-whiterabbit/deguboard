@@ -849,6 +849,13 @@ describe("dg guide", () => {
     expect(multiple).toContain("`flow.release` judges closing");
   });
 
+  it("check は lint_iteration_not_active で、指摘の文の出口から人に選んでもらうと案内する（IT-4）。work は着手できない todo の wait_human も同じく人の選ぶ出口を打つと案内する", async () => {
+    const inactive = lineWith(await readGuide("check"), "lint_iteration_not_active");
+    expect(inactive).toContain("ask a human to choose one of the ways out that the message gives");
+    const waiting = lineWith(await readGuide("work"), "`wait_human`:");
+    expect(waiting).toContain("for a todo ticket whose Iteration claim would refuse");
+  });
+
   it("assign・release・change・done は、Iteration を閉じる・再開するのを Workflow の flow.release の値で案内し、「人の指示があるときだけ」の決まりを書かない", async () => {
     for (const topic of ["assign", "release", "change", "done"])
       expect(await readGuide(topic), topic).toContain("`flow.release`");

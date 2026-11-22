@@ -18,6 +18,7 @@ import {
   type NextStep,
   type StageFacts,
 } from "./next.js";
+import { iterationAdd, iterationCreate, iterationStart } from "./iteration.js";
 import { planApprove, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
 import { runStart } from "./run.js";
@@ -853,6 +854,46 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       kind: "implement",
       stage: { name: "todo" },
     });
+  });
+
+  it("Iteration が planned でほかに active がある・closed の todo は、claim が拒否するので着手でなく wait_human と理由・出口を返す。planned だけなら着手（claim が開始する）（IT-4）", async () => {
+    const ctx = await prepared();
+    const human = asHuman(ctx);
+    await runCommand(ticketCreate, ctx, { title: "C", approved_by: "human" });
+    for (const name of ["Sprint 1", "Sprint 2", "Sprint 3"])
+      await runCommand(iterationCreate, human, { name });
+    await runCommand(iterationAdd, human, { iteration: "s2", tickets: ["t1"] });
+    await runCommand(iterationAdd, human, { iteration: "s3", tickets: ["t3"] });
+    // ほかに active がなければ、planned の Iteration のチケットは着手できる（claim が開始する）
+    expect((await runCommand(next, ctx, { ticket: "t1" })).data).toMatchObject({
+      kind: "implement",
+      stage: { name: "todo" },
+    });
+    await runCommand(iterationStart, human, { iteration: "s1" });
+    const waiting = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
+    expect(waiting).toMatchObject({
+      kind: "wait_human",
+      step: null,
+      stage: { name: "todo" },
+      running_run: null,
+      commands: [],
+      brief: null,
+    });
+    expect(waiting.ask_human).toContain("t1 is in s2 (planned, and s1 is active)");
+    expect(waiting.ask_human).toContain("dg iteration add s1 t1");
+    // active の Iteration のチケットと、Iteration のないチケットは今までどおり着手する
+    await runCommand(iterationAdd, human, { iteration: "s1", tickets: ["t1"] });
+    expect((await runCommand(next, ctx, { ticket: "t1" })).data).toMatchObject({
+      kind: "implement",
+    });
+    expect((await runCommand(next, ctx, { ticket: "t2" })).data).toMatchObject({
+      kind: "implement",
+    });
+    // 閉じた Iteration に残った todo（閉じると外すので、直接の編集やマージで残ったもの）も着手しない
+    await human.store.update("iteration", "s3", { status: "closed" });
+    const closed = (await runCommand(next, ctx, { ticket: "t3" })).data as NextStep;
+    expect(closed).toMatchObject({ kind: "wait_human" });
+    expect(closed.ask_human).toContain("t3 is in s3 (closed, and s1 is active)");
   });
 
   it("CLI・HTTP・MCP が写す一覧に next があり、読み取りだけ（write: false）", () => {

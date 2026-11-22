@@ -114,7 +114,8 @@ import {
   type LastPushFact,
   type RunAction,
 } from "./reconcile-judge.js";
-import { workIterationFactsOf } from "./claim-setup.js";
+import { workIterationDecision, workIterationFactsOf } from "./claim-setup.js";
+import { WORK_ITERATION_RULE, WORK_STATUSES } from "./work-iteration-judge.js";
 import { closeOpenedRunUnlessClosed, describeClosedRuns, sessionOf } from "./run.js";
 
 export const init = defineCommand({
@@ -1064,7 +1065,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "Point out missing or empty recommended body sections (## Summary and ## Acceptance criteria; the Japanese headings ## 概要 and ## 受け入れ条件 are also read), unfinished tickets left in a closed Epic, tickets that moved past todo or abandoned without being in an Iteration when lint.require_iteration is true (except done tickets in closed Epics), open Epics and Plans whose tickets are all finished, cycles across an open Plan's after and depends_on, and two or more active Iterations. When the axes of the labels are on (labels.axes lists axes; not when it is not written or empty), it also points out the drift between the labels and their vocabulary: each name that tickets carry but the vocabulary does not have, once per name with the number of tickets (names that procedures attach, audit, audit-, retro-, and release-, are left out), vocabulary that no ticket carries, or that only one ticket carries after an Iteration closed later than the label was added, names that differ only in case, vocabulary whose axis is not in labels.axes, todo, in_progress, and review tickets that carry two or more labels of one axis, and tickets that carry a name merged into another. Gaps in implementation and fix Runs (an agent got to a PR with no implementation Run, a commit after a closed implementation Run that falls within no Run's window, or a commit after a review with no fix Run) only look at unfinished tickets and done tickets in Iterations that are not closed. Unchecked acceptance criteria on done tickets are not flagged",
+    "Point out missing or empty recommended body sections (## Summary and ## Acceptance criteria; the Japanese headings ## 概要 and ## 受け入れ条件 are also read), unfinished tickets left in a closed Epic, tickets that moved past todo or abandoned without being in an Iteration when lint.require_iteration is true (except done tickets in closed Epics), open Epics and Plans whose tickets are all finished, cycles across an open Plan's after and depends_on, two or more active Iterations, and in_progress and review tickets whose Iteration is not active (planned or closed), with the ways out to ask a person. When the axes of the labels are on (labels.axes lists axes; not when it is not written or empty), it also points out the drift between the labels and their vocabulary: each name that tickets carry but the vocabulary does not have, once per name with the number of tickets (names that procedures attach, audit, audit-, retro-, and release-, are left out), vocabulary that no ticket carries, or that only one ticket carries after an Iteration closed later than the label was added, names that differ only in case, vocabulary whose axis is not in labels.axes, todo, in_progress, and review tickets that carry two or more labels of one axis, and tickets that carry a name merged into another. Gaps in implementation and fix Runs (an agent got to a PR with no implementation Run, a commit after a closed implementation Run that falls within no Run's window, or a commit after a review with no fix Run) only look at unfinished tickets and done tickets in Iterations that are not closed. Unchecked acceptance criteria on done tickets are not flagged",
   input: z.object({}),
   write: false,
   needs: "store",
@@ -1163,6 +1164,20 @@ export const lint = defineCommand({
           doc.id,
           "lint_iteration_multiple_active",
           `There are ${active.length} active Iterations (${ids})`,
+        );
+    }
+    // 作業中（in_progress・review）のチケットの Iteration は active（IT-4）。規則の前に作業中になったものや、直接の編集・マージで
+    // 外れたものを拾う。出口は戻し（return）の決定（work-iteration-judge.ts）と同じものを案内する。戻しは Iteration を開始しないので、
+    // planned でほかに active がないときも開始を人に頼む出口になる。Iteration のないチケットは lint_iteration_missing が見る
+    for (const doc of tickets) {
+      if (!WORK_STATUSES.includes(doc.data.status)) continue;
+      const decision = workIterationDecision(ctx, "return", doc.id, doc.data.iteration);
+      if (decision.kind === "reject")
+        warn(
+          doc.path,
+          doc.id,
+          "lint_iteration_not_active",
+          `${doc.data.status} in ${doc.data.iteration} (${decision.state}), but ${WORK_ITERATION_RULE}. Ask a person which to do: ${decision.ways}`,
         );
     }
     // ラベルと語彙のずれ。軸がオフのボードは見ない。判定は model/label-lint.ts。チケットの指摘はチケットに、語彙の指摘は labels.yaml に置く

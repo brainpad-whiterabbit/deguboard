@@ -1516,4 +1516,38 @@ describe("Epic と Iteration", () => {
       ["s3", message],
     ]);
   });
+
+  it("lint は Iteration が active でない作業中（in_progress・review）のチケットを、戻しと同じ出口とともに指摘する。active・Iteration なし・todo は指摘しない（IT-4）", async () => {
+    const f = await initializedLocalFixture();
+    const ctx = await reopenInitialized(f);
+    for (const name of ["Sprint 1", "Sprint 2", "Sprint 3"])
+      await runCommand(iterationCreate, ctx, { name });
+    for (const title of ["A", "B", "C", "D", "E"])
+      await runCommand(ticketCreate, ctx, { title, approved_by: "human" });
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    await ctx.store.update("iteration", "s3", { status: "closed" });
+    // 規則を通らない直接の編集やマージで、作業中のチケットが active でない Iteration に残った場合
+    await ctx.store.update("ticket", "t1", { status: "in_progress", iteration: "s2" });
+    await ctx.store.update("ticket", "t2", { status: "review", iteration: "s3" });
+    await ctx.store.update("ticket", "t3", { status: "in_progress", iteration: "s1" });
+    await ctx.store.update("ticket", "t4", { status: "in_progress" });
+    await ctx.store.update("ticket", "t5", { iteration: "s2" });
+    const found = (await runCommand(lint, ctx, {})).data.issues
+      .filter((i) => i.code === "lint_iteration_not_active")
+      .map((i) => [i.id, i.message]);
+    expect(found).toEqual([
+      [
+        "t1",
+        expect.stringMatching(
+          /^in_progress in s2 \(planned, and s1 is active\).*Ask a person which to do: move t1 into s1 \(dg iteration add s1 t1\), or close s1 .*and start s2/,
+        ),
+      ],
+      [
+        "t2",
+        expect.stringMatching(
+          /^review in s3 \(closed, and s1 is active\).*move t2 into s1.*reopen s3/,
+        ),
+      ],
+    ]);
+  });
 });
