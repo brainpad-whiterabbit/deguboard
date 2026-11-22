@@ -1,7 +1,7 @@
 id: s45
 name: s45
 goal: s44 の振り返りの Try を進め、起票・計画・見直しの guide-notes の規則を直す（t1218〜t1221）。あわせて、選んだ行の帯から、おすすめの頼むことを 1 回で頼めるようにする（t1222）。
-status: planned
+status: active
 checkpoints:
   - name: check
     at: 2026-11-22T01:21:32Z
@@ -9,3 +9,4 @@ checkpoints:
     approved_by: maji
     basis:
       facts: 6a75da4e2d49508c
+started_at: 2026-11-22T01:40:41Z
