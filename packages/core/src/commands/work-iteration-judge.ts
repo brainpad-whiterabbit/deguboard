@@ -59,8 +59,8 @@ export const WORK_ITERATION_RULE =
  * --override では越えられないことを添えた規則の文。--override を持つ操作の拒否の文と、--override での進め方を案内する
  * 照合の知らせ（reconcile-judge.ts）が添える
  */
-export const WORK_ITERATION_RULE_NO_OVERRIDE = `${WORK_ITERATION_RULE}, and --override does not pass this`;
-const RULE = WORK_ITERATION_RULE_NO_OVERRIDE;
+export const WORK_ITERATION_RULE_WITH_OVERRIDE_NOTE = `${WORK_ITERATION_RULE}, and --override does not pass this`;
+const RULE = WORK_ITERATION_RULE_WITH_OVERRIDE_NOTE;
 
 /** Iteration にチケットを入れるコマンド */
 const addTo = (iteration: string, ticket: string) => `dg iteration add ${iteration} ${ticket}`;

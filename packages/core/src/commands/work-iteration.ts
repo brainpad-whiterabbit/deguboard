@@ -16,7 +16,10 @@ import {
   type WorkRoute,
 } from "./work-iteration-judge.js";
 
-/** 索引の Iteration のうち、it のほかに active のもの（model/iteration.ts の otherActiveOf） */
+/**
+ * 索引の Iteration のうち、it のほかに active のもの（model/iteration.ts の otherActiveOf）。IT-4 の規則のほかに、
+ * iteration start・reopen の拒否（IT-1。iteration.ts の rejectIfOtherActive）もここで求める
+ */
 export function otherActiveIn(store: Store, it: Pick<Iteration, "id">): Iteration | undefined {
   return otherActiveOf(
     [...store.iterations.values()].map((i) => i.data),

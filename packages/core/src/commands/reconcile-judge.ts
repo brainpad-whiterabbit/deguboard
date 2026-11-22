@@ -32,7 +32,7 @@ import {
 import {
   decideWorkIteration,
   unstartedWays,
-  WORK_ITERATION_RULE_NO_OVERRIDE,
+  WORK_ITERATION_RULE_WITH_OVERRIDE_NOTE,
   workRouteOfMove,
 } from "./work-iteration-judge.js";
 
@@ -279,7 +279,9 @@ function blockedWarning(
   const why = [
     ...(policyWhy ? [`${policyWhy} (${outcome.policy})`] : []),
     ...(it
-      ? [`${ticket.id} is in ${it.iteration} (${it.state}), and ${WORK_ITERATION_RULE_NO_OVERRIDE}`]
+      ? [
+          `${ticket.id} is in ${it.iteration} (${it.state}), and ${WORK_ITERATION_RULE_WITH_OVERRIDE_NOTE}`,
+        ]
       : []),
   ].join(", and ");
   const move = `ticket move ${ticket.id} ${outcome.to}`;
