@@ -1,0 +1,9 @@
+id: p181
+tickets: [t1235]
+after: {}
+pending_approval: true
+details:
+  t1235:
+    scope: test/layout/sidebar.layout.ts の準備の順序だけを、作業中の Iteration の規則に合わせて直す。製品のコードは変えない
+    approach: s2 を始める前に作業中へ進める move を、s8・s9 を閉じて s2 を始めた後に回すか、準備で使う Status を見直す。直した後に test:layout を回して確かめる
+    tier: standard
